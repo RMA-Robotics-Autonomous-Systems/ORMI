@@ -1,16 +1,17 @@
 enum PluginsHooks {
+    PLUGIN_PROVIDER_BEFORE_CHILDREN,    // filter called before rendering children of the plugin provider
+    PLUGIN_PROVIDER_AFTER_CHILDREN,     // filter called after  rendering children of the plugin provider
+    
     FIELD_TYPE,
     WIDGETS,
 }
 
 interface PluginAction{
-    name: string;
     priority: number;    
     action: (...args: any) => void;
 }
 
 interface PluginFilter{
-    name: string;
     priority: number;
     filter: (...args: any) => any;
 }
@@ -19,8 +20,9 @@ interface PluginData{
     name: string;
     description: string;
     version: string;
-    actions: Map<string, PluginAction>;
-    filters: Map<string, PluginFilter>;
+    actions: Map<string | PluginsHooks, PluginAction>;
+    filters: Map<string | PluginsHooks, PluginFilter>;
 }
 
-export type { PluginsHooks, PluginAction, PluginFilter , PluginData };
+export type { PluginAction, PluginFilter , PluginData };
+export { PluginsHooks };

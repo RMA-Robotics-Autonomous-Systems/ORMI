@@ -1,4 +1,5 @@
 import { PluginAction, PluginData, PluginFilter } from "./plugin-core";
+import { PluginsHooks } from "./plugins-types";
 
 /*
 
@@ -7,9 +8,9 @@ import { PluginAction, PluginData, PluginFilter } from "./plugin-core";
 */
 class PluginsManager{
 
-    private plugins: Map<string, PluginData>;
+    private plugins: Map<string | PluginsHooks, PluginData>;
 
-    constructor(pluginLoader: Map<string, PluginData>){
+    constructor(pluginLoader: Map<string | PluginsHooks, PluginData>){
         this.plugins = pluginLoader
     }
 
@@ -27,7 +28,7 @@ class PluginsManager{
         return this.plugins;
     }
 
-    applyFilter(filterName: string, ...args: any): any{
+    applyFilter(filterName: string | PluginsHooks, ...args: any): any{
 
         if(args.length < 1){
             throw new Error(`No argument given in ${filterName}`);
@@ -53,7 +54,7 @@ class PluginsManager{
         return result;
     }
 
-    doAction(actionName: string, ...args: any): void{
+    doAction(actionName: string | PluginsHooks, ...args: any): void{
 
         const actions: PluginAction[] = [];
 
