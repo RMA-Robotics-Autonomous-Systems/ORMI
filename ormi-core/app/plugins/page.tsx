@@ -3,6 +3,14 @@ import PluginsLoader from "@/core/plugins/plugins-loader";
 import { Button } from "@/components/ui/button"
 import Link from "next/link";
 
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Switch } from "@/components/ui/switch";
+
 
 
 export default async function Page() {
@@ -14,19 +22,30 @@ export default async function Page() {
         <div className="container mx-auto mt-8">
             <div className="flex items-center gap-3">
                 <h1>Plugins</h1>
-                <small>Here is a list of all the plugins that are currently loaded</small>
+                <small>List of all the plugins that are currently availables in the plugins directory</small>
             </div>
             <div className="flex flex-col gap-1 mt-4">
                 {Array.from(pl.getPlugins()).map(([key, value]) => (
-                    <div key={key} className="grid grid-cols-5 gap-4 w-full">
-                        <Button asChild>
-                            <Link href={value.getUrl()}>{value.getName()}</Link>
-                        </Button>
-                        <p>{value.getDescription()}</p>
-                        <p>{value.getAuthor()}</p>
-                        <p>{value.getEmail()}</p>
-                        <p>{value.getVersion()}</p>
-                    </div>
+                    <Accordion key={key} type="single" collapsible>
+                        <AccordionItem value="item-1">
+                            <AccordionTrigger>
+                                <div className="flex gap-3 items-center">
+                                    <Button asChild>
+                                        <Link href={value.getUrl()}>{value.getName()}</Link>
+                                    </Button>
+                                    <p>{value.getVersion()}</p>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <div className="flex justify-between">
+                                    <p>{value.getDescription()}</p>
+                                    <p>{value.getAuthor()}</p>
+                                    <p>{value.getEmail()}</p>
+                                    <Switch defaultChecked={true} id={"enable-" + value.getName()} />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 ))}
             </div>
         </div>

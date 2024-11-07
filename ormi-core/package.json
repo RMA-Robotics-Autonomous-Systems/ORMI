@@ -9,9 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-collapsible": "^1.1.1",
     "@radix-ui/react-navigation-menu": "^1.2.1",
     "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-switch": "^1.1.1",
+    "@radix-ui/react-toast": "^1.2.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "compare-versions": "^6.1.1",
