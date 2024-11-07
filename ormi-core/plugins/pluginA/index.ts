@@ -1,16 +1,24 @@
-import PluginCore from "@/core/plugins/plugin-core";
+import {PluginCore,PluginComponent,PluginField} from "@/core/plugins/plugin-core";
+
+import TestComponent from "./components/test";
 
 
 class PluginA extends PluginCore{
 
     constructor(){
         super();
-    }
 
-    init(): void{
-        console.log("PluginA init");
-    }
+        this.name = "pluginA";
+        this.description = "Plugin A";
+        this.version = "1.0.0";
 
+
+        this.Widgets.set("TestComponent",{
+            component: TestComponent,
+            name: "TestComponent"
+        });
+
+    }
 }
 
 
