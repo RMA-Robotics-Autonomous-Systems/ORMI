@@ -2,6 +2,7 @@ import PluginsLoader from "@/core/plugins/plugins-loader";
 import styles from "./page.module.css";
 
 import { PluginsProvider } from "@/core/plugins/plugins-provider";
+import WidgetsDialog from "@/core/widgets/widgets-dialog";
 
 
 
@@ -17,7 +18,7 @@ export default async function Home() {
     return (
         <div className={styles.page}>
             <PluginsProvider pluginsLoader={plugins}>
-                <h1>Home</h1>
+                <WidgetsDialog />
             </PluginsProvider>
         </div>
     );

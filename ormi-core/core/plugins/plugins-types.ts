@@ -3,7 +3,7 @@ enum PluginsHooks {
     PLUGIN_PROVIDER_AFTER_CHILDREN,     // filter called after  rendering children of the plugin provider
     
     FIELD_TYPE,
-    WIDGETS,
+    WIDGETS_LIST,   // hooks that take an array of widgets and return an array of widgets
 }
 
 interface PluginAction{

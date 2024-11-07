@@ -1,0 +1,8 @@
+.widget_container {
+    display: grid;
+    grid-template-rows: 1fr 1fr 1fr;
+    grid-auto-flow: column;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem;
+}
