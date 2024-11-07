@@ -1,8 +1,8 @@
 import PluginsLoader from "@/core/plugins/plugins-loader";
 import styles from "./page.module.css";
 
-import { PluginsProvider } from "@/core/plugins/plugins-provider";
-import WidgetsDialog from "@/core/widgets/widgets-dialog";
+import { PluginsProvider } from "@/core/plugins/components/plugins-provider";
+import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
 
 
 

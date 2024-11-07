@@ -19,10 +19,10 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 
-import { usePluginsManager } from "../plugins/plugins-provider";
-import PluginsManager from "../plugins/plugins-manager";
-import { PluginsHooks } from "../plugins/plugins-types";
-import WidgetCard from "./widget-card";
+import { usePluginsManager } from "../../../plugins/components/plugins-provider";
+import PluginsManager from "../../../plugins/plugins-manager";
+import { PluginsHooks } from "../../../plugins/plugins-types";
+import WidgetCard from "../widget-card/widget-card";
 
 import style from "./widgets-dialog.module.css";
 
