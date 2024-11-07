@@ -2,20 +2,20 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 // import PluginsLoader from './plugins-loader';
+import PluginsManager from './plugins-manager';
+import { PluginData } from './plugin-core';
 
-// Define a type for the context value
-interface MyContextType {
-    plugins_loader: object;
-}
 
 // Create the context with a default value
-const PluginsContext = createContext<MyContextType | undefined>(undefined);
+const PluginsContext = createContext<PluginsManager | undefined>(undefined);
 
 // Create a provider component
-const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: object }> = ({ children, pluginsLoader }) => {
+const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: Map<string, PluginData> }> = ({ children, pluginsLoader }) => {
+
+    const pluginsManager = new PluginsManager(pluginsLoader);
 
     return (
-        <PluginsContext.Provider value={{ plugins_loader: pluginsLoader }}>
+        <PluginsContext.Provider value={pluginsManager}>
             {children}
         </PluginsContext.Provider>
     );

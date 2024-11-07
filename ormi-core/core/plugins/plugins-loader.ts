@@ -7,25 +7,15 @@
 import fs from 'fs';
 // import dynamic from 'next/dynamic';
 
-import {PluginCore} from './plugin-core';
-import PluginsHooks from './plugins-hooks';
-
-interface PluginEvent{
-    event: string | PluginsHooks;
-    priority: number;
-    callback: (args: unknown[]) => unknown;
-}
+import {PluginCore, PluginData} from './plugin-core';
 
 class PluginsLoader{
 
     private plugins: Map<string, PluginCore>;
-    private event_maps: Map<string | PluginsHooks, Map<string, PluginEvent>>;
-
     private static PLUGINS_PATH: string = 'plugins';
 
     constructor(){
         this.plugins = new Map<string, PluginCore>();
-        this.event_maps = new Map<string | PluginsHooks, Map<string, PluginEvent>>();
     }
     
     addPlugin(plugin: PluginCore): void{
@@ -81,54 +71,15 @@ class PluginsLoader{
         return plugins;
     } 
 
-    public addEventListener(event: string | PluginsHooks, pluginName: string, priority: number, callback: (args: unknown[]) => unknown): void{
-
-        if(!this.event_maps.has(event)){
-            this.event_maps.set(event, new Map<string, PluginEvent>());
-        }
-
-        this.event_maps.get(event)!.set(pluginName, {event: event, priority: priority, callback: callback});
-
-    }
-
-    public removeEventListener(event: string | PluginsHooks, pluginName: string): void{
-
-        if(this.event_maps.has(event)){
-            this.event_maps.get(event)!.delete(pluginName);
-        }
-
-    }
-
-    public async doAction(event: string, args: unknown[]): Promise<unknown>{
-
-        let last_result = null;
-
-        if(this.event_maps.has(event)){
-
-            const events = this.event_maps.get(event)!;
-
-            const sorted_events = new Map([...events.entries()].sort((a, b) => a[1].priority - b[1].priority));
-
-            for(const event of sorted_events.values()){
-                last_result = await event.callback(args);
-            }
-
-        }
-
-        return last_result;
-
-    }
-
-    public convertToPlainObject(): object{
+    public convertToPlainObject(): Map<string, PluginData>{
             
-        const plugins: any = {};
+        const plugins: Map <string, PluginData> = new Map<string, PluginData>();
 
-        for(const [key, value] of this.plugins.entries()){
-            plugins[key] = { ...value };
-        }
+        this.plugins.forEach((plugin: PluginCore, key: string) => {
+            plugins.set(key, plugin.toObject());
+        });
 
         return plugins;
-    
     }
 
 }

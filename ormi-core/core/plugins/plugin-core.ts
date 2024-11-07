@@ -3,17 +3,7 @@
 */
 
 
-interface PluginComponent{
-    // The name of the component
-    name: string;
-    // function that return the cmp
-    component: (...args: any[]) => React.JSX.Element;
-}
-
-interface PluginField{
-    type: string;
-    component: (...args: any[]) => React.JSX.Element;
-}
+import { PluginAction, PluginFilter, PluginData } from "@/core/plugins/plugins-types";
 
 abstract class PluginCore{
 
@@ -21,20 +11,20 @@ abstract class PluginCore{
     protected description: string;
     protected version: string;
 
-    protected Fields: Map<string, PluginField>;
-    protected Widgets: Map<string, PluginComponent>;
+
+
+    // actions
+    protected actions: Map<string, PluginAction> = new Map<string, PluginAction>();
+    protected filters: Map<string, PluginFilter> = new Map<string, PluginFilter>();
+
 
     constructor(){
         this.name = "core";
         this.description = "Core plugin";
         this.version = "1.0.0";
-
-        this.Fields = new Map<string, PluginField>();
-        this.Widgets = new Map<string, PluginComponent>();
     }
 
     // abstract init(pl:PluginsLoader): void;
-
     getName(): string{
         return this.name;
     }
@@ -47,8 +37,16 @@ abstract class PluginCore{
         return this.version;
     }
 
-    // abstract getComponent(key?: PluginsHooks | string): Map<string, JSX.Element>;
+    toObject(): PluginData{
+        return {
+            name: this.name,
+            description: this.description,
+            version: this.version,
+            actions: this.actions,
+            filters: this.filters
+        }
+    }
 }
 
 export { PluginCore };
-export type { PluginComponent, PluginField };
+export type { PluginAction, PluginFilter, PluginData };
