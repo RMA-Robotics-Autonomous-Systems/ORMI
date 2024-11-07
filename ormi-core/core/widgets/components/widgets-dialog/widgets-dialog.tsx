@@ -18,6 +18,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
+import { Plus } from "lucide-react"; // Import the plus icon
 
 import { usePluginsManager } from "../../../plugins/components/plugins-provider";
 import PluginsManager from "../../../plugins/plugins-manager";
@@ -36,7 +37,9 @@ const WidgetsDialog = () => {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button>Widgets</Button>
+                <Button className={style.floatingButton}>
+                    <Plus size={32} /> {/* Increase the size of the plus icon */}
+                </Button>
             </DialogTrigger>
             <DialogContent className="">
                 <DialogHeader>
