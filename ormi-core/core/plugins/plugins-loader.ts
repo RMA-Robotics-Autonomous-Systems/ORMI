@@ -34,7 +34,7 @@ class PluginsLoader{
         throw new Error(`Plugin ${pluginName} not found`);
     }
 
-    getPlugins(): Map<string,PluginCore>{
+    public getPlugins(): Map<string,PluginCore>{
         return this.plugins;
     }
 

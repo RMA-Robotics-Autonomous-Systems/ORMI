@@ -1,6 +1,6 @@
-import {PluginCore,PluginComponent,PluginField} from "@/core/plugins/plugin-core";
+import {PluginCore} from "@/core/plugins/plugin-core";
 
-import TestComponent from "./components/test";
+import Export from "./component-exporter";
 
 
 class PluginA extends PluginCore{
@@ -13,9 +13,10 @@ class PluginA extends PluginCore{
         this.version = "1.0.0";
 
 
-        this.Widgets.set("TestComponent",{
-            component: TestComponent,
-            name: "TestComponent"
+        this.filters.set("test_filter", {
+            name: "test_filter",
+            priority: 10,
+            filter: Export
         });
 
     }
