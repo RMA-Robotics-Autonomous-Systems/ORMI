@@ -1,4 +1,4 @@
-import { PluginData } from "./plugin-core";
+import { PluginAction, PluginData, PluginFilter } from "./plugin-core";
 
 /*
 
@@ -33,12 +33,14 @@ class PluginsManager{
             throw new Error(`No argument given in ${filterName}`);
         }
         let result = args[0];
-        const filters = [];
+        const filters : PluginFilter[] = [];
 
         this.plugins.forEach((plugin) => {
             if (plugin.filters.has(filterName)) {
                 const filter = plugin.filters.get(filterName);
-                filters.push(filter);
+                if(filter !== undefined){
+                    filters.push(filter);
+                }
             }
         });
 
@@ -53,12 +55,14 @@ class PluginsManager{
 
     doAction(actionName: string, ...args: any): void{
 
-        const actions = [];
+        const actions: PluginAction[] = [];
 
         this.plugins.forEach((plugin) => {
             if(plugin.actions.has(actionName)){
                 const action = plugin.actions.get(actionName);
-                actions.push(action);
+                if(action !== undefined){
+                    actions.push(action);
+                }
             }
         });
 
