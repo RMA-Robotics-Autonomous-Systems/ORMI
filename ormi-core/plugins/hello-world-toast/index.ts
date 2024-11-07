@@ -10,12 +10,10 @@ class PluginA extends PluginCore{
         super();
 
         this.name = "Hello World";
-        this.description = "Plugin qui ajout un Hello world";
+        this.description = "Plugin that display a toast with Hello World";
         this.version = "1.0.0";
         this.author = "Lbcqu Florian";
         this.email = "florian.lebecque@mil.be";
-
-        this.dependencies = ["pluginA^2.0.0"];
 
         this.filters.set(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, {
             priority: 10,
