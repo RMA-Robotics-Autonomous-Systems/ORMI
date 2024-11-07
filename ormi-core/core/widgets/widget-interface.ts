@@ -4,3 +4,6 @@ interface WidgetDefinition {
     description: string;
     image: string;
 }
+
+
+export default WidgetDefinition;

@@ -25,6 +25,7 @@ import { PluginsHooks } from "../../../plugins/plugins-types";
 import WidgetCard from "../widget-card/widget-card";
 
 import style from "./widgets-dialog.module.css";
+import WidgetDefinition from "../../widget-interface";
 
 const WidgetsDialog = () => {
 

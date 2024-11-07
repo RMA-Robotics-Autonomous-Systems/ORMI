@@ -1,5 +1,5 @@
-import Image from "next/image";
 import styles from "./widget-card.module.css";
+import WidgetDefinition from "../../widget-interface";
 
 const WidgetCard = (props: { definition: WidgetDefinition }) => {
     return (
