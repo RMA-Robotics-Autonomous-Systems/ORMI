@@ -17,7 +17,7 @@ class PluginA extends PluginCore{
 
         this.dependencies = ["pluginA^2.0.0"];
 
-        this.filters.set(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, {
+        this.filters.set(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, {
             priority: 10,
             filter: HelloWorld
         });
