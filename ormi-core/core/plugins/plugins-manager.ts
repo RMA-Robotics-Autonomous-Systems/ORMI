@@ -14,20 +14,6 @@ class PluginsManager{
         this.plugins = pluginLoader
     }
 
-    getPlugin(pluginName: string): unknown{
-        // Get plugin from plugins object
-
-        if(this.plugins.has(pluginName)){
-            return this.plugins.get(pluginName);
-        }
-
-        throw new Error(`Plugin ${pluginName} not found`);
-    }
-
-    getPlugins(): Map<string,object>{
-        return this.plugins;
-    }
-
     applyFilter(filterName: string | PluginsHooks, ...args: any): any{
 
         if(args.length < 1){
