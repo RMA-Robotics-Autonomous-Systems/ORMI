@@ -9,10 +9,10 @@ interface WidgetDefinition {
 
     schema: JsonSchema;
     uischema: UISchemaElement;
-    data: object;
+    data: any;
 
 
-    Component: (data:object) => JSX.Element;
+    Component: (data:any) => JSX.Element;
 }
 
 

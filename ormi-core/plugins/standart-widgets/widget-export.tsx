@@ -1,12 +1,23 @@
 "use client";
 
-import { Component } from "lucide-react";
+import WidgetDefinition from '@/core/widgets/widget-interface';
 
+import { VerticalLayout, ControlElement } from "@jsonforms/core";
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     // create 50 random widgets
     for (let i = 1; i <= 150; i++) {
+
+        const title: ControlElement = {
+            type: "Control",
+            scope: "#/properties/title",
+        }
+
+        const l: VerticalLayout = {
+            type: "VerticalLayout",
+            elements: [title],
+        }
 
         widgets.push({
             id: `widget-${i}`,
@@ -24,21 +35,13 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                 }
             },
 
-            uischema: {
-                type: 'VerticalLayout',
-                elements: [
-                    {
-                        type: 'Control',
-                        scope: '#/properties/title'
-                    }
-                ]
-            },
+            uischema: l,
 
             data: {
                 title: `Widget ${i}`
             },
 
-            Component: (data: object) => {
+            Component: (data: any) => {
                 return (
                     <div>
                         <h1>{data.title}</h1>
