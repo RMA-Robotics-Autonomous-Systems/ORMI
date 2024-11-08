@@ -8,7 +8,7 @@
 
 */
 
-
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -29,15 +29,21 @@ import style from "./widgets-dialog.module.css";
 import WidgetDefinition from "../../widget-interface";
 
 const WidgetsDialog = () => {
+    const [isOpen, setIsOpen] = useState(false);
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
     const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
+    const handleValidate = (settings: object) => {
+        console.log("Widget settings", settings);
+        setIsOpen(false); // close the dialog
+    }
+
     return (
-        <Dialog>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button className={style.floatingButton}>
+                <Button className={style.floatingButton} onClick={() => setIsOpen(true)}>
                     <Plus size={32} /> {/* Increase the size of the plus icon */}
                 </Button>
             </DialogTrigger>
@@ -50,7 +56,7 @@ const WidgetsDialog = () => {
                 </DialogHeader>
                 <div className={style.widget_container}>
                     {widgets.map((widget, index) => {
-                        return <WidgetCard key={index} definition={widget} />
+                        return <WidgetCard key={index} definition={widget} onValidate={handleValidate} />
                     })}
                 </div>
             </DialogContent>
