@@ -35,8 +35,12 @@ const WidgetsDialog = () => {
 
     const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
-    const handleValidate = (settings: object) => {
+    const handleValidate = (widget: WidgetDefinition, settings: object) => {
+        console.log("Widget selected", widget);
         console.log("Widget settings", settings);
+
+
+
         setIsOpen(false); // close the dialog
     }
 

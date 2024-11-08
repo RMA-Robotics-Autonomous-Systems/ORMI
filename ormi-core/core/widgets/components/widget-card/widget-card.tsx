@@ -22,10 +22,10 @@ import {
 import React, { useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 
-const WidgetCard = (props: { definition: WidgetDefinition, onValidate: (settings: object) => void }) => {
+const WidgetCard = (props: { definition: WidgetDefinition, onValidate: (widget: WidgetDefinition, settings: object) => void }) => {
 
     const handleAdd = () => {
-        props.onValidate(data);
+        props.onValidate(props.definition, data);
     }
 
     const [data, setData] = useState(props.definition.data);
