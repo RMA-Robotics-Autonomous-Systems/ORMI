@@ -1,5 +1,5 @@
 import styles from "./widget-card.module.css";
-import WidgetDefinition from "../../widget-interface";
+import { WidgetDefinition } from "../../widget-interface";
 
 import {
     Dialog,
@@ -19,31 +19,64 @@ import {
     materialCells,
 } from '@jsonforms/material-renderers';
 
-import React, { useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
+import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 
-const WidgetCard = (props: { definition: WidgetDefinition, onValidate: (widget: WidgetDefinition, settings: object) => void }) => {
+interface WidgetCardProps {
+    displayGear?: boolean;
+    definition: WidgetDefinition;
+    data?: any;
+    onValidate: (widget: WidgetDefinition, settings: object) => void;
+}
+
+const WidgetCard = (props: WidgetCardProps) => {
 
     const handleAdd = () => {
         props.onValidate(props.definition, data);
     }
 
+
     const [data, setData] = useState(props.definition.data);
+
+    useEffect(() => {
+
+        if (props.data) {
+            setData(props.data);
+        } else {
+            setData(props.definition.data);
+        }
+
+    }, []);
+
+    const getButton = () => {
+        if (props.displayGear) {
+            return (
+                <Button variant={"ghost"}>
+                    <GearIcon className={styles.gear} />
+                </Button>
+            );
+        }
+
+        return (
+            <button className={styles.card}>
+                <div
+                    className={styles.image}
+                    style={{ backgroundImage: `url(${props.definition.image})` }}
+                >
+                    <div className={styles.overlay}>
+                        <p className={styles.description}>{props.definition.description}</p>
+                    </div>
+                    <h2 className={styles.title}>{props.definition.name}</h2>
+                </div>
+            </button>
+        );
+    }
 
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <button className={styles.card}>
-                    <div
-                        className={styles.image}
-                        style={{ backgroundImage: `url(${props.definition.image})` }}
-                    >
-                        <div className={styles.overlay}>
-                            <p className={styles.description}>{props.definition.description}</p>
-                        </div>
-                        <h2 className={styles.title}>{props.definition.name}</h2>
-                    </div>
-                </button>
+                {getButton()}
             </DialogTrigger>
             <DialogContent className="">
                 <DialogHeader>
@@ -61,9 +94,14 @@ const WidgetCard = (props: { definition: WidgetDefinition, onValidate: (widget: 
                         cells={materialCells}
                         onChange={({ data, errors }) => setData(data)}
                     />
-                    <DialogClose asChild>
-                        <Button onClick={() => { handleAdd() }}>Add</Button>
-                    </DialogClose>
+                    <div className="flex justify-end" style={{ justifyContent: "flex-end" }} >
+                        <DialogClose className="float-end" asChild>
+                            <Button onClick={() => { handleAdd() }}>
+                                <CheckIcon />
+                            </Button>
+                        </DialogClose>
+                    </div>
+
                 </div>
             </DialogContent>
         </Dialog >

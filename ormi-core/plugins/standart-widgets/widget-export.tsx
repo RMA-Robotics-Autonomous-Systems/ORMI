@@ -1,6 +1,6 @@
 "use client";
 
-import WidgetDefinition from '@/core/widgets/widget-interface';
+import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
 
@@ -24,6 +24,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
             name: `Widget ${i}`,
             description: `Description of widget ${i}`,
             image: 'https://api.dicebear.com/9.x/bottts/png?seed=' + i,
+            titleProp: 'title',
 
             schema: {
                 type: 'object',

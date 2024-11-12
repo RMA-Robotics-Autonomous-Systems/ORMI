@@ -26,14 +26,14 @@ import { PluginsHooks } from "../../../plugins/plugins-types";
 import WidgetCard from "../widget-card/widget-card";
 
 import style from "./widgets-dialog.module.css";
-import WidgetDefinition from "../../widget-interface";
+import { WidgetDefinition } from "../../widget-interface";
 import { useDashboardManager } from "@/core/dashboard/dashboard-provider";
 
 const WidgetsDialog = () => {
     const [isOpen, setIsOpen] = useState(false);
 
     const pluginsManager = usePluginsManager() as PluginsManager;
-    const dashboardManager = useDashboardManager();
+    const { addWidget } = useDashboardManager();
 
     const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
@@ -41,7 +41,7 @@ const WidgetsDialog = () => {
         console.log("Widget selected", widget);
         console.log("Widget settings", settings);
 
-        dashboardManager.addWidget(widget, settings);
+        addWidget(widget, settings);
 
         setIsOpen(false); // close the dialog
     }

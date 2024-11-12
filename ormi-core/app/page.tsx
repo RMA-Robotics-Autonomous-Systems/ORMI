@@ -6,6 +6,8 @@ import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dial
 import { DashboardProvider } from "@/core/dashboard/dashboard-provider";
 import DashboardInterface from "@/core/dashboard/dashboard-interface";
 import Dashboard from "@/core/dashboard/dashboard";
+import { Layouts } from "react-grid-layout";
+import { Widget } from "@/core/widgets/widget-interface";
 
 
 
@@ -19,8 +21,14 @@ export default async function Home() {
     const plugins = pl.convertToPlainObject();
 
     const dashboardDefinition: DashboardInterface = {
-        layout: new Map<string, any>(),
-        widgets: new Map<string, any>()
+        layouts: {
+            lg: [],
+            md: [],
+            sm: [],
+            xs: [],
+            xxs: []
+        },
+        widgets: new Map<string, Widget>()
     }
 
     return (

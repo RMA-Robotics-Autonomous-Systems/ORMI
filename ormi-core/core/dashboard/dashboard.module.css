@@ -18,3 +18,12 @@
     flex-grow: 1;
     overflow: hidden;
 }
+
+.widget {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.5rem;
+    background-color: hsl(var(--background));
+}
