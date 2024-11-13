@@ -77,3 +77,7 @@ h1 {
 .react-grid-item.react-draggable-dragging {
     user-select: none;
 }
+
+.resizing {
+    user-select: none;
+}
