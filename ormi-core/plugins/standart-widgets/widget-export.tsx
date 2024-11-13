@@ -23,7 +23,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
             id: `widget-${i}`,
             name: `Widget ${i}`,
             description: `Description of widget ${i}`,
-            image: 'https://api.dicebear.com/9.x/bottts/png?seed=' + i,
+            // image: 'https://api.dicebear.com/9.x/bottts/png?seed=' + i,
             titleProp: 'title',
 
             schema: {
