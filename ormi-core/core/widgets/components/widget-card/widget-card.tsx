@@ -53,9 +53,27 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayGear) {
             return (
                 <Button variant={"ghost"}>
-                    <GearIcon className={styles.gear} />
+                    <GearIcon />
                 </Button>
             );
+        }
+
+        if (!props.definition.image) {
+
+            return (
+                <button className={styles.card}>
+                    <div className="flex justify-center items-center">
+                        <h2 className={styles.title}>{props.definition.name}</h2>
+                        <GearIcon className={styles.image} />
+                    </div>
+
+                    <div className={styles.overlay}>
+                        <p className={styles.description}>{props.definition.description}</p>
+                    </div>
+                </button>
+            );
+
+
         }
 
         return (
