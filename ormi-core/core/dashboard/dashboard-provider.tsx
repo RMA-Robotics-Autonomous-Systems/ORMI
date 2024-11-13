@@ -17,6 +17,7 @@ interface DashboardContextInterface {
     getDefinition: (widget_id: string) => WidgetDefinition;
 
     addWidget: (widget: WidgetDefinition, settings: any) => void;
+    removeWidget: (box_id: string) => void;
     updateWidget: (box_id: string, settings: any) => void;
 
     setLayouts: (layouts: Layouts) => void;
@@ -36,6 +37,7 @@ const DashboardContext = createContext<DashboardContextInterface>({
     getComponents: (boxId: string) => <></>,
     getDefinition: (widget_id: string) => { throw new Error("Method not implemented."); },
     addWidget: (widget: WidgetDefinition, settings: any) => { },
+    removeWidget: (box_id: string) => { },
     updateWidget: (box_id: string, settings: any) => { },
     setLayouts: (layouts: Layouts) => { },
     setWidgets: (widgets: Map<string, Widget>) => { }
@@ -115,6 +117,19 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         });
     }
 
+    const removeWidget = (box_id: string) => {
+        const new_widgets = new Map(widgets);
+        new_widgets.delete(box_id);
+
+        // remove the widget from the layout
+        const new_layouts = layouts;
+        for (const key in new_layouts) {
+            new_layouts[key] = new_layouts[key].filter((box) => box.i !== box_id);
+        }
+        setLayouts(new_layouts);
+        setWidgets(new_widgets);
+    }
+
     const updateWidget = (box_id: string, settings: any) => {
         const widget = widgets.get(box_id);
         if (widget) {
@@ -137,6 +152,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 getComponents,
                 getDefinition,
                 addWidget,
+                removeWidget,
                 updateWidget,
                 setLayouts,
                 setWidgets
@@ -151,7 +167,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 const useDashboardManager = () => {
     const context = useContext(DashboardContext);
     if (context === undefined) {
-        throw new Error('usePlugins must be used within a DashboardProvider');
+        throw new Error('useDashboardManager must be used within a DashboardProvider');
     }
     return context;
 };
