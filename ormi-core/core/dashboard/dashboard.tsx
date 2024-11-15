@@ -41,7 +41,7 @@ const Dashboard = () => {
                         <div className={style.dragHandle}>{widget.title}</div>
                         <WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayGear={true} onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />
 
-                        <Button variant="destructive" onClick={(e) => handleRemoveBoxClick(widget.box_id)}>
+                        <Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                             <Cross1Icon />
                         </Button>
                     </div>
