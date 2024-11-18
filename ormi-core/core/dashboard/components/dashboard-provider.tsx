@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import DashboardInterface from '../dashboard-interface';
 import { Widget, WidgetDefinition } from '../../widgets/widget-interface';
 import { PluginsHooks } from '../../plugins/plugins-types';
@@ -23,11 +23,11 @@ interface DashboardContextInterface {
     updateWidget: (box_id: string, settings: any) => void;
 
     lockUnLockDashboard(): void;
-
-    layoutsChanged: (newLayouts: Layouts) => void;
     locked: boolean;
 
-    setWidgets: (widgets: Map<string, Widget>) => void;
+    layoutsChanged: (newLayouts: Layouts) => void;
+    savesDashboard: () => void;
+    hasChanged: boolean;
 }
 
 // Create the context with a default value
@@ -51,7 +51,8 @@ const DashboardContext = createContext<DashboardContextInterface>({
     locked: false,
 
     layoutsChanged: (newLayouts: Layouts) => { },
-    setWidgets: (widgets: Map<string, Widget>) => { }
+    savesDashboard: () => { },
+    hasChanged: false
 });
 
 
@@ -66,8 +67,9 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
     const [layouts, setLayouts] = React.useState<Layouts>(dashboardDefinition.layouts);
-    const [widgets, setWidgets] = React.useState<Map<string, Widget>>(new Map<string, Widget>());
+    const [widgets, setWidgets] = React.useState<Map<string, Widget>>(dashboardDefinition.widgets);
     const [locked, setLocked] = React.useState<boolean>(false);
+    const [hasChanged, setHasChanged] = React.useState<boolean>(false);
 
     const getComponents = (boxId: string) => {
 
@@ -125,6 +127,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             settings: settings
         }
 
+        console.log(widgets);
+
         setWidgets(new Map(widgets.set(box_id, new_widgets)));
 
         const box: Layout = {
@@ -137,8 +141,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             isBounded: true,
         };
 
-        console.log(layouts);
-
+        setHasChanged(true);
         setLayouts({
             lg: [...layouts.lg, box],
             md: [...layouts.md, box],
@@ -167,6 +170,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         for (const key in new_layouts) {
             new_layouts[key] = new_layouts[key].filter((box) => box.i !== box_id);
         }
+
+        setHasChanged(true);
         setLayouts(new_layouts);
         setWidgets(new_widgets);
     }
@@ -191,6 +196,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 widget.title = settings[widgetdef.titleProp];
             }
 
+            setHasChanged(true);
             setWidgets(new Map(widgets.set(box_id, widget)));
         }
     }
@@ -211,8 +217,65 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             }
         }
 
+        setHasChanged(true);
         setLayouts({ ...newLayouts });
     }
+
+    const savesDashboard = () => {
+
+        if (!hasChanged) {
+            toast({
+                title: "Dashboard not saved",
+                description: "No changes have been made to the dashboard",
+                // variant: "warning"
+            })
+            return;
+        }
+
+        // create a new dashboard definition as a plain object
+        const newDashboard = {
+            layouts: layouts,
+            widgets: Object.fromEntries(widgets)
+        }
+
+        setHasChanged(false);
+        // save the dashboard to local storage
+        localStorage.setItem("dashboard", JSON.stringify(newDashboard));
+
+        toast({
+            title: "Dashboard saved",
+            description: "The dashboard has been saved",
+        })
+    }
+
+    const loadFromLocalStorage = () => {
+        // load the dashboard from the local storage
+        const dashboardDefinition = JSON.parse(localStorage.getItem("dashboard") || JSON.stringify({
+            layouts: {
+                lg: [],
+                md: [],
+                sm: [],
+                xs: [],
+                xxs: []
+            },
+            widgets: new Map<string, Widget>()
+        }) as string) as DashboardInterface;
+
+        // check that the types are correct
+        // if widgets is not a map, convert it to a map
+        if (!(dashboardDefinition.widgets instanceof Map)) {
+            dashboardDefinition.widgets = new Map(Object.entries(dashboardDefinition.widgets));
+        }
+
+
+
+        setLayouts(dashboardDefinition.layouts);
+        setWidgets(dashboardDefinition.widgets);
+    }
+
+    useEffect(() => {
+        loadFromLocalStorage();
+    }, []);
 
     return (
         <DashboardContext.Provider value={
@@ -228,7 +291,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 lockUnLockDashboard,
                 locked,
                 layoutsChanged,
-                setWidgets
+                savesDashboard,
+                hasChanged
             }
         }>
             {children}

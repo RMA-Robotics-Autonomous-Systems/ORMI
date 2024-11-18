@@ -13,10 +13,11 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
+import { Check, Save } from "lucide-react";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged } = useDashboardManager();
 
     const { setNavbarItem } = useNavbar();
 
@@ -24,7 +25,6 @@ const Dashboard = () => {
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
-            console.log("Layout changed", allLayouts);
             layoutsChanged({ ...allLayouts });
         }
     }
@@ -39,7 +39,7 @@ const Dashboard = () => {
             updateWidget(box_id, settings);
         }
 
-        return Array.from(widgets.values()).map((widget: Widget) => {
+        return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
             return (
                 <div key={widget.box_id} className={style.widget + " shadow-md"}>
                     <div className='flex flex-row content-between gap-1'>
@@ -68,7 +68,13 @@ const Dashboard = () => {
             </Button>
         );
 
-    }, [locked]);
+        setNavbarItem("center", "save",
+            <Button variant={"ghost"} onClick={() => { savesDashboard(); }}>
+                {hasChanged ? <Save /> : <Check />}
+            </Button>
+        );
+
+    }, [locked, hasChanged]);
 
     return (
         <ResponsiveGridLayout
