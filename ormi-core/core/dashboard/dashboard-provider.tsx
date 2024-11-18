@@ -6,7 +6,8 @@ import { Widget, WidgetDefinition } from '../widgets/widget-interface';
 import { PluginsHooks } from '../plugins/plugins-types';
 import { usePluginsManager } from '../plugins/components/plugins-provider';
 import PluginsManager from '../plugins/plugins-manager';
-import { Layouts } from 'react-grid-layout';
+import { Layout, Layouts } from 'react-grid-layout';
+import { toast } from '@/hooks/use-toast';
 
 interface DashboardContextInterface {
 
@@ -15,12 +16,17 @@ interface DashboardContextInterface {
 
     getComponents: (boxId: string) => JSX.Element;
     getDefinition: (widget_id: string) => WidgetDefinition;
+    getBox: (breakpoint: string, boxId: string) => Layout | undefined;
 
     addWidget: (widget: WidgetDefinition, settings: any) => void;
     removeWidget: (box_id: string) => void;
     updateWidget: (box_id: string, settings: any) => void;
 
-    setLayouts: (layouts: Layouts) => void;
+    lockUnLockDashboard(): void;
+
+    layoutsChanged: (newLayouts: Layouts) => void;
+    locked: boolean;
+
     setWidgets: (widgets: Map<string, Widget>) => void;
 }
 
@@ -35,11 +41,16 @@ const DashboardContext = createContext<DashboardContextInterface>({
     },
     widgets: new Map<string, Widget>(),
     getComponents: (boxId: string) => <></>,
+    getBox: (breakpoint: string, boxId: string) => { throw new Error("Method not implemented."); },
     getDefinition: (widget_id: string) => { throw new Error("Method not implemented."); },
     addWidget: (widget: WidgetDefinition, settings: any) => { },
     removeWidget: (box_id: string) => { },
     updateWidget: (box_id: string, settings: any) => { },
-    setLayouts: (layouts: Layouts) => { },
+
+    lockUnLockDashboard: () => { },
+    locked: false,
+
+    layoutsChanged: (newLayouts: Layouts) => { },
     setWidgets: (widgets: Map<string, Widget>) => { }
 });
 
@@ -56,6 +67,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
     const [layouts, setLayouts] = React.useState<Layouts>(dashboardDefinition.layouts);
     const [widgets, setWidgets] = React.useState<Map<string, Widget>>(new Map<string, Widget>());
+    const [locked, setLocked] = React.useState<boolean>(false);
 
     const getComponents = (boxId: string) => {
 
@@ -70,6 +82,14 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         throw new Error(`Widget ${boxId} not found`);
     }
 
+    const getBox = (breakpoint: string, boxId: string) => {
+        if (!layouts[breakpoint]) {
+            throw new Error(`Breakpoint ${breakpoint} not found`);
+        }
+
+        return layouts[breakpoint].find((box) => box.i === boxId);
+    }
+
     const getDefinition = (widget_id: string) => {
 
         const widget = availableWidgets.find((widget_def) => widget_def.id === widget_id);
@@ -81,7 +101,17 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const addWidget = (widget: WidgetDefinition, settings: any) => {
-        const component_id = `component_${widgets.values.length}_${new Date().getTime()}`;
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to add widgets",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const box_id = `component_${widgets.size}_${new Date().getTime()}`;
 
         let widget_title = widget.name;
         if (widget.titleProp) {
@@ -89,24 +119,25 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }
 
         const new_widgets: Widget = {
-            box_id: component_id,
+            box_id: box_id,
             widget_id: widget.id,
             title: widget_title,
             settings: settings
         }
 
-        setWidgets(new Map(widgets.set(component_id, new_widgets)));
+        setWidgets(new Map(widgets.set(box_id, new_widgets)));
 
-        const box = {
-            i: component_id,
+        const box: Layout = {
+            i: box_id,
             x: 0,
             y: 0,
             w: 4,
             h: 4,
             static: false,
-            isDraggable: true,
-            isResizable: true
+            isBounded: true,
         };
+
+        console.log(layouts);
 
         setLayouts({
             lg: [...layouts.lg, box],
@@ -118,6 +149,16 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const removeWidget = (box_id: string) => {
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to remove widgets",
+                variant: "destructive"
+            });
+            return;
+        }
+
         const new_widgets = new Map(widgets);
         new_widgets.delete(box_id);
 
@@ -131,6 +172,16 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const updateWidget = (box_id: string, settings: any) => {
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to update widgets",
+                variant: "destructive"
+            });
+            return;
+        }
+
         const widget = widgets.get(box_id);
         if (widget) {
             widget.settings = settings;
@@ -144,17 +195,39 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }
     }
 
+    const lockUnLockDashboard = () => {
+
+        console.log("Locking dashboard", locked);
+
+        setLocked(!locked);
+    }
+
+    const layoutsChanged = (newLayouts: Layouts) => {
+
+        // check if all breakpoints are present
+        for (const key in layouts) {
+            if (!newLayouts[key]) {
+                newLayouts[key] = layouts[key];
+            }
+        }
+
+        setLayouts({ ...newLayouts });
+    }
+
     return (
         <DashboardContext.Provider value={
             {
                 layouts,
                 widgets,
                 getComponents,
+                getBox,
                 getDefinition,
                 addWidget,
                 removeWidget,
                 updateWidget,
-                setLayouts,
+                lockUnLockDashboard,
+                locked,
+                layoutsChanged,
                 setWidgets
             }
         }>
