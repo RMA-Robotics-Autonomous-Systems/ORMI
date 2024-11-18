@@ -7,6 +7,8 @@ import { DashboardProvider } from "@/core/dashboard/dashboard-provider";
 import DashboardInterface from "@/core/dashboard/dashboard-interface";
 import Dashboard from "@/core/dashboard/dashboard";
 import { Widget } from "@/core/widgets/widget-interface";
+import NavBar from "@/components/advanced/navbar/navbar";
+import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
 
 
 
@@ -33,10 +35,13 @@ export default async function Home() {
     return (
         <div className={styles.page}>
             <PluginsProvider pluginsLoader={plugins}>
-                <DashboardProvider dashboardDefinition={dashboardDefinition}>
-                    <Dashboard />
-                    <WidgetsDialog />
-                </DashboardProvider>
+                <NavbarProvider>
+                    <DashboardProvider dashboardDefinition={dashboardDefinition}>
+                        <NavBar />
+                        <Dashboard />
+                        <WidgetsDialog />
+                    </DashboardProvider>
+                </NavbarProvider>
             </PluginsProvider>
         </div>
     );

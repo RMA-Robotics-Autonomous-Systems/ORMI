@@ -33,40 +33,38 @@ const WidgetsDialog = () => {
     const [isOpen, setIsOpen] = useState(false);
 
     const pluginsManager = usePluginsManager() as PluginsManager;
-    const { addWidget } = useDashboardManager();
+    const { addWidget, locked } = useDashboardManager();
 
     const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
     const handleValidate = (widget: WidgetDefinition, settings: object) => {
-        console.log("Widget selected", widget);
-        console.log("Widget settings", settings);
-
         addWidget(widget, settings);
-
         setIsOpen(false); // close the dialog
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button className={style.floatingButton} onClick={() => setIsOpen(true)}>
-                    <Plus size={32} /> {/* Increase the size of the plus icon */}
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="">
-                <DialogHeader>
-                    <DialogTitle>Widgets</DialogTitle>
-                    <DialogDescription>
-                        Select a widget to add to the dashboard
-                    </DialogDescription>
-                </DialogHeader>
-                <div className={style.widget_container}>
-                    {widgets.map((widget, index) => {
-                        return <WidgetCard key={index} definition={widget} onValidate={handleValidate} />
-                    })}
-                </div>
-            </DialogContent>
-        </Dialog>
+        !locked && (
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogTrigger asChild>
+                    <Button className={style.floatingButton} onClick={() => setIsOpen(true)}>
+                        <Plus size={32} /> {/* Increase the size of the plus icon */}
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="">
+                    <DialogHeader>
+                        <DialogTitle>Widgets</DialogTitle>
+                        <DialogDescription>
+                            Select a widget to add to the dashboard
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className={style.widget_container}>
+                        {widgets.map((widget, index) => {
+                            return <WidgetCard key={index} definition={widget} onValidate={handleValidate} />
+                        })}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        )
     )
 }
 

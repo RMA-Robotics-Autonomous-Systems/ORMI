@@ -24,7 +24,7 @@ import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 
 interface WidgetCardProps {
-    displayGear?: boolean;
+    displayType?: "card" | "list" | "gear";
     definition: WidgetDefinition;
     data?: any;
     onValidate: (widget: WidgetDefinition, settings: object) => void;
@@ -50,10 +50,19 @@ const WidgetCard = (props: WidgetCardProps) => {
     }, []);
 
     const getButton = () => {
-        if (props.displayGear) {
+        if (props.displayType === "gear") {
             return (
                 <Button variant={"ghost"}>
                     <GearIcon />
+                </Button>
+            );
+        }
+
+        if (props.displayType === "list") {
+            return (
+                <Button variant={"ghost"}>
+                    <GearIcon />
+                    <p>{props.definition.name}</p>
                 </Button>
             );
         }
