@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
-import { useDashboardManager } from "./components/dashboard-provider";
+import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
 import { Cross1Icon, LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons"
 
@@ -9,11 +9,10 @@ import 'react-resizable/css/styles.css';
 
 import style from "./dashboard.module.css";
 import { Button } from "@/components/ui/button";
-import { Widget, WidgetDefinition } from "../widgets/widget-interface";
-import WidgetCard from "../widgets/components/widget-card/widget-card";
+import { Widget, WidgetDefinition } from "../../widgets/widget-interface";
+import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
-import { NavigationMenuItem } from "@/components/ui/navigation-menu";
-import { WidgetsCombo } from "../widgets/components/widget-combo/widget-combo";
+import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
 
 const Dashboard = () => {
 

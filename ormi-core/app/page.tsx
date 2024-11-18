@@ -5,7 +5,7 @@ import { PluginsProvider } from "@/core/plugins/components/plugins-provider";
 import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
 import { DashboardProvider } from "@/core/dashboard/components/dashboard-provider";
 import DashboardInterface from "@/core/dashboard/dashboard-interface";
-import Dashboard from "@/core/dashboard/dashboard";
+import Dashboard from "@/core/dashboard/components/dashboard";
 import { Widget } from "@/core/widgets/widget-interface";
 import NavBar from "@/components/advanced/navbar/navbar";
 import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
