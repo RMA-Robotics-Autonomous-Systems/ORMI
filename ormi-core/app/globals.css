@@ -74,10 +74,9 @@ h1 {
     text-transform: uppercase;
 }
 
-.react-grid-item.react-draggable-dragging {
-    user-select: none;
-}
-
-.resizing {
+.react-grid-item.react-draggable-dragging,
+.resizing,
+.react-grid-item.react-draggable-dragging~*,
+.resizing~* {
     user-select: none;
 }
