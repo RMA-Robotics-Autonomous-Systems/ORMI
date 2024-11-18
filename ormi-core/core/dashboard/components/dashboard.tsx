@@ -13,11 +13,11 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
-import { Check, Save } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, Check, Save } from "lucide-react";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
 
     const { setNavbarItem } = useNavbar();
 
@@ -68,13 +68,25 @@ const Dashboard = () => {
             </Button>
         );
 
+        setNavbarItem("center", "moveToHorizontal",
+            <Button variant={"ghost"} onClick={() => { moveToHorizontal() }}>
+                <ArrowLeftFromLine />
+            </Button>
+        );
+
+        setNavbarItem("center", "moveToVertical",
+            <Button variant={"ghost"} onClick={() => { moveToVertical() }}>
+                <ArrowUpFromLine />
+            </Button>
+        );
+
         setNavbarItem("center", "save",
             <Button variant={"ghost"} onClick={() => { savesDashboard(); }}>
                 {hasChanged ? <Save /> : <Check />}
             </Button>
         );
 
-    }, [locked, hasChanged]);
+    }, [locked, hasChanged, layouts, widgets]);
 
     return (
         <ResponsiveGridLayout
@@ -88,7 +100,7 @@ const Dashboard = () => {
             onLayoutChange={handleLayoutChange}
             preventCollision={true}
             rowHeight={30}
-            compactType={null}
+            compactType={compactType}
             isDraggable={!locked}
             isResizable={!locked}
         >

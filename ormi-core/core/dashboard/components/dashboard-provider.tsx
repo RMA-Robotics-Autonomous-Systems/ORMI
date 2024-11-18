@@ -14,6 +14,10 @@ interface DashboardContextInterface {
     layouts: Layouts;
     widgets: Map<string, Widget>;
 
+    compactType: "vertical" | "horizontal" | null;
+    moveToVertical: () => void;
+    moveToHorizontal: () => void;
+
     getComponents: (boxId: string) => JSX.Element;
     getDefinition: (widget_id: string) => WidgetDefinition;
     getBox: (breakpoint: string, boxId: string) => Layout | undefined;
@@ -40,6 +44,11 @@ const DashboardContext = createContext<DashboardContextInterface>({
         xxs: []
     },
     widgets: new Map<string, Widget>(),
+
+    compactType: null,
+    moveToVertical: () => { },
+    moveToHorizontal: () => { },
+
     getComponents: (boxId: string) => <></>,
     getBox: (breakpoint: string, boxId: string) => { throw new Error("Method not implemented."); },
     getDefinition: (widget_id: string) => { throw new Error("Method not implemented."); },
@@ -66,6 +75,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
     const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
+    const [compactType, setCompactType] = React.useState<"vertical" | "horizontal" | null>(null);
     const [layouts, setLayouts] = React.useState<Layouts>(dashboardDefinition.layouts);
     const [widgets, setWidgets] = React.useState<Map<string, Widget>>(dashboardDefinition.widgets);
     const [locked, setLocked] = React.useState<boolean>(false);
@@ -172,8 +182,9 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }
 
         setHasChanged(true);
-        setLayouts(new_layouts);
+
         setWidgets(new_widgets);
+        setLayouts(new_layouts);
     }
 
     const updateWidget = (box_id: string, settings: any) => {
@@ -217,8 +228,14 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             }
         }
 
+        setLayouts({
+            lg: [...newLayouts.lg],
+            md: [...newLayouts.md],
+            sm: [...newLayouts.sm],
+            xs: [...newLayouts.xs],
+            xxs: [...newLayouts.xxs]
+        });
         setHasChanged(true);
-        setLayouts({ ...newLayouts });
     }
 
     const savesDashboard = () => {
@@ -234,7 +251,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
         // create a new dashboard definition as a plain object
         const newDashboard = {
-            layouts: layouts,
+            layouts: Object.fromEntries(Object.entries(layouts)),
             widgets: Object.fromEntries(widgets)
         }
 
@@ -273,6 +290,41 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         setWidgets(dashboardDefinition.widgets);
     }
 
+    const moveToVertical = () => {
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to move widgets",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setCompactType("vertical");
+
+        setTimeout(() => {
+            setCompactType(null);
+        }, 500);
+    }
+
+    const moveToHorizontal = () => {
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to move widgets",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setCompactType("horizontal");
+
+        setTimeout(() => {
+            setCompactType(null);
+        }, 500);
+    }
+
     useEffect(() => {
         loadFromLocalStorage();
     }, []);
@@ -280,6 +332,9 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     return (
         <DashboardContext.Provider value={
             {
+                compactType,
+                moveToVertical,
+                moveToHorizontal,
                 layouts,
                 widgets,
                 getComponents,
