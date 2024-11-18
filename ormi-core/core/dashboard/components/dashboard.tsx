@@ -9,7 +9,7 @@ import 'react-resizable/css/styles.css';
 
 import style from "./dashboard.module.css";
 import { Button } from "@/components/ui/button";
-import { Widget, WidgetDefinition } from "../../widgets/widget-interface";
+import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
