@@ -1,11 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import DashboardInterface from './dashboard-interface';
-import { Widget, WidgetDefinition } from '../widgets/widget-interface';
-import { PluginsHooks } from '../plugins/plugins-types';
-import { usePluginsManager } from '../plugins/components/plugins-provider';
-import PluginsManager from '../plugins/plugins-manager';
+import DashboardInterface from '../dashboard-interface';
+import { Widget, WidgetDefinition } from '../../widgets/widget-interface';
+import { PluginsHooks } from '../../plugins/plugins-types';
+import { usePluginsManager } from '../../plugins/components/plugins-provider';
+import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/hooks/use-toast';
 

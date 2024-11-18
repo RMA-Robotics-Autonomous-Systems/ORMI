@@ -5,7 +5,7 @@ import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuL
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
 import { Button } from "../../ui/button";
 import { LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons";
-import { useDashboardManager } from "@/core/dashboard/dashboard-provider";
+import { useDashboardManager } from "@/core/dashboard/components/dashboard-provider";
 import { useNavbar } from "./navbar-provider";
 
 

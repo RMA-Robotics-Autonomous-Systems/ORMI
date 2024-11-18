@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/popover"
 
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider"
-import { useDashboardManager } from "@/core/dashboard/dashboard-provider"
+import { useDashboardManager } from "@/core/dashboard/components/dashboard-provider"
 import PluginsManager from "@/core/plugins/plugins-manager"
 import { PluginsHooks } from "@/core/plugins/plugins-types"
 import { WidgetDefinition } from "../../widget-interface"

@@ -27,7 +27,7 @@ import WidgetCard from "../widget-card/widget-card";
 
 import style from "./widgets-dialog.module.css";
 import { WidgetDefinition } from "../../widget-interface";
-import { useDashboardManager } from "@/core/dashboard/dashboard-provider";
+import { useDashboardManager } from "@/core/dashboard/components/dashboard-provider";
 
 const WidgetsDialog = () => {
     const [isOpen, setIsOpen] = useState(false);
