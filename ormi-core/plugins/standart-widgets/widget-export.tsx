@@ -3,6 +3,7 @@
 import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
+import { ChartComp } from './widgets/line-chart';
 
 
 const getTopicOptions = async () => {
@@ -108,6 +109,38 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 
         });
     }
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title],
+    }
+
+    const chartWidget: WidgetDefinition = {
+        id: 'chart-widget-line',
+        name: 'Chart',
+        description: 'Display a line chart',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+            }
+        },
+        uischema: layout,
+        data: {
+            title: 'Chart'
+        },
+        Component: ChartComp
+    }
+
+    widgets.push(chartWidget);
 
 
     return widgets;

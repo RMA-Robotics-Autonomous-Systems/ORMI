@@ -21,7 +21,7 @@ const Dashboard = () => {
 
     const { setNavbarItem } = useNavbar();
 
-    const ResponsiveGridLayout = useRef(WidthProvider(Responsive)).current;
+    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
@@ -29,39 +29,18 @@ const Dashboard = () => {
         }
     }
 
-    const widgetsHTML = useMemo(() => {
+    const handleRemoveBoxClick = (boxId: string) => {
+        removeWidget(boxId);
+    }
 
-        const handleRemoveBoxClick = (boxId: string) => {
-            removeWidget(boxId);
-        }
-
-        const handleSaveWidget = (box_id: string, widget: WidgetDefinition, settings: object) => {
-            updateWidget(box_id, settings);
-        }
-
-        return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
-            return (
-                <div key={widget.box_id} className={style.widget + " shadow-md"}>
-                    <div className='flex flex-row content-between gap-1'>
-                        <div className={style.dragHandle}>{widget.title}</div>
-
-                        {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
-
-                        {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
-                            <Cross1Icon />
-                        </Button>)}
-                    </div>
-                    <div className={style.content}>
-                        {getComponents(widget.box_id)}
-                    </div>
-                </div>
-            );
-        });
-    }, [widgets, removeWidget, updateWidget, getDefinition, getComponents, locked]);
+    const handleSaveWidget = (box_id: string, widget: WidgetDefinition, settings: object) => {
+        updateWidget(box_id, settings);
+    }
 
     useEffect(() => {
 
         setNavbarItem("center", "widgets_combo", <WidgetsCombo />);
+
         setNavbarItem("center", "lock_unlock",
             <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>
                 {!locked ? <LockOpen1Icon /> : <LockClosedIcon />}
@@ -104,7 +83,24 @@ const Dashboard = () => {
             isDraggable={!locked}
             isResizable={!locked}
         >
-            {widgetsHTML}
+            {Array.from(widgets).map(([key, widget]: [string, Widget]) => {
+                return (
+                    <div key={widget.box_id} className={style.widget + " shadow-md"}>
+                        <div className='flex flex-row content-between gap-1'>
+                            <div className={style.dragHandle}>{widget.title}</div>
+
+                            {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
+
+                            {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                                <Cross1Icon />
+                            </Button>)}
+                        </div>
+                        <div className={style.content}>
+                            {getComponents(widget.box_id)}
+                        </div>
+                    </div>
+                );
+            })}
 
         </ResponsiveGridLayout>
     );
