@@ -45,11 +45,11 @@ const Dashboard = () => {
                     <div className='flex flex-row content-between gap-1'>
                         <div className={style.dragHandle}>{widget.title}</div>
 
-                        <WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />
+                        {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
 
-                        <Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                        {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                             <Cross1Icon />
-                        </Button>
+                        </Button>)}
                     </div>
                     <div className={style.content}>
                         {getComponents(widget.box_id)}
@@ -57,7 +57,7 @@ const Dashboard = () => {
                 </div>
             );
         });
-    }, [widgets, removeWidget, updateWidget, getDefinition, getComponents]);
+    }, [widgets, removeWidget, updateWidget, getDefinition, getComponents, locked]);
 
     useEffect(() => {
 
