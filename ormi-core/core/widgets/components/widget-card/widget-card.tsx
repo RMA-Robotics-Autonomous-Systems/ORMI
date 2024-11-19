@@ -19,7 +19,10 @@ import {
     materialCells,
 } from '@jsonforms/material-renderers';
 
-import React, { use, useEffect, useState } from 'react';
+import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
+
+
+import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 
@@ -29,6 +32,7 @@ interface WidgetCardProps {
     data?: any;
     onValidate: (widget: WidgetDefinition, settings: object) => void;
 }
+
 
 const WidgetCard = (props: WidgetCardProps) => {
 
@@ -100,6 +104,13 @@ const WidgetCard = (props: WidgetCardProps) => {
         );
     }
 
+
+
+    const renderers = [
+        ...materialRenderers,
+        { tester: asyncSelectTester, renderer: AsyncSelectControl },
+    ];
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -117,11 +128,11 @@ const WidgetCard = (props: WidgetCardProps) => {
                         schema={props.definition.schema}
                         uischema={props.definition.uischema}
                         data={data}
-                        renderers={materialRenderers}
+                        renderers={renderers}
                         cells={materialCells}
                         onChange={({ data, errors }) => setData(data)}
                     />
-                    <div className="flex justify-end" style={{ justifyContent: "flex-end" }} >
+                    <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
                         <DialogClose className="float-end" asChild>
                             <Button onClick={() => { handleAdd() }}>
                                 <CheckIcon />
