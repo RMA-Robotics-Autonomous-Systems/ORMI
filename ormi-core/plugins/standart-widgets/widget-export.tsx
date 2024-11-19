@@ -11,10 +11,10 @@ const getTopicOptions = async () => {
     return new Promise((resolve) => {
         setTimeout(() => {
             resolve([
-                { value: 's', label: 'Science' },
-                { value: 't', label: 'Technology' },
-                { value: 'e', label: 'Engineering' },
-                { value: 'm', label: 'Mathematics' },
+                { value: '/imu/vel/x', label: '/imu/vel/x' },
+                { value: '/imu/vel/y', label: '/imu/vel/y' },
+                { value: '/imu/vel/z', label: '/imu/vel/z' },
+                { value: '/imu/vel/w', label: '/imu/vel/w' },
             ]);
         }, 1000);
     });
