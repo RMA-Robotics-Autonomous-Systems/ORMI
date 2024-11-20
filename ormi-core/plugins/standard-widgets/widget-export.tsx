@@ -3,7 +3,6 @@
 import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
-import { ChartComp } from './widgets/line-chart';
 import dynamic from 'next/dynamic';
 
 
@@ -143,7 +142,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         data: {
             title: 'Chart'
         },
-        Component: DynamicComponent
+        Component: (data: any) => <DynamicComponent {...data} />
     }
 
     widgets.push(chartWidget);
