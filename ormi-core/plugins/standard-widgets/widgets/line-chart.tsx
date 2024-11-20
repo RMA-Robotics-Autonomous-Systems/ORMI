@@ -45,6 +45,12 @@ export function ChartComp() {
                     desktop: Math.floor(Math.random() * 300),
                     mobile: Math.floor(Math.random() * 300),
                 })
+
+                // keep the last 100 data points
+                if (newData.length > 10) {
+                    newData.shift()
+                }
+
                 return newData
             })
         }, 20)
