@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
 import { Cross1Icon, LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons"
@@ -85,7 +85,7 @@ const Dashboard = () => {
         >
             {Array.from(widgets).map(([key, widget]: [string, Widget]) => {
                 return (
-                    <div key={widget.box_id} className={style.widget + " shadow-md"}>
+                    <div key={key} className={style.widget + " shadow-md"}>
                         <div className='flex flex-row content-between gap-1'>
                             <div className={style.dragHandle}>{widget.title}</div>
 
