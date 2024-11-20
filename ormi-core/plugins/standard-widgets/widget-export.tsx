@@ -5,6 +5,8 @@ import { WidgetDefinition } from '@/core/widgets/widget-interface';
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
 import dynamic from 'next/dynamic';
 
+import { Skeleton } from "@/components/ui/skeleton"
+
 
 const getTopicOptions = async () => {
 
@@ -121,7 +123,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     }
 
     const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.ChartComp), {
-        loading: () => <p>Loading...</p>,
+        loading: () => <Skeleton />,
     })
 
     const chartWidget: WidgetDefinition = {
