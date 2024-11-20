@@ -1,101 +1,102 @@
 "use client"
 
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
 
+import Chart from 'chart.js/auto';
+import { useEffect, useRef, useState } from 'react';
 
-import {
-    ChartConfig,
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-} from "@/components/ui/chart"
-import { useEffect, useState } from "react"
+/*
+    Component that implements Chart.js to render a line chart.
+*/
+export function LineChart(props: any) {
 
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const chartRef = useRef<Chart>();
 
-const chartConfig = {
-    desktop: {
-        label: "Desktop",
-        color: "hsl(var(--chart-1))",
-    },
-    mobile: {
-        label: "Mobile",
-        color: "hsl(var(--chart-2))",
-    },
-} satisfies ChartConfig
+    const [data, setData] = useState<number[]>([]);
+    const [labels, setLabels] = useState<string[]>([]);
 
-export function ChartComp() {
-
-
-    const [chartData, setChartData] = useState([
-        {
-            timeStamp: Date.now(),
-            desktop: 0,
-            mobile: 0,
-        },
-    ])
-
+    // mount and unmount the chart
     useEffect(() => {
+        if (canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+                chartRef.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'My First Dataset',
+                            data: data,
+                            fill: false,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0,
+                        }]
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                        },
+                        plugins: {
+                            title: {
+                                display: false,
+                            },
+                            legend: {
+                                display: true,
+                            }
+                        }
+                    },
 
-        // set at 50hz, random data
-        const interval = setInterval(() => {
-            setChartData((prevData) => {
-                const newData = [...prevData]
-                newData.push({
-                    timeStamp: Date.now(),
-                    desktop: Math.floor(Math.random() * 300),
-                    mobile: Math.floor(Math.random() * 300),
-                })
 
-                // keep the last 100 data points
-                if (newData.length > 10) {
-                    newData.shift()
-                }
-
-                return newData
-            })
-        }, 20)
-
-
-        return () => {
-            clearInterval(interval)
+                });
+            }
         }
 
-    }, [])
+        const interval = setInterval(() => {
+            setData(data => {
+                // add new random data
+                // keep the data length to 100
+                if (data.length > 100) {
+                    data.shift();
+                }
 
+                return [...data, Math.floor(Math.random() * 100)];
+            });
+
+            setLabels(labels => {
+                // add new label
+                // keep the label length to 100
+                if (labels.length > 100) {
+                    labels.shift();
+                }
+
+                return [...labels, new Date().toLocaleTimeString()];
+            });
+
+        }, 50);
+
+        return () => {
+            if (chartRef.current) {
+                chartRef.current.destroy();
+            }
+
+            clearInterval(interval);
+        }
+    }, []);
+
+
+    // whenever the data changes, update the chart
+    useEffect(() => {
+        if (chartRef.current) {
+            chartRef.current.data.datasets[0].data = data;
+            chartRef.current.data.labels = labels;
+            chartRef.current.update();
+            chartRef.current.resize();
+        }
+    }, [data, labels]);
 
     return (
-        <ChartContainer config={chartConfig}>
-            <LineChart
-                accessibilityLayer
-                data={chartData}
-                margin={{
-                    left: 12,
-                    right: 12,
-                }}
-            >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                    dataKey="timeStamp"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Line
-                    dataKey="desktop"
-                    type="monotone"
-                    stroke="var(--color-desktop)"
-                    strokeWidth={2}
-                    dot={false}
-                />
-                <Line
-                    dataKey="mobile"
-                    type="monotone"
-                    stroke="var(--color-mobile)"
-                    strokeWidth={2}
-                    dot={false}
-                />
-            </LineChart>
-        </ChartContainer>
+        <canvas ref={canvasRef} />
     )
 }

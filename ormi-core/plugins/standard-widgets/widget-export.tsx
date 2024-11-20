@@ -122,7 +122,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         elements: [title],
     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.ChartComp), {
+    const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.LineChart), {
         loading: () => <Skeleton />,
     })
 
