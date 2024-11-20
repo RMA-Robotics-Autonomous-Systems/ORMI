@@ -26,42 +26,42 @@ const chartConfig = {
 export function ChartComp() {
 
 
-    // const [chartData, setChartData] = useState([
-    //     {
-    //         timeStamp: Date.now(),
-    //         desktop: 0,
-    //         mobile: 0,
-    //     },
-    // ])
+    const [chartData, setChartData] = useState([
+        {
+            timeStamp: Date.now(),
+            desktop: 0,
+            mobile: 0,
+        },
+    ])
 
-    // useEffect(() => {
+    useEffect(() => {
 
-    //     // set at 50hz, random data
-    //     const interval = setInterval(() => {
-    //         setChartData((prevData) => {
-    //             const newData = [...prevData]
-    //             newData.push({
-    //                 timeStamp: Date.now(),
-    //                 desktop: Math.floor(Math.random() * 300),
-    //                 mobile: Math.floor(Math.random() * 300),
-    //             })
-    //             return newData
-    //         })
-    //     }, 20)
+        // set at 50hz, random data
+        const interval = setInterval(() => {
+            setChartData((prevData) => {
+                const newData = [...prevData]
+                newData.push({
+                    timeStamp: Date.now(),
+                    desktop: Math.floor(Math.random() * 300),
+                    mobile: Math.floor(Math.random() * 300),
+                })
+                return newData
+            })
+        }, 20)
 
 
-    //     return () => {
-    //         clearInterval(interval)
-    //     }
+        return () => {
+            clearInterval(interval)
+        }
 
-    // }, [])
+    }, [])
 
 
     return (
         <ChartContainer config={chartConfig}>
             <LineChart
                 accessibilityLayer
-                // data={chartData}
+                data={chartData}
                 margin={{
                     left: 12,
                     right: 12,
@@ -73,7 +73,6 @@ export function ChartComp() {
                     tickLine={false}
                     axisLine={false}
                     tickMargin={8}
-                    tickFormatter={(value) => value.slice(0, 3)}
                 />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 <Line

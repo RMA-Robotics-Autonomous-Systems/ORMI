@@ -4,6 +4,7 @@ import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
 import { ChartComp } from './widgets/line-chart';
+import dynamic from 'next/dynamic';
 
 
 const getTopicOptions = async () => {
@@ -100,7 +101,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                     <div>
                         <h1>{data.title}</h1>
                         <p>Description of widget {i}</p>
-                        {data.topics.map((topic: any, index: number) => (
+                        {data.topics && data.topics.map((topic: any, index: number) => (
                             <p key={index}>{topic.topic}</p>
                         ))}
                     </div>
@@ -120,10 +121,15 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         elements: [title],
     }
 
+    const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.ChartComp), {
+        loading: () => <p>Loading...</p>,
+    })
+
     const chartWidget: WidgetDefinition = {
         id: 'chart-widget-line',
         name: 'Chart',
         description: 'Display a line chart',
+        titleProp: 'title',
         schema: {
             type: 'object',
             properties: {
@@ -137,7 +143,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         data: {
             title: 'Chart'
         },
-        Component: ChartComp
+        Component: DynamicComponent
     }
 
     widgets.push(chartWidget);
