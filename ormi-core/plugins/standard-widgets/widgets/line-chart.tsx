@@ -2,6 +2,7 @@
 
 
 import { useRandomProvider } from '@/core/datasources/random-data-source';
+import { getColorsFromString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import Chart from 'chart.js/auto';
 import { useEffect, useRef } from 'react';
@@ -72,7 +73,7 @@ export function LineChart(props: any) {
                         label: title,
                         data: data,
                         fill: false,
-                        borderColor: 'rgb(75, 192, 192)',
+                        borderColor: topic.color || getColorsFromString(title),
                         tension: 0
                     });
                 }
@@ -93,7 +94,7 @@ export function LineChart(props: any) {
             return;
         }
 
-        const new_labels = [];
+        let new_labels = [];
 
         // update datasets without creating new ones
         for (const dataset of chartRef.current.data.datasets) {
@@ -108,6 +109,11 @@ export function LineChart(props: any) {
                 }
             }
         }
+
+        // remove duplicates
+        new_labels = [...new Set(new_labels)];
+        // sort labels
+        new_labels.sort();
 
         chartRef.current.data.labels = new_labels;
         chartRef.current.update();
