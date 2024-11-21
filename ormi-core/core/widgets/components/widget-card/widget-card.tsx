@@ -27,6 +27,8 @@ import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
 import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/color-select";
+import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
+import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
@@ -127,7 +129,9 @@ const WidgetCard = (props: WidgetCardProps) => {
     const renderers = [
         ...materialRenderers,
         { tester: asyncSelectTester, renderer: AsyncSelectControl },
-        { tester: colorSelectTester, renderer: colorSelect }
+        { tester: colorSelectTester, renderer: colorSelect },
+        { tester: switchTester, renderer: SwitchControl },
+        { tester: TextTester, renderer: TextControl }
     ];
 
     return (
