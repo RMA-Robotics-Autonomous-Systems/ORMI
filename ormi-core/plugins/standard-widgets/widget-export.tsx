@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { RandomDataSourceProvider } from "@/core/datasources/random-data-source";
+import { getColorsFromString } from '@/core/utils/Colors';
 
 
 const getTopicOptions = async () => {
@@ -41,6 +42,19 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         }
     }
 
+    const color: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/color",
+        "options": {
+            "color": true,
+        }
+    }
+
+    const fill: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/fill",
+    }
+
     // array of topics
     const topics: ControlElement = {
         type: "Control",
@@ -48,7 +62,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
         options: {
             detail: {
                 type: "VerticalLayout",
-                elements: [topic]
+                elements: [topic, color, fill]
             }
         }
     }
@@ -83,6 +97,15 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                             "topic": {
                                 "type": "string",
                                 "title": "Topic"
+                            },
+                            "color": {
+                                "type": "string",
+                                "title": "Color",
+                            },
+                            "fill": {
+                                "type": "boolean",
+                                "title": "Fill",
+                                default: false
                             }
                         },
                         "required": ["topic"]

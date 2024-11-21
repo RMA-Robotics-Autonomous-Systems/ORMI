@@ -2,7 +2,7 @@
 
 
 import { useRandomProvider } from '@/core/datasources/random-data-source';
-import { getColorsFromString } from '@/core/utils/Colors';
+import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import Chart from 'chart.js/auto';
 import { useEffect, useRef } from 'react';
@@ -72,8 +72,10 @@ export function LineChart(props: any) {
                     chartRef.current.data.datasets.push({
                         label: title,
                         data: data,
-                        fill: false,
+                        fill: topic.fill || false,
+                        backgroundColor: getTransparentColorString(topic.color || getColorsFromString(title), 0.4),
                         borderColor: topic.color || getColorsFromString(title),
+
                         tension: 0
                     });
                 }
