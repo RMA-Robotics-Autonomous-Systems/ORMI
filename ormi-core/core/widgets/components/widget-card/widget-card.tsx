@@ -25,6 +25,7 @@ import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-se
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
+import { toast } from "@/hooks/use-toast";
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
@@ -36,12 +37,30 @@ interface WidgetCardProps {
 
 const WidgetCard = (props: WidgetCardProps) => {
 
+    const [data, setData] = useState(props.definition.data);
+    const [errors, setErrors] = useState<any>(null);
+
     const handleAdd = () => {
+
+        if (errors && errors.length > 0) {
+
+            for (const error of errors) {
+                toast({
+                    title: "Error",
+                    description: error.message,
+                    variant: "destructive"
+                });
+
+            }
+
+            return;
+        }
+
         props.onValidate(props.definition, data);
     }
 
 
-    const [data, setData] = useState(props.definition.data);
+
 
     useEffect(() => {
 
@@ -104,8 +123,6 @@ const WidgetCard = (props: WidgetCardProps) => {
         );
     }
 
-
-
     const renderers = [
         ...materialRenderers,
         { tester: asyncSelectTester, renderer: AsyncSelectControl },
@@ -130,7 +147,7 @@ const WidgetCard = (props: WidgetCardProps) => {
                         data={data}
                         renderers={renderers}
                         cells={materialCells}
-                        onChange={({ data, errors }) => setData(data)}
+                        onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
                     <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
                         <DialogClose className="float-end" asChild>

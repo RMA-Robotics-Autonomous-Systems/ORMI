@@ -84,10 +84,12 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                                 "type": "string",
                                 "title": "Topic"
                             }
-                        }
+                        },
+                        "required": ["topic"]
                     }
                 }
-            }
+            },
+            required: ['title', 'topics']
         },
         uischema: layout,
         data: {
