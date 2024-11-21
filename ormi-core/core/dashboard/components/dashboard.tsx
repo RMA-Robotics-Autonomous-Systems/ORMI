@@ -86,12 +86,12 @@ const Dashboard = () => {
             {Array.from(widgets).map(([key, widget]: [string, Widget]) => {
                 return (
                     <div key={key} className={style.widget + " shadow-md"}>
-                        <div className='flex flex-row content-between gap-1'>
+                        <div className='flex flex-row content-between gap-1' style={{ padding: "0.25rem" }}>
                             <div className={style.dragHandle}>{widget.title}</div>
 
                             {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
 
-                            {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                            {!locked && (<Button className="m-4" variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                                 <Cross1Icon />
                             </Button>)}
                         </div>
