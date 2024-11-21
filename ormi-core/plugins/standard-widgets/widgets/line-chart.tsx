@@ -1,8 +1,10 @@
 "use client"
 
 
+import { useRandomProvider } from '@/core/datasources/random-data-source';
+import { toast } from '@/hooks/use-toast';
 import Chart from 'chart.js/auto';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 /*
     Component that implements Chart.js to render a line chart.
@@ -12,25 +14,19 @@ export function LineChart(props: any) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const chartRef = useRef<Chart>();
 
-    const [data, setData] = useState<number[]>([]);
-    const [labels, setLabels] = useState<string[]>([]);
+    const { sources } = useRandomProvider();
 
     // mount and unmount the chart
     useEffect(() => {
+
         if (canvasRef.current) {
             const ctx = canvasRef.current.getContext('2d');
             if (ctx) {
                 chartRef.current = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'My First Dataset',
-                            data: data,
-                            fill: false,
-                            borderColor: 'rgb(75, 192, 192)',
-                            tension: 0,
-                        }]
+                        labels: [],
+                        datasets: []
                     },
                     options: {
                         animation: false,
@@ -50,51 +46,73 @@ export function LineChart(props: any) {
 
 
                 });
+
+                // load datasets from props.topics
+                if (!props.topics) {
+                    return;
+                }
+
+                for (const topic of props.topics) {
+                    const data: number[] = [];
+
+                    const source = sources.get(topic.topic);
+                    const title = topic.topic;
+
+                    if (source) {
+                        data.push(...source.data);
+                    } else {
+                        toast({
+                            title: 'Error',
+                            description: `Data source ${topic.topic} not found`,
+                            variant: 'destructive',
+                        })
+                    }
+
+                    chartRef.current.data.datasets.push({
+                        label: title,
+                        data: data,
+                        fill: false,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    });
+                }
             }
         }
-
-        const interval = setInterval(() => {
-            setData(data => {
-                // add new random data
-                // keep the data length to 100
-                if (data.length > 100) {
-                    data.shift();
-                }
-
-                return [...data, Math.floor(Math.random() * 100)];
-            });
-
-            setLabels(labels => {
-                // add new label
-                // keep the label length to 100
-                if (labels.length > 100) {
-                    labels.shift();
-                }
-
-                return [...labels, new Date().toLocaleTimeString()];
-            });
-
-        }, 50);
 
         return () => {
             if (chartRef.current) {
                 chartRef.current.destroy();
             }
-
-            clearInterval(interval);
         }
     }, []);
 
 
     // whenever the data changes, update the chart
     useEffect(() => {
-        if (chartRef.current) {
-            chartRef.current.data.datasets[0].data = data;
-            chartRef.current.data.labels = labels;
-            chartRef.current.update();
-            chartRef.current.resize();
+        if (!chartRef.current) {
+            return;
         }
-    }, [data, labels]);
+
+        const new_labels = [];
+
+        // update datasets without creating new ones
+        for (const dataset of chartRef.current.data.datasets) {
+            if (dataset.label) {
+                const source = sources.get(dataset.label);
+                if (source) {
+                    dataset.data = source.data.map((value, index) => {
+                        return { x: source.times[index], y: value };
+                    });
+
+                    new_labels.push(...source.times);
+                }
+            }
+        }
+
+        chartRef.current.data.labels = new_labels;
+        chartRef.current.update();
+        chartRef.current.resize();
+    }, [sources]);
 
     return (
         <canvas ref={canvasRef} />

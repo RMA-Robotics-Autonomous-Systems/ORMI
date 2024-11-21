@@ -12,7 +12,6 @@ import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
 
 
 
-
 export default async function Home() {
 
     const pl = new PluginsLoader();
