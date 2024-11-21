@@ -1,13 +1,16 @@
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, optionIs } from '@jsonforms/core';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const ColorSelectControl = (props: ControlProps) => {
-    const { data, handleChange, path } = props;
+    const { data, handleChange, path, label, id } = props;
 
     return (
-        <div style={{ marginBottom: "1rem" }}>
+        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+            <Label htmlFor={id}>{label}</Label>
             <Input
+                id={id}
                 type="color"
                 value={data || ''}
                 onChange={event => handleChange(path, event.target.value)}

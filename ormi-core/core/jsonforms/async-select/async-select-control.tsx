@@ -10,10 +10,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Label } from '@/components/ui/label';
 
 
 const AsyncSelectControl = (props: ControlProps) => {
-    const { data, handleChange, path, uischema } = props;
+    const { data, handleChange, path, uischema, id, label } = props;
     const [options, setOptions] = useState([]);
 
     useEffect(() => {
@@ -29,7 +30,8 @@ const AsyncSelectControl = (props: ControlProps) => {
     }, [uischema]);
 
     return (
-        <div style={{ marginBottom: "1rem" }}>
+        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+            <Label>{label}</Label>
             <Select value={data} onValueChange={value => handleChange(path, value)}>
                 <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select an option" />
