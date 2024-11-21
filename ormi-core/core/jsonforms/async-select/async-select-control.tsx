@@ -29,19 +29,20 @@ const AsyncSelectControl = (props: ControlProps) => {
     }, [uischema]);
 
     return (
-        <Select value={data} onValueChange={value => handleChange(path, value)}>
-            <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an option" />
-            </SelectTrigger>
-            <SelectContent>
-                {options.map((option: { value: string; label: string }) => (
-                    <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-
+        <div style={{ marginBottom: "1rem" }}>
+            <Select value={data} onValueChange={value => handleChange(path, value)}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select an option" />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((option: { value: string; label: string }) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
     );
 };
 
