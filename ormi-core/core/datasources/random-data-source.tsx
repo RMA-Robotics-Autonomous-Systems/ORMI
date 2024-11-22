@@ -43,7 +43,8 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = 
 
     useEffect(() => {
 
-        const availables_sources = ["/imu/vel/x", "source2", "source3"];
+        const availables_sources = ["/imu/vel/x", "/imu/vel/y", "/imu/vel/z"];
+        const availables_sources_freq = [16, 32, 64];
 
         const source_map = new Map<string, RandomDataSource>();
 
@@ -70,6 +71,9 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = 
         const intervales: NodeJS.Timeout[] = [];
         // foreach source, generate random data
         for (const source of source_map.keys()) {
+
+            const freq = availables_sources_freq[availables_sources.indexOf(source)];
+
             const interval = setInterval(() => {
                 const source_data = source_map.get(source);
                 if (source_data) {
@@ -77,14 +81,15 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = 
                     source_data.times.push(Date.now());
 
                     // keep only the last 10 values
-                    if (source_data.data.length > 10) {
+                    if (source_data.data.length > 200) {
                         source_data.data.shift();
                         source_data.times.shift();
                     }
 
                     setSources(new Map(source_map));
                 }
-            }, 16);
+            }, freq);
+
             intervales.push(interval);
         }
 
