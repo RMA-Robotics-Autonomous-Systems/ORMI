@@ -19,16 +19,18 @@ import {
     materialCells,
 } from '@jsonforms/material-renderers';
 
-import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
-
 
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
+
+// Import the custom renderers
+import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
 import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/color-select";
 import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
 import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
+import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
@@ -131,7 +133,8 @@ const WidgetCard = (props: WidgetCardProps) => {
         { tester: asyncSelectTester, renderer: AsyncSelectControl },
         { tester: colorSelectTester, renderer: colorSelect },
         { tester: switchTester, renderer: SwitchControl },
-        { tester: TextTester, renderer: TextControl }
+        { tester: TextTester, renderer: TextControl },
+        { tester: NumberTester, renderer: NumberControl }
     ];
 
     return (
