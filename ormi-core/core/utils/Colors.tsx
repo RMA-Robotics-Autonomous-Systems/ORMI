@@ -10,7 +10,7 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
         return p;
     }
 
-    let r: number, g: number, b: number;
+    let r: number = 0, g: number = 0, b: number = 0;
 
     if (s === 0) {
         r = g = b = l; // Achromatic
@@ -38,7 +38,7 @@ export function hsvToRgb(h: number, s: number, v: number): [number, number, numb
     const q = v * (1 - f * s);
     const t = v * (1 - (1 - f) * s);
 
-    let r: number, g: number, b: number;
+    let r: number = 0, g: number = 0, b: number = 0;
     switch (i % 6) {
         case 0: r = v; g = t; b = p; break;
         case 1: r = q; g = v; b = p; break;
