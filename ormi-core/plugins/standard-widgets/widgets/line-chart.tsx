@@ -6,7 +6,6 @@ import { getColorsFromString, getTransparentColorString } from '@/core/utils/Col
 import { toast } from '@/hooks/use-toast';
 import Chart, { ChartConfiguration } from 'chart.js/auto';
 import { useEffect, useRef } from 'react';
-import { fr } from 'date-fns/locale';
 
 /*
     Component that implements Chart.js to render a line chart.

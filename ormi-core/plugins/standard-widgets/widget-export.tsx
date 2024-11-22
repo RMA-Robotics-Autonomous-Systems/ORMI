@@ -24,7 +24,7 @@ const getTopicOptions = async () => {
 
 }
 
-const WidgetExport = (widgets: WidgetDefinition[]) => {
+function LineChartExport(widgets: WidgetDefinition[]) {
 
     const title: ControlElement = {
         type: "Control",
@@ -138,6 +138,94 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 
 
     return widgets;
+};
+
+function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const topic: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/topic",
+        "options": {
+            "async": true,
+            "asyncFunction": getTopicOptions,
+        }
+    }
+
+    // array of topics
+    const topics: ControlElement = {
+        type: "Control",
+        scope: "#/properties/topics",
+        options: {
+            detail: {
+                type: "VerticalLayout",
+                elements: [topic]
+            }
+        }
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, topics],
+    }
+
+    const DynamicComponent = dynamic(() => import('./widgets/timeseries-chart').then(mod => mod.TimeChartComponent), {
+        loading: () => <Skeleton />,
+    })
+
+    const timeSeriesWidget: WidgetDefinition = {
+        id: 'chart-widget-time-series',
+        name: 'Time series chart',
+        description: 'Display a line chart',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                topics: {
+                    type: 'array',
+                    title: 'Topics',
+                    items: {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "title": "Topic"
+                            },
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            },
+            required: ['title', 'topics']
+        },
+        uischema: layout,
+        data: {
+            title: 'Chart'
+        },
+        Component: (data: any) => (
+            <RandomDataSourceProvider props={data}>
+                <DynamicComponent {...data} />
+            </RandomDataSourceProvider>
+        )
+
+    }
+
+    widgets.push(timeSeriesWidget);
+
+
+    return widgets;
+};
+
+const WidgetExport = (widgets: WidgetDefinition[]) => {
+    return TimeSeriesChartExport(LineChartExport(widgets));
 }
 
 export default WidgetExport;

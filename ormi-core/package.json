@@ -43,7 +43,8 @@
     "recharts": "^2.13.3",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "uplot-react": "^1.2.2"
   },
   "devDependencies": {
     "@types/node": "^20.17.6",
