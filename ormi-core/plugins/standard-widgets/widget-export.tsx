@@ -7,8 +7,6 @@ import dynamic from 'next/dynamic';
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { RandomDataSourceProvider } from "@/core/datasources/random-data-source";
-import { getColorsFromString } from '@/core/utils/Colors';
-
 
 const getTopicOptions = async () => {
 
@@ -31,6 +29,11 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     const title: ControlElement = {
         type: "Control",
         scope: "#/properties/title",
+    }
+
+    const timeToSpan: ControlElement = {
+        type: "Control",
+        scope: "#/properties/timeToSpan",
     }
 
     const topic: ControlElement = {
@@ -69,7 +72,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     const layout: VerticalLayout = {
         type: "VerticalLayout",
-        elements: [title, topics],
+        elements: [title, timeToSpan, topics],
     }
 
     const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.LineChart), {
@@ -87,6 +90,11 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                 title: {
                     type: 'string',
                     title: 'Title'
+                },
+                timeToSpan: {
+                    type: 'number',
+                    title: 'Span of time in seconds',
+                    default: 10
                 },
                 topics: {
                     type: 'array',
@@ -112,7 +120,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
                     }
                 }
             },
-            required: ['title', 'topics']
+            required: ['title', 'topics', 'timeToSpan']
         },
         uischema: layout,
         data: {
