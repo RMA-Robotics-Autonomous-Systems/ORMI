@@ -5,7 +5,7 @@
 
 
 import { useRandomProvider } from '@/core/datasources/random-data-source';
-import { getColorsFromString } from '@/core/utils/Colors';
+import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import React, { useEffect, useState } from 'react';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
@@ -55,6 +55,9 @@ export function TimeChartComponent(props: any) {
 
     const [data, setData] = useState<AlignedData>([new Float64Array([Date.now() / 1000]), new Float64Array([0])]);
 
+    const timeSpan = props.timeHistory || 5;
+    const updateFrequency = props.updateFrequency || 32;    // in Hz
+
     useEffect(() => {
         // setup the series based on the props.topics
         const series: uPlot.Series[] = [];
@@ -62,11 +65,15 @@ export function TimeChartComponent(props: any) {
             label: 'Time',
         });
         for (const topic of props.topics) {
+
+            const fill = (topic.fill || false) ? getTransparentColorString(topic.color || getColorsFromString(topic.topic), 0.4) : undefined;
+
             series.push({
                 label: topic.topic,
-                stroke: getColorsFromString(topic.topic),
+                stroke: topic.color || getColorsFromString(topic.topic),
                 width: 2,
                 spanGaps: true,
+                fill: fill,
             });
         }
 
@@ -101,11 +108,11 @@ export function TimeChartComponent(props: any) {
 
                 // filter the data that is older than 60 seconds, the data is in the data property, the timestamp is in the times property
                 const topic_filtered_value = source.data.filter((value, index) => {
-                    return (source.times[index] / 1000) > now - 2;
+                    return (source.times[index] / 1000) > now - timeSpan;
                 });
 
                 const topic_filtered_time = source.times.filter((value, index) => {
-                    return (source.times[index] / 1000) > now - 2;
+                    return (source.times[index] / 1000) > now - timeSpan;
                 });
 
                 filtered_data.set(topic.topic, topic_filtered_value.map((value, index) => {
@@ -138,18 +145,18 @@ export function TimeChartComponent(props: any) {
             setOptions({
                 ...options!,
                 width: divRef.current!.clientWidth,
-                height: divRef.current!.clientHeight,
+                height: divRef.current!.clientHeight - 40,
                 scales: {
                     x: {
                         time: true,
-                        range: [now - 2, now],
+                        range: [now - timeSpan, now],
                     },
                 },
             });
 
 
 
-        }, 32);
+        }, 1000 / updateFrequency);
 
 
         return () => {

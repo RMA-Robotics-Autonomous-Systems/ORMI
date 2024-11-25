@@ -147,6 +147,16 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         scope: "#/properties/title",
     }
 
+    const timeHistory: ControlElement = {
+        type: "Control",
+        scope: "#/properties/timeHistory",
+    }
+
+    const updateFrequency: ControlElement = {
+        type: "Control",
+        scope: "#/properties/updateFrequency",
+    }
+
     const topic: ControlElement = {
         "type": "Control",
         "scope": "#/properties/topic",
@@ -156,6 +166,19 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         }
     }
 
+    const color: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/color",
+        "options": {
+            "color": true,
+        }
+    }
+
+    const fill: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/fill",
+    }
+
     // array of topics
     const topics: ControlElement = {
         type: "Control",
@@ -163,14 +186,14 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         options: {
             detail: {
                 type: "VerticalLayout",
-                elements: [topic]
+                elements: [topic, color, fill]
             }
         }
     }
 
     const layout: VerticalLayout = {
         type: "VerticalLayout",
-        elements: [title, topics],
+        elements: [title, timeHistory, updateFrequency, topics],
     }
 
     const DynamicComponent = dynamic(() => import('./widgets/timeseries-chart').then(mod => mod.TimeChartComponent), {
@@ -189,6 +212,16 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                     type: 'string',
                     title: 'Title'
                 },
+                timeHistory: {
+                    type: 'number',
+                    title: 'Time history in seconds',
+                    default: 5
+                },
+                updateFrequency: {
+                    type: 'number',
+                    title: 'Update frequency in Hz',
+                    default: 32
+                },
                 topics: {
                     type: 'array',
                     title: 'Topics',
@@ -199,6 +232,15 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                                 "type": "string",
                                 "title": "Topic"
                             },
+                            "color": {
+                                "type": "string",
+                                "title": "Color",
+                            },
+                            "fill": {
+                                "type": "boolean",
+                                "title": "Fill",
+                                default: false,
+                            }
                         },
                         "required": ["topic"]
                     }
