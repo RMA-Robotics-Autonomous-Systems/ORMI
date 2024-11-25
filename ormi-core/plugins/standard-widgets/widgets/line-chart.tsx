@@ -130,10 +130,22 @@ export function LineChart(props: any) {
                 const source = sources.get(dataset.label);
                 if (source) {
 
-                    dataset.data = source.data.map((value, index) => {
-                        return { x: source.times[index], y: value };
+                    const filteredData = source.data.filter((value, index) => {
+                        return (source.times[index]) > currentTime - spanOfTime * 1000;
+                    });
+                    const filteredTimes = source.times.filter((value, index) => {
+                        return (value) > currentTime - spanOfTime * 1000;
                     });
 
+                    const newData = filteredData.map((value, index) => {
+                        return {
+                            x: filteredTimes[index],
+                            y: value
+                        }
+                    });
+
+
+                    dataset.data = newData;
                 }
             }
         }
@@ -145,7 +157,7 @@ export function LineChart(props: any) {
         }
 
         chartRef.current.update();
-        chartRef.current.resize();
+        // chartRef.current.resize();
     }
 
     return (
