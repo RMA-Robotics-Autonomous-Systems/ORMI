@@ -6,6 +6,7 @@
 
 import { useRandomProvider } from '@/core/datasources/random-data-source';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
+import { toast } from '@/hooks/use-toast';
 import React, { useEffect, useState } from 'react';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
@@ -67,6 +68,17 @@ export function TimeChartComponent(props: any) {
         for (const topic of props.topics) {
 
             const fill = (topic.fill || false) ? getTransparentColorString(topic.color || getColorsFromString(topic.topic), 0.4) : undefined;
+
+            // check if the topic is in the sources
+            const source = sources.get(topic.topic);
+            if (!source) {
+                toast({
+                    title: 'Error',
+                    description: `Data source ${topic.topic} not found`,
+                    variant: 'destructive'
+                });
+                continue;
+            }
 
             series.push({
                 label: topic.topic,
