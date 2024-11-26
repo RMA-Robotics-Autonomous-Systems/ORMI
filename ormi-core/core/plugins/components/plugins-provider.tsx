@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 // import PluginsLoader from './plugins-loader';
-import PluginsManager from './plugins-manager';
-import { PluginData } from './plugin-core';
-import { PluginsHooks } from './plugins-types';
+import PluginsManager from '../plugins-manager';
+import { PluginData } from '../plugin-core';
+import { PluginsHooks } from '../plugins-types';
 
 
 // Create the context with a default value

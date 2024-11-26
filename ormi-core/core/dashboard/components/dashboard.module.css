@@ -1,0 +1,23 @@
+.dragHandle {
+    padding: 0.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #666;
+    cursor: move;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.content {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.widget {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.5rem;
+    background-color: hsl(var(--background));
+}

@@ -73,3 +73,10 @@ h1 {
     @apply text-4xl font-bold;
     text-transform: uppercase;
 }
+
+.react-grid-item.react-draggable-dragging,
+.resizing,
+.react-grid-item.react-draggable-dragging~*,
+.resizing~* {
+    user-select: none;
+}
