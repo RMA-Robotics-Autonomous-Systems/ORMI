@@ -1,10 +1,10 @@
-import {PluginCore} from "@/core/plugins/plugin-core";
+import {PluginServerSide} from "@/core/plugins/plugin-core";
 
 import  { HelloWorld } from "./client-side-functions";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
 
-class PluginA extends PluginCore{
+class PluginA extends PluginServerSide{
 
     constructor(){
         super();

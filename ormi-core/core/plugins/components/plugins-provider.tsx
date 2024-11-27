@@ -3,7 +3,7 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 // import PluginsLoader from './plugins-loader';
 import PluginsManager from '../plugins-manager';
-import { PluginData } from '../plugin-core';
+import { PluginClientSide } from '../plugin-core';
 import { PluginsHooks } from '../plugins-types';
 
 
@@ -11,7 +11,7 @@ import { PluginsHooks } from '../plugins-types';
 const PluginsContext = createContext<PluginsManager | undefined>(undefined);
 
 // Create a provider component
-const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: Map<string, PluginData> }> = ({ children, pluginsLoader }) => {
+const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: Map<string, PluginClientSide> }> = ({ children, pluginsLoader }) => {
 
     const pluginsManager = new PluginsManager(pluginsLoader);
 

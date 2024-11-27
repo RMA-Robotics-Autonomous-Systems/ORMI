@@ -1,4 +1,4 @@
-import { PluginAction, PluginData, PluginFilter } from "./plugin-core";
+import { PluginAction, PluginClientSide, PluginFilter } from "./plugin-core";
 import { PluginsHooks } from "./plugins-types";
 
 /*
@@ -8,9 +8,9 @@ import { PluginsHooks } from "./plugins-types";
 */
 class PluginsManager{
 
-    private plugins: Map<string | PluginsHooks, PluginData>;
+    private plugins: Map<string | PluginsHooks, PluginClientSide>;
 
-    constructor(pluginLoader: Map<string | PluginsHooks, PluginData>){
+    constructor(pluginLoader: Map<string | PluginsHooks, PluginClientSide>){
         this.plugins = pluginLoader
     }
 

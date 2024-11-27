@@ -1,10 +1,10 @@
-import {PluginCore} from "@/core/plugins/plugin-core";
+import {PluginServerSide} from "@/core/plugins/plugin-core";
 
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import WidgetExport from "./widget-export";
 
 
-class PluginA extends PluginCore{
+class PluginA extends PluginServerSide{
 
     constructor(){
         super();

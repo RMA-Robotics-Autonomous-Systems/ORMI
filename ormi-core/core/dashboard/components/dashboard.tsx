@@ -19,7 +19,7 @@ const Dashboard = () => {
 
     const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
 
-    const { setNavbarItem } = useNavbar();
+    const { setNavbarItem, removeNavbarItem } = useNavbar();
 
     const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
 
@@ -64,6 +64,14 @@ const Dashboard = () => {
                 {hasChanged ? <Save /> : <Check />}
             </Button>
         );
+
+        return () => {
+            removeNavbarItem("center", "widgets_combo");
+            removeNavbarItem("center", "lock_unlock");
+            removeNavbarItem("center", "moveToHorizontal");
+            removeNavbarItem("center", "moveToVertical");
+            removeNavbarItem("center", "save");
+        }
 
     }, [locked, hasChanged, layouts, widgets]);
 

@@ -16,7 +16,7 @@ interface PluginFilter{
     filter: (...args: any) => any;
 }
 
-interface PluginData{
+interface PluginClientSide{
     name: string;
     description: string;
     version: string;
@@ -24,5 +24,5 @@ interface PluginData{
     filters: Map<string | PluginsHooks, PluginFilter>;
 }
 
-export type { PluginAction, PluginFilter , PluginData };
+export type { PluginAction, PluginFilter , PluginClientSide };
 export { PluginsHooks };

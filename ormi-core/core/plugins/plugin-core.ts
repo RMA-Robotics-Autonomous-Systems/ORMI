@@ -3,9 +3,9 @@
 */
 
 
-import { PluginAction, PluginFilter, PluginData, PluginsHooks } from "@/core/plugins/plugins-types";
+import { PluginAction, PluginFilter, PluginClientSide, PluginsHooks } from "@/core/plugins/plugins-types";
 
-abstract class PluginCore{
+abstract class PluginServerSide{
 
     protected name: string;
     protected author: string;
@@ -64,7 +64,7 @@ abstract class PluginCore{
         return this.dependencies;
     }
 
-    toObject(): PluginData{
+    toObject(): PluginClientSide{
         return {
             name: this.name,
             description: this.description,
@@ -75,5 +75,5 @@ abstract class PluginCore{
     }
 }
 
-export { PluginCore };
-export type { PluginAction, PluginFilter, PluginData };
+export { PluginServerSide };
+export type { PluginAction, PluginFilter, PluginClientSide };

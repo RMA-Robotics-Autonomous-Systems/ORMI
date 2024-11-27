@@ -29,13 +29,15 @@ interface NavbarContextType {
     center: Map<string, JSX.Element>;
     right: Map<string, JSX.Element>;
     setNavbarItem: (zone: NavbarZone, key: string, component: JSX.Element) => void;
+    removeNavbarItem: (zone: NavbarZone, key: string) => void;
 }
 
 const NavbarContext = createContext<NavbarContextType>({
     left: new Map(),
     center: new Map(),
     right: new Map(),
-    setNavbarItem: () => { }
+    setNavbarItem: () => { },
+    removeNavbarItem: () => { }
 });
 
 interface NavbarProviderProps {
@@ -84,8 +86,37 @@ export const NavbarProvider: React.FC<NavbarProviderProps> = ({ children }) => {
         }
     }
 
+    const removeNavbarItem = (zone: NavbarZone, key: string) => {
+
+        switch (zone) {
+            case "left":
+                setLeft((prev) => {
+                    const newMap = new Map(prev);
+                    newMap.delete(key);
+                    return newMap;
+                });
+                break;
+            case "center":
+                setCenter((prev) => {
+                    const newMap = new Map(prev);
+                    newMap.delete(key);
+                    return newMap;
+                });
+                break;
+            case "right":
+                setRight((prev) => {
+                    const newMap = new Map(prev);
+                    newMap.delete(key);
+                    return newMap;
+                });
+                break;
+        }
+
+    }
+
+
     return (
-        <NavbarContext.Provider value={{ left, center, right, setNavbarItem }}>
+        <NavbarContext.Provider value={{ left, center, right, setNavbarItem, removeNavbarItem }}>
             {children}
         </NavbarContext.Provider>
     );
