@@ -16,6 +16,7 @@ class PluginsLoader{
 
     constructor(){
         this.plugins = new Map<string, PluginServerSide>();
+        this.load();
     }
     
     addPlugin(plugin: PluginServerSide): void{
@@ -38,17 +39,17 @@ class PluginsLoader{
         return this.plugins;
     }
 
-    async Load(): Promise<boolean>{
+    load(): boolean{
         // Load all plugins in the plugins directory
         const plugins: string[] = PluginsLoader.listPluginsDir();
 
         for(const plugin of plugins){
 
             // Load plugin
-            await import(`@/plugins/${plugin}/index.ts`).then((module) => {
-                const pluginInstance = new module.default();
-                this.addPlugin(pluginInstance);
-            });
+            // eslint-disable-next-line @next/next/no-assign-module-variable, @typescript-eslint/no-require-imports
+            const module = require(`@/plugins/${plugin}/index.ts`);
+            const pluginInstance = new module.default();
+            this.addPlugin(pluginInstance);
 
         }
 
@@ -71,7 +72,7 @@ class PluginsLoader{
         return plugins;
     } 
 
-    public convertToPlainObject(): Map<string, PluginClientSide>{
+    public getClientSide(): Map<string, PluginClientSide>{
             
         const plugins: Map <string, PluginClientSide> = new Map<string, PluginClientSide>();
 

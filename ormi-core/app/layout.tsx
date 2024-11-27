@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 // import localFont from "next/font/local";
 import "./globals.css";
+import PluginsLoader from "@/core/plugins/plugins-loader";
+import { PluginsProvider } from "@/core/plugins/components/plugins-provider";
+import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
+import NavBar from "@/components/advanced/navbar/navbar";
 
 // const geistSans = localFont({
 //     src: "./fonts/GeistVF.woff",
@@ -23,11 +27,19 @@ export default function RootLayout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+
+    const pl = new PluginsLoader();
+
     return (
         <html lang="en">
             <body>
                 <main>
-                    {children}
+                    <PluginsProvider pluginsLoader={pl.getClientSide()}>
+                        <NavbarProvider>
+                            <NavBar />
+                            {children}
+                        </NavbarProvider>
+                    </PluginsProvider>
                 </main>
             </body>
         </html >
