@@ -45,16 +45,10 @@ export function TimeChartComponent(props: any) {
             {
                 label: 'Time',
             },
-            {
-                label: 'Random',
-                stroke: 'blue',
-                width: 2,
-                show: true,
-            },
         ]
     });
 
-    const [data, setData] = useState<AlignedData>([new Float64Array([Date.now() / 1000]), new Float64Array([0])]);
+    const [data, setData] = useState<AlignedData>([]);
 
     const timeSpan = props.timeHistory || 5;
     const updateFrequency = props.updateFrequency || 32;    // in Hz
