@@ -3,7 +3,7 @@ import { PluginsHooks } from "./plugins-types";
 
 /*
 
-    Class used in client side to manage plugins.
+    Class used in client side to manage actions and filters of plugins
 
 */
 class PluginsManager{
@@ -12,6 +12,15 @@ class PluginsManager{
 
     constructor(pluginLoader: Map<string | PluginsHooks, PluginClientSide>){
         this.plugins = pluginLoader
+
+        // add a "basic" plugin that will be used to add new filters and actions from the client side
+        this.plugins.set("basic", {
+            actions: new Map(),
+            filters: new Map(),
+            name: "basic",
+            description: "basic plugin",
+            version: "1.0.0"
+        });
     }
 
     applyFilter(filterName: string | PluginsHooks, ...args: any): any{
@@ -40,6 +49,15 @@ class PluginsManager{
         return result;
     }
 
+    addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void{
+        this.plugins.get("basic")?.filters.set(filterName, filter);
+    }
+
+    removeFilter(pluginFilterId: string): void{
+        this.plugins.get("basic")?.filters.delete(pluginFilterId);
+    }
+
+
     doAction(actionName: string | PluginsHooks, ...args: any): void{
 
         const actions: PluginAction[] = [];
@@ -60,6 +78,13 @@ class PluginsManager{
         });
     }
 
+    addAction(actionName: string | PluginsHooks, action: PluginAction): void{
+        this.plugins.get("basic")?.actions.set(actionName, action);
+    }
+
+    removeAction(pluginActionId: string): void{
+        this.plugins.get("basic")?.actions.delete(pluginActionId);
+    }
 }
 
 

@@ -16,6 +16,7 @@ class PluginA extends PluginServerSide{
         this.email = "florian.lebecque@mil.be";
 
         this.filters.set(PluginsHooks.WIDGETS_LIST, {
+            id: this.name + "-widget-export",
             priority: 10,
             filter: WidgetExport
         });

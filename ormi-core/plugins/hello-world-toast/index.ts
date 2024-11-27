@@ -16,6 +16,7 @@ class PluginA extends PluginServerSide{
         this.email = "florian.lebecque@mil.be";
 
         this.filters.set(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, {
+            id: this.name + "-hello-world",
             priority: 10,
             filter: HelloWorld
         });

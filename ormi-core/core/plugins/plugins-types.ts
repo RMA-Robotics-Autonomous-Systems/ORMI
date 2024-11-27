@@ -7,11 +7,13 @@ enum PluginsHooks {
 }
 
 interface PluginAction{
+    id : string;
     priority: number;    
     action: (...args: any) => void;
 }
 
 interface PluginFilter{
+    id: string;
     priority: number;
     filter: (...args: any) => any;
 }
