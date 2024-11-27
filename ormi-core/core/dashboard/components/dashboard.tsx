@@ -17,7 +17,7 @@ import { ArrowLeftFromLine, ArrowUpFromLine, Check, Save } from "lucide-react";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -37,9 +37,13 @@ const Dashboard = () => {
         updateWidget(box_id, settings);
     }
 
+    const handleValidate = (widget: WidgetDefinition, settings: object) => {
+        addWidget(widget, settings);
+    }
+
     useEffect(() => {
 
-        setNavbarItem("center", "widgets_combo", <WidgetsCombo />);
+        setNavbarItem("center", "widgets_combo", <WidgetsCombo onValidate={handleValidate} />);
 
         setNavbarItem("center", "lock_unlock",
             <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>

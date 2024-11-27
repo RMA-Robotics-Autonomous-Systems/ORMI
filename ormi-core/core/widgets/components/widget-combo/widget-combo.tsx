@@ -19,24 +19,22 @@ import {
 } from "@/components/ui/popover"
 
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider"
-import { useDashboardManager } from "@/core/dashboard/components/dashboard-provider"
 import PluginsManager from "@/core/plugins/plugins-manager"
 import { PluginsHooks } from "@/core/plugins/plugins-types"
 import { WidgetDefinition } from "../../widget-interface"
 import WidgetCard from "../widget-card/widget-card"
 
 
-export function WidgetsCombo() {
+export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, settings: object) => void }) {
     const [open, setOpen] = React.useState(false)
 
     const pluginsManager = usePluginsManager() as PluginsManager;
-    const { addWidget } = useDashboardManager();
     const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 
 
     const handleValidate = (widget: WidgetDefinition, settings: object) => {
 
-        addWidget(widget, settings);
+        props.onValidate(widget, settings);
 
         setOpen(false); // close the popover
     }
