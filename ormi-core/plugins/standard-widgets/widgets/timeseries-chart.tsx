@@ -58,6 +58,9 @@ export function TimeChartComponent(props: any) {
         series.push({
             label: 'Time',
         });
+
+        const notFoundTopics: string[] = [];
+
         for (const topic of props.topics) {
 
             const fill = (topic.fill || false) ? getTransparentColorString(topic.color || getColorsFromString(topic.topic), 0.4) : undefined;
@@ -65,11 +68,7 @@ export function TimeChartComponent(props: any) {
             // check if the topic is in the sources
             const source = sources.get(topic.topic);
             if (!source) {
-                toast({
-                    title: 'Error',
-                    description: `Data source ${topic.topic} not found`,
-                    variant: 'destructive'
-                });
+                notFoundTopics.push(topic.topic);
                 continue;
             }
 
@@ -79,6 +78,22 @@ export function TimeChartComponent(props: any) {
                 width: 2,
                 spanGaps: true,
                 fill: fill,
+            });
+        }
+
+
+        if (notFoundTopics.length > 0) {
+            toast({
+                title: 'Error',
+                description: (
+                    <div>
+                        <p>Some topics were not found:</p>
+                        <ul>
+                            {notFoundTopics.map(topic => <li key={topic}>{topic}</li>)}
+                        </ul>
+                    </div>
+                ),
+                variant: 'destructive'
             });
         }
 
@@ -145,6 +160,10 @@ export function TimeChartComponent(props: any) {
 
             // update the data
             setData(data_copy);
+
+            if (divRef.current === null || divRef.current === undefined || !divRef.current.clientWidth || !divRef.current.clientHeight) {
+                return;
+            }
 
             // update options
             setOptions({
