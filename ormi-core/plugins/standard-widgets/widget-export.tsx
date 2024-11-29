@@ -6,25 +6,11 @@ import { VerticalLayout, ControlElement } from "@jsonforms/core";
 import dynamic from 'next/dynamic';
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { RandomDataSourceProvider } from "@/core/datasources/random-data-source";
-
-const getTopicOptions = async () => {
-
-    // return random topics after 1 second
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve([
-                { value: '/imu/vel/x', label: '/imu/vel/x' },
-                { value: '/imu/vel/y', label: '/imu/vel/y' },
-                { value: '/imu/vel/z', label: '/imu/vel/z' },
-                { value: '/imu/vel/w', label: '/imu/vel/w' },
-            ]);
-        }, 1000);
-    });
-
-}
+import { useGlobalDataSources } from '@/core/datasources/components/global-datasource-provider';
 
 function LineChartExport(widgets: WidgetDefinition[]) {
+
+    const GlobalDataSources = useGlobalDataSources();
 
     const title: ControlElement = {
         type: "Control",
@@ -41,7 +27,13 @@ function LineChartExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "async": true,
-            "asyncFunction": getTopicOptions,
+            "asyncFunction": async () => {
+                const topics = GlobalDataSources.getAvailableTopics("number");
+                return topics.map((topic) => ({
+                    label: topic.topic,
+                    value: topic.topic
+                }));
+            },
         }
     }
 
@@ -127,9 +119,7 @@ function LineChartExport(widgets: WidgetDefinition[]) {
             title: 'Chart'
         },
         Component: (data: any) => (
-            <RandomDataSourceProvider props={data}>
-                <DynamicComponent {...data} />
-            </RandomDataSourceProvider>
+            <DynamicComponent {...data} />
         )
 
     }
@@ -141,6 +131,8 @@ function LineChartExport(widgets: WidgetDefinition[]) {
 };
 
 function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
+
+    const GlobalDataSources = useGlobalDataSources();
 
     const title: ControlElement = {
         type: "Control",
@@ -162,7 +154,13 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "async": true,
-            "asyncFunction": getTopicOptions,
+            "asyncFunction": async () => {
+                const topics = GlobalDataSources.getAvailableTopics("number");
+                return topics.map((topic) => ({
+                    label: topic.topic,
+                    value: topic.topic
+                }));
+            },
         }
     }
 
@@ -253,9 +251,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
             title: 'Chart'
         },
         Component: (data: any) => (
-            <RandomDataSourceProvider props={data}>
-                <DynamicComponent {...data} />
-            </RandomDataSourceProvider>
+            <DynamicComponent {...data} />
         )
 
     }

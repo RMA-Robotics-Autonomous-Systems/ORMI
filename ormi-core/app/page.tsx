@@ -6,9 +6,32 @@ import DashboardInterface from "@/core/dashboard/dashboard-interface";
 import Dashboard from "@/core/dashboard/components/dashboard";
 import { Widget } from "@/core/widgets/widget-interface";
 
-
+import { Datasource } from "@/core/datasources/datasource-interface";
+import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
 
 export default function Home() {
+
+    const datasources = new Map<string, Datasource>();
+    datasources.set('random-data-source', {
+        datasource_id: 'random-data-source',
+        title: 'Random Data Source',
+        settings: {
+            topics: [
+                {
+                    "topic": "/imu/vel/x",
+                    frequency: 16
+                },
+                {
+                    "topic": "/imu/vel/y",
+                    frequency: 32
+                },
+                {
+                    "topic": "/imu/vel/z",
+                    frequency: 64
+                }
+            ]
+        }
+    });
 
     const dashboardDefinition: DashboardInterface = {
         layouts: {
@@ -23,10 +46,12 @@ export default function Home() {
 
     return (
         <div className={styles.page}>
-            <DashboardProvider dashboardDefinition={dashboardDefinition}>
-                <Dashboard />
-                <WidgetsDialog />
-            </DashboardProvider>
+            <GlobalDataSourcesProvider datasources={datasources}>
+                <DashboardProvider dashboardDefinition={dashboardDefinition}>
+                    <Dashboard />
+                    <WidgetsDialog />
+                </DashboardProvider>
+            </GlobalDataSourcesProvider>
         </div>
     );
 }

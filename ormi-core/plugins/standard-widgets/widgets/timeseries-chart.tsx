@@ -4,7 +4,6 @@
 // */
 
 
-import { useRandomProvider } from '@/core/datasources/random-data-source';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import React, { useEffect, useState } from 'react';
@@ -17,7 +16,7 @@ import 'uplot/dist/uPlot.min.css';
 
 export function TimeChartComponent(props: any) {
 
-    const { sources } = useRandomProvider();
+    const sources = new Map<string, { data: number[], times: number[] }>();
 
     const divRef = React.useRef<HTMLDivElement>(null);
 

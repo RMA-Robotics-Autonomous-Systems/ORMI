@@ -1,7 +1,6 @@
 "use client"
 
 import 'chartjs-adapter-date-fns';
-import { useRandomProvider } from '@/core/datasources/random-data-source';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import Chart, { ChartConfiguration } from 'chart.js/auto';
@@ -15,7 +14,7 @@ export function LineChart(props: any) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const chartRef = useRef<Chart>();
 
-    const { sources } = useRandomProvider();
+    const sources = new Map<string, { data: number[], times: number[] }>();
 
     // mount and unmount the chart
     useEffect(() => {
