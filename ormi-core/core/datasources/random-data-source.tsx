@@ -11,9 +11,6 @@
             data: [random data]    
         },
 */
-
-
-
 "use client";
 
 import { toast } from '@/hooks/use-toast';
@@ -39,6 +36,7 @@ const RandomDataSourceContext = createContext<RandomDataSourceManager>({
 const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = ({ children, props }) => {
 
     const [sources, setSources] = useState<Map<string, RandomDataSource>>(new Map());
+    const [counters, setCounters] = useState<Map<string, number>>(new Map());
 
 
     useEffect(() => {
@@ -69,15 +67,23 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = 
         setSources(source_map);
 
         const intervales: NodeJS.Timeout[] = [];
-        // foreach source, generate random data
+        // foreach source, generate random data using the frequency to create a wave
         for (const source of source_map.keys()) {
 
             const freq = availables_sources_freq[availables_sources.indexOf(source)];
 
             const interval = setInterval(() => {
                 const source_data = source_map.get(source);
+
+                const counter = counters.get(source) || 0;
+
                 if (source_data) {
-                    source_data.data.push(Math.random());
+
+
+                    const y = Math.sin((counter) * (1 / freq) * Math.PI * 2);
+
+                    source_data.data.push(y);
+
                     source_data.times.push(Date.now());
 
                     // keep only the last 10 values
@@ -87,6 +93,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: any }> = 
                     }
 
                     setSources(new Map(source_map));
+                    setCounters(new Map(counters.set(source, (counter + 1) % 1000)));
                 }
             }, freq);
 
