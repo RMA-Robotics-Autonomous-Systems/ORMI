@@ -1,10 +1,11 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useRef } from 'react';
 // import PluginsLoader from './plugins-loader';
 import PluginsManager from '../plugins-manager';
 import { PluginClientSide } from '../plugin-core';
 import { PluginsHooks } from '../plugins-types';
+
 
 
 // Create the context with a default value
@@ -13,13 +14,13 @@ const PluginsContext = createContext<PluginsManager | undefined>(undefined);
 // Create a provider component
 const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: Map<string, PluginClientSide> }> = ({ children, pluginsLoader }) => {
 
-    const pluginsManager = new PluginsManager(pluginsLoader);
+    const pluginsManagerRef = useRef(new PluginsManager(pluginsLoader));
 
-    const elements_before_children = pluginsManager.applyFilter(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
-    const elements_after_children = pluginsManager.applyFilter(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
+    const elements_before_children = pluginsManagerRef.current.applyFilter(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
+    const elements_after_children = pluginsManagerRef.current.applyFilter(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
 
     return (
-        <PluginsContext.Provider value={pluginsManager}>
+        <PluginsContext.Provider value={pluginsManagerRef.current}>
             {elements_before_children}
             {children}
             {elements_after_children}
