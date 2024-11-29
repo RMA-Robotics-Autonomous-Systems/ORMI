@@ -42,6 +42,8 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
+    const [initialized, setInitialized] = useState(false);
+
     useEffect(() => {
 
         const dataSourcesTypes_array = pluginsManager.applyFilter(PluginsHooks.DATASOURCES_LIST, []);
@@ -50,17 +52,14 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
             dataSourcesTypes_map.set(dataSource.id, dataSource);
         }
         setDataSourcesTypes(dataSourcesTypes_map);
+        setInitialized(true);
 
     }, []);
 
     const getProvider = (datasource_id: string) => {
         const dataSourceType = dataSourcesTypes.get(datasource_id);
         if (!dataSourceType) {
-            toast({
-                title: 'Error',
-                description: `Datasource ${datasource_id} not found`,
-                variant: 'destructive',
-            })
+            console.error(`Datasource ${datasource_id} not found`);
             return null;
         }
         return dataSourceType.Provider;
@@ -82,7 +81,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     return (
         <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources, getAvailableTopics, subScribeToTopic }}>
-            {Array.from(availableDataSources.values()).reduceRight((acc, datasource) => {
+            {initialized && Array.from(availableDataSources.values()).reduceRight((acc, datasource) => {
                 const Provider = getProvider(datasource.datasource_id);
                 if (!Provider) {
                     return acc;
@@ -97,6 +96,13 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
     );
 }
 
-const useGlobalDataSources = () => useContext(GlobalDataSourcesContext);
+const useGlobalDataSources = () => {
+    const context = useContext(GlobalDataSourcesContext);
+    if (!context) {
+        throw new Error('useGlobalDataSources must be used within a GlobalDataSourcesProvider');
+    }
+
+    return context;
+};
 
 export { GlobalDataSourcesProvider, useGlobalDataSources };
