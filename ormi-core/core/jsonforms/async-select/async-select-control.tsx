@@ -14,16 +14,16 @@ import { Label } from '@/components/ui/label';
 
 
 const AsyncSelectControl = (props: ControlProps) => {
-    const { data, handleChange, path, uischema, id, label } = props;
-    const [options, setOptions] = useState([]);
+    const { data, handleChange, path, uischema, label } = props;
+    const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
 
     useEffect(() => {
 
         const asyncFunction = uischema.options?.asyncFunction;
 
         if (asyncFunction) {
-            asyncFunction().then((result: any) => {
-                setOptions(result);
+            asyncFunction().then((result: unknown) => {
+                setOptions(result as { value: string; label: string }[]);
             });
         }
 
