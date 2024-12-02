@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
 import { Cross1Icon, LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons"
@@ -21,7 +21,7 @@ const Dashboard = () => {
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
+    const ResponsiveGridLayout = useRef(WidthProvider(Responsive)).current;
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
