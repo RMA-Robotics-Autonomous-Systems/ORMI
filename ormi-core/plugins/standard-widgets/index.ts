@@ -15,12 +15,13 @@ class PluginA extends PluginServerSide{
         this.author = "Lbcqu Florian";
         this.email = "florian.lebecque@mil.be";
 
-        this.filters.set(PluginsHooks.WIDGETS_LIST, {
+        const widgetFilter = {
             id: this.name + "-widget-export",
             priority: 10,
             filter: WidgetExport
-        });
+        };
 
+        this.addFilter(PluginsHooks.WIDGETS_LIST, widgetFilter);
     }
 }
 

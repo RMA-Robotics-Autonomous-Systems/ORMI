@@ -23,8 +23,8 @@ interface PluginClientSide{
     name: string;
     description: string;
     version: string;
-    actions: Map<string | PluginsHooks, PluginAction>;
-    filters: Map<string | PluginsHooks, PluginFilter>;
+    actions: Map<string | PluginsHooks, Map<string,PluginAction>>;  // [actionName, [pluginId, action]]
+    filters: Map<string | PluginsHooks, Map<string,PluginFilter>>;  // [filterName, [pluginId, filter]]
 }
 
 export type { PluginAction, PluginFilter , PluginClientSide };

@@ -15,11 +15,13 @@ class PluginA extends PluginServerSide{
         this.author = "Lbcqu Florian";
         this.email = "florian.lebecque@mil.be";
 
-        this.filters.set(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, {
+        const helloFilter = {
             id: this.name + "-hello-world",
             priority: 10,
             filter: HelloWorld
-        });
+        };
+
+        this.addFilter(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, helloFilter);
 
     }
 }

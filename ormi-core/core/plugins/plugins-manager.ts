@@ -32,12 +32,14 @@ class PluginsManager{
         const filters : PluginFilter[] = [];
 
         this.plugins.forEach((plugin) => {
-            if (plugin.filters.has(filterName)) {
-                const filter = plugin.filters.get(filterName);
-                if(filter !== undefined){
+            const filtersMap = plugin.filters.get(filterName);
+
+            if(filtersMap !== undefined){
+                filtersMap.forEach((filter) => {
                     filters.push(filter);
-                }
+                });
             }
+
         });
 
         filters.sort((a, b) => a.priority - b.priority);
@@ -50,13 +52,26 @@ class PluginsManager{
     }
 
     addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void{
-        this.plugins.get("basic")?.filters.set(filterName, filter);
+
+        const basicPlugin = this.plugins.get("basic");
+
+        if(basicPlugin === undefined){
+            throw new Error("Basic plugin not found");
+        }
+
+        if(!basicPlugin.filters.has(filterName)){
+            basicPlugin.filters.set(filterName, new Map());
+        }
+
+        basicPlugin.filters.get(filterName)?.set(filter.id, filter);
     }
 
     removeFilter(pluginFilterId: string): void{
-        this.plugins.get("basic")?.filters.delete(pluginFilterId);
+        this.plugins.get("basic")?.filters.forEach((filterMap) => {
+            filterMap.delete(pluginFilterId);
+        });
+        
     }
-
 
     doAction(actionName: string | PluginsHooks, ...args: any): void{
 
@@ -64,10 +79,15 @@ class PluginsManager{
 
         this.plugins.forEach((plugin) => {
             if(plugin.actions.has(actionName)){
-                const action = plugin.actions.get(actionName);
-                if(action !== undefined){
-                    actions.push(action);
+
+                const actionsMap = plugin.actions.get(actionName);
+
+                if(actionsMap !== undefined){
+                    actionsMap.forEach((action) => {
+                        actions.push(action);
+                    });
                 }
+
             }
         });
 
@@ -79,11 +99,25 @@ class PluginsManager{
     }
 
     addAction(actionName: string | PluginsHooks, action: PluginAction): void{
-        this.plugins.get("basic")?.actions.set(actionName, action);
+
+        const basicPlugin = this.plugins.get("basic");
+
+        if(basicPlugin === undefined){
+            throw new Error("Basic plugin not found");
+        }
+
+        if(!basicPlugin.actions.has(actionName)){
+            basicPlugin.actions.set(actionName, new Map());
+        }
+
+        basicPlugin.actions.get(actionName)?.set(action.id, action);
+
     }
 
     removeAction(pluginActionId: string): void{
-        this.plugins.get("basic")?.actions.delete(pluginActionId);
+        this.plugins.get("basic")?.actions.forEach((actionMap) => {
+            actionMap.delete(pluginActionId);
+        });
     }
 }
 

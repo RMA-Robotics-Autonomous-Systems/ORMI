@@ -16,12 +16,13 @@ class RandomDataSourcePlugins extends PluginServerSide {
         this.author = "Lbcqu Florian";
         this.email = "florian.lebecque@mil.be";
 
-        this.filters.set(PluginsHooks.DATASOURCES_LIST, {
-            id: this.name + "-datasource-export",
+        const rndFilter = {
+            id: "random-data-source-filter",
             priority: 10,
             filter: dataSourceExport
-        });
+        };
 
+        this.addFilter(PluginsHooks.DATASOURCES_LIST, rndFilter);
     }
 }
 
