@@ -4,6 +4,8 @@
 // */
 
 
+import { useLocalsourceProvider } from '@/core/datasources/components/local-datasource-provider';
+import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import React, { useEffect, useState } from 'react';
@@ -16,13 +18,13 @@ import 'uplot/dist/uPlot.min.css';
 
 export function TimeChartComponent(props: any) {
 
-    const sources = new Map<string, { data: number[], times: number[] }>();
+    const { sources } = useLocalsourceProvider();
 
     const divRef = React.useRef<HTMLDivElement>(null);
 
     const [options, setOptions] = useState<uPlot.Options>({
-        width: 400,
-        height: 300,
+        width: divRef.current?.clientWidth || 500,
+        height: divRef.current?.clientHeight || 500,
 
         scales: {
             x: {
@@ -53,6 +55,11 @@ export function TimeChartComponent(props: any) {
     const updateFrequency = props.updateFrequency || 32;    // in Hz
 
     useEffect(() => {
+
+        const getTopic = (topic: string) => {
+            return JSON.parse(topic) as DatasourceTopic;
+        }
+
         // setup the series based on the props.topics
         const series: uPlot.Series[] = [];
         series.push({
@@ -61,9 +68,11 @@ export function TimeChartComponent(props: any) {
 
         const notFoundTopics: string[] = [];
 
-        for (const topic of props.topics) {
+        for (const topic_props of props.topics) {
 
-            const fill = (topic.fill || false) ? getTransparentColorString(topic.color || getColorsFromString(topic.topic), 0.4) : undefined;
+            const topic = getTopic(topic_props.topic);
+
+            const fill = (topic_props.fill || false) ? getTransparentColorString(topic_props.color || getColorsFromString(topic.topic), 0.4) : undefined;
 
             // check if the topic is in the sources
             const source = sources.get(topic.topic);
@@ -74,7 +83,7 @@ export function TimeChartComponent(props: any) {
 
             series.push({
                 label: topic.topic,
-                stroke: topic.color || getColorsFromString(topic.topic),
+                stroke: topic_props.color || getColorsFromString(topic.topic),
                 width: 2,
                 spanGaps: true,
                 fill: fill,
@@ -120,9 +129,11 @@ export function TimeChartComponent(props: any) {
 
             const filtered_data = new Map<string, { value: number, time: number }[]>();
 
-            for (const topic of props.topics) {
+            for (const topic_props of props.topics) {
+                const topic = getTopic(topic_props.topic);
                 const source = sources.get(topic.topic);
                 if (!source) {
+                    console.log("source not found", topic.topic);
                     continue;
                 }
 
@@ -134,6 +145,7 @@ export function TimeChartComponent(props: any) {
                 const topic_filtered_time = source.times.filter((value, index) => {
                     return (source.times[index] / 1000) > now - timeSpan;
                 });
+
 
                 filtered_data.set(topic.topic, topic_filtered_value.map((value, index) => {
                     return { value: value, time: topic_filtered_time[index] / 1000 };
@@ -147,7 +159,7 @@ export function TimeChartComponent(props: any) {
 
             // for each topic, create the data array, if the time is not present, set the value to null
             for (let i = 0; i < props.topics.length; i++) {
-                const topic = props.topics[i];
+                const topic = getTopic(props.topics[i].topic);
                 const topic_data = filtered_data.get(topic.topic);
                 data_copy[i + 1] = time_array.map(time => {
                     const value = topic_data?.find(value => value.time === time);

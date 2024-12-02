@@ -66,6 +66,8 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                 priority: 10,
                 action: (topic: DatasourceTopic) => {
 
+                    console.log('subscribed to topic', topic.topic);
+
                     // increment the subscribers count
                     const currentSubscribersCount = new Map(subscribers_count);
                     const count = currentSubscribersCount.get(topic.topic) || 0;
@@ -83,12 +85,15 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     const interval = setInterval(() => {
                         const value = Math.random();
                         pluginsManager.doAction(datasource_id + "_" + topic.topic + "_" + "publish", value, Date.now());
+                        // console.log(datasource_id + "_" + topic.topic + "_" + "publish", value, Date.now());
                     }, freq / 1000);
 
 
                     const currentIntervales = new Map(intervales);
                     currentIntervales.set(topic.topic, interval);
                     setIntervales(currentIntervales);
+                    console.log('Interval created', topic.topic);
+                    console.log("sub_count", subscribers_count);
                 }
             });
 
@@ -108,6 +113,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         // if there are no more subscribers, remove the interval
                         if (count <= 1) {
                             clearInterval(interval);
+
                             const currentIntervales = new Map(intervales);
                             currentIntervales.delete(topic.topic);
                             setIntervales(currentIntervales);

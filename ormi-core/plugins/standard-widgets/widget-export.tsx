@@ -252,8 +252,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
             title: 'Chart'
         },
         Component: (data: any) => (
-
-            <LocalDataSourcesProvider Topics={data.topics} buffersSize={100} >
+            <LocalDataSourcesProvider TopicsProps={data.topics} buffersSize={2000} >
                 <DynamicComponent {...data} />
             </LocalDataSourcesProvider >
         )

@@ -23,22 +23,19 @@ interface Source<T> {
 
 interface LocalDataSourcesProviderProps {
     children: ReactNode;
-    Topics: DatasourceTopic[] | string[];
+    TopicsProps: string[];
     buffersSize: number;
 }
 
 const LocalDataSourcesContext = createContext<LocalDataSources>({
 });
 
-const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, Topics, buffersSize }) => {
+const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, TopicsProps, buffersSize }) => {
 
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     const pluginsManager = usePluginsManager();
 
-    // if the topics are strings, convert them to DatasourceTopic by using JSON.parse
-    if (typeof Topics[0] === "string") {
-        Topics = Topics.map(topic => JSON.parse(topic) as DatasourceTopic);
-    }
+    const Topics = (TopicsProps as string[]).map(topic => JSON.parse(topic.topic) as DatasourceTopic);
 
     useEffect(() => {
         // create a random id for the local datasource
@@ -61,14 +58,18 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             });
 
             // subscribe to the topic
+            console.log("subscribed to topic", topic.topic);
             pluginsManager.doAction(topic.source + "_" + topic.topic + "_subscribe", topic);
 
             // add an action on the data hook of the topic
-            pluginsManager.addAction(topic.source + "_" + topic.topic + "_data", {
-                id: `${local_id}_${topic.source}_${topic.topic}_data`,
+            console.log("adding action", topic.source + "_" + topic.topic + "_publish");
+            pluginsManager.addAction(topic.source + "_" + topic.topic + "_publish", {
+                id: `${local_id}_${topic.source}_${topic.topic}_publish`,
                 priority: 10,
-                action: (data: any, topic: DatasourceTopic) => {
+                action: (value: any, time: number) => {
+
                     setSources(prev => {
+
                         const newSources = new Map(prev);
 
                         // get the source
@@ -78,10 +79,9 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                         }
 
                         // add the data to the source
-                        source.data.push(data);
-                        source.times.push(Date.now());
+                        source.data.push(value);
+                        source.times.push(time);
 
-                        // if the buffer is full, remove the first element
                         if (source.data.length > buffersSize) {
                             source.data.shift();
                             source.times.shift();
@@ -102,6 +102,8 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 pluginsManager.doAction(topic.source + "_" + topic.topic + "_unsubscribe", topic);
 
                 pluginsManager.removeAction(`${local_id}_${topic.source}_${topic.topic}_data`);
+
+                console.log("unsubscribed from topic", topic.topic);
             });
         }
 
