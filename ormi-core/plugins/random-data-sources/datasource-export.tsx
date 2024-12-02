@@ -6,6 +6,12 @@ import { RandomDataSourceProvider } from './random-data-source';
 
 const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
 
+    const layout = {
+        type: 'VerticalLayout',
+        elements: []
+    }
+
+
     current_datasource_type.push({
         id: 'random-data-source',
         name: 'Random',
@@ -25,19 +31,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
             }
         },
 
-        uischema: {
-            type: 'VerticalLayout',
-            elements: [
-                {
-                    type: 'Control',
-                    scope: '#/properties/topic'
-                },
-                {
-                    type: 'Control',
-                    scope: '#/properties/frequency'
-                }
-            ]
-        },
+        uischema: layout,
 
         data: {
             topic: '',

@@ -28,6 +28,7 @@ interface LocalDataSourcesProviderProps {
 }
 
 const LocalDataSourcesContext = createContext<LocalDataSources>({
+    sources: new Map<string, Source<any>>()
 });
 
 const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, TopicsProps, buffersSize }) => {
@@ -35,7 +36,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     const pluginsManager = usePluginsManager();
 
-    const Topics = (TopicsProps as string[]).map(topic => JSON.parse(topic.topic) as DatasourceTopic);
+    const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as DatasourceTopic);
 
     useEffect(() => {
         // create a random id for the local datasource
