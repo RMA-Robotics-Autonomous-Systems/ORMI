@@ -13,7 +13,7 @@
 */
 "use client";
 
-import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 
 import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -26,117 +26,87 @@ const RandomDataSourceContext = createContext(null);
 
 const datasource_id = "random-data-source";
 
-
 // Create a provider component
 const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
 
     const pluginsManager = usePluginsManager() as PluginsManager;
-    const [intervales, setIntervales] = useState<Map<string, NodeJS.Timeout>>(new Map());
-    const [subscribers_count, setSubscribersCount] = useState<Map<string, number>>(new Map());
+
+    const intervalesRef = useRef(new Map<string, NodeJS.Timeout>());
+    const subscribersCountRef = useRef(new Map<string, number>());
+
 
     useEffect(() => {
+        const available_topics = props.topics;
 
-        const availables_topics = props.topics;
-
-        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {   // takes an array of DatasourceTopic
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: 'random-data-source-available-topics',
             priority: 10,
             filter: () => {
-                const topics: DatasourceTopic[] = [];
-                for (const topic of availables_topics) {
-                    topics.push({
-                        topic: topic.topic,
-                        source: datasource_id,
-                        type: typeof (0)
-                    });
-                }
-                return topics;
+                return available_topics.map(topic => ({
+                    topic: topic.topic,
+                    source: datasource_id,
+                    type: typeof 0
+                }));
             }
         });
 
         const getTopicFrequency = (topic: string) => {
-            const topic_freq = availables_topics.find(t => t.topic === topic)?.frequency;
-            return topic_freq || 1000;
-        }
+            return available_topics.find(t => t.topic === topic)?.frequency || 1000;
+        };
 
-        // for each topic, create a subscriber hook.
-        for (const topic of availables_topics) {
-            pluginsManager.addAction(datasource_id + "_" + topic.topic + "_" + "subscribe", {
+        available_topics.forEach(topic => {
+            pluginsManager.addAction(`${datasource_id}_${topic.topic}_subscribe`, {
                 id: `random-data-source-subscribe-${topic.topic}`,
                 priority: 10,
                 action: (topic: DatasourceTopic) => {
 
-                    console.log('subscribed to topic', topic.topic);
+                    subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
-                    // increment the subscribers count
-                    const currentSubscribersCount = new Map(subscribers_count);
-                    const count = currentSubscribersCount.get(topic.topic) || 0;
-                    currentSubscribersCount.set(topic.topic, count + 1);
-                    setSubscribersCount(currentSubscribersCount);
-
-                    // only if the topic is not already subscribed
-                    if (intervales.has(topic.topic)) {
+                    if (intervalesRef.current.has(topic.topic)) {
+                        console.log("already subscribed to topic", topic.topic);
                         return;
                     }
 
-                    // create an interval to generate random data
                     const freq = getTopicFrequency(topic.topic);
 
+                    let old_value = Math.random();
                     const interval = setInterval(() => {
-                        const value = Math.random();
-                        pluginsManager.doAction(datasource_id + "_" + topic.topic + "_" + "publish", value, Date.now());
-                        // console.log(datasource_id + "_" + topic.topic + "_" + "publish", value, Date.now());
-                    }, freq / 1000);
 
+                        const value = old_value + Math.random() * 0.1 - 0.05;
+                        old_value = value;
 
-                    const currentIntervales = new Map(intervales);
-                    currentIntervales.set(topic.topic, interval);
-                    setIntervales(currentIntervales);
-                    console.log('Interval created', topic.topic);
-                    console.log("sub_count", subscribers_count);
+                        pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, value, Date.now());
+                    }, freq); // Assuming freq is in milliseconds
+
+                    intervalesRef.current.set(topic.topic, interval);
                 }
             });
 
-            pluginsManager.addAction(datasource_id + "_" + topic.topic + "_" + "unsubscribe", {
+            pluginsManager.addAction(`${datasource_id}_${topic.topic}_unsubscribe`, {
                 id: `random-data-source-unsubscribe-${topic.topic}`,
                 priority: 10,
                 action: (topic: DatasourceTopic) => {
-                    const interval = intervales.get(topic.topic);
-                    if (interval) {
 
-                        // decrement the subscribers count
-                        const currentSubscribersCount = new Map(subscribers_count);
-                        const count = currentSubscribersCount.get(topic.topic) || 0;
-                        currentSubscribersCount.set(topic.topic, count - 1);
-                        setSubscribersCount(currentSubscribersCount);
+                    const count = subscribersCountRef.current.get(topic.topic) || 0;
 
-                        // if there are no more subscribers, remove the interval
-                        if (count <= 1) {
-                            clearInterval(interval);
-
-                            const currentIntervales = new Map(intervales);
-                            currentIntervales.delete(topic.topic);
-                            setIntervales(currentIntervales);
-                        }
+                    if (count <= 1) {
+                        clearInterval(intervalesRef.current.get(topic.topic));
+                        intervalesRef.current.delete(topic.topic);
                     }
+
+                    subscribersCountRef.current.set(topic.topic, count - 1);
+
                 }
             });
-        }
+        });
 
         return () => {
-            for (const interval of intervales) {
-                clearInterval(interval[1]);
-            }
-
-            pluginsManager.removeFilter('random-data-source-aivalable-topics');
-
-            // for each topic, remove the subscriber hook, and unsubscribe hook and the publisher hook
-            for (const topic of availables_topics) {
-                pluginsManager.removeFilter(`random-data-source-subscribe-${topic.topic}`);
-                pluginsManager.removeFilter(`random-data-source-unsubscribe-${topic.topic}`);
-            }
-        }
-
+            available_topics.forEach(topic => {
+                pluginsManager.doAction(`${datasource_id}_${topic.topic}_unsubscribe`, topic);
+                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_publish`);
+                console.log("unsubscribed from topic", topic.topic);
+            });
+        };
     }, []);
 
     return (
@@ -150,7 +120,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
 const useRandomProvider = () => {
     const context = useContext(RandomDataSourceContext);
     if (context === undefined) {
-        throw new Error('usePlugins must be used within a RandomDataSourceProvider');
+        throw new Error('useRandomProvider must be used within a RandomDataSourceProvider');
     }
     return context;
 };
