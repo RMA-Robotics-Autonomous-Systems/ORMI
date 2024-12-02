@@ -41,12 +41,17 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: 'random-data-source-available-topics',
             priority: 10,
-            filter: () => {
-                return available_topics.map(topic => ({
-                    topic: topic.topic,
-                    source: datasource_id,
-                    type: typeof 0
-                }));
+            filter: (topics: DatasourceTopic[], type: string) => {
+
+                for (const topic of available_topics) {
+                    topics.push({
+                        topic: topic.topic,
+                        source: datasource_id,
+                        type: typeof 0
+                    });
+                }
+
+                return topics;
             }
         });
 
