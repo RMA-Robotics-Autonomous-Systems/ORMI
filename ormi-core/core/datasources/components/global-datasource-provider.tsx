@@ -10,7 +10,6 @@
 */
 
 
-import { toast } from '@/hooks/use-toast';
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { Datasource, DatasourceDefinition, DatasourceTopic } from '../datasource-interface';
 
@@ -25,20 +24,18 @@ interface GlobalDataSources {
 
     getAvailableTopics: (type?: string) => DatasourceTopic[];
 
-    subScribeToTopic: (topic: DatasourceTopic) => void;
 }
 
 const GlobalDataSourcesContext = createContext<GlobalDataSources>({
     dataSourcesTypes: new Map(),
     availableDataSources: new Map(),
-    getAvailableTopics: (type: string = "") => [],
-    subScribeToTopic: () => { }
+    getAvailableTopics: () => [],
 });
 
 const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Map<string, Datasource> }> = ({ children, datasources }) => {
 
     const [dataSourcesTypes, setDataSourcesTypes] = useState<Map<string, DatasourceDefinition>>(new Map());
-    const [availableDataSources, setAvailableDataSources] = useState<Map<string, Datasource>>(datasources);
+    const [availableDataSources] = useState<Map<string, Datasource>>(datasources);
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
@@ -46,7 +43,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     useEffect(() => {
 
-        const dataSourcesTypes_array = pluginsManager.applyFilter(PluginsHooks.DATASOURCES_LIST, []);
+        const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
         const dataSourcesTypes_map = new Map<string, DatasourceDefinition>();
         for (const dataSource of dataSourcesTypes_array) {
             dataSourcesTypes_map.set(dataSource.id, dataSource);
@@ -66,7 +63,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
     };
 
     const getAvailableTopics = (type: string = "") => {
-        const topics = pluginsManager.applyFilter(PluginsHooks.AVAILABLE_TOPICS, []);
+        const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
 
         if (type) {
             return topics.filter((topic: DatasourceTopic) => topic.type === type);
@@ -75,12 +72,8 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
         return topics;
     }
 
-    const subScribeToTopic = (topic: DatasourceTopic) => {
-        // console.log('Subscribing to topic', topic);
-    }
-
     return (
-        <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources, getAvailableTopics, subScribeToTopic }}>
+        <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources, getAvailableTopics }}>
             {initialized && Array.from(availableDataSources.values()).reduceRight((acc, datasource) => {
                 const Provider = getProvider(datasource.datasource_id);
                 if (!Provider) {

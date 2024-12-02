@@ -23,7 +23,7 @@ class PluginsManager{
         });
     }
 
-    applyFilter(filterName: string | PluginsHooks, ...args: any): any{
+    applyFilter<T>(filterName: string | PluginsHooks, ...args: any): T{
 
         if(args.length < 1){
             throw new Error(`No argument given in ${filterName}`);

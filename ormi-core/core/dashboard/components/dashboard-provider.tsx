@@ -73,7 +73,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
-    const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
+    const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGETS_LIST, []);
 
     const [compactType, setCompactType] = React.useState<"vertical" | "horizontal" | null>(null);
     const [layouts, setLayouts] = React.useState<Layouts>(dashboardDefinition.layouts);

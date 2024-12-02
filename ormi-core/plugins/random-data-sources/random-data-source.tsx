@@ -13,7 +13,6 @@
 */
 "use client";
 
-import { toast } from '@/hooks/use-toast';
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 
 import PluginsManager from '@/core/plugins/plugins-manager';
@@ -25,10 +24,15 @@ import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 
 const RandomDataSourceContext = createContext(null);
 
+const datasource_id = "random-data-source";
+
+
 // Create a provider component
 const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
 
     const pluginsManager = usePluginsManager() as PluginsManager;
+    const [intervales, setIntervales] = useState<Map<string, NodeJS.Timeout>>(new Map());
+    const [subscribers_count, setSubscribersCount] = useState<Map<string, number>>(new Map());
 
     useEffect(() => {
 
@@ -42,55 +46,89 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                 for (const topic of availables_topics) {
                     topics.push({
                         topic: topic.topic,
-                        type: 'number',
-                        source: 'random-data-source'
+                        source: datasource_id,
+                        type: typeof (0)
                     });
                 }
                 return topics;
             }
         });
 
-        const intervales: NodeJS.Timeout[] = [];
+        const getTopicFrequency = (topic: string) => {
+            const topic_freq = availables_topics.find(t => t.topic === topic)?.frequency;
+            return topic_freq || 1000;
+        }
 
-        // foreach source, generate random data using the frequency to create a wave
-        // for (const source of source_map.keys()) {
+        // for each topic, create a subscriber hook.
+        for (const topic of availables_topics) {
+            pluginsManager.addAction(datasource_id + "_" + topic.topic + "_" + "subscribe", {
+                id: `random-data-source-subscribe-${topic.topic}`,
+                priority: 10,
+                action: (topic: DatasourceTopic) => {
 
-        //     const freq = availables_sources_freq[availables_sources.indexOf(source)];
+                    // increment the subscribers count
+                    const currentSubscribersCount = new Map(subscribers_count);
+                    const count = currentSubscribersCount.get(topic.topic) || 0;
+                    currentSubscribersCount.set(topic.topic, count + 1);
+                    setSubscribersCount(currentSubscribersCount);
 
-        //     const interval = setInterval(() => {
-        //         const source_data = source_map.get(source);
+                    // only if the topic is not already subscribed
+                    if (intervales.has(topic.topic)) {
+                        return;
+                    }
 
-        //         const counter = counters.get(source) || 0;
+                    // create an interval to generate random data
+                    const freq = getTopicFrequency(topic.topic);
 
-        //         if (source_data) {
+                    const interval = setInterval(() => {
+                        const value = Math.random();
+                        pluginsManager.doAction(datasource_id + "_" + topic.topic + "_" + "publish", value, Date.now());
+                    }, freq / 1000);
 
 
-        //             const y = Math.sin((counter) * (1 / freq) * Math.PI * 2);
+                    const currentIntervales = new Map(intervales);
+                    currentIntervales.set(topic.topic, interval);
+                    setIntervales(currentIntervales);
+                }
+            });
 
-        //             source_data.data.push(y);
+            pluginsManager.addAction(datasource_id + "_" + topic.topic + "_" + "unsubscribe", {
+                id: `random-data-source-unsubscribe-${topic.topic}`,
+                priority: 10,
+                action: (topic: DatasourceTopic) => {
+                    const interval = intervales.get(topic.topic);
+                    if (interval) {
 
-        //             source_data.times.push(Date.now());
+                        // decrement the subscribers count
+                        const currentSubscribersCount = new Map(subscribers_count);
+                        const count = currentSubscribersCount.get(topic.topic) || 0;
+                        currentSubscribersCount.set(topic.topic, count - 1);
+                        setSubscribersCount(currentSubscribersCount);
 
-        //             // keep only the last 10 values
-        //             if (source_data.data.length > 200) {
-        //                 source_data.data.shift();
-        //                 source_data.times.shift();
-        //             }
-
-        //             setSources(new Map(source_map));
-        //             setCounters(new Map(counters.set(source, (counter + 1) % 1000)));
-        //         }
-        //     }, freq);
-
-        //     intervales.push(interval);
-        // }
+                        // if there are no more subscribers, remove the interval
+                        if (count <= 1) {
+                            clearInterval(interval);
+                            const currentIntervales = new Map(intervales);
+                            currentIntervales.delete(topic.topic);
+                            setIntervales(currentIntervales);
+                        }
+                    }
+                }
+            });
+        }
 
         return () => {
             for (const interval of intervales) {
-                clearInterval(interval);
+                clearInterval(interval[1]);
             }
 
             pluginsManager.removeFilter('random-data-source-aivalable-topics');
+
+            // for each topic, remove the subscriber hook, and unsubscribe hook and the publisher hook
+            for (const topic of availables_topics) {
+                pluginsManager.removeFilter(`random-data-source-subscribe-${topic.topic}`);
+                pluginsManager.removeFilter(`random-data-source-unsubscribe-${topic.topic}`);
+            }
         }
 
     }, []);

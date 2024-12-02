@@ -25,10 +25,10 @@ interface Datasource{
     settings: any;      // settings of the widget
 }
 
-interface DatasourceTopic{
+interface DatasourceTopic {
     topic: string;
-    type: string;
     source: string;
+    type: string;
 }
 
 export type { DatasourceDefinition, Datasource, DatasourceTopic };

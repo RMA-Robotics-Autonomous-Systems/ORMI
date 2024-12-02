@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { useGlobalDataSources } from '@/core/datasources/components/global-datasource-provider';
+import { LocalDataSourcesProvider } from '@/core/datasources/components/local-datasource-provider';
 
 function LineChartExport(widgets: WidgetDefinition[]) {
 
@@ -158,7 +159,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                 const topics = GlobalDataSources.getAvailableTopics("number");
                 return topics.map((topic) => ({
                     label: topic.topic,
-                    value: topic.topic
+                    value: JSON.stringify(topic)
                 }));
             },
         }
@@ -251,7 +252,10 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
             title: 'Chart'
         },
         Component: (data: any) => (
-            <DynamicComponent {...data} />
+
+            <LocalDataSourcesProvider Topics={data.topics} buffersSize={100} >
+                <DynamicComponent {...data} />
+            </LocalDataSourcesProvider >
         )
 
     }

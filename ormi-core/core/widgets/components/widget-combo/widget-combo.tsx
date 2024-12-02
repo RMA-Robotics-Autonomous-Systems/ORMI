@@ -29,7 +29,7 @@ export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, set
     const [open, setOpen] = React.useState(false)
 
     const pluginsManager = usePluginsManager() as PluginsManager;
-    const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
+    const widgets: WidgetDefinition[] = pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGETS_LIST, []);
 
 
     const handleValidate = (widget: WidgetDefinition, settings: object) => {
