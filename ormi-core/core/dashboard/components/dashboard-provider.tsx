@@ -49,17 +49,17 @@ const DashboardContext = createContext<DashboardContextInterface>({
     moveToVertical: () => { },
     moveToHorizontal: () => { },
 
-    getComponents: (boxId: string) => <></>,
-    getBox: (breakpoint: string, boxId: string) => { throw new Error("Method not implemented."); },
-    getDefinition: (widget_id: string) => { throw new Error("Method not implemented."); },
-    addWidget: (widget: WidgetDefinition, settings: any) => { },
-    removeWidget: (box_id: string) => { },
-    updateWidget: (box_id: string, settings: any) => { },
+    getComponents: () => <></>,
+    getBox: () => { throw new Error("Method not implemented."); },
+    getDefinition: () => { throw new Error("Method not implemented."); },
+    addWidget: () => { },
+    removeWidget: () => { },
+    updateWidget: () => { },
 
     lockUnLockDashboard: () => { },
     locked: false,
 
-    layoutsChanged: (newLayouts: Layouts) => { },
+    layoutsChanged: () => { },
     savesDashboard: () => { },
     hasChanged: false
 });
@@ -137,9 +137,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             settings: settings
         }
 
-        console.log(widgets);
-
-        setWidgets(new Map(widgets.set(box_id, new_widgets)));
+        setWidgets(prev => new Map(prev.set(box_id, new_widgets)));
 
         const box: Layout = {
             i: box_id,
