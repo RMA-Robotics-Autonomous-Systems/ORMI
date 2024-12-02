@@ -11,7 +11,7 @@
 
 
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { Datasource, DatasourceDefinition, DatasourceTopic } from '../datasource-interface';
+import { Datasource, DatasourceDefinition } from '../datasource-interface';
 
 import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -19,17 +19,12 @@ import { PluginsHooks } from '../../plugins/plugins-types';
 
 interface GlobalDataSources {
     dataSourcesTypes: Map<string, DatasourceDefinition>;
-
     availableDataSources: Map<string, Datasource>;
-
-    getAvailableTopics: (type?: string) => DatasourceTopic[];
-
 }
 
 const GlobalDataSourcesContext = createContext<GlobalDataSources>({
     dataSourcesTypes: new Map(),
     availableDataSources: new Map(),
-    getAvailableTopics: () => [],
 });
 
 const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Map<string, Datasource> }> = ({ children, datasources }) => {
@@ -62,18 +57,8 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
         return dataSourceType.Provider;
     };
 
-    const getAvailableTopics = (type: string = "") => {
-        const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
-
-        if (type) {
-            return topics.filter((topic: DatasourceTopic) => topic.type === type);
-        }
-
-        return topics;
-    }
-
     return (
-        <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources, getAvailableTopics }}>
+        <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources }}>
             {initialized && Array.from(availableDataSources.values()).reduceRight((acc, datasource) => {
                 const Provider = getProvider(datasource.datasource_id);
                 if (!Provider) {

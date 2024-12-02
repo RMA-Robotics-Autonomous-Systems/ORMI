@@ -6,12 +6,17 @@ import { VerticalLayout, ControlElement } from "@jsonforms/core";
 import dynamic from 'next/dynamic';
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { useGlobalDataSources } from '@/core/datasources/components/global-datasource-provider';
 import { LocalDataSourcesProvider } from '@/core/datasources/components/local-datasource-provider';
+
+import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
+import { PluginsHooks } from "@/core/plugins/plugins-types";
+
+import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+
 
 function LineChartExport(widgets: WidgetDefinition[]) {
 
-    const GlobalDataSources = useGlobalDataSources();
+    const pluginsManager = usePluginsManager();
 
     const title: ControlElement = {
         type: "Control",
@@ -29,7 +34,7 @@ function LineChartExport(widgets: WidgetDefinition[]) {
         "options": {
             "async": true,
             "asyncFunction": async () => {
-                const topics = GlobalDataSources.getAvailableTopics("number");
+                const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
                 return topics.map((topic) => ({
                     label: topic.topic,
                     value: topic.topic
@@ -133,7 +138,7 @@ function LineChartExport(widgets: WidgetDefinition[]) {
 
 function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
 
-    const GlobalDataSources = useGlobalDataSources();
+    const pluginsManager = usePluginsManager();
 
     const title: ControlElement = {
         type: "Control",
@@ -156,7 +161,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         "options": {
             "async": true,
             "asyncFunction": async () => {
-                const topics = GlobalDataSources.getAvailableTopics("number");
+                const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
                 return topics.map((topic) => ({
                     label: topic.topic,
                     value: JSON.stringify(topic)
