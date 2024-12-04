@@ -37,6 +37,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
+    console.log('TopicsProps', TopicsProps);
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
     useEffect(() => {
@@ -44,6 +45,30 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
         const local_id = "local-datasource-" + Math.random().toString(36).substring(7);
 
         sources.clear();
+
+        const propertiesGetter = (data: any, property: string) => {
+            /*
+                create a function that gets the value of the property from the data
+                the property is a string that is in the form of "property1-property2-property3"
+
+                the properties are recursively accessed from the data object
+
+                the function should return the value of the property from the data
+            */
+
+            if (!property || property === '') {
+                return data;
+            }
+
+            const properties = property.split('-');
+
+            let value = data;
+            for (const prop of properties) {
+                value = value[prop];
+            }
+
+            return value;
+        }
 
         // For each topic, create a source
         Topics.forEach(topic => {
@@ -66,33 +91,10 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 action: (value: any, time: number) => {
 
                     const source = sources.get(sourceId);
+
                     if (!source) {
                         console.error('source not found', sourceId, sources);
                         return;
-                    }
-
-                    const propertiesGetter = (data: any, property: string) => {
-                        /*
-                            create a function that gets the value of the property from the data
-                            the property is a string that is in the form of "property1-property2-property3"
-        
-                            the properties are recursively accessed from the data object
-        
-                            the function should return the value of the property from the data
-                        */
-
-                        if (!property || property === '') {
-                            return data;
-                        }
-
-                        const properties = property.split('-');
-
-                        let value = data;
-                        for (const prop of properties) {
-                            value = value[prop];
-                        }
-
-                        return value;
                     }
 
                     if (topic.property && topic.property !== '') {
