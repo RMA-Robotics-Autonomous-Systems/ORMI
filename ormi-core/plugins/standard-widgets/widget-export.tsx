@@ -267,8 +267,74 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
     return widgets;
 };
 
+function JsonViewerExport(widgets: WidgetDefinition[]) {
+
+    const pluginsManager = usePluginsManager();
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const topic: AsyncTopicControlType = {
+        "type": "TopicSelect",
+        "scope": "#/properties/topic",
+        "options": {
+            "asyncFunction": async () => {
+                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+            },
+            "propertyType": "number"
+        }
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, topic],
+    }
+
+    const DynamicComponent = dynamic(() => import('./widgets/json-viewer').then(mod => mod.JsonViewer), {
+        loading: () => <Skeleton />,
+    })
+
+    const jsonViewerWidget: WidgetDefinition = {
+        id: 'json-viewer-widget',
+        name: 'Json viewer',
+        description: 'Display a json viewer',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                topic: {
+                    type: 'string',
+                    title: 'Topic',
+                }
+            },
+            required: ['title', 'topic']
+        },
+        uischema: layout,
+        data: {
+            title: 'Json viewer'
+        },
+        Component: (data: any) => (
+            <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
+                <DynamicComponent {...data} />
+            </LocalDataSourcesProvider >
+        )
+
+    }
+
+    widgets.push(jsonViewerWidget);
+
+    return widgets;
+}
+
+
 const WidgetExport = (widgets: WidgetDefinition[]) => {
-    return TimeSeriesChartExport(LineChartExport(widgets));
+    return JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets)));
 }
 
 export default WidgetExport;
