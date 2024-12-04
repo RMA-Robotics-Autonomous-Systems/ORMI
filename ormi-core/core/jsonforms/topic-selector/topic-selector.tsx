@@ -186,16 +186,3 @@ export interface SelectedTopic {
     source: string;
     property: string;
 }
-
-/*
-
-        <select value={data} onChange={event => handleChange(path, event.target.value)}>
-            <option value="">Select an option</option>
-            {options.map((option: { value: string; label: string }) => (
-                <option key={option.value} value={option.value}>
-                    {option.label}
-                </option>
-            ))}
-        </select>
-
-*/
