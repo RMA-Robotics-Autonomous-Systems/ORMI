@@ -6,7 +6,7 @@
 */
 
 
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 import { DatasourceTopic } from '../datasource-interface';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -33,7 +33,8 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 
 const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, TopicsProps, buffersSize }) => {
 
-    const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
+    // const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
+    const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
@@ -42,96 +43,75 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
         // create a random id for the local datasource
         const local_id = "local-datasource-" + Math.random().toString(36).substring(7);
 
+        sources.clear();
+
         // For each topic, create a source
         Topics.forEach(topic => {
 
             const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
 
-            setSources(prev => {
-                const newSources = new Map(prev);
-
-                // create a source of the type of the topic
-                const source: Source<any> = {
-                    data: [],
-                    times: []
-                };
-
-                newSources.set(sourceId, source);
-
-                return newSources;
+            sources.set(sourceId, {
+                data: [],
+                times: []
             });
 
             // subscribe to the topic
             pluginsManager.doAction(topic.source + "_" + topic.topic + "_subscribe", topic);
 
-            const propertiesGetter = (data: any, property: string) => {
-
-                /*
-                    create a function that gets the value of the property from the data
-                    the property is a string that is in the form of "property1-property2-property3"
-
-                    the properties are recursively accessed from the data object
-
-                    the function should return the value of the property from the data
-                */
-
-                if (!property) {
-                    return data;
-                }
-
-                const properties = property.split('-');
-
-                console.log(data, properties);
-
-                let value = data;
-                for (const prop of properties) {
-                    value = value[prop];
-                }
-
-                return value;
-            }
-
             // add an action on the data hook of the topic
+            console.log('adding action', topic.source + "_" + topic.topic + "_publish");
             pluginsManager.addAction(topic.source + "_" + topic.topic + "_publish", {
                 id: `${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`,
                 priority: 10,
                 action: (value: any, time: number) => {
 
-                    setSources(prev => {
+                    const source = sources.get(sourceId);
+                    if (!source) {
+                        console.error('source not found', sourceId, sources);
+                        return;
+                    }
 
-                        const newSources = new Map(prev);
+                    const propertiesGetter = (data: any, property: string) => {
+                        /*
+                            create a function that gets the value of the property from the data
+                            the property is a string that is in the form of "property1-property2-property3"
+        
+                            the properties are recursively accessed from the data object
+        
+                            the function should return the value of the property from the data
+                        */
 
-                        // get the source
-                        const source = newSources.get(sourceId);
-                        if (!source) {
-                            return newSources;
+                        if (!property || property === '') {
+                            return data;
                         }
 
-                        // if topic.property is defined, get the value of the property
+                        const properties = property.split('-');
 
-                        // add the data to the source
-
-                        if (topic.property && topic.property !== '') {
-                            value = propertiesGetter(value, topic.property);
+                        let value = data;
+                        for (const prop of properties) {
+                            value = value[prop];
                         }
 
-                        source.data.push(value);
-                        source.times.push(time);
+                        return value;
+                    }
 
-                        if (source.data.length > buffersSize) {
-                            source.data.shift();
-                            source.times.shift();
-                        }
+                    if (topic.property && topic.property !== '') {
+                        value = propertiesGetter(value, topic.property);
+                    }
 
-                        newSources.set(topic.topic, source);
+                    source.data.push(value);
+                    source.times.push(time);
 
-                        return newSources;
-                    });
+                    if (source.data.length > buffersSize) {
+                        source.data.shift();
+                        source.times.shift();
+                    }
+
+                    sources.set(sourceId, source);
                 }
             });
 
         });
-
 
         return () => {
             Topics.forEach(topic => {

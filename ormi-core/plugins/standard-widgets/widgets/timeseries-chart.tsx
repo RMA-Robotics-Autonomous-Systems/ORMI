@@ -72,10 +72,12 @@ export function TimeChartComponent(props: any) {
 
             const topic = getTopic(topic_props.topic);
 
+            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+
             const fill = (topic_props.fill || false) ? getTransparentColorString(topic_props.color || getColorsFromString(topic.topic), 0.4) : undefined;
 
             // check if the topic is in the sources
-            const source = sources.get(topic.topic);
+            const source = sources.get(sourceId);
             if (!source) {
                 notFoundTopics.push(topic.topic);
                 continue;
@@ -131,7 +133,8 @@ export function TimeChartComponent(props: any) {
 
             for (const topic_props of props.topics) {
                 const topic = getTopic(topic_props.topic);
-                const source = sources.get(topic.topic);
+                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+                const source = sources.get(sourceId);
                 if (!source) {
                     console.log("source not found", topic.topic);
                     continue;
