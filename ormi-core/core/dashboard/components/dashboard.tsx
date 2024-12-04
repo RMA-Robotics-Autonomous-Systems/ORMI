@@ -103,7 +103,7 @@ const Dashboard = () => {
 
                             {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
 
-                            {!locked && (<Button className="m-4" variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                            {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                                 <Cross1Icon />
                             </Button>)}
                         </div>
