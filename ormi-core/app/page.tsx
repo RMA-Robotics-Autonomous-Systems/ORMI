@@ -8,6 +8,7 @@ import { Widget } from "@/core/widgets/widget-interface";
 
 import { Datasource } from "@/core/datasources/datasource-interface";
 import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
+import { RandomDataSourceSettings } from "@/plugins/random-data-sources";
 
 export default function Home() {
 
@@ -16,6 +17,7 @@ export default function Home() {
         datasource_id: 'random-data-source',
         title: 'Random Data Source',
         settings: {
+            id: 'random-data-source',
             topics: [
                 {
                     "topic": "/imu/vel/x",
@@ -30,20 +32,21 @@ export default function Home() {
                     frequency: 64
                 }
             ]
-        }
+        } as RandomDataSourceSettings
     });
 
     datasources.set('random-data-source-2', {
         datasource_id: 'imu-data-source',
         title: 'Random Data Source 2',
         settings: {
+            id: 'random-data-source-2',
             topics: [
                 {
                     "topic": "/camera/imu",
                     frequency: 16
                 },
             ]
-        }
+        } as RandomDataSourceSettings
     });
 
     const dashboardDefinition: DashboardInterface = {

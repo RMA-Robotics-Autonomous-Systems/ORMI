@@ -24,7 +24,6 @@ import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 
 const RandomIMUSourceContext = createContext(null);
 
-const datasource_id = "random-imu-source";
 
 // Create a provider component
 const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
@@ -37,6 +36,8 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
 
     useEffect(() => {
         const available_topics = props.topics;
+        const datasource_id = props.id;
+
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: 'random-imu-source-available-topics',

@@ -3,6 +3,7 @@ import { PluginServerSide } from "@/core/plugins/plugin-core";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
 import dataSourceExport from "./datasource-export";
+import { DatasourceProviderSettings } from "@/core/datasources/datasource-interface";
 
 
 class RandomDataSourcePlugins extends PluginServerSide {
@@ -32,7 +33,7 @@ interface RandomDataSourceTopicDefinition {
     frequency:number
 }
 
-interface RandomDataSourceSettings {
+interface RandomDataSourceSettings extends DatasourceProviderSettings {
     topics:RandomDataSourceTopicDefinition[]
 }
 

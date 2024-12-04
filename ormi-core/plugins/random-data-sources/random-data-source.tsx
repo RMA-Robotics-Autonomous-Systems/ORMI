@@ -24,7 +24,7 @@ import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 
 const RandomDataSourceContext = createContext(null);
 
-const datasource_id = "random-data-source";
+
 
 // Create a provider component
 const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
@@ -37,6 +37,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
 
     useEffect(() => {
         const available_topics = props.topics;
+        const datasource_id = props.id;
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: 'random-data-source-available-topics',
@@ -120,7 +121,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     };
                 }
             });
-
 
         });
 

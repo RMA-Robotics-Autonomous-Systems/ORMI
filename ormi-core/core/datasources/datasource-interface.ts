@@ -22,7 +22,7 @@ interface DatasourceDefinition {
 interface Datasource{
     datasource_id : string;  // point to the widget definition
     title: string;      // title of the widget
-    settings: any;      // settings of the widget
+    settings: DatasourceProviderSettings;      // settings of the widget
 }
 
 interface DatasourceTopic {
@@ -36,4 +36,8 @@ interface DatasourceTopic {
     definitionHook?: string;
 }
 
-export type { DatasourceDefinition, Datasource, DatasourceTopic };
+interface DatasourceProviderSettings {
+    id: string;
+}
+
+export type { DatasourceDefinition, Datasource, DatasourceTopic, DatasourceProviderSettings };
