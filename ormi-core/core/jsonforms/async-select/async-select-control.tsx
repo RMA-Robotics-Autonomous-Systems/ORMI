@@ -1,5 +1,5 @@
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { ControlProps, rankWith, isControl, and, optionIs } from '@jsonforms/core';
+import { ControlProps, rankWith, isControl, and, optionIs, uiTypeIs } from '@jsonforms/core';
 
 import React, { useEffect, useState } from 'react';
 

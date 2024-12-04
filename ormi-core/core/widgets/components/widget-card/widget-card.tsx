@@ -31,6 +31,7 @@ import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/co
 import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
 import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
 import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
+import AsyncTopicControl, { asyncTopicTester } from "@/core/jsonforms/topic-selector/topic-selector";
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
@@ -134,7 +135,8 @@ const WidgetCard = (props: WidgetCardProps) => {
         { tester: colorSelectTester, renderer: colorSelect },
         { tester: switchTester, renderer: SwitchControl },
         { tester: TextTester, renderer: TextControl },
-        { tester: NumberTester, renderer: NumberControl }
+        { tester: NumberTester, renderer: NumberControl },
+        { tester: asyncTopicTester, renderer: AsyncTopicControl },
     ];
 
     return (
@@ -165,7 +167,6 @@ const WidgetCard = (props: WidgetCardProps) => {
                             </Button>
                         </DialogClose>
                     </div>
-
                 </div>
             </DialogContent>
         </Dialog >

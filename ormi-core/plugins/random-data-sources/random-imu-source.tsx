@@ -22,12 +22,12 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 
-const RandomDataSourceContext = createContext(null);
+const RandomIMUSourceContext = createContext(null);
 
-const datasource_id = "random-data-source";
+const datasource_id = "random-imu-source";
 
 // Create a provider component
-const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
+const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
@@ -39,7 +39,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         const available_topics = props.topics;
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: 'random-data-source-available-topics',
+            id: 'random-imu-source-available-topics',
             priority: 10,
             filter: (topics: DatasourceTopic[], type: string) => {
 
@@ -57,6 +57,8 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     });
                 }
 
+                console.log("available topics", topics);
+
                 return topics;
             }
         });
@@ -67,26 +69,39 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
 
         available_topics.forEach(topic => {
             pluginsManager.addAction(`${datasource_id}_${topic.topic}_subscribe`, {
-                id: `random-data-source-subscribe-${topic.topic}`,
+                id: `random-imu-source-subscribe-${topic.topic}`,
                 priority: 10,
                 action: (topic: DatasourceTopic) => {
 
                     subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
                     if (intervalesRef.current.has(topic.topic)) {
-                        console.log("already subscribed to topic", topic.topic);
                         return;
                     }
 
                     const freq = getTopicFrequency(topic.topic);
 
-                    let old_value = Math.random();
                     const interval = setInterval(() => {
 
-                        const value = old_value + Math.random() * 0.1 - 0.05;
-                        old_value = value;
+                        const imu_data = {
+                            velocity: {
+                                x: Math.random(),
+                                y: Math.random(),
+                                z: Math.random()
+                            },
+                            acceleration: {
+                                x: Math.random(),
+                                y: Math.random(),
+                                z: Math.random()
+                            },
+                            orientation: {
+                                x: Math.random(),
+                                y: Math.random(),
+                                z: Math.random()
+                            },
+                        }
 
-                        pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, value, Date.now());
+                        pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, imu_data, Date.now());
                     }, freq); // Assuming freq is in milliseconds
 
                     intervalesRef.current.set(topic.topic, interval);
@@ -94,7 +109,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             });
 
             pluginsManager.addAction(`${datasource_id}_${topic.topic}_unsubscribe`, {
-                id: `random-data-source-unsubscribe-${topic.topic}`,
+                id: `random-imu-source-unsubscribe-${topic.topic}`,
                 priority: 10,
                 action: (topic: DatasourceTopic) => {
 
@@ -111,12 +126,38 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             });
 
             pluginsManager.addFilter(`${datasource_id}_${topic.topic}_definition`, {
-                id: `random-data-source-definition-${topic.topic}`,
+                id: `random-imu-source-definition-${topic.topic}`,
                 priority: 10,
                 filter: () => {
                     // return a JsonSchema representing the topic message structure
                     return {
-                        type: 'number'
+                        type: 'object',
+                        properties: {
+                            velocity: {
+                                type: 'object',
+                                properties: {
+                                    x: { type: 'number' },
+                                    y: { type: 'number' },
+                                    z: { type: 'number' },
+                                }
+                            },
+                            acceleration: {
+                                type: 'object',
+                                properties: {
+                                    x: { type: 'number' },
+                                    y: { type: 'number' },
+                                    z: { type: 'number' },
+                                }
+                            },
+                            orientation: {
+                                type: 'object',
+                                properties: {
+                                    x: { type: 'number' },
+                                    y: { type: 'number' },
+                                    z: { type: 'number' },
+                                }
+                            }
+                        }
                     };
                 }
             });
@@ -138,19 +179,19 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     }, []);
 
     return (
-        <RandomDataSourceContext.Provider value={null}>
+        <RandomIMUSourceContext.Provider value={null}>
             {children}
-        </RandomDataSourceContext.Provider>
+        </RandomIMUSourceContext.Provider>
     );
 };
 
 // Create a custom hook to use the context
 const useRandomProvider = () => {
-    const context = useContext(RandomDataSourceContext);
+    const context = useContext(RandomIMUSourceContext);
     if (context === undefined) {
-        throw new Error('useRandomProvider must be used within a RandomDataSourceProvider');
+        throw new Error('useRandomProvider must be used within a RandomIMUSourceProvider');
     }
     return context;
 };
 
-export { RandomDataSourceProvider, useRandomProvider };
+export { RandomIMUSourceProvider, useRandomProvider };

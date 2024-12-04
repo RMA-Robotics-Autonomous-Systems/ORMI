@@ -33,6 +33,19 @@ export default function Home() {
         }
     });
 
+    datasources.set('random-data-source-2', {
+        datasource_id: 'imu-data-source',
+        title: 'Random Data Source 2',
+        settings: {
+            topics: [
+                {
+                    "topic": "/camera/imu",
+                    frequency: 16
+                },
+            ]
+        }
+    });
+
     const dashboardDefinition: DashboardInterface = {
         layouts: {
             lg: [],

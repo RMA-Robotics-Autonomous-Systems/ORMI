@@ -10,10 +10,10 @@ import React, { createContext, ReactNode, useContext, useEffect, useState } from
 
 import { DatasourceTopic } from '../datasource-interface';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
+import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
-
 }
 
 interface Source<T> {
@@ -36,7 +36,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     const pluginsManager = usePluginsManager();
 
-    const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as DatasourceTopic);
+    const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
     useEffect(() => {
         // create a random id for the local datasource
@@ -44,6 +44,9 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
         // For each topic, create a source
         Topics.forEach(topic => {
+
+            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+
             setSources(prev => {
                 const newSources = new Map(prev);
 
@@ -53,7 +56,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                     times: []
                 };
 
-                newSources.set(topic.topic, source);
+                newSources.set(sourceId, source);
 
                 return newSources;
             });
@@ -61,9 +64,36 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             // subscribe to the topic
             pluginsManager.doAction(topic.source + "_" + topic.topic + "_subscribe", topic);
 
+            const propertiesGetter = (data: any, property: string) => {
+
+                /*
+                    create a function that gets the value of the property from the data
+                    the property is a string that is in the form of "property1-property2-property3"
+
+                    the properties are recursively accessed from the data object
+
+                    the function should return the value of the property from the data
+                */
+
+                if (!property) {
+                    return data;
+                }
+
+                const properties = property.split('-');
+
+                console.log(data, properties);
+
+                let value = data;
+                for (const prop of properties) {
+                    value = value[prop];
+                }
+
+                return value;
+            }
+
             // add an action on the data hook of the topic
             pluginsManager.addAction(topic.source + "_" + topic.topic + "_publish", {
-                id: `${local_id}_${topic.source}_${topic.topic}_publish`,
+                id: `${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`,
                 priority: 10,
                 action: (value: any, time: number) => {
 
@@ -72,12 +102,19 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                         const newSources = new Map(prev);
 
                         // get the source
-                        const source = newSources.get(topic.topic);
+                        const source = newSources.get(sourceId);
                         if (!source) {
                             return newSources;
                         }
 
+                        // if topic.property is defined, get the value of the property
+
                         // add the data to the source
+
+                        if (topic.property && topic.property !== '') {
+                            value = propertiesGetter(value, topic.property);
+                        }
+
                         source.data.push(value);
                         source.times.push(time);
 
@@ -100,7 +137,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             Topics.forEach(topic => {
                 pluginsManager.doAction(topic.source + "_" + topic.topic + "_unsubscribe", topic);
 
-                pluginsManager.removeAction(`${local_id}_${topic.source}_${topic.topic}_publish`);
+                pluginsManager.removeAction(`${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`);
             });
         }
 

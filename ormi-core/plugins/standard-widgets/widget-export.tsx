@@ -12,6 +12,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { AsyncTopicControlType } from '@/core/jsonforms/topic-selector/topic-selector';
 
 
 function LineChartExport(widgets: WidgetDefinition[]) {
@@ -155,18 +156,14 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         scope: "#/properties/updateFrequency",
     }
 
-    const topic: ControlElement = {
-        "type": "Control",
+    const topic: AsyncTopicControlType = {
+        "type": "TopicSelect",
         "scope": "#/properties/topic",
         "options": {
-            "async": true,
             "asyncFunction": async () => {
-                const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
-                return topics.map((topic) => ({
-                    label: topic.topic,
-                    value: JSON.stringify(topic)
-                }));
+                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
+            "propertyType": "number"
         }
     }
 
@@ -232,9 +229,13 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                     items: {
                         "type": "object",
                         "properties": {
+                            "title": {
+                                "type": "string",
+                                "title": "Title",
+                            },
                             "topic": {
                                 "type": "string",
-                                "title": "Topic"
+                                "title": "Topic",
                             },
                             "color": {
                                 "type": "string",

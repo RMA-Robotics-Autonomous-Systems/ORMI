@@ -5,7 +5,7 @@
 
 
 import { useLocalsourceProvider } from '@/core/datasources/components/local-datasource-provider';
-import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import React, { useEffect, useState } from 'react';
@@ -57,7 +57,7 @@ export function TimeChartComponent(props: any) {
     useEffect(() => {
 
         const getTopic = (topic: string) => {
-            return JSON.parse(topic) as DatasourceTopic;
+            return JSON.parse(topic) as SelectedTopic;
         }
 
         // setup the series based on the props.topics

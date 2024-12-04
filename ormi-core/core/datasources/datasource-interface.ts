@@ -29,6 +29,11 @@ interface DatasourceTopic {
     topic: string;
     source: string;
     type: string;
+
+    subscribeHook?: string;
+    unsubscribeHook?: string;
+    pubshlishHook?: string;
+    definitionHook?: string;
 }
 
 export type { DatasourceDefinition, Datasource, DatasourceTopic };
