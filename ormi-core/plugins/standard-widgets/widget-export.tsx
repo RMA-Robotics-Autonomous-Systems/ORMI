@@ -332,9 +332,73 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
     return widgets;
 }
 
+function TreeViewerExport(widgets: WidgetDefinition[]) {
+
+    const pluginsManager = usePluginsManager();
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const topic: AsyncTopicControlType = {
+        "type": "TopicSelect",
+        "scope": "#/properties/topic",
+        "options": {
+            "asyncFunction": async () => {
+                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+            },
+            "propertyType": "number"
+        }
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, topic],
+    }
+
+    const DynamicComponent = dynamic(() => import('./widgets/tree-viewer').then(mod => mod.TreeViewer), {
+        loading: () => <Skeleton />,
+    })
+
+    const jsonViewerWidget: WidgetDefinition = {
+        id: 'tree-viewer-widget',
+        name: 'Tree viewer',
+        description: 'Display a tree view of data',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                topic: {
+                    type: 'string',
+                    title: 'Topic',
+                }
+            },
+            required: ['title', 'topic']
+        },
+        uischema: layout,
+        data: {
+            title: 'Tree viewer'
+        },
+        Component: (data: any) => (
+            <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
+                <DynamicComponent {...data} />
+            </LocalDataSourcesProvider >
+        )
+
+    }
+
+    widgets.push(jsonViewerWidget);
+
+    return widgets;
+}
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
-    return JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets)));
+    return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
 }
 
 export default WidgetExport;
