@@ -59,14 +59,14 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     return (
         <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources }}>
-            {initialized && Array.from(availableDataSources.values()).reduceRight((acc, datasource) => {
+            {initialized && Array.from(availableDataSources.values()).reduceRight((children_stack, datasource) => {
                 const Provider = getProvider(datasource.datasource_id);
                 if (!Provider) {
-                    return acc;
+                    return children_stack;
                 }
                 return (
                     <Provider props={datasource.settings}>
-                        {acc}
+                        {children_stack}
                     </Provider>
                 );
             }, children)}
