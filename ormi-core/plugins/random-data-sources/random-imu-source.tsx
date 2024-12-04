@@ -173,8 +173,6 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                 pluginsManager.removeAction(`${datasource_id}_${topic.topic}_subscribe`);
                 pluginsManager.removeAction(`${datasource_id}_${topic.topic}_unsubscribe`);
                 pluginsManager.removeAction(`${datasource_id}_${topic.topic}_definition`);
-
-                console.log("unsubscribed from topic", topic.topic);
             });
         };
     }, []);
