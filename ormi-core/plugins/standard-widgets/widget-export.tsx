@@ -229,10 +229,6 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                     items: {
                         "type": "object",
                         "properties": {
-                            "title": {
-                                "type": "string",
-                                "title": "Title",
-                            },
                             "topic": {
                                 "type": "string",
                                 "title": "Topic",
