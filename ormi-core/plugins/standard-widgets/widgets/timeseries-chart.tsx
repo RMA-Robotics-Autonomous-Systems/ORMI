@@ -83,9 +83,11 @@ export function TimeChartComponent(props: any) {
                 continue;
             }
 
+            const props_label = topic.property !== '' ? topic.topic + "." + topic.property.replaceAll("-", ".") : topic.topic;
+
             series.push({
-                label: topic.topic,
-                stroke: topic_props.color || getColorsFromString(topic.topic),
+                label: props_label,
+                stroke: topic_props.color || getColorsFromString(sourceId),
                 width: 2,
                 spanGaps: true,
                 fill: fill,
@@ -131,39 +133,37 @@ export function TimeChartComponent(props: any) {
 
             const filtered_data = new Map<string, { value: number, time: number }[]>();
 
+            const timeSet = new Set<number>();
+
             for (const topic_props of props.topics) {
                 const topic = getTopic(topic_props.topic);
                 const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+
                 const source = sources.get(sourceId);
                 if (!source) {
                     console.log("source not found", topic.topic);
                     continue;
                 }
 
-                // filter the data that is older than 60 seconds, the data is in the data property, the timestamp is in the times property
-                const topic_filtered_value = source.data.filter((value, index) => {
-                    return (source.times[index] / 1000) > now - timeSpan;
-                });
+                // filter the data that is older than timeSpan seconds
+                const topic_filtered = source.data.reduce((acc, value, index) => {
+                    const time = source.times[index] / 1000;
+                    if (time > now - timeSpan) {
+                        acc.push({ value, time });
+                        timeSet.add(time);
+                    }
+                    return acc;
+                }, [] as { value: number, time: number }[]);
 
-                const topic_filtered_time = source.times.filter((value, index) => {
-                    return (source.times[index] / 1000) > now - timeSpan;
-                });
-
-
-                filtered_data.set(topic.topic, topic_filtered_value.map((value, index) => {
-                    return { value: value, time: topic_filtered_time[index] / 1000 };
-                }));
+                filtered_data.set(sourceId, topic_filtered);
             }
 
-            // create the time array by taking the time from all the topics and sorting them
-            const time_array = Array.from(filtered_data.values()).reduce((acc, value) => {
-                return acc.concat(value);
-            }, []).map(value => value.time).sort();
+            const time_array = Array.from(timeSet).sort();
 
-            // for each topic, create the data array, if the time is not present, set the value to null
             for (let i = 0; i < props.topics.length; i++) {
                 const topic = getTopic(props.topics[i].topic);
-                const topic_data = filtered_data.get(topic.topic);
+                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+                const topic_data = filtered_data.get(sourceId);
                 data_copy[i + 1] = time_array.map(time => {
                     const value = topic_data?.find(value => value.time === time);
                     return value ? value.value : null;
