@@ -19,7 +19,7 @@ import { toast } from '@/hooks/use-toast';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
-    const { data, handleChange, path, uischema, label, config } = props;
+    const { data, handleChange, path, uischema, label } = props;
 
     const [topics, setTopics] = useState<DatasourceTopic[]>([]);
     const [topicProps, setTopicProps] = useState<TreeViewBaseItem[]>([]);
@@ -123,16 +123,24 @@ const AsyncTopicControl = (props: ControlProps) => {
         if (asyncFunction) {
             asyncFunction().then((result: DatasourceTopic[]) => {
                 setTopics(result);
+
+                const value = data ? JSON.parse(data) : { topic: '', source: '', property: '' } as SelectedTopic;
+                const topic = result.find(topic => topic.topic === value.topic);
+
+                setSelectedTopic(value.topic);
+                setSelectedTopicObject(topic);
+
+                // if the property is not empty, we need to set the tree view as and the selected property
+                if (!topic?.definitionHook) {
+                    return;
+                }
+
+                const topic_msg_def = pluginsManager.applyFilter<JsonSchema>(topic?.definitionHook, {});
+                const treeViewItems = generateTreeView(topic_msg_def);
+                setTopicProps(treeViewItems);
             });
         }
-
-        const value = data ? JSON.parse(data) : { topic: '', source: '', property: '' } as SelectedTopic;
-
-        console.log('value', value);
-
-        setSelectedTopic(value.topic);
-        setSelectedTopicObject(getTopicByName(value.topic));
-    }, [uischema]);
+    }, []);
 
     return (
         <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
@@ -152,7 +160,6 @@ const AsyncTopicControl = (props: ControlProps) => {
                 </Select>
                 {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
             </div>
-
         </div>
     );
 };
