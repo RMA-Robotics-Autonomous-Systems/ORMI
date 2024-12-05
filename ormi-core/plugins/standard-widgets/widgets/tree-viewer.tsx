@@ -49,7 +49,7 @@ export function TreeViewer(props: any) {
 
         const interval = setInterval(() => {
 
-            const arr = Array.from(sources.values());
+            const arr = Array.from(sources.values())[0].data[0];
 
             setData(generateTreeView(arr));
         }, 32);
