@@ -37,7 +37,6 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
-    console.log('TopicsProps', TopicsProps);
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
     useEffect(() => {
@@ -84,7 +83,6 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             pluginsManager.doAction(topic.source + "_" + topic.topic + "_subscribe", topic);
 
             // add an action on the data hook of the topic
-            console.log('adding action', topic.source + "_" + topic.topic + "_publish");
             pluginsManager.addAction(topic.source + "_" + topic.topic + "_publish", {
                 id: `${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`,
                 priority: 10,

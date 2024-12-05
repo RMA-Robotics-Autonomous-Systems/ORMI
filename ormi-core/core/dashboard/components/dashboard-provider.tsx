@@ -211,9 +211,6 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const lockUnLockDashboard = () => {
-
-        console.log("Locking dashboard", locked);
-
         setLocked(!locked);
     }
 

@@ -75,7 +75,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
                     if (intervalesRef.current.has(topic.topic)) {
-                        console.log("already subscribed to topic", topic.topic);
                         return;
                     }
 
@@ -132,7 +131,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                 pluginsManager.removeAction(`${datasource_id}_${topic.topic}_unsubscribe`);
                 pluginsManager.removeAction(`${datasource_id}_${topic.topic}_definition`);
 
-                console.log("unsubscribed from topic", topic.topic);
             });
         };
     }, []);

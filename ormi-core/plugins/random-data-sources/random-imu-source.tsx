@@ -58,8 +58,6 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                     });
                 }
 
-                console.log("available topics", topics);
-
                 return topics;
             }
         });
