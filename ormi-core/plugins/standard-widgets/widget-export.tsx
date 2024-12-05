@@ -398,7 +398,8 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
 }
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
-    return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
+    // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
+    return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets)));
 }
 
 export default WidgetExport;
