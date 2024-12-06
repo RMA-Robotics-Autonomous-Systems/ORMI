@@ -6,7 +6,7 @@ export function TreeViewer() {
     const { sources } = useLocalDataSource();
     // const animationFrameId = useRef<number>();
 
-    function generateTreeView(obj: unknown, parentId: string = ''): TreeViewBaseItem[] {
+    function generateTreeView(obj: any, parentId: string = ''): TreeViewBaseItem[] {
         if (!obj) return [];
 
         const treeViewItems: TreeViewBaseItem[] = [];
