@@ -40,7 +40,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
 
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: 'random-imu-source-available-topics',
+            id: `${datasource_id}_available_topics`,
             priority: 10,
             filter: (topics: DatasourceTopic[], type: string) => {
 
@@ -63,7 +63,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
         });
 
         const getTopicFrequency = (topic: string) => {
-            return available_topics.find(t => t.topic === topic)?.frequency || 1000;
+            return available_topics.find(t => t.topic === topic)?.frequency || 30; // default to 30hz
         };
 
         available_topics.forEach(topic => {
@@ -101,7 +101,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                         }
 
                         pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, imu_data, Date.now());
-                    }, freq); // Assuming freq is in milliseconds
+                    }, 1000 / freq); // Assuming freq is in hz
 
                     intervalesRef.current.set(topic.topic, interval);
                 }
@@ -165,6 +165,9 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
         });
 
         return () => {
+
+            pluginsManager.removeFilter(`${datasource_id}_available_topics`);
+
             available_topics.forEach(topic => {
 
                 pluginsManager.doAction(`${datasource_id}_${topic.topic}_unsubscribe`, topic);

@@ -40,7 +40,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         const datasource_id = props.id;
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: 'random-data-source-available-topics',
+            id: `${datasource_id}_available_topics`,
             priority: 10,
             filter: (topics: DatasourceTopic[], type: string) => {
 
@@ -63,7 +63,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         });
 
         const getTopicFrequency = (topic: string) => {
-            return available_topics.find(t => t.topic === topic)?.frequency || 1000;
+            return available_topics.find(t => t.topic === topic)?.frequency || 30;  // default to 30hz
         };
 
         available_topics.forEach(topic => {
@@ -87,7 +87,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         old_value = value;
 
                         pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, value, Date.now());
-                    }, freq); // Assuming freq is in milliseconds
+                    }, 1000 / freq); // Assuming freq is in hz
 
                     intervalesRef.current.set(topic.topic, interval);
                 }
@@ -124,6 +124,9 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         });
 
         return () => {
+
+            pluginsManager.removeFilter(`${datasource_id}_available_topics`);
+
             available_topics.forEach(topic => {
 
                 pluginsManager.doAction(`${datasource_id}_${topic.topic}_unsubscribe`, topic);
