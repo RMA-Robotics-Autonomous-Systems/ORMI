@@ -1,10 +1,10 @@
 enum PluginsHooks {
-    PLUGIN_PROVIDER_BEFORE_CHILDREN,    // filter called before rendering children of the plugin provider
-    PLUGIN_PROVIDER_AFTER_CHILDREN,     // filter called after  rendering children of the plugin provider
+    PLUGIN_PROVIDER_BEFORE_CHILDREN = "plugins-before-children",    // filter called before rendering children of the plugin provider
+    PLUGIN_PROVIDER_AFTER_CHILDREN = "plugins-after-children",     // filter called after  rendering children of the plugin provider
     
-    WIDGETS_LIST,   // hooks that take an array of widgets and return an array of widgets
-    DATASOURCES_LIST,   // hooks that take an array of datasources definition and return an array of datasources definition
-    AVAILABLE_TOPICS   // hooks that take an array of topics and return an array of topics
+    WIDGETS_LIST = "plugins-widgets-list",   // hooks that take an array of widgets and return an array of widgets
+    DATASOURCES_LIST = "plugins-datasources-list",   // hooks that take an array of datasources definition and return an array of datasources definition
+    AVAILABLE_TOPICS = "plugins-topics-list"   // hooks that take an array of topics and return an array of topics
 }
 
 interface PluginAction{
