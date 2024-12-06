@@ -13,15 +13,15 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
-import { ArrowLeftFromLine, ArrowUpFromLine, Check, Save } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, Save } from "lucide-react";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload } = useDashboardManager();
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);  // (improve performance from 'doc', also, juste make it works)
+    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), [forceReload]);  // (improve performance from 'doc', also, juste make it works)
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
@@ -63,6 +63,12 @@ const Dashboard = () => {
             </Button>
         );
 
+        setNavbarItem("center", "exploseLayout",
+            <Button variant={"ghost"} onClick={() => { exploseLayout() }}>
+                <BombIcon />
+            </Button>
+        );
+
         setNavbarItem("center", "save",
             <Button variant={"ghost"} onClick={() => { savesDashboard(); }}>
                 {hasChanged ? <Save /> : <Check />}
@@ -74,6 +80,7 @@ const Dashboard = () => {
             removeNavbarItem("center", "lock_unlock");
             removeNavbarItem("center", "moveToHorizontal");
             removeNavbarItem("center", "moveToVertical");
+            removeNavbarItem("center", "exploseLayout");
             removeNavbarItem("center", "save");
         }
 

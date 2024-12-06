@@ -17,6 +17,7 @@ interface DashboardContextInterface {
     compactType: "vertical" | "horizontal" | null;
     moveToVertical: () => void;
     moveToHorizontal: () => void;
+    exploseLayout: () => void;
 
     getComponents: (boxId: string) => JSX.Element;
     getDefinition: (widget_id: string) => WidgetDefinition;
@@ -32,6 +33,7 @@ interface DashboardContextInterface {
     layoutsChanged: (newLayouts: Layouts) => void;
     savesDashboard: () => void;
     hasChanged: boolean;
+    forceReload: boolean;
 }
 
 // Create the context with a default value
@@ -48,6 +50,7 @@ const DashboardContext = createContext<DashboardContextInterface>({
     compactType: null,
     moveToVertical: () => { },
     moveToHorizontal: () => { },
+    exploseLayout: () => { },
 
     getComponents: () => <></>,
     getBox: () => { throw new Error("Method not implemented."); },
@@ -61,7 +64,8 @@ const DashboardContext = createContext<DashboardContextInterface>({
 
     layoutsChanged: () => { },
     savesDashboard: () => { },
-    hasChanged: false
+    hasChanged: false,
+    forceReload: false
 });
 
 
@@ -80,6 +84,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     const [widgets, setWidgets] = React.useState<Map<string, Widget>>(dashboardDefinition.widgets);
     const [locked, setLocked] = React.useState<boolean>(false);
     const [hasChanged, setHasChanged] = React.useState<boolean>(false);
+    const [forceReload, setForceReload] = React.useState<boolean>(false);
 
     const getComponents = (boxId: string) => {
 
@@ -320,6 +325,56 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }, 500);
     }
 
+    const exploseLayout = () => {
+
+        const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
+        const colsperBreakpoints = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }
+        const optimalCols = { lg: 3, md: 2, sm: 2, xs: 1, xxs: 1 };
+        const optimalRows = { lg: 30, md: 30, sm: 30, xs: 30, xxs: 30 };
+
+        // compute the current breakpoint
+        const width = window.innerWidth;
+        let breakpoint: 'lg' | 'md' | 'sm' | 'xs' | 'xxs' = 'lg';
+        if (width < breakpoints.lg) {
+            breakpoint = 'md';
+        }
+        if (width < breakpoints.md) {
+            breakpoint = 'sm';
+        }
+        if (width < breakpoints.sm) {
+            breakpoint = 'xs';
+        }
+        if (width < breakpoints.xs) {
+            breakpoint = 'xxs';
+        }
+
+        console.log(breakpoint);
+
+        const new_layouts = layouts;
+
+        // place the boxes in the optimal position
+        new_layouts[breakpoint] = new_layouts[breakpoint].map((box, index) => {
+
+            const cols_size = colsperBreakpoints[breakpoint] / optimalCols[breakpoint];
+
+            return {
+                ...box,
+                x: (index * cols_size) % colsperBreakpoints[breakpoint],
+                y: Math.floor(index / optimalCols[breakpoint]),
+                w: cols_size,
+                h: optimalRows[breakpoint]
+            }
+        });
+
+        layoutsChanged(new_layouts);
+        setForceReload(!forceReload);
+
+        toast({
+            title: "Layout exploded",
+            description: "The layout has been exploded",
+        })
+    };
+
     useEffect(() => {
         loadFromLocalStorage();
     }, []);
@@ -330,6 +385,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 compactType,
                 moveToVertical,
                 moveToHorizontal,
+                exploseLayout,
                 layouts,
                 widgets,
                 getComponents,
@@ -342,7 +398,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 locked,
                 layoutsChanged,
                 savesDashboard,
-                hasChanged
+                hasChanged,
+                forceReload
             }
         }>
             {children}
