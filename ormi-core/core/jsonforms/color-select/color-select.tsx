@@ -12,7 +12,7 @@ const ColorSelectControl = (props: ControlProps) => {
             <Input
                 id={id}
                 type="color"
-                value={data || ''}
+                value={data || '#000000'}
                 onChange={event => handleChange(path, event.target.value)}
             />
         </div>
