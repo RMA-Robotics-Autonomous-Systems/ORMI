@@ -397,9 +397,57 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
     return widgets;
 }
 
+function PluginsViewerExport(widgets: WidgetDefinition[]) {
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title],
+    }
+
+    const DynamicComponent = dynamic(() => import('./widgets/plugins-viewer').then(mod => mod.PluginViewer), {
+        loading: () => <Skeleton />,
+    })
+
+    const jsonViewerWidget: WidgetDefinition = {
+        id: 'plugins-viewer-widget',
+        name: 'Plugins viewer',
+        description: 'Display the differents filters and actions',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+            },
+            required: ['title']
+        },
+        uischema: layout,
+        data: {
+            title: 'Plugins viewer'
+        },
+        Component: (data: any) => (
+            <DynamicComponent {...data} />
+        )
+
+    }
+
+    widgets.push(jsonViewerWidget);
+
+    return widgets;
+}
+
+
 const WidgetExport = (widgets: WidgetDefinition[]) => {
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
-    return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets)));
+    return PluginsViewerExport(TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets))));
 }
 
 export default WidgetExport;

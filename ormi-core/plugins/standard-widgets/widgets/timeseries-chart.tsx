@@ -1,31 +1,22 @@
-// /*
-//     This component use TimeChart instead of Chart.js to render a time series chart.
-//     this is based on webgl
-// */
-
-
-import { useLocalsourceProvider } from '@/core/datasources/components/local-datasource-provider';
+import { useLocalDataSource } from '@/core/datasources/components/local-datasource-provider';
 import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
 import 'uplot/dist/uPlot.min.css';
 
-
-
-
 export function TimeChartComponent(props: any) {
+    const { sources } = useLocalDataSource();
+    const divRef = useRef<HTMLDivElement>(null);
+    const frameRef = useRef<number>();
+    const lastUpdateRef = useRef<number>(0);
+    const dataBufferRef = useRef<Map<string, { value: number, time: number }[]>>(new Map());
 
-    const { sources } = useLocalsourceProvider();
-
-    const divRef = React.useRef<HTMLDivElement>(null);
-
-    const [options, setOptions] = useState<uPlot.Options>({
-        width: divRef.current?.clientWidth || 500,
-        height: divRef.current?.clientHeight || 500,
-
+    const optionsRef = useRef<uPlot.Options>({
+        width: 500,
+        height: 500,
         scales: {
             x: {
                 time: true,
@@ -42,174 +33,161 @@ export function TimeChartComponent(props: any) {
                 grid: { stroke: "#eee" },
             },
         ],
-        series: [
-            {
-                label: 'Time',
-            },
-        ]
+        series: [{ label: 'Time' }]
     });
 
-    const [data, setData] = useState<AlignedData>([]);
+    const dataRef = useRef<AlignedData>([]);
 
     const timeSpan = props.timeHistory || 5;
-    const updateFrequency = props.updateFrequency || 32;    // in Hz
+    const updateFrequency = props.updateFrequency || 32;
+    const updateInterval = 1000 / updateFrequency;
 
+    // Initialize chart series only when topics change
     useEffect(() => {
+        optionsRef.current.series = initializeSeries(props.topics, sources);
+    }, [props.topics]);
 
-        const getTopic = (topic: string) => {
-            return JSON.parse(topic) as SelectedTopic;
-        }
-
-        // setup the series based on the props.topics
-        const series: uPlot.Series[] = [];
-        series.push({
-            label: 'Time',
-        });
-
-        const notFoundTopics: string[] = [];
-
-        for (const topic_props of props.topics) {
-
-            const topic = getTopic(topic_props.topic);
-
-            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
-
-            const fill = (topic_props.fill || false) ? getTransparentColorString(topic_props.color || getColorsFromString(topic.topic), 0.4) : undefined;
-
-            // check if the topic is in the sources
-            const source = sources.get(sourceId);
-            if (!source) {
-                notFoundTopics.push(topic.topic);
-                continue;
-            }
-
-            const props_label = topic.property !== '' ? topic.topic + "." + topic.property.replaceAll("-", ".") : topic.topic;
-
-            series.push({
-                label: props_label,
-                stroke: topic_props.color || getColorsFromString(sourceId),
-                width: 2,
-                spanGaps: true,
-                fill: fill,
-            });
-        }
-
-
-        if (notFoundTopics.length > 0) {
-            toast({
-                title: 'Error',
-                description: (
-                    <div>
-                        <p>Some topics were not found:</p>
-                        <ul>
-                            {notFoundTopics.map(topic => <li key={topic}>{topic}</li>)}
-                        </ul>
-                    </div>
-                ),
-                variant: 'destructive'
-            });
-        }
-
-        options!.series = series;
-
-        setOptions(options!);
-
-        // setup the initial data
-        const initial_data: AlignedData = [new Float64Array([Date.now() / 1000])];
-
-        for (let i = 0; i < props.topics.length; i++) {
-            initial_data.push(new Float64Array([0]));
-        }
-
-        setData(initial_data);
-
-        // update data with random values
-        const updateInterval = setInterval(() => {
-
-            // update the width and height
-            const now = Date.now() / 1000;
-            const data_copy = data;
-
-
-            const filtered_data = new Map<string, { value: number, time: number }[]>();
-
-            const timeSet = new Set<number>();
-
-            for (const topic_props of props.topics) {
-                const topic = getTopic(topic_props.topic);
-                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
-
-                const source = sources.get(sourceId);
-                if (!source) {
-                    console.log("source not found", topic.topic);
-                    continue;
-                }
-
-                // filter the data that is older than timeSpan seconds
-                const topic_filtered = source.data.reduce((acc, value, index) => {
-                    const time = source.times[index] / 1000;
-                    if (time > now - timeSpan) {
-                        acc.push({ value, time });
-                        timeSet.add(time);
-                    }
-                    return acc;
-                }, [] as { value: number, time: number }[]);
-
-                filtered_data.set(sourceId, topic_filtered);
-            }
-
-            const time_array = Array.from(timeSet).sort();
-
-            for (let i = 0; i < props.topics.length; i++) {
-                const topic = getTopic(props.topics[i].topic);
-                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
-                const topic_data = filtered_data.get(sourceId);
-                data_copy[i + 1] = time_array.map(time => {
-                    const value = topic_data?.find(value => value.time === time);
-                    return value ? value.value : null;
-                });
-            }
-
-            // update the time array
-            data_copy[0] = time_array;
-
-            // update the data
-            setData(data_copy);
-
-            if (divRef.current === null || divRef.current === undefined || !divRef.current.clientWidth || !divRef.current.clientHeight) {
+    // Handle real-time data updates
+    useEffect(() => {
+        const processData = (timestamp: number) => {
+            if (timestamp - lastUpdateRef.current < updateInterval) {
+                frameRef.current = requestAnimationFrame(processData);
                 return;
             }
 
-            // update options
-            setOptions({
-                ...options!,
-                width: divRef.current!.clientWidth,
-                height: divRef.current!.clientHeight - 40,
-                scales: {
-                    x: {
-                        time: true,
-                        range: [now - timeSpan, now],
-                    },
-                },
+            lastUpdateRef.current = timestamp;
+            const now = Date.now() / 1000;
+
+            // Process incoming data
+            for (const topic_props of props.topics) {
+                const topic = getTopic(topic_props.topic);
+                const sourceId = (topic.property !== '') ?
+                    topic.topic + "+" + topic.property : topic.topic;
+
+                const source = sources.get(sourceId);
+                if (!source) continue;
+
+                const newData = source.data.map((value, index) => ({
+                    value,
+                    time: source.times[index] / 1000
+                })).filter(d => d.time > now - timeSpan);
+
+                dataBufferRef.current.set(sourceId, newData);
+            }
+
+            // Update chart data
+            const timeSet = new Set<number>();
+            dataBufferRef.current.forEach(data => {
+                data.forEach(point => timeSet.add(point.time));
             });
 
+            const timeArray = Array.from(timeSet).sort();
+            const newData: AlignedData = [timeArray];
 
+            props.topics.forEach((topic_props: any) => {
+                const topic = getTopic(topic_props.topic);
+                const sourceId = (topic.property !== '') ?
+                    topic.topic + "+" + topic.property : topic.topic;
+                const topicData = dataBufferRef.current.get(sourceId);
 
-        }, 1000 / updateFrequency);
+                const values = timeArray.map(time => {
+                    const point = topicData?.find(d => d.time === time);
+                    return point?.value ?? null;
+                });
+                newData.push(values);
+            });
 
+            dataRef.current = newData;
+
+            // Update chart dimensions and time range
+            if (divRef.current) {
+                optionsRef.current = {
+                    ...optionsRef.current,
+                    width: divRef.current.clientWidth,
+                    height: divRef.current.clientHeight - 40,
+                    scales: {
+                        x: {
+                            time: true,
+                            range: [now - timeSpan, now],
+                        },
+                    },
+                };
+            }
+
+            frameRef.current = requestAnimationFrame(processData);
+        };
+
+        frameRef.current = requestAnimationFrame(processData);
 
         return () => {
-            clearInterval(updateInterval);
-        }
-
+            if (frameRef.current) {
+                cancelAnimationFrame(frameRef.current);
+            }
+        };
     }, []);
 
     return (
         <div ref={divRef} style={{ width: "100%", height: "100%" }}>
-            <UplotReact
-                options={options!}
-                data={data}
-            />
+            <UplotReact options={optionsRef.current} data={dataRef.current} />
         </div>
     );
+}
+
+// Helper functions
+function initializeSeries(topics: any[], sources: Map<string, any>): uPlot.Series[] {
+    const series: uPlot.Series[] = [{ label: 'Time' }];
+    const notFoundTopics: string[] = [];
+
+    topics.forEach(topic_props => {
+        const topic = getTopic(topic_props.topic);
+        const sourceId = (topic.property !== '') ?
+            topic.topic + "+" + topic.property : topic.topic;
+
+        if (!sources.get(sourceId)) {
+            notFoundTopics.push(topic.topic);
+            return;
+        }
+
+        const fill = (topic_props.fill || false) ?
+            getTransparentColorString(
+                topic_props.color || getColorsFromString(topic.topic),
+                0.4
+            ) : undefined;
+
+        const props_label = topic.property !== '' ?
+            topic.topic + "." + topic.property.replaceAll("-", ".") : topic.topic;
+
+        series.push({
+            label: props_label,
+            stroke: topic_props.color || getColorsFromString(sourceId),
+            width: 2,
+            spanGaps: true,
+            fill,
+        });
+    });
+
+    if (notFoundTopics.length > 0) {
+        showErrorToast(notFoundTopics);
+    }
+
+    return series;
+}
+
+function getTopic(topic: string) {
+    return JSON.parse(topic) as SelectedTopic;
+}
+
+function showErrorToast(notFoundTopics: string[]) {
+    toast({
+        title: 'Error',
+        description: (
+            <div>
+                <p>Some topics were not found:</p>
+                <ul>
+                    {notFoundTopics.map(topic => <li key={topic}>{topic}</li>)}
+                </ul>
+            </div>
+        ),
+        variant: 'destructive'
+    });
 }

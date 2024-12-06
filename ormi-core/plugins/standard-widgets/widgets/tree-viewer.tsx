@@ -1,68 +1,68 @@
-import { useLocalsourceProvider } from "@/core/datasources/components/local-datasource-provider";
+import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
+import { TreeViewBaseItem } from "@mui/x-tree-view/models";
 import { RichTreeView } from "@mui/x-tree-view/RichTreeView";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 export function TreeViewer(props: any) {
-    const { sources } = useLocalsourceProvider();
-    const [data, setData] = useState<any[]>([]);
+    const { sources } = useLocalDataSource();
+    // const animationFrameId = useRef<number>();
 
-    useEffect(() => {
+    function generateTreeView(obj: any, parentId: string = ''): TreeViewBaseItem[] {
+        if (!obj) return [];
 
-        const isPrimitive = (val: any) => {
+        const treeViewItems: TreeViewBaseItem[] = [];
+        for (const key in obj) {
+            const prop = obj[key];
+            const uniqueId = parentId ? `${parentId}-${key}` : key;
 
-            if (val === null) {
-                return true;
+            const item: TreeViewBaseItem = {
+                id: uniqueId,
+                label: isPrimitive(prop) ? `${key}: ${prop}` : key,
+                children: []
             }
 
-            const primitiveTypes = ['string', 'number', 'boolean'];
-
-            if (primitiveTypes.includes(typeof val)) {
-                return true;
+            if (typeof prop === 'object') {
+                item.children = generateTreeView(prop, uniqueId);
             }
 
-            return false;
+            treeViewItems.push(item);
         }
 
-        const generateTreeView = (obj: any, parentId: string = '') => {
+        return treeViewItems;
+    }
 
-            const treeViewItems: any[] = [];
+    function isPrimitive(val: any) {
+        if (val === null) return true;
+        const primitiveTypes = ['string', 'number', 'boolean'];
+        return primitiveTypes.includes(typeof val);
+    }
 
-            for (const key in obj) {
-                const prop = obj[key];
-                const uniqueId = parentId ? `${parentId}-${key}` : key;
+    // Get data directly from sources
+    const treeData = generateTreeView(Array.from(sources.values())[0]?.data[0]);
 
-                const item: any = {
-                    id: uniqueId,
-                    label: isPrimitive(prop) ? `${key}: ${prop}` : key,
-                    children: []
-                }
+    // useEffect(() => {
+    //     // Force re-render on animation frame
+    //     animationFrameId.current = requestAnimationFrame(() => {
+    //         if (sources.size > 0) {
+    //             // Force a re-render
+    //             props.forceUpdate?.();
+    //         }
+    //     });
 
-                if (typeof prop === 'object') {
-                    item.children = generateTreeView(prop, uniqueId);
-                }
-
-                treeViewItems.push(item);
-            }
-
-            return treeViewItems;
-        }
-
-        const interval = setInterval(() => {
-
-            const arr = Array.from(sources.values())[0].data[0];
-
-            setData(generateTreeView(arr));
-        }, 32);
-
-        return () => {
-            clearInterval(interval);
-        }
-
-    }, []);
+    //     return () => {
+    //         if (animationFrameId.current) {
+    //             cancelAnimationFrame(animationFrameId.current);
+    //         }
+    //     };
+    // }, [props, sources]);
 
     return (
         <div style={{ height: "100%", overflow: "auto" }}>
-            {(data) && (data.length > 0) && (<RichTreeView items={data} />)}
+            {treeData && treeData.length > 0 ? (
+                <RichTreeView items={treeData} />
+            ) : (
+                <div>Loading...</div>
+            )}
         </div>
     );
 }

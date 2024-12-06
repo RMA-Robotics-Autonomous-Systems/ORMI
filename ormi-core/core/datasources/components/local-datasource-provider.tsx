@@ -33,8 +33,8 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 
 const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, TopicsProps, buffersSize }) => {
 
-    // const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
-    const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
+    const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
+    // const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
@@ -42,8 +42,6 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     useEffect(() => {
         // create a random id for the local datasource
         const local_id = "local-datasource-" + Math.random().toString(36).substring(7);
-
-        sources.clear();
 
         const propertiesGetter = (data: any, property: string) => {
             /*
@@ -107,7 +105,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                         source.times.shift();
                     }
 
-                    sources.set(sourceId, source);
+                    setSources(new Map(sources));
                 }
             });
 
@@ -131,13 +129,13 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     );
 };
 
-const useLocalsourceProvider = () => {
+const useLocalDataSource = () => {
     const context = useContext(LocalDataSourcesContext);
     if (!context) {
-        throw new Error('useLocalsourceProvider must be used within a GlobalDataSourcesProvider');
+        throw new Error('useLocalDataSource must be used within a GlobalDataSourcesProvider');
     }
 
     return context;
 };
 
-export { LocalDataSourcesProvider, useLocalsourceProvider };
+export { LocalDataSourcesProvider, useLocalDataSource };
