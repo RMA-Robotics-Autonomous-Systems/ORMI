@@ -1,13 +1,12 @@
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
 import { TreeViewBaseItem } from "@mui/x-tree-view/models";
 import { RichTreeView } from "@mui/x-tree-view/RichTreeView";
-import { useEffect, useRef } from "react";
 
-export function TreeViewer(props: any) {
+export function TreeViewer() {
     const { sources } = useLocalDataSource();
     // const animationFrameId = useRef<number>();
 
-    function generateTreeView(obj: any, parentId: string = ''): TreeViewBaseItem[] {
+    function generateTreeView(obj: unknown, parentId: string = ''): TreeViewBaseItem[] {
         if (!obj) return [];
 
         const treeViewItems: TreeViewBaseItem[] = [];
@@ -39,22 +38,6 @@ export function TreeViewer(props: any) {
 
     // Get data directly from sources
     const treeData = generateTreeView(Array.from(sources.values())[0]?.data[0]);
-
-    // useEffect(() => {
-    //     // Force re-render on animation frame
-    //     animationFrameId.current = requestAnimationFrame(() => {
-    //         if (sources.size > 0) {
-    //             // Force a re-render
-    //             props.forceUpdate?.();
-    //         }
-    //     });
-
-    //     return () => {
-    //         if (animationFrameId.current) {
-    //             cancelAnimationFrame(animationFrameId.current);
-    //         }
-    //     };
-    // }, [props, sources]);
 
     return (
         <div style={{ height: "100%", overflow: "auto" }}>
