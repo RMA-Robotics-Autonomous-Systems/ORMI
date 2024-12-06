@@ -35,7 +35,7 @@ function LineChartExport(widgets: WidgetDefinition[]) {
         "options": {
             "async": true,
             "asyncFunction": async () => {
-                const topics = pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                const topics = await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
                 return topics.map((topic) => ({
                     label: topic.topic,
                     value: topic.topic
@@ -161,7 +161,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "asyncFunction": async () => {
-                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
             "propertyType": "number"
         }
@@ -281,7 +281,7 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "asyncFunction": async () => {
-                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
             "propertyType": "number"
         }
@@ -346,7 +346,7 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "asyncFunction": async () => {
-                return pluginsManager.applyFilter<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
             "propertyType": "number"
         }

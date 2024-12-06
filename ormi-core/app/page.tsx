@@ -9,6 +9,7 @@ import { Widget } from "@/core/widgets/widget-interface";
 import { Datasource } from "@/core/datasources/datasource-interface";
 import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
 import { RandomDataSourceSettings } from "@/plugins/random-data-sources";
+import { RosBridgeSuiteDataSourceSettings } from "@/plugins/random-data-sources/rosbridge-suite-source";
 
 export default function Home() {
 
@@ -47,6 +48,15 @@ export default function Home() {
                 },
             ]
         } as RandomDataSourceSettings
+    });
+
+    datasources.set("local-rosbridge-suite", {
+        datasource_id: "rosbridge-suite-source",
+        title: "Local ROSBridge Suite",
+        settings: {
+            id: "local-rosbridge-suite",
+            url: "ws://localhost:9090"
+        } as RosBridgeSuiteDataSourceSettings
     });
 
     const dashboardDefinition: DashboardInterface = {

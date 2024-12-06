@@ -51,6 +51,33 @@ class PluginsManager{
         return result;
     }
 
+    async applyFilterAsync<T>(filterName: string | PluginsHooks, ...args: any): Promise<T>{
+        if(args.length < 1){
+            throw new Error(`No argument given in ${filterName}`);
+        }
+        let result = args[0];
+        const filters : PluginFilter[] = [];
+
+        this.plugins.forEach((plugin) => {
+            const filtersMap = plugin.filters.get(filterName);
+
+            if(filtersMap !== undefined){
+                filtersMap.forEach((filter) => {
+                    filters.push(filter);
+                });
+            }
+
+        });
+
+        filters.sort((a, b) => a.priority - b.priority);
+
+        for(const filter of filters){
+            result = await filter.filter(result, args.slice(1));
+        }
+
+        return result;
+    }
+
     addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void{
 
         const basicPlugin = this.plugins.get("basic");

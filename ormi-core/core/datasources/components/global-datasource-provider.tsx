@@ -1,14 +1,11 @@
 "use client";
 
-
-
 /*
     Load all available datasources and create a provider for them
 
     - allow to interact with all datasources
 
 */
-
 
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { Datasource, DatasourceDefinition } from '../datasource-interface';
@@ -38,6 +35,8 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     useEffect(() => {
 
+        console.log("Loading datasources", availableDataSources);
+
         const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
         const dataSourcesTypes_map = new Map<string, DatasourceDefinition>();
         for (const dataSource of dataSourcesTypes_array) {
@@ -48,28 +47,38 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
 
     }, []);
 
-    const getProvider = (datasource_id: string) => {
-        const dataSourceType = dataSourcesTypes.get(datasource_id);
-        if (!dataSourceType) {
-            console.error(`Datasource ${datasource_id} not found`);
-            return null;
-        }
-        return dataSourceType.Provider;
-    };
+    // Memoize the provider chain to prevent unnecessary rerenders
+    const providerChain = React.useMemo(() => {
+
+        const getProvider = (datasource_id: string) => {
+            const dataSourceType = dataSourcesTypes.get(datasource_id);
+            if (!dataSourceType) {
+                console.error(`Datasource ${datasource_id} not found`);
+                return null;
+            }
+            console.log("Provider", datasource_id);
+
+            return dataSourceType.Provider;
+        };
+
+        if (!initialized) return null;
+
+        return Array.from(availableDataSources.values()).reduceRight((children_stack, datasource) => {
+            const Provider = getProvider(datasource.datasource_id);
+            if (!Provider) {
+                return children_stack;
+            }
+            return (
+                <Provider key={datasource.datasource_id} props={datasource.settings}>
+                    {children_stack}
+                </Provider>
+            );
+        }, children);
+    }, [initialized, availableDataSources, children, dataSourcesTypes]);
 
     return (
         <GlobalDataSourcesContext.Provider value={{ dataSourcesTypes, availableDataSources }}>
-            {initialized && Array.from(availableDataSources.values()).reduceRight((children_stack, datasource) => {
-                const Provider = getProvider(datasource.datasource_id);
-                if (!Provider) {
-                    return children_stack;
-                }
-                return (
-                    <Provider props={datasource.settings}>
-                        {children_stack}
-                    </Provider>
-                );
-            }, children)}
+            {providerChain}
         </GlobalDataSourcesContext.Provider>
     );
 }

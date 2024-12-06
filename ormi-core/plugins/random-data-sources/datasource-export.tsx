@@ -4,6 +4,7 @@ import { DatasourceDefinition } from '@/core/datasources/datasource-interface';
 
 import { RandomDataSourceProvider } from './random-data-source';
 import { RandomIMUSourceProvider } from './random-imu-source';
+import { RosBridgeSuiteSourceProvider } from './rosbridge-suite-source';
 
 const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
 
@@ -70,6 +71,31 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
         },
 
         Provider: RandomIMUSourceProvider
+
+    });
+
+    current_datasource_type.push({
+        id: 'rosbridge-suite-source',
+        name: 'ROS',
+        description: 'ROS data source',
+
+        schema: {
+            type: 'object',
+            properties: {
+                url: {
+                    type: 'string',
+                    title: 'URL'
+                }
+            }
+        },
+
+        uischema: layout,
+
+        data: {
+            url: 'ws://localhost:9090'
+        },
+
+        Provider: RosBridgeSuiteSourceProvider
 
     });
 
