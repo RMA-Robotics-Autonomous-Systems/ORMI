@@ -119,6 +119,10 @@ class PluginsManager{
             actionMap.delete(pluginActionId);
         });
     }
+
+    getPlugins(): Map<string | PluginsHooks, PluginClientSide>{
+        return this.plugins;
+    }
 }
 
 
