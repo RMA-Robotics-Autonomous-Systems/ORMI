@@ -43,7 +43,7 @@ export default function Home() {
             topics: [
                 {
                     "topic": "/camera/imu",
-                    frequency: 16
+                    frequency: 60
                 },
             ]
         } as RandomDataSourceSettings
