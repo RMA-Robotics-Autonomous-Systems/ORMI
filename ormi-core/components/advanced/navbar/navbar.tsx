@@ -37,7 +37,7 @@ const NavBar = () => {
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent style={{ width: "100dvw" }}>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-1">
                                 <Link href="/" className={navigationMenuTriggerStyle()}>
                                     Home
                                 </Link>
@@ -48,12 +48,12 @@ const NavBar = () => {
                                     <div key={key}>{value}</div>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-1">
                                 {Array.from(center).map(([key, value]) => (
                                     <div key={key}>{value}</div>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-1">
                                 {Array.from(right).map(([key, value]) => (
                                     <div key={key}>{value}</div>
                                 ))}
