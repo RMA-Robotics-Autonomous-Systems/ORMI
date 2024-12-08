@@ -3,6 +3,7 @@ import { ControlProps, rankWith, isControl, and, optionIs, uiTypeIs, UISchemaEle
 import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
 
 import React, { useEffect, useState } from 'react';
+import { cn } from "@/lib/utils"
 
 import {
     Select,
@@ -16,10 +17,16 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { TreeViewBaseItem } from '@mui/x-tree-view/models/items';
 import { toast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
     const { data, handleChange, path, uischema, label } = props;
+
+    const [open, setOpen] = useState(false)
 
     const [topics, setTopics] = useState<DatasourceTopic[]>([]);
     const [topicProps, setTopicProps] = useState<TreeViewBaseItem[]>([]);
@@ -64,6 +71,7 @@ const AsyncTopicControl = (props: ControlProps) => {
 
         const topic = getTopicByName(topic_name);
         setTopicProps([]);
+        setOpen(false);
 
         setSelectedTopic(topic_name);
         setSelectedTopicObject(topic);
@@ -146,18 +154,54 @@ const AsyncTopicControl = (props: ControlProps) => {
         <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
             <Label>{label}</Label>
             <div className='flex flex-col gap-2 w-full'>
-                <Select value={selectedTopic} onValueChange={handleTopicChange}>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select an option" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {topics.map((topic: DatasourceTopic) => (
+                {/* <Select value={selectedTopic} onValueChange={handleTopicChange}> */}
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild className="w-full">
+                        <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={open}
+                            className="w-full justify-between"
+                        >
+                            {selectedTopic || 'Select a topic'}
+
+                            <ChevronsUpDown className="opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+
+                    <PopoverContent>
+
+                        <Command>
+                            <CommandInput placeholder="Search topic..." />
+                            <CommandList>
+                                <CommandEmpty>No framework found.</CommandEmpty>
+                                <CommandGroup>
+                                    {topics.map((topic: DatasourceTopic) => (
+                                        <CommandItem
+                                            key={topic.topic + "-" + topic.source}
+                                            value={topic.topic}
+                                            onSelect={handleTopicChange}
+                                        >
+                                            {topic.topic}
+                                            <Check
+                                                className={cn(
+                                                    "ml-auto",
+                                                    selectedTopic === topic.topic ? "opacity-100" : "opacity-0"
+                                                )}
+                                            />
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+
+                        {/* {topics.map((topic: DatasourceTopic) => (
                             <SelectItem key={topic.topic} value={topic.topic}>
                                 {topic.topic}
                             </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                        ))} */}
+                    </PopoverContent>
+                </Popover>
                 {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
             </div>
         </div>
