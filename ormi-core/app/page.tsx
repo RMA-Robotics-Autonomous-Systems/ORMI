@@ -70,12 +70,14 @@ export default function Home() {
             xs: [],
             xxs: []
         },
-        widgets: new Map<string, Widget>()
+        widgets: new Map<string, Widget>(),
+        datasources: datasources,
+        locked: false
     }
 
     return (
         <div className={styles.page}>
-            <GlobalDataSourcesProvider datasources={datasources}>
+            <GlobalDataSourcesProvider datasources={dashboardDefinition.datasources}>
                 <DashboardProvider dashboardDefinition={dashboardDefinition}>
                     <Dashboard />
                     <WidgetsDialog />

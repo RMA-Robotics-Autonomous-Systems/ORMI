@@ -217,6 +217,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
     const lockUnLockDashboard = () => {
         setLocked(!locked);
+        setHasChanged(true);
     }
 
     const layoutsChanged = (newLayouts: Layouts) => {
@@ -252,7 +253,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         // create a new dashboard definition as a plain object
         const newDashboard = {
             layouts: Object.fromEntries(Object.entries(layouts)),
-            widgets: Object.fromEntries(widgets)
+            widgets: Object.fromEntries(widgets),
+            locked: locked
         }
 
         setHasChanged(false);
@@ -285,7 +287,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }
 
 
-
+        setLocked(dashboardDefinition.locked);
         setLayouts(dashboardDefinition.layouts);
         setWidgets(dashboardDefinition.widgets);
     }
@@ -326,6 +328,15 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const exploseLayout = () => {
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to explode the layout",
+                variant: "destructive"
+            });
+            return;
+        }
 
         const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
         const colsperBreakpoints = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }
