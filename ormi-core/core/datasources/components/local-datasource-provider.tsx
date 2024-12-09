@@ -8,7 +8,6 @@
 
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
-import { DatasourceTopic } from '../datasource-interface';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 
