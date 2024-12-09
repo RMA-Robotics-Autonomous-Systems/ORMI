@@ -30,102 +30,122 @@ interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
     url: string;
 }
 
+interface ROSTopic {
+    topic: string;
+    type: string;
+}
+
+async function GetTopicType(ROS: ROSLIB.Ros, topic: string): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        ROS.getTopicType(topic, (type: string) => {
+            resolve(type);
+        }, (error: any) => {
+            reject(error);
+        });
+    });
+}
+
+
+async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
+    return new Promise<ROSTopic[]>((resolve, reject) => {
+        ROS.getTopics((results: { topics: string[], types: string[] }) => {
+
+            const topics: ROSTopic[] = [];
+
+            for (let i = 0; i < results.topics.length; i++) {
+                topics.push({
+                    topic: results.topics[i],
+                    type: results.types[i]
+                });
+            }
+
+            resolve(
+                topics
+            );
+
+        }, (error: any) => {
+            reject(error);
+        });
+    });
+}
+
 // Create a provider component
 const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBridgeSuiteDataSourceSettings }> = ({ children, props }) => {
-
     const pluginsManager = usePluginsManager() as PluginsManager;
 
-    const ROS = useRef<ROSLIB.Ros>(new ROSLIB.Ros({
-        url: 'ws://localhost:9090'
-    })).current;
+    // const ROS = useRef<ROSLIB.Ros>(new ROSLIB.Ros({
+    //     transportLibrary: 'websocket'
+    // })).current;
 
-    async function GetTopicsList() {
 
-        if (!ROS.isConnected) {
-
-            toast({
-                title: "Error, not connected to ROSBridge Suite",
-                description: "Please connect to ROSBridge Suite before trying to get topics",
-                variant: "destructive"
-            })
-
-            return [];
-        }
-
-        return new Promise<string[]>((resolve, reject) => {
-            ROS.getTopics((topics: any) => {
-                console.log("Topics list", topics.topics);
-                resolve(topics.topics);
-            }, (error: any) => {
-                reject(error);
-            });
-        });
-    }
 
     useEffect(() => {
-        const datasource_id = props.id;
 
-        console.log("Connecting to ROSBridge Suite");
-
-        ROS.on("connection", () => {
-            console.log("Connected to ROSBridge Suite");
+        const ROS = new ROSLIB.Ros({
+            transportLibrary: 'websocket'
         });
 
-        ROS.on("error", (error: any) => {
+        const connect = async () => {
 
-            console.log(ROS, error);
-            toast({
-                title: "Error connecting to ROSBridge Suite",
-                description: "Please check the URL and try again",
-                variant: "destructive"
-            });
+            ROS.on("connection", () => {
 
-            // console.error("Error connecting to ROSBridge Suite", error);
-        });
+                pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
+                    id: `${props.id}-topics-lists`,
+                    filter: async (topics: DatasourceTopic[]) => {
 
-        ROS.on("close", () => {
+                        const rosTopics = await GetTopicsList(ROS);
 
-            toast({
-                title: "Disconnected from ROSBridge Suite",
-                description: "Please check the URL and try again",
-                variant: "destructive"
-            });
+                        for (const topic of rosTopics) {
+                            topics.push({
+                                topic: topic.topic,
+                                source: props,
+                                type: topic.type,
+                            });
+                        }
 
-        });
 
-        if (!ROS.isConnected) {
-            ROS.connect('ws://localhost:9090');
-        }
-
-        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: `${datasource_id}_available_topics`,
-            priority: 10,
-            filter: async (topics: DatasourceTopic[], type: string) => {
-
-                const topicsList = await GetTopicsList();
-
-                console.log("Topics list", topicsList);
-
-                topicsList.forEach((topic: string) => {
-                    topics.push({
-                        topic: topic,
-                        source: datasource_id,
-                        type: 'topic'
-                    });
+                        return topics;
+                    },
+                    priority: 100
                 });
 
-                return topics;
+            });
+
+            ROS.on("error", (error: any) => {
+                console.log(ROS, error);
+                toast({
+                    title: "Error connecting to ROSBridge Suite",
+                    description: `Could not connect to ROSBridge Suite at ${props.url}`,
+                    variant: "destructive"
+                });
+            });
+
+            ROS.on("close", () => {
+
+                pluginsManager.removeFilter(`${props.id}-topics-lists`);
+
+                toast({
+                    title: "Disconnected from ROSBridge Suite",
+                    description: "Please check the URL and try again",
+                    variant: "destructive"
+                });
+            });
+
+            try {
+                console.log("Connecting to ROSBridge Suite");
+                await ROS.connect(props.url);
+            } catch (error) {
+                console.error("Connection error:", error);
             }
-        });
+        };
+
+        connect();
 
         return () => {
-
-            // disconnect from the rosbridge server
             ROS.close();
-
-            pluginsManager.removeFilter(`${datasource_id}_available_topics`);
+            ROS.removeAllListeners();
         };
-    }, []);
+    }, [props.url]); // Added props.url as dependency
 
     return (
         <RosBridgeSuiteSourceContext.Provider value={null}>
