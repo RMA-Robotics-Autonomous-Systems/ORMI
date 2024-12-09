@@ -104,7 +104,7 @@ export function TimeChartComponent(props: any) {
                 optionsRef.current = {
                     ...optionsRef.current,
                     width: divRef.current.clientWidth,
-                    height: divRef.current.clientHeight - 40,
+                    height: divRef.current.clientHeight - (props.topics.length * 20),
                     scales: {
                         x: {
                             time: true,
