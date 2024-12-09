@@ -27,7 +27,7 @@ interface Datasource{
 
 interface DatasourceTopic {
     topic: string;
-    source: string;
+    source: DatasourceProviderSettings;
     type: string;
 
     subscribeHook?: string;
@@ -38,6 +38,7 @@ interface DatasourceTopic {
 
 interface DatasourceProviderSettings {
     id: string;
+    title: string;
 }
 
 export type { DatasourceDefinition, Datasource, DatasourceTopic, DatasourceProviderSettings };

@@ -47,7 +47,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                 for (const topic of available_topics) {
                     topics.push({
                         topic: topic.topic,
-                        source: datasource_id,
+                        source: props,
                         type: typeof 0,
 
                         subscribeHook: `${datasource_id}_${topic.topic}_subscribe`,

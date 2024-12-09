@@ -19,6 +19,7 @@ export default function Home() {
         title: 'Random Data Source',
         settings: {
             id: 'random-data-source',
+            title: "Random Data Source",
             topics: [
                 {
                     "topic": "/imu/vel/x",
@@ -41,6 +42,7 @@ export default function Home() {
         title: 'Random Data Source 2',
         settings: {
             id: 'random-data-source-2',
+            title: "Random Data Source 2",
             topics: [
                 {
                     "topic": "/camera/imu",
@@ -55,6 +57,7 @@ export default function Home() {
         title: "Local ROSBridge Suite",
         settings: {
             id: "local-rosbridge-suite",
+            title: "Local ROSBridge Suite",
             url: "ws://localhost:9090"
         } as RosBridgeSuiteDataSourceSettings
     });

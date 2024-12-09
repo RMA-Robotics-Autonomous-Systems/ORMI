@@ -76,7 +76,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         setSelectedTopic(topic_name);
         setSelectedTopicObject(topic);
 
-        handleChange(path, JSON.stringify({ topic: topic?.topic, source: topic?.source, property: '' }));
+        handleChange(path, JSON.stringify({ topic: topic?.topic, source: topic?.source.id, property: '' }));
 
         if (!topic?.definitionHook) {
             return;
@@ -120,7 +120,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         if (!selectedTopicObject) {
             return;
         }
-        handleChange(path, JSON.stringify({ topic: selectedTopicObject.topic, source: selectedTopicObject.source, property: itemId }));
+        handleChange(path, JSON.stringify({ topic: selectedTopicObject.topic, source: selectedTopicObject.source.id, property: itemId }));
     }
 
 
@@ -174,7 +174,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                         <Command>
                             <CommandInput placeholder="Search topic..." />
                             <CommandList>
-                                <CommandEmpty>No framework found.</CommandEmpty>
+                                <CommandEmpty>No topics found.</CommandEmpty>
                                 <CommandGroup>
                                     {topics.map((topic: DatasourceTopic) => (
                                         <CommandItem
@@ -182,6 +182,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                                             value={topic.topic}
                                             onSelect={handleTopicChange}
                                         >
+                                            <small className="text-gray-500">{topic.source.title}</small>
                                             {topic.topic}
                                             <Check
                                                 className={cn(
