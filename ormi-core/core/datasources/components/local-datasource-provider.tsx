@@ -38,9 +38,10 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
+    const local_id = useRef(Math.random().toString(36).substring(7)).current;
+
     useEffect(() => {
         // create a random id for the local datasource
-        const local_id = "local-datasource-" + Math.random().toString(36).substring(7);
 
         const propertiesGetter = (data: any, property: string) => {
             /*
@@ -82,7 +83,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
             // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
             pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
-                id: `${local_id}_${topic.source}-${topic.topic}_${topic.property}-published`,
+                id: `${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`,
                 priority: 10,
                 action: (value: any, time: number) => {
 
