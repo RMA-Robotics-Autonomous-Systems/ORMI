@@ -14,6 +14,8 @@ import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { AsyncTopicControlType } from '@/core/jsonforms/topic-selector/topic-selector';
 
+import { PluginViewer } from './widgets/plugins-viewer';
+
 
 function LineChartExport(widgets: WidgetDefinition[]) {
 
@@ -410,10 +412,6 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
         elements: [title],
     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/plugins-viewer').then(mod => mod.PluginViewer), {
-        loading: () => <Skeleton />,
-    })
-
     const jsonViewerWidget: WidgetDefinition = {
         id: 'plugins-viewer-widget',
         name: 'Plugins viewer',
@@ -433,8 +431,8 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
         data: {
             title: 'Plugins viewer'
         },
-        Component: (data: any) => (
-            <DynamicComponent {...data} />
+        Component: () => (
+            <PluginViewer />
         )
 
     }
