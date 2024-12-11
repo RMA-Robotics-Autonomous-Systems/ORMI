@@ -80,7 +80,7 @@ const AsyncTopicControl = (props: ControlProps) => {
 
 
         // represents the topic definition in json
-        const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, topic);
+        const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
 
         // if the topic definition is a primitive type, we can't create a tree view,
         // check if the type is equal to 'optionIs('property_type', type)'
@@ -136,7 +136,7 @@ const AsyncTopicControl = (props: ControlProps) => {
 
                 // if the property is not empty, we need to set the tree view as and the selected property
 
-                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, topic);
+                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
                 const treeViewItems = generateTreeView(topic_msg_def);
                 setTopicProps(treeViewItems);
             });
