@@ -88,7 +88,8 @@ const AsyncTopicControl = (props: ControlProps) => {
         if (!topic_msg_def.properties) {
 
             if (!uischema.options?.propertyType) {
-                throw new Error('propertyType is not defined in the uischema options');
+                // throw new Error('propertyType is not defined in the uischema options');
+                return;
             }
 
             const propertyType = uischema.options.propertyType;
@@ -176,6 +177,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                                             onSelect={handleTopicChange}
                                         >
                                             <small className="text-gray-500">{topic.source.title}</small>
+                                            <small className="text-gray-500">{topic.type}</small>
                                             {topic.topic}
                                             <Check
                                                 className={cn(
