@@ -82,64 +82,80 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const unsubscribe_hook = `${datasource_id}-unsubscribe`;
     const definition_hook = `${datasource_id}-definition`;
 
-    const ROSRef = useRef<ROSLIB.Ros | null>(null);
-
+    const connectionTimeoutRef = useRef<NodeJS.Timeout>();
+    const connectionPromiseRef = useRef<Promise<boolean>>();
+    const rosInstanceRef = useRef<ROSLIB.Ros>();
 
     useEffect(() => {
         let isComponentMounted = true;
-        const ROS = new ROSLIB.Ros({
-            transportLibrary: 'websocket',
-            url: props.url
-        });
 
-        // Connection state management
-        const connectionPromise = new Promise<boolean>((resolve, reject) => {
-            ROS.on("connection", () => {
-                if (isComponentMounted) {
+        // Ensure ROS instance exists
+        if (!rosInstanceRef.current) {
+            rosInstanceRef.current = new ROSLIB.Ros({ url: props.url });
+        }
+
+        const ROS = rosInstanceRef.current;
+
+        if (!connectionPromiseRef.current) {
+            connectionPromiseRef.current = new Promise<boolean>((resolve, reject) => {
+                connectionTimeoutRef.current = setTimeout(() => {
+                    reject(new Error("Connection timeout"));
+                }, 10000);
+
+                ROS.on("connection", () => {
+                    if (isComponentMounted) {
+                        clearTimeout(connectionTimeoutRef.current);
+                        toast({
+                            title: "Connected to ROSBridge Suite",
+                            description: `Connected to ROSBridge Suite at ${props.url}`,
+                        });
+                        resolve(true);
+                    }
+                });
+
+                ROS.on("error", (error) => {
+                    if (isComponentMounted) {
+                        clearTimeout(connectionTimeoutRef.current);
+                        reject(error);
+                    }
+                });
+
+                ROS.on("close", () => {
                     toast({
-                        title: "Connected to ROSBridge Suite",
-                        description: `Connected to ROSBridge Suite at ${props.url}`,
+                        title: "Disconnected",
+                        description: "Disconnected from ROSBridge Suite",
                     });
-                    resolve(true);
-                }
+                });
             });
+        }
 
-            ROS.on("error", (error: any) => {
-                if (isComponentMounted) {
-                    reject(false);
-                }
-            });
-        });
-
-        // Plugin handlers with connection check
-        const availableTopicsHandler = async (topics: DatasourceTopic[]) => {
-            try {
-                await connectionPromise;
-                if (!isComponentMounted) return topics;
-
-                const rosTopics = await GetTopicsList(ROS);
-                return [...topics, ...rosTopics.map(topic => ({
-                    topic: topic.topic,
-                    source: props,
-                    type: topic.type,
-                }))];
-            } catch (error) {
-                console.error("Failed to get topics:", error);
-                return topics;
-            }
-        };
-
+        // Register plugin handlers
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
-            filter: availableTopicsHandler,
-            priority: 100
+            filter: async (topics) => {
+                try {
+                    await connectionPromiseRef.current;
+                    if (!isComponentMounted) return topics;
+
+                    const rosTopics = await GetTopicsList(ROS);
+                    return [...topics, ...rosTopics.map((topic) => ({
+                        topic: topic.topic,
+                        source: props,
+                        type: topic.type,
+                    }))];
+                } catch (error) {
+                    console.error("Failed to get topics:", error);
+                    return topics;
+                }
+            },
+            priority: 100,
         });
 
         pluginsManager.addAction(subscribe_hook, {
             id: subscribe_hook,
             action: async (topic: DatasourceTopic) => {
                 try {
-                    await connectionPromise;
+                    await connectionPromiseRef.current;
                     if (!isComponentMounted) return;
 
                     if (subscribersRef.current.has(topic.topic)) {
@@ -155,8 +171,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         ros: ROS,
                         name: topic.topic,
                         messageType: topicType,
-                        reconnect_on_close: true,
-                        queue_length: 1
                     });
 
                     subscriber.subscribe((message: any) => {
@@ -176,43 +190,78 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     toast({
                         title: "Error",
                         description: "Failed to subscribe to topic",
-                        variant: "destructive"
+                        variant: "destructive",
                     });
                 }
             },
-            priority: 100
+            priority: 100,
         });
 
-        const disconnection = async (connectionPromise: Promise<boolean>) => {
+        pluginsManager.addAction(unsubscribe_hook, {
+            id: unsubscribe_hook,
+            action: async (topic: DatasourceTopic) => {
+                try {
+                    await connectionPromiseRef.current;
+                    if (!isComponentMounted) return;
 
-            if (await connectionPromise) {
-                if (ROS.isConnected) {
-                    ROS.close();
+                    if (!subscribersRef.current.has(topic.topic)) {
+                        return;
+                    }
+
+                    const count = subscribersCountRef.current.get(topic.topic) || 0;
+                    if (count > 1) {
+                        subscribersCountRef.current.set(topic.topic, count - 1);
+                        return;
+                    }
+
+                    const subscriber = subscribersRef.current.get(topic.topic);
+                    subscriber!.unsubscribe();
+                    subscribersRef.current.delete(topic.topic);
+                    subscribersCountRef.current.delete(topic.topic);
+                } catch (error) {
+                    console.error("Unsubscribe error:", error);
+                    toast({
+                        title: "Error",
+                        description: "Failed to unsubscribe from topic",
+                        variant: "destructive",
+                    });
                 }
-            }
+            },
 
-        };
+            priority: 100,
+        });
 
-        // Cleanup function
         return () => {
             isComponentMounted = false;
+            clearTimeout(connectionTimeoutRef.current);
 
-            // Cleanup all subscriptions
+            // Clean up subscriptions
             subscribersRef.current.forEach((subscriber) => {
-                subscriber.unsubscribe();
+                try {
+                    subscriber.unsubscribe();
+                } catch (error) {
+                    console.error("Error unsubscribing:", error);
+                }
             });
             subscribersRef.current.clear();
             subscribersCountRef.current.clear();
 
             // Remove plugin handlers
-            pluginsManager.removeFilter(available_topics_handler);
-            pluginsManager.removeAction(subscribe_hook);
-            pluginsManager.removeAction(unsubscribe_hook);
+            try {
+                pluginsManager.removeFilter(available_topics_handler);
+                pluginsManager.removeAction(subscribe_hook);
+                pluginsManager.removeAction(unsubscribe_hook);
+            } catch (error) {
+                console.warn("Error removing plugin handlers:", error);
+            }
 
-            // Close ROS connection
-            disconnection(connectionPromise);
+            // Disconnect ROS
+            if (rosInstanceRef.current && rosInstanceRef.current.isConnected) {
+                rosInstanceRef.current.close();
+            }
         };
-    }, [props.url]); // Only re-run if URL changes
+    }, [props.url]);
+
 
     return (
         <RosBridgeSuiteSourceContext.Provider value={null}>
