@@ -53,7 +53,7 @@ export function PluginViewer(props: any) {
                         label: key.toString(),
                         children: actions.get(key)?.map((action) => {
                             return {
-                                id: action.id,
+                                id: key.toString() + action.id,
                                 label: action.id,
                                 parentId: key as string
                             };
@@ -71,7 +71,7 @@ export function PluginViewer(props: any) {
                         label: key.toString(),
                         children: filters.get(key)?.map((filter) => {
                             return {
-                                id: filter.id,
+                                id: key.toString() + filter.id,
                                 label: filter.id,
                                 parentId: key as string
                             };
