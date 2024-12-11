@@ -67,7 +67,7 @@ const AsyncTopicControl = (props: ControlProps) => {
 
     }
 
-    const handleTopicChange = (topic_name: string) => {
+    const handleTopicChange = async (topic_name: string) => {
 
         const topic = getTopicByName(topic_name);
         setTopicProps([]);
@@ -78,13 +78,9 @@ const AsyncTopicControl = (props: ControlProps) => {
 
         handleChange(path, JSON.stringify({ topic: topic?.topic, source: topic?.source.id, property: '' }));
 
-        if (!topic?.definitionHook) {
-            return;
-        }
 
         // represents the topic definition in json
-        const topic_msg_def = pluginsManager.applyFilter<JsonSchema>(topic?.definitionHook, {});
-
+        const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, topic);
 
         // if the topic definition is a primitive type, we can't create a tree view,
         // check if the type is equal to 'optionIs('property_type', type)'
@@ -129,7 +125,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         const asyncFunction = uischema.options?.asyncFunction;
 
         if (asyncFunction) {
-            asyncFunction().then((result: DatasourceTopic[]) => {
+            asyncFunction().then(async (result: DatasourceTopic[]) => {
                 setTopics(result);
 
                 const value = data ? JSON.parse(data) : { topic: '', source: '', property: '' } as SelectedTopic;
@@ -139,11 +135,8 @@ const AsyncTopicControl = (props: ControlProps) => {
                 setSelectedTopicObject(topic);
 
                 // if the property is not empty, we need to set the tree view as and the selected property
-                if (!topic?.definitionHook) {
-                    return;
-                }
 
-                const topic_msg_def = pluginsManager.applyFilter<JsonSchema>(topic?.definitionHook, {});
+                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, topic);
                 const treeViewItems = generateTreeView(topic_msg_def);
                 setTopicProps(treeViewItems);
             });

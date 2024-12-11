@@ -33,14 +33,21 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
     const intervalesRef = useRef(new Map<string, NodeJS.Timeout>());
     const subscribersCountRef = useRef(new Map<string, number>());
 
+    const datasource_id = props.id;
+    const available_topics_handler = `${datasource_id}-available-topics`;
+    const subscribe_hook = `${datasource_id}-subscribe`;
+    const unsubscribe_hook = `${datasource_id}-unsubscribe`;
+    const definition_hook = `${datasource_id}-definition`;
+
+
 
     useEffect(() => {
         const available_topics = props.topics;
-        const datasource_id = props.id;
 
+        console.log("mounting random imu source");
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: `${datasource_id}_available_topics`,
+            id: available_topics_handler,
             priority: 10,
             filter: (topics: DatasourceTopic[], type: string) => {
 
@@ -49,12 +56,6 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                         topic: topic.topic,
                         source: props,
                         type: typeof 0,
-
-                        subscribeHook: `${datasource_id}_${topic.topic}_subscribe`,
-                        unsubscribeHook: `${datasource_id}_${topic.topic}_unsubscribe`,
-                        pubshlishHook: `${datasource_id}_${topic.topic}_publish`,
-
-                        definitionHook: `${datasource_id}_${topic.topic}_definition`,
                     });
                 }
 
@@ -66,115 +67,113 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
             return available_topics.find(t => t.topic === topic)?.frequency || 30; // default to 30hz
         };
 
-        available_topics.forEach(topic => {
-            pluginsManager.addAction(`${datasource_id}_${topic.topic}_subscribe`, {
-                id: `random-imu-source-subscribe-${topic.topic}`,
-                priority: 10,
-                action: (topic: DatasourceTopic) => {
+        pluginsManager.addAction(subscribe_hook, {
+            id: subscribe_hook,
+            priority: 10,
+            action: (topic: DatasourceTopic) => {
 
-                    subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
+                subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
-                    if (intervalesRef.current.has(topic.topic)) {
-                        return;
+                if (intervalesRef.current.has(topic.topic)) {
+                    return;
+                }
+
+                const freq = getTopicFrequency(topic.topic);
+
+                const interval = setInterval(() => {
+
+                    const imu_data = {
+                        velocity: {
+                            x: Math.random(),
+                            y: Math.random(),
+                            z: Math.random()
+                        },
+                        acceleration: {
+                            x: Math.random(),
+                            y: Math.random(),
+                            z: Math.random()
+                        },
+                        orientation: {
+                            x: Math.random(),
+                            y: Math.random(),
+                            z: Math.random()
+                        },
                     }
 
-                    const freq = getTopicFrequency(topic.topic);
+                    pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, imu_data, Date.now());
+                }, 1000 / freq); // Assuming freq is in hz
 
-                    const interval = setInterval(() => {
+                intervalesRef.current.set(topic.topic, interval);
+            }
+        });
 
-                        const imu_data = {
-                            velocity: {
-                                x: Math.random(),
-                                y: Math.random(),
-                                z: Math.random()
-                            },
-                            acceleration: {
-                                x: Math.random(),
-                                y: Math.random(),
-                                z: Math.random()
-                            },
-                            orientation: {
-                                x: Math.random(),
-                                y: Math.random(),
-                                z: Math.random()
-                            },
-                        }
+        pluginsManager.addAction(unsubscribe_hook, {
+            id: unsubscribe_hook,
+            priority: 10,
+            action: (topic: DatasourceTopic) => {
 
-                        pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, imu_data, Date.now());
-                    }, 1000 / freq); // Assuming freq is in hz
+                const count = subscribersCountRef.current.get(topic.topic) || 0;
 
-                    intervalesRef.current.set(topic.topic, interval);
+                if (count <= 1) {
+                    clearInterval(intervalesRef.current.get(topic.topic));
+                    intervalesRef.current.delete(topic.topic);
                 }
-            });
 
-            pluginsManager.addAction(`${datasource_id}_${topic.topic}_unsubscribe`, {
-                id: `random-imu-source-unsubscribe-${topic.topic}`,
-                priority: 10,
-                action: (topic: DatasourceTopic) => {
+                subscribersCountRef.current.set(topic.topic, count - 1);
 
-                    const count = subscribersCountRef.current.get(topic.topic) || 0;
+            }
+        });
 
-                    if (count <= 1) {
-                        clearInterval(intervalesRef.current.get(topic.topic));
-                        intervalesRef.current.delete(topic.topic);
-                    }
-
-                    subscribersCountRef.current.set(topic.topic, count - 1);
-
-                }
-            });
-
-            pluginsManager.addFilter(`${datasource_id}_${topic.topic}_definition`, {
-                id: `random-imu-source-definition-${topic.topic}`,
-                priority: 10,
-                filter: () => {
-                    // return a JsonSchema representing the topic message structure
-                    return {
-                        type: 'object',
-                        properties: {
-                            velocity: {
-                                type: 'object',
-                                properties: {
-                                    x: { type: 'number' },
-                                    y: { type: 'number' },
-                                    z: { type: 'number' },
-                                }
-                            },
-                            acceleration: {
-                                type: 'object',
-                                properties: {
-                                    x: { type: 'number' },
-                                    y: { type: 'number' },
-                                    z: { type: 'number' },
-                                }
-                            },
-                            orientation: {
-                                type: 'object',
-                                properties: {
-                                    x: { type: 'number' },
-                                    y: { type: 'number' },
-                                    z: { type: 'number' },
-                                }
+        pluginsManager.addFilter(definition_hook, {
+            id: definition_hook,
+            priority: 10,
+            filter: () => {
+                // return a JsonSchema representing the topic message structure
+                return {
+                    type: 'object',
+                    properties: {
+                        velocity: {
+                            type: 'object',
+                            properties: {
+                                x: { type: 'number' },
+                                y: { type: 'number' },
+                                z: { type: 'number' },
+                            }
+                        },
+                        acceleration: {
+                            type: 'object',
+                            properties: {
+                                x: { type: 'number' },
+                                y: { type: 'number' },
+                                z: { type: 'number' },
+                            }
+                        },
+                        orientation: {
+                            type: 'object',
+                            properties: {
+                                x: { type: 'number' },
+                                y: { type: 'number' },
+                                z: { type: 'number' },
                             }
                         }
-                    };
-                }
-            });
-
-
+                    }
+                };
+            }
         });
 
         return () => {
 
-            pluginsManager.removeFilter(`${datasource_id}_available_topics`);
+            console.log("unmounting random imu source");
+
+            pluginsManager.removeFilter(available_topics_handler);
+            pluginsManager.removeFilter(definition_hook);
+            pluginsManager.removeAction(subscribe_hook);
 
             available_topics.forEach(topic => {
-
-                pluginsManager.doAction(`${datasource_id}_${topic.topic}_unsubscribe`, topic);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_subscribe`);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_unsubscribe`);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_definition`);
+                pluginsManager.doAction(unsubscribe_hook, topic);
             });
+
+            pluginsManager.removeAction(unsubscribe_hook);
         };
     }, []);
 

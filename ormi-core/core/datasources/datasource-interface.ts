@@ -29,11 +29,11 @@ interface DatasourceTopic {
     topic: string;
     source: DatasourceProviderSettings;
     type: string;
-
-    subscribeHook?: string;
-    unsubscribeHook?: string;
-    pubshlishHook?: string;
-    definitionHook?: string;
+    
+    // subscribeHook?: string;
+    // unsubscribeHook?: string;
+    // pubshlishHook?: string;
+    // definitionHook?: string;
 }
 
 interface DatasourceProviderSettings {

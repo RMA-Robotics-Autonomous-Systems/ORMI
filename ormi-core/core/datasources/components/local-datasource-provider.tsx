@@ -76,12 +76,13 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 times: []
             });
 
-            // subscribe to the topic
-            pluginsManager.doAction(topic.source + "_" + topic.topic + "_subscribe", topic);
+            // subscribe to the topic, this start the data flow inside the datasource
+            // this triggers the published action on the data hook of the topic
+            pluginsManager.doAction(`${topic.source}-subscribe`, topic);
 
-            // add an action on the data hook of the topic
-            pluginsManager.addAction(topic.source + "_" + topic.topic + "_publish", {
-                id: `${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`,
+            // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
+            pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
+                id: `${local_id}_${topic.source}-${topic.topic}_${topic.property}-published`,
                 priority: 10,
                 action: (value: any, time: number) => {
 
@@ -112,9 +113,11 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
         return () => {
             Topics.forEach(topic => {
-                pluginsManager.doAction(topic.source + "_" + topic.topic + "_unsubscribe", topic);
+                // unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
+                pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
 
-                pluginsManager.removeAction(`${local_id}_${topic.source}_${topic.topic}_${topic.property}_publish`);
+                // remove the action that was added to the data hook of the topic,
+                pluginsManager.removeAction(`${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`);
             });
         }
 

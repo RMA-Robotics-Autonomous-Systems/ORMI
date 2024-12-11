@@ -77,7 +77,11 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     //     transportLibrary: 'websocket'
     // })).current;
 
-
+    const datasource_id = props.id;
+    const available_topics_handler = `${datasource_id}-available-topics`;
+    const subscribe_hook = `${datasource_id}-subscribe`;
+    const unsubscribe_hook = `${datasource_id}-unsubscribe`;
+    const definition_hook = `${datasource_id}-definition`;
 
     useEffect(() => {
 
@@ -90,7 +94,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             ROS.on("connection", () => {
 
                 pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-                    id: `${props.id}-topics-lists`,
+                    id: available_topics_handler,
                     filter: async (topics: DatasourceTopic[]) => {
 
                         const rosTopics = await GetTopicsList(ROS);
@@ -121,9 +125,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             });
 
             ROS.on("close", () => {
-
-                pluginsManager.removeFilter(`${props.id}-topics-lists`);
-
+                console.log("Disconnected from ROSBridge Suite");
                 toast({
                     title: "Disconnected from ROSBridge Suite",
                     description: "Please check the URL and try again",
@@ -132,7 +134,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             });
 
             try {
-                console.log("Connecting to ROSBridge Suite");
                 await ROS.connect(props.url);
             } catch (error) {
                 console.error("Connection error:", error);
@@ -142,8 +143,9 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
         connect();
 
         return () => {
-            ROS.close();
-            ROS.removeAllListeners();
+            ROS.close();    // this function call the "close" event asynchronously
+
+            pluginsManager.removeFilter(available_topics_handler);
         };
     }, [props.url]); // Added props.url as dependency
 

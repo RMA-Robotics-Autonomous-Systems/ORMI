@@ -21,6 +21,7 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 
 const RandomDataSourceContext = createContext(null);
 
@@ -34,13 +35,20 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     const intervalesRef = useRef(new Map<string, NodeJS.Timeout>());
     const subscribersCountRef = useRef(new Map<string, number>());
 
+    const datasource_id = props.id;
+    const available_topics_handler = `${datasource_id}-available-topics`;
+    const subscribe_hook = `${datasource_id}-subscribe`;
+    const unsubscribe_hook = `${datasource_id}-unsubscribe`;
+    const definition_hook = `${datasource_id}-definition`;
+
 
     useEffect(() => {
         const available_topics = props.topics;
-        const datasource_id = props.id;
+
+        console.log("mounting random data source");
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-            id: `${datasource_id}_available_topics`,
+            id: available_topics_handler,
             priority: 10,
             filter: (topics: DatasourceTopic[], type: string) => {
 
@@ -49,12 +57,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         topic: topic.topic,
                         source: props,
                         type: typeof 0,
-
-                        subscribeHook: `${datasource_id}_${topic.topic}_subscribe`,
-                        unsubscribeHook: `${datasource_id}_${topic.topic}_unsubscribe`,
-                        pubshlishHook: `${datasource_id}_${topic.topic}_publish`,
-
-                        definitionHook: `${datasource_id}_${topic.topic}_definition`,
                     });
                 }
 
@@ -66,75 +68,72 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             return available_topics.find(t => t.topic === topic)?.frequency || 30;  // default to 30hz
         };
 
-        available_topics.forEach(topic => {
-            pluginsManager.addAction(`${datasource_id}_${topic.topic}_subscribe`, {
-                id: `random-data-source-subscribe-${topic.topic}`,
-                priority: 10,
-                action: (topic: DatasourceTopic) => {
+        pluginsManager.addAction(subscribe_hook, {
+            id: subscribe_hook,
+            priority: 10,
+            action: (topic: SelectedTopic) => {
+                subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
-                    subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
-
-                    if (intervalesRef.current.has(topic.topic)) {
-                        return;
-                    }
-
-                    const freq = getTopicFrequency(topic.topic);
-
-                    let old_value = Math.random();
-                    const interval = setInterval(() => {
-
-                        const value = old_value + Math.random() * 0.1 - 0.05;
-                        old_value = value;
-
-                        pluginsManager.doAction(`${datasource_id}_${topic.topic}_publish`, value, Date.now());
-                    }, 1000 / freq); // Assuming freq is in hz
-
-                    intervalesRef.current.set(topic.topic, interval);
+                if (intervalesRef.current.has(topic.topic)) {
+                    return;
                 }
-            });
 
-            pluginsManager.addAction(`${datasource_id}_${topic.topic}_unsubscribe`, {
-                id: `random-data-source-unsubscribe-${topic.topic}`,
-                priority: 10,
-                action: (topic: DatasourceTopic) => {
+                const freq = getTopicFrequency(topic.topic);
 
-                    const count = subscribersCountRef.current.get(topic.topic) || 0;
+                let old_value = Math.random();
+                const interval = setInterval(() => {
 
-                    if (count <= 1) {
-                        clearInterval(intervalesRef.current.get(topic.topic));
-                        intervalesRef.current.delete(topic.topic);
-                    }
+                    const value = old_value + Math.random() * 0.1 - 0.05;
+                    old_value = value;
 
-                    subscribersCountRef.current.set(topic.topic, count - 1);
+                    pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, value, Date.now());
+                }, 1000 / freq); // Assuming freq is in hz
 
+                intervalesRef.current.set(topic.topic, interval);
+            }
+        });
+
+        pluginsManager.addAction(unsubscribe_hook, {
+            id: unsubscribe_hook,
+            priority: 10,
+            action: (topic: SelectedTopic) => {
+
+                const count = subscribersCountRef.current.get(topic.topic) || 0;
+
+                if (count <= 1) {
+                    clearInterval(intervalesRef.current.get(topic.topic));
+                    intervalesRef.current.delete(topic.topic);
                 }
-            });
 
-            pluginsManager.addFilter(`${datasource_id}_${topic.topic}_definition`, {
-                id: `random-data-source-definition-${topic.topic}`,
-                priority: 10,
-                filter: () => {
-                    // return a JsonSchema representing the topic message structure
-                    return {
-                        type: 'number'
-                    };
-                }
-            });
+                subscribersCountRef.current.set(topic.topic, count - 1);
 
+            }
+        });
+
+        pluginsManager.addFilter(definition_hook, {
+            id: definition_hook,
+            priority: 10,
+            filter: () => {
+                // return a JsonSchema representing the datasource
+                return {
+                    type: 'number'
+                };
+            }
         });
 
         return () => {
+            console.log("unmounting random data source");
 
-            pluginsManager.removeFilter(`${datasource_id}_available_topics`);
+            pluginsManager.removeFilter(available_topics_handler);
+            pluginsManager.removeFilter(definition_hook);
+            pluginsManager.removeAction(subscribe_hook);
 
             available_topics.forEach(topic => {
-
-                pluginsManager.doAction(`${datasource_id}_${topic.topic}_unsubscribe`, topic);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_subscribe`);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_unsubscribe`);
-                pluginsManager.removeAction(`${datasource_id}_${topic.topic}_definition`);
-
+                pluginsManager.doAction(unsubscribe_hook, topic);
             });
+
+            pluginsManager.removeAction(unsubscribe_hook);
+
         };
     }, []);
 
