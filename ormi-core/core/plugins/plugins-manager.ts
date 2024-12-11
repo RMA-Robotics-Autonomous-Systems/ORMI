@@ -72,7 +72,7 @@ class PluginsManager{
         filters.sort((a, b) => a.priority - b.priority);
 
         for(const filter of filters){
-            result = await filter.filter(result, args.slice(1));
+            result = await filter.filter(result, args.slice(1)) as T;
         }
 
         return result;
