@@ -90,14 +90,27 @@ class PluginsManager{
             basicPlugin.filters.set(filterName, new Map());
         }
 
+        if(basicPlugin.filters.get(filterName)?.has(filter.id)){
+            throw new Error(`Filter with id ${filter.id} already exists`);
+        }
+
         basicPlugin.filters.get(filterName)?.set(filter.id, filter);
     }
 
     removeFilter(pluginFilterId: string): void{
-        this.plugins.get("basic")?.filters.forEach((filterMap) => {
-            filterMap.delete(pluginFilterId);
+        // search for the filter in all plugins
+        // if none has the filter, throw an error, otherwise delete it
+        this.plugins.forEach((plugin) => {
+            plugin.filters.forEach((filterMap) => {
+                if(filterMap.has(pluginFilterId)){
+                    console.log("deleting filter", pluginFilterId);
+                    filterMap.delete(pluginFilterId);
+                    return;
+                }
+            });
         });
-        
+
+        // throw new Error(`Filter with id ${pluginFilterId} not found`);
     }
 
     doAction(actionName: string | PluginsHooks, ...args: any): void{
@@ -137,14 +150,26 @@ class PluginsManager{
             basicPlugin.actions.set(actionName, new Map());
         }
 
+        if(basicPlugin.actions.get(actionName)?.has(action.id)){
+            throw new Error(`Action with id ${action.id} already exists`);
+        }
+
         basicPlugin.actions.get(actionName)?.set(action.id, action);
 
     }
 
     removeAction(pluginActionId: string): void{
-        this.plugins.get("basic")?.actions.forEach((actionMap) => {
-            actionMap.delete(pluginActionId);
+        // search for the action in all plugins, if none has the action, throw an error, otherwise delete it
+        this.plugins.forEach((plugin) => {
+            plugin.actions.forEach((actionsMap) => {
+                if(actionsMap.has(pluginActionId)){
+                    actionsMap.delete(pluginActionId);
+                    return;
+                }
+            });
         });
+
+        // throw new Error(`Action with id ${pluginActionId} not found`);
     }
 
     getPlugins(): Map<string | PluginsHooks, PluginClientSide>{
