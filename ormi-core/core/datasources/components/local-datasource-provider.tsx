@@ -43,6 +43,8 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     useEffect(() => {
         // create a random id for the local datasource
 
+        sources.clear();
+
         const propertiesGetter = (data: any, property: string) => {
             /*
                 create a function that gets the value of the property from the data
