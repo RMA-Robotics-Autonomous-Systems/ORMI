@@ -285,7 +285,7 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
             "asyncFunction": async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
-            "propertyType": "number"
+            // "propertyType": "number"
         }
     }
 
@@ -350,7 +350,7 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
             "asyncFunction": async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
-            "propertyType": "number"
+            // "propertyType": "number"
         }
     }
 
