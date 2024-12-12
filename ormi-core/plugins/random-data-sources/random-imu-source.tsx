@@ -44,8 +44,6 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
     useEffect(() => {
         const available_topics = props.topics;
 
-        console.log("mounting random imu source");
-
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
             priority: 10,
@@ -162,8 +160,6 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
         });
 
         return () => {
-
-            console.log("unmounting random imu source");
 
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeFilter(definition_hook);

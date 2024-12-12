@@ -45,8 +45,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     useEffect(() => {
         const available_topics = props.topics;
 
-        console.log("mounting random data source");
-
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
             priority: 10,
@@ -122,8 +120,6 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         });
 
         return () => {
-            console.log("unmounting random data source");
-
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeFilter(definition_hook);
             pluginsManager.removeAction(subscribe_hook);

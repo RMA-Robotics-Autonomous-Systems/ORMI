@@ -103,7 +103,6 @@ class PluginsManager{
         this.plugins.forEach((plugin) => {
             plugin.filters.forEach((filterMap) => {
                 if(filterMap.has(pluginFilterId)){
-                    console.log("deleting filter", pluginFilterId);
                     filterMap.delete(pluginFilterId);
                     return;
                 }

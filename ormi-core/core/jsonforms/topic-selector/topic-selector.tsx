@@ -127,6 +127,9 @@ const AsyncTopicControl = (props: ControlProps) => {
 
         if (asyncFunction) {
             asyncFunction().then(async (result: DatasourceTopic[]) => {
+
+                console.log('Topics:', result);
+
                 setTopics(result);
 
                 const value = data ? JSON.parse(data) : { topic: '', source: '', property: '' } as SelectedTopic;
