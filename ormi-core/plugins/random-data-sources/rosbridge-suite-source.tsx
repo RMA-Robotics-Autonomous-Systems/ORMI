@@ -91,13 +91,16 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
         // Ensure ROS instance exists
         if (!rosInstanceRef.current) {
-            rosInstanceRef.current = new ROSLIB.Ros({ url: props.url });
+            rosInstanceRef.current = new ROSLIB.Ros({});
         }
 
         const ROS = rosInstanceRef.current;
 
         if (!connectionPromiseRef.current) {
             connectionPromiseRef.current = new Promise<boolean>((resolve, reject) => {
+
+                ROS.connect(props.url);
+
                 connectionTimeoutRef.current = setTimeout(() => {
                     reject(new Error("Connection timeout"));
                 }, 10000);
