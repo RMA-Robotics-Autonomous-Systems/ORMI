@@ -34,9 +34,6 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
     const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
-
-        console.log("Loading datasources", availableDataSources);
-
         const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
         const dataSourcesTypes_map = new Map<string, DatasourceDefinition>();
         for (const dataSource of dataSourcesTypes_array) {
@@ -56,8 +53,6 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode, datasources: Ma
                 console.error(`Datasource ${datasource_id} not found`);
                 return null;
             }
-            console.log("Provider", datasource_id);
-
             return dataSourceType.Provider;
         };
 
