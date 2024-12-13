@@ -4,15 +4,10 @@ import { DatasourceDefinition } from '@/core/datasources/datasource-interface';
 
 import { RandomDataSourceProvider } from './random-data-source';
 import { RandomIMUSourceProvider } from './random-imu-source';
-import { RosBridgeSuiteSourceProvider } from './rosbridge-suite-source';
+import { RosBridgeSuiteDataSourceSettings, RosBridgeSuiteSourceProvider } from './rosbridge-suite-source';
+import { RandomDataSourceSettings } from '.';
 
-const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
-
-    const layout = {
-        type: 'VerticalLayout',
-        elements: []
-    }
-
+const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) => {
 
     current_datasource_type.push({
         id: 'random-data-source',
@@ -20,29 +15,40 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
         description: 'Random data source',
 
         schema: {
+            title: "Random Data Source",
             type: 'object',
             properties: {
-                topic: {
-                    type: 'string',
-                    title: 'Topic'
-                },
-                frequency: {
-                    type: 'number',
-                    title: 'Frequency'
+                title: { type: "string", title: "Title" },
+
+                topics: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            topic: {
+                                type: 'string',
+                                title: 'Topic'
+                            },
+                            frequency: {
+                                type: 'number',
+                                title: 'Frequency'
+                            }
+                        },
+                        required: ['topic', 'frequency']
+                    }
                 }
             }
         },
 
-        uischema: layout,
-
         data: {
-            topic: '',
-            frequency: 1
+            id: '',
+            title: '',
+            topics: [],
         },
 
         Provider: RandomDataSourceProvider
 
-    });
+    } as DatasourceDefinition<RandomDataSourceSettings>)
 
     current_datasource_type.push({
         id: 'imu-data-source',
@@ -50,29 +56,40 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
         description: 'IMU data source',
 
         schema: {
+            title: "IMU Data Source",
             type: 'object',
             properties: {
-                topic: {
-                    type: 'string',
-                    title: 'Topic'
-                },
-                frequency: {
-                    type: 'number',
-                    title: 'Frequency'
+                title: { type: "string", title: "Title" },
+
+                topics: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            topic: {
+                                type: 'string',
+                                title: 'Topic'
+                            },
+                            frequency: {
+                                type: 'number',
+                                title: 'Frequency'
+                            }
+                        },
+                        required: ['topic', 'frequency']
+                    }
                 }
             }
         },
 
-        uischema: layout,
-
         data: {
-            topic: '',
-            frequency: 1
+            id: '',
+            title: '',
+            topics: [],
         },
 
         Provider: RandomIMUSourceProvider
 
-    });
+    } as DatasourceDefinition<RandomDataSourceSettings>);
 
     current_datasource_type.push({
         id: 'rosbridge-suite-source',
@@ -80,24 +97,32 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition[]) => {
         description: 'ROS data source',
 
         schema: {
+            title: "ROS Bridge Suite",
             type: 'object',
             properties: {
+                title: { type: "string", title: "Title" },
+
                 url: {
                     type: 'string',
                     title: 'URL'
+                },
+                reconnectTimeout: {
+                    type: 'number',
+                    title: 'Reconnect Timeout (s)'
                 }
             }
         },
 
-        uischema: layout,
-
         data: {
-            url: 'ws://localhost:9090'
+            id: '',
+            title: '',
+            url: '',
+            reconnectTimeout: 2000,
         },
 
         Provider: RosBridgeSuiteSourceProvider
 
-    });
+    } as DatasourceDefinition<RosBridgeSuiteDataSourceSettings>);
 
     return current_datasource_type;
 };

@@ -17,7 +17,7 @@ import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, Save } from "lucid
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload, datasources } = useDashboardManager();
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -84,7 +84,7 @@ const Dashboard = () => {
             removeNavbarItem("center", "save");
         }
 
-    }, [locked, hasChanged, layouts, widgets]);
+    }, [locked, hasChanged, layouts, widgets, datasources]);
 
     return (
         <ResponsiveGridLayout

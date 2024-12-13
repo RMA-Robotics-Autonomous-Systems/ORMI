@@ -8,6 +8,8 @@ import { usePluginsManager } from '../../plugins/components/plugins-provider';
 import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/hooks/use-toast';
+import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '@/core/datasources/datasource-interface';
+import { title } from 'process';
 
 interface DashboardContextInterface {
 
@@ -34,6 +36,11 @@ interface DashboardContextInterface {
     savesDashboard: () => void;
     hasChanged: boolean;
     forceReload: boolean;
+
+    datasources: Map<string, Datasource>;
+    updateDatasource: (datasource_id: string, settings: DatasourceProviderSettings) => void;
+    addDatasource: (datasource_id: string) => void;
+    removeDatasource: (datasource_id: string) => void;
 }
 
 // Create the context with a default value
@@ -65,7 +72,12 @@ const DashboardContext = createContext<DashboardContextInterface>({
     layoutsChanged: () => { },
     savesDashboard: () => { },
     hasChanged: false,
-    forceReload: false
+    forceReload: false,
+
+    datasources: new Map<string, Datasource>(),
+    updateDatasource: () => { },
+    addDatasource: () => { },
+    removeDatasource: () => { }
 });
 
 
@@ -85,6 +97,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     const [locked, setLocked] = React.useState<boolean>(false);
     const [hasChanged, setHasChanged] = React.useState<boolean>(false);
     const [forceReload, setForceReload] = React.useState<boolean>(false);
+
+    const [datasources, setDatasources] = React.useState<Map<string, Datasource>>(dashboardDefinition.datasources);
 
     const getComponents = (boxId: string) => {
 
@@ -254,6 +268,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         const newDashboard = {
             layouts: Object.fromEntries(Object.entries(layouts)),
             widgets: Object.fromEntries(widgets),
+            datasources: Object.fromEntries(datasources),
             locked: locked
         }
 
@@ -286,10 +301,20 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             dashboardDefinition.widgets = new Map(Object.entries(dashboardDefinition.widgets));
         }
 
+        // if datasources is not a map, convert it to a map
+        if (!(dashboardDefinition.datasources instanceof Map)) {
+            if (dashboardDefinition.datasources) {
+                dashboardDefinition.datasources = new Map(Object.entries(dashboardDefinition.datasources));
+            } else {
+                dashboardDefinition.datasources = new Map();
+            }
+        }
 
+        // update the state
         setLocked(dashboardDefinition.locked);
         setLayouts(dashboardDefinition.layouts);
         setWidgets(dashboardDefinition.widgets);
+        setDatasources(dashboardDefinition.datasources);
     }
 
     const moveToVertical = () => {
@@ -386,6 +411,59 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         })
     };
 
+    const updateDatasource = (datasource_id: string, settings: DatasourceProviderSettings) => {
+
+        const newDatasources = new Map(datasources);
+        const datasource = newDatasources.get(settings.id);
+        console.log(settings.id, datasource, settings);
+        if (datasource) {
+            datasource.settings = settings;
+            datasource.title = settings.title;
+            newDatasources.set(settings.id, datasource);
+            setDatasources(newDatasources);
+            setHasChanged(true);
+        }
+
+    }
+
+    const addDatasource = (datasource_id: string) => {
+        const newDatasources = new Map(datasources);
+
+        const availableDatasources = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
+
+        const datasourceDef = availableDatasources.find((datasource) => datasource.id === datasource_id);
+        if (!datasourceDef) {
+            throw new Error(`Datasource ${datasource_id} not found`);
+        }
+
+        const id = `datasource_${newDatasources.size}_${new Date().getTime()}`;
+
+        const datasource = {
+            datasource_id: datasource_id,
+            title: "New Datasource",
+            settings: {
+                ...datasourceDef.data
+            }
+        } as Datasource;
+
+        datasource.settings.id = id;
+        datasource.settings.title = "New Datasource";
+
+        newDatasources.set(id, datasource);
+
+        setDatasources(newDatasources);
+        setHasChanged(true);
+    }
+
+    const removeDatasource = (source_id: string) => {
+        const newDatasources = new Map(datasources);
+        console.log(source_id);
+        newDatasources.delete(source_id);
+        setDatasources(newDatasources);
+        setHasChanged(true);
+    }
+
+
     useEffect(() => {
         loadFromLocalStorage();
     }, []);
@@ -410,7 +488,11 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 layoutsChanged,
                 savesDashboard,
                 hasChanged,
-                forceReload
+                forceReload,
+                datasources,
+                updateDatasource,
+                addDatasource,
+                removeDatasource
             }
         }>
             {children}

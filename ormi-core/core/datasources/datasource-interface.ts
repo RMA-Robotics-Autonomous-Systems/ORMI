@@ -2,7 +2,7 @@ import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 
 import { ReactNode, FC } from "react";
 
-interface DatasourceDefinition {
+interface DatasourceDefinition<T = DatasourceProviderSettings> {
     id: string;
     name: string;
     description: string;
@@ -10,12 +10,12 @@ interface DatasourceDefinition {
     titleProp?: string;
 
     schema: JsonSchema;
-    uischema: UISchemaElement;
-    data: any;
+    uischema?: UISchemaElement;
+    data: T;
 
     Provider: FC<{
         children: ReactNode;
-        props: any;
+        props: T;
     }>
 }
 

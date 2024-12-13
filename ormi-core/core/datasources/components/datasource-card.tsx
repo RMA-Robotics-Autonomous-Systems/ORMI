@@ -1,0 +1,150 @@
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+
+import { Button } from "@/components/ui/button";
+
+
+import {
+    materialRenderers,
+
+    materialCells,
+} from '@jsonforms/material-renderers';
+
+
+import React, { useEffect, useState } from 'react';
+import { JsonForms } from '@jsonforms/react';
+import { CheckIcon } from "@radix-ui/react-icons";
+import { toast } from "@/hooks/use-toast";
+
+// Import the custom renderers
+import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
+import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/color-select";
+import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
+import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
+import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
+import AsyncTopicControl, { asyncTopicTester } from "@/core/jsonforms/topic-selector/topic-selector";
+import { DatasourceDefinition, DatasourceProviderSettings } from "../datasource-interface";
+import { CloudCogIcon, XIcon } from "lucide-react";
+
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+
+
+interface DatasourceCardProps {
+    definition: DatasourceDefinition<DatasourceProviderSettings>;
+    data?: DatasourceProviderSettings;
+    onValidate: (datasource: DatasourceDefinition<DatasourceProviderSettings>, settings: any) => void;
+    onRemove: (source_id: string) => void;
+}
+
+
+const DatasourceCard = (props: DatasourceCardProps) => {
+
+    const [data, setData] = useState(props.definition.data);
+    const [errors, setErrors] = useState<any>(null);
+
+    const handleAdd = () => {
+
+        if (errors && errors.length > 0) {
+
+            for (const error of errors) {
+                toast({
+                    title: "Error",
+                    description: error.message,
+                    variant: "destructive"
+                });
+
+            }
+
+            return;
+        }
+
+        props.onValidate(props.definition, data);
+    }
+
+    useEffect(() => {
+
+        if (props.data) {
+            setData(props.data);
+        } else {
+            setData(props.definition.data);
+        }
+
+    }, []);
+
+    const renderers = [
+        ...materialRenderers,
+        { tester: asyncSelectTester, renderer: AsyncSelectControl },
+        { tester: colorSelectTester, renderer: colorSelect },
+        { tester: switchTester, renderer: SwitchControl },
+        { tester: TextTester, renderer: TextControl },
+        { tester: NumberTester, renderer: NumberControl },
+        { tester: asyncTopicTester, renderer: AsyncTopicControl },
+    ];
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant={"ghost"}>
+                    <ContextMenu>
+                        <ContextMenuTrigger>
+                            <div className="flex gap-1 content-center ">
+                                <CloudCogIcon />
+                                <p>{props.data!.title!}</p>
+                            </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                            <ContextMenuItem>
+                                <Button variant={"destructive"} onClick={() => {
+                                    props.onRemove(data.id);
+                                }}>
+                                    Remove
+                                    <XIcon />
+                                </Button>
+                            </ContextMenuItem>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                </Button>
+
+            </DialogTrigger>
+            <DialogContent className="">
+                <DialogHeader>
+                    <DialogTitle>{props.definition.name}</DialogTitle>
+                    <DialogDescription>
+                        Datasource configuration
+                    </DialogDescription>
+                </DialogHeader>
+                <div>
+                    <JsonForms
+                        schema={props.definition.schema}
+                        uischema={props.definition.uischema}
+                        data={data}
+                        renderers={renderers}
+                        cells={materialCells}
+                        onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
+                    />
+                    <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
+                        <DialogClose className="float-end" asChild>
+                            <Button onClick={() => { handleAdd() }}>
+                                <CheckIcon />
+                            </Button>
+                        </DialogClose>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog >
+    );
+};
+
+export default DatasourceCard;
