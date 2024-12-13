@@ -69,6 +69,8 @@ const AsyncTopicControl = (props: ControlProps) => {
 
     const handleTopicChange = async (topic_name: string) => {
 
+        topic_name = topic_name.split('@')[0];
+
         const topic = getTopicByName(topic_name);
         setTopicProps([]);
         setOpen(false);
@@ -175,8 +177,8 @@ const AsyncTopicControl = (props: ControlProps) => {
                                 <CommandGroup>
                                     {topics.map((topic: DatasourceTopic) => (
                                         <CommandItem
-                                            key={topic.topic + "-" + topic.source}
-                                            value={topic.topic}
+                                            key={topic.topic + "-" + topic.source.id}
+                                            value={topic.topic + "@" + topic.source.id}
                                             onSelect={handleTopicChange}
                                         >
                                             <small className="text-gray-500">{topic.source.title}</small>
@@ -185,7 +187,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                                             <Check
                                                 className={cn(
                                                     "ml-auto",
-                                                    selectedTopic === topic.topic ? "opacity-100" : "opacity-0"
+                                                    (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0"
                                                 )}
                                             />
                                         </CommandItem>
