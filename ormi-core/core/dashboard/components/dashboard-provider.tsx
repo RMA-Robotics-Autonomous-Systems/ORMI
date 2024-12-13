@@ -384,8 +384,6 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             breakpoint = 'xxs';
         }
 
-        console.log(breakpoint);
-
         const new_layouts = layouts;
 
         // place the boxes in the optimal position
