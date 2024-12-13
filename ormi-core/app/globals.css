@@ -80,3 +80,7 @@ h1 {
 .resizing~* {
     user-select: none;
 }
+
+[hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+}
