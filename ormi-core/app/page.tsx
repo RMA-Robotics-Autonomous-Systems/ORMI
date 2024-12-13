@@ -78,12 +78,12 @@ export default function Home() {
 
     return (
         <div className={styles.page}>
-            <GlobalDataSourcesProvider datasources={dashboardDefinition.datasources}>
-                <DashboardProvider dashboardDefinition={dashboardDefinition}>
+            <DashboardProvider dashboardDefinition={dashboardDefinition}>
+                <GlobalDataSourcesProvider>
                     <Dashboard />
                     <WidgetsDialog />
-                </DashboardProvider>
-            </GlobalDataSourcesProvider>
+                </GlobalDataSourcesProvider>
+            </DashboardProvider>
         </div>
     );
 }
