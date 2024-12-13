@@ -31,6 +31,7 @@ const WAIT_FOR_CONNECTION = 500;
 
 interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
     url: string;
+    reconnectTimeout: number;
 }
 
 interface ROSTopic {
@@ -91,6 +92,8 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
     const connectionRef = useRef<Promise<boolean> | null>(null);
 
+    const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
+
     useEffect(() => {
 
         const waitTimeOut = setTimeout(() => {
@@ -102,8 +105,8 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     ros.on('connection', () => {
                         toast({
-                            title: 'Connected to ROSBridge Suite',
-                            description: `Connected to ${props.title}`,
+                            title: `Connected to ${props.title}`,
+                            description: `Connection established with ${props.url}`,
                         });
                         resolve(true);
                     });
@@ -119,9 +122,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     ros.on('close', () => {
                         toast({
-                            title: 'Disconnected from ROSBridge Suite',
-                            description: `Disconnected from ${props.title}`,
+                            title: `Disconnected from ${props.title}`,
                         });
+
+                        setTimeout(() => {
+                            setRetry(retry + 1);
+                        }, props.reconnectTimeout * 1000);
+
                         resolve(false);
                     });
 
@@ -133,9 +140,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
                 id: available_topics_handler,
                 filter: async (topics) => {
-
-                    console.log("Getting topics from ROSBridge Suite", connectionRef.current);
-
                     try {
                         await connectionRef.current;
 
@@ -146,7 +150,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             type: topic.type,
                         }))];
                     } catch (error) {
-                        console.error("Failed to get topics:", error);
                         return topics;
                     }
                 },
@@ -185,7 +188,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         subscribersRef.current.set(topic.topic, subscriber);
                         subscribersCountRef.current.set(topic.topic, 1);
                     } catch (error) {
-                        console.error("Subscribe error:", error);
                         toast({
                             title: "Error",
                             description: "Failed to subscribe to topic",
@@ -265,7 +267,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             disconnect();
         }
 
-    }, []);
+    }, [retry]);
 
 
     return (

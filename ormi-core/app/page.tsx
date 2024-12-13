@@ -58,7 +58,8 @@ export default function Home() {
         settings: {
             id: "local-rosbridge-suite",
             title: "Local ROSBridge Suite",
-            url: "ws://localhost:9090"
+            url: "ws://localhost:9090",
+            reconnectTimeout: 5
         } as RosBridgeSuiteDataSourceSettings
     });
 
