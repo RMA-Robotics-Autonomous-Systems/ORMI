@@ -1,19 +1,21 @@
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { ControlProps, rankWith, isControl, and, isStringControl } from '@jsonforms/core';
+import { ControlProps, rankWith, isControl, and, isStringControl, isEnumControl } from '@jsonforms/core';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 const TextControl = (props: ControlProps) => {
-    const { data, handleChange, path, label, id } = props;
+    const { data, handleChange, path, label, id, schema } = props;
 
     return (
         <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
-            <Label htmlFor={id}>{label}</Label>
+            {(!schema.const) && <Label htmlFor={id}>{label}</Label>}
             <Input
                 id={id}
                 type="text"
-                value={data || ''}
+                value={data || schema.default || schema.const || ''}
                 onChange={event => handleChange(path, event.target.value)}
+                hidden={schema.const !== undefined}
+
             />
         </div>
     );
@@ -26,7 +28,7 @@ const TextTester = rankWith(
     5, // Increase rank to ensure this tester is selected when applicable
     and(
         isControl,
-        isStringControl
+        isStringControl,
     )
 );
 
