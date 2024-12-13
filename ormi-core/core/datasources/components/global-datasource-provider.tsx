@@ -98,7 +98,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
                         </div>
                     </DialogHeader>
                 </DialogContent>
-            </Dialog>
+            </Dialog>, 0
         );
 
         return () => {

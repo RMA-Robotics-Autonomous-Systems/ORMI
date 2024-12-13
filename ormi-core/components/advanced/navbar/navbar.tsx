@@ -11,6 +11,15 @@ const NavBar = () => {
     const { left, center, right } = useNavbar();
     const [open, setOpen] = useState(false);
 
+    // Helper function to sort nav items
+    const sortNavItems = (items: Map<string, { component: React.ReactNode, priority: number }>) => {
+        return Array.from(items).sort((a, b) => a[1].priority - b[1].priority);
+    };
+
+    const sortedLeft = sortNavItems(left);
+    const sortedCenter = sortNavItems(center);
+    const sortedRight = sortNavItems(right);
+
     return (
         <div className="relative">
             <NavigationMenu className="shadow-md w-full">
@@ -44,24 +53,23 @@ const NavBar = () => {
                                 <Link href="/plugins" className={navigationMenuTriggerStyle()}>
                                     Plugins
                                 </Link>
-                                {Array.from(left).map(([key, value]) => (
-                                    <div key={key}>{value}</div>
+                                {sortedLeft.map(([key, value]) => (
+                                    <div key={key}>{value.component}</div>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1">
-                                {Array.from(center).map(([key, value]) => (
-                                    <div key={key}>{value}</div>
+                                {sortedCenter.map(([key, value]) => (
+                                    <div key={key}>{value.component}</div>
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-1">
-                                {Array.from(right).map(([key, value]) => (
-                                    <div key={key}>{value}</div>
+                                {sortedRight.map(([key, value]) => (
+                                    <div key={key}>{value.component}</div>
                                 ))}
                             </div>
                         </PopoverContent>
                     </Popover>
                 </div>
-
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex w-full justify-between">
@@ -80,20 +88,20 @@ const NavBar = () => {
                                 </NavigationMenuLink>
                             </Link>
                         </NavigationMenuItem>
-                        {Array.from(left).map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value}</NavigationMenuItem>
+                        {sortedLeft.map(([key, value]) => (
+                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
 
                     <NavigationMenuList key="center">
-                        {Array.from(center).map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value}</NavigationMenuItem>
+                        {sortedCenter.map(([key, value]) => (
+                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
 
                     <NavigationMenuList key="right">
-                        {Array.from(right).map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value}</NavigationMenuItem>
+                        {sortedRight.map(([key, value]) => (
+                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
                 </div>
