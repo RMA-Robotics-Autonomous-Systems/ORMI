@@ -117,7 +117,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
             id: '',
             title: '',
             url: '',
-            reconnectTimeout: 2000,
+            reconnectTimeout: 2,
         },
 
         Provider: RosBridgeSuiteSourceProvider
