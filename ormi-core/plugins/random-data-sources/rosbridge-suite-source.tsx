@@ -23,6 +23,8 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 
 import { DatasourceProviderSettings, DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { toast } from '@/hooks/use-toast';
+import { JsonSchema } from '@jsonforms/core';
+import { decodeTypeDefs } from './ros2-message-parser';
 
 const RosBridgeSuiteSourceContext = createContext(null);
 
@@ -71,6 +73,31 @@ async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
             reject(error);
         });
     });
+}
+
+async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSchema>> {
+
+    return new Promise<Map<string, JsonSchema>>((resolve, reject) => {
+
+        ROS.getTopicsAndRawTypes((results: { topics: string[], types: string[], typedefs_full_text: string[] }) => {
+            const topics = new Map<string, JsonSchema>();
+
+            for (let i = 0; i < results.topics.length; i++) {
+
+                const def = results.typedefs_full_text[i];
+                const decoded = decodeTypeDefs(def);
+
+                topics.set(results.topics[i], decoded);
+            }
+
+            resolve(topics);
+
+        }, (error: any) => {
+            reject(error);
+        });
+
+    });
+
 }
 
 // Create a provider component
@@ -231,6 +258,30 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 priority: 100,
             });
 
+            pluginsManager.addFilter(definition_hook, {
+                id: definition_hook,
+                priority: 10,
+                filter: async (definition: JsonSchema, topic: DatasourceTopic) => {
+                    // return a JsonSchema representing the topic message structure
+                    // normally the current definition is empty.
+
+                    console.log("getting definition for topic", topic);
+
+                    // get message definition from ROS
+                    const topics_and_raw_types = await GetTopicsAndRawTypes(ROSRef.current!);
+                    const current_topic_raw_type = topics_and_raw_types.get(topic.topic);
+
+                    if (!current_topic_raw_type) {
+                        console.log("topic not found in topics_and_raw_types", topic.topic, current_topic_raw_type, topics_and_raw_types);
+                        return definition;
+                    }
+
+                    console.log(current_topic_raw_type);
+
+                    return current_topic_raw_type;
+                }
+            });
+
         }, WAIT_FOR_CONNECTION);
 
         const disconnect = async () => {
@@ -255,6 +306,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeAction(subscribe_hook);
             pluginsManager.removeAction(unsubscribe_hook);
+            pluginsManager.removeFilter(definition_hook);
 
             // unsubscribe from all topics
             subscribersRef.current.forEach((subscriber) => {
