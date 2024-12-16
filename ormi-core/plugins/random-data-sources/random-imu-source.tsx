@@ -171,7 +171,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
 
             pluginsManager.removeAction(unsubscribe_hook);
         };
-    }, []);
+    }, [props, children]);
 
     return (
         <RandomIMUSourceContext.Provider value={null}>

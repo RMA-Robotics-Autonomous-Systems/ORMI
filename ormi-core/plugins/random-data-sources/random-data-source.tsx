@@ -131,7 +131,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             pluginsManager.removeAction(unsubscribe_hook);
 
         };
-    }, []);
+    }, [props, children]);
 
     return (
         <RandomDataSourceContext.Provider value={null}>

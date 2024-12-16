@@ -267,7 +267,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             disconnect();
         }
 
-    }, [retry]);
+    }, [retry, props, children]);
 
 
     return (
