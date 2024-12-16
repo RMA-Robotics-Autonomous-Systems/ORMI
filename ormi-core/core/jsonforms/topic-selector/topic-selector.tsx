@@ -12,6 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+
 import { Label } from '@/components/ui/label';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
@@ -21,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { generateTreeView } from '@/core/utils/tree-view';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
@@ -39,32 +41,6 @@ const AsyncTopicControl = (props: ControlProps) => {
 
     const getTopicByName = (topic_name: string) => {
         return topics.find(topic => topic.topic === topic_name);
-    }
-
-    const generateTreeView = (topic_msg_def: JsonSchema, parentId: string = '') => {
-
-        const treeViewItems: TreeViewBaseItem[] = [];
-
-        for (const key in topic_msg_def.properties) {
-            const prop = topic_msg_def.properties[key];
-            const uniqueId = parentId ? `${parentId}-${key}` : key;
-
-            const item: TreeViewBaseItem = {
-                id: uniqueId,
-                label: key,
-
-                children: []
-            }
-
-            if (prop.type === 'object') {
-                item.children = generateTreeView(prop, uniqueId);
-            }
-
-            treeViewItems.push(item);
-        }
-
-        return treeViewItems;
-
     }
 
     const handleTopicChange = async (topic_name: string) => {
