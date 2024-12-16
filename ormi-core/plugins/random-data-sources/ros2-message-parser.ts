@@ -16,47 +16,59 @@ interface MessageDefinition {
     constants?: { [key: string]: any };
 }
 
-function parseMessageDefinition(rawDef: string): MessageDefinition[] {
+function parseMessageDefinition(content: string): MessageDefinition[] {
+    const lines = content.split('\n');
     const definitions: MessageDefinition[] = [];
     let currentDef: MessageDefinition | null = null;
-    const lines = rawDef.split('\n').map(line => line.trim());
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
-        // Skip empty lines and comments
-        if (!line || line.startsWith('#')) continue;
+    let currentComments: string[] = [];
 
-        // Check for message separator
-        if (line === '================================================================================') {
+    // Create default message definition if no explicit name
+    currentDef = {
+        name: "Message", // Default name if none specified
+        fields: [],
+    } as MessageDefinition;
+
+    for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+
+        // Handle comments
+        if (line.startsWith('#')) {
+            currentComments.push(line.substring(1).trim());
+            continue;
+        }
+
+        // Check for msg definition separator
+        if (line.startsWith('===')) {
             if (currentDef) {
+                if (currentComments.length > 0) {
+                    currentDef.metadata = { description: currentComments };
+                    currentComments = [];
+                }
                 definitions.push(currentDef);
             }
             currentDef = null;
             continue;
         }
 
-        // Parse message type declaration
-        if (line.match(/^MSG:\s*(.+)$/)) {
-            const name = line.split(':')[1].trim();
-            currentDef = { name, fields: [] };
-            continue;
-        }
+        // Parse message name if found
+        const msgMatch = line.match(/^msg:\s*([A-Za-z0-9_]+)$/);
+        if (msgMatch) {
+            if (currentDef) {
 
-        if (!currentDef) continue;
+                definitions.push(currentDef);
+            }
+            currentDef = {
+                name: msgMatch[1],
+                fields: [],
 
-        // Parse constants
-        const constMatch = line.match(/^([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)\s*=\s*(.+)$/);
-        if (constMatch) {
-            const [_, type, name, value] = constMatch;
-            if (!currentDef.constants) currentDef.constants = {};
-            currentDef.constants[name] = parseConstValue(type, value);
+            };
             continue;
         }
 
         // Parse field definition
         const fieldMatch = line.match(/^([a-zA-Z0-9_/]+)(\[\]|\[\d+\])?\s+([a-zA-Z0-9_]+)(\s*=\s*(.+))?$/);
-        if (fieldMatch) {
+        if (fieldMatch && currentDef) {
             const [_, type, arrayDef, name, __, defaultValue] = fieldMatch;
             const field: MessageField = {
                 name,
@@ -70,9 +82,11 @@ function parseMessageDefinition(rawDef: string): MessageDefinition[] {
             }
 
             currentDef.fields.push(field);
+            continue;
         }
     }
 
+    // Add final definition and comments
     if (currentDef) {
         definitions.push(currentDef);
     }
@@ -155,7 +169,11 @@ function ros2TypeToJsonSchema(field: MessageField, definitions: MessageDefinitio
 function messageDefinitionToJsonSchema(definitions: MessageDefinition[]): JsonSchema {
     const schema: any = {
         $schema: "http://json-schema.org/draft-07/schema#",
-        definitions: {}
+        type: 'object',
+        properties: {},
+        required: [],
+        definitions: {},
+        additionalProperties: false
     };
 
     // First pass: create all definitions
