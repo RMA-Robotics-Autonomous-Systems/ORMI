@@ -10,6 +10,7 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
+import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
@@ -35,6 +36,8 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     // const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
+
+    const { datasources } = useDashboardManager();
 
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
@@ -70,7 +73,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
         }
 
         // For each topic, create a source
-        Topics.forEach(topic => {
+        Topics.forEach(async topic => {
 
             const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
 
@@ -81,7 +84,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
             // subscribe to the topic, this start the data flow inside the datasource
             // this triggers the published action on the data hook of the topic
-            pluginsManager.doAction(`${topic.source}-subscribe`, topic);
+            await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1000, topic);
 
             // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
             pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
@@ -115,9 +118,11 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
         });
 
         return () => {
-            Topics.forEach(topic => {
+            Topics.forEach(async topic => {
                 // unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
-                pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
+                // await pluginsManager.WaitForActionToExist(`${topic.source}-unsubscribe`);
+                // pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
+                await pluginsManager.WaitAndDoAction(`${topic.source}-unsubscribe`, 1000, topic);
 
                 // remove the action that was added to the data hook of the topic,
                 pluginsManager.removeAction(`${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`);

@@ -42,6 +42,10 @@ class PluginsManager{
 
         });
 
+        if(filters.length === 0){
+            console.warn(`No filter found for ${filterName}`);
+        }
+
         filters.sort((a, b) => a.priority - b.priority);
 
         filters.forEach((filter) => {
@@ -68,6 +72,10 @@ class PluginsManager{
             }
 
         });
+
+        if(filters.length === 0){
+            console.warn(`No filter found for ${filterName}`);
+        }
 
         filters.sort((a, b) => a.priority - b.priority);
 
@@ -132,9 +140,19 @@ class PluginsManager{
 
         actions.sort((a, b) => a.priority - b.priority);
 
+        if(actions.length === 0){
+            console.warn(`No action found for ${actionName}`);
+        }
+        
         actions.forEach((action) => {
             action.action(...args);
         });
+    }
+
+    async WaitAndDoAction(actionName : string | PluginsHooks, timeoutSecond : number = 5, ...args: any): Promise<void>{
+        await this.WaitForActionToExist(actionName, timeoutSecond);
+
+        this.doAction(actionName, ...args);
     }
 
     addAction(actionName: string | PluginsHooks, action: PluginAction): void{
@@ -169,6 +187,23 @@ class PluginsManager{
         });
 
         // throw new Error(`Action with id ${pluginActionId} not found`);
+    }
+
+    WaitForActionToExist(actionName: string | PluginsHooks, timeoutSecond : number = 5): Promise<void>{
+        return new Promise((resolve, reject) => {
+            const interval = setInterval(() => {
+                if(this.plugins.get("basic")?.actions.has(actionName)){
+                    clearInterval(interval);
+                    clearTimeout(timeout);
+                    resolve();
+                }
+            }, 100);
+
+            const timeout = setTimeout(() => {
+                clearInterval(interval);
+                reject(`Timeout waiting for action ${actionName}`);
+            }, timeoutSecond * 1000);
+        });
     }
 
     getPlugins(): Map<string | PluginsHooks, PluginClientSide>{
