@@ -16,14 +16,14 @@ const PluginsProvider: React.FC<{ children: ReactNode, pluginsLoader: Map<string
 
     const pluginsManagerRef = useRef(new PluginsManager(pluginsLoader));
 
-    const elements_before_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
-    const elements_after_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
+    // const elements_before_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
+    // const elements_after_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
 
     return (
         <PluginsContext.Provider value={pluginsManagerRef.current}>
-            {elements_before_children}
+            {/* {elements_before_children} */}
             {children}
-            {elements_after_children}
+            {/* {elements_after_children} */}
         </PluginsContext.Provider>
     );
 };
