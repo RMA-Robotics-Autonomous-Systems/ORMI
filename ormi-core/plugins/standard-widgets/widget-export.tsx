@@ -15,6 +15,9 @@ import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { AsyncTopicControlType } from '@/core/jsonforms/topic-selector/topic-selector';
 
 import { PluginViewer } from './widgets/plugins-viewer';
+import { JsonViewer } from './widgets/json-viewer';
+import { TimeChartComponent } from './widgets/timeseries-chart';
+import { TreeViewer } from './widgets/tree-viewer';
 
 
 function LineChartExport(widgets: WidgetDefinition[]) {
@@ -199,9 +202,9 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         elements: [title, timeHistory, updateFrequency, topics],
     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/timeseries-chart').then(mod => mod.TimeChartComponent), {
-        loading: () => <Skeleton />,
-    })
+    // const DynamicComponent = dynamic(() => import('./widgets/timeseries-chart').then(mod => mod.TimeChartComponent), {
+    //     loading: () => <Skeleton />,
+    // })
 
     const timeSeriesWidget: WidgetDefinition = {
         id: 'chart-widget-time-series',
@@ -257,7 +260,8 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         },
         Component: (data: any) => (
             <LocalDataSourcesProvider TopicsProps={data.topics} buffersSize={2000} >
-                <DynamicComponent {...data} />
+                {/* <DynamicComponent {...data} /> */}
+                <TimeChartComponent {...data} />
             </LocalDataSourcesProvider >
         )
 
@@ -294,9 +298,9 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         elements: [title, topic],
     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/json-viewer').then(mod => mod.JsonViewer), {
-        loading: () => <Skeleton />,
-    })
+    // const DynamicComponent = dynamic(() => import('./widgets/json-viewer').then(mod => mod.JsonViewer), {
+    //     loading: () => <Skeleton />,
+    // })
 
     const jsonViewerWidget: WidgetDefinition = {
         id: 'json-viewer-widget',
@@ -323,7 +327,8 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         },
         Component: (data: any) => (
             <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
-                <DynamicComponent {...data} />
+                {/* <DynamicComponent {...data} /> */}
+                <JsonViewer {...data} />
             </LocalDataSourcesProvider >
         )
 
@@ -359,9 +364,9 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         elements: [title, topic],
     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/tree-viewer').then(mod => mod.TreeViewer), {
-        loading: () => <Skeleton />,
-    })
+    // const DynamicComponent = dynamic(() => import('./widgets/tree-viewer').then(mod => mod.TreeViewer), {
+    //     loading: () => <Skeleton />,
+    // })
 
     const jsonViewerWidget: WidgetDefinition = {
         id: 'tree-viewer-widget',
@@ -388,7 +393,8 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         },
         Component: (data: any) => (
             <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
-                <DynamicComponent {...data} />
+                {/* <DynamicComponent {...data} /> */}
+                <TreeViewer {...data} />
             </LocalDataSourcesProvider >
         )
 
