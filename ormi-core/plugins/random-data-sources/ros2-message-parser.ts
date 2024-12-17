@@ -42,7 +42,6 @@ function parseMessageDefinition(content: string): MessageDefinition[] {
         if (line.startsWith('===')) {
             if (currentDef) {
                 if (currentComments.length > 0) {
-                    currentDef.metadata = { description: currentComments };
                     currentComments = [];
                 }
                 definitions.push(currentDef);
