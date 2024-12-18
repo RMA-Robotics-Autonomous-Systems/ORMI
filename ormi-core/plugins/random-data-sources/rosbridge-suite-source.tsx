@@ -227,7 +227,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
             pluginsManager.addAction(unsubscribe_hook, {
                 id: unsubscribe_hook,
-                action: async (topic: DatasourceTopic) => {
+                action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
                     try {
                         await connectionRef.current;
 
@@ -236,15 +236,15 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         }
 
                         const count = subscribersCountRef.current.get(topic.topic) || 0;
-                        if (count > 1) {
-                            subscribersCountRef.current.set(topic.topic, count - 1);
-                            return;
+                        if (count <= 1 || ignoreCount) {
+                            const subscriber = subscribersRef.current.get(topic.topic);
+                            subscriber!.unsubscribe();
+                            subscribersRef.current.delete(topic.topic);
+                            subscribersCountRef.current.delete(topic.topic);
                         }
 
-                        const subscriber = subscribersRef.current.get(topic.topic);
-                        subscriber!.unsubscribe();
-                        subscribersRef.current.delete(topic.topic);
-                        subscribersCountRef.current.delete(topic.topic);
+                        subscribersCountRef.current.set(topic.topic, count - 1);
+
                     } catch (error) {
                         console.error("Unsubscribe error:", error);
                         toast({

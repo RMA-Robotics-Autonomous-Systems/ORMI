@@ -11,6 +11,7 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
+import { toast } from '@/hooks/use-toast';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
@@ -36,8 +37,6 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     // const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
-
-    const { datasources } = useDashboardManager();
 
     const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
 
@@ -84,7 +83,13 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
             // subscribe to the topic, this start the data flow inside the datasource
             // this triggers the published action on the data hook of the topic
-            await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1000, topic);
+            await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1000, topic).catch((err) => {
+                toast({
+                    title: "Error",
+                    description: `Error subscribing to the topic: ${err}`,
+                    variant: "destructive"
+                })
+            });
 
             // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
             pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {

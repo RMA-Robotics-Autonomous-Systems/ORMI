@@ -189,13 +189,13 @@ class PluginsManager{
         // throw new Error(`Action with id ${pluginActionId} not found`);
     }
 
-    WaitForActionToExist(actionName: string | PluginsHooks, timeoutSecond : number = 5): Promise<void>{
+    WaitForActionToExist(actionName: string | PluginsHooks, timeoutSecond : number = 5): Promise<boolean>{
         return new Promise((resolve, reject) => {
             const interval = setInterval(() => {
                 if(this.plugins.get("basic")?.actions.has(actionName)){
                     clearInterval(interval);
                     clearTimeout(timeout);
-                    resolve();
+                    resolve(true);
                 }
             }, 100);
 

@@ -108,11 +108,11 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
         pluginsManager.addAction(unsubscribe_hook, {
             id: unsubscribe_hook,
             priority: 10,
-            action: (topic: DatasourceTopic) => {
+            action: (topic: DatasourceTopic, ignoreCount: boolean = false) => {
 
                 const count = subscribersCountRef.current.get(topic.topic) || 0;
 
-                if (count <= 1) {
+                if (count <= 1 || ignoreCount) {
                     clearInterval(intervalesRef.current.get(topic.topic));
                     intervalesRef.current.delete(topic.topic);
                 }
@@ -166,7 +166,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
             pluginsManager.removeAction(subscribe_hook);
 
             available_topics.forEach(topic => {
-                pluginsManager.doAction(unsubscribe_hook, topic);
+                pluginsManager.doAction(unsubscribe_hook, topic, true);
             });
 
             pluginsManager.removeAction(unsubscribe_hook);
