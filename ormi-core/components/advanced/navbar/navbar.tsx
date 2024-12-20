@@ -63,10 +63,13 @@ const NavBar = () => {
                                     <div key={key}>{value.component}</div>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex items-end flex-wrap gap-1">
                                 {sortedRight.map(([key, value]) => (
                                     <div key={key}>{value.component}</div>
                                 ))}
+                                <div>
+                                    <ModeToggle />
+                                </div>
                             </div>
                         </PopoverContent>
                     </Popover>
