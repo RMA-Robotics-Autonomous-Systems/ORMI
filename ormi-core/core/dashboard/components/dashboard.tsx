@@ -112,7 +112,7 @@ const Dashboard = () => {
             )
         );
 
-    }, [widgets, datasources]);
+    }, [widgets, datasources, locked]);
 
     return (
         <ResponsiveGridLayout
