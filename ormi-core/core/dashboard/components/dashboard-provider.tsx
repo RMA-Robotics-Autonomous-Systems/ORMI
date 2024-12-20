@@ -390,23 +390,25 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             const index_of_breakpoint = breakpoints_array.indexOf(breakpoint);
             const starting_index = breakpoints_array.indexOf("xxs");
 
+            const distance_matrixes_map = new Map<string, number>();
+
             for (let i = starting_index; i > index_of_breakpoint; i--) {
                 const matrix = availables_matrixes.get(breakpoints_array[i]) as LayoutMatrix;
-
-                const next_matrix = availables_matrixes.get(breakpoints_array[i - 1]) as LayoutMatrix;
-                if (!next_matrix) {
-                    return matrix;
-                }
-
                 const matrix_size = matrix.cols * matrix.rows;
-                const next_matrix_size = next_matrix.cols * next_matrix.rows;
 
-                if ((matrix_size) <= number_of_elements && ((next_matrix_size) > number_of_elements)) {
-                    return matrix;
-                }
+                distance_matrixes_map.set(breakpoints_array[i], matrix_size - number_of_elements);
             }
 
-            return availables_matrixes.get(breakpoint);
+            // find the matrix with the smallest difference, if two matrixes have the same difference, we choose the one with the biggest number of elements
+            // sort the map by the difference and the number of elements
+            const sorted_distance_matrixes = Array.from(distance_matrixes_map).sort((a, b) => {
+                if (a[1] === b[1]) {
+                    return availables_matrixes.get(b[0])!.cols * availables_matrixes.get(b[0])!.rows - availables_matrixes.get(a[0])!.cols * availables_matrixes.get(a[0])!.rows;
+                }
+                return b[1] - a[1];
+            });
+
+            return availables_matrixes.get(sorted_distance_matrixes[0][0]);
         }
 
         // compute the current breakpoint
