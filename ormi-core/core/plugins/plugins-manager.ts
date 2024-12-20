@@ -149,10 +149,15 @@ class PluginsManager{
         });
     }
 
-    async WaitAndDoAction(actionName : string | PluginsHooks, timeoutSecond : number = 5, ...args: any): Promise<void>{
-        await this.WaitForActionToExist(actionName, timeoutSecond);
+    async WaitAndDoAction(actionName : string | PluginsHooks, timeoutSecond : number = 5, ...args: any): Promise<boolean>{
+        const result = await this.WaitForActionToExist(actionName, timeoutSecond);
+
+        if(!result){
+            return false;
+        }
 
         this.doAction(actionName, ...args);
+        return true;
     }
 
     addAction(actionName: string | PluginsHooks, action: PluginAction): void{
@@ -190,7 +195,7 @@ class PluginsManager{
     }
 
     WaitForActionToExist(actionName: string | PluginsHooks, timeoutSecond : number = 5): Promise<boolean>{
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const interval = setInterval(() => {
                 if(this.plugins.get("basic")?.actions.has(actionName)){
                     clearInterval(interval);
@@ -201,7 +206,7 @@ class PluginsManager{
 
             const timeout = setTimeout(() => {
                 clearInterval(interval);
-                reject(`Timeout waiting for action ${actionName}`);
+                resolve(false);
             }, timeoutSecond * 1000);
         });
     }
