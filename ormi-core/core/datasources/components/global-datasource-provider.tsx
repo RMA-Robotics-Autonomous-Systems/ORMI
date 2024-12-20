@@ -49,20 +49,23 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
         }
         setDataSourcesTypes(dataSourcesTypes_map);
         setInitialized(true);
+    }, []);
 
-        const getDatasourceDef = (datasource_id: string): DatasourceDefinition<DatasourceProviderSettings> => {
-            if (!dataSourcesTypes_map.has(datasource_id)) {
+    useEffect(() => {
+
+        function getDatasourceDef(datasource_id: string): DatasourceDefinition<DatasourceProviderSettings> {
+            if (!dataSourcesTypes.has(datasource_id)) {
                 console.error(`Datasource ${datasource_id} not found`);
                 throw new Error(`Datasource ${datasource_id} not found`);
             }
-            return dataSourcesTypes_map.get(datasource_id)!;
+            return dataSourcesTypes.get(datasource_id)!;
         }
 
-        const handleAdd = (datasource_id: string) => {
+        function handleAdd(datasource_id: string) {
             addDatasource(datasource_id);
         }
 
-        const handleRemove = (source_id: string) => {
+        function handleRemove(source_id: string) {
             removeDatasource(source_id);
         }
 
@@ -105,7 +108,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
             removeNavbarItem("center", "datasources_combo");
         };
 
-    }, [datasources]);
+    }, [dataSourcesTypes, datasources]);
 
     // Memoize the provider chain to prevent unnecessary rerenders
     const providerChain = React.useMemo(() => {
@@ -132,7 +135,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
                 </Provider>
             );
         }, children);
-    }, [initialized, datasources, children, dataSourcesTypes]);
+    }, [initialized, datasources, dataSourcesTypes]);
 
     return (
         <GlobalDataSourcesContext.Provider value={{}}>
