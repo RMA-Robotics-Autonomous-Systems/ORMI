@@ -9,7 +9,6 @@ import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/hooks/use-toast';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '@/core/datasources/datasource-interface';
-import { title } from 'process';
 
 interface DashboardContextInterface {
 
@@ -80,6 +79,10 @@ const DashboardContext = createContext<DashboardContextInterface>({
     removeDatasource: () => { }
 });
 
+interface LayoutMatrix {
+    cols: number,
+    rows: number
+}
 
 
 // Create a provider component
@@ -365,8 +368,46 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
         const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
         const colsperBreakpoints = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }
-        const optimalCols = { lg: 3, md: 2, sm: 2, xs: 1, xxs: 1 };
-        const optimalRows = { lg: 30, md: 30, sm: 30, xs: 30, xxs: 30 };
+
+        const availables_matrixes: Map<string, LayoutMatrix> = new Map([
+            ["lg", { cols: 3, rows: 3 }],
+            ["md", { cols: 2, rows: 3 }],
+            ["sm", { cols: 2, rows: 2 }],
+            ["xs", { cols: 1, rows: 2 }],
+            ["xxs", { cols: 1, rows: 1 }],
+        ]);
+
+        function getOptimalMatrix(breakpoint: string, number_of_elements: number) {
+            /*
+                Each matrix has a ideal number of elements being cols * rows,
+                The matrix is valid if the number of elements is equal or more than the ideal number of elements
+
+                We try to find the smallest matrix that is valid
+                We start with the biggest matrix available by the breakpoint
+            */
+
+            const breakpoints_array = ["lg", "md", "sm", "xs", "xxs"];
+            const index_of_breakpoint = breakpoints_array.indexOf(breakpoint);
+            const starting_index = breakpoints_array.indexOf("xxs");
+
+            for (let i = starting_index; i > index_of_breakpoint; i--) {
+                const matrix = availables_matrixes.get(breakpoints_array[i]) as LayoutMatrix;
+
+                const next_matrix = availables_matrixes.get(breakpoints_array[i - 1]) as LayoutMatrix;
+                if (!next_matrix) {
+                    return matrix;
+                }
+
+                const matrix_size = matrix.cols * matrix.rows;
+                const next_matrix_size = next_matrix.cols * next_matrix.rows;
+
+                if ((matrix_size) <= number_of_elements && ((next_matrix_size) > number_of_elements)) {
+                    return matrix;
+                }
+            }
+
+            return availables_matrixes.get(breakpoint);
+        }
 
         // compute the current breakpoint
         const width = window.innerWidth;
@@ -386,17 +427,33 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
 
         const new_layouts = layouts;
 
+        const row_size_px = 30;
+        const max_number_of_rows = ((window.innerHeight * 0.9) / row_size_px)
+        const optimalMatrix = getOptimalMatrix(breakpoint, widgets.size);
+
         // place the boxes in the optimal position
         new_layouts[breakpoint] = new_layouts[breakpoint].map((box, index) => {
 
-            const cols_size = colsperBreakpoints[breakpoint] / optimalCols[breakpoint];
+            const cols_size = colsperBreakpoints[breakpoint] / optimalMatrix!.cols;
+            const rows_size = (max_number_of_rows / optimalMatrix!.rows);
+
+            // if element is the last one, we fill the remaining space
+            if (index === widgets.size - 1) {
+                return {
+                    ...box,
+                    x: (index * cols_size) % colsperBreakpoints[breakpoint],
+                    y: Math.floor(index / optimalMatrix!.cols),
+                    w: colsperBreakpoints[breakpoint] - (index * cols_size) % colsperBreakpoints[breakpoint],
+                    h: rows_size
+                }
+            }
 
             return {
                 ...box,
                 x: (index * cols_size) % colsperBreakpoints[breakpoint],
-                y: Math.floor(index / optimalCols[breakpoint]),
+                y: Math.floor(index / optimalMatrix!.cols),
                 w: cols_size,
-                h: optimalRows[breakpoint]
+                h: rows_size
             }
         });
 
