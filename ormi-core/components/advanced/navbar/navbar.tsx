@@ -6,6 +6,7 @@ import { useNavbar } from "./navbar-provider";
 import { Cross1Icon, HamburgerMenuIcon } from "@radix-ui/react-icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ModeToggle } from "../theme/theme-toggle";
 
 const NavBar = () => {
     const { left, center, right } = useNavbar();
@@ -22,7 +23,7 @@ const NavBar = () => {
 
     return (
         <div className="relative">
-            <NavigationMenu className="shadow-md w-full">
+            <NavigationMenu className="shadow-md w-full p-1">
                 {/* Mobile Button */}
                 <div className="md:hidden p-2">
                     <Popover onOpenChange={setOpen}>
@@ -103,6 +104,9 @@ const NavBar = () => {
                         {sortedRight.map(([key, value]) => (
                             <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
+                        <NavigationMenuItem>
+                            <ModeToggle />
+                        </NavigationMenuItem>
                     </NavigationMenuList>
                 </div>
             </NavigationMenu>
