@@ -87,7 +87,7 @@ export function PluginViewer(props: any) {
         }
 
         setData(generateTreeView(pluginsManager));
-    }, []);
+    }, [pluginsManager.getPlugins()]);
 
     return (
         <div style={{ height: "100%", overflow: "auto" }}>
