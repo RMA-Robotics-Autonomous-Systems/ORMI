@@ -118,6 +118,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const ROSRef = useRef<ROSLIB.Ros | null>(null);
 
     const connectionRef = useRef<Promise<boolean> | null>(null);
+    const [connected, setConnected] = React.useState(false);
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
 
@@ -135,6 +136,8 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             title: `Connected to ${props.title}`,
                             description: `Connection established with ${props.url}`,
                         });
+
+                        setConnected(true);
                         resolve(true);
                     });
 
@@ -144,6 +147,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             description: `Failed to connect to ${props.url}`,
                             variant: 'destructive'
                         });
+                        setConnected(false);
                         reject(error);
                     });
 
@@ -156,6 +160,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             setRetry(retry + 1);
                         }, props.reconnectTimeout * 1000);
 
+                        setConnected(false);
                         resolve(false);
                     });
 
@@ -319,12 +324,12 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             disconnect();
         }
 
-    }, [retry, props, children]);
+    }, [retry, props]);
 
 
     return (
         <RosBridgeSuiteSourceContext.Provider value={null}>
-            {children}
+            {connected && children}
         </RosBridgeSuiteSourceContext.Provider>
     );
 

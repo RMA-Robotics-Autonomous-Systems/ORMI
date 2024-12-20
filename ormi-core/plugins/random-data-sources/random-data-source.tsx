@@ -13,7 +13,7 @@
 */
 "use client";
 
-import React, { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useRef, useState } from 'react';
 
 import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -41,10 +41,14 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     const unsubscribe_hook = `${datasource_id}-unsubscribe`;
     const definition_hook = `${datasource_id}-definition`;
 
+    const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
         const available_topics = props.topics;
 
+
+        // create a custom event : 
+        // datasource_id-topic-published
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
             priority: 10,
@@ -119,6 +123,8 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             }
         });
 
+        setInitialized(true);
+
         return () => {
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeFilter(definition_hook);
@@ -131,11 +137,11 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             pluginsManager.removeAction(unsubscribe_hook);
 
         };
-    }, [props, children]);
+    }, [props]);
 
     return (
         <RandomDataSourceContext.Provider value={null}>
-            {children}
+            {initialized && children}
         </RandomDataSourceContext.Provider>
     );
 };
