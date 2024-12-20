@@ -23,6 +23,7 @@ import PluginsManager from "@/core/plugins/plugins-manager"
 import { PluginsHooks } from "@/core/plugins/plugins-types"
 import { WidgetDefinition } from "../../widget-interface"
 import WidgetCard from "../widget-card/widget-card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 
 
 export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, settings: object) => void }) {
@@ -64,7 +65,12 @@ export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, set
                                     value={widget.id}
                                 // onSelect={}
                                 >
-                                    <WidgetCard definition={widget} onValidate={handleValidate} displayType={"list"} />
+                                    <HoverCard>
+                                        <HoverCardTrigger><WidgetCard definition={widget} onValidate={handleValidate} displayType={"list"} /></HoverCardTrigger>
+                                        <HoverCardContent>
+                                            {widget.description}
+                                        </HoverCardContent>
+                                    </HoverCard>
                                 </CommandItem>
                             ))}
                         </CommandGroup>
