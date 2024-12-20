@@ -13,7 +13,7 @@
 */
 "use client";
 
-import React, { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useRef, useState } from 'react';
 
 import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -39,7 +39,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
     const unsubscribe_hook = `${datasource_id}-unsubscribe`;
     const definition_hook = `${datasource_id}-definition`;
 
-
+    const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
         const available_topics = props.topics;
@@ -159,6 +159,8 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
             }
         });
 
+        setInitialized(true);
+
         return () => {
 
             pluginsManager.removeFilter(available_topics_handler);
@@ -170,12 +172,15 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
             });
 
             pluginsManager.removeAction(unsubscribe_hook);
+
+            intervalesRef.current.clear();
+            subscribersCountRef.current.clear();
         };
-    }, [props, children]);
+    }, [props]);
 
     return (
         <RandomIMUSourceContext.Provider value={null}>
-            {children}
+            {initialized && children}
         </RandomIMUSourceContext.Provider>
     );
 };

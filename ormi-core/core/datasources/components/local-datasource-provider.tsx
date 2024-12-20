@@ -42,6 +42,10 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
     const local_id = useRef(Math.random().toString(36).substring(7)).current;
 
+    const [initialized, setInitialized] = useState(false);
+
+    const { datasources } = useDashboardManager();
+
     useEffect(() => {
         // create a random id for the local datasource
 
@@ -71,55 +75,92 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             return value;
         }
 
-        // For each topic, create a source
-        Topics.forEach(async topic => {
+        new Promise<Map<string, boolean>>((resolve) => {
 
-            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+            const initializedTopics = new Map<string, boolean>();
 
-            sources.set(sourceId, {
-                data: [],
-                times: []
+            function setInitializedTopic(topic: string, state: boolean) {
+                initializedTopics.set(topic, state);
+                if (initializedTopics.size === Topics.length) {
+                    resolve(initializedTopics);
+                }
+            }
+
+            // For each topic, create a source
+            Topics.forEach(async topic => {
+
+                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+
+                sources.set(sourceId, {
+                    data: [],
+                    times: []
+                });
+
+                // subscribe to the topic, this start the data flow inside the datasource
+                // this triggers the published action on the data hook of the topic
+                const result = await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1, topic)
+
+                if (result === false) {
+                    setInitializedTopic(topic.topic, false);
+                    return;
+                }
+
+                // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
+                pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
+                    id: `${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`,
+                    priority: 10,
+                    action: (value: any, time: number) => {
+
+                        const source = sources.get(sourceId);
+
+                        if (!source) {
+                            console.error('source not found', sourceId, sources);
+                            return;
+                        }
+
+                        if (topic.property && topic.property !== '') {
+                            value = propertiesGetter(value, topic.property);
+                        }
+
+                        source.data.push(value);
+                        source.times.push(time);
+
+                        if (source.data.length > buffersSize) {
+                            source.data.shift();
+                            source.times.shift();
+                        }
+
+                        setSources(new Map(sources));
+                    }
+                });
+
+                setInitializedTopic(topic.topic, true);
             });
 
-            // subscribe to the topic, this start the data flow inside the datasource
-            // this triggers the published action on the data hook of the topic
-            await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1000, topic).catch((err) => {
+
+        }).then((initializedTopics) => {
+
+            // add toast for the topics that are not initialized
+            const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(topic.topic));
+
+            const message = (
+                <div>
+                    <div>Some topics are not initialized:</div>
+                    <ul>
+                        {notInitializedTopics.map((topic, index) => <li key={`${topic.topic}-${index}`}>{topic.topic}</li>)}
+                    </ul>
+                </div>
+            )
+
+            if (notInitializedTopics.length > 0) {
                 toast({
                     title: "Error",
-                    description: `Error subscribing to the topic: ${err}`,
+                    description: message,
                     variant: "destructive"
-                })
-            });
+                });
+            }
 
-            // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
-            pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
-                id: `${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`,
-                priority: 10,
-                action: (value: any, time: number) => {
-
-                    const source = sources.get(sourceId);
-
-                    if (!source) {
-                        console.error('source not found', sourceId, sources);
-                        return;
-                    }
-
-                    if (topic.property && topic.property !== '') {
-                        value = propertiesGetter(value, topic.property);
-                    }
-
-                    source.data.push(value);
-                    source.times.push(time);
-
-                    if (source.data.length > buffersSize) {
-                        source.data.shift();
-                        source.times.shift();
-                    }
-
-                    setSources(new Map(sources));
-                }
-            });
-
+            setInitialized(true);
         });
 
         return () => {
@@ -127,19 +168,20 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 // unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
                 // await pluginsManager.WaitForActionToExist(`${topic.source}-unsubscribe`);
                 // pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
-                await pluginsManager.WaitAndDoAction(`${topic.source}-unsubscribe`, 1000, topic);
+                await pluginsManager.WaitAndDoAction(`${topic.source}-unsubscribe`, 1, topic);
 
                 // remove the action that was added to the data hook of the topic,
                 pluginsManager.removeAction(`${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`);
             });
         }
 
-    }, [TopicsProps]);
+    }, [TopicsProps, datasources]);
 
 
     return (
         <LocalDataSourcesContext.Provider value={{ sources }}>
-            {children}
+            {initialized && children}
+            {!initialized && <div>Loading...</div>}
         </LocalDataSourcesContext.Provider>
     );
 };
