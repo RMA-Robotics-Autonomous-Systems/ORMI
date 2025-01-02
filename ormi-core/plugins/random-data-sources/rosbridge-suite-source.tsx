@@ -100,6 +100,46 @@ async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSc
 
 }
 
+async function GetServices(ROS: ROSLIB.Ros): Promise<string[]> {
+    return new Promise<string[]>((resolve, reject) => {
+        ROS.getServices((results: string[]) => {
+            resolve(results);
+        }, (error: any) => {
+            reject(error);
+        });
+    });
+}
+
+async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
+    // return all the types in the system
+    return new Promise<string[]>(async (resolve, reject) => {
+
+        const services = await GetServices(ROS);
+
+        // find the service that contains : '/rosapi/interfaces'
+        const service_name = services.find((service) => service.includes('/rosapi/interfaces'));
+
+        if (!service_name) {
+            reject("Service not found");
+            return;
+        }
+
+        const addTwoIntsClient = new ROSLIB.Service({
+            ros: ROS,
+            name: service_name,
+            serviceType: 'rosapi_msgs/srv/Interfaces'
+        });
+
+        const request = new ROSLIB.ServiceRequest({});
+
+        addTwoIntsClient.callService(request, function (result) {
+            resolve(result.interfaces);
+        }, function (error) {
+            reject(error);
+        });
+    });
+}
+
 // Create a provider component
 const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBridgeSuiteDataSourceSettings }> = ({ children, props }) => {
     const pluginsManager = usePluginsManager() as PluginsManager;
@@ -174,7 +214,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 filter: async (topics) => {
                     try {
                         await connectionRef.current;
-
+                        console.log(await GetAllTopicTypes(ROSRef.current!));
                         const rosTopics = await GetTopicsList(ROSRef.current!);
                         return [...topics, ...rosTopics.map((topic) => ({
                             topic: topic.topic,
