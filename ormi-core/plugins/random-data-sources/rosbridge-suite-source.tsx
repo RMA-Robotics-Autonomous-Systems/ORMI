@@ -214,7 +214,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 filter: async (topics) => {
                     try {
                         await connectionRef.current;
-                        console.log(await GetAllTopicTypes(ROSRef.current!));
                         const rosTopics = await GetTopicsList(ROSRef.current!);
                         return [...topics, ...rosTopics.map((topic) => ({
                             topic: topic.topic,
@@ -310,18 +309,16 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     // return a JsonSchema representing the topic message structure
                     // normally the current definition is empty.
 
-                    console.log("getting definition for topic", topic);
-
                     // get message definition from ROS
                     const topics_and_raw_types = await GetTopicsAndRawTypes(ROSRef.current!);
                     const current_topic_raw_type = topics_and_raw_types.get(topic.topic);
 
                     if (!current_topic_raw_type) {
-                        console.log("topic not found in topics_and_raw_types", topic.topic, current_topic_raw_type, topics_and_raw_types);
+                        // console.log("topic not found in topics_and_raw_types", topic.topic, current_topic_raw_type, topics_and_raw_types);
                         return definition;
                     }
 
-                    console.log(current_topic_raw_type);
+                    // console.log(current_topic_raw_type);
 
                     return current_topic_raw_type;
                 }
