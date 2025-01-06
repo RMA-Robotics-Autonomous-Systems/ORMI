@@ -33,7 +33,7 @@ export default function RootLayout({
     const pl = new PluginsLoader();
 
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
             <body>
                 <ThemeProvider
                     attribute="class"
