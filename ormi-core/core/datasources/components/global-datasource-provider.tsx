@@ -104,8 +104,17 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
             </Dialog>, 0
         );
 
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
+            id: "available_datasources",
+            priority: 10,
+            filter: () => {
+                return Array.from(datasources.values())
+            }
+        });
+
         return () => {
             removeNavbarItem("center", "datasources_combo");
+            pluginsManager.removeFilter("available_datasources");
         };
 
     }, [dataSourcesTypes, datasources]);
