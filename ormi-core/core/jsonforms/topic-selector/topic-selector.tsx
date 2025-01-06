@@ -1,17 +1,11 @@
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { ControlProps, rankWith, isControl, and, optionIs, uiTypeIs, UISchemaElement, Labelable, Scoped, LabelDescription, Internationalizable, ControlElement, JsonSchema } from '@jsonforms/core';
-import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
+import { ControlProps, rankWith, isControl, and, uiTypeIs, JsonSchema, ControlElement } from '@jsonforms/core';
+import { RichTreeView } from '@mui/x-tree-view/RichTreeView'
 
 import React, { useEffect, useState } from 'react';
 import { cn } from "@/lib/utils"
 
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+
 
 import { Label } from '@/components/ui/label';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
@@ -20,9 +14,11 @@ import { TreeViewBaseItem } from '@mui/x-tree-view/models/items';
 import { toast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Check, ChevronsUpDown } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { generateTreeView } from '@/core/utils/tree-view';
+import TopicCreator from './topic-creator';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { CommandSeparator } from 'cmdk';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
@@ -37,6 +33,8 @@ const AsyncTopicControl = (props: ControlProps) => {
     const [selectedTopicObject, setSelectedTopicObject] = useState<DatasourceTopic | undefined>(undefined);
 
     const pluginsManager = usePluginsManager();
+
+    const [cmd, setCmd] = useState<string>('');
 
 
     const getTopicByName = (topic_name: string) => {
@@ -98,6 +96,13 @@ const AsyncTopicControl = (props: ControlProps) => {
         handleChange(path, JSON.stringify({ topic: selectedTopicObject.topic, source: selectedTopicObject.source.id, property: itemId }));
     }
 
+    const handleCustomTopics = (source: string, topic: string, type: string) => {
+
+        setSelectedTopic(topic);
+
+        handleChange(path, JSON.stringify({ topic: topic, source: source, property: '' }));
+        setOpen(false);
+    }
 
     useEffect(() => {
 
@@ -106,7 +111,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         if (asyncFunction) {
             asyncFunction().then(async (result: DatasourceTopic[]) => {
 
-                console.log('Topics:', result);
+                // console.log('Topics:', result);
 
                 setTopics(result);
 
@@ -145,11 +150,11 @@ const AsyncTopicControl = (props: ControlProps) => {
                     </PopoverTrigger>
 
                     <PopoverContent>
-
                         <Command>
-                            <CommandInput placeholder="Search topic..." />
+                            <CommandInput onValueChange={(value: string) => setCmd(value)} placeholder="Search topic..." />
+                            <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
+                            <CommandSeparator />
                             <CommandList>
-                                <CommandEmpty>No topics found.</CommandEmpty>
                                 <CommandGroup>
                                     {topics.map((topic: DatasourceTopic) => (
                                         <CommandItem
