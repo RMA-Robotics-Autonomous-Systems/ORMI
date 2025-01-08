@@ -2,6 +2,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isNumberControl } from '@jsonforms/core';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { useEffect } from 'react';
 
 const NumberControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id, schema } = props;
@@ -10,6 +11,12 @@ const NumberControl = (props: ControlProps) => {
         if (!value) return 0;
         return Number(value);
     }
+
+    useEffect(() => {
+        if (data === undefined) {
+            handleChange(path, schema.default || 0);
+        }
+    }, []);
 
     return (
         <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
