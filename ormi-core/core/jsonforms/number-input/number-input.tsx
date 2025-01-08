@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 const NumberControl = (props: ControlProps) => {
-    const { data, handleChange, path, label, id } = props;
+    const { data, handleChange, path, label, id, schema } = props;
 
     const parseValue = (value: string): number => {
         if (!value) return 0;
@@ -17,7 +17,7 @@ const NumberControl = (props: ControlProps) => {
             <Input
                 id={id}
                 type="number"
-                value={data || ''}
+                value={data || schema.default || ''}
                 onChange={event => handleChange(path, parseValue(event.target.value))}
             />
         </div>
