@@ -32,6 +32,7 @@ import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-rend
 import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
 import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
 import AsyncTopicControl, { asyncTopicTester } from "@/core/jsonforms/topic-selector/topic-selector";
+import KeySelectorControl, { keySelectorTester } from "@/core/jsonforms/key/key";
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
@@ -137,6 +138,7 @@ const WidgetCard = (props: WidgetCardProps) => {
         { tester: TextTester, renderer: TextControl },
         { tester: NumberTester, renderer: NumberControl },
         { tester: asyncTopicTester, renderer: AsyncTopicControl },
+        { tester: keySelectorTester, renderer: KeySelectorControl }
     ];
 
     return (
