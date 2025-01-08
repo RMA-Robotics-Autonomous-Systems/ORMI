@@ -16,7 +16,7 @@ export function KeyBoardControl(props: any) {
     const [left, setLeft] = useState<boolean>(false);
     const [right, setRight] = useState<boolean>(false);
     const [speed, setSpeed] = useState<number>(parseFloat(props.startingSpeed));
-    const unlockRef = useRef<boolean>(false);
+    const [unlock, setUnlock] = useState<boolean>(false);
     const [speedkeyInc, setSpeedKeyInc] = useState<boolean>(false);
     const [speedkeyDec, setSpeedKeyDec] = useState<boolean>(false);
 
@@ -28,9 +28,9 @@ export function KeyBoardControl(props: any) {
 
         const swtichToggle = (press: boolean) => {
             if (props.unlocktoggle && press) {
-                unlockRef.current = !unlockRef.current;
+                setUnlock((prev) => { return !prev });
             } else if (!props.unlocktoggle) {
-                unlockRef.current = press;
+                setUnlock(press);
             }
         }
 
@@ -105,7 +105,7 @@ export function KeyBoardControl(props: any) {
 
         const movementFunction = () => {
             // only do anything if the keyboard is unlock (we don't want to move de robot by accident)
-            if (!unlockRef.current) {
+            if (!unlock) {
                 return;
             }
 
@@ -142,7 +142,9 @@ export function KeyBoardControl(props: any) {
                 movement.angular.z -= speed / 100;
             }
 
-            console.log(movement);  // need to publish this movement to the datasource
+            if (right || left || forward || backward) {
+                console.log(movement);  // need to publish this movement to the datasource
+            }
         }
 
 
@@ -158,12 +160,12 @@ export function KeyBoardControl(props: any) {
             document.removeEventListener('keyup', KeyUpEvent);
         }
 
-    }, [props, forward, backward, left, right, speed, unlockRef, speedkeyInc, speedkeyDec]);
+    }, [props, forward, backward, left, right, speed, unlock, speedkeyInc, speedkeyDec]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
             <div className="gap-3" style={{ width: "100%", height: "100%", gap: "1rem", gridTemplateColumns: "1fr 1fr 1fr", display: "grid", gridTemplateRows: "1fr 1fr" }}>
-                <span data-active={unlockRef.current} className={style.key}> {!unlockRef.current && <LockIcon /> || unlockRef.current && <UnlockIcon />}</span>
+                <span data-active={unlock} className={style.key}> {!unlock && <LockIcon /> || unlock && <UnlockIcon />}</span>
                 <span data-active={forward} className={style.key}>Z</span>
                 <span data-active={speedkeyInc || speedkeyDec} className={style.key} > {speed}% </span>
                 <span data-active={left} className={style.key}>Q</span>
