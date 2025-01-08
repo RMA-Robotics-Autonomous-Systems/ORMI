@@ -18,6 +18,7 @@ import { PluginViewer } from './widgets/plugins-viewer';
 import { JsonViewer } from './widgets/json-viewer';
 import { TimeChartComponent } from './widgets/timeseries-chart';
 import { TreeViewer } from './widgets/tree-viewer';
+import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 
 
 function LineChartExport(widgets: WidgetDefinition[]) {
@@ -448,10 +449,17 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
     return widgets;
 }
 
+function KeyBoardControlExport(widgets: WidgetDefinition[]) {
+
+    widgets.push(KeyboardControlDefinition());
+
+    return widgets;
+
+}
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
-    return PluginsViewerExport(TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets))));
+    return KeyBoardControlExport(PluginsViewerExport(TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets)))));
 }
 
 export default WidgetExport;
