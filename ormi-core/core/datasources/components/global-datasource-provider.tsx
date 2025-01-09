@@ -142,7 +142,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
 
 
             return (
-                <Provider key={generateUniqueID()} props={datasource.settings}>
+                <Provider key={datasource.settings.id} props={datasource.settings}>
                     {children_stack}
                 </Provider>
             );
