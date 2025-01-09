@@ -17,12 +17,28 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
     const [selectedTopic, setSelectedTopic] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>('');
 
+    const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+
     useEffect(() => {
         setDatasources(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, []));
     }, [])
 
+    const setTypes = async (datasource_id: string) => {
+        // get the types for this datasource
+        // `${datasource_id}-available-types`;
+
+        const types = await pluginsManager.applyFilterAsync<string[]>(`${datasource_id}-available-types`, []);
+        setAvailableTypes(types);
+    }
+
+
     const handleDatasourceChange = (datasource_id: string) => {
         setSelectedDatasource(datasource_id);
+
+
+
+        setTypes(datasource_id);
+
     }
 
     const handleTopicChange = (topic: string) => {
@@ -45,7 +61,7 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
                 </SelectTrigger>
                 <SelectContent>
                     {datasources.map((datasource: Datasource) => (
-                        <SelectItem key={datasource.datasource_id} value={datasource.datasource_id}>
+                        <SelectItem key={datasource.settings.id} value={datasource.settings.id}>
                             {datasource.title}
                         </SelectItem>
                     ))}
@@ -57,9 +73,11 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
                     <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
+                    {availableTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                            {type}
+                        </SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
             <Button onClick={handleValidate}>

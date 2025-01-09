@@ -36,10 +36,7 @@ class Publisher {
     }
 
     async advertise() {
-
-        const result = await this.pm.applyFilterAsync(`${this.topic.source}-advertise`, this.topic);
-
-        return result;
+        return await this.pm.applyFilterAsync(`${this.topic.source}-advertise`, this.topic);
     }
 
     unadvertise() {
@@ -48,8 +45,8 @@ class Publisher {
 
     }
 
-    publish<T>(data: T) {
-        this.pm.doAction(`${this.topic.source}-${this.topic.topic}-publish`, this.topic, data);
+    publish<T>(data: T, webtype: string) {
+        this.pm.doAction(`${this.topic.source}-${this.topic.topic}-publish`, this.topic, data, webtype);
     }
 }
 

@@ -10,6 +10,7 @@ import { KeyControlType } from "@/core/jsonforms/key/key";
 import { Movement } from "@/core/types/movement";
 import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
 import { toast } from "@/hooks/use-toast";
+import { parseSelectedTopicJSON } from "@/core/utils/Utils";
 
 export function KeyBoardControl(props: any) {
 
@@ -28,8 +29,9 @@ export function KeyBoardControl(props: any) {
 
         const publish_freq = props.publicationFrequency || 30; // default to 30Hz
         const publish_period_ms = 1000 / publish_freq;
+        const selectedTopic = parseSelectedTopicJSON(props.topic);
+        const publisher = publishers.get(selectedTopic.topic);
 
-        const publisher = publishers.get(props.topic);
         if (!publisher) {
             toast({
                 title: 'Error',
@@ -155,9 +157,7 @@ export function KeyBoardControl(props: any) {
             }
 
             if (right || left || forward || backward) {
-                console.log(movement);  // need to publish this movement to the datasource
-
-                publisher!.publish(movement);
+                publisher!.publish(movement, "Movement");
             }
         }
 
@@ -174,7 +174,7 @@ export function KeyBoardControl(props: any) {
             document.removeEventListener('keyup', KeyUpEvent);
         }
 
-    }, [props, forward, backward, left, right, speed, unlock, speedkeyInc, speedkeyDec]);
+    }, [props, publishers, forward, backward, left, right, speed, unlock, speedkeyInc, speedkeyDec]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>

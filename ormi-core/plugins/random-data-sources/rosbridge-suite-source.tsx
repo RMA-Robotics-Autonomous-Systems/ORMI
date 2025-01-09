@@ -25,6 +25,10 @@ import { DatasourceProviderSettings, DatasourceTopic } from '@/core/datasources/
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
+import { cp } from 'fs';
+import { Filter } from 'lucide-react';
+import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
+import { WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 
 const RosBridgeSuiteSourceContext = createContext(null);
 
@@ -140,6 +144,12 @@ async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
     });
 }
 
+type RosTopicAndCounter = {
+    topic: ROSLIB.Topic,
+    counter: number,
+    hook: string
+}
+
 // Create a provider component
 const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBridgeSuiteDataSourceSettings }> = ({ children, props }) => {
     const pluginsManager = usePluginsManager() as PluginsManager;
@@ -153,6 +163,10 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const subscribe_hook = `${datasource_id}-subscribe`;
     const unsubscribe_hook = `${datasource_id}-unsubscribe`;
     const definition_hook = `${datasource_id}-definition`;
+    const advertise_hook = `${datasource_id}-advertise`;
+    const unadvertise_hook = `${datasource_id}-unadvertise`;
+    const available_types = `${datasource_id}-available-types`;
+
 
     // ROS Websocket
     const ROSRef = useRef<ROSLIB.Ros | null>(null);
@@ -161,6 +175,10 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const [connected, setConnected] = React.useState(false);
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
+
+    const ros_publishers = useRef(new Map<string, RosTopicAndCounter>()).current = new Map<string, RosTopicAndCounter>();
+
+    const converter = new WebAppToROS2Converter();
 
     useEffect(() => {
 
@@ -324,6 +342,113 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 }
             });
 
+            pluginsManager.addFilter(advertise_hook, {
+                id: advertise_hook,
+                filter: async (topic: DatasourceTopic) => {
+                    try {
+
+                        console.log(topic);
+
+                        await connectionRef.current;
+
+                        if (ros_publishers.has(topic.topic)) {
+                            const topic_and_counter = ros_publishers.get(topic.topic)!;
+                            topic_and_counter.counter++;
+                            return true;
+                        }
+
+                        const publisher = new ROSLIB.Topic({
+                            ros: ROSRef.current!,
+                            name: topic.topic,
+                            messageType: "geometry_msgs/Twist",
+                        });
+
+                        ros_publishers.set(topic.topic, {
+                            topic: publisher,
+                            counter: 1,
+                            hook: `${datasource_id}-${topic.topic}-published`
+                        });
+
+                        pluginsManager.addAction(`${datasource_id}-${topic.topic}-publish`, {
+                            id: `${datasource_id}-${topic.topic}-publish`,
+                            action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
+
+                                try {
+
+                                    console.log(publisher);
+
+                                    const converted = converter.convert(message, webtype, "geometry_msgs/Twist");
+                                    const msg = new ROSLIB.Message(converted);
+                                    console.log(topic, converted);
+
+                                    publisher.publish(msg);
+
+                                } catch (error) {
+                                    console.error("Failed to publish message", error);
+                                }
+                            },
+                            priority: 100,
+                        });
+
+                        return true;
+
+                    } catch (error) {
+                        toast({
+                            title: "Error",
+                            description: "Failed to advertise topic",
+                            variant: "destructive",
+                        });
+
+                        return false;
+                    }
+                },
+                priority: 100,
+
+            });
+
+            pluginsManager.addAction(unadvertise_hook, {
+                id: unadvertise_hook,
+                action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
+                    try {
+                        await connectionRef.current;
+
+                        if (!ros_publishers.has(topic.topic)) {
+                            return;
+                        }
+
+                        const topic_and_counter = ros_publishers.get(topic.topic)!;
+                        if (topic_and_counter.counter <= 1 || ignoreCount) {
+                            topic_and_counter.topic.unadvertise();
+                            ros_publishers.delete(topic.topic);
+                        }
+
+                        topic_and_counter.counter--;
+
+                    } catch (error) {
+                        toast({
+                            title: "Error",
+                            description: "Failed to unadvertise topic",
+                            variant: "destructive",
+                        });
+                    }
+                },
+                priority: 100,
+            });
+
+            pluginsManager.addFilter(available_types, {
+                id: available_types,
+                filter: async (types: string[]) => {
+                    try {
+                        await connectionRef.current;
+                        const all_types = await GetAllTopicTypes(ROSRef.current!);
+                        return [...types, ...all_types];
+                    } catch (error) {
+                        return types;
+                    }
+                },
+                priority: 100,
+            });
+
         }, WAIT_FOR_CONNECTION);
 
         const disconnect = async () => {
@@ -349,11 +474,26 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             pluginsManager.removeAction(subscribe_hook);
             pluginsManager.removeAction(unsubscribe_hook);
             pluginsManager.removeFilter(definition_hook);
+            pluginsManager.removeFilter(advertise_hook);
+            pluginsManager.removeAction(unadvertise_hook);
+            pluginsManager.removeFilter(available_types);
 
             // unsubscribe from all topics
             subscribersRef.current.forEach((subscriber) => {
                 subscriber.unsubscribe();
             });
+
+            // unadvertise all topics and remove hookks
+            ros_publishers.forEach((topic_and_counter) => {
+                if (topic_and_counter.counter > 1) {
+                    topic_and_counter.counter--;
+                    return;
+                }
+
+                topic_and_counter.topic.unadvertise();
+                pluginsManager.removeAction(topic_and_counter.hook);
+            });
+
 
             subscribersRef.current.clear();
             subscribersCountRef.current.clear();
