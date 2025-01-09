@@ -22,6 +22,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import DatasourceCard from './datasource-card';
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import DatasourceAdder from './datasource-adder';
+import { generateUniqueID } from '@/core/utils/Utils';
 
 
 
@@ -138,8 +139,10 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
             if (!Provider) {
                 return children_stack;
             }
+
+
             return (
-                <Provider key={datasource.datasource_id} props={datasource.settings}>
+                <Provider key={generateUniqueID()} props={datasource.settings}>
                     {children_stack}
                 </Provider>
             );
