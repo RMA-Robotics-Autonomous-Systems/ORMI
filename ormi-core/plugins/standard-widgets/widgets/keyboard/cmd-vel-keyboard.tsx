@@ -8,6 +8,8 @@ import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { KeyControlType } from "@/core/jsonforms/key/key";
 import { Movement } from "@/core/types/movement";
+import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
+import { toast } from "@/hooks/use-toast";
 
 export function KeyBoardControl(props: any) {
 
@@ -20,11 +22,21 @@ export function KeyBoardControl(props: any) {
     const [speedkeyInc, setSpeedKeyInc] = useState<boolean>(false);
     const [speedkeyDec, setSpeedKeyDec] = useState<boolean>(false);
 
+    const { publishers } = usePublisherDataSource();
 
     useEffect(() => {
 
         const publish_freq = props.publicationFrequency || 30; // default to 30Hz
         const publish_period_ms = 1000 / publish_freq;
+
+        const publisher = publishers.get(props.topic);
+        if (!publisher) {
+            toast({
+                title: 'Error',
+                description: `Publisher for topic ${props.topic} not found`,
+                variant: 'destructive',
+            })
+        }
 
         const swtichToggle = (press: boolean) => {
             if (props.unlocktoggle && press) {
@@ -144,6 +156,8 @@ export function KeyBoardControl(props: any) {
 
             if (right || left || forward || backward) {
                 console.log(movement);  // need to publish this movement to the datasource
+
+                publisher!.publish(movement);
             }
         }
 
@@ -303,9 +317,9 @@ export function KeyboardControlDefinition() {
             title: 'Control the robot'
         },
         Component: (data: any) => (
-            // <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
-            <KeyBoardControl {...data} />
-            // </LocalDataSourcesProvider >
+            <PublisherDataSourcesProvider TopicsProps={[data]}>
+                <KeyBoardControl {...data} />
+            </PublisherDataSourcesProvider>
         )
 
     }

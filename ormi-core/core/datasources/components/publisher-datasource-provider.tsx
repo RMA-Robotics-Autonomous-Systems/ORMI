@@ -37,19 +37,19 @@ class Publisher {
 
     async advertise() {
 
-        const result = await this.pm.applyFilterAsync(`${this.topic.source}-${this.topic.topic}-start-publisher`, this.topic);
+        const result = await this.pm.applyFilterAsync(`${this.topic.source}-advertise`, this.topic);
 
         return result;
     }
 
-    destroy() {
+    unadvertise() {
 
-        this.pm.doAction("", this.topic);
+        this.pm.doAction(`${this.topic.source}-unadvertise`, this.topic);
 
     }
 
     publish<T>(data: T) {
-        this.pm.doAction("", this.topic, data);
+        this.pm.doAction(`${this.topic.source}-${this.topic.topic}-publish`, this.topic, data);
     }
 }
 
@@ -90,7 +90,10 @@ const PublisherDataSourcesProvider: React.FC<PublisherDataSourcesProviderProps> 
             Topics.forEach(async topic => {
 
                 const publisher = new Publisher(topic, pluginsManager);
+
                 const result = await publisher.advertise();
+
+                console.log('PublisherDataSourcesProvider', topic.topic, result);
 
                 setPublishers((prev) => {
                     const newPublishers = new Map(prev);
@@ -124,13 +127,14 @@ const PublisherDataSourcesProvider: React.FC<PublisherDataSourcesProviderProps> 
                 });
             }
 
+            console.log('PublisherDataSourcesProvider initialized');
             setInitialized(true);
         });
 
         return () => {
             // for each publisher, destroy it
             publishers.forEach(publisher => {
-                publisher.destroy();
+                publisher.unadvertise();
             });
         }
 
