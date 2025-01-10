@@ -9,13 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@jsonforms/core": "^3.4.1",
-    "@jsonforms/material-renderers": "^3.4.1",
-    "@jsonforms/react": "^3.4.1",
+    "@jsonforms/core": "^3.5.0",
+    "@jsonforms/material-renderers": "^3.5.0",
+    "@jsonforms/react": "^3.5.0",
     "@mui/icons-material": "^6.3.1",
     "@mui/material": "^6.3.1",
-    "@mui/x-date-pickers": "^7.23.3",
-    "@mui/x-tree-view": "^7.23.2",
+    "@mui/x-date-pickers": "^7.23.6",
+    "@mui/x-tree-view": "^7.23.6",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-collapsible": "^1.1.2",
     "@radix-ui/react-context-menu": "^2.2.4",
