@@ -19,6 +19,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
             type: 'object',
             properties: {
                 title: { type: "string", title: "Title" },
+                enable: { type: "boolean", title: "Enable" },
 
                 topics: {
                     type: 'array',
@@ -43,6 +44,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
         data: {
             id: '',
             title: '',
+            enable: true,
             topics: [],
         },
 
@@ -60,6 +62,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
             type: 'object',
             properties: {
                 title: { type: "string", title: "Title" },
+                enable: { type: "boolean", title: "Enable" },
 
                 topics: {
                     type: 'array',
@@ -84,6 +87,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
         data: {
             id: '',
             title: '',
+            enable: true,
             topics: [],
         },
 
@@ -101,6 +105,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
             type: 'object',
             properties: {
                 title: { type: "string", title: "Title" },
+                enable: { type: "boolean", title: "Enable" },
 
                 url: {
                     type: 'string',
@@ -116,6 +121,7 @@ const dataSourceExport = (current_datasource_type: DatasourceDefinition<any>[]) 
         data: {
             id: '',
             title: '',
+            enable: true,
             url: '',
             reconnectTimeout: 2,
         },

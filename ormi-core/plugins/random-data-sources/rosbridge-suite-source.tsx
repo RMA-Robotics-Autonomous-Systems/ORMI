@@ -25,8 +25,6 @@ import { DatasourceProviderSettings, DatasourceTopic } from '@/core/datasources/
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
-import { cp } from 'fs';
-import { Filter } from 'lucide-react';
 import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 
@@ -181,6 +179,11 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const converter = new WebAppToROS2Converter();
 
     useEffect(() => {
+
+        if (!props.enable) {
+            setConnected(true);     // allow to render children
+            return;
+        }
 
         const waitTimeOut = setTimeout(() => {
             connectionRef.current = new Promise<boolean>((resolve, reject) => {

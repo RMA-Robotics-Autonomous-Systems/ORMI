@@ -39,6 +39,7 @@ interface DatasourceTopic {
 interface DatasourceProviderSettings {
     id: string;
     title: string;
+    enable: boolean;
 }
 
 export type { DatasourceDefinition, Datasource, DatasourceTopic, DatasourceProviderSettings };
