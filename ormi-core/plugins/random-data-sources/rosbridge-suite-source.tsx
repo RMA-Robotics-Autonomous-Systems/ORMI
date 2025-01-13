@@ -347,7 +347,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
             pluginsManager.addFilter(advertise_hook, {
                 id: advertise_hook,
-                filter: async (topic: DatasourceTopic) => {
+                filter: async (topic: SelectedTopic) => {
                     try {
 
                         console.log(topic);
@@ -363,7 +363,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         const publisher = new ROSLIB.Topic({
                             ros: ROSRef.current!,
                             name: topic.topic,
-                            messageType: "geometry_msgs/Twist",
+                            messageType: topic.type,
                         });
 
                         ros_publishers.set(topic.topic, {
@@ -375,14 +375,9 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         pluginsManager.addAction(`${datasource_id}-${topic.topic}-publish`, {
                             id: `${datasource_id}-${topic.topic}-publish`,
                             action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
-
                                 try {
-
-                                    console.log(publisher);
-
-                                    const converted = converter.convert(message, webtype, "geometry_msgs/Twist");
+                                    const converted = converter.convert(message, webtype, topic.type);
                                     const msg = new ROSLIB.Message(converted);
-                                    console.log(topic, converted);
 
                                     publisher.publish(msg);
 
