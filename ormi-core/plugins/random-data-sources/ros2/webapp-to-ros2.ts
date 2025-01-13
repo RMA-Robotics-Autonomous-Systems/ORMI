@@ -5,7 +5,7 @@ const convertionMap = {
     "string": "string",
     "number": "float64",
     "boolean": "bool",
-    "Movement": "geometry_msgs/Twist",       
+    "Movement": "geometry_msgs/msg/Twist",       
 }
 
 export class WebAppToROS2Converter{
@@ -18,7 +18,7 @@ export class WebAppToROS2Converter{
             throw new Error(`Cannot convert ${targetType} to ${convertionType}`);
         }
 
-        switch(targetType){
+        switch(originType){
             case "Movement": return this.MovementToTwist(data);
         }
 
