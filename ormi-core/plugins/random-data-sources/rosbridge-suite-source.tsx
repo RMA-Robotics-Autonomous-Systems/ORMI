@@ -21,11 +21,10 @@ import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 
-import { DatasourceProviderSettings, DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
-import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 
 const RosBridgeSuiteSourceContext = createContext(null);
@@ -349,8 +348,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 id: advertise_hook,
                 filter: async (topic: SelectedTopic) => {
                     try {
-
-                        console.log(topic);
 
                         await connectionRef.current;
 

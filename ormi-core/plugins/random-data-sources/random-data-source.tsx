@@ -20,8 +20,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 
 import { RandomDataSourceSettings } from './index';
-import { DatasourceTopic } from '@/core/datasources/datasource-interface';
-import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
+import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 
 const RandomDataSourceContext = createContext(null);
 
