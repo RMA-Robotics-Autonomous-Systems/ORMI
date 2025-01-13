@@ -9,9 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@jsonforms/core": "^3.5.0",
-    "@jsonforms/material-renderers": "^3.5.0",
-    "@jsonforms/react": "^3.5.0",
+    "@jsonforms/core": "^3.5.1",
+    "@jsonforms/material-renderers": "^3.5.1",
+    "@jsonforms/react": "^3.5.1",
     "@mui/icons-material": "^6.3.1",
     "@mui/material": "^6.3.1",
     "@mui/x-date-pickers": "^7.23.6",
