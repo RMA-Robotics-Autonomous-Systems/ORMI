@@ -9,12 +9,12 @@ import { cn } from "@/lib/utils"
 
 import { Label } from '@/components/ui/label';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
-import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { Datasource, DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { TreeViewBaseItem } from '@mui/x-tree-view/models/items';
 import { toast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { generateTreeView } from '@/core/utils/tree-view';
 import TopicCreator from './topic-creator';
 import { Check, ChevronsUpDown } from 'lucide-react';
@@ -52,7 +52,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         setSelectedTopic(topic_name);
         setSelectedTopicObject(topic);
 
-        handleChange(path, JSON.stringify({ topic: topic?.topic, source: topic?.source.id, property: '' }));
+        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type } as SelectedTopic));
 
 
         // represents the topic definition in json
@@ -85,22 +85,21 @@ const AsyncTopicControl = (props: ControlProps) => {
 
         const treeViewItems = generateTreeView(topic_msg_def);
         setTopicProps(treeViewItems);
-
-        //handleChange(path, value);
     }
 
     const handlePropertyChange = (event: React.MouseEvent<Element>, itemId: string) => {
         if (!selectedTopicObject) {
             return;
         }
-        handleChange(path, JSON.stringify({ topic: selectedTopicObject.topic, source: selectedTopicObject.source.id, property: itemId }));
+
+        handleChange(path, { topic: selectedTopicObject.topic, source: selectedTopicObject.source, property: itemId, type: selectedTopicObject.type } as SelectedTopic);
     }
 
-    const handleCustomTopics = (source: string, topic: string, type: string) => {
+    const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
 
         setSelectedTopic(topic);
 
-        handleChange(path, JSON.stringify({ topic: topic, source: source, property: '' }));
+        handleChange(path, { topic: topic, source: source.settings, property: '', type: type } as SelectedTopic);
         setOpen(false);
     }
 
@@ -115,7 +114,11 @@ const AsyncTopicControl = (props: ControlProps) => {
 
                 setTopics(result);
 
-                const value = data ? JSON.parse(data) : { topic: '', source: '', property: '' } as SelectedTopic;
+                const value = data as SelectedTopic | undefined;
+                if (!value) {
+                    return;
+                }
+
                 const topic = result.find(topic => topic.topic === value.topic);
 
                 setSelectedTopic(value.topic);
@@ -205,10 +208,4 @@ export { asyncTopicTester };
 
 export interface AsyncTopicControlType extends Omit<ControlElement, 'type'> {
     type: 'TopicSelect';
-}
-
-export interface SelectedTopic {
-    topic: string;
-    source: string;
-    property: string;
 }

@@ -7,7 +7,7 @@ import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { CheckIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export default function TopicCreator(props: { value: string, handleTopic: (source: string, topic: string, type: string) => void }) {
+export default function TopicCreator(props: { value: string, handleTopic: (source: Datasource, topic: string, type: string) => void }) {
 
     const pluginsManager = usePluginsManager();
 
@@ -35,10 +35,7 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
     const handleDatasourceChange = (datasource_id: string) => {
         setSelectedDatasource(datasource_id);
 
-
-
         setTypes(datasource_id);
-
     }
 
     const handleTopicChange = (topic: string) => {
@@ -50,7 +47,14 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
     }
 
     const handleValidate = () => {
-        props.handleTopic(selectedDatasource, selectedTopic, selectedType);
+
+        const datasource = datasources.find(ds => ds.settings.id === selectedDatasource);
+
+        if (!datasource) {
+            return;
+        }
+
+        props.handleTopic(datasource, selectedTopic, selectedType);
     }
 
     return (

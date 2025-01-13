@@ -3,22 +3,36 @@ import style from "@/core/jsonforms/key/key.module.css";
 import { LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { AsyncTopicControlType } from "@/core/jsonforms/topic-selector/topic-selector";
-import { DatasourceTopic } from "@/core/datasources/datasource-interface";
+import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { KeyControlType } from "@/core/jsonforms/key/key";
 import { Movement } from "@/core/types/movement";
 import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
 import { toast } from "@/hooks/use-toast";
-import { parseSelectedTopicJSON } from "@/core/utils/Utils";
 
-export function KeyBoardControl(props: any) {
+interface KeyboardControlData {
+    title: string;
+    forward: string;
+    backward: string;
+    left: string;
+    right: string;
+    startingSpeed: number;
+    incSpeed: string;
+    decSpeed: string;
+    unlock: string;
+    unlocktoggle: boolean;
+    topic: SelectedTopic;
+    publicationFrequency: number;
+}
+
+export function KeyBoardControl(props: KeyboardControlData) {
 
     const [forward, setForward] = useState<boolean>(false);
     const [backward, setBackward] = useState<boolean>(false);
     const [left, setLeft] = useState<boolean>(false);
     const [right, setRight] = useState<boolean>(false);
-    const [speed, setSpeed] = useState<number>(parseFloat(props.startingSpeed));
+    const [speed, setSpeed] = useState<number>(props.startingSpeed);
     const [unlock, setUnlock] = useState<boolean>(false);
     const [speedkeyInc, setSpeedKeyInc] = useState<boolean>(false);
     const [speedkeyDec, setSpeedKeyDec] = useState<boolean>(false);
@@ -29,7 +43,7 @@ export function KeyBoardControl(props: any) {
 
         const publish_freq = props.publicationFrequency || 30; // default to 30Hz
         const publish_period_ms = 1000 / publish_freq;
-        const selectedTopic = parseSelectedTopicJSON(props.topic);
+        const selectedTopic = props.topic;
         const publisher = publishers.get(selectedTopic.topic);
 
         if (!publisher) {
@@ -243,7 +257,7 @@ export function KeyboardControlDefinition() {
                     title: 'Unlock Toggle'
                 },
                 topic: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Topic',
                 },
                 publicationFrequency: {
@@ -302,9 +316,9 @@ export function KeyboardControlDefinition() {
                     "scope": "#/properties/topic",
                     "options": {
                         "asyncFunction": async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'Movement');
                         },
-                        // "propertyType": "number"
+                        "propertyType": "Movement"
                     }
                 } as AsyncTopicControlType,
                 {
@@ -316,8 +330,8 @@ export function KeyboardControlDefinition() {
         data: {
             title: 'Control the robot'
         },
-        Component: (data: any) => (
-            <PublisherDataSourcesProvider TopicsProps={[data]}>
+        Component: (data: KeyboardControlData) => (
+            <PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
                 <KeyBoardControl {...data} />
             </PublisherDataSourcesProvider>
         )

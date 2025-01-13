@@ -3,15 +3,13 @@
 import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
 import { VerticalLayout, ControlElement } from "@jsonforms/core";
-import dynamic from 'next/dynamic';
 
-import { Skeleton } from "@/components/ui/skeleton"
 import { LocalDataSourcesProvider } from '@/core/datasources/components/local-datasource-provider';
 
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
-import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { AsyncTopicControlType } from '@/core/jsonforms/topic-selector/topic-selector';
 
 import { PluginViewer } from './widgets/plugins-viewer';
@@ -21,131 +19,142 @@ import { TreeViewer } from './widgets/tree-viewer';
 import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 
 
-function LineChartExport(widgets: WidgetDefinition[]) {
+// function LineChartExport(widgets: WidgetDefinition[]) {
 
-    const pluginsManager = usePluginsManager();
+//     const pluginsManager = usePluginsManager();
 
-    const title: ControlElement = {
-        type: "Control",
-        scope: "#/properties/title",
-    }
+//     const title: ControlElement = {
+//         type: "Control",
+//         scope: "#/properties/title",
+//     }
 
-    const timeToSpan: ControlElement = {
-        type: "Control",
-        scope: "#/properties/timeToSpan",
-    }
+//     const timeToSpan: ControlElement = {
+//         type: "Control",
+//         scope: "#/properties/timeToSpan",
+//     }
 
-    const topic: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/topic",
-        "options": {
-            "async": true,
-            "asyncFunction": async () => {
-                const topics = await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
-                return topics.map((topic) => ({
-                    label: topic.topic,
-                    value: topic.topic
-                }));
-            },
-        }
-    }
+//     const topic: ControlElement = {
+//         "type": "Control",
+//         "scope": "#/properties/topic",
+//         "options": {
+//             "async": true,
+//             "asyncFunction": async () => {
+//                 const topics = await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+//                 return topics.map((topic) => ({
+//                     label: topic.topic,
+//                     value: topic.topic
+//                 }));
+//             },
+//         }
+//     }
 
-    const color: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/color",
-        "options": {
-            "color": true,
-        }
-    }
+//     const color: ControlElement = {
+//         "type": "Control",
+//         "scope": "#/properties/color",
+//         "options": {
+//             "color": true,
+//         }
+//     }
 
-    const fill: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/fill",
-    }
+//     const fill: ControlElement = {
+//         "type": "Control",
+//         "scope": "#/properties/fill",
+//     }
 
-    // array of topics
-    const topics: ControlElement = {
-        type: "Control",
-        scope: "#/properties/topics",
-        options: {
-            detail: {
-                type: "VerticalLayout",
-                elements: [topic, color, fill]
-            }
-        }
-    }
+//     // array of topics
+//     const topics: ControlElement = {
+//         type: "Control",
+//         scope: "#/properties/topics",
+//         options: {
+//             detail: {
+//                 type: "VerticalLayout",
+//                 elements: [topic, color, fill]
+//             }
+//         }
+//     }
 
-    const layout: VerticalLayout = {
-        type: "VerticalLayout",
-        elements: [title, timeToSpan, topics],
-    }
+//     const layout: VerticalLayout = {
+//         type: "VerticalLayout",
+//         elements: [title, timeToSpan, topics],
+//     }
 
-    const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.LineChart), {
-        loading: () => <Skeleton />,
-    })
+//     const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.LineChart), {
+//         loading: () => <Skeleton />,
+//     })
 
-    const chartWidget: WidgetDefinition = {
-        id: 'chart-widget-line',
-        name: 'Line chart',
-        description: 'Display a line chart',
-        titleProp: 'title',
-        schema: {
-            type: 'object',
-            properties: {
-                title: {
-                    type: 'string',
-                    title: 'Title'
-                },
-                timeToSpan: {
-                    type: 'number',
-                    title: 'Span of time in seconds',
-                    default: 10
-                },
-                topics: {
-                    type: 'array',
-                    title: 'Topics',
-                    items: {
-                        "type": "object",
-                        "properties": {
-                            "topic": {
-                                "type": "string",
-                                "title": "Topic"
-                            },
-                            "color": {
-                                "type": "string",
-                                "title": "Color",
-                            },
-                            "fill": {
-                                "type": "boolean",
-                                "title": "Fill",
-                                default: false
-                            }
-                        },
-                        "required": ["topic"]
-                    }
-                }
-            },
-            required: ['title', 'topics', 'timeToSpan']
-        },
-        uischema: layout,
-        data: {
-            title: 'Chart'
-        },
-        Component: (data: any) => (
-            <DynamicComponent {...data} />
-        )
+//     const chartWidget: WidgetDefinition = {
+//         id: 'chart-widget-line',
+//         name: 'Line chart',
+//         description: 'Display a line chart',
+//         titleProp: 'title',
+//         schema: {
+//             type: 'object',
+//             properties: {
+//                 title: {
+//                     type: 'string',
+//                     title: 'Title'
+//                 },
+//                 timeToSpan: {
+//                     type: 'number',
+//                     title: 'Span of time in seconds',
+//                     default: 10
+//                 },
+//                 topics: {
+//                     type: 'array',
+//                     title: 'Topics',
+//                     items: {
+//                         "type": "object",
+//                         "properties": {
+//                             "topic": {
+//                                 "type": "string",
+//                                 "title": "Topic"
+//                             },
+//                             "color": {
+//                                 "type": "string",
+//                                 "title": "Color",
+//                             },
+//                             "fill": {
+//                                 "type": "boolean",
+//                                 "title": "Fill",
+//                                 default: false
+//                             }
+//                         },
+//                         "required": ["topic"]
+//                     }
+//                 }
+//             },
+//             required: ['title', 'topics', 'timeToSpan']
+//         },
+//         uischema: layout,
+//         data: {
+//             title: 'Chart'
+//         },
+//         Component: (data: any) => (
+//             <DynamicComponent {...data} />
+//         )
 
-    }
+//     }
 
-    widgets.push(chartWidget);
+//     widgets.push(chartWidget);
 
 
-    return widgets;
-};
+//     return widgets;
+// };
 
 function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
 
     const pluginsManager = usePluginsManager();
+
+    interface TimeSeriesSettings {
+        title: string;
+        timeHistory: number;
+        updateFrequency: number;
+        topics: {
+            topic: SelectedTopic;
+            color: string;
+            fill: boolean;
+        }[]
+    }
 
     const title: ControlElement = {
         type: "Control",
@@ -203,10 +212,6 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         elements: [title, timeHistory, updateFrequency, topics],
     }
 
-    // const DynamicComponent = dynamic(() => import('./widgets/timeseries-chart').then(mod => mod.TimeChartComponent), {
-    //     loading: () => <Skeleton />,
-    // })
-
     const timeSeriesWidget: WidgetDefinition = {
         id: 'chart-widget-time-series',
         name: 'Time series chart',
@@ -236,7 +241,7 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                         "type": "object",
                         "properties": {
                             "topic": {
-                                "type": "string",
+                                "type": "object",
                                 "title": "Topic",
                             },
                             "color": {
@@ -259,9 +264,9 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         data: {
             title: 'Chart'
         },
-        Component: (data: any) => (
-            <LocalDataSourcesProvider TopicsProps={data.topics} buffersSize={2000} >
-                {/* <DynamicComponent {...data} /> */}
+        Component: (data: TimeSeriesSettings) => (
+
+            <LocalDataSourcesProvider SelectedTopics={data.topics.map(t => t.topic)} buffersSize={2000} >
                 <TimeChartComponent {...data} />
             </LocalDataSourcesProvider >
         )
@@ -278,6 +283,12 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
 
     const pluginsManager = usePluginsManager();
 
+    interface JsonViewerProps {
+        title: string;
+        topic: SelectedTopic;
+    }
+
+
     const title: ControlElement = {
         type: "Control",
         scope: "#/properties/title",
@@ -299,10 +310,6 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         elements: [title, topic],
     }
 
-    // const DynamicComponent = dynamic(() => import('./widgets/json-viewer').then(mod => mod.JsonViewer), {
-    //     loading: () => <Skeleton />,
-    // })
-
     const jsonViewerWidget: WidgetDefinition = {
         id: 'json-viewer-widget',
         name: 'Json viewer',
@@ -316,7 +323,7 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
                     title: 'Title'
                 },
                 topic: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Topic',
                 }
             },
@@ -326,8 +333,8 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         data: {
             title: 'Json viewer'
         },
-        Component: (data: any) => (
-            <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
+        Component: (data: JsonViewerProps) => (
+            <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1} >
                 {/* <DynamicComponent {...data} /> */}
                 <JsonViewer {...data} />
             </LocalDataSourcesProvider >
@@ -344,6 +351,11 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
 
     const pluginsManager = usePluginsManager();
 
+    interface TreeViewerProps {
+        title: string;
+        topic: SelectedTopic;
+    }
+
     const title: ControlElement = {
         type: "Control",
         scope: "#/properties/title",
@@ -364,10 +376,6 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         type: "VerticalLayout",
         elements: [title, topic],
     }
-
-    // const DynamicComponent = dynamic(() => import('./widgets/tree-viewer').then(mod => mod.TreeViewer), {
-    //     loading: () => <Skeleton />,
-    // })
 
     const jsonViewerWidget: WidgetDefinition = {
         id: 'tree-viewer-widget',
@@ -392,10 +400,9 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         data: {
             title: 'Tree viewer'
         },
-        Component: (data: any) => (
-            <LocalDataSourcesProvider TopicsProps={[data]} buffersSize={1} >
-                {/* <DynamicComponent {...data} /> */}
-                <TreeViewer {...data} />
+        Component: (data: TreeViewerProps) => (
+            <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1} >
+                <TreeViewer />
             </LocalDataSourcesProvider >
         )
 

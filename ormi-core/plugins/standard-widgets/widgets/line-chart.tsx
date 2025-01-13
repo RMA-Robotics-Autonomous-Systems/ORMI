@@ -5,11 +5,23 @@ import { getColorsFromString, getTransparentColorString } from '@/core/utils/Col
 import { toast } from '@/hooks/use-toast';
 import Chart, { ChartConfiguration } from 'chart.js/auto';
 import { useEffect, useRef } from 'react';
+import { SelectedTopic } from '@/core/datasources/datasource-interface';
+
+interface TimeSeriesSettings {
+    title: string;
+    timeHistory: number;
+    updateFrequency: number;
+    topics: {
+        topic: SelectedTopic;
+        color: string;
+        fill: boolean;
+    }[]
+}
 
 /*
     Component that implements Chart.js to render a line chart.
 */
-export function LineChart(props: any) {
+export function LineChart(props: TimeSeriesSettings) {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const chartRef = useRef<Chart>();
@@ -43,7 +55,7 @@ export function LineChart(props: any) {
                         time: {
                             unit: 'millisecond',
                         },
-                        min: Date.now() - props.timeToSpan * 1000,
+                        min: Date.now() - props.timeHistory * 1000,
                         max: Date.now(),
                         ticks: {
                             maxRotation: 45,
@@ -66,16 +78,16 @@ export function LineChart(props: any) {
         };
 
         // load datasets from props.topics
-        for (const topic of props.topics) {
+        for (const topicInfo of props.topics) {
             const data: number[] = [];
 
-            const source = sources.get(topic.topic);
-            const title = topic.topic;
+            const source = sources.get(topicInfo.topic.topic);
+            const title = topicInfo.topic.topic;
 
             if (!source) {
                 toast({
                     title: 'Error',
-                    description: `Data source ${topic.topic} not found`,
+                    description: `Data source ${topicInfo.topic.topic} not found`,
                     variant: 'destructive',
                 })
                 continue;
@@ -86,9 +98,9 @@ export function LineChart(props: any) {
             config.data.datasets.push({
                 label: title,
                 data: data,
-                fill: topic.fill || false,
-                backgroundColor: getTransparentColorString(topic.color || getColorsFromString(title), 0.4),
-                borderColor: topic.color || getColorsFromString(title),
+                fill: topicInfo.fill || false,
+                backgroundColor: getTransparentColorString(topicInfo.color || getColorsFromString(title), 0.4),
+                borderColor: topicInfo.color || getColorsFromString(title),
                 normalized: true,
                 tension: 0
             });
@@ -117,7 +129,7 @@ export function LineChart(props: any) {
             return;
         }
 
-        const spanOfTime = props.timeToSpan || 10; // keep n seconds of data, default 10
+        const spanOfTime = props.timeHistory || 10; // keep n seconds of data, default 10
 
 
         // currentTime is the biggest timestamp in the data sources

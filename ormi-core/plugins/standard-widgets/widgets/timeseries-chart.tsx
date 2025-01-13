@@ -1,5 +1,5 @@
 import { useLocalDataSource } from '@/core/datasources/components/local-datasource-provider';
-import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
+import { SelectedTopic } from '@/core/datasources/datasource-interface';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import React, { useEffect, useRef } from 'react';
@@ -7,7 +7,18 @@ import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
 import 'uplot/dist/uPlot.min.css';
 
-export function TimeChartComponent(props: any) {
+interface TimeSeriesSettings {
+    title: string;
+    timeHistory: number;
+    updateFrequency: number;
+    topics: {
+        topic: SelectedTopic;
+        color: string;
+        fill: boolean;
+    }[]
+}
+
+export function TimeChartComponent(props: TimeSeriesSettings) {
     const { sources } = useLocalDataSource();
     const divRef = useRef<HTMLDivElement>(null);
     const frameRef = useRef<number>();
@@ -60,7 +71,7 @@ export function TimeChartComponent(props: any) {
 
             // Process incoming data
             for (const topic_props of props.topics) {
-                const topic = getTopic(topic_props.topic);
+                const topic = topic_props.topic;
                 const sourceId = (topic.property !== '') ?
                     topic.topic + "+" + topic.property : topic.topic;
 
@@ -85,7 +96,7 @@ export function TimeChartComponent(props: any) {
             const newData: AlignedData = [timeArray];
 
             props.topics.forEach((topic_props: any) => {
-                const topic = getTopic(topic_props.topic);
+                const topic = topic_props.topic;
                 const sourceId = (topic.property !== '') ?
                     topic.topic + "+" + topic.property : topic.topic;
                 const topicData = dataBufferRef.current.get(sourceId);
@@ -134,12 +145,13 @@ export function TimeChartComponent(props: any) {
 }
 
 // Helper functions
-function initializeSeries(topics: any[], sources: Map<string, any>): uPlot.Series[] {
+function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: boolean }[], sources: Map<string, any>): uPlot.Series[] {
     const series: uPlot.Series[] = [{ label: 'Time' }];
     const notFoundTopics: string[] = [];
 
     topics.forEach(topic_props => {
-        const topic = getTopic(topic_props.topic);
+        const topic: SelectedTopic = topic_props.topic;
+
         const sourceId = (topic.property !== '') ?
             topic.topic + "+" + topic.property : topic.topic;
 
@@ -171,10 +183,6 @@ function initializeSeries(topics: any[], sources: Map<string, any>): uPlot.Serie
     }
 
     return series;
-}
-
-function getTopic(topic: string) {
-    return JSON.parse(topic) as SelectedTopic;
 }
 
 function showErrorToast(notFoundTopics: string[]) {

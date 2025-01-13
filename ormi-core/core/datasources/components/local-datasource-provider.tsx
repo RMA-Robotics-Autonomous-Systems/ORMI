@@ -9,9 +9,9 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
-import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { toast } from '@/hooks/use-toast';
+import { SelectedTopic } from '../datasource-interface';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
@@ -24,7 +24,7 @@ interface Source<T> {
 
 interface LocalDataSourcesProviderProps {
     children: ReactNode;
-    TopicsProps: string[];
+    SelectedTopics: SelectedTopic[];
     buffersSize: number;
 }
 
@@ -32,13 +32,13 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
     sources: new Map<string, Source<any>>()
 });
 
-const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, TopicsProps, buffersSize }) => {
+const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ children, SelectedTopics, buffersSize }) => {
 
     const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
     // const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
-    const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
+    const Topics = SelectedTopics;
 
     const local_id = useRef(Math.random().toString(36).substring(7)).current;
 
@@ -98,7 +98,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
                 // subscribe to the topic, this start the data flow inside the datasource
                 // this triggers the published action on the data hook of the topic
-                const result = await pluginsManager.WaitAndDoAction(`${topic.source}-subscribe`, 1, topic)
+                const result = await pluginsManager.WaitAndDoAction(`${topic.source.id}-subscribe`, 1, topic)
 
                 if (result === false) {
                     setInitializedTopic(topic.topic, false);
@@ -106,8 +106,8 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 }
 
                 // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
-                pluginsManager.addAction(topic.source + "-" + topic.topic + "-published", {
-                    id: `${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`,
+                pluginsManager.addAction(topic.source.id + "-" + topic.topic + "-published", {
+                    id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
                     priority: 10,
                     action: (value: any, time: number) => {
 
@@ -168,14 +168,14 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 // unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
                 // await pluginsManager.WaitForActionToExist(`${topic.source}-unsubscribe`);
                 // pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
-                await pluginsManager.WaitAndDoAction(`${topic.source}-unsubscribe`, 1, topic);
+                await pluginsManager.WaitAndDoAction(`${topic.source.id}-unsubscribe`, 1, topic);
 
                 // remove the action that was added to the data hook of the topic,
-                pluginsManager.removeAction(`${local_id}-${topic.source}-${topic.topic}_${topic.property}-published`);
+                pluginsManager.removeAction(`${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`);
             });
         }
 
-    }, [TopicsProps, datasources]);
+    }, [SelectedTopics, datasources]);
 
 
     return (

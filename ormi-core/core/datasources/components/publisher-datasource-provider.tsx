@@ -9,11 +9,10 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
-import { SelectedTopic } from '@/core/jsonforms/topic-selector/topic-selector';
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { toast } from '@/hooks/use-toast';
-import { DatasourceTopic } from '../datasource-interface';
 import PluginsManager from '@/core/plugins/plugins-manager';
+import { SelectedTopic } from '../datasource-interface';
 
 interface PublisherDataSources {
     publishers: Map<string, Publisher>;
@@ -21,7 +20,7 @@ interface PublisherDataSources {
 
 interface PublisherDataSourcesProviderProps {
     children: ReactNode;
-    TopicsProps: string[];
+    SelectedTopics: SelectedTopic[];
 }
 
 class Publisher {
@@ -36,17 +35,15 @@ class Publisher {
     }
 
     async advertise() {
-        return await this.pm.applyFilterAsync(`${this.topic.source}-advertise`, this.topic);
+        return await this.pm.applyFilterAsync(`${this.topic.source.id}-advertise`, this.topic);
     }
 
     unadvertise() {
-
-        this.pm.doAction(`${this.topic.source}-unadvertise`, this.topic);
-
+        this.pm.doAction(`${this.topic.source.id}-unadvertise`, this.topic);
     }
 
     publish<T>(data: T, webtype: string) {
-        this.pm.doAction(`${this.topic.source}-${this.topic.topic}-publish`, this.topic, data, webtype);
+        this.pm.doAction(`${this.topic.source.id}-${this.topic.topic}-publish`, this.topic, data, webtype);
     }
 }
 
@@ -55,18 +52,14 @@ const PublisherDataSourcesContext = createContext<PublisherDataSources>({
     publishers: new Map<string, Publisher>()
 });
 
-const PublisherDataSourcesProvider: React.FC<PublisherDataSourcesProviderProps> = ({ children, TopicsProps }) => {
+const PublisherDataSourcesProvider: React.FC<PublisherDataSourcesProviderProps> = ({ children, SelectedTopics }) => {
 
     // const sources = useRef<Map<string, Source<any>>>(new Map<string, Source<any>>()).current;
     const pluginsManager = usePluginsManager();
 
-    const Topics = (TopicsProps as any[]).map(topic => JSON.parse(topic.topic) as SelectedTopic);
-
-    const local_id = useRef(Math.random().toString(36).substring(7)).current;
+    const Topics = SelectedTopics;
 
     const [publishers, setPublishers] = useState<Map<string, Publisher>>(new Map());
-
-
     const [initialized, setInitialized] = useState(false);
 
     const { datasources } = useDashboardManager();
@@ -135,7 +128,7 @@ const PublisherDataSourcesProvider: React.FC<PublisherDataSourcesProviderProps> 
             });
         }
 
-    }, [TopicsProps, datasources]);
+    }, [SelectedTopics, datasources]);
 
 
     return (

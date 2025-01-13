@@ -29,11 +29,10 @@ interface DatasourceTopic {
     topic: string;
     source: DatasourceProviderSettings;
     type: string;
-    
-    // subscribeHook?: string;
-    // unsubscribeHook?: string;
-    // pubshlishHook?: string;
-    // definitionHook?: string;
+}
+
+interface SelectedTopic extends DatasourceTopic {
+    property: string;
 }
 
 interface DatasourceProviderSettings {
@@ -42,4 +41,4 @@ interface DatasourceProviderSettings {
     enable: boolean;
 }
 
-export type { DatasourceDefinition, Datasource, DatasourceTopic, DatasourceProviderSettings };
+export type { DatasourceDefinition, Datasource, DatasourceTopic, DatasourceProviderSettings,SelectedTopic };
