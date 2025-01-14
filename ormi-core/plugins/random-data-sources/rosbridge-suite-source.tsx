@@ -363,14 +363,16 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             messageType: topic.type,
                         });
 
+                        const hook = `${datasource_id}-${topic.topic}-publish`;
+
                         ros_publishers.set(topic.topic, {
                             topic: publisher,
                             counter: 1,
-                            hook: `${datasource_id}-${topic.topic}-published`
+                            hook: hook
                         });
 
-                        pluginsManager.addAction(`${datasource_id}-${topic.topic}-publish`, {
-                            id: `${datasource_id}-${topic.topic}-publish`,
+                        pluginsManager.addAction(hook, {
+                            id: hook,
                             action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
                                 try {
                                     const converted = converter.convert(message, webtype, topic.type);
@@ -388,6 +390,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         return true;
 
                     } catch (error) {
+                        console.error("Advertise error:", error);
                         toast({
                             title: "Error",
                             description: "Failed to advertise topic",
@@ -420,6 +423,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         topic_and_counter.counter--;
 
                     } catch (error) {
+                        console.error("Unadvertise error:", error);
                         toast({
                             title: "Error",
                             description: "Failed to unadvertise topic",
@@ -480,10 +484,10 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
             // unadvertise all topics and remove hookks
             ros_publishers.forEach((topic_and_counter) => {
-                if (topic_and_counter.counter > 1) {
-                    topic_and_counter.counter--;
-                    return;
-                }
+                // if (topic_and_counter.counter > 1) {
+                //     topic_and_counter.counter--;
+                //     return;
+                // }
 
                 topic_and_counter.topic.unadvertise();
                 pluginsManager.removeAction(topic_and_counter.hook);
