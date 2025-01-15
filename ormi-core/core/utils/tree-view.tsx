@@ -30,6 +30,14 @@ export function generateTreeView(schema: JsonSchema): TreeViewItem[] {
             const refSchema = resolveRef(propertySchema.$ref);
             const refType = propertySchema.$ref.split('/').pop();
 
+            if (!refSchema) {
+                return {
+                    id,
+                    label: `${propertyName}: ${refType}`,
+                    children: []
+                };
+            }
+
             return {
                 id,
                 label: `${propertyName}: ${refType}`,
