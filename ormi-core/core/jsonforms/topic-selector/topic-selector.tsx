@@ -19,6 +19,7 @@ import { generateTreeView } from '@/core/utils/tree-view';
 import TopicCreator from './topic-creator';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { CommandSeparator } from 'cmdk';
+import { Input } from '@/components/ui/input';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
@@ -30,7 +31,7 @@ const AsyncTopicControl = (props: ControlProps) => {
     const [topicProps, setTopicProps] = useState<TreeViewBaseItem[]>([]);
 
     const [selectedTopic, setSelectedTopic] = useState<string>('');
-    const [selectedTopicObject, setSelectedTopicObject] = useState<DatasourceTopic | undefined>(undefined);
+    const [selectedTopicObject, setSelectedTopicObject] = useState<SelectedTopic | undefined>(undefined);
 
     const pluginsManager = usePluginsManager();
 
@@ -52,7 +53,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         setSelectedTopic(topic_name);
         setSelectedTopicObject(topic);
 
-        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type } as SelectedTopic));
+        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || 100 } as SelectedTopic));
 
 
         // represents the topic definition in json
@@ -92,15 +93,37 @@ const AsyncTopicControl = (props: ControlProps) => {
             return;
         }
 
-        handleChange(path, { topic: selectedTopicObject.topic, source: selectedTopicObject.source, property: itemId, type: selectedTopicObject.type } as SelectedTopic);
+        handleChange(path, { topic: selectedTopicObject.topic, source: selectedTopicObject.source, property: itemId, type: selectedTopicObject.type, bufferSize: selectedTopicObject.bufferSize || 100 } as SelectedTopic);
     }
 
     const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
 
         setSelectedTopic(topic);
 
+        setSelectedTopicObject((prev) => {
+            if (!prev) {
+                return prev;
+            }
+
+            return { ...prev, source: source.settings, type: type };
+        })
+
         handleChange(path, { topic: topic, source: source.settings, property: '', type: type } as SelectedTopic);
         setOpen(false);
+    }
+
+    const handleBufferChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+
+        setSelectedTopicObject((prev) => {
+            if (!prev) {
+                return prev;
+            }
+
+            return { ...prev, bufferSize: parseInt(value) };
+        })
+
+        handleChange(path, { topic: selectedTopic, source: selectedTopicObject?.source, property: selectedTopicObject?.property || "", type: selectedTopicObject?.type, bufferSize: parseInt(value) } as SelectedTopic);
     }
 
     useEffect(() => {
@@ -119,14 +142,14 @@ const AsyncTopicControl = (props: ControlProps) => {
                     return;
                 }
 
-                const topic = result.find(topic => topic.topic === value.topic);
+                // const topic = result.find(topic => topic.topic === value.topic);
 
                 setSelectedTopic(value.topic);
-                setSelectedTopicObject(topic);
+                setSelectedTopicObject(value);
 
                 // if the property is not empty, we need to set the tree view as and the selected property
 
-                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
+                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${value?.source.id}-definition`, {}, value);
                 const treeViewItems = generateTreeView(topic_msg_def);
                 setTopicProps(treeViewItems);
             });
@@ -136,7 +159,7 @@ const AsyncTopicControl = (props: ControlProps) => {
     return (
         <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
             <Label>{label}</Label>
-            <div className='flex flex-col gap-2 w-full'>
+            <div className='flex flex-col gap-2 w-full p-2'>
                 {/* <Select value={selectedTopic} onValueChange={handleTopicChange}> */}
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild className="w-full">
@@ -187,7 +210,13 @@ const AsyncTopicControl = (props: ControlProps) => {
                         ))} */}
                     </PopoverContent>
                 </Popover>
-                {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
+                <div>
+                    {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
+                </div>
+                <div className='flex flex-row gap-2'>
+                    <label className="text-gray-500">Buffer size (optional)</label>
+                    <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
+                </div>
             </div>
         </div>
     );

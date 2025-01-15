@@ -125,7 +125,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                         source.data.push(value);
                         source.times.push(time);
 
-                        if (source.data.length > buffersSize) {
+                        if (source.data.length > (topic.bufferSize || buffersSize)) {
                             source.data.shift();
                             source.times.shift();
                         }

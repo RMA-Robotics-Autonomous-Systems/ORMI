@@ -29,6 +29,7 @@ interface DatasourceTopic {
     topic: string;
     source: DatasourceProviderSettings;
     type: string;
+    bufferSize?: number;
 }
 
 interface SelectedTopic extends DatasourceTopic {
