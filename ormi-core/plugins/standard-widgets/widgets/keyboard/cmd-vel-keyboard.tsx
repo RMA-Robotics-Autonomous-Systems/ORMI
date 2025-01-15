@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import style from "@/core/jsonforms/key/key.module.css";
+import style from "@/core/jsonforms/controls/key/key.module.css";
 import { LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { AsyncTopicControlType } from "@/core/jsonforms/topic-selector/topic-selector";
+import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
 import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
-import { KeyControlType } from "@/core/jsonforms/key/key";
+import { KeyControlType } from "@/core/jsonforms/controls/key/key";
 import { Movement } from "@/core/types/movement";
 import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
 import { toast } from "@/hooks/use-toast";

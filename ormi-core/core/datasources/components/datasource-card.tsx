@@ -24,12 +24,6 @@ import { CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
 
 // Import the custom renderers
-import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
-import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/color-select";
-import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
-import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
-import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
-import AsyncTopicControl, { asyncTopicTester } from "@/core/jsonforms/topic-selector/topic-selector";
 import { DatasourceDefinition, DatasourceProviderSettings } from "../datasource-interface";
 import { CloudCogIcon, XIcon } from "lucide-react";
 
@@ -39,6 +33,8 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import shadcnRenderer from "@/core/jsonforms/ShadcnRender";
+
 
 
 interface DatasourceCardProps {
@@ -85,12 +81,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 
     const renderers = [
         ...materialRenderers,
-        { tester: asyncSelectTester, renderer: AsyncSelectControl },
-        { tester: colorSelectTester, renderer: colorSelect },
-        { tester: switchTester, renderer: SwitchControl },
-        { tester: TextTester, renderer: TextControl },
-        { tester: NumberTester, renderer: NumberControl },
-        { tester: asyncTopicTester, renderer: AsyncTopicControl },
+        ...shadcnRenderer,
     ];
 
     return (

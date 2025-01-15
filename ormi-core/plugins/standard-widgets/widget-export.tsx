@@ -10,7 +10,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
 import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
-import { AsyncTopicControlType } from '@/core/jsonforms/topic-selector/topic-selector';
+import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/topic-selector';
 
 import { PluginViewer } from './widgets/plugins-viewer';
 import { JsonViewer } from './widgets/json-viewer';
@@ -201,9 +201,10 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
         scope: "#/properties/topics",
         options: {
             detail: {
-                type: "VerticalLayout",
+                type: "Group",
                 elements: [topic, color, fill]
             }
+
         }
     }
 
