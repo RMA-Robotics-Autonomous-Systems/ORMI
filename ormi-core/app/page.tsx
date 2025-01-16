@@ -29,7 +29,7 @@ export default function Home() {
             <DashboardProvider dashboardDefinition={dashboardDefinition}>
                 <GlobalDataSourcesProvider>
                     <Dashboard />
-                    <WidgetsDialog />
+                    {/* <WidgetsDialog /> */}
                 </GlobalDataSourcesProvider>
             </DashboardProvider>
         </div>
