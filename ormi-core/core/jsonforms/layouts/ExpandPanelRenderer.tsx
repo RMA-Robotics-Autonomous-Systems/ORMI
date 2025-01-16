@@ -134,13 +134,19 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
         <AccordionItem value={childPath} >
             <TooltipProvider>
 
-                <AccordionTrigger>
-                    <div className='flex flex-row gap-3 items-center justify-between'>
-
+                <div className='flex flex-row items-center'>
+                    {/* Control buttons */}
+                    <div className='flex flex-row gap-3 items-center'>
                         {enabled && !disableRemove && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button onClick={removeItems(path, [index])} variant={'ghost'}>
+                                    <Button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeItems(path, [index])(e);
+                                        }}
+                                        variant={'ghost'}
+                                    >
                                         <TrashIcon />
                                     </Button>
                                 </TooltipTrigger>
@@ -150,11 +156,17 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
                             </Tooltip>
                         )}
 
-                        {showSortButtons && enabled ? (
+                        {showSortButtons && enabled && (
                             <>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button onClick={moveUp(path, index)} variant={'ghost'}>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                moveUp(path, index)(e);
+                                            }}
+                                            variant={'ghost'}
+                                        >
                                             <MoveUpIcon />
                                         </Button>
                                     </TooltipTrigger>
@@ -165,7 +177,13 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
 
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button onClick={moveDown(path, index)} variant={'ghost'}>
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                moveDown(path, index)(e);
+                                            }}
+                                            variant={'ghost'}
+                                        >
                                             <MoveDownIcon />
                                         </Button>
                                     </TooltipTrigger>
@@ -174,13 +192,20 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
                                     </TooltipContent>
                                 </Tooltip>
                             </>
-                        ) : ''}
-
-                        {childLabel && (<span id={labelHtmlId}>{childLabel}</span>)}
-                        {!childLabel && (<span id={labelHtmlId}>No title found</span>)}
-
+                        )}
                     </div>
-                </AccordionTrigger>
+
+                    {/* Accordion trigger */}
+                    <div className='w-full'>
+                        <AccordionTrigger>
+                            {childLabel ? (
+                                <span id={labelHtmlId}>{childLabel}</span>
+                            ) : (
+                                <span id={labelHtmlId}>No title found</span>
+                            )}
+                        </AccordionTrigger>
+                    </div>
+                </div>
                 <AccordionContent>
                     <JsonFormsDispatch
                         enabled={enabled}

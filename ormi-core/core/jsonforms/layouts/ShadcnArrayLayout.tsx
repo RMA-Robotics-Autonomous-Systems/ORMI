@@ -84,10 +84,10 @@ const ShadCNArrayLayoutComponent = (
                 translations={translations}
                 label={computeLabel(
                     label,
-                    required,
+                    required!,
                     appliedUiSchemaOptions.hideRequiredAsterisk
                 )}
-                description={description}
+                description={description!}
                 errors={errors}
                 path={path}
                 enabled={enabled}

@@ -3,6 +3,9 @@ import { ControlProps, rankWith, isControl, and, isNumberControl } from '@jsonfo
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useEffect } from 'react';
+import style from "@/core/jsonforms/utils/renderer.module.css";
+
+
 
 const NumberControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id, schema } = props;
@@ -19,7 +22,7 @@ const NumberControl = (props: ControlProps) => {
     }, []);
 
     return (
-        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+        <div className={style.cell}>
             <Label htmlFor={id}>{label}</Label>
             <Input
                 id={id}

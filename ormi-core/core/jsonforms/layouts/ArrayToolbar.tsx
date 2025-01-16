@@ -33,6 +33,7 @@ export const ArrayLayoutToolbar = React.memo(function ArrayLayoutToolbar({
     translations,
     disableAdd,
 }: ArrayLayoutToolbarProps) {
+
     return (
         <div>
             <div className="flex flex-col gap-2">

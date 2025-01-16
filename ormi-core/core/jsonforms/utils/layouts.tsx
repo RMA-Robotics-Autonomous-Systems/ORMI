@@ -76,7 +76,7 @@ const shadcnLayoutRendererComponent = ({
     } else {
         return (
             <div
-                className={`flex flex-${(direction == "column") ? 'col' : 'row'} flex-wrap`}
+                className={`flex flex-${(direction == "column") ? 'col' : 'row'} flex-wrap gap-3`}
             >
                 {renderLayoutElements(
                     elements,

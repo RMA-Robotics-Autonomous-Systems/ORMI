@@ -3,11 +3,14 @@ import { ControlProps, rankWith, isControl, and, isBooleanControl } from '@jsonf
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
+import style from "@/core/jsonforms/utils/renderer.module.css";
+
+
 const SwitchControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id } = props;
 
     return (
-        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+        <div className={style.cell}>
             <Label htmlFor={id}>{label}</Label>
             <Switch
                 id={id}

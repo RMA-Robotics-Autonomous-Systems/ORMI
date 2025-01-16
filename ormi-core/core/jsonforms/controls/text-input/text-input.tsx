@@ -2,12 +2,13 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isStringControl, isEnumControl } from '@jsonforms/core';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import style from "@/core/jsonforms/utils/renderer.module.css";
 
 const TextControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id, schema } = props;
 
     return (
-        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+        <div className={style.cell}>
             {(!schema.const) && <Label htmlFor={id}>{label}</Label>}
             <Input
                 id={id}

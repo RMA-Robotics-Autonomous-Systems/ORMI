@@ -21,6 +21,8 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { CommandSeparator } from 'cmdk';
 import { Input } from '@/components/ui/input';
 
+import style from "@/core/jsonforms/utils/renderer.module.css";
+
 
 const AsyncTopicControl = (props: ControlProps) => {
     const { data, handleChange, path, uischema, label } = props;
@@ -157,67 +159,70 @@ const AsyncTopicControl = (props: ControlProps) => {
     }, []);
 
     return (
-        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+        <div className={style.cell}>
             <Label>{label}</Label>
-            <div className='flex flex-col gap-2 w-full p-2'>
-                {/* <Select value={selectedTopic} onValueChange={handleTopicChange}> */}
-                <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild className="w-full">
-                        <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={open}
-                            className="w-full justify-between"
-                        >
-                            {selectedTopic || 'Select a topic'}
+            <div>
+                <div className='flex flex-col gap-2 w-full p-2'>
+                    {/* <Select value={selectedTopic} onValueChange={handleTopicChange}> */}
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild className="w-full">
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={open}
+                                className="w-full justify-between"
+                            >
+                                {selectedTopic || 'Select a topic'}
 
-                            <ChevronsUpDown className="opacity-50" />
-                        </Button>
-                    </PopoverTrigger>
+                                <ChevronsUpDown className="opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
 
-                    <PopoverContent>
-                        <Command>
-                            <CommandInput onValueChange={(value: string) => setCmd(value)} placeholder="Search topic..." />
-                            <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
-                            <CommandSeparator />
-                            <CommandList>
-                                <CommandGroup>
-                                    {topics.map((topic: DatasourceTopic) => (
-                                        <CommandItem
-                                            key={topic.topic + "-" + topic.source.id}
-                                            value={topic.topic + "@" + topic.source.id}
-                                            onSelect={handleTopicChange}
-                                        >
-                                            <small className="text-gray-500">{topic.source.title}</small>
-                                            <small className="text-gray-500">{topic.type}</small>
-                                            {topic.topic}
-                                            <Check
-                                                className={cn(
-                                                    "ml-auto",
-                                                    (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0"
-                                                )}
-                                            />
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                            </CommandList>
-                        </Command>
+                        <PopoverContent>
+                            <Command>
+                                <CommandInput onValueChange={(value: string) => setCmd(value)} placeholder="Search topic..." />
+                                <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
+                                <CommandSeparator />
+                                <CommandList>
+                                    <CommandGroup>
+                                        {topics.map((topic: DatasourceTopic) => (
+                                            <CommandItem
+                                                key={topic.topic + "-" + topic.source.id}
+                                                value={topic.topic + "@" + topic.source.id}
+                                                onSelect={handleTopicChange}
+                                            >
+                                                <small className="text-gray-500">{topic.source.title}</small>
+                                                <small className="text-gray-500">{topic.type}</small>
+                                                {topic.topic}
+                                                <Check
+                                                    className={cn(
+                                                        "ml-auto",
+                                                        (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
 
-                        {/* {topics.map((topic: DatasourceTopic) => (
+                            {/* {topics.map((topic: DatasourceTopic) => (
                             <SelectItem key={topic.topic} value={topic.topic}>
                                 {topic.topic}
                             </SelectItem>
                         ))} */}
-                    </PopoverContent>
-                </Popover>
-                <div>
-                    {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
-                </div>
-                <div className='flex flex-row gap-2'>
-                    <label className="text-gray-500">Buffer size (optional)</label>
-                    <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
+                        </PopoverContent>
+                    </Popover>
+                    <div>
+                        {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
+                    </div>
+                    <div className='flex flex-row gap-2'>
+                        <label className="text-gray-500">Buffer size (optional)</label>
+                        <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
+                    </div>
                 </div>
             </div>
+
         </div>
     );
 };

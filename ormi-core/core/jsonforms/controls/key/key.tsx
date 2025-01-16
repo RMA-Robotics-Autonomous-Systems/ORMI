@@ -7,6 +7,8 @@ import style from './key.module.css';
 
 import { Label } from '@/components/ui/label';
 
+import styles from "@/core/jsonforms/utils/renderer.module.css";
+
 
 
 const KeySelectorControl = (props: ControlProps) => {
@@ -50,7 +52,7 @@ const KeySelectorControl = (props: ControlProps) => {
     }
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '10rem 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+        <div className={styles.cell}>
             <Label> {label}</Label>
             <div style={{ width: '5rem' }}>
                 <span data-active={isKeyDown} className={style.key} onClick={handleSelecting}>

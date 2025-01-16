@@ -11,6 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Label } from '@/components/ui/label';
+import style from "@/core/jsonforms/utils/renderer.module.css";
 
 
 const AsyncSelectControl = (props: ControlProps) => {
@@ -30,7 +31,7 @@ const AsyncSelectControl = (props: ControlProps) => {
     }, [uischema]);
 
     return (
-        <div style={{ marginBottom: "1rem" }} className='flex gap-2 items-center'>
+        <div className={style.cell}>
             <Label>{label}</Label>
             <Select value={data} onValueChange={value => handleChange(path, value)}>
                 <SelectTrigger className="w-full">
