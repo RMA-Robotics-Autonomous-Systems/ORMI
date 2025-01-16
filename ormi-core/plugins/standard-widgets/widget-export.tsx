@@ -239,17 +239,17 @@ function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
                     type: 'array',
                     title: 'Topics',
                     items: {
-                        "type": "object",
-                        "properties": {
-                            "topic": {
+                        type: "object",
+                        properties: {
+                            topic: {
                                 "type": "object",
                                 "title": "Topic",
                             },
-                            "color": {
+                            color: {
                                 "type": "string",
                                 "title": "Color",
                             },
-                            "fill": {
+                            fill: {
                                 "type": "boolean",
                                 "title": "Fill",
                                 default: false,
