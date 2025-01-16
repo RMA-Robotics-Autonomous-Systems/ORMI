@@ -40,8 +40,6 @@ import { withJsonFormsLayoutProps } from '@jsonforms/react';
 
 export const groupTester: RankedTester = rankWith(1, uiTypeIs('Group'));
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-
 const GroupComponent = React.memo(function GroupComponent({
     visible,
     enabled,
@@ -51,22 +49,16 @@ const GroupComponent = React.memo(function GroupComponent({
 }: shadcnLabelableLayoutRendererProps) {
     const groupLayout = uischema as GroupLayout;
 
-    if (!visible) {
-        return null;
-    }
-
     return (
-        <Card>
-            {!isEmpty(label) && <CardHeader title={label} />}
-            <CardContent>
-                <ShadcnLayoutRenderer
-                    {...props}
-                    visible={visible}
-                    enabled={enabled}
-                    elements={groupLayout.elements}
-                />
-            </CardContent>
-        </Card>
+        <div>
+            {!isEmpty(label) && <h2>{label}</h2>}
+            <ShadcnLayoutRenderer
+                {...props}
+                visible={visible}
+                enabled={enabled}
+                elements={groupLayout.elements}
+            />
+        </div>
     );
 });
 
@@ -88,7 +80,7 @@ export const ShadcnGroupLayoutRenderer = ({
             elements={groupLayout.elements}
             schema={schema}
             path={path}
-            direction={direction}
+            direction={"column"}
             visible={visible}
             enabled={enabled}
             uischema={uischema}
@@ -102,6 +94,6 @@ export const ShadcnGroupLayoutRenderer = ({
 export default withJsonFormsLayoutProps(ShadcnGroupLayoutRenderer);
 
 export const shadcnGroupTester: RankedTester = withIncreasedRank(
-    1,
+    2,
     groupTester
 );
