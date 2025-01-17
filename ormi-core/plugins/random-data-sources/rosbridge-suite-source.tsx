@@ -334,7 +334,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     const current_topic_raw_type = topics_and_raw_types.get(topic.topic);
 
                     if (!current_topic_raw_type) {
-                        // console.log("topic not found in topics_and_raw_types", topic.topic, current_topic_raw_type, topics_and_raw_types);
                         return definition;
                     }
 
