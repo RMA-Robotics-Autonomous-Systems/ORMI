@@ -1,20 +1,15 @@
 services:
-  # webapp:
-  #   container_name: ros2_lab_webapp
-  #   network_mode: host
-  #   build:
-  #     context: .
-  #     target: dev
-  #     dockerfile: Dockerfile.webapp
-  #   restart: always
-  #   environment:
-  #     - NODE_ENV=development
-  #     - CHOKIDAR_USEPOLLING=true
-  #     - WATCHPACK_POLLING=true
-  #   volumes:
-  #     - ./webapp:/app
-  #     - ./webapp/node_modules:/app/node_modules
-  #     - ./webapp/.next:/app/.next
+  core:
+    container_name: ormi_core
+    network_mode: host
+    build:
+      context: .
+      dockerfile: Dockerfile.ormi_core
+    restart: always
+    volumes:
+      - ./ormi-core:/ormi-core
+      - ./ormi-core/node_modules:/ormi-core/node_modules
+      - ./ormi-core/.next:/app/.next
 
   rosbridge_suite:
     container_name: ormi_rosbridge_suite

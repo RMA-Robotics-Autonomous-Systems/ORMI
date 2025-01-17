@@ -1,0 +1,21 @@
+# Use the official Bun image
+FROM oven/bun:latest
+
+# Set working directory
+WORKDIR /ormi-core
+
+# Copy package.json and bun.lockb (if exists)
+COPY ./ormi-core/package.json ./
+COPY ./ormi-core/bun.lockb ./
+
+# Install dependencies
+RUN bun install
+
+# Copy the rest of the application
+COPY ./ormi-core .
+
+# build the application
+RUN bun run build
+
+# Start the server
+CMD ["bun", "run", "start"]
