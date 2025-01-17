@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import merge from 'lodash/merge';
 import React, {
     ComponentType,
@@ -31,12 +32,10 @@ import {
     computeChildLabel,
     UpdateArrayContext,
 } from '@jsonforms/core';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ChevronDown, MoveDownIcon, MoveUpIcon, TrashIcon } from 'lucide-react';
+import { AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { MoveDownIcon, MoveUpIcon, TrashIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-
-const iconStyle: any = { float: 'right' };
 
 interface OwnPropsOfExpandPanel {
     enabled: boolean;
@@ -92,12 +91,8 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
         childLabel,
         childPath,
         index,
-        expanded,
         moveDown,
         moveUp,
-        enableMoveDown,
-        enableMoveUp,
-        handleExpansion,
         removeItems,
         path,
         rootSchema,
@@ -114,7 +109,7 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
     const foundUISchema = useMemo(
         () =>
             findUISchema(
-                uischemas,
+                uischemas!,
                 schema,
                 uischema.scope,
                 path,
@@ -315,9 +310,12 @@ export const withContextToExpandPanelProps = (
         props,
     }: {
         ctx: JsonFormsStateContext;
-        props: ExpandPanelProps;
+        props: OwnPropsOfExpandPanel;
     }) {
-        const dispatchProps = ctxDispatchToExpandPanelProps(ctx.dispatch);
+        if (!ctx.dispatch) {
+            throw new Error('dispatch is undefined');
+        }
+        const dispatchProps = ctxDispatchToExpandPanelProps(ctx.dispatch as Dispatch<any>);
         const {
             // eslint is unable to detect that these props are "checked" via Typescript already
             // eslint-disable-next-line react/prop-types
@@ -339,21 +337,21 @@ export const withContextToExpandPanelProps = (
 
         const childLabel = useMemo(() => {
             return computeChildLabel(
-                ctx.core.data,
+                ctx.core!.data,
                 childPath,
-                childLabelProp,
+                childLabelProp!,
                 schema,
                 rootSchema,
-                ctx.i18n.translate,
+                ctx.i18n!.translate!,
                 uischema
             );
         }, [
-            ctx.core.data,
+            ctx.core!.data,
             childPath,
             childLabelProp,
             schema,
             rootSchema,
-            ctx.i18n.translate,
+            ctx.i18n!.translate,
             uischema,
         ]);
 

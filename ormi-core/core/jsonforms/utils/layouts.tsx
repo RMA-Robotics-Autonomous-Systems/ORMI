@@ -24,7 +24,6 @@
 */
 import isEmpty from 'lodash/isEmpty';
 import React, { ComponentType } from 'react';
-import Ajv from 'ajv';
 import type { UISchemaElement } from '@jsonforms/core';
 import {
     getAjv,
@@ -62,7 +61,6 @@ export interface shadcnLayoutRendererProps extends OwnPropsOfRenderer {
     direction: 'row' | 'column';
 }
 const shadcnLayoutRendererComponent = ({
-    visible,
     elements,
     schema,
     path,
@@ -80,9 +78,9 @@ const shadcnLayoutRendererComponent = ({
             >
                 {renderLayoutElements(
                     elements,
-                    schema,
-                    path,
-                    enabled,
+                    schema!,
+                    path!,
+                    enabled!,
                     renderers,
                     cells
                 )}
@@ -95,7 +93,7 @@ export const ShadcnLayoutRenderer = React.memo(
 );
 
 export interface AjvProps {
-    ajv: Ajv;
+    ajv: any;
 }
 
 export const withAjvProps = <P extends {}>(

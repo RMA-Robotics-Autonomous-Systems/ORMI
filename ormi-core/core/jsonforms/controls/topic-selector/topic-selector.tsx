@@ -53,7 +53,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         setOpen(false);
 
         setSelectedTopic(topic_name);
-        setSelectedTopicObject(topic);
+        setSelectedTopicObject(topic ? { ...topic, property: '' } : undefined);
 
         handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || 100 } as SelectedTopic));
 

@@ -44,8 +44,8 @@ export const ShadcnArrayControlRenderer = (
     props: ArrayLayoutProps & { translations: ArrayTranslations }
 ) => {
     const [open, setOpen] = useState(false);
-    const [path, setPath] = useState(undefined);
-    const [rowData, setRowData] = useState(undefined);
+    const [path, setPath] = useState<string | undefined>(undefined);
+    const [rowData, setRowData] = useState<number | undefined>(undefined);
     const { removeItems, visible, translations } = props;
 
     const openDeleteDialog = useCallback(
@@ -58,8 +58,8 @@ export const ShadcnArrayControlRenderer = (
     );
     const deleteCancel = useCallback(() => setOpen(false), [setOpen]);
     const deleteConfirm = useCallback(() => {
-        const p = path.substring(0, path.lastIndexOf('.'));
-        removeItems(p, [rowData])();
+        const p = path!.substring(0, path!.lastIndexOf('.'));
+        removeItems!(p, [rowData!])();
         setOpen(false);
     }, [setOpen, path, rowData]);
     const deleteClose = useCallback(() => setOpen(false), [setOpen]);
@@ -80,10 +80,10 @@ export const ShadcnArrayControlRenderer = (
                 onCancel={deleteCancel}
                 onConfirm={deleteConfirm}
                 onClose={deleteClose}
-                acceptText={translations.deleteDialogAccept}
-                declineText={translations.deleteDialogDecline}
-                title={translations.deleteDialogTitle}
-                message={translations.deleteDialogMessage}
+                acceptText={translations.deleteDialogAccept!}
+                declineText={translations.deleteDialogDecline!}
+                title={translations.deleteDialogTitle!}
+                message={translations.deleteDialogMessage!}
             />
         </>
     );
