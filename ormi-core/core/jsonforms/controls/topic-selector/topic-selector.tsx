@@ -107,10 +107,10 @@ const AsyncTopicControl = (props: ControlProps) => {
                 return prev;
             }
 
-            return { ...prev, source: source.settings, type: type };
+            return { topic: topic, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || 1 };
         })
 
-        handleChange(path, { topic: topic, source: source.settings, property: '', type: type } as SelectedTopic);
+        handleChange(path, { topic: topic, source: source.settings, property: '', type: type, bufferSize: 1 } as SelectedTopic);
         setOpen(false);
     }
 
@@ -125,7 +125,7 @@ const AsyncTopicControl = (props: ControlProps) => {
             return { ...prev, bufferSize: parseInt(value) };
         })
 
-        handleChange(path, { topic: selectedTopic, source: selectedTopicObject?.source, property: selectedTopicObject?.property || "", type: selectedTopicObject?.type, bufferSize: parseInt(value) } as SelectedTopic);
+        handleChange(path, { topic: selectedTopic, source: selectedTopicObject!.source, property: selectedTopicObject!.property || "", type: selectedTopicObject!.type, bufferSize: parseInt(value) } as SelectedTopic);
     }
 
     useEffect(() => {
