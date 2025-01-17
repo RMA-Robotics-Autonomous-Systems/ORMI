@@ -14,114 +14,76 @@ interface MessageDefinition {
     name: string;
     fields: MessageField[];
     constants?: { [key: string]: any };
+    subTypes?: { [key: string]: MessageDefinition };  // Add support for nested types
 }
 
 function parseMessageDefinition(content: string): MessageDefinition[] {
     const lines = content.split('\n');
     const definitions: MessageDefinition[] = [];
     let currentDef: MessageDefinition | null = null;
-    let currentComments: string[] = [];
-
-    // Create default message definition if no explicit name
+    
+    // Initialize first message definition
     currentDef = {
-        name: "Message", // Default name if none specified
+        name: "Message",
         fields: [],
-    } as MessageDefinition;
+        constants: {},
+        subTypes: {}
+    };
+
+    let processingSubType = false;
+    let currentSubTypeName = "";
 
     for (let line of lines) {
         line = line.trim();
         if (!line) continue;
 
-        // Handle comments
-        if (line.startsWith('#')) {
-            currentComments.push(line.substring(1).trim());
-            continue;
-        }
+        // Handle sub-type declaration
+        if (line.startsWith('MSG: ')) {
+            processingSubType = true;
+            currentSubTypeName = line.substring(5).trim();
 
-        // Check for msg definition separator
-        if (line.startsWith('===')) {
-            if (currentDef) {
-                if (currentComments.length > 0) {
-                    currentComments = [];
-                }
-                definitions.push(currentDef);
-            }
-            currentDef = null;
-            continue;
-        }
+            const names = currentSubTypeName.split('/');
+            currentSubTypeName = names[names.length - 1];
 
-        // Parse message name if found
-        const msgMatch = line.match(/^msg:\s*([A-Za-z0-9_]+)$/);
-        if (msgMatch) {
-            if (currentDef) {
-
-                definitions.push(currentDef);
-            }
-            currentDef = {
-                name: msgMatch[1],
+            if (!currentDef.subTypes) currentDef.subTypes = {};
+            currentDef.subTypes[currentSubTypeName] = {
+                name: currentSubTypeName,
                 fields: [],
-
+                subTypes: {}
             };
             continue;
         }
 
-        // Parse field definition
-        const fieldMatch = line.match(/^([a-zA-Z0-9_/]+)(\[\]|\[\d+\])?\s+([a-zA-Z0-9_]+)(\s*=\s*(.+))?$/);
-        if (fieldMatch && currentDef) {
-            const [_, type, arrayDef, name, __, defaultValue] = fieldMatch;
-            const field: MessageField = {
-                name,
-                type,
-                isArray: !!arrayDef,
-                arraySize: arrayDef ? parseInt(arrayDef.replace(/[\[\]]/g, '')) || undefined : undefined
-            };
-
-            if (defaultValue) {
-                field.defaultValue = parseDefaultValue(type, defaultValue.trim());
+        // Handle field definitions
+        if (!line.startsWith('#') && !line.startsWith('===')) {
+            const fieldMatch = line.match(/^(\w+)\s+(\w+)(\[\d*\])?/);
+            if (fieldMatch) {
+                const field: MessageField = {
+                    name: fieldMatch[2],
+                    type: fieldMatch[1],
+                    isArray: !!fieldMatch[3],
+                };
+                
+                if (processingSubType) {
+                    if (!currentDef.subTypes) currentDef.subTypes = {};
+                    currentDef.subTypes[currentSubTypeName].fields.push(field);
+                } else {
+                    currentDef.fields.push(field);
+                }
             }
+        }
 
-            currentDef.fields.push(field);
-            continue;
+        // Handle separator
+        if (line.startsWith('===')) {
+            processingSubType = false;
         }
     }
 
-    // Add final definition and comments
-    if (currentDef) {
-        definitions.push(currentDef);
-    }
-
+    definitions.push(currentDef);
     return definitions;
 }
 
-function parseConstValue(type: string, value: string): any {
-    switch (type) {
-        case 'bool':
-            return value.toLowerCase() === 'true';
-        case 'int8':
-        case 'uint8':
-        case 'int16':
-        case 'uint16':
-        case 'int32':
-        case 'uint32':
-        case 'int64':
-        case 'uint64':
-            return parseInt(value);
-        case 'float32':
-        case 'float64':
-            return parseFloat(value);
-        case 'string':
-            return value.replace(/^["']|["']$/g, '');
-        default:
-            return value;
-    }
-}
-
-function parseDefaultValue(type: string, value: string): any {
-    if (value === 'None' || value === '') return null;
-    return parseConstValue(type, value);
-}
-
-function ros2TypeToJsonSchema(field: MessageField, definitions: MessageDefinition[]): object {
+function ros2TypeToJsonSchema(field: MessageField): object {
     const typeMap: { [key: string]: object } = {
         'bool': { type: 'boolean' },
         'int8': { type: 'integer', minimum: -128, maximum: 127 },
@@ -166,7 +128,7 @@ function ros2TypeToJsonSchema(field: MessageField, definitions: MessageDefinitio
 }
 
 function messageDefinitionToJsonSchema(definitions: MessageDefinition[]): JsonSchema {
-    const schema: any = {
+    const schema: JsonSchema = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: 'object',
         properties: {},
@@ -177,31 +139,51 @@ function messageDefinitionToJsonSchema(definitions: MessageDefinition[]): JsonSc
 
     // First pass: create all definitions
     for (const def of definitions) {
-        schema.definitions[def.name] = {
+        schema.definitions![def.name] = {
             type: 'object',
             properties: {},
             required: [],
             additionalProperties: false
         };
+
+        // Add sub-types
+        if (def.subTypes) {
+            for (const subType of Object.values(def.subTypes)) {
+                schema.definitions![subType.name] = {
+                    type: 'object',
+                    properties: {},
+                    required: [],
+                    additionalProperties: false
+                };
+
+                for (const field of subType.fields) {
+                    schema.definitions![subType.name].properties![field.name] = ros2TypeToJsonSchema(field);
+                    if (!field.defaultValue) {
+                        schema.definitions![subType.name]!.required!.push(field.name);
+                    }
+                }
+
+            }
+        }
     }
 
     // Second pass: fill in all properties
     for (const def of definitions) {
-        const defSchema = schema.definitions[def.name];
+        const defSchema = schema.definitions![def.name];
 
         for (const field of def.fields) {
-            defSchema.properties[field.name] = ros2TypeToJsonSchema(field, definitions);
+            defSchema.properties![field.name] = ros2TypeToJsonSchema(field);
             if (!field.defaultValue) {
-                defSchema.required.push(field.name);
+                defSchema.required!.push(field.name);
             }
         }
 
         if (def.constants) {
             for (const [name, value] of Object.entries(def.constants)) {
-                defSchema.properties[name] = {
+                defSchema.properties![name] = {
                     const: value
                 };
-                defSchema.required.push(name);
+                defSchema.required!.push(name);
             }
         }
     }
@@ -209,8 +191,8 @@ function messageDefinitionToJsonSchema(definitions: MessageDefinition[]): JsonSc
     // Set the root message as the main schema
     if (definitions.length > 0) {
         schema.type = 'object';
-        schema.properties = schema.definitions[definitions[0].name].properties;
-        schema.required = schema.definitions[definitions[0].name].required;
+        schema.properties = schema.definitions![definitions[0].name].properties;
+        schema.required = schema.definitions![definitions[0].name].required;
         schema.additionalProperties = false;
     }
 
