@@ -175,7 +175,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             });
         }
 
-    }, [SelectedTopics, datasources]);
+    }, [SelectedTopics, datasources, buffersSize]);
 
 
     return (

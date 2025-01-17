@@ -56,7 +56,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
     // Initialize chart series only when topics change
     useEffect(() => {
         optionsRef.current.series = initializeSeries(props.topics, sources);
-    }, [props.topics]);
+    }, [props.topics, sources]);
 
     // Handle real-time data updates
     useEffect(() => {
@@ -95,7 +95,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
             const timeArray = Array.from(timeSet).sort();
             const newData: AlignedData = [timeArray];
 
-            props.topics.forEach((topic_props: any) => {
+            props.topics.forEach((topic_props) => {
                 const topic = topic_props.topic;
                 const sourceId = (topic.property !== '') ?
                     topic.topic + "+" + topic.property : topic.topic;
@@ -135,7 +135,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 cancelAnimationFrame(frameRef.current);
             }
         };
-    }, []);
+    }, [props.topics, sources]);
 
     return (
         <div ref={divRef} style={{ width: "100%", height: "100%" }}>
