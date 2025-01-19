@@ -1,22 +1,21 @@
+import { TreeView, TreeDataItem } from "@/components/tree-view";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
-import { TreeViewBaseItem } from "@mui/x-tree-view/models";
-import { RichTreeView } from "@mui/x-tree-view/RichTreeView";
 
 export function TreeViewer() {
     const { sources } = useLocalDataSource();
     // const animationFrameId = useRef<number>();
 
-    function generateTreeView(obj: any, parentId: string = ''): TreeViewBaseItem[] {
+    function generateTreeView(obj: any, parentId: string = ''): TreeDataItem[] {
         if (!obj) return [];
 
-        const treeViewItems: TreeViewBaseItem[] = [];
+        const treeViewItems: TreeDataItem[] = [];
         for (const key in obj) {
             const prop = obj[key];
             const uniqueId = parentId ? `${parentId}-${key}` : key;
 
-            const item: TreeViewBaseItem = {
+            const item: TreeDataItem = {
                 id: uniqueId,
-                label: isPrimitive(prop) ? `${key}: ${prop}` : key,
+                name: isPrimitive(prop) ? `${key}: ${prop}` : key,
                 children: []
             }
 
@@ -42,7 +41,7 @@ export function TreeViewer() {
     return (
         <div style={{ height: "100%", overflow: "auto" }}>
             {treeData && treeData.length > 0 ? (
-                <RichTreeView items={treeData} />
+                <TreeView data={treeData} />
             ) : (
                 <div>Loading...</div>
             )}
