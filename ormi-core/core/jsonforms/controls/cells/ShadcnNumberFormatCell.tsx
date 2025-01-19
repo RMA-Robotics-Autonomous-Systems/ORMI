@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 export const ShadcnNumberFormatCell = (
     props: CellProps
 ) => {
-    const { data, id, enabled, handleChange, path, format } = props;
+    const { data, id, enabled, handleChange, path } = props;
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -43,13 +43,11 @@ export const ShadcnNumberFormatCell = (
         handleChange(path, number);
     };
 
-    const formattedValue = format ? format(data) : data;
-
     return (
         <Input
             type="number"
             id={id}
-            value={formattedValue ?? ''}
+            value={data ?? ''}
             onChange={handleInputChange}
             disabled={!enabled}
             className="w-full"
