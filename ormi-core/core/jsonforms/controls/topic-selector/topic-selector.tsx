@@ -1,6 +1,5 @@
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, uiTypeIs, JsonSchema, ControlElement } from '@jsonforms/core';
-import { RichTreeView } from '@mui/x-tree-view/RichTreeView'
 
 import React, { useEffect, useState } from 'react';
 import { cn } from "@/lib/utils"
@@ -10,7 +9,6 @@ import { cn } from "@/lib/utils"
 import { Label } from '@/components/ui/label';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { Datasource, DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
-import { TreeViewBaseItem } from '@mui/x-tree-view/models/items';
 import { toast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -22,6 +20,7 @@ import { CommandSeparator } from 'cmdk';
 import { Input } from '@/components/ui/input';
 
 import style from "@/core/jsonforms/utils/renderer.module.css";
+import { TreeView, TreeDataItem } from '@/components/tree-view';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
@@ -30,7 +29,7 @@ const AsyncTopicControl = (props: ControlProps) => {
     const [open, setOpen] = useState(false)
 
     const [topics, setTopics] = useState<DatasourceTopic[]>([]);
-    const [topicProps, setTopicProps] = useState<TreeViewBaseItem[]>([]);
+    const [topicProps, setTopicProps] = useState<TreeDataItem[]>([]);
 
     const [selectedTopic, setSelectedTopic] = useState<string>('');
     const [selectedTopicObject, setSelectedTopicObject] = useState<SelectedTopic | undefined>(undefined);
@@ -84,19 +83,10 @@ const AsyncTopicControl = (props: ControlProps) => {
             return;
         }
 
-        // using the topic definition to create the tree view
-
-        const treeViewItems = generateTreeView(topic_msg_def);
+        const treeViewItems = generateTreeView(topic_msg_def, handleItemSelect);
         setTopicProps(treeViewItems);
     }
 
-    const handlePropertyChange = (event: React.MouseEvent<Element>, itemId: string) => {
-        if (!selectedTopicObject) {
-            return;
-        }
-
-        handleChange(path, { topic: selectedTopicObject.topic, source: selectedTopicObject.source, property: itemId, type: selectedTopicObject.type, bufferSize: selectedTopicObject.bufferSize || 100 } as SelectedTopic);
-    }
 
     const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
 
@@ -128,15 +118,24 @@ const AsyncTopicControl = (props: ControlProps) => {
         handleChange(path, { topic: selectedTopic, source: selectedTopicObject!.source, property: selectedTopicObject!.property || "", type: selectedTopicObject!.type, bufferSize: parseInt(value) } as SelectedTopic);
     }
 
-    useEffect(() => {
+    const handleItemSelect = (itemId: string) => {
 
+        if (!selectedTopicObject) return;
+
+        const updatedTopic = {
+            ...selectedTopicObject,
+            property: itemId
+        };
+
+        setSelectedTopicObject(updatedTopic);
+        handleChange(path, updatedTopic);
+    };
+
+    useEffect(() => {
         const asyncFunction = uischema.options?.asyncFunction;
 
         if (asyncFunction) {
             asyncFunction().then(async (result: DatasourceTopic[]) => {
-
-                // console.log('Topics:', result);
-
                 setTopics(result);
 
                 const value = data as SelectedTopic | undefined;
@@ -144,19 +143,15 @@ const AsyncTopicControl = (props: ControlProps) => {
                     return;
                 }
 
-                // const topic = result.find(topic => topic.topic === value.topic);
-
                 setSelectedTopic(value.topic);
                 setSelectedTopicObject(value);
 
-                // if the property is not empty, we need to set the tree view as and the selected property
-
                 const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${value?.source.id}-definition`, {}, value);
-                const treeViewItems = generateTreeView(topic_msg_def);
+                const treeViewItems = generateTreeView(topic_msg_def, handleItemSelect);
                 setTopicProps(treeViewItems);
             });
         }
-    }, []);
+    }, [selectedTopicObject]);
 
     return (
         <div className={style.cell}>
@@ -214,7 +209,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                         </PopoverContent>
                     </Popover>
                     <div>
-                        {(topicProps) && (topicProps.length > 0) && (<RichTreeView onItemClick={handlePropertyChange} items={topicProps} />)}
+                        {(topicProps) && (topicProps.length > 0) && (<TreeView data={topicProps} />)}
                     </div>
                     <div className='flex flex-row gap-2'>
                         <label className="text-gray-500">Buffer size (optional)</label>

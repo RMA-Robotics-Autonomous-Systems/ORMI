@@ -1,13 +1,8 @@
+import { TreeDataItem } from "@/components/tree-view";
 import { JsonSchema } from "@jsonforms/core";
-import { TreeViewBaseItem } from "@mui/x-tree-view/models";
 
-interface TreeViewItem extends TreeViewBaseItem {
-    id: string;
-    label: string;
-    children: TreeViewItem[];
-}
 
-export function generateTreeView(schema: JsonSchema): TreeViewItem[] {
+export function generateTreeView(schema: JsonSchema, handlePropertyChange: (itemId: string) => void): TreeDataItem[] {
 
     const resolveRef = (ref: string): JsonSchema => {
 
@@ -22,7 +17,7 @@ export function generateTreeView(schema: JsonSchema): TreeViewItem[] {
         propertyName: string,
         propertySchema: JsonSchema,
         parentId = ''
-    ): TreeViewItem => {
+    ): TreeDataItem => {
         const id = parentId ? `${parentId}-${propertyName}` : propertyName;
 
         // Handle $ref
@@ -33,25 +28,28 @@ export function generateTreeView(schema: JsonSchema): TreeViewItem[] {
             if (!refSchema) {
                 return {
                     id,
-                    label: `${propertyName}: ${refType}`,
-                    children: []
+                    name: `${propertyName}: ${refType}`,
+                    children: [],
+                    onClick: () => handlePropertyChange(id)
                 };
             }
 
             return {
                 id,
-                label: `${propertyName}: ${refType}`,
+                name: `${propertyName}: ${refType}`,
                 children: Object.entries(refSchema.properties || {}).map(([childName, childSchema]) =>
                     processProperty(childName, childSchema, id)
-                )
+                ),
+                onClick: () => handlePropertyChange(id)
             };
         }
 
         // Handle regular properties
         return {
             id,
-            label: `${propertyName}: ${propertySchema.type}`,
-            children: []
+            name: `${propertyName}: ${propertySchema.type}`,
+            children: [],
+            onClick: () => handlePropertyChange(id)
         };
     };
 
