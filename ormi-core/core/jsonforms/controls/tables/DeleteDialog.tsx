@@ -22,15 +22,16 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React from 'react';
+import React from 'react'
 import {
-    Button,
     Dialog,
-    DialogActions,
     DialogContent,
-    DialogContentText,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
     DialogTitle,
-} from '@mui/material';
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 export interface DeleteDialogProps {
     open: boolean;
@@ -58,27 +59,23 @@ export const DeleteDialog = React.memo(function DeleteDialog({
     declineText,
 }: DeleteDialogProps) {
     return (
-        <Dialog
-            open={open}
-            keepMounted
-            onClose={onClose}
-            aria-labelledby='alert-dialog-confirmdelete-title'
-            aria-describedby='alert-dialog-confirmdelete-description'
-        >
-            <DialogTitle id='alert-dialog-confirmdelete-title'>{title}</DialogTitle>
+        <Dialog open={open} onOpenChange={onClose}>
             <DialogContent>
-                <DialogContentText id='alert-dialog-confirmdelete-description'>
-                    {message}
-                </DialogContentText>
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                    <DialogDescription>
+                        {message}
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onCancel}>
+                        {declineText}
+                    </Button>
+                    <Button variant="default" onClick={onConfirm}>
+                        {acceptText}
+                    </Button>
+                </DialogFooter>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onCancel} color='primary'>
-                    {declineText}
-                </Button>
-                <Button onClick={onConfirm} color='primary'>
-                    {acceptText}
-                </Button>
-            </DialogActions>
         </Dialog>
     );
 });

@@ -61,11 +61,10 @@ export interface ShadcnTableToolbarProps {
     disableAdd?: boolean;
 }
 
-const TableToolbar = React.memo(function TableToolbar({
+export const TableToolbar = React.memo(function TableToolbar({
     numColumns,
     errors,
     label,
-    description,
     path,
     addItem,
     schema,
@@ -74,48 +73,48 @@ const TableToolbar = React.memo(function TableToolbar({
     rootSchema,
     disableAdd,
 }: ShadcnTableToolbarProps) {
+    const handleAddClick = React.useCallback(() => {
+        const newValue = createDefaultValue(schema, rootSchema);
+        addItem(path, newValue)();
+    }, [addItem, path, schema]);
+
     return (
         <TableRow>
-            <TableCell colSpan={numColumns}>
-                <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-xl font-semibold">{label}</h2>
-                            {errors.length > 0 && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <AlertCircle className="h-4 w-4 text-destructive" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{errors}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
-                        </div>
-                        {enabled && !disableAdd && (
+            <TableCell colSpan={numColumns + 1}>
+                <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">{label}</h3>
+                        {errors && (
                             <TooltipProvider>
                                 <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={addItem(path, createDefaultValue(schema, rootSchema))}
-                                            aria-label={translations.addTooltip}
-                                        >
-                                            <PlusIcon className="h-4 w-4" />
-                                        </Button>
+                                    <TooltipTrigger>
+                                        <AlertCircle className="h-4 w-4 text-destructive" />
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{translations.addTooltip}</p>
+                                        <p>{errors}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         )}
                     </div>
-                    {description && (
-                        <p className="text-sm text-muted-foreground">{description}</p>
+                    {enabled && !disableAdd && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={handleAddClick}
+                                        size="sm"
+                                        variant="outline"
+                                    >
+                                        <PlusIcon className="h-4 w-4 mr-2" />
+                                        {translations.addTooltip}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {translations.addTooltip}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     )}
                 </div>
             </TableCell>

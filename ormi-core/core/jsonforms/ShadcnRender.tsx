@@ -12,14 +12,16 @@ import { ShadcnGroupLayoutRenderer, shadcnGroupTester } from './layouts/ShadcnGr
 import ShadcnCategorizationStepperLayout, { shadcnCategorizationStepperTester } from './layouts/ShadcnCategorizationStepperLayout';
 import ShadcnCategorizationLayout, { shadcnCategorizationTester } from './layouts/ShadcnCategorizationLayout';
 import ShadcnArrayControlRenderer, { shadcnArrayControlTester } from './controls/tables/ShadcnArrayControlRenderer';
+import { ShadcnBooleanControl, shadcnBooleanControlTester, ShadcnBooleanToggleControl, shadcnBooleanToggleControlTester, ShadcnDateControl, shadcnDateControlTester, ShadcnDateTimeControl, shadcnDateTimeControlTester, ShadcnEnumControl, shadcnEnumControlTester, ShadcnIntegerControl, shadcnIntegerControlTester, ShadcnNativeControl, shadcnNativeControlTester, ShadcnNumberControl, shadcnNumberControlTester, ShadcnOneOfEnumControl, shadcnOneOfEnumControlTester, ShadcnOneOfRadioGroupControl, shadcnOneOfRadioGroupControlTester, ShadcnRadioGroupControl, shadcnRadioGroupControlTester, ShadcnSliderControl, shadcnSliderControlTester, ShadcnTextControl, shadcnTextControlTester, ShadcnTimeControl, shadcnTimeControlTester } from './controls/simples';
+
 
 const shadcnRenderer = [
     { tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
     { tester: asyncSelectTester, renderer: AsyncSelectControl },
     { tester: colorSelectTester, renderer: colorSelect },
-    { tester: switchTester, renderer: SwitchControl },
-    { tester: TextTester, renderer: TextControl },
-    { tester: NumberTester, renderer: NumberControl },
+    // { tester: switchTester, renderer: SwitchControl },
+    // { tester: TextTester, renderer: TextControl },
+    // { tester: NumberTester, renderer: NumberControl },
     { tester: asyncTopicTester, renderer: AsyncTopicControl },
     { tester: keySelectorTester, renderer: KeySelectorControl },
     { tester: shadcnVerticalLayoutTester, renderer: ShadcnVerticalLayoutRenderer },
@@ -36,7 +38,46 @@ const shadcnRenderer = [
     {
         tester: shadcnArrayControlTester,
         renderer: ShadcnArrayControlRenderer,
-    }
+    },
+
+
+    // simples controls
+    { tester: shadcnNativeControlTester, renderer: ShadcnNativeControl },
+    { tester: shadcnEnumControlTester, renderer: ShadcnEnumControl },
+    { tester: shadcnIntegerControlTester, renderer: ShadcnIntegerControl },
+    { tester: shadcnNumberControlTester, renderer: ShadcnNumberControl },
+    { tester: shadcnTextControlTester, renderer: ShadcnTextControl },
+    { tester: shadcnDateTimeControlTester, renderer: ShadcnDateTimeControl },
+    { tester: shadcnDateControlTester, renderer: ShadcnDateControl },
+    { tester: shadcnTimeControlTester, renderer: ShadcnTimeControl },
+    { tester: shadcnSliderControlTester, renderer: ShadcnSliderControl },
+    {
+        tester: shadcnArrayControlTester,
+        renderer: ShadcnArrayControlRenderer,
+    },
+    { tester: shadcnBooleanControlTester, renderer: ShadcnBooleanControl },
+    {
+        tester: shadcnBooleanToggleControlTester,
+        renderer: ShadcnBooleanToggleControl,
+    },
+
+    {
+        tester: shadcnRadioGroupControlTester,
+        renderer: ShadcnRadioGroupControl,
+    },
+    {
+        tester: shadcnOneOfRadioGroupControlTester,
+        renderer: ShadcnOneOfRadioGroupControl,
+    },
+    {
+        tester: shadcnOneOfEnumControlTester,
+        renderer: ShadcnOneOfEnumControl,
+    },
+
+    // { tester: shadcnObjectControlTester, renderer: ShadcnObjectRenderer },
+    // { tester: shadcnAllOfControlTester, renderer: ShadcnAllOfRenderer },
+    // { tester: shadcnAnyOfControlTester, renderer: ShadcnAnyOfRenderer },
+    // { tester: shadcnOneOfControlTester, renderer: ShadcnOneOfRenderer },
 ];
 
 export default shadcnRenderer;

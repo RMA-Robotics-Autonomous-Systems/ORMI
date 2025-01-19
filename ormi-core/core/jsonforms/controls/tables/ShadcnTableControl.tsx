@@ -55,12 +55,11 @@ import {
     Table,
     TableBody,
     TableCell,
-    TableHead,
     TableRow,
 } from "@/components/ui/table"
 import { TrashIcon } from '@radix-ui/react-icons';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { MoveDownIcon, MoveUpIcon } from 'lucide-react';
 
 // we want a cell that doesn't automatically span
@@ -81,8 +80,44 @@ const styles = {
     },
 };
 
-const generateCells = <T extends OwnPropsOfNonEmptyCell | TableHeaderCellProps>(
-    Cell: React.ComponentType<T>,
+interface TableCellProps {
+    propName?: string;
+    schema: JsonSchema;
+    title?: string;
+    rowPath: string;
+    cellPath: string;
+    enabled: boolean;
+    cells?: JsonFormsCellRendererRegistryEntry[];
+}
+
+const CustomTableCell: React.FC<TableCellProps> = ({
+    propName,
+    schema,
+    title,
+    rowPath,
+    cellPath,
+    enabled,
+    cells
+}) => {
+    return (
+        <TableCell>
+            <div className={`flex items-center justify-between`}>
+                {/* Your cell content here */}
+                {title || propName}
+                <NonEmptyCell
+                    rowPath={rowPath}
+                    propName={propName}
+                    schema={schema}
+                    enabled={enabled}
+                    cells={cells}
+                />
+            </div>
+
+        </TableCell>
+    );
+};
+
+const generateCells = (
     schema: JsonSchema,
     rowPath: string,
     enabled: boolean,
@@ -91,27 +126,31 @@ const generateCells = <T extends OwnPropsOfNonEmptyCell | TableHeaderCellProps>(
     if (schema.type === 'object') {
         return getValidColumnProps(schema).map((prop) => {
             const cellPath = Paths.compose(rowPath, prop);
-            const props = {
-                propName: prop,
-                schema,
-                title: schema.properties?.[prop]?.title ?? startCase(prop),
-                rowPath,
-                cellPath,
-                enabled,
-                cells,
-            };
-            return <TableCell key={cellPath} {...props} />;
+            return (
+                <CustomTableCell
+                    key={cellPath}
+                    propName={prop}
+                    schema={schema}
+                    title={schema.properties?.[prop]?.title ?? startCase(prop)}
+                    rowPath={rowPath}
+                    cellPath={cellPath}
+                    enabled={enabled}
+                    cells={cells}
+                />
+            );
         });
-    } else {
-        // primitives
-        const props = {
-            schema,
-            rowPath,
-            cellPath: rowPath,
-            enabled,
-        };
-        return <TableCell key={rowPath} {...props} />;
     }
+
+    // For primitives
+    return (
+        <CustomTableCell
+            key={rowPath}
+            schema={schema}
+            rowPath={rowPath}
+            cellPath={rowPath}
+            enabled={enabled}
+        />
+    );
 };
 
 const getValidColumnProps = (scopedSchema: JsonSchema) => {
@@ -140,15 +179,6 @@ const EmptyTable = ({ numColumns, translations }: EmptyTableProps) => (
     </TableRow>
 );
 
-interface TableHeaderCellProps {
-    title: string;
-}
-
-const TableHeaderCell = React.memo(function TableHeaderCell({
-    title,
-}: TableHeaderCellProps) {
-    return <TableCell>{title}</TableCell>;
-});
 
 interface NonEmptyCellProps extends OwnPropsOfNonEmptyCell {
     rootSchema: JsonSchema;
@@ -221,7 +251,7 @@ const NonEmptyCellComponent = React.memo(function NonEmptyCellComponent({
     isValid,
 }: NonEmptyCellComponentProps) {
     return (
-        <NoBorderTableCell>
+        <div>
             {schema.properties ? (
                 <DispatchCell
                     schema={Resolve.schema(
@@ -246,7 +276,7 @@ const NonEmptyCellComponent = React.memo(function NonEmptyCellComponent({
                 />
             )}
             {!isValid && <p className="text-sm text-destructive mt-1">{errors}</p>}
-        </NoBorderTableCell>
+        </div>
     );
 });
 
@@ -298,7 +328,7 @@ const NonEmptyRowComponent = ({
     );
     return (
         <TableRow key={childPath}>
-            {generateCells(NonEmptyCell, schema, childPath, enabled, cells)}
+            {generateCells(schema, childPath, enabled, cells)}
             {enabled ? (
                 <NoBorderTableCell
                     style={showSortButtons ? styles.fixedCell : styles.fixedCellSmall}
@@ -348,6 +378,7 @@ const NonEmptyRowComponent = ({
     );
 };
 export const NonEmptyRow = React.memo(NonEmptyRowComponent);
+
 interface TableRowsProp {
     data: number;
     path: string;
@@ -420,53 +451,49 @@ const TableRows = ({
     );
 };
 
-export class ShadcnTableControl extends React.Component<
-    ArrayLayoutProps &
-    WithDeleteDialogSupport & { translations: ArrayTranslations },
-    any
-> {
-    addItem = (path: string, value: any) => this.props.addItem(path, value);
-    render() {
-        const {
-            label,
-            description,
-            path,
-            schema,
-            rootSchema,
-            uischema,
-            errors,
-            visible,
-            enabled,
-            cells,
-            translations,
-            disableAdd,
-            disableRemove,
-            config,
-        } = this.props;
+// Update the table structure in ShadcnTableControl
+export const ShadcnTableControl: React.FC<ArrayLayoutProps & WithDeleteDialogSupport & { translations: ArrayTranslations }> = (props) => {
+    const {
+        label,
+        description,
+        path,
+        schema,
+        rootSchema,
+        uischema,
+        errors,
+        visible,
+        enabled,
+        cells,
+        translations,
+        disableAdd,
+        disableRemove,
+        config,
+    } = props;
 
-        const appliedUiSchemaOptions = merge({}, config, uischema.options);
-        const doDisableAdd = disableAdd || appliedUiSchemaOptions.disableAdd;
-        const doDisableRemove =
-            disableRemove || appliedUiSchemaOptions.disableRemove;
+    const appliedUiSchemaOptions = merge({}, config, uischema.options);
+    const doDisableAdd = disableAdd || appliedUiSchemaOptions.disableAdd;
+    const doDisableRemove =
+        disableRemove || appliedUiSchemaOptions.disableRemove;
 
-        const controlElement = uischema as ControlElement;
-        const isObjectSchema = schema.type === 'object';
-        const headerCells: any = isObjectSchema
-            ? generateCells(TableHeaderCell, schema, path, enabled, cells)
-            : undefined;
+    const controlElement = uischema as ControlElement;
+    const isObjectSchema = schema.type === 'object';
+    const headerCells: any = isObjectSchema
+        ? generateCells(schema, path, enabled, cells)
+        : undefined;
 
-        if (!visible) {
-            return null;
-        }
+    if (!visible) {
+        return null;
+    }
 
-        return (
+    return (
+        <TooltipProvider>
             <Table>
-                <TableHead>
+                <TableBody>
                     <TableToolbar
                         errors={errors}
                         label={label}
                         description={description!}
-                        addItem={this.addItem}
+                        addItem={props.addItem}
                         numColumns={isObjectSchema ? headerCells.length : 1}
                         path={path}
                         uischema={controlElement}
@@ -476,20 +503,13 @@ export class ShadcnTableControl extends React.Component<
                         translations={translations}
                         disableAdd={doDisableAdd}
                     />
-                    {isObjectSchema && (
-                        <TableRow>
-                            {headerCells}
-                            {enabled ? <TableCell /> : null}
-                        </TableRow>
-                    )}
-                </TableHead>
-                <TableBody>
                     <TableRows
-                        {...this.props}
+                        {...props}
+                        enabled={enabled}
                         disableRemove={doDisableRemove}
                     />
                 </TableBody>
             </Table>
-        );
-    }
-}
+        </TooltipProvider>
+    );
+};
