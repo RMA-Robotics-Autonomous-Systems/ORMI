@@ -172,7 +172,7 @@ const TreeNode = ({
     expandedItemIds,
     selectedItemId,
     defaultNodeIcon,
-    defaultLeafIcon
+    defaultLeafIcon,
 }: {
     item: TreeDataItem
     handleSelectChange: (item: TreeDataItem | undefined) => void
@@ -181,49 +181,61 @@ const TreeNode = ({
     defaultNodeIcon?: any
     defaultLeafIcon?: any
 }) => {
+    const hasChildren = item.children && item.children.length > 0
     const [value, setValue] = React.useState(
         expandedItemIds.includes(item.id) ? [item.id] : []
     )
     return (
-        <AccordionPrimitive.Root
-            type="multiple"
-            value={value}
-            onValueChange={(s) => setValue(s)}
-        >
-            <AccordionPrimitive.Item value={item.id}>
-                <AccordionTrigger
-                    className={cn(
-                        treeVariants(),
-                        selectedItemId === item.id && selectedTreeVariants()
-                    )}
-                    onClick={() => {
-                        handleSelectChange(item)
-                        item.onClick?.()
-                    }}
+        <>
+            {hasChildren ? (
+                <AccordionPrimitive.Root
+                    type="multiple"
+                    value={value}
+                    onValueChange={(s) => setValue(s)}
                 >
-                    <TreeIcon
-                        item={item}
-                        isSelected={selectedItemId === item.id}
-                        isOpen={value.includes(item.id)}
-                        default={defaultNodeIcon}
-                    />
-                    <span className="text-sm truncate">{item.name}</span>
-                    <TreeActions isSelected={selectedItemId === item.id}>
-                        {item.actions}
-                    </TreeActions>
-                </AccordionTrigger>
-                <AccordionContent className="ml-4 pl-1 border-l">
-                    <TreeItem
-                        data={item.children ? item.children : item}
-                        selectedItemId={selectedItemId}
-                        handleSelectChange={handleSelectChange}
-                        expandedItemIds={expandedItemIds}
-                        defaultLeafIcon={defaultLeafIcon}
-                        defaultNodeIcon={defaultNodeIcon}
-                    />
-                </AccordionContent>
-            </AccordionPrimitive.Item>
-        </AccordionPrimitive.Root>
+                    <AccordionPrimitive.Item value={item.id}>
+                        <AccordionTrigger
+                            className={cn(
+                                treeVariants(),
+                                selectedItemId === item.id && selectedTreeVariants()
+                            )}
+                            onClick={() => {
+                                handleSelectChange(item)
+                                item.onClick?.()
+                            }}
+                        >
+                            <TreeIcon
+                                item={item}
+                                isSelected={selectedItemId === item.id}
+                                isOpen={value.includes(item.id)}
+                                default={defaultNodeIcon}
+                            />
+                            <span className="text-sm truncate">{item.name}</span>
+                            <TreeActions isSelected={selectedItemId === item.id}>
+                                {item.actions}
+                            </TreeActions>
+                        </AccordionTrigger>
+                        <AccordionContent className="ml-4 pl-1 border-l">
+                            <TreeItem
+                                data={item.children ? item.children : item}
+                                selectedItemId={selectedItemId}
+                                handleSelectChange={handleSelectChange}
+                                expandedItemIds={expandedItemIds}
+                                defaultLeafIcon={defaultLeafIcon}
+                                defaultNodeIcon={defaultNodeIcon}
+                            />
+                        </AccordionContent>
+                    </AccordionPrimitive.Item>
+                </AccordionPrimitive.Root>
+            ) : (
+                <TreeLeaf
+                    item={item}
+                    selectedItemId={selectedItemId}
+                    handleSelectChange={handleSelectChange}
+                    defaultLeafIcon={defaultLeafIcon}
+                />
+            )}
+        </>
     )
 }
 
