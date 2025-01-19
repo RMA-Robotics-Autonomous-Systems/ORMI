@@ -391,7 +391,7 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
                     title: 'Title'
                 },
                 topic: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Topic',
                 }
             },
