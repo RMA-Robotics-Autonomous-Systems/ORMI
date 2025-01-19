@@ -33,7 +33,7 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import shadcnRenderer from "@/core/jsonforms/ShadcnRender";
+import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
 
 
 
@@ -84,6 +84,11 @@ const DatasourceCard = (props: DatasourceCardProps) => {
         ...shadcnRenderer,
     ];
 
+    const cellsRenderers = [
+        ...materialCells,
+        ...shadcnCells
+    ]
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -122,7 +127,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
                         uischema={props.definition.uischema}
                         data={data}
                         renderers={renderers}
-                        cells={materialCells}
+                        cells={cellsRenderers}
                         onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
                     <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >

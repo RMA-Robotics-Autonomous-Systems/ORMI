@@ -13,15 +13,14 @@ import ShadcnCategorizationStepperLayout, { shadcnCategorizationStepperTester } 
 import ShadcnCategorizationLayout, { shadcnCategorizationTester } from './layouts/ShadcnCategorizationLayout';
 import ShadcnArrayControlRenderer, { shadcnArrayControlTester } from './controls/tables/ShadcnArrayControlRenderer';
 import { ShadcnBooleanControl, shadcnBooleanControlTester, ShadcnBooleanToggleControl, shadcnBooleanToggleControlTester, ShadcnDateControl, shadcnDateControlTester, ShadcnDateTimeControl, shadcnDateTimeControlTester, ShadcnEnumControl, shadcnEnumControlTester, ShadcnIntegerControl, shadcnIntegerControlTester, ShadcnNativeControl, shadcnNativeControlTester, ShadcnNumberControl, shadcnNumberControlTester, ShadcnOneOfEnumControl, shadcnOneOfEnumControlTester, ShadcnOneOfRadioGroupControl, shadcnOneOfRadioGroupControlTester, ShadcnRadioGroupControl, shadcnRadioGroupControlTester, ShadcnSliderControl, shadcnSliderControlTester, ShadcnTextControl, shadcnTextControlTester, ShadcnTimeControl, shadcnTimeControlTester } from './controls/simples';
+import { ShadcnBooleanCell, shadcnBooleanCellTester, ShadcnBooleanToggleCell, shadcnBooleanToggleCellTester, ShadcnDateCell, shadcnDateCellTester, ShadcnEnumCell, shadcnEnumCellTester, ShadcnIntegerCell, shadcnIntegerCellTester, ShadcnNumberCell, shadcnNumberCellTester, ShadcnNumberFormatCell, shadcnNumberFormatCellTester, ShadcnOneOfEnumCell, shadcnOneOfEnumCellTester, ShadcnTextCell, shadcnTextCellTester, ShadcnTimeCell, shadcnTimeCellTester } from './controls/cells';
+import { JsonFormsCellRendererRegistryEntry } from '@jsonforms/core';
 
 
 const shadcnRenderer = [
     { tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
     { tester: asyncSelectTester, renderer: AsyncSelectControl },
     { tester: colorSelectTester, renderer: colorSelect },
-    // { tester: switchTester, renderer: SwitchControl },
-    // { tester: TextTester, renderer: TextControl },
-    // { tester: NumberTester, renderer: NumberControl },
     { tester: asyncTopicTester, renderer: AsyncTopicControl },
     { tester: keySelectorTester, renderer: KeySelectorControl },
     { tester: shadcnVerticalLayoutTester, renderer: ShadcnVerticalLayoutRenderer },
@@ -74,10 +73,20 @@ const shadcnRenderer = [
         renderer: ShadcnOneOfEnumControl,
     },
 
-    // { tester: shadcnObjectControlTester, renderer: ShadcnObjectRenderer },
-    // { tester: shadcnAllOfControlTester, renderer: ShadcnAllOfRenderer },
-    // { tester: shadcnAnyOfControlTester, renderer: ShadcnAnyOfRenderer },
-    // { tester: shadcnOneOfControlTester, renderer: ShadcnOneOfRenderer },
+];
+
+
+export const shadcnCells: JsonFormsCellRendererRegistryEntry[] = [
+    { tester: shadcnBooleanCellTester, cell: ShadcnBooleanCell },
+    { tester: shadcnBooleanToggleCellTester, cell: ShadcnBooleanToggleCell },
+    { tester: shadcnDateCellTester, cell: ShadcnDateCell },
+    { tester: shadcnEnumCellTester, cell: ShadcnEnumCell },
+    { tester: shadcnIntegerCellTester, cell: ShadcnIntegerCell },
+    { tester: shadcnNumberCellTester, cell: ShadcnNumberCell },
+    { tester: shadcnNumberFormatCellTester, cell: ShadcnNumberFormatCell },
+    { tester: shadcnOneOfEnumCellTester, cell: ShadcnOneOfEnumCell },
+    { tester: shadcnTextCellTester, cell: ShadcnTextCell },
+    { tester: shadcnTimeCellTester, cell: ShadcnTimeCell },
 ];
 
 export default shadcnRenderer;

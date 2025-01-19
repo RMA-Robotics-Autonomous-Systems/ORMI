@@ -95,13 +95,12 @@ const CustomTableCell: React.FC<TableCellProps> = ({
     schema,
     title,
     rowPath,
-    cellPath,
     enabled,
     cells
 }) => {
     return (
         <TableCell>
-            <div className={`flex items-center justify-between`}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', alignItems: "center", gap: '0.5rem' }}>
                 {/* Your cell content here */}
                 {title || propName}
                 <NonEmptyCell

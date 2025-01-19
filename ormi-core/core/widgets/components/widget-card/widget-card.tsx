@@ -24,7 +24,7 @@ import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
-import shadcnRenderer from "@/core/jsonforms/ShadcnRender";
+import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
 
 // Import the custom renderers
 
@@ -130,6 +130,11 @@ const WidgetCard = (props: WidgetCardProps) => {
         ...shadcnRenderer,
     ];
 
+    const cellsRenderers = [
+        ...materialCells,
+        ...shadcnCells
+    ]
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -148,7 +153,7 @@ const WidgetCard = (props: WidgetCardProps) => {
                         uischema={props.definition.uischema}
                         data={data}
                         renderers={renderers}
-                        cells={materialCells}
+                        cells={cellsRenderers}
                         onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
                     <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
