@@ -9,6 +9,7 @@ import React, { useEffect, useRef } from 'react';
 interface WebrtcRos2VideoStreamProps {
     title: string;
     topic: SelectedTopic;
+    iceServersUrls?: string[];
 }
 
 const getHostFromWSUrl = (url: string) => {
@@ -21,8 +22,14 @@ const getHostFromWSUrl = (url: string) => {
 const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const isCompatibleWithTopicSource = true;// props.topic.source.id === 'rosbridge-suite-source';
+    // check if the topic source is compatible with this widget, it must be coming from ROS2 datasource
+    // for that the topic source must be of type RosBridgeSuiteDataSourceSettings
+    const isCompatibleWithTopicSource = true;
+
+
     const ros2Definition = props.topic.source as RosBridgeSuiteDataSourceSettings;
+
+
 
     const host = getHostFromWSUrl(ros2Definition.url);
     const topic = props.topic.topic;
@@ -30,7 +37,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
     useEffect(() => {
 
         const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            iceServers: props.iceServersUrls?.map((url) => ({ urls: url }))
         });
 
         pc.addTransceiver('video', { direction: 'recvonly' });
@@ -99,7 +106,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
         return () => {
             pc.close();
         };
-    }, []);
+    }, [props]);
 
     return (
         <div>
@@ -146,9 +153,14 @@ export function WebRtcRos2Definition() {
         }
     }
 
+    const iceServersUrls: ControlElement = {
+        type: "Control",
+        scope: "#/properties/iceServersUrls",
+    }
+
     const layout: VerticalLayout = {
         type: "VerticalLayout",
-        elements: [title, topic],
+        elements: [title, topic, iceServersUrls],
     }
 
     return {
@@ -166,13 +178,22 @@ export function WebRtcRos2Definition() {
                 topic: {
                     type: 'object',
                     title: 'Topic',
+                },
+                iceServersUrls: {
+                    type: 'array',
+                    title: 'ICE Servers URLs',
+                    items: {
+                        type: 'string'
+                    },
+                    default: ['stun:stun.l.google.com:19302']
                 }
             },
             required: ['title', 'topic']
         },
         uischema: layout,
         data: {
-            title: 'WebRTC viewer'
+            title: 'WebRTC viewer',
+            iceServersUrls: ['stun:stun.l.google.com:19302']
         },
         Component: (data: WebrtcRos2VideoStreamProps) => (
             <WebrtcRos2VideoStream title={data.title} topic={data.topic} />
