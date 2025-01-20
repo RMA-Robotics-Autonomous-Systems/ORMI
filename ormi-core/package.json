@@ -56,7 +56,8 @@
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "uplot-react": "^1.2.2"
+    "uplot-react": "^1.2.2",
+    "webgl-plot": "^0.7.2"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.14",

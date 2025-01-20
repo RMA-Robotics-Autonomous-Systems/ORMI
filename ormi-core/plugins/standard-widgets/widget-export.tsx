@@ -18,6 +18,7 @@ import { TreeViewer } from './widgets/tree-viewer';
 
 import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
+import { WebGLPlotDefinition } from './widgets/charts/webgl-plot-chart';
 
 
 // function LineChartExport(widgets: WidgetDefinition[]) {
@@ -325,6 +326,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(KeyboardControlDefinition());
     widgets.push(TimeSeriesChartDefinition());
+    widgets.push(WebGLPlotDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
     return PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets)));
