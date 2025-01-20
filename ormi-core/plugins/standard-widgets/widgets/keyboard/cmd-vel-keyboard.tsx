@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import style from "@/core/jsonforms/controls/key/key.module.css";
 import { LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";

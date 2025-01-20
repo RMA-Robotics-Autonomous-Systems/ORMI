@@ -1,7 +1,11 @@
-import { useLocalDataSource } from '@/core/datasources/components/local-datasource-provider';
-import { SelectedTopic } from '@/core/datasources/datasource-interface';
+import { LocalDataSourcesProvider, useLocalDataSource } from '@/core/datasources/components/local-datasource-provider';
+import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/topic-selector';
+import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
+import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
+import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import React, { useEffect, useRef } from 'react';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
@@ -199,3 +203,137 @@ function showErrorToast(notFoundTopics: string[]) {
         variant: 'destructive'
     });
 }
+
+
+export function TimeSeriesChartDefinition() {
+    const pluginsManager = usePluginsManager();
+
+    interface TimeSeriesSettings {
+        title: string;
+        timeHistory: number;
+        updateFrequency: number;
+        topics: {
+            topic: SelectedTopic;
+            color: string;
+            fill: boolean;
+        }[]
+    }
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const timeHistory: ControlElement = {
+        type: "Control",
+        scope: "#/properties/timeHistory",
+    }
+
+    const updateFrequency: ControlElement = {
+        type: "Control",
+        scope: "#/properties/updateFrequency",
+    }
+
+    const topic: AsyncTopicControlType = {
+        "type": "TopicSelect",
+        "scope": "#/properties/topic",
+        "options": {
+            "asyncFunction": async () => {
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+            },
+            "propertyType": "number"
+        }
+    }
+
+    const color: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/color",
+        "options": {
+            "color": true,
+        }
+    }
+
+    const fill: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/fill",
+    }
+
+    // array of topics
+    const topics: ControlElement = {
+        type: "Control",
+        scope: "#/properties/topics",
+        options: {
+            detail: {
+                type: "Group",
+                elements: [topic, color, fill]
+            }
+
+        }
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, timeHistory, updateFrequency, topics],
+    }
+
+    return {
+        id: 'chart-widget-time-series',
+        name: 'Time series chart',
+        description: 'Display a line chart',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                timeHistory: {
+                    type: 'number',
+                    title: 'Time history in seconds',
+                    default: 5
+                },
+                updateFrequency: {
+                    type: 'number',
+                    title: 'Update frequency in Hz',
+                    default: 32
+                },
+                topics: {
+                    type: 'array',
+                    title: 'Topics',
+                    items: {
+                        type: "object",
+                        properties: {
+                            topic: {
+                                "type": "object",
+                                "title": "Topic",
+                            },
+                            color: {
+                                "type": "string",
+                                "title": "Color",
+                            },
+                            fill: {
+                                "type": "boolean",
+                                "title": "Fill",
+                                default: false,
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            },
+            required: ['title', 'topics']
+        },
+        uischema: layout,
+        data: {
+            title: 'Chart'
+        },
+        Component: (data: TimeSeriesSettings) => (
+
+            <LocalDataSourcesProvider SelectedTopics={data.topics.map(t => t.topic)} buffersSize={2000} >
+                <TimeChartComponent {...data} />
+            </LocalDataSourcesProvider >
+        )
+
+    }
+};

@@ -14,9 +14,10 @@ import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/
 
 import { PluginViewer } from './widgets/plugins-viewer';
 import { JsonViewer } from './widgets/json-viewer';
-import { TimeChartComponent } from './widgets/timeseries-chart';
 import { TreeViewer } from './widgets/tree-viewer';
+
 import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
+import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
 
 
 // function LineChartExport(widgets: WidgetDefinition[]) {
@@ -141,144 +142,7 @@ import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 //     return widgets;
 // };
 
-function TimeSeriesChartExport(widgets: WidgetDefinition[]) {
 
-    const pluginsManager = usePluginsManager();
-
-    interface TimeSeriesSettings {
-        title: string;
-        timeHistory: number;
-        updateFrequency: number;
-        topics: {
-            topic: SelectedTopic;
-            color: string;
-            fill: boolean;
-        }[]
-    }
-
-    const title: ControlElement = {
-        type: "Control",
-        scope: "#/properties/title",
-    }
-
-    const timeHistory: ControlElement = {
-        type: "Control",
-        scope: "#/properties/timeHistory",
-    }
-
-    const updateFrequency: ControlElement = {
-        type: "Control",
-        scope: "#/properties/updateFrequency",
-    }
-
-    const topic: AsyncTopicControlType = {
-        "type": "TopicSelect",
-        "scope": "#/properties/topic",
-        "options": {
-            "asyncFunction": async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
-            },
-            "propertyType": "number"
-        }
-    }
-
-    const color: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/color",
-        "options": {
-            "color": true,
-        }
-    }
-
-    const fill: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/fill",
-    }
-
-    // array of topics
-    const topics: ControlElement = {
-        type: "Control",
-        scope: "#/properties/topics",
-        options: {
-            detail: {
-                type: "Group",
-                elements: [topic, color, fill]
-            }
-
-        }
-    }
-
-    const layout: VerticalLayout = {
-        type: "VerticalLayout",
-        elements: [title, timeHistory, updateFrequency, topics],
-    }
-
-    const timeSeriesWidget: WidgetDefinition = {
-        id: 'chart-widget-time-series',
-        name: 'Time series chart',
-        description: 'Display a line chart',
-        titleProp: 'title',
-        schema: {
-            type: 'object',
-            properties: {
-                title: {
-                    type: 'string',
-                    title: 'Title'
-                },
-                timeHistory: {
-                    type: 'number',
-                    title: 'Time history in seconds',
-                    default: 5
-                },
-                updateFrequency: {
-                    type: 'number',
-                    title: 'Update frequency in Hz',
-                    default: 32
-                },
-                topics: {
-                    type: 'array',
-                    title: 'Topics',
-                    items: {
-                        type: "object",
-                        properties: {
-                            topic: {
-                                "type": "object",
-                                "title": "Topic",
-                            },
-                            color: {
-                                "type": "string",
-                                "title": "Color",
-                            },
-                            fill: {
-                                "type": "boolean",
-                                "title": "Fill",
-                                default: false,
-                            }
-                        },
-                        "required": ["topic"]
-                    }
-                }
-            },
-            required: ['title', 'topics']
-        },
-        uischema: layout,
-        data: {
-            title: 'Chart'
-        },
-        Component: (data: TimeSeriesSettings) => (
-
-            <LocalDataSourcesProvider SelectedTopics={data.topics.map(t => t.topic)} buffersSize={2000} >
-                <TimeChartComponent {...data} />
-            </LocalDataSourcesProvider >
-        )
-
-    }
-
-    widgets.push(timeSeriesWidget);
-
-
-    return widgets;
-};
 
 function JsonViewerExport(widgets: WidgetDefinition[]) {
 
@@ -457,17 +321,13 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
     return widgets;
 }
 
-function KeyBoardControlExport(widgets: WidgetDefinition[]) {
+const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(KeyboardControlDefinition());
+    widgets.push(TimeSeriesChartDefinition());
 
-    return widgets;
-
-}
-
-const WidgetExport = (widgets: WidgetDefinition[]) => {
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
-    return KeyBoardControlExport(PluginsViewerExport(TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(widgets)))));
+    return PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets)));
 }
 
 export default WidgetExport;
