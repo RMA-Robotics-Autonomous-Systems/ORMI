@@ -6,7 +6,8 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import uPlot from 'uplot';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
 import 'uplot/dist/uPlot.min.css';
@@ -28,6 +29,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
     const frameRef = useRef<number>();
     const lastUpdateRef = useRef<number>(0);
     const dataBufferRef = useRef<Map<string, { value: number, time: number }[]>>(new Map());
+    const [chartKey, setChartKey] = useState(0);
 
     const optionsRef = useRef<uPlot.Options>({
         width: 500,
@@ -129,6 +131,10 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 };
             }
 
+            // Force chart update even without new data
+            setChartKey(prev => prev + 1); // Add this line to force re-render
+
+            // Schedule next update
             frameRef.current = requestAnimationFrame(processData);
         };
 
@@ -139,11 +145,11 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 cancelAnimationFrame(frameRef.current);
             }
         };
-    }, [props.topics, sources]);
+    }, [props.topics, timeSpan, updateInterval]);
 
     return (
         <div ref={divRef} style={{ width: "100%", height: "100%" }}>
-            <UplotReact options={optionsRef.current} data={dataRef.current} />
+            <UplotReact key={chartKey} options={optionsRef.current} data={dataRef.current} />
         </div>
     );
 }
@@ -176,7 +182,8 @@ function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: b
         series.push({
             label: props_label,
             stroke: topic_props.color || getColorsFromString(sourceId),
-            width: 2,
+            width: 1,
+            sorted: 0,
             spanGaps: true,
             fill,
         });
