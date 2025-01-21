@@ -12,6 +12,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { toast } from '@/hooks/use-toast';
 import { SelectedTopic } from '../datasource-interface';
+import { Spinner } from '@/components/spinner';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
@@ -181,7 +182,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
     return (
         <LocalDataSourcesContext.Provider value={{ sources }}>
             {initialized && children}
-            {!initialized && <div>Loading...</div>}
+            {!initialized && <Spinner />}
         </LocalDataSourcesContext.Provider>
     );
 };

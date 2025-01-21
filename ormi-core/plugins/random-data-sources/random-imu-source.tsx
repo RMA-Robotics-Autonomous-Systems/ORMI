@@ -21,6 +21,7 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
+import { Spinner } from '@/components/spinner';
 
 const RandomIMUSourceContext = createContext(null);
 
@@ -181,6 +182,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
     return (
         <RandomIMUSourceContext.Provider value={null}>
             {initialized && children}
+            {!initialized && <Spinner />}
         </RandomIMUSourceContext.Provider>
     );
 };

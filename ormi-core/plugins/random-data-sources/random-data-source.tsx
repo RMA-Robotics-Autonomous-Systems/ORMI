@@ -21,6 +21,7 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { Spinner } from '@/components/spinner';
 
 const RandomDataSourceContext = createContext(null);
 
@@ -141,6 +142,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     return (
         <RandomDataSourceContext.Provider value={null}>
             {initialized && children}
+            {!initialized && <Spinner />}
         </RandomDataSourceContext.Provider>
     );
 };

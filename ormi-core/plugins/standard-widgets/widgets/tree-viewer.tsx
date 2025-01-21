@@ -1,3 +1,4 @@
+import { Spinner } from "@/components/spinner";
 import { TreeView, TreeDataItem } from "@/components/tree-view";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
 
@@ -43,7 +44,7 @@ export function TreeViewer() {
             {treeData && treeData.length > 0 ? (
                 <TreeView data={treeData} />
             ) : (
-                <div>Loading...</div>
+                <Spinner />
             )}
         </div>
     );

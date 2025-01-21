@@ -26,6 +26,7 @@ import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
 import { WebAppToROS2Converter } from './ros2/webapp-to-ros2';
+import { Spinner } from '@/components/spinner';
 
 const RosBridgeSuiteSourceContext = createContext(null);
 
@@ -505,6 +506,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     return (
         <RosBridgeSuiteSourceContext.Provider value={null}>
             {connected && children}
+            {!connected && <Spinner />}
         </RosBridgeSuiteSourceContext.Provider>
     );
 
