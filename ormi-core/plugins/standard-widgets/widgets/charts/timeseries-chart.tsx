@@ -134,7 +134,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
             }
 
             // Force chart update even without new data
-            setChartKey(prev => prev + 1); // Add this line to force re-render
+            setChartKey(prev => ((prev + 1) % 2)); // Add this line to force re-render
 
             // Schedule next update
             frameRef.current = requestAnimationFrame(processData);
