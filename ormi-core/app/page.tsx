@@ -8,6 +8,7 @@ import { Widget } from "@/core/widgets/widget-interface";
 
 import { Datasource } from "@/core/datasources/datasource-interface";
 import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
+import { handleLoad, handleSave } from "@/core/dashboard/components/dashboard-local-storage";
 
 export default function Home() {
 
@@ -26,7 +27,7 @@ export default function Home() {
 
     return (
         <div className={styles.page}>
-            <DashboardProvider dashboardDefinition={dashboardDefinition}>
+            <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
                 <GlobalDataSourcesProvider>
                     <Dashboard />
                     {/* <WidgetsDialog /> */}
