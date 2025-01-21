@@ -118,12 +118,17 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 
             dataRef.current = newData;
 
+
+            // get element with this class : 'u-legend u-inline u-live' in the divRef
+            const legend = divRef.current?.querySelector('.u-legend.u-inline.u-live');
+            const legend_height = legend ? legend.clientHeight : 0;
+
             // Update chart dimensions and time range
             if (divRef.current) {
                 optionsRef.current = {
                     ...optionsRef.current,
                     width: divRef.current.clientWidth,
-                    height: divRef.current.clientHeight - (props.topics.length * 20),
+                    height: divRef.current.clientHeight - (legend_height),
                     scales: {
                         x: {
                             time: true,
