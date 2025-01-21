@@ -100,6 +100,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 
             const timeArray = Array.from(timeSet).sort();
             const newData: AlignedData = [timeArray];
+            const timeIndexMap = new Map(timeArray.map((time, i) => [time, i]));
 
             props.topics.forEach((topic_props) => {
                 const topic = topic_props.topic;
@@ -107,9 +108,10 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                     topic.topic + "+" + topic.property : topic.topic;
                 const topicData = dataBufferRef.current.get(sourceId);
 
-                const values = timeArray.map(time => {
-                    const point = topicData?.find(d => d.time === time);
-                    return point?.value ?? null;
+                const values = new Array(timeArray.length).fill(null);
+                topicData?.forEach(d => {
+                    const index = timeIndexMap.get(d.time);
+                    if (index !== undefined) values[index] = d.value;
                 });
                 newData.push(values);
             });
