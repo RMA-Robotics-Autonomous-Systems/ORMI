@@ -179,7 +179,7 @@ function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: b
 
         const fill = (topic_props.fill || false) ?
             getTransparentColorString(
-                topic_props.color || getColorsFromString(topic.topic),
+                topic_props.color || getColorsFromString(topic.topic, 0.4),
                 0.4
             ) : undefined;
 
