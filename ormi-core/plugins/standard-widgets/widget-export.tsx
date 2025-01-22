@@ -20,6 +20,7 @@ import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
 import { WebGLPlotDefinition } from './widgets/charts/webgl-plot-chart';
 import { WebRtcRos2Definition } from './widgets/images/webrtc';
+import { MapsViewerDefinition } from './widgets/maps/maps-viewer';
 
 
 // function LineChartExport(widgets: WidgetDefinition[]) {
@@ -166,7 +167,7 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         "scope": "#/properties/topic",
         "options": {
             "asyncFunction": async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'GeolocationPosition');
             },
             // "propertyType": "number"
         }
@@ -328,7 +329,8 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(KeyboardControlDefinition());
     widgets.push(TimeSeriesChartDefinition());
     widgets.push(WebGLPlotDefinition());
-    widgets.push(WebRtcRos2Definition())
+    widgets.push(WebRtcRos2Definition());
+    widgets.push(MapsViewerDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
     return PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets)));
