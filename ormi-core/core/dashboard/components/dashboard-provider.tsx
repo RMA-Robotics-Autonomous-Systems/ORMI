@@ -411,30 +411,41 @@ const DashboardProvider: React.FC<DashboardProviderProps> = ({ children, dashboa
         const max_number_of_rows = ((window.innerHeight * 0.9) / row_size_px)
         const optimalMatrix = getOptimalMatrix(breakpoint, widgets.size);
 
+        // sort by distance from (0,0) (top left)
+        const sorted_boxes = new_layouts[breakpoint].sort((a, b) => (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y));
+
         // place the boxes in the optimal position
-        new_layouts[breakpoint] = new_layouts[breakpoint].map((box, index) => {
+        new_layouts[breakpoint] = sorted_boxes.map((box, index) => {
+            const cols = optimalMatrix!.cols;
+            const total_cols = colsperBreakpoints[breakpoint];
 
-            const cols_size = colsperBreakpoints[breakpoint] / optimalMatrix!.cols;
-            const rows_size = (max_number_of_rows / optimalMatrix!.rows);
+            // Calculate position based on grid index
+            const row = Math.floor(index / cols);
+            const col = index % cols;
 
-            // if element is the last one, we fill the remaining space
+            // Calculate width and height
+            const col_width = Math.floor(total_cols / cols);
+            const row_height = Math.floor(max_number_of_rows / optimalMatrix!.rows);
+
+            // Last element special handling
             if (index === widgets.size - 1) {
+                const remaining_width = total_cols - (col * col_width);
                 return {
                     ...box,
-                    x: (index * cols_size) % colsperBreakpoints[breakpoint],
-                    y: Math.floor(index / optimalMatrix!.cols),
-                    w: colsperBreakpoints[breakpoint] - (index * cols_size) % colsperBreakpoints[breakpoint],
-                    h: rows_size
-                }
+                    x: col * col_width,
+                    y: row * row_height,
+                    w: remaining_width,
+                    h: row_height
+                };
             }
 
             return {
                 ...box,
-                x: (index * cols_size) % colsperBreakpoints[breakpoint],
-                y: Math.floor(index / optimalMatrix!.cols),
-                w: cols_size,
-                h: rows_size
-            }
+                x: col * col_width,
+                y: row * row_height,
+                w: col_width,
+                h: row_height
+            };
         });
 
         layoutsChanged(new_layouts);
