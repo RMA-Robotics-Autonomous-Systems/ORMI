@@ -2,7 +2,7 @@
 
 import { MapContainer, TileLayer } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import TopicMaker from "./marker";
+import TopicMaker from "./marker-simple";
 import { LocalDataSourcesProvider } from "@/core/datasources/components/local-datasource-provider";
 import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
@@ -12,6 +12,8 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { useEffect, useState } from "react";
 import { LatLngExpression } from "leaflet";
 import { Spinner } from "@/components/spinner";
+import HeatMarker from "./marker-heat";
+import PathMarker from "./marker-path";
 
 // import "leaflet-defaulticon-compatibility"
 // import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css"
@@ -22,6 +24,7 @@ interface MapsViewerSettings {
     topics: {
         name: string;
         topic: SelectedTopic;
+        makerType: "simple" | "heatmap" | "path",
     }[]
 }
 
@@ -59,10 +62,19 @@ export default function MapsViewer(props: MapsViewerSettings) {
                     url={props.mapUrl}
                 />
 
-
                 {props.topics.length !== 0 && (
                     <LocalDataSourcesProvider SelectedTopics={props.topics.map(t => t.topic)} buffersSize={50} >
-                        {props.topics.map(t => <TopicMaker key={t.name} topic={t.topic} name={t.name} scale={1} />)}
+                        {props.topics.map(t => {
+                            if (t.makerType === "simple") {
+                                return <TopicMaker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                            } else if (t.makerType === "heatmap") {
+                                return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                            } else if (t.makerType === "path") {
+                                return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                            }
+
+                            return null;
+                        })}
                     </LocalDataSourcesProvider >
                 )}
 
@@ -100,6 +112,11 @@ export function MapsViewerDefinition() {
         "scope": "#/properties/name",
     }
 
+    const makerType: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/makerType",
+    }
+
     // array of topics
     const topics: ControlElement = {
         type: "Control",
@@ -107,7 +124,7 @@ export function MapsViewerDefinition() {
         options: {
             detail: {
                 type: "Group",
-                elements: [name, topic]
+                elements: [name, makerType, topic]
             }
         }
     }
@@ -175,6 +192,12 @@ export function MapsViewerDefinition() {
                                 "type": "object",
                                 "title": "Topic",
                             },
+                            makerType: {
+                                "type": "string",
+                                "title": "Maker Type",
+                                "enum": ["simple", "heatmap", "path"],
+                                "default": "simple"
+                            }
                         },
                         "required": ["topic"]
                     }
