@@ -39,8 +39,7 @@ export default function MapsViewer(props: MapsViewerSettings) {
                     setStartingLocation([position.coords.latitude, position.coords.longitude]);
                     setIsLoading(false);
                 },
-                (error) => {
-                    console.error("Geolocation error:", error);
+                () => {
                     setIsLoading(false);
                 }
             );
