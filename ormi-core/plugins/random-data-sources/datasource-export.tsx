@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { DatasourceDefinition } from '@/core/datasources/datasource-interface';
 

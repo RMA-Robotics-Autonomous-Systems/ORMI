@@ -1,4 +1,4 @@
-"use client";
+"use client"
 import { useEffect, useMemo } from "react";
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";

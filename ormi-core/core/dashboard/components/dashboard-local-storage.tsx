@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { Datasource } from "@/core/datasources/datasource-interface";
 import { Widget } from "@/core/widgets/widget-interface";

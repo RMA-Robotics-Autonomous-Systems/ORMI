@@ -1,3 +1,5 @@
+"use client"
+
 import { Polyline } from "react-leaflet";
 import { useEffect, useState } from "react";
 import { SelectedTopic } from "@/core/datasources/datasource-interface";

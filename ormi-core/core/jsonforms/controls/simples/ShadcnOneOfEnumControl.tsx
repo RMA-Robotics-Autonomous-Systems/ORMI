@@ -115,7 +115,7 @@ const ShadcnCombobox = ({
                     disabled={!enabled}
                 >
                     {data
-                        ? options!.find((option) => option.value === data)?.label
+                        ? (options || []).find((option) => option.value === data)?.label
                         : label}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -125,7 +125,7 @@ const ShadcnCombobox = ({
                     <CommandInput placeholder={`Search ${label}...`} />
                     <CommandEmpty>No option found.</CommandEmpty>
                     <CommandGroup>
-                        {options!.map((option) => (
+                        {(options || [])!.map((option) => (
                             <CommandItem
                                 key={option.value}
                                 onSelect={() => {

@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 /*
     Dialog that display available widgets as cards

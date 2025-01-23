@@ -1,3 +1,4 @@
+"use client"
 /*
     Provider that creates a datasets with random data
 
@@ -11,11 +12,10 @@
             data: [random data]    
         },
 */
-"use client";
 
 import React, { createContext, ReactNode, useEffect, useRef } from 'react';
 
-import ROSLIB from 'roslib';
+import * as ROSLIB from 'roslib'
 
 import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';

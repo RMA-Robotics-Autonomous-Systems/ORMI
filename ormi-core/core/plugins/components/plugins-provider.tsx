@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import React, { createContext, useContext, ReactNode, useRef } from 'react';
 // import PluginsLoader from './plugins-loader';

@@ -1,3 +1,4 @@
+"use client"
 /*
     The goal of this component is to provide a context for the navbar, so that the navbar can be controlled from anywhere in the app.
     It allows components to register themselves as a navbar item, and to update the navbar title and actions.
@@ -14,8 +15,6 @@
 
     The component takes a title, a zone, and a react components as children.
 */
-
-"use client";
 
 import React, { createContext, useContext, useState } from 'react';
 

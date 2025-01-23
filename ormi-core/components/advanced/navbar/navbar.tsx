@@ -1,4 +1,5 @@
-"use client";
+"use client"
+
 import Link from "next/link";
 import { useState } from "react";
 import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink, navigationMenuTriggerStyle } from "../../ui/navigation-menu";

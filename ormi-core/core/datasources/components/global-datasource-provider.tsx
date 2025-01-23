@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 /*
     Load all available datasources and create a provider for them

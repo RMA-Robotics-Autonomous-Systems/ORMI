@@ -1,3 +1,5 @@
+"use client"
+
 /*
     Provider that creates a datasets with random data
 
@@ -11,7 +13,6 @@
             data: [random data]    
         },
 */
-"use client";
 
 import React, { createContext, useContext, ReactNode, useEffect, useRef, useState } from 'react';
 

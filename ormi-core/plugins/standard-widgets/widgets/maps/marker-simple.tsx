@@ -1,3 +1,5 @@
+"use client"
+
 import { Marker, Popup, useMap } from "react-leaflet"
 
 import { useEffect, useState } from "react";
@@ -6,10 +8,6 @@ import { SelectedTopic } from "@/core/datasources/datasource-interface";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
 
 export default function TopicMaker(props: { topic: SelectedTopic, name: string, scale?: number }) {
-
-    // use map
-    const map = useMap();
-
 
     const [location, setLocation] = useState([50.843941, 4.3930369]);
     const { sources } = useLocalDataSource();

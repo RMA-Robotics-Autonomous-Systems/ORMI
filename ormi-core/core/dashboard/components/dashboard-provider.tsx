@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import DashboardInterface from '../dashboard-interface';
