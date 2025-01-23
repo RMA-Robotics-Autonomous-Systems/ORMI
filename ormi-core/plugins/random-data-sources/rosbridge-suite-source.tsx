@@ -25,7 +25,7 @@ import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from '@/co
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
-import { WebAppToROS2Converter } from './ros2/webapp-to-ros2';
+import { ROS2ToWebAppConverter, WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 import { Spinner } from '@/components/spinner';
 
 const RosBridgeSuiteSourceContext = createContext(null);
@@ -177,6 +177,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
     const ros_publishers = useRef(new Map<string, RosTopicAndCounter>()).current = new Map<string, RosTopicAndCounter>();
 
     const converter = new WebAppToROS2Converter();
+    const rosToWebAppConverter = new ROS2ToWebAppConverter();
 
     useEffect(() => {
 
@@ -270,9 +271,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         });
 
                         subscriber.subscribe((message: any) => {
+
+                            // convert the incoming message to webapp format
+                            const convertedMessage = rosToWebAppConverter.convert(message, topicType);
+
                             pluginsManager.doAction(
                                 `${datasource_id}-${topic.topic}-published`,
-                                message,
+                                convertedMessage,
                                 Date.now()
                             );
                         });

@@ -10,6 +10,7 @@ import { useLocalDataSource } from "@/core/datasources/components/local-datasour
 export default function TopicMaker(props: { topic: SelectedTopic, name: string, scale?: number }) {
 
     const [location, setLocation] = useState([50.843941, 4.3930369]);
+    const [hasData, setHasData] = useState(false);
     const { sources } = useLocalDataSource();
 
 
@@ -23,8 +24,13 @@ export default function TopicMaker(props: { topic: SelectedTopic, name: string, 
         // data should be GeolocationPosition
 
         try {
-            const lastData = data.data[data.data.length - 1] as GeolocationPosition;
 
+            if (data.data.length === 0) {
+                return;
+            }
+
+            const lastData = data.data[data.data.length - 1] as GeolocationPosition;
+            setHasData(true);
             setLocation([lastData.coords.latitude, lastData.coords.longitude]);
         } catch (error) {
             console.error("Error parsing data", error, data);
@@ -47,10 +53,12 @@ export default function TopicMaker(props: { topic: SelectedTopic, name: string, 
     // }, [data]);
 
     return (
-        <Marker icon={L.icon({ iconUrl: "https://api.dicebear.com/8.x/bottts/svg?seed=" + props.name, iconSize: [30 * (props.scale || 1), 30 * (props.scale || 1)] })} position={new LatLng(location[0], location[1])} >
-            <Popup>
-                <p>{props.name}</p>
-            </Popup>
-        </Marker>
+        hasData && (
+            <Marker icon={L.icon({ iconUrl: "https://api.dicebear.com/8.x/bottts/svg?seed=" + props.name, iconSize: [30 * (props.scale || 1), 30 * (props.scale || 1)] })} position={new LatLng(location[0], location[1])} >
+                <Popup>
+                    <p>{props.name}</p>
+                </Popup>
+            </Marker>
+        )
     );
 }
