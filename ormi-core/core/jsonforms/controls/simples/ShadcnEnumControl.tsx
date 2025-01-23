@@ -49,6 +49,7 @@ import {
     CommandGroup,
     CommandInput,
     CommandItem,
+    CommandList,
 } from "@/components/ui/command"
 import {
     Popover,
@@ -96,6 +97,8 @@ const ShadcnCombobox = ({
 }: ControlProps & OwnPropsOfEnum) => {
     const [open, setOpen] = React.useState(false);
 
+    console.log(options);
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -118,26 +121,28 @@ const ShadcnCombobox = ({
             <PopoverContent className="w-full p-0">
                 <Command>
                     <CommandInput placeholder={`Search ${label}...`} />
-                    <CommandEmpty>No option found.</CommandEmpty>
-                    <CommandGroup>
-                        {options!.map((option) => (
-                            <CommandItem
-                                key={option.value}
-                                onSelect={() => {
-                                    handleChange(path, option.value);
-                                    setOpen(false);
-                                }}
-                            >
-                                <Check
-                                    className={cn(
-                                        "mr-2 h-4 w-4",
-                                        data === option.value ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                {option.label}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
+                    <CommandList>
+                        <CommandEmpty>No option found.</CommandEmpty>
+                        <CommandGroup>
+                            {options!.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    onSelect={() => {
+                                        handleChange(path, option.value);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            data === option.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    {option.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
                 </Command>
             </PopoverContent>
         </Popover>
