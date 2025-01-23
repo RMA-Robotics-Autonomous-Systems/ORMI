@@ -62,7 +62,7 @@ export default function MapsViewer(props: MapsViewerSettings) {
                     url={props.mapUrl}
                 />
 
-                {props.topics.length !== 0 && (
+                {(props.topics || []).length !== 0 && (
                     <LocalDataSourcesProvider SelectedTopics={props.topics.map(t => t.topic)} buffersSize={50} >
                         {props.topics.map(t => {
                             if (t.makerType === "simple") {
@@ -203,7 +203,7 @@ export function MapsViewerDefinition() {
                     }
                 }
             },
-            required: ['title', 'topics']
+            required: ['title']
         },
         uischema: layout,
         data: {
