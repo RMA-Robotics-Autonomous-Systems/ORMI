@@ -2,7 +2,6 @@
 import { useEffect, useMemo } from "react";
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
-import { Cross1Icon, LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons"
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -13,7 +12,9 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
-import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, Save } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockKeyholeIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
+import { ButtonHolderProvider } from "@/components/advanced/ButtonHolder/button-holder-provider";
+import ButtonHolder from "@/components/advanced/ButtonHolder/button-holder";
 
 const Dashboard = () => {
 
@@ -47,7 +48,7 @@ const Dashboard = () => {
 
         setNavbarItem("center", "lock_unlock",
             <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>
-                {!locked ? <LockOpen1Icon /> : <LockClosedIcon />}
+                {!locked ? <LockIcon /> : <LockOpenIcon />}
             </Button>
         );
 
@@ -94,18 +95,22 @@ const Dashboard = () => {
                 Array.from(widgets).map(([key, widget]: [string, Widget]) => {
                     return (
                         <div key={key} className={style.widget + " shadow-md"}>
-                            <div className='flex flex-row content-between gap-1' style={{ padding: "0.25rem" }}>
-                                <div className={style.dragHandle}>{widget.title}</div>
+                            <ButtonHolderProvider>
+                                <div className='flex flex-row content-between gap-1' style={{ padding: "0.25rem" }}>
+                                    <div className={style.dragHandle}>{widget.title}</div>
 
-                                {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
+                                    <ButtonHolder />
 
-                                {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
-                                    <Cross1Icon />
-                                </Button>)}
-                            </div>
-                            <div className={style.content}>
-                                {getComponents(widget.box_id)}
-                            </div>
+                                    {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
+
+                                    {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                                        <XIcon />
+                                    </Button>)}
+                                </div>
+                                <div className={style.content}>
+                                    {getComponents(widget.box_id)}
+                                </div>
+                            </ButtonHolderProvider>
                         </div>
                     );
                 })

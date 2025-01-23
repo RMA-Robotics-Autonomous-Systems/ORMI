@@ -1,9 +1,12 @@
+import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
+import { Button } from '@/components/ui/button';
 import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/topic-selector';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { RosBridgeSuiteDataSourceSettings } from '@/plugins/random-data-sources/rosbridge-suite-source';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
+import { RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
 
 interface WebrtcRos2VideoStreamProps {
@@ -29,10 +32,13 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
     const ros2Definition = props.topic.source as RosBridgeSuiteDataSourceSettings;
 
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
 
 
     const host = getHostFromWSUrl(ros2Definition.url);
     const topic = props.topic.topic;
+
+    const [rotation, setRotation] = React.useState(0);
 
     useEffect(() => {
 
@@ -97,13 +103,28 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
                 await pc.setRemoteDescription(answer);
             } catch (error) {
-                console.error("Negotiation failed:", error);
+                // console.error("Negotiation failed:", error);
             }
         };
 
         negotiate();
 
+        setButtonItem("webrtc-viewer-widget-rotate-ccw",
+            <Button variant={"ghost"} onClick={() => { setRotation((r) => (r - 90) % 360) }}>
+                <RotateCcw />
+            </Button>
+        );
+
+        setButtonItem("webrtc-viewer-widget-rotate-cw",
+            <Button variant={"ghost"} onClick={() => { setRotation((r) => (r + 90) % 360) }}>
+                <RotateCw />
+            </Button>
+        );
+
+
+
         return () => {
+            removeButtonItem("webrtc-viewer-widget");
             pc.close();
         };
     }, [props]);
@@ -116,7 +137,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
                 muted
                 playsInline
                 ref={videoRef}
-                style={{ width: '100%', height: 'auto' }}
+                style={{ width: '100%', height: 'auto', transform: `rotate(${rotation}deg)` }}
             />
             )
             }

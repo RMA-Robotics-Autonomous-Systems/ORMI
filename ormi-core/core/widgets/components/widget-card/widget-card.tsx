@@ -22,9 +22,9 @@ import {
 
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
-import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
 import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
+import { SettingsIcon } from "lucide-react";
 
 // Import the custom renderers
 
@@ -78,7 +78,7 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayType === "gear") {
             return (
                 <Button variant={"ghost"}>
-                    <GearIcon />
+                    <SettingsIcon />
                 </Button>
             );
         }
@@ -86,7 +86,7 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayType === "list") {
             return (
                 <Button variant={"ghost"}>
-                    <GearIcon />
+                    <SettingsIcon />
                     <p>{props.definition.name}</p>
                 </Button>
             );
@@ -98,7 +98,7 @@ const WidgetCard = (props: WidgetCardProps) => {
                 <button className={styles.card}>
                     <div className="flex justify-center items-center">
                         <h2 className={styles.title}>{props.definition.name}</h2>
-                        <GearIcon className={styles.image} />
+                        <SettingsIcon className={styles.image} />
                     </div>
 
                     <div className={styles.overlay}>
@@ -159,7 +159,7 @@ const WidgetCard = (props: WidgetCardProps) => {
                     <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
                         <DialogClose className="float-end" asChild>
                             <Button onClick={() => { handleAdd() }}>
-                                <CheckIcon />
+                                <SettingsIcon />
                             </Button>
                         </DialogClose>
                     </div>
