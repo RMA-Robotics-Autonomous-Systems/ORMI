@@ -24,7 +24,7 @@ import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { toast } from "@/hooks/use-toast";
 import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
-import { SettingsIcon } from "lucide-react";
+import { CheckIcon, SettingsIcon } from "lucide-react";
 
 // Import the custom renderers
 
@@ -159,7 +159,7 @@ const WidgetCard = (props: WidgetCardProps) => {
                     <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
                         <DialogClose className="float-end" asChild>
                             <Button onClick={() => { handleAdd() }}>
-                                <SettingsIcon />
+                                <CheckIcon />
                             </Button>
                         </DialogClose>
                     </div>

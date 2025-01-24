@@ -74,6 +74,9 @@ h1 {
     text-transform: uppercase;
 }
 
+/*
+    Fix for react-grid-layout, don't allow user to select text while dragging or resizing
+*/
 .react-grid-item.react-draggable-dragging,
 .resizing,
 .react-grid-item.react-draggable-dragging~*,
@@ -83,4 +86,12 @@ h1 {
 
 [hidden]:where(:not([hidden="until-found"])) {
     display: none !important;
+}
+
+/*
+    Fix for leaflet map z-index, it shoulb be behind the resize handle
+*/
+
+.leaflet-container {
+    z-index: 0 !important;
 }
