@@ -21,6 +21,7 @@ import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
 import { WebGLPlotDefinition } from './widgets/charts/webgl-plot-chart';
 import { WebRtcRos2Definition } from './widgets/images/webrtc';
 import { MapsViewerDefinition } from './widgets/maps/maps-viewer';
+import { MapsBoxViewerDefinition } from './widgets/maps/maps-box-viewer';
 
 
 // function LineChartExport(widgets: WidgetDefinition[]) {
@@ -331,6 +332,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(WebGLPlotDefinition());
     widgets.push(WebRtcRos2Definition());
     widgets.push(MapsViewerDefinition());
+    widgets.push(MapsBoxViewerDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
     return PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets)));
