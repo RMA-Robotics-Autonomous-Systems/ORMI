@@ -12,6 +12,15 @@ import {
 } from 'react-flight-indicators'
 import { Vector3 } from "@/core/types/common";
 
+import Speedometer, {
+    Background,
+    Arc,
+    Needle,
+    Progress,
+    Marks,
+    Indicator,
+} from 'react-speedometer';
+
 interface AirSpeedProps {
     title: string;
     topic: SelectedTopic;
@@ -72,10 +81,27 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
-            <Airspeed speed={speed * 10} size={"100%"} showBox={false} />
+            {/* <Airspeed speed={speed * 10} size={"100%"} showBox={false} /> */}
+            <Speedometer
+                value={speed}
+                fontFamily='squada-one'
+            >
+                <Background />
+                <Arc />
+                <Needle />
+                <Progress />
+                <Marks />
+                <Indicator />
+            </Speedometer>
         </div>
     );
 }
+
+
+
+// a few lines later ...
+
+
 
 export function AirspeedDefinition() {
     const pluginsManager = usePluginsManager();

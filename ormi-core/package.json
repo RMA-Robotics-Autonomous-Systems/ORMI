@@ -60,6 +60,7 @@
     "react-grid-layout": "^1.5.0",
     "react-leaflet": "^5.0.0",
     "react-map-gl": "^7.1.8",
+    "react-speedometer": "^0.1.2",
     "recharts": "^2.15.0",
     "roslib": "^1.4.1",
     "sonner": "^1.7.2",
