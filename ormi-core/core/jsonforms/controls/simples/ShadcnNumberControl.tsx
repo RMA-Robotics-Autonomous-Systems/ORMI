@@ -39,7 +39,7 @@ const ShadcnInputNumber = (props: ControlProps) => {
     return (
         <Input
             type="number"
-            value={data || schema.default || schema.const || ''}
+            value={data !== undefined && data !== null ? data : schema.default ?? schema.const ?? ''}
             onChange={(ev) => {
                 const value = ev.target.value;
                 handleChange(path, value === '' ? undefined : Number(value));

@@ -39,7 +39,7 @@ const ShadcnInputInteger = (props: ControlProps) => {
     return (
         <Input
             type="number"
-            value={data || ''}
+            value={data === undefined || data === null ? '' : data}
             onChange={(ev) => {
                 const value = ev.target.value;
                 handleChange(path, value === '' ? undefined : parseInt(value, 10));
