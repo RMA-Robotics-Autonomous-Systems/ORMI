@@ -11,7 +11,6 @@ import {
     HeadingIndicator,
 } from 'react-flight-indicators'
 import { Vector3 } from "@/core/types/common";
-import { invert } from "lodash";
 
 interface HeadingProps {
     title: string;
@@ -35,10 +34,7 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
             return;
         }
 
-        // data should be IMU
-        // from the props.orientationAxis, get the value of the orientation
-
-        const value = data.data[0];
+        const value = data.data[0] as IMU;
         if (!value) {
             return;
         }
@@ -64,9 +60,6 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
             orientation.y = -orientation.y;
             orientation.z = -orientation.z;
         }
-
-        console.log(props.eastValue)
-
 
         switch (props.orientationAxis) {
             case 'X':
