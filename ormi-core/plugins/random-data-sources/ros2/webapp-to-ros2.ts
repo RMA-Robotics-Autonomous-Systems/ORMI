@@ -53,6 +53,8 @@ export class ROS2ToWebAppConverter{
 
             case "sensor_msgs/msg/NavSatFix": return this.FixToGeolocationPosition(data);
 
+            case "sensor_msgs/msg/Imu": return this.Ros2ImuToIMU(data);
+
             default: return data;
         }
 
@@ -80,5 +82,28 @@ export class ROS2ToWebAppConverter{
             longitude: data.longitude,
             altitude: data.altitude
         }
+    }
+
+    Ros2ImuToIMU(data:any){
+    
+        return {
+            linear_acceleration: {
+                x: data.linear_acceleration.x,
+                y: data.linear_acceleration.y,
+                z: data.linear_acceleration.z
+            },
+            angular_velocity: {
+                x: data.angular_velocity.x,
+                y: data.angular_velocity.y,
+                z: data.angular_velocity.z
+            },
+            orientation: {
+                x: data.orientation.x,
+                y: data.orientation.y,
+                z: data.orientation.z,
+                w: data.orientation.w
+            }
+        }
+
     }
 }
