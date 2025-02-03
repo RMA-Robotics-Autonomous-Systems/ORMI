@@ -325,6 +325,59 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
     return widgets;
 }
 
+function IframeExport(widgets: WidgetDefinition[]) {
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const url: ControlElement = {
+        type: "Control",
+        scope: "#/properties/url",
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, url],
+    }
+
+    const jsonViewerWidget: WidgetDefinition = {
+        id: 'iframe-widget',
+        name: 'Iframe viewer',
+        description: 'Display the differents filters and actions',
+        titleProp: 'title',
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                url: {
+                    type: "string",
+                    title: "Url"
+                }
+            },
+            required: ['title']
+        },
+        uischema: layout,
+        data: {
+            title: 'Plugins viewer'
+        },
+        Component: (props) => (
+            <div style={{ width: "100%", height: "100%" }}>
+                <iframe style={{ width: "100%", height: "100%" }} src={props.url}></iframe>
+            </div>
+        )
+
+    }
+
+    widgets.push(jsonViewerWidget);
+
+    return widgets;
+}
+
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(KeyboardControlDefinition());
@@ -335,7 +388,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(MapsBoxViewerDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
-    return PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets)));
+    return IframeExport(PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets))));
 }
 
 export default WidgetExport;
