@@ -9,7 +9,9 @@ import { LocalDataSourcesProvider, useLocalDataSource } from "@/core/datasources
 
 import {
     HeadingIndicator,
-} from 'react-flight-indicators'
+} from "react-typescript-flight-indicators";
+
+
 import { Vector3 } from "@/core/types/common";
 
 interface HeadingProps {

@@ -4,22 +4,13 @@ import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/
 import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
-import { IMU } from "@/core/types/movement";
+// import { IMU } from "@/core/types/movement";
 import { LocalDataSourcesProvider, useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
-
 import {
     Airspeed,
-} from 'react-flight-indicators'
-import { Vector3 } from "@/core/types/common";
+} from "react-typescript-flight-indicators";
 
-import Speedometer, {
-    Background,
-    Arc,
-    Needle,
-    Progress,
-    Marks,
-    Indicator,
-} from 'react-speedometer';
+import { Vector3 } from "@/core/types/common";
 
 interface AirSpeedProps {
     title: string;
@@ -81,18 +72,8 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
-            {/* <Airspeed speed={speed * 10} size={"100%"} showBox={false} /> */}
-            <Speedometer
-                value={speed}
-                fontFamily='squada-one'
-            >
-                <Background />
-                <Arc />
-                <Needle />
-                <Progress />
-                <Marks />
-                <Indicator />
-            </Speedometer>
+            <Airspeed speed={speed * 10} size={"100%"} showBox={false} />
+
         </div>
     );
 }
@@ -166,7 +147,7 @@ export function AirspeedDefinition() {
         data: {
             title: 'Control the robot'
         },
-        Component: (data: HeadingProps) => (
+        Component: (data: AirSpeedProps) => (
             <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
                 <WidgetAirspeedIndicator {...data} />
             </LocalDataSourcesProvider>
