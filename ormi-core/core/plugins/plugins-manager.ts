@@ -10,8 +10,8 @@ class PluginsManager{
 
     private plugins: Map<string | PluginsHooks, PluginClientSide>;
 
-    constructor(pluginLoader: Map<string | PluginsHooks, PluginClientSide>){
-        this.plugins = pluginLoader
+    constructor(pluginsMap: Map<string | PluginsHooks, PluginClientSide>){
+        this.plugins = pluginsMap
 
         // add a "basic" plugin that will be used to add new filters and actions from the client side
         this.plugins.set("basic", {
@@ -120,6 +120,10 @@ class PluginsManager{
         // throw new Error(`Filter with id ${pluginFilterId} not found`);
     }
 
+    /*
+        Execute all callback registered on the "actionName" hook.
+        If no action found, will log a warning.
+    */
     doAction(actionName: string | PluginsHooks, ...args: any): void{
 
         const actions: PluginAction[] = [];
@@ -148,7 +152,10 @@ class PluginsManager{
             action.action(...args);
         });
     }
-
+    
+    /*
+        Same as do action, but will wait for action to exist.
+    */
     async WaitAndDoAction(actionName : string | PluginsHooks, timeoutSecond : number = 5, ...args: any): Promise<boolean>{
         const result = await this.WaitForActionToExist(actionName, timeoutSecond);
 
@@ -160,6 +167,9 @@ class PluginsManager{
         return true;
     }
 
+    /*
+        Add an action to the system. The action can later be called using the "actionName"
+    */
     addAction(actionName: string | PluginsHooks, action: PluginAction): void{
 
         const basicPlugin = this.plugins.get("basic");
@@ -180,6 +190,9 @@ class PluginsManager{
 
     }
 
+    /*
+        Remove an action from its id
+    */
     removeAction(pluginActionId: string): void{
         // search for the action in all plugins, if none has the action, throw an error, otherwise delete it
         this.plugins.forEach((plugin) => {
@@ -194,6 +207,9 @@ class PluginsManager{
         // throw new Error(`Action with id ${pluginActionId} not found`);
     }
 
+    /*
+        Wait for action to existe, check at a period of 100ms until found or timed out
+    */
     WaitForActionToExist(actionName: string | PluginsHooks, timeoutSecond : number = 5): Promise<boolean>{
         return new Promise((resolve) => {
             const interval = setInterval(() => {
