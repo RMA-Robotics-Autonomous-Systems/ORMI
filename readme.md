@@ -19,6 +19,69 @@ Webapp
 │  │  │  │  │  ├─ WidgetB
 ```
 
+How the webapplication works using ROS2 as an exemple
+
+```mermaid
+sequenceDiagram
+    box ROS2
+    participant r2 as ROS2
+    end
+    box Webapp
+        participant dp as DashboardProvider
+        participant rp as ROS2Provider
+        participant pm as PluginManager
+        participant ld as LocalDatasourceProvider
+        participant pd as PublisherDatasourceProvider
+        participant w as widgets
+    end
+
+    Note over dp: Load the different datasource <br> Load the different widgets
+
+    dp->>rp: Render
+    rp->>r2: Connect via WS
+    r2-->rp: Connected
+
+    rp->>pm: Add AVAILABLE_TOPICS
+    rp->>pm: Add subscriber_hook
+    rp->>pm: Add unsuscriber_hook
+    rp->>pm: Add definition_hook
+    rp->>pm: Add advertise_hook
+    rp->>pm: Add unadvertise_hook
+    rp->>pm: Add available_types
+
+    Note over rp: The provider is now initialize
+
+    dp->>+ld: Render
+
+    loop For each Topic
+        ld->>pm: call do action (subscribe)
+        pm->>rp: call subscribe_hook
+        rp->>r2: Subscribe to a topic
+
+        par At any moment
+            r2->>rp: Message
+            Note over rp: The message can pass througth a converter
+            rp->>pm: call subscribed hook
+        end
+
+        ld->>pm: Add action "subscribed"
+
+        par When subscribed hook is called
+            pm->>ld: New data
+            Note over ld: The new data is added to a state
+            ld->>w: ReRender
+        end
+
+        Note over ld: If the topic failled to initialized <br> It is added to a list and will be <br> Displayed as an error
+    end
+
+    ld->>-w: Render
+
+    w->>ld: Get the state
+    ld-->w: Retun the "sources"
+    Note over w: The widget has the message data
+```
+
 ## Hooks, action and filters
 
 The core system use a Actions/Filters hooks concept similar as the one used by [Wordpress](https://learn.wordpress.org/tutorial/wordpress-action-hooks/). (It is basicaly a callback subscribers/publishers system)
