@@ -158,7 +158,6 @@ const AsyncTopicControl = (props: ControlProps) => {
             <Label>{label}</Label>
             <div>
                 <div className='flex flex-col gap-2 w-full'>
-                    {/* <Select value={selectedTopic} onValueChange={handleTopicChange}> */}
                     <Popover open={open} onOpenChange={setOpen}>
                         <PopoverTrigger asChild className="w-full">
                             <Button
