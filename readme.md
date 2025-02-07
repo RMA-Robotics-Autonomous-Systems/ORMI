@@ -4,6 +4,378 @@ Open Robot Management Interface; this is the core application
 
 ## The basis
 
+exemple of a one way bridge between two different ros2 network
+
+```mermaid
+architecture-beta
+    group r1(internet)[ROS2 network A]
+    group r2(internet)[ROS2 network B]
+
+    group webapp(server)[Webapp]
+
+    service r1_rosapi(server)[rosapi] in r1
+    service r1_rosbridge_suite(server)[rosbridge_socket] in r1
+    service r1_rosnode(server)[ROS2 Nodes] in r1
+
+    service r2_rosapi(server)[rosapi] in r2
+    service r2_rosbridge_suite(server)[rosbridge_socket] in r2
+    service r2_rosnode(server)[ROS2 Nodes] in r2
+
+    service r1_dt(server)[datasources A] in webapp
+    service r2_dt(server)[datasources B] in webapp
+    service lo(server)[LocalDatasourceProvider] in webapp
+    service pu(server)[PublisherDatasourceProvider] in webapp
+    service wi(server)[Widget] in webapp
+
+    r1_dt:L <--> R:r1_rosbridge_suite
+    r1_rosbridge_suite:L <--> R:r1_rosapi
+    r1_rosapi:B -- T:r1_rosnode
+
+    r2_dt:L <--> R:r2_rosbridge_suite
+    r2_rosbridge_suite:L <--> R:r2_rosapi
+    r2_rosapi:B -- T:r2_rosnode
+
+    lo:T <--> B:wi
+    pu:B <--> T:wi
+
+    r2_dt:T <--> B:lo
+    r1_dt:B <--> T:pu
+```
+
+### Widgets
+
+The widgets are the element that can be added to the dashboard. They are defined inside a plugin (The plugin system is describe later in this document).
+
+To create a widget, it must start with the `WidgetDefinition`, it is the datastructure that describe how the widgets will appear and what component will be used as well has it settings.
+
+```ts
+interface WidgetDefinition {
+  id: string; // Id of the widgets, allow the dashboard to find which widgets is what component
+  name: string; // name of the widget in the widget list
+  description: string; // description of the widget
+  image?: string; // Icon of the widget
+
+  titleProp?: string; // A widget has multiple properties that are defined in the "schema" props, this allow the dashboard to find the property with the title
+
+  //https://jsonforms.io/
+  schema: JsonSchema; // a schema that describe the properties of the widget
+  uischema: UISchemaElement; // describe how to display the properties in the settings section of the widgets
+  data: any; // default value of the widgets
+
+  // component that will be put inside of the widget (the widget itself)
+  Component: (data: any) => JSX.Element;
+}
+```
+
+For a widgets to be registered in the application, it must be added to the list of widgets. You can add a filter to the `PluginsHooks.WIDGETS_LIST` hook. This hook takes a `WidgetDefinition[]` argument and must return the new list with the added widget.
+
+```ts
+const WidgetExport = (widgets: WidgetDefinition[]) => {
+  widgets.push(HeadingDefinition());
+  widgets.push(AirspeedDefinition());
+
+  return widgets;
+};
+```
+
+The widgets array is passed again and again in all the registered filters. Once done, the widgets will appear in the list of widgets.
+
+### Datasources
+
+The datasources system is similar to widgets but serves as a communication layer between your robot's network and the web application. Each datasource is implemented as a React context provider, enabling data flow from external sources to your application.
+
+To create a datasource, you need to define it using the `DatasourceDefinition` interface. This defines its properties, settings schema, and the React provider component that will handle the communication:
+
+```ts
+interface DatasourceDefinition<T = DatasourceProviderSettings> {
+  id: string;
+  name: string;
+  description: string;
+
+  titleProp?: string;
+
+  schema: JsonSchema;
+  uischema?: UISchemaElement;
+  data: T;
+
+  Provider: FC<{
+    children: ReactNode;
+    props: T;
+  }>;
+}
+
+interface DatasourceProviderSettings {
+  id: string; // auto filled; set a "random" id. You just need to ignore it.
+  title: string;
+  enable: boolean;
+}
+```
+
+For the datasources to be added to the webapp, you need to add a filter on the `PluginsHooks.DATASOURCES_LIST` wicth takes an `DatasourceDefinition<any>[]` object and returns it.
+
+### Interaction between widget and datasources
+
+Widgets and datasources interact through the action and filter system. The `LocalDataSourcesProvider` and `PublisherDataSourcesProvider` components handle the subscription and publishing lifecycle between widgets and topics:
+
+- `LocalDataSourcesProvider`: Manages subscriptions to topics and provides data to widgets
+- `PublisherDataSourcesProvider`: Manages publishing data from widgets to topics
+
+These providers use the plugin system's actions and filters to establish communication channels between widgets and datasources.
+
+#### Subscribing
+
+For the widget to be able to subscribe to topics or to publish data to a specific datasource. It need to receive `SelectedTopic` objects in its properties. This object contains all the information about a topic, where it is from, what type it is, how much we keep in memory and what type it is.
+
+```ts
+interface DatasourceTopic {
+  topic: string;
+  source: DatasourceProviderSettings;
+  type: string;
+  bufferSize?: number;
+}
+
+interface SelectedTopic extends DatasourceTopic {
+  property: string;
+}
+```
+
+When a `property` field is specified in the `SelectedTopic`, the `LocalDatasourceProvider` filters the incoming topic data and only sends that specific property to the widget. This allows widgets to receive just the data fields they need rather than the entire topic message.
+
+##### Dataflow
+
+```mermaid
+sequenceDiagram
+
+box Datasources
+    participant s as Datasource
+end
+
+box Widget
+    participant p as LocalDatasourceProvider
+    participant w as Widget
+end
+
+
+
+note over p: On render
+loop For each Topic
+    p->>s: WaitAndDoAction `${topic.source.id}-subscribe`
+    note over s: Manage new subscription <br> Start publishing on <br> `${topic.source.id}-${topic.topic}-published`
+
+    note over p: Add action on <br> `${topic.source.id}-${topic.topic}-published`
+
+    s->>p: doAction `${topic.source.id}-${topic.topic}-published`
+
+    p->>w: Topics data
+end
+
+note over p: On unmounte
+loop For each Topic
+    p->>s: `${topic.source.id}-unsubscribe`
+    note over p: Remove action <br> `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`
+end
+```
+
+##### How to use it
+
+```ts
+/*
+        In the WidgetDefinition
+*/
+// the buffer size is the default buffer size if the SelectedTopic don't specify
+Component: (data: AirSpeedProps) => (
+  <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+    <Widget {...data} />
+  </LocalDataSourcesProvider>
+);
+
+/*
+        In the Widget itself
+*/
+
+const { sources } = useLocalDataSource(); // state map that contains the data
+
+/*
+    sources : {
+        'topicA' : [
+            data: [a,b,c,d,e],
+            time: [1,2,3,4,5]
+        ],
+        ...
+    }
+*/
+```
+
+Since `sources` is a state, when changed, it will trigger a rerender of the widgets
+
+To support multiple network protocols, the application uses universal data types that can be translated between different systems. When subscribing data to a widget, you can specify the type of data required by the widget, the datasource can then use a translator to format the incoming data properly
+
+```mermaid
+graph LR
+
+subgraph Webapp
+    widget
+    ds
+end
+
+subgraph widget
+    inc[widgets]
+    pub[LocaldatasourceProvider]
+    pub-->inc
+end
+
+subgraph ds[Datasource]
+    tr
+end
+
+subgraph tr[Translator]
+    canTranslate{Can be translated}
+end
+
+subgraph net[Network]
+    publish[Network]
+end
+
+publish-->tr
+tr-->|Yes formated|pub
+tr-->|No raw|pub
+
+```
+
+If no translator is found, the raw data is sent.
+
+#### Publishing
+
+Like for subscribing, the widget requires one or more `SelectedTopic`, it use the `PublisherDataSourcesProvider` context. The provider manage the advertisement and the unadvertisement on mount and unmount.
+
+```ts
+class Publisher {
+  topic: SelectedTopic;
+
+  pm: PluginsManager;
+
+  constructor(topic: SelectedTopic, pluginManager: PluginsManager) {
+    this.topic = topic;
+    this.pm = pluginManager;
+  }
+
+  async advertise() {
+    return await this.pm.applyFilterAsync(
+      `${this.topic.source.id}-advertise`,
+      this.topic
+    );
+  }
+
+  unadvertise() {
+    this.pm.doAction(`${this.topic.source.id}-unadvertise`, this.topic);
+  }
+
+  publish<T>(data: T, webtype: string) {
+    this.pm.doAction(
+      `${this.topic.source.id}-${this.topic.topic}-publish`,
+      this.topic,
+      data,
+      webtype
+    );
+  }
+}
+```
+
+##### Dataflow
+
+```mermaid
+sequenceDiagram
+
+box Datasources
+    participant s as Datasource
+end
+
+box Widget
+    participant p as PublisherDataSourcesProvider
+    participant w as Widget
+end
+
+
+
+note over p: On render
+loop For each Topic
+    p->>s: applyFilterAsync `${this.topic.source.id}-advertise`
+    note left of p: We use a filter to know if the <br> advertisement worked
+    note over s: Manage new publisher <br> Start listening on <br> `${this.topic.source.id}-${this.topic.topic}-publish`
+
+    w->>s: doAction `${topic.source.id}-${topic.topic}-published`
+    note over s: The data is likely converted <br> into an other format
+end
+
+note over p: On unmounte
+loop For each Topic
+    p->>s: `${this.topic.source.id}-unadvertise`
+    note over s: Remove action <br> `${this.topic.source.id}-${this.topic.topic}-publish`
+end
+```
+
+##### How to use it
+
+```ts
+/*
+        In the WidgetDefinition
+*/
+Component: (data: KeyboardControlData) => (
+  <PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+    <PublisherWidget {...data} />
+  </PublisherDataSourcesProvider>
+);
+
+/*
+        In the Widget itself
+*/
+const { publishers } = usePublisherDataSource(); // maps of the Publisher objects.
+
+publishers.get("YOUR_TOPIC").publish(data, "webapp_type");
+```
+
+To support multiple network protocols, the application uses universal data types that can be translated between different systems. When publishing data from a widget, you specify both the data and its universal type. The datasource provider can then translate this universal type into the appropriate network-specific format.
+
+Each datasource provider implements its own type conversion logic to map between universal types and network-specific types.
+
+```mermaid
+graph LR
+
+subgraph Webapp
+    widget
+    ds
+    error[Error]
+end
+
+subgraph widget
+    inc[widgets]
+    pub[PublisherDataSourcesProvider]
+    inc-->pub
+end
+
+subgraph ds[Datasource]
+    tr
+end
+
+subgraph tr[Translator]
+    canTranslate{Can be translated}
+end
+
+subgraph net[Network]
+    publish[Network]
+end
+
+pub-->tr
+
+ds-->canTranslate
+
+canTranslate -->|Yes|publish
+canTranslate -->|No|error
+
+```
+
+### Datasources interaction
+
 App tree structure
 
 The works by giving the workspace configuration to the `DashboardProvider`. It managed all the state about the different datasources and widgets.
@@ -24,7 +396,7 @@ How the webapplication works using ROS2 as an exemple
 ```mermaid
 sequenceDiagram
     box ROS2
-    participant r2 as ROS2
+        participant r2 as ROSBridge_suite
     end
     box Webapp
         participant dp as DashboardProvider
