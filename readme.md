@@ -44,9 +44,14 @@ architecture-beta
 
 ### Widgets
 
-The widgets are the element that can be added to the dashboard. They are defined inside a plugin (The plugin system is describe later in this document).
+The widgets are components that users can add to their dashboard. Each widget must be defined within a plugin and implement the `WidgetDefinition` interface. This interface specifies:
 
-To create a widget, it must start with the `WidgetDefinition`, it is the datastructure that describe how the widgets will appear and what component will be used as well has it settings.
+- How the widget appears in the widget list
+- What React component to use
+- What settings are available
+- Default configuration values
+
+Here is the basic structure needed to create a widget:
 
 ```ts
 interface WidgetDefinition {
@@ -67,7 +72,11 @@ interface WidgetDefinition {
 }
 ```
 
-For a widgets to be registered in the application, it must be added to the list of widgets. You can add a filter to the `PluginsHooks.WIDGETS_LIST` hook. This hook takes a `WidgetDefinition[]` argument and must return the new list with the added widget.
+To register a widget in the application, add it to the widgets list by creating a filter on `PluginsHooks.WIDGETS_LIST`. This hook:
+
+1. Takes an array of `WidgetDefinition` objects as input
+2. Allows you to append your custom widget definition
+3. Returns the updated array
 
 ```ts
 const WidgetExport = (widgets: WidgetDefinition[]) => {
@@ -78,13 +87,19 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 };
 ```
 
-The widgets array is passed again and again in all the registered filters. Once done, the widgets will appear in the list of widgets.
+Each filter registered on the widgets list will sequentially process and modify the array of widgets. When all filters have executed, the final array determines which widgets are available in the application's widget list.
 
 ### Datasources
 
-The datasources system is similar to widgets but serves as a communication layer between your robot's network and the web application. Each datasource is implemented as a React context provider, enabling data flow from external sources to your application.
+Datasources act as communication bridges between external robot networks and the web application. They are implemented as React context providers to handle data flow.
 
-To create a datasource, you need to define it using the `DatasourceDefinition` interface. This defines its properties, settings schema, and the React provider component that will handle the communication:
+Each datasource requires a `DatasourceDefinition` interface that specifies:
+
+- Basic properties (id, name, description)
+- Configuration schema for settings
+- A React provider component for handling communication
+
+Here's the interface definition:
 
 ```ts
 interface DatasourceDefinition<T = DatasourceProviderSettings> {
