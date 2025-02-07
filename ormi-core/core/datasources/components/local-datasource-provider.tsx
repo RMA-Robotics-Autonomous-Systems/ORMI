@@ -107,7 +107,8 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                 }
 
                 // add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
-                pluginsManager.addAction(topic.source.id + "-" + topic.topic + "-published", {
+                //topic.source.id + "-" + topic.topic + "-published"
+                pluginsManager.addAction(`${topic.source.id}-${topic.topic}-published`, {
                     id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
                     priority: 10,
                     action: (value: any, time: number) => {
