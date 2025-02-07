@@ -126,33 +126,58 @@ interface DatasourceProviderSettings {
 }
 ```
 
-For the datasources to be added to the webapp, you need to add a filter on the `PluginsHooks.DATASOURCES_LIST` wicth takes an `DatasourceDefinition<any>[]` object and returns it.
+To add datasources to the webapp:
+
+1. Create a filter on `PluginsHooks.DATASOURCES_LIST`
+2. This filter takes an array of `DatasourceDefinition` objects as input
+3. Append your custom datasource definitions to the array
+4. Return the modified array
+
+Example:
+
+```ts
+const DatasourcesExport = (datasources: DatasourceDefinition<any>[]) => {
+  datasources.push(MyDatasourceDefinition());
+  datasources.push(AnotherDatasourceDefinition());
+  return datasources;
+};
+```
+
+Each filter registered on the datasources list will process and modify the array sequentially. After all filters execute, the final array determines which datasources are available in the application.
 
 ### Interaction between widget and datasources
 
-Widgets and datasources interact through the action and filter system. The `LocalDataSourcesProvider` and `PublisherDataSourcesProvider` components handle the subscription and publishing lifecycle between widgets and topics:
+Widgets communicate with datasources through a publish-subscribe pattern implemented via the action/filter system. Two key components enable this:
 
-- `LocalDataSourcesProvider`: Manages subscriptions to topics and provides data to widgets
-- `PublisherDataSourcesProvider`: Manages publishing data from widgets to topics
+- `LocalDataSourcesProvider`: Handles data flow from datasources to widgets
+- `PublisherDataSourcesProvider`: Manages data flow from widgets to datasources
 
-These providers use the plugin system's actions and filters to establish communication channels between widgets and datasources.
+These providers use the plugin manager to establish connections between widgets and datasource topics. The providers handle all lifecycle aspects including:
+
+- Subscribing/unsubscribing to topics
+- Publishing/advertising topics
+- Converting data formats
+- Managing message buffers
+- Error handling
 
 #### Subscribing
 
-For the widget to be able to subscribe to topics or to publish data to a specific datasource. It need to receive `SelectedTopic` objects in its properties. This object contains all the information about a topic, where it is from, what type it is, how much we keep in memory and what type it is.
+Widgets use the `SelectedTopic` interface to specify which topics they want to subscribe to or publish to. This interface extends `DatasourceTopic` by adding a `property` field:
 
 ```ts
 interface DatasourceTopic {
-  topic: string;
-  source: DatasourceProviderSettings;
-  type: string;
-  bufferSize?: number;
+  topic: string; // Name of the topic
+  source: DatasourceProviderSettings; // Which datasource provides this topic
+  type: string; // Data type of the topic
+  bufferSize?: number; // How many messages to keep in memory
 }
 
 interface SelectedTopic extends DatasourceTopic {
-  property: string;
+  property: string; // Specific data field to extract from topic messages
 }
 ```
+
+When configuring a widget, you must provide these topic details so it can properly connect to the right datasource and receive/send the correct data.
 
 When a `property` field is specified in the `SelectedTopic`, the `LocalDatasourceProvider` filters the incoming topic data and only sends that specific property to the widget. This allows widgets to receive just the data fields they need rather than the entire topic message.
 
@@ -221,9 +246,9 @@ const { sources } = useLocalDataSource(); // state map that contains the data
 */
 ```
 
-Since `sources` is a state, when changed, it will trigger a rerender of the widgets
+Since `sources` is managed as React state, any changes to it automatically trigger a re-render of the widget components that use it. This ensures widgets stay synchronized with the latest data.
 
-To support multiple network protocols, the application uses universal data types that can be translated between different systems. When subscribing data to a widget, you can specify the type of data required by the widget, the datasource can then use a translator to format the incoming data properly
+To handle data from different network protocols, the application uses a universal type system with translators. When a widget subscribes to data, it specifies its required data format. The datasource then uses appropriate translators to convert incoming network data into the widget's expected format:
 
 ```mermaid
 graph LR
@@ -257,11 +282,14 @@ tr-->|No raw|pub
 
 ```
 
-If no translator is found, the raw data is sent.
+If no translator exists for a specific data type, the raw data is passed through unchanged.
 
 #### Publishing
 
-Like for subscribing, the widget requires one or more `SelectedTopic`, it use the `PublisherDataSourcesProvider` context. The provider manage the advertisement and the unadvertisement on mount and unmount.
+For publishing data, widgets also use `SelectedTopic` definitions but with the `PublisherDataSourcesProvider` context. This provider automatically handles:
+
+- Topic advertisement when widget mounts
+- Topic unadvertisement when widget unmounts
 
 ```ts
 class Publisher {
