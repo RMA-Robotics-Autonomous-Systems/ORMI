@@ -35,11 +35,11 @@ architecture-beta
     r2_rosbridge_suite:L <--> R:r2_rosapi
     r2_rosapi:B -- T:r2_rosnode
 
-    lo:T <--> B:wi
-    pu:B <--> T:wi
+    lo:T --> B:wi
+    pu:B <-- T:wi
 
-    r2_dt:T <--> B:lo
-    r1_dt:B <--> T:pu
+    r2_dt:T --> B:lo
+    r1_dt:B <-- T:pu
 ```
 
 ### Widgets
