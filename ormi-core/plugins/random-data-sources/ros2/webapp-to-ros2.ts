@@ -76,11 +76,35 @@ export class ROS2ToWebAppConverter{
         }
     }
 
-    FixToGeolocationPosition(data:any){
+    FixToGeolocationPosition(data:any) : GeolocationPosition{
         return {
-            latitude: data.latitude,
-            longitude: data.longitude,
-            altitude: data.altitude
+            coords: {
+                latitude: data.latitude,
+                longitude: data.longitude,
+                altitude: data.altitude,
+                accuracy: data.position_covariance[0],
+                altitudeAccuracy: data.position_covariance[2],
+                heading: data.position_covariance[4],
+                speed: data.position_covariance[8],
+                toJSON: function () {
+                    return {
+                        latitude: this.latitude,
+                        longitude: this.longitude,
+                        altitude: this.altitude,
+                        accuracy: this.accuracy,
+                        altitudeAccuracy: this.altitudeAccuracy,
+                        heading: this.heading,
+                        speed: this.speed
+                    }
+                }
+            },
+            timestamp: data.header.stamp.sec,
+            toJSON: function () {
+                return {
+                    coords: this.coords.toJSON(),
+                    timestamp: this.timestamp
+                }
+            }
         }
     }
 
