@@ -1,18 +1,16 @@
 "use client"
 
-import { Marker, Popup, useMap } from "react-leaflet"
-
 import { useEffect, useState } from "react";
-import L, { LatLng } from "leaflet";
 import { SelectedTopic } from "@/core/datasources/datasource-interface";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
+import { Marker } from "react-map-gl/maplibre";
+import Image from "next/image";
 
-export default function TopicMaker(props: { topic: SelectedTopic, name: string, scale?: number }) {
+export default function TopicMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
 
-    const [location, setLocation] = useState([50.843941, 4.3930369]);
+    const [location, setLocation] = useState<[number, number]>([50.843941, 4.3930369]);
     const [hasData, setHasData] = useState(false);
     const { sources } = useLocalDataSource();
-
 
     useEffect(() => {
 
@@ -21,10 +19,7 @@ export default function TopicMaker(props: { topic: SelectedTopic, name: string, 
             return;
         }
 
-        // data should be GeolocationPosition
-
         try {
-
             if (data.data.length === 0) {
                 return;
             }
@@ -36,29 +31,39 @@ export default function TopicMaker(props: { topic: SelectedTopic, name: string, 
             console.error("Error parsing data", error, data);
         }
 
-
-    }, [sources]);
-
-    // useEffect(() => {
-
-    //     if (data.length > 0) {
-    //         const lastData = data[data.length - 1].ros;
-    //         setLocation([lastData.latitude, lastData.longitude]);
-    //     }
-
-    //     if (location[0] > map.getBounds().getNorth() || location[0] < map.getBounds().getSouth() || location[1] > map.getBounds().getEast() || location[1] < map.getBounds().getWest()) {
-    //         map.panTo(new LatLng(location[0], location[1]), { animate: true, duration: 1 });
-    //     }
-
-    // }, [data]);
+    }, [sources, props]);
 
     return (
         hasData && (
-            <Marker icon={L.icon({ iconUrl: "https://api.dicebear.com/8.x/bottts/svg?seed=" + props.name, iconSize: [30 * (props.scale || 1), 30 * (props.scale || 1)] })} position={new LatLng(location[0], location[1])} >
-                <Popup>
-                    <p>{props.name}</p>
-                </Popup>
+            <Marker longitude={location[1]} latitude={location[0]}>
+                <div>
+                    <Image
+                        width={32}
+                        height={32}
+                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${props.name}`}
+                        alt={`Marker for ${props.name}`}
+                    />
+                    <p style={{ textAlign: "center" }}>{props.name}</p>
+                </div>
             </Marker>
         )
+    );
+}
+
+const ICON = `M20.2,15.7L20.2,15.7c1.1-1.6,1.8-3.6,1.8-5.7c0-5.6-4.5-10-10-10S2,4.5,2,10c0,2,0.6,3.9,1.6,5.4c0,0.1,0.1,0.2,0.2,0.3
+  c0,0,0.1,0.1,0.1,0.2c0.2,0.3,0.4,0.6,0.7,0.9c2.6,3.1,7.4,7.6,7.4,7.6s4.8-4.5,7.4-7.5c0.2-0.3,0.5-0.6,0.7-0.9
+  C20.1,15.8,20.2,15.8,20.2,15.7z`;
+
+const pinStyle = {
+    cursor: 'pointer',
+    fill: '#d00',
+    stroke: 'none'
+};
+
+function Pin({ size = 20 }) {
+    return (
+        <svg height={size} viewBox="0 0 24 24" style={pinStyle}>
+            <path d={ICON} />
+        </svg>
     );
 }

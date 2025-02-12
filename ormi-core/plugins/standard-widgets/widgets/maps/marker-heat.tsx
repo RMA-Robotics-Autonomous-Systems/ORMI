@@ -1,26 +1,19 @@
 "use client"
 
-import "leaflet/dist/leaflet.css"
 import { useEffect, useState } from "react";
-import { HeatmapLayerFactory } from "@vgrid/react-leaflet-heatmap-layer";
 import { SelectedTopic } from "@/core/datasources/datasource-interface";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
+import { Layer, Source } from "react-map-gl/maplibre";
 
 export default function HeatMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
-
     const [locations, setLocations] = useState<any>([]);
     const { sources } = useLocalDataSource();
 
-    const HeatmapLayer = HeatmapLayerFactory<[number, number, number]>()
-
     useEffect(() => {
-
         const data = sources.get(props.topic.topic);
         if (!data) {
             return;
         }
-
-        // data should be GeolocationPosition
 
         try {
             if (data.data.length > 0) {
@@ -28,22 +21,18 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
 
                 if (locations.length > 0) {
                     const lastLocation = locations[locations.length - 1];
-                    const dist = distance(lastData.coords.altitude!, lastData.coords.longitude!, lastLocation[0], lastLocation[1]);
+                    const dist = distance(lastData.coords.latitude, lastData.coords.longitude, lastLocation[0], lastLocation[1]);
                     if (dist > 1) {
                         setLocations([...locations, [lastData.coords.latitude, lastData.coords.longitude]]);
                     }
                 } else {
-                    setLocations([...locations, [lastData.coords.latitude, lastData.coords.longitude]]);
+                    setLocations([[lastData.coords.latitude, lastData.coords.longitude]]);
                 }
             }
-
         } catch (error) {
             console.error("Error parsing data", error, data);
         }
-
-
     }, [sources]);
-
 
     const distance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371e3; // Earth's radius in meters
@@ -52,7 +41,6 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
             return degrees * Math.PI / 180;
         }
 
-        // Convert decimal degrees to radians
         const lat1Rad = radians(lat1);
         const lon1Rad = radians(lon1);
         const lat2Rad = radians(lat2);
@@ -70,14 +58,40 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         return R * c;
     }
 
+    const geojson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection' as const,
+        features: locations.map((loc: [number, number]) => ({
+            type: 'Feature',
+            geometry: {
+                type: 'Point',
+                coordinates: [loc[1], loc[0]]
+            }
+        }))
+    };
+
     return (
-        <HeatmapLayer
-            radius={10}
-            blur={10}
-            max={1}
-            points={locations}
-            longitudeExtractor={(m: any[]) => m[1]}
-            latitudeExtractor={(m: any[]) => m[0]}
-            intensityExtractor={(m: any[]) => 1} />
+        <Source id="heatmap" type="geojson" data={geojson}>
+            <Layer
+                id="heatmap-layer"
+                type="heatmap"
+                paint={{
+                    'heatmap-radius': 10,
+                    'heatmap-opacity': 0.8,
+                    'heatmap-weight': 1,
+                    'heatmap-intensity': 1,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(33,102,172,0)',
+                        0.2, 'rgb(103,169,207)',
+                        0.4, 'rgb(209,229,240)',
+                        0.6, 'rgb(253,219,199)',
+                        0.8, 'rgb(239,138,98)',
+                        1, 'rgb(178,24,43)'
+                    ]
+                }}
+            />
+        </Source>
     );
 }

@@ -1,24 +1,20 @@
 "use client"
 
-import { Polyline } from "react-leaflet";
 import { useEffect, useState } from "react";
 import { SelectedTopic } from "@/core/datasources/datasource-interface";
 import { useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
 import TopicMaker from "./marker-simple";
+import { Layer, Source } from 'react-map-gl/maplibre';
 
 export default function PathMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
     const { sources } = useLocalDataSource();
 
-
     useEffect(() => {
-
         const data = sources.get(props.topic.topic);
         if (!data) {
             return;
         }
-
-        // data should be GeolocationPosition
 
         try {
             if (data.data.length > 0) {
@@ -26,22 +22,18 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
 
                 if (locations.length > 0) {
                     const lastLocation = locations[locations.length - 1];
-                    const dist = distance(lastData.coords.altitude!, lastData.coords.longitude!, lastLocation[0], lastLocation[1]);
+                    const dist = distance(lastData.coords.latitude, lastData.coords.longitude, lastLocation[0], lastLocation[1]);
                     if (dist > 1) {
                         setLocations([...locations, [lastData.coords.latitude, lastData.coords.longitude]]);
                     }
                 } else {
-                    setLocations([...locations, [lastData.coords.latitude, lastData.coords.longitude]]);
+                    setLocations([[lastData.coords.latitude, lastData.coords.longitude]]);
                 }
             }
-
         } catch (error) {
             console.error("Error parsing data", error, data);
         }
-
-
     }, [sources]);
-
 
     const distance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371e3; // Earth's radius in meters
@@ -50,7 +42,6 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
             return degrees * Math.PI / 180;
         }
 
-        // Convert decimal degrees to radians
         const lat1Rad = radians(lat1);
         const lon1Rad = radians(lon1);
         const lat2Rad = radians(lat2);
@@ -70,7 +61,24 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
 
     return (
         <>
-            <Polyline positions={locations} />
+            <Source id={`path-source-${props.name}`} type="geojson" data={{
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                    type: 'LineString',
+                    coordinates: locations.map((loc: any) => [loc[1], loc[0]])
+                }
+            }}>
+                <Layer
+                    id={`path-layer-${props.name}`}
+                    type="line"
+                    source={`path-source-${props.name}`}
+                    paint={{
+                        'line-color': '#888',
+                        'line-width': 4
+                    }}
+                />
+            </Source>
             <TopicMaker topic={props.topic} name={props.name} scale={props.scale} />
         </>
     );

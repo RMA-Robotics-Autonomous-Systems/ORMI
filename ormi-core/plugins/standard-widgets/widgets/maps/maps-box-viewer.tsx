@@ -1,9 +1,9 @@
 "use client"
 
 import React, { useEffect, useState } from "react";
-import Map from 'react-map-gl/maplibre';
+import Map, { StyleSpecification } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
-import TopicMaker from "./marker-simple";
+import TopicMarker from "./marker-simple";
 import { LocalDataSourcesProvider } from "@/core/datasources/components/local-datasource-provider";
 import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
@@ -13,11 +13,12 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { Spinner } from "@/components/spinner";
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
-import { set } from "lodash";
 
 interface MapsViewerSettings {
     title: string;
     mapUrl: string;
+    use3D: boolean;
+    apiKey?: string;
     topics: {
         name: string;
         topic: SelectedTopic;
@@ -29,20 +30,16 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
     const [startingLocation, setStartingLocation] = useState<[number, number]>([4.3930369, 50.843941]); // brussels default
     const [isLoading, setIsLoading] = useState(true);
 
-    const [rasterStyle, setRasterStyle] = useState<any>();
+    const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
 
     useEffect(() => {
-
         setRasterStyle({
             version: 8,
             sources: {
                 'raster-tiles': {
                     type: 'raster',
                     tiles: [props.mapUrl],
-                    tileSize: 256,
-                    attribution:
-                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }
+                },
             },
             layers: [
                 {
@@ -51,9 +48,52 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     source: 'raster-tiles',
                     minzoom: 0,
                     maxzoom: 22
-                }
+                },
             ]
         });
+
+        if (props.use3D && props.apiKey) {
+            setRasterStyle(prevStyle => ({
+                ...prevStyle!,
+                version: 8,
+                sources: {
+                    ...prevStyle?.sources,
+                    'openmaptiles': {
+                        type: 'vector',
+                        tiles: [
+                            `https://api.maptiler.com/tiles/v3/tiles.json?key=${props.apiKey}`
+                        ],
+                        maxzoom: 14
+                    }
+                },
+                layers: [
+                    ...(prevStyle?.layers || []),
+                    {
+                        'id': '3d-buildings',
+                        'source': 'openmaptiles',
+                        'source-layer': 'building',
+                        'type': 'fill-extrusion',
+                        'minzoom': 15,
+                        'paint': {
+                            'fill-extrusion-color': '#aaa',
+                            'fill-extrusion-height': [
+                                'interpolate',
+                                ['linear'],
+                                ['zoom'],
+                                15,
+                                0,
+                                15.05,
+                                ['get', 'height']
+                            ],
+                            'fill-extrusion-base': ['get', 'min_height'],
+                            'fill-extrusion-opacity': 0.6
+                        }
+                    }
+                ]
+            }));
+        }
+
+        setIsLoading(false);
 
         if (typeof window !== 'undefined' && navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -80,7 +120,9 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                 initialViewState={{
                     longitude: startingLocation[0],
                     latitude: startingLocation[1],
-                    zoom: 10
+                    zoom: 15,  // Increased zoom to better see buildings
+                    pitch: 45, // Add tilt
+                    bearing: 0
                 }}
                 style={{ width: "100%", height: "100%" }}
                 mapStyle={rasterStyle}
@@ -89,7 +131,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     <LocalDataSourcesProvider SelectedTopics={props.topics.map(t => t.topic)} buffersSize={50} >
                         {props.topics.map(t => {
                             if (t.makerType === "simple") {
-                                return <TopicMaker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                                return <TopicMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
                             } else if (t.makerType === "heatmap") {
                                 return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
                             } else if (t.makerType === "path") {
@@ -107,54 +149,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
 export function MapsBoxViewerDefinition() {
     const pluginsManager = usePluginsManager();
-
-    const title: ControlElement = {
-        type: "Control",
-        scope: "#/properties/title",
-    }
-
-    const mapUrl: ControlElement = {
-        type: "Control",
-        scope: "#/properties/mapUrl",
-    }
-
-    const topic: AsyncTopicControlType = {
-        "type": "TopicSelect",
-        "scope": "#/properties/topic",
-        "options": {
-            "asyncFunction": async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'gps');
-            },
-            "propertyType": "gps"
-        }
-    }
-
-    const name: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/name",
-    }
-
-    const makerType: ControlElement = {
-        "type": "Control",
-        "scope": "#/properties/makerType",
-    }
-
-    // array of topics
-    const topics: ControlElement = {
-        type: "Control",
-        scope: "#/properties/topics",
-        options: {
-            detail: {
-                type: "Group",
-                elements: [name, makerType, topic]
-            }
-        }
-    }
-
-    const layout: VerticalLayout = {
-        type: "VerticalLayout",
-        elements: [title, mapUrl, topics],
-    }
 
     return {
         id: 'map-box-viewer',
@@ -177,29 +171,38 @@ export function MapsBoxViewerDefinition() {
                             const: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                             title: "OpenStreetMap"
                         },
-                        {
-                            const: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-                            title: "OpenStreetMap DE"
-                        },
-                        {
-                            const: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-                            title: "OpenTopoMap"
-                        },
-                        {
-                            const: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
-                            title: "Stadia Maps"
-                        },
-                        {
-                            const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
-                            title: "Stadia Maps Dark"
-                        },
-                        {
-                            const: "https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png",
-                            title: "OPNVKarte"
-                        }
+                        // {
+                        //     const: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+                        //     title: "OpenStreetMap DE"
+                        // },
+                        // {
+                        //     const: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                        //     title: "OpenTopoMap"
+                        // },
+                        // {
+                        //     const: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
+                        //     title: "Stadia Maps"
+                        // },
+                        // {
+                        //     const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
+                        //     title: "Stadia Maps Dark"
+                        // },
+                        // {
+                        //     const: "https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png",
+                        //     title: "OPNVKarte"
+                        // }
                     ]
                 },
 
+                use3D: {
+                    type: 'boolean',
+                    title: 'Use 3D',
+                    default: false
+                },
+                apiKey: {
+                    type: 'string',
+                    title: 'API Key',
+                },
                 topics: {
                     type: 'array',
                     title: 'Topics',
@@ -227,9 +230,60 @@ export function MapsBoxViewerDefinition() {
             },
             required: ['title']
         },
-        uischema: layout,
+        uischema: {
+            type: "VerticalLayout",
+            elements: [
+                {
+                    type: "Control",
+                    scope: "#/properties/title",
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/mapUrl",
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/use3D",
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/apiKey",
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/topics",
+                    options: {
+                        detail: {
+                            type: "Group",
+                            elements: [
+                                {
+                                    type: "Control",
+                                    scope: "#/properties/topics/properties/name",
+                                } as ControlElement,
+                                {
+                                    type: "Control",
+                                    scope: "#/properties/topics/properties/makerType",
+                                } as ControlElement,
+                                {
+                                    type: "TopicSelect",
+                                    scope: "#/properties/topic",
+                                    options: {
+                                        asyncFunction: async () => {
+                                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'gps');
+                                        },
+                                        propertyType: "gps"
+                                    }
+                                } as AsyncTopicControlType
+                            ]
+                        }
+                    }
+                } as ControlElement
+
+            ]
+        } as VerticalLayout,
         data: {
-            title: 'Chart'
+            title: 'Chart',
+            use3D: false,
         },
         Component: (data: MapsViewerSettings) => (
             <MapsBoxViewer {...data} />
