@@ -8,6 +8,7 @@ import { RosBridgeSuiteDataSourceSettings } from '@/plugins/random-data-sources/
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { CctvIcon, RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
+import { buffer } from 'stream/consumers';
 
 interface WebrtcRos2VideoStreamProps {
     title: string;
@@ -164,12 +165,13 @@ export function WebRtcRos2Definition() {
     }
 
     const topic: AsyncTopicControlType = {
-        "type": "TopicSelect",
-        "scope": "#/properties/topic",
-        "options": {
-            "asyncFunction": async () => {
+        type: "TopicSelect",
+        scope: "#/properties/topic",
+        options: {
+            asyncFunction: async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
+            buffer: 1,
             // "propertyType": "number"
         }
     }

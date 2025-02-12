@@ -10,6 +10,7 @@ import { KeyControlType } from "@/core/jsonforms/controls/key/key";
 import { Movement } from "@/core/types/movement";
 import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
 import { toast } from "@/hooks/use-toast";
+import { buffer } from "stream/consumers";
 
 interface KeyboardControlData {
     title: string;
@@ -313,13 +314,14 @@ export function KeyboardControlDefinition() {
                     scope: "#/properties/unlocktoggle",
                 } as ControlElement,
                 {
-                    "type": "TopicSelect",
-                    "scope": "#/properties/topic",
-                    "options": {
-                        "asyncFunction": async () => {
+                    type: "TopicSelect",
+                    scope: "#/properties/topic",
+                    options: {
+                        asyncFunction: async () => {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'Movement');
                         },
-                        "propertyType": "Movement"
+                        buffer: 1,
+                        propertyType: "Movement"
                     }
                 } as AsyncTopicControlType,
                 {

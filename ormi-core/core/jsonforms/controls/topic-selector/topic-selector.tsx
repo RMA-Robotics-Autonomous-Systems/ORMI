@@ -54,7 +54,7 @@ const AsyncTopicControl = (props: ControlProps) => {
         setSelectedTopic(topic_name);
         setSelectedTopicObject(topic ? { ...topic, property: '' } : undefined);
 
-        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || 100 } as SelectedTopic));
+        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || uischema.options?.buffer || 1 } as SelectedTopic));
 
 
         // represents the topic definition in json
@@ -87,7 +87,6 @@ const AsyncTopicControl = (props: ControlProps) => {
         setTopicProps(treeViewItems);
     }
 
-
     const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
 
         setSelectedTopic(topic);
@@ -97,7 +96,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                 return prev;
             }
 
-            return { topic: topic, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || 1 };
+            return { topic: topic, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || uischema.options?.buffer || 1 };
         })
 
         handleChange(path, { topic: topic, source: source.settings, property: '', type: type, bufferSize: 1 } as SelectedTopic);
@@ -210,10 +209,12 @@ const AsyncTopicControl = (props: ControlProps) => {
                     <div>
                         {(topicProps) && (topicProps.length > 0) && (<TreeView data={topicProps} />)}
                     </div>
-                    <div className='flex flex-row gap-2'>
-                        <label className="text-gray-500">Buffer size (optional)</label>
-                        <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
-                    </div>
+                    {!uischema.options?.buffer && (
+                        <div className='flex flex-row gap-2'>
+                            <label className="text-gray-500">Buffer size (optional)</label>
+                            {<Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />}
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -22,6 +22,8 @@ import { WebGLPlotDefinition } from './widgets/charts/webgl-plot-chart';
 import { WebRtcRos2Definition } from './widgets/images/webrtc';
 import { MapsBoxViewerDefinition } from './widgets/maps/maps-box-viewer';
 import { FileIcon, FolderTreeIcon, GlobeIcon, ListTreeIcon } from 'lucide-react';
+import { IntStatusIndicatorDefinition } from './widgets/status/int-status-indicator';
+import { buffer } from 'stream/consumers';
 
 function JsonViewerExport(widgets: WidgetDefinition[]) {
 
@@ -39,12 +41,13 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
     }
 
     const topic: AsyncTopicControlType = {
-        "type": "TopicSelect",
-        "scope": "#/properties/topic",
-        "options": {
-            "asyncFunction": async () => {
+        type: "TopicSelect",
+        scope: "#/properties/topic",
+        options: {
+            asyncFunction: async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'GeolocationPosition');
             },
+            buffer: 1,
             // "propertyType": "number"
         }
     }
@@ -107,12 +110,13 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
     }
 
     const topic: AsyncTopicControlType = {
-        "type": "TopicSelect",
-        "scope": "#/properties/topic",
-        "options": {
-            "asyncFunction": async () => {
+        type: "TopicSelect",
+        scope: "#/properties/topic",
+        options: {
+            asyncFunction: async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
             },
+            buffer: 1,
             // "propertyType": "number"
         }
     }
@@ -264,6 +268,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(WebGLPlotDefinition());
     widgets.push(WebRtcRos2Definition());
     widgets.push(MapsBoxViewerDefinition());
+    widgets.push(IntStatusIndicatorDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
     return IframeExport(PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets))));

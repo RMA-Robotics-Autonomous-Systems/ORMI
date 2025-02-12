@@ -136,13 +136,14 @@ export function HeadingDefinition() {
                     scope: "#/properties/title",
                 } as ControlElement,
                 {
-                    "type": "TopicSelect",
-                    "scope": "#/properties/topic",
-                    "options": {
-                        "asyncFunction": async () => {
+                    type: "TopicSelect",
+                    scope: "#/properties/topic",
+                    options: {
+                        asyncFunction: async () => {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'Movement');
                         },
-                        "propertyType": "Movement"
+                        propertyType: "Movement",
+                        buffer: 1
                     }
                 } as AsyncTopicControlType,
                 {
