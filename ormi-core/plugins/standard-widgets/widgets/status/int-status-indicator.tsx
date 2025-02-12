@@ -5,7 +5,7 @@ import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { CircleIcon } from "lucide-react";
+import { CircleAlertIcon, CircleIcon } from "lucide-react";
 import { TypeAnimation } from 'react-type-animation';
 
 interface IntStatusIndicatorProps {
@@ -60,7 +60,7 @@ export function IntStatusIndicatorDefinition() {
         description: 'Display a status based on an Integer value',
         titleProp: 'title',
 
-        icon: <CircleIcon />,
+        icon: <CircleAlertIcon />,
 
         schema: {
             type: 'object',
