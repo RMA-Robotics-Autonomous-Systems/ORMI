@@ -3,7 +3,7 @@
     padding: 5%;
     width: 100%;
     /* aspect-ratio: 1; */
-    border-radius: 0.2rem;
+    border-radius: var(--radius);
     border: rgba(0, 0, 0, 0.1) 0.2rem solid;
     display: flex;
     justify-content: center;

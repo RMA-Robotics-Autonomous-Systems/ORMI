@@ -86,38 +86,21 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayType === "list") {
             return (
                 <Button variant={"ghost"}>
-                    <SettingsIcon />
+                    {props.definition.icon || <SettingsIcon />}
                     <p>{props.definition.name}</p>
                 </Button>
             );
         }
 
-        if (!props.definition.image) {
-
-            return (
-                <button className={styles.card}>
-                    <div className="flex justify-center items-center">
-                        <h2 className={styles.title}>{props.definition.name}</h2>
-                        <SettingsIcon className={styles.image} />
-                    </div>
-
-                    <div className={styles.overlay}>
-                        <p className={styles.description}>{props.definition.description}</p>
-                    </div>
-                </button>
-            );
-
-
-        }
 
         return (
             <button className={styles.card}>
-                <div
-                    className={styles.image}
-                    style={{ backgroundImage: `url(${props.definition.image})` }}
-                >
-                    <div className={styles.overlay}>
-                        <p className={styles.description}>{props.definition.description}</p>
+                <div className={styles.overlay}>
+                    <p className={styles.description}>{props.definition.description}</p>
+                </div>
+                <div className={styles.content}>
+                    <div style={{ scale: 3 }}>
+                        {props.definition.icon || <SettingsIcon />}
                     </div>
                     <h2 className={styles.title}>{props.definition.name}</h2>
                 </div>

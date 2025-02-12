@@ -11,6 +11,7 @@ import {
 } from "react-typescript-flight-indicators";
 
 import { Vector3 } from "@/core/types/common";
+import { GaugeCircleIcon } from "lucide-react";
 
 interface AirSpeedProps {
     title: string;
@@ -92,6 +93,7 @@ export function AirspeedDefinition() {
         name: 'Speed Indicator',
         description: 'Speed Indicator',
         titleProp: 'title',
+        icon: <GaugeCircleIcon />,
         schema: {
             type: 'object',
             properties: {

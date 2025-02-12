@@ -1,6 +1,5 @@
 import styles from "./page.module.css";
 
-// import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
 import { DashboardProvider } from "@/core/dashboard/components/dashboard-provider";
 import DashboardInterface from "@/core/dashboard/dashboard-interface";
 import Dashboard from "@/core/dashboard/components/dashboard";
@@ -9,6 +8,7 @@ import { Widget } from "@/core/widgets/widget-interface";
 import { Datasource } from "@/core/datasources/datasource-interface";
 import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
 import { handleLoad, handleSave } from "@/core/dashboard/components/dashboard-local-storage";
+import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
 
 export default function Home() {
 
@@ -30,7 +30,7 @@ export default function Home() {
             <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
                 <GlobalDataSourcesProvider>
                     <Dashboard />
-                    {/* <WidgetsDialog /> */}
+                    <WidgetsDialog />
                 </GlobalDataSourcesProvider>
             </DashboardProvider>
         </div>

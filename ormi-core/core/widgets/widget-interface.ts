@@ -4,7 +4,7 @@ interface WidgetDefinition {
     id: string;             // Id of the widgets, allow the dashboard to find which widgets is what component
     name: string;           // name of the widget in the widget list
     description: string;    // description of the widget
-    image?: string;         // Icon of the widget
+    icon: JSX.Element;       // icon of the widget
   
     titleProp?: string; // A widget has multiple properties that are defined in the "schema" props, this allow the dashboard to find the property with the title
   

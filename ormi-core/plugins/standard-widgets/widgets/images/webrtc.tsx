@@ -6,7 +6,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { RosBridgeSuiteDataSourceSettings } from '@/plugins/random-data-sources/rosbridge-suite-source';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
-import { RotateCcw, RotateCw } from 'lucide-react';
+import { CctvIcon, RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
 
 interface WebrtcRos2VideoStreamProps {
@@ -189,6 +189,7 @@ export function WebRtcRos2Definition() {
         name: 'WebRTC viewer',
         description: 'Display a video stream from a ROS2 topic',
         titleProp: 'title',
+        icon: <CctvIcon />,
         schema: {
             type: 'object',
             properties: {

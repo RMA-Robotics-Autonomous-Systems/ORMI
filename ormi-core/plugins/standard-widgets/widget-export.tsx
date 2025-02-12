@@ -21,131 +21,7 @@ import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
 import { WebGLPlotDefinition } from './widgets/charts/webgl-plot-chart';
 import { WebRtcRos2Definition } from './widgets/images/webrtc';
 import { MapsBoxViewerDefinition } from './widgets/maps/maps-box-viewer';
-
-
-// function LineChartExport(widgets: WidgetDefinition[]) {
-
-//     const pluginsManager = usePluginsManager();
-
-//     const title: ControlElement = {
-//         type: "Control",
-//         scope: "#/properties/title",
-//     }
-
-//     const timeToSpan: ControlElement = {
-//         type: "Control",
-//         scope: "#/properties/timeToSpan",
-//     }
-
-//     const topic: ControlElement = {
-//         "type": "Control",
-//         "scope": "#/properties/topic",
-//         "options": {
-//             "async": true,
-//             "asyncFunction": async () => {
-//                 const topics = await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
-//                 return topics.map((topic) => ({
-//                     label: topic.topic,
-//                     value: topic.topic
-//                 }));
-//             },
-//         }
-//     }
-
-//     const color: ControlElement = {
-//         "type": "Control",
-//         "scope": "#/properties/color",
-//         "options": {
-//             "color": true,
-//         }
-//     }
-
-//     const fill: ControlElement = {
-//         "type": "Control",
-//         "scope": "#/properties/fill",
-//     }
-
-//     // array of topics
-//     const topics: ControlElement = {
-//         type: "Control",
-//         scope: "#/properties/topics",
-//         options: {
-//             detail: {
-//                 type: "VerticalLayout",
-//                 elements: [topic, color, fill]
-//             }
-//         }
-//     }
-
-//     const layout: VerticalLayout = {
-//         type: "VerticalLayout",
-//         elements: [title, timeToSpan, topics],
-//     }
-
-//     const DynamicComponent = dynamic(() => import('./widgets/line-chart').then(mod => mod.LineChart), {
-//         loading: () => <Skeleton />,
-//     })
-
-//     const chartWidget: WidgetDefinition = {
-//         id: 'chart-widget-line',
-//         name: 'Line chart',
-//         description: 'Display a line chart',
-//         titleProp: 'title',
-//         schema: {
-//             type: 'object',
-//             properties: {
-//                 title: {
-//                     type: 'string',
-//                     title: 'Title'
-//                 },
-//                 timeToSpan: {
-//                     type: 'number',
-//                     title: 'Span of time in seconds',
-//                     default: 10
-//                 },
-//                 topics: {
-//                     type: 'array',
-//                     title: 'Topics',
-//                     items: {
-//                         "type": "object",
-//                         "properties": {
-//                             "topic": {
-//                                 "type": "string",
-//                                 "title": "Topic"
-//                             },
-//                             "color": {
-//                                 "type": "string",
-//                                 "title": "Color",
-//                             },
-//                             "fill": {
-//                                 "type": "boolean",
-//                                 "title": "Fill",
-//                                 default: false
-//                             }
-//                         },
-//                         "required": ["topic"]
-//                     }
-//                 }
-//             },
-//             required: ['title', 'topics', 'timeToSpan']
-//         },
-//         uischema: layout,
-//         data: {
-//             title: 'Chart'
-//         },
-//         Component: (data: any) => (
-//             <DynamicComponent {...data} />
-//         )
-
-//     }
-
-//     widgets.push(chartWidget);
-
-
-//     return widgets;
-// };
-
-
+import { FileIcon, FolderTreeIcon, GlobeIcon, ListTreeIcon } from 'lucide-react';
 
 function JsonViewerExport(widgets: WidgetDefinition[]) {
 
@@ -183,6 +59,7 @@ function JsonViewerExport(widgets: WidgetDefinition[]) {
         name: 'Json viewer',
         description: 'Display a json viewer',
         titleProp: 'title',
+        icon: <FileIcon />,
         schema: {
             type: 'object',
             properties: {
@@ -250,6 +127,7 @@ function TreeViewerExport(widgets: WidgetDefinition[]) {
         name: 'Tree viewer',
         description: 'Display a tree view of data',
         titleProp: 'title',
+        icon: <ListTreeIcon />,
         schema: {
             type: 'object',
             properties: {
@@ -299,6 +177,7 @@ function PluginsViewerExport(widgets: WidgetDefinition[]) {
         name: 'Plugins viewer',
         description: 'Display the differents filters and actions',
         titleProp: 'title',
+        icon: <FolderTreeIcon />,
         schema: {
             type: 'object',
             properties: {
@@ -343,9 +222,10 @@ function IframeExport(widgets: WidgetDefinition[]) {
 
     const jsonViewerWidget: WidgetDefinition = {
         id: 'iframe-widget',
-        name: 'Iframe viewer',
+        name: 'IFrame viewer',
         description: 'Display the differents filters and actions',
         titleProp: 'title',
+        icon: <GlobeIcon />,
         schema: {
             type: 'object',
             properties: {

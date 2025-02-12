@@ -13,6 +13,7 @@ import {
 
 
 import { Vector3 } from "@/core/types/common";
+import { CompassIcon } from "lucide-react";
 
 interface HeadingProps {
     title: string;
@@ -95,6 +96,7 @@ export function HeadingDefinition() {
         name: 'Heading Indicator',
         description: 'Heading Indicator',
         titleProp: 'title',
+        icon: <CompassIcon />,
         schema: {
             type: 'object',
             properties: {

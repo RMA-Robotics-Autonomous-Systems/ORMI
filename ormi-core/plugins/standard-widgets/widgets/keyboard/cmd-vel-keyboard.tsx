@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import style from "@/core/jsonforms/controls/key/key.module.css";
-import { LockIcon, UnlockIcon } from "lucide-react";
+import { KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
 import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
@@ -212,6 +212,7 @@ export function KeyboardControlDefinition() {
         name: 'Keyboard control',
         description: 'Allow user to control the robot with the keyboard',
         titleProp: 'title',
+        icon: <KeyboardIcon />,
         schema: {
             type: 'object',
             properties: {

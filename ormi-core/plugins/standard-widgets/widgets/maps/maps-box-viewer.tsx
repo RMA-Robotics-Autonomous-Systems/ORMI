@@ -13,6 +13,7 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { Spinner } from "@/components/spinner";
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
+import { MapIcon } from "lucide-react";
 
 interface MapsViewerSettings {
     title: string;
@@ -169,6 +170,9 @@ export function MapsBoxViewerDefinition() {
         name: 'Maps',
         description: 'Display the location of collection of robots',
         titleProp: 'title',
+
+        icon: <MapIcon />,
+
         schema: {
             type: 'object',
             properties: {

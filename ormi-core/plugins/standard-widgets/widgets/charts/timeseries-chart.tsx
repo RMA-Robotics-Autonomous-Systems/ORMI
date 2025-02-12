@@ -6,6 +6,7 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
+import { ChartLineIcon } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { AlignedData } from 'uplot';
@@ -295,6 +296,7 @@ export function TimeSeriesChartDefinition() {
         name: 'Time series chart',
         description: 'Display a line chart',
         titleProp: 'title',
+        icon: <ChartLineIcon />,
         schema: {
             type: 'object',
             properties: {

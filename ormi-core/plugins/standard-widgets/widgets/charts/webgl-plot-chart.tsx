@@ -5,6 +5,7 @@ import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { max } from 'lodash';
+import { ChartLineIcon } from 'lucide-react';
 import { normalize } from 'path';
 import { useEffect, useRef } from 'react';
 import { WebglPlot, WebglLine, ColorRGBA } from "webgl-plot";
@@ -190,6 +191,7 @@ export function WebGLPlotDefinition() {
         name: 'Webgl Plot line chart',
         description: 'Display a line chart',
         titleProp: 'title',
+        icon: <ChartLineIcon />,
         schema: {
             type: 'object',
             properties: {
