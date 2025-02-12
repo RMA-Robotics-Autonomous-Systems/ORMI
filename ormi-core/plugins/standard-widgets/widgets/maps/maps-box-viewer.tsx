@@ -53,44 +53,58 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         });
 
         if (props.use3D && props.apiKey) {
-            setRasterStyle(prevStyle => ({
-                ...prevStyle!,
+            setRasterStyle({
                 version: 8,
                 sources: {
-                    ...prevStyle?.sources,
+                    'raster-tiles': {
+                        type: 'raster',
+                        tiles: [props.mapUrl],
+                    },
+                    // Add OSM vector tiles source
                     'openmaptiles': {
                         type: 'vector',
-                        tiles: [
-                            `https://api.maptiler.com/tiles/v3/tiles.json?key=${props.apiKey}`
-                        ],
-                        maxzoom: 14
+                        url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${props.apiKey}`
                     }
                 },
                 layers: [
-                    ...(prevStyle?.layers || []),
+                    {
+                        id: 'simple-tiles',
+                        type: 'raster',
+                        source: 'raster-tiles',
+                        minzoom: 0,
+                        maxzoom: 22
+                    },
+                    // Add 3D building layer using OSM data
                     {
                         'id': '3d-buildings',
                         'source': 'openmaptiles',
                         'source-layer': 'building',
                         'type': 'fill-extrusion',
                         'minzoom': 15,
+                        'filter': ['!=', ['get', 'hide_3d'], true],
                         'paint': {
-                            'fill-extrusion-color': '#aaa',
+                            'fill-extrusion-color': [
+                                'interpolate',
+                                ['linear'],
+                                ['get', 'render_height'], 0, 'lightgray', 200, 'royalblue', 400, 'lightblue'
+                            ],
                             'fill-extrusion-height': [
                                 'interpolate',
                                 ['linear'],
                                 ['zoom'],
                                 15,
                                 0,
-                                15.05,
-                                ['get', 'height']
+                                16,
+                                ['get', 'render_height']
                             ],
-                            'fill-extrusion-base': ['get', 'min_height'],
-                            'fill-extrusion-opacity': 0.6
+                            'fill-extrusion-base': ['case',
+                                ['>=', ['get', 'zoom'], 16],
+                                ['get', 'render_min_height'], 0
+                            ]
                         }
-                    }
+                    },
                 ]
-            }));
+            });
         }
 
         setIsLoading(false);
@@ -258,11 +272,11 @@ export function MapsBoxViewerDefinition() {
                             elements: [
                                 {
                                     type: "Control",
-                                    scope: "#/properties/topics/properties/name",
+                                    scope: "#/properties/name",
                                 } as ControlElement,
                                 {
                                     type: "Control",
-                                    scope: "#/properties/topics/properties/makerType",
+                                    scope: "#/properties/makerType",
                                 } as ControlElement,
                                 {
                                     type: "TopicSelect",
