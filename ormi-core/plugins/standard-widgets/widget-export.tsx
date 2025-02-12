@@ -24,6 +24,7 @@ import { MapsBoxViewerDefinition } from './widgets/maps/maps-box-viewer';
 import { FileIcon, FolderTreeIcon, GlobeIcon, ListTreeIcon } from 'lucide-react';
 import { IntStatusIndicatorDefinition } from './widgets/status/int-status-indicator';
 import { buffer } from 'stream/consumers';
+import { NotAPongDefinition } from './widgets/nothing/not-a-pong';
 
 function JsonViewerExport(widgets: WidgetDefinition[]) {
 
@@ -269,6 +270,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(WebRtcRos2Definition());
     widgets.push(MapsBoxViewerDefinition());
     widgets.push(IntStatusIndicatorDefinition());
+    widgets.push(NotAPongDefinition());
 
     // return TreeViewerExport(JsonViewerExport(TimeSeriesChartExport(LineChartExport(widgets))));
     return IframeExport(PluginsViewerExport(TreeViewerExport(JsonViewerExport(widgets))));
