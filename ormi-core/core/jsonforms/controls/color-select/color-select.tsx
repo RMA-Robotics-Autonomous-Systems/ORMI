@@ -26,11 +26,8 @@ export default withJsonFormsControlProps(ColorSelectControl);
 
 // Define a tester that checks for a specific option in uischema
 const colorSelectTester = rankWith(
-    5, // Increase rank to ensure this tester is selected when applicable
-    and(
-        isControl,
-        optionIs('color', true) // Check if 'async' option is true
-    )
+    200,
+    optionIs('color', true) // Check if 'async' option is true
 );
 
 export { colorSelectTester };

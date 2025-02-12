@@ -15,6 +15,8 @@ import ShadcnArrayControlRenderer, { shadcnArrayControlTester } from './controls
 import { ShadcnBooleanControl, shadcnBooleanControlTester, ShadcnBooleanToggleControl, shadcnBooleanToggleControlTester, ShadcnDateControl, shadcnDateControlTester, ShadcnDateTimeControl, shadcnDateTimeControlTester, ShadcnEnumControl, shadcnEnumControlTester, ShadcnIntegerControl, shadcnIntegerControlTester, ShadcnNativeControl, shadcnNativeControlTester, ShadcnNumberControl, shadcnNumberControlTester, ShadcnOneOfEnumControl, shadcnOneOfEnumControlTester, ShadcnOneOfRadioGroupControl, shadcnOneOfRadioGroupControlTester, ShadcnRadioGroupControl, shadcnRadioGroupControlTester, ShadcnSliderControl, shadcnSliderControlTester, ShadcnTextControl, shadcnTextControlTester, ShadcnTimeControl, shadcnTimeControlTester } from './controls/simples';
 import { ShadcnBooleanCell, shadcnBooleanCellTester, ShadcnBooleanToggleCell, shadcnBooleanToggleCellTester, ShadcnDateCell, shadcnDateCellTester, ShadcnEnumCell, shadcnEnumCellTester, ShadcnIntegerCell, shadcnIntegerCellTester, ShadcnNumberCell, shadcnNumberCellTester, ShadcnNumberFormatCell, shadcnNumberFormatCellTester, ShadcnOneOfEnumCell, shadcnOneOfEnumCellTester, ShadcnTextCell, shadcnTextCellTester, ShadcnTimeCell, shadcnTimeCellTester } from './controls/cells';
 import { JsonFormsCellRendererRegistryEntry } from '@jsonforms/core';
+import ShadcnColorCell, { shadcnColorCellTester } from './controls/cells/ShadcnColorCell';
+import ShadcnColorControl, { shadcnColorControlTester } from './controls/simples/ShadcnColorControl';
 
 
 const shadcnRenderer = [
@@ -72,6 +74,10 @@ const shadcnRenderer = [
         tester: shadcnOneOfEnumControlTester,
         renderer: ShadcnOneOfEnumControl,
     },
+    {
+        tester: shadcnColorControlTester,
+        renderer: ShadcnColorControl,
+    }
 
 ];
 
@@ -87,6 +93,7 @@ export const shadcnCells: JsonFormsCellRendererRegistryEntry[] = [
     { tester: shadcnOneOfEnumCellTester, cell: ShadcnOneOfEnumCell },
     { tester: shadcnTextCellTester, cell: ShadcnTextCell },
     { tester: shadcnTimeCellTester, cell: ShadcnTimeCell },
+    { tester: shadcnColorCellTester, cell: ShadcnColorCell },
 ];
 
 export default shadcnRenderer;
