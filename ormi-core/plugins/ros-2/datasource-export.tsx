@@ -25,7 +25,12 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
                 reconnectTimeout: {
                     type: 'number',
                     title: 'Reconnect Timeout (s)'
+                },
+                toasts: {
+                    type: 'boolean',
+                    title: 'Display Toasts'
                 }
+
             }
         },
 
@@ -33,6 +38,7 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
             id: '',
             title: '',
             enable: true,
+            toasts: false,
             url: '',
             reconnectTimeout: 2,
         },

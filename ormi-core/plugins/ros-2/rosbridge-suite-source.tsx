@@ -37,6 +37,7 @@ const WAIT_FOR_CONNECTION = 500;
 interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
     url: string;
     reconnectTimeout: number;
+    toasts: boolean;
 }
 
 interface ROSTopic {
@@ -192,30 +193,38 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     });
 
                     ros.on('connection', () => {
-                        toast({
-                            title: `Connected to ${props.title}`,
-                            description: `Connection established with ${props.url}`,
-                        });
+
+                        if (props.toasts) {
+                            toast({
+                                title: `Connected to ${props.title}`,
+                                description: `Connection established with ${props.url}`,
+                            });
+                        }
+
 
                         setConnected(true);
                         resolve(true);
                     });
 
                     ros.on('error', (error) => {
-                        toast({
-                            title: `Error in ${props.title}`,
-                            description: `Failed to connect to ${props.url}`,
-                            variant: 'destructive'
-                        });
+                        if (props.toasts) {
+                            toast({
+                                title: `Error in ${props.title}`,
+                                description: `Failed to connect to ${props.url}`,
+                                variant: 'destructive'
+                            });
+                        }
                         setConnected(false);
                         reject(error);
                     });
 
                     ros.on('close', () => {
-                        toast({
-                            title: `Disconnected from ${props.title}`,
-                        });
 
+                        if (props.toasts) {
+                            toast({
+                                title: `Disconnected from ${props.title}`,
+                            });
+                        }
                         setTimeout(() => {
                             setRetry(retry + 1);
                         }, props.reconnectTimeout * 1000);
@@ -284,11 +293,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         subscribersRef.current.set(topic.topic, subscriber);
                         subscribersCountRef.current.set(topic.topic, 1);
                     } catch (error) {
-                        toast({
-                            title: "Error",
-                            description: "Failed to subscribe to topic",
-                            variant: "destructive",
-                        });
+                        if (props.toasts) {
+                            toast({
+                                title: "Error",
+                                description: "Failed to subscribe to topic",
+                                variant: "destructive",
+                            });
+                        }
                     }
                 },
                 priority: 100,
@@ -316,11 +327,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     } catch (error) {
                         console.error("Unsubscribe error:", error);
-                        toast({
-                            title: "Error",
-                            description: "Failed to unsubscribe from topic",
-                            variant: "destructive",
-                        });
+                        if (props.toasts) {
+                            toast({
+                                title: "Error",
+                                description: "Failed to unsubscribe from topic",
+                                variant: "destructive",
+                            });
+                        }
                     }
                 },
 
@@ -401,12 +414,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     } catch (error) {
                         console.error("Advertise error:", error);
-                        toast({
-                            title: "Error",
-                            description: "Failed to advertise topic",
-                            variant: "destructive",
-                        });
-
+                        if (props.toasts) {
+                            toast({
+                                title: "Error",
+                                description: "Failed to advertise topic",
+                                variant: "destructive",
+                            });
+                        }
                         return false;
                     }
                 },
@@ -434,11 +448,13 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     } catch (error) {
                         console.error("Unadvertise error:", error);
-                        toast({
-                            title: "Error",
-                            description: "Failed to unadvertise topic",
-                            variant: "destructive",
-                        });
+                        if (props.toasts) {
+                            toast({
+                                title: "Error",
+                                description: "Failed to unadvertise topic",
+                                variant: "destructive",
+                            });
+                        }
                     }
                 },
                 priority: 100,
