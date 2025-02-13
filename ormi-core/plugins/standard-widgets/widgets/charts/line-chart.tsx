@@ -5,9 +5,15 @@ import { getColorsFromString, getTransparentColorString } from '@/core/utils/Col
 import { toast } from '@/hooks/use-toast';
 import Chart, { ChartConfiguration } from 'chart.js/auto';
 import { useEffect, useRef } from 'react';
-import { SelectedTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { ControlElement, VerticalLayout } from '@jsonforms/core';
+import { PluginsHooks } from '@/core/plugins/plugins-types';
+import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
+import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/topic-selector';
+import { LocalDataSourcesProvider } from '@/core/datasources/components/local-datasource-provider';
+import { WidgetDefinition } from '@/core/widgets/widget-interface';
 
-interface TimeSeriesSettings {
+interface TimeSeriesProps {
     title: string;
     timeHistory: number;
     updateFrequency: number;
@@ -21,7 +27,7 @@ interface TimeSeriesSettings {
 /*
     Component that implements Chart.js to render a line chart.
 */
-export function LineChart(props: TimeSeriesSettings) {
+function LineChart(props: TimeSeriesProps) {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const chartRef = useRef<Chart>();
@@ -174,4 +180,130 @@ export function LineChart(props: TimeSeriesSettings) {
     return (
         <canvas ref={canvasRef} />
     )
+}
+
+export function LineChartDefinition() {
+
+    const pluginsManager = usePluginsManager();
+
+    const title: ControlElement = {
+        type: "Control",
+        scope: "#/properties/title",
+    }
+
+    const timeHistory: ControlElement = {
+        type: "Control",
+        scope: "#/properties/timeHistory",
+    }
+
+    const updateFrequency: ControlElement = {
+        type: "Control",
+        scope: "#/properties/updateFrequency",
+    }
+
+    const topic: AsyncTopicControlType = {
+        "type": "TopicSelect",
+        "scope": "#/properties/topic",
+        "options": {
+            "asyncFunction": async () => {
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+            },
+            "propertyType": "number"
+        }
+    }
+
+    const color: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/color",
+        "options": {
+            "color": true,
+        }
+    }
+
+    const fill: ControlElement = {
+        "type": "Control",
+        "scope": "#/properties/fill",
+    }
+
+    // array of topics
+    const topics: ControlElement = {
+        type: "Control",
+        scope: "#/properties/topics",
+        options: {
+            detail: {
+                type: "Group",
+                elements: [topic, color, fill]
+            }
+
+        }
+    }
+
+    const layout: VerticalLayout = {
+        type: "VerticalLayout",
+        elements: [title, timeHistory, updateFrequency, topics],
+    }
+
+    return {
+        id: 'chart-js-line-chart',
+        name: 'Line chart',
+        description: 'Display a line chart using Chart.js',
+        titleProp: 'title',
+
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+                timeHistory: {
+                    type: 'number',
+                    title: 'Time history in seconds',
+                    default: 5
+                },
+                updateFrequency: {
+                    type: 'number',
+                    title: 'Update frequency in Hz',
+                    default: 32
+                },
+                topics: {
+                    type: 'array',
+                    title: 'Topics',
+                    items: {
+                        type: "object",
+                        properties: {
+                            topic: {
+                                "type": "object",
+                                "title": "Topic",
+                            },
+                            color: {
+                                "type": "string",
+                                "title": "Color",
+                            },
+                            fill: {
+                                "type": "boolean",
+                                "title": "Fill",
+                                default: false,
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            },
+        },
+
+        uischema: layout,
+
+        data: {
+            title: 'Line chart'
+        },
+
+        Component: (data: TimeSeriesProps) => (
+
+            <LocalDataSourcesProvider SelectedTopics={data.topics.map(t => t.topic)} buffersSize={2000} >
+                <LineChart {...data} />
+            </LocalDataSourcesProvider >
+        )
+
+    } as WidgetDefinition;
 }

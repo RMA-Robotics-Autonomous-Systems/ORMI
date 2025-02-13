@@ -2,10 +2,15 @@ import { TreeView, TreeDataItem } from "@/components/tree-view";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import PluginsManager from "@/core/plugins/plugins-manager";
 import { PluginAction, PluginFilter, PluginsHooks } from "@/core/plugins/plugins-types";
+import { WidgetDefinition } from "@/core/widgets/widget-interface";
+import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { FolderTreeIcon } from "lucide-react";
 
 import { useEffect, useState } from "react";
 
-export function PluginViewer(props: any) {
+
+
+function PluginViewer() {
 
     const [data, setData] = useState<TreeDataItem[]>([]);
 
@@ -86,4 +91,45 @@ export function PluginViewer(props: any) {
             {(data) && (data.length > 0) && (<TreeView data={data} />)}
         </div>
     );
+}
+
+export function PluginsViewerDefinition(): WidgetDefinition {
+
+    return {
+        id: 'plugins-viewer-widget',
+        name: 'Plugins viewer',
+        description: 'Display the differents filters and actions',
+        titleProp: 'title',
+        icon: <FolderTreeIcon />,
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+            },
+            required: ['title']
+        },
+
+        uischema: {
+            type: "VerticalLayout",
+            elements: [
+                {
+                    type: "Control",
+                    scope: "#/properties/title"
+                } as ControlElement,
+            ]
+
+        } as VerticalLayout,
+
+        data: {
+            title: 'Plugins viewer'
+        },
+        Component: () => (
+            <PluginViewer />
+        )
+
+    }
+
 }
