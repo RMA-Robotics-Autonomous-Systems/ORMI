@@ -13,7 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { generateTreeView } from '@/core/utils/tree-view';
+import { generateTreeView } from '@/core/utils/json-schema-to-tree-view';
 import TopicCreator from './topic-creator';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { CommandSeparator } from 'cmdk';
