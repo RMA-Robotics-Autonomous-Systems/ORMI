@@ -46,7 +46,7 @@ export const ForceGraph: React.FC<ForceGraphProps> = ({
 
     useEffect(() => {
         const simulation = forceSimulation(nodes)
-            .force("charge", forceManyBody().strength(-100))
+            .force("charge", forceManyBody().strength(-500))
             .force("link", forceLink(links).id((d: any) => d.data.key).distance(100))
             .force("center", forceCenter(width / 2, height / 2))
             .force("collision", forceCollide().radius(50).strength(0.8))
