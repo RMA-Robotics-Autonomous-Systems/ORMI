@@ -23,6 +23,7 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic } from '@/core/datasources/datasource-interface';
 import { Spinner } from '@/components/spinner';
+import { IMU } from '@/core/types/movement';
 
 const RandomIMUSourceContext = createContext(null);
 
@@ -55,7 +56,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                     topics.push({
                         topic: topic.topic,
                         source: props,
-                        type: typeof 0,
+                        type: "IMU",
                     });
                 }
 
@@ -82,23 +83,28 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
 
                 const interval = setInterval(() => {
 
+                    const time = Date.now() / 1000; // Time in seconds
+                    const stepFrequency = 2; // Steps per second
+                    const stepAmplitude = 0.5;
+
                     const imu_data = {
-                        velocity: {
-                            x: Math.random(),
-                            y: Math.random(),
-                            z: Math.random()
+                        linear_acceleration: {
+                            x: stepAmplitude * Math.sin(2 * Math.PI * stepFrequency * time), // Forward-backward motion
+                            y: Math.abs(stepAmplitude * Math.sin(4 * Math.PI * stepFrequency * time)), // Up-down motion
+                            z: stepAmplitude * Math.cos(2 * Math.PI * stepFrequency * time) * 0.3, // Side-to-side motion
                         },
-                        acceleration: {
-                            x: Math.random(),
-                            y: Math.random(),
-                            z: Math.random()
+                        angular_velocity: {
+                            x: stepAmplitude * Math.cos(2 * Math.PI * stepFrequency * time) * 0.2, // Roll
+                            y: stepAmplitude * Math.sin(2 * Math.PI * stepFrequency * time) * 0.1, // Pitch
+                            z: stepAmplitude * Math.sin(4 * Math.PI * stepFrequency * time) * 0.15, // Yaw
                         },
                         orientation: {
-                            x: Math.random(),
-                            y: Math.random(),
-                            z: Math.random()
-                        },
-                    }
+                            x: Math.sin(2 * Math.PI * stepFrequency * time) * 0.1,
+                            y: Math.cos(2 * Math.PI * stepFrequency * time) * 0.1,
+                            z: Math.sin(4 * Math.PI * stepFrequency * time) * 0.05,
+                            w: 1.0,
+                        }
+                    } as IMU;
 
                     pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, imu_data, Date.now());
                 }, 1000 / freq); // Assuming freq is in hz
@@ -132,7 +138,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                 return {
                     type: 'object',
                     properties: {
-                        velocity: {
+                        linear_acceleration: {
                             type: 'object',
                             properties: {
                                 x: { type: 'number' },
@@ -140,7 +146,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                                 z: { type: 'number' },
                             }
                         },
-                        acceleration: {
+                        angular_velocity: {
                             type: 'object',
                             properties: {
                                 x: { type: 'number' },
@@ -157,7 +163,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                             }
                         }
                     }
-                };
+                }
             }
         });
 

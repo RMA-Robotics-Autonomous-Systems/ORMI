@@ -1,4 +1,4 @@
-import { Movement } from "@/core/types/movement";
+import { IMU, Movement } from "@/core/types/movement";
 
 // converts webapp data to ros2 data
 const convertionMap = {
@@ -7,6 +7,7 @@ const convertionMap = {
     "boolean": "bool",
     "Movement": "geometry_msgs/msg/Twist",
     "GeolocationPosition": "sensor_msgs/msg/NavSatFix",
+    "IMU": "sensor_msgs/msg/Imu"
 }
 
 export class WebAppToROS2Converter{
@@ -21,6 +22,10 @@ export class WebAppToROS2Converter{
 
         switch(originType){
             case "Movement": return this.MovementToTwist(data);
+
+            case "GeolocationPosition": return this.GeolocationPositionToFix(data);
+
+            case "IMU": return this.IMUToRos2Imu(data);
         }
 
     }
@@ -36,6 +41,41 @@ export class WebAppToROS2Converter{
                 x: data.angular.x,
                 y: data.angular.y,
                 z: data.angular.z
+            }
+        }
+    }
+
+    GeolocationPositionToFix(data:GeolocationPosition){
+        return {
+            latitude: data.coords.latitude,
+            longitude: data.coords.longitude,
+            altitude: data.coords.altitude,
+            position_covariance: [data.coords.accuracy, 0, data.coords.altitudeAccuracy, 0, 0, data.coords.heading, 0, 0, data.coords.speed],
+            header: {
+                stamp: {
+                    sec: data.timestamp
+                }
+            }
+        }
+    }
+
+    IMUToRos2Imu(data:IMU){
+        return {
+            linear_acceleration: {
+                x: data.linear_acceleration.x,
+                y: data.linear_acceleration.y,
+                z: data.linear_acceleration.z
+            },
+            angular_velocity: {
+                x: data.angular_velocity.x,
+                y: data.angular_velocity.y,
+                z: data.angular_velocity.z
+            },
+            orientation: {
+                x: data.orientation.x,
+                y: data.orientation.y,
+                z: data.orientation.z,
+                w: data.orientation.w
             }
         }
     }
