@@ -187,7 +187,8 @@ export class UnifiedConverter {
 	static convertToWebapp(rosData: any, targetWebappType: string, originalRos2Type: string): any {
 		const entry = UnifiedConverter.converters[targetWebappType];
 		if (!entry || !entry.conversions[originalRos2Type]) {
-			throw new Error(`No conversion mapping found for webapp type: ${targetWebappType} and ros2 type: ${originalRos2Type}`);
+			// throw new Error(`No conversion mapping found for webapp type: ${targetWebappType} and ros2 type: ${originalRos2Type}`);
+            return rosData;
 		}
 		return entry.conversions[originalRos2Type].fromRos2(rosData);
 	}
