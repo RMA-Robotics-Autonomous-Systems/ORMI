@@ -27,6 +27,7 @@ import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
 import { ROS2ToWebAppConverter, WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 import { Spinner } from '@/components/spinner';
+import { UnifiedConverter } from './ros2/unified-converter';
 
 const RosBridgeSuiteSourceContext = createContext(null);
 
@@ -87,7 +88,7 @@ async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSc
             for (let i = 0; i < results.topics.length; i++) {
 
                 const def = results.typedefs_full_text[i];
-                const decoded = decodeTypeDefs(def);
+                const decoded = decodeTypeDefs(def);    // parse the typedefs into a JsonSchema
 
                 topics.set(results.topics[i], decoded);
             }
@@ -176,9 +177,6 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
     const ros_publishers = useRef(new Map<string, RosTopicAndCounter>()).current = new Map<string, RosTopicAndCounter>();
 
-    const converter = new WebAppToROS2Converter();
-    const rosToWebAppConverter = new ROS2ToWebAppConverter();
-
     useEffect(() => {
 
         if (!props.enable) {
@@ -240,7 +238,8 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         return [...topics, ...rosTopics.map((topic) => ({
                             topic: topic.topic,
                             source: props,
-                            type: topic.type,
+                            type: UnifiedConverter.getWebappTypeFromROSType(topic.type) || '',
+                            rawType: topic.type
                         }))];
                     } catch (error) {
                         return topics;
@@ -273,7 +272,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         subscriber.subscribe((message: any) => {
 
                             // convert the incoming message to webapp format
-                            const convertedMessage = rosToWebAppConverter.convert(message, topicType);
+                            const convertedMessage = UnifiedConverter.convertToWebapp(message, topic.type, topicType);
 
                             pluginsManager.doAction(
                                 `${datasource_id}-${topic.topic}-published`,
@@ -335,6 +334,11 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     // return a JsonSchema representing the topic message structure
                     // normally the current definition is empty.
 
+                    const converter = UnifiedConverter.converters[topic.type];
+                    if (converter && converter.isPrimitive) {
+                        return definition;
+                    }
+
                     // get message definition from ROS
                     const topics_and_raw_types = await GetTopicsAndRawTypes(ROSRef.current!);
                     const current_topic_raw_type = topics_and_raw_types.get(topic.topic);
@@ -380,7 +384,8 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             id: hook,
                             action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
                                 try {
-                                    const converted = converter.convert(message, webtype, topic.type);
+                                    const converted = UnifiedConverter.convertToROS2(message, webtype, topic.type);
+
                                     const msg = new ROSLIB.Message(converted);
 
                                     publisher.publish(msg);

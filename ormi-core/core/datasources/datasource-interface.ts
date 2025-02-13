@@ -28,7 +28,8 @@ interface Datasource{
 interface DatasourceTopic {
     topic: string;
     source: DatasourceProviderSettings;
-    type: string;
+    type: string;           // type of the data inside the webapp
+    rawType: string;        // type of the data inside the datasource
     bufferSize?: number;
 }
 

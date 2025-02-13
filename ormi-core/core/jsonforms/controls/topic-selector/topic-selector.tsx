@@ -185,7 +185,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                                                 onSelect={handleTopicChange}
                                             >
                                                 <small className="text-gray-500">{topic.source.title}</small>
-                                                <small className="text-gray-500">{topic.type}</small>
+                                                <small className="text-gray-500">{topic.type || `${topic.rawType}*`}</small>
                                                 {topic.topic}
                                                 <Check
                                                     className={cn(
