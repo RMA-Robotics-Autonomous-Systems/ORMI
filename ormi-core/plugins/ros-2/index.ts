@@ -2,8 +2,8 @@ import { PluginServerSide } from "@/core/plugins/plugin-core";
 
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 
-import dataSourceExport from "./datasource-export";
 import { DatasourceProviderSettings } from "@/core/datasources/datasource-interface";
+import { dataSourceExport, widgetsExport } from "./export";
 
 
 class RandomDataSourcePlugins extends PluginServerSide {
@@ -21,6 +21,12 @@ class RandomDataSourcePlugins extends PluginServerSide {
             id: "ros-2-datasources",
             priority: 12,
             filter: dataSourceExport
+        });
+
+        this.addFilter(PluginsHooks.WIDGETS_LIST, {
+            id: "ros-2-widgets",
+            priority: 12,
+            filter: widgetsExport
         });
     }
 }
