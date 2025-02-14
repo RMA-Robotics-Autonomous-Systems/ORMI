@@ -60,6 +60,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         topic: topic.topic,
                         source: props,
                         type: typeof 0,
+                        rawType: 'number',
                     });
                 }
 

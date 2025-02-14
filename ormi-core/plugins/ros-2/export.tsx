@@ -5,6 +5,7 @@ import { DatasourceDefinition } from '@/core/datasources/datasource-interface';
 import { RosBridgeSuiteDataSourceSettings, RosBridgeSuiteSourceProvider } from './rosbridge-suite-source';
 import { WidgetDefinition } from '@/core/widgets/widget-interface';
 import { Ros2ConvertionGraphDefinition } from './ros2/convertion-graph';
+import { RQTGraphDefinition } from './ros2/rqt-graph';
 
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
@@ -56,6 +57,7 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 export const widgetsExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(Ros2ConvertionGraphDefinition());
+    widgets.push(RQTGraphDefinition());
 
     return widgets;
 }

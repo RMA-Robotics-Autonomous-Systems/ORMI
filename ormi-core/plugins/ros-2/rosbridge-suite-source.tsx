@@ -21,7 +21,7 @@ import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 
-import { DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
@@ -234,6 +234,14 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                     ROSRef.current = ros;
                 }
+            });
+
+            pluginsManager.addFilter(`${datasource_id}-ros-2-connection`, {
+                id: `${datasource_id}-ros-2-connection`,
+                filter: (_obj = {}) => {
+                    return ROSRef.current;
+                },
+                priority: 1,
             });
 
             // Register plugin handlers
@@ -495,6 +503,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                 return;
             }
 
+            pluginsManager.removeFilter(`${datasource_id}-ros-2-connection`);
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeAction(subscribe_hook);
             pluginsManager.removeAction(unsubscribe_hook);

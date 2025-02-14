@@ -96,7 +96,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                 return prev;
             }
 
-            return { topic: topic, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || uischema.options?.buffer || 1 };
+            return { topic: topic, rawType: prev.rawType, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || uischema.options?.buffer || 1 };
         })
 
         handleChange(path, { topic: topic, source: source.settings, property: '', type: type, bufferSize: 1 } as SelectedTopic);

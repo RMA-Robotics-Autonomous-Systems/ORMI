@@ -57,6 +57,7 @@ const RandomIMUSourceProvider: React.FC<{ children: ReactNode, props: RandomData
                         topic: topic.topic,
                         source: props,
                         type: "IMU",
+                        rawType: "imu",
                     });
                 }
 

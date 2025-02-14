@@ -12,7 +12,7 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
-import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockKeyholeIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
 import { ButtonHolderProvider } from "@/components/advanced/ButtonHolder/button-holder-provider";
 import ButtonHolder from "@/components/advanced/ButtonHolder/button-holder";
 
@@ -22,7 +22,7 @@ const Dashboard = () => {
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), [forceReload]);  // (improve performance from 'doc', also, juste make it works)
+    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive) as unknown as React.FC<any>, [forceReload]);  // (improve performance from 'doc', also, juste make it works)
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {

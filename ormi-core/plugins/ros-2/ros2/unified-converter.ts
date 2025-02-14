@@ -2,6 +2,8 @@
 // import { IMU, Movement } from "@/core/types/movement";
 // ...other necessary imports...
 
+import { IMU, Movement } from "@/core/types/movement";
+
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
 interface ConverterEntry {
 	conversions: {

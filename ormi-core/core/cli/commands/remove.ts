@@ -58,7 +58,7 @@ export async function remove(pluginName: string, options: RemoveOptions) {
 
     spinner.succeed(`Successfully removed plugin "${pluginName}"`);
   } catch (error) {
-    spinner.fail(`Failed to remove plugin: ${error.message}`);
+    spinner.fail(`Failed to remove plugin: ${(error as Error).message}`);
     process.exit(1);
   }
 }

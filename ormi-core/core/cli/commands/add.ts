@@ -1,8 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import ora from "ora";
-import rimraf from "rimraf";
 
 interface AddOptions {
   yes: boolean;
@@ -30,19 +29,19 @@ export async function add(pluginName: string, gitUrl: string, options: AddOption
     );
 
     // remove .git directory and .gitignore file
-    rimraf.sync(path.join(targetDir, ".git"));
-    rimraf.sync(path.join(targetDir, ".gitignore"));
+    rmSync(path.join(targetDir, ".git"), { recursive: true, force: true });
+    rmSync(path.join(targetDir, ".gitignore"), { recursive: true, force: true });
 
     // remove file in root directory that contains the word "lock"
     const files = readdirSync(targetDir);
     for (const file of files) {
       if (file.includes("lock")) {
-        rimraf.sync(path.join(targetDir, file));
+        rmSync(path.join(targetDir, file), { recursive: true, force: true });
       }
     }
 
     // remove the tsconfig.json file
-    rimraf.sync(path.join(targetDir, "tsconfig.json"));
+    rmSync(path.join(targetDir, "tsconfig.json"), { recursive: true, force: true });
 
     // Install plugin dependencies in the main package.json if it exists
     const mainPackageJsonPath = path.join(process.cwd(), "package.json");
@@ -66,7 +65,7 @@ export async function add(pluginName: string, gitUrl: string, options: AddOption
     }
 
     // remove the package.json file
-    rimraf.sync(path.join(targetDir, "package.json"));
+    rmSync(path.join(targetDir, "package.json"), { recursive: true, force: true });
 
     // Update or create the ormi-plugins.json file with the new plugin entry
     try {
