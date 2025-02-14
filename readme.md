@@ -2,6 +2,75 @@
 
 Open Robot Management Interface; this is the core application
 
+## CLI tools
+
+You can enable the CLI tools to install and manage plugins. You can add a `ormi-plugins.json` file in the root of the webapp. This file contains the definition of the plugins used.
+
+```json
+{
+  "plugin_name_a": {
+    "git": "remote_git_url_of_plugin_a"
+  },
+  "plugin_name_b": {
+    "git": "remote_git_url_of_plugin_b"
+  }
+}
+```
+
+### Enable the CLI Tools
+
+```bash
+cd ./ormi-core/
+
+bun link
+```
+
+### Available Commands
+
+#### `version`
+
+Displays the current version of the ORMI-Core CLI tools.
+
+```bash
+ormi-plugins version
+```
+
+#### `add`
+
+Adds a new plugin to the ORMI-Core application.
+
+```bash
+ormi-plugins add <plugin-name>
+```
+
+- `<plugin-name>`: The name of the plugin to add.
+
+#### `remove`
+
+Removes an existing plugin from the ORMI-Core application.
+
+```bash
+ormi-plugins remove <plugin-name>
+```
+
+- `<plugin-name>`: The name of the plugin to remove.
+
+#### `init`
+
+Initializes the ORMI-Core application with default settings.
+
+```bash
+ormi-plugins init
+```
+
+#### `update`
+
+Updates the ORMI-Core application and its plugins to the latest version.
+
+```bash
+ormi-plugins update
+```
+
 ## The basis
 
 exemple of a one way bridge between two different ros2 network
