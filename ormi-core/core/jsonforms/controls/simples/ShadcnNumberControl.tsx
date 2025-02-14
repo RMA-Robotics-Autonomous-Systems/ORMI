@@ -22,7 +22,6 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React from 'react';
 import { Input } from "@/components/ui/input"
 import {
     ControlProps,
@@ -39,7 +38,8 @@ const ShadcnInputNumber = (props: ControlProps) => {
     return (
         <Input
             type="number"
-            value={data !== undefined && data !== null ? data : schema.default ?? schema.const ?? ''}
+            value={data || ''}
+            placeholder={schema.default || ''}
             onChange={(ev) => {
                 const value = ev.target.value;
                 handleChange(path, value === '' ? undefined : Number(value));

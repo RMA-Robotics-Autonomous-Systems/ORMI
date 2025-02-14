@@ -10,7 +10,6 @@ import { KeyControlType } from "@/core/jsonforms/controls/key/key";
 import { Movement } from "@/core/types/movement";
 import { PublisherDataSourcesProvider, usePublisherDataSource } from "@/core/datasources/components/publisher-datasource-provider";
 import { toast } from "@/hooks/use-toast";
-import { buffer } from "stream/consumers";
 
 interface KeyboardControlData {
     title: string;
@@ -33,7 +32,7 @@ export function KeyBoardControl(props: KeyboardControlData) {
     const [backward, setBackward] = useState<boolean>(false);
     const [left, setLeft] = useState<boolean>(false);
     const [right, setRight] = useState<boolean>(false);
-    const [speed, setSpeed] = useState<number>(props.startingSpeed);
+    const [speed, setSpeed] = useState<number>(props.startingSpeed || 50);
     const [unlock, setUnlock] = useState<boolean>(false);
     const [speedkeyInc, setSpeedKeyInc] = useState<boolean>(false);
     const [speedkeyDec, setSpeedKeyDec] = useState<boolean>(false);
