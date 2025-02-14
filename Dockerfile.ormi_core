@@ -14,6 +14,12 @@ RUN bun install
 # Copy the rest of the application
 COPY ./ormi-core .
 
+# Link the ormi plugins
+RUN bun link
+
+# Initialize the ormi plugins
+RUN ormi-plugins init
+
 # build the application
 RUN bun run build
 
