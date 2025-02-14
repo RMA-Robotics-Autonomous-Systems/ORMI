@@ -3,7 +3,7 @@ import style from "@/core/jsonforms/controls/key/key.module.css";
 import { KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
-import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
+import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import { KeyControlType } from "@/core/jsonforms/controls/key/key";
@@ -317,10 +317,9 @@ export function KeyboardControlDefinition() {
                     scope: "#/properties/topic",
                     options: {
                         asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'Movement');
+                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /Movement/ }));
                         },
                         buffer: 1,
-                        propertyType: "Movement"
                     }
                 } as AsyncTopicControlType,
                 {

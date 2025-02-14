@@ -24,5 +24,4 @@ interface Widget{
     settings: any;      // settings of the widget
 }
 
-
 export type { WidgetDefinition, Widget };

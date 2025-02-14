@@ -5,7 +5,7 @@ import Map, { StyleSpecification } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
 import TopicMarker from "./marker-simple";
 import { LocalDataSourcesProvider } from "@/core/datasources/components/local-datasource-provider";
-import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
+import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
@@ -287,9 +287,8 @@ export function MapsBoxViewerDefinition() {
                                     scope: "#/properties/topic",
                                     options: {
                                         asyncFunction: async () => {
-                                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'gps');
+                                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /GeolocationPosition/ }));
                                         },
-                                        propertyType: "gps"
                                     }
                                 } as AsyncTopicControlType
                             ]

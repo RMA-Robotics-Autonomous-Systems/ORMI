@@ -1,6 +1,6 @@
 import { Spinner } from "@/components/spinner";
 import { LocalDataSourcesProvider, useLocalDataSource } from "@/core/datasources/components/local-datasource-provider";
-import { DatasourceTopic, SelectedTopic } from "@/core/datasources/datasource-interface";
+import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from "@/core/datasources/datasource-interface";
 import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
@@ -105,10 +105,9 @@ export function IntStatusIndicatorDefinition() {
                     scope: "#/properties/topic",
                     options: {
                         asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'gps');
+                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number/ }));
                         },
                         buffer: 1,
-                        propertyType: "gps"
                     }
                 } as AsyncTopicControlType,
                 {

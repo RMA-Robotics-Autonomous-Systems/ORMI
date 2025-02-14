@@ -8,7 +8,7 @@ import { usePluginsManager } from '../../plugins/components/plugins-provider';
 import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/hooks/use-toast';
-import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '@/core/datasources/datasource-interface';
+import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '@/core/datasources/datasource-interface';
 
 interface DashboardContextInterface {
 
@@ -512,6 +512,28 @@ const DashboardProvider: React.FC<DashboardProviderProps> = ({ children, dashboa
 
     useEffect(() => {
         OnLoad(setLayouts, setWidgets, setLocked, setDatasources);
+
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
+            id: "dashboard-available-topics",
+            priority: Infinity,
+            filter: async (topics: DatasourceTopic[], filter?: DatasourceTopicFilter) => {
+                // if the filter object is not defined, we return all the topics
+                if (!filter) {
+                    return topics;
+                }
+
+                console.log(filter);
+
+                // filter the topics based on the filter object
+                return topics.filter((topic) => filter.filter(topic));
+            }
+
+        })
+
+        return () => {
+            pluginsManager.removeFilter("dashboard-available-topics");
+        }
+
     }, []);
 
     return (

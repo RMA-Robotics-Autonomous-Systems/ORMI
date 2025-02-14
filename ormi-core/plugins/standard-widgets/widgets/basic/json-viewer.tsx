@@ -61,7 +61,7 @@ export function JsonViewerDefinition(): WidgetDefinition {
                     scope: "#/properties/topic",
                     options: {
                         asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'GeolocationPosition');
+                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
                         },
                         buffer: 1,
                     }

@@ -21,11 +21,10 @@ import PluginsManager from '@/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 
-import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { toast } from '@/hooks/use-toast';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
-import { ROS2ToWebAppConverter, WebAppToROS2Converter } from './ros2/webapp-to-ros2';
 import { Spinner } from '@/components/spinner';
 import { UnifiedConverter } from './ros2/unified-converter';
 
@@ -244,6 +243,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                     try {
                         await connectionRef.current;
                         const rosTopics = await GetTopicsList(ROSRef.current!);
+
                         return [...topics, ...rosTopics.map((topic) => ({
                             topic: topic.topic,
                             source: props,

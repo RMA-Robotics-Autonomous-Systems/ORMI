@@ -206,7 +206,7 @@ export function LineChartDefinition() {
         "scope": "#/properties/topic",
         "options": {
             "asyncFunction": async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
             },
             "propertyType": "number"
         }

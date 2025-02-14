@@ -1,14 +1,13 @@
 import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
 import { Button } from '@/components/ui/button';
-import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
+import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { AsyncTopicControlType } from '@/core/jsonforms/controls/topic-selector/topic-selector';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
-import { RosBridgeSuiteDataSourceSettings } from '@/plugins/random-data-sources/rosbridge-suite-source';
+import { RosBridgeSuiteDataSourceSettings } from '@/plugins/ros-2/rosbridge-suite-source';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { CctvIcon, RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
-import { buffer } from 'stream/consumers';
 
 interface WebrtcRos2VideoStreamProps {
     title: string;
@@ -34,7 +33,6 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
     const ros2Definition = props.topic.source as RosBridgeSuiteDataSourceSettings;
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
-
 
     const host = getHostFromWSUrl(ros2Definition.url);
     const topic = props.topic.topic;
@@ -169,10 +167,11 @@ export function WebRtcRos2Definition() {
         scope: "#/properties/topic",
         options: {
             asyncFunction: async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], 'number');
+                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({
+                    source_id: /rosbridge-suite-source/
+                }));
             },
             buffer: 1,
-            // "propertyType": "number"
         }
     }
 
