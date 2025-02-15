@@ -58,7 +58,7 @@ export const ForceGraph: React.FC<ForceGraphProps> = ({
                 setSimLinks([...links]);
             });
         return () => { simulation.stop(); };
-    }, [initialNodes, links, width, height]);
+    }, [initialNodes, links, width, height, nodes]);
 
     useEffect(() => {
         if (svgRef.current) {
