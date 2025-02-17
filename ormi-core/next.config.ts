@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
   },
   experimental: {
-    // reactCompiler: true,
+    reactCompiler: true,
   },
 };
 

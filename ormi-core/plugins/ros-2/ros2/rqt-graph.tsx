@@ -4,7 +4,6 @@ import { WidgetDefinition } from "@/core/widgets/widget-interface";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import ROSLIB from 'roslib';
 import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
-import ForceGraph from 'force-graph';
 import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
 import { Button } from '@/components/ui/button';
 import { RefreshCwIcon } from 'lucide-react';
@@ -25,7 +24,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 
 
     const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
-    const [refresh, setRefresh] = useState<boolean>(false);
+    const [refresh, setRefresh] = useState<number>(0);
     const [rosNodes, setRosNodes] = useState<Map<string, { subscriptions: string[], publications: string[], services: string[] }>>(new Map());
     const divRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +36,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 
 
         setButtonItem("refresh",
-            <Button variant={"ghost"} onClick={() => { setRefresh(!refresh) }} >
+            <Button variant={"ghost"} onClick={() => { setRefresh((prev: number) => (prev++) % 10) }} >
                 <RefreshCwIcon />
             </Button>
         );
@@ -47,7 +46,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
             clearTimeout(to);
             removeButtonItem("refresh");
         }
-    }, [pluginsManager, props]);
+    }, [pluginsManager, props, refresh]);
 
     // Retrieve ROS nodes details, subscribing: Array(0), publishing: Array(2), services: Array(1)
     useEffect(() => {
@@ -71,72 +70,67 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
     // Build and render graph from rosNodes using ForceGraph
     useEffect(() => {
         if (divRef.current && rosNodes.size > 0) {
-            const nodesMap: { [key: string]: boolean } = {};
-            const nodes: { id: string }[] = [];
-            const links: { source: string, target: string, value: any }[] = [];
+            (async () => {
+                const { default: ForceGraph } = await import('force-graph');
 
-            rosNodes.forEach((details, nodeName) => {
-                if (!nodesMap[nodeName]) {
-                    nodes.push({ id: nodeName });
-                    nodesMap[nodeName] = true;
-                }
-            });
+                const nodesMap: { [key: string]: boolean } = {};
+                const nodes: { id: string }[] = [];
+                const links: { source: string, target: string, value: any }[] = [];
 
-            // Create links: match publications with subscriptions between nodes.
-            rosNodes.forEach((pubDetails, pubName) => {
-                const publications: string[] = pubDetails.publications || [];
-                publications.forEach(topic => {
-
-                    if (props.ignoreRosout && topic === '/rosout') {
-                        return;
+                rosNodes.forEach((details, nodeName) => {
+                    if (!nodesMap[nodeName]) {
+                        nodes.push({ id: nodeName });
+                        nodesMap[nodeName] = true;
                     }
+                });
 
-                    if (props.ignoreParameterEvent && topic === '/parameter_events') {
-                        return;
-                    }
-
-                    rosNodes.forEach((subDetails, subName) => {
-                        if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
-                            links.push({ source: pubName, target: subName, value: topic });
-                        }
+                rosNodes.forEach((pubDetails, pubName) => {
+                    const publications: string[] = pubDetails.publications || [];
+                    publications.forEach(topic => {
+                        if (props.ignoreRosout && topic === '/rosout') return;
+                        if (props.ignoreParameterEvent && topic === '/parameter_events') return;
+                        rosNodes.forEach((subDetails, subName) => {
+                            if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
+                                links.push({ source: pubName, target: subName, value: topic });
+                            }
+                        });
                     });
                 });
-            });
 
-            const fg = new ForceGraph(divRef.current)
-                .graphData({ nodes, links })
-                .linkDirectionalArrowLength(2)   // add the arrow head
-                .linkDirectionalArrowRelPos(1)     // position arrow at target
-                .linkDirectionalParticles(2)
-                .linkCanvasObjectMode(() => 'after') // draw custom content after default link rendering
-                .linkCanvasObject((link: any, ctx, globalScale) => {
-                    const { source, target, value } = link;
-                    const x = (source.x + target.x) / 2;
-                    const y = (source.y + target.y) / 2;
-                    ctx.font = `${10 / globalScale}px Sans-Serif`;
-                    ctx.fillStyle = "#000";
-                    ctx.textAlign = 'center';
-                    ctx.fillText(value, x, y);
-                })
-                .nodeCanvasObject((node: any, ctx, globalScale) => {
-                    const r = 5;
-                    ctx.beginPath();
-                    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-                    ctx.fillStyle = "#1f77b4";
-                    ctx.fill();
-                    ctx.font = `${12 / globalScale}px Sans-Serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillStyle = "#000";
-                    ctx.fillText(node.id, node.x, node.y - r - 2);
-                });
+                const fg = new ForceGraph(divRef.current!)
+                    .graphData({ nodes, links })
+                    .linkDirectionalArrowLength(2)
+                    .linkDirectionalArrowRelPos(1)
+                    .linkDirectionalParticles(2)
+                    .linkCanvasObjectMode(() => 'after')
+                    .linkCanvasObject((link: any, ctx, globalScale) => {
+                        const { source, target, value } = link;
+                        const x = (source.x + target.x) / 2;
+                        const y = (source.y + target.y) / 2;
+                        ctx.font = `${10 / globalScale}px Sans-Serif`;
+                        ctx.fillStyle = "#000";
+                        ctx.textAlign = 'center';
+                        ctx.fillText(value, x, y);
+                    })
+                    .nodeCanvasObject((node: any, ctx, globalScale) => {
+                        const r = 5;
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
+                        ctx.fillStyle = "#1f77b4";
+                        ctx.fill();
+                        ctx.font = `${12 / globalScale}px Sans-Serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillStyle = "#000";
+                        ctx.fillText(node.id, node.x, node.y - r - 2);
+                    });
 
-            // Center the graph by zooming to fit
-            setTimeout(() => {
-                fg.zoomToFit(400);
-            }, 500);
+                setTimeout(() => {
+                    fg.zoomToFit(400);
+                }, 500);
+            })();
         }
-    }, [rosNodes]);
+    }, [rosNodes, refresh]);
 
     return (
         <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -182,7 +176,11 @@ export function RQTGraphDefinition(): WidgetDefinition {
                     type: "Control", scope: "#/properties/datasource_id", options: {
                         async: true,
                         asyncFunction: async () => {
-                            const values = Array.from(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, [])).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
+
+                            const datasources = Array.from(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, [])).filter(ds => ds.datasource_id === 'rosbridge-suite-source');
+
+                            const values = Array.from(datasources).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
+
                             return values;
                         }
                     }

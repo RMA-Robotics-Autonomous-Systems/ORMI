@@ -24,133 +24,86 @@ import { TreeView, TreeDataItem } from '@/components/tree-view';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
+    // Destructure props for clarity
     const { data, handleChange, path, uischema, label } = props;
 
-    const [open, setOpen] = useState(false)
-
+    const [open, setOpen] = useState(false);
     const [topics, setTopics] = useState<DatasourceTopic[]>([]);
     const [topicProps, setTopicProps] = useState<TreeDataItem[]>([]);
-
     const [selectedTopic, setSelectedTopic] = useState<string>('');
     const [selectedTopicObject, setSelectedTopicObject] = useState<SelectedTopic | undefined>(undefined);
-
     const pluginsManager = usePluginsManager();
-
     const [cmd, setCmd] = useState<string>('');
 
+    const getTopicByName = (name: string) => topics.find(topic => topic.topic === name);
 
-    const getTopicByName = (topic_name: string) => {
-        return topics.find(topic => topic.topic === topic_name);
-    }
-
-    const handleTopicChange = async (topic_name: string) => {
-
-        topic_name = topic_name.split('@')[0];
-
-        const topic = getTopicByName(topic_name);
-        setTopicProps([]);
-        setOpen(false);
-
-        setSelectedTopic(topic_name);
-        setSelectedTopicObject(topic ? { ...topic, property: '' } : undefined);
-
-        handleChange(path, ({ topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || uischema.options?.buffer || 1 } as SelectedTopic));
-
-
-        // represents the topic definition in json
-        const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
-
-        // if the topic definition is a primitive type, we can't create a tree view,
-        // check if the type is equal to 'optionIs('property_type', type)'
-        // the topic is a primitive type if 'properties' is not defined
-        if (!topic_msg_def.properties) {
-
-            if (!uischema.options?.propertyType) {
-                // throw new Error('propertyType is not defined in the uischema options');
-                return;
-            }
-
-            const propertyType = uischema.options.propertyType;
-            if (topic_msg_def.type !== propertyType) {
+    // Helper function to retrieve topic definition and update tree view items.
+    const fetchTopicDefinition = async (topic: DatasourceTopic, currentData?: SelectedTopic) => {
+        const topicDef = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
+        if (!topicDef.properties) {
+            // Validate type if topic definition is primitive.
+            if (!uischema.options?.propertyType) return;
+            if (topicDef.type !== uischema.options.propertyType) {
                 toast({
                     title: "Error",
-                    description: `The topic type is not equal to the property type: ${propertyType}`,
+                    description: `The topic type is not equal to the property type: ${uischema.options.propertyType}`,
                     variant: "destructive"
-                })
+                });
                 return;
             }
-
             return;
         }
+        setTopicProps(generateTreeView(topicDef, handleItemSelect));
+    };
 
-        const treeViewItems = generateTreeView(topic_msg_def, handleItemSelect);
-        setTopicProps(treeViewItems);
-    }
+    const handleTopicChange = async (topicIdentifier: string) => {
+        const topicName = topicIdentifier.split('@')[0];
+        const topic = getTopicByName(topicName);
+        setTopicProps([]);
+        setOpen(false);
+        setSelectedTopic(topicName);
+        const newTopicObj = topic ? { ...topic, property: '' } : undefined;
+        setSelectedTopicObject(newTopicObj);
+        handleChange(path, { topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || uischema.options?.buffer || 1 } as SelectedTopic);
+        if (topic) await fetchTopicDefinition(topic);
+    };
 
     const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
-
         setSelectedTopic(topic);
-
-        setSelectedTopicObject((prev) => {
-            if (!prev) {
-                return prev;
-            }
-
-            return { topic: topic, rawType: prev.rawType, source: source.settings, type: type, property: prev.property, bufferSize: prev.bufferSize || uischema.options?.buffer || 1 };
-        })
-
-        handleChange(path, { topic: topic, source: source.settings, property: '', type: type, bufferSize: 1 } as SelectedTopic);
+        setSelectedTopicObject(prev => prev ? { ...prev, topic, rawType: prev.rawType, source: source.settings, type, property: prev.property || '', bufferSize: prev.bufferSize || uischema.options?.buffer || 1 } : prev);
+        handleChange(path, { topic, source: source.settings, property: '', type, bufferSize: 1 } as SelectedTopic);
         setOpen(false);
-    }
+    };
 
     const handleBufferChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.value;
-
-        setSelectedTopicObject((prev) => {
-            if (!prev) {
-                return prev;
-            }
-
-            return { ...prev, bufferSize: parseInt(value) };
-        })
-
-        handleChange(path, { topic: selectedTopic, source: selectedTopicObject!.source, property: selectedTopicObject!.property || "", type: selectedTopicObject!.type, bufferSize: parseInt(value) } as SelectedTopic);
-    }
+        const value = parseInt(event.target.value);
+        const updated = selectedTopicObject ? { ...selectedTopicObject, bufferSize: value } : undefined;
+        setSelectedTopicObject(updated);
+        if (updated) handleChange(path, updated);
+    };
 
     const handleItemSelect = (itemId: string) => {
-
         if (!selectedTopicObject) return;
-
-        const updatedTopic = {
-            ...selectedTopicObject,
-            property: itemId
-        };
-
-        setSelectedTopicObject(updatedTopic);
-        handleChange(path, updatedTopic);
+        const updated = { ...selectedTopicObject, property: itemId };
+        setSelectedTopicObject(updated);
+        handleChange(path, updated);
     };
 
     useEffect(() => {
         const asyncFunction = uischema.options?.asyncFunction;
-
         if (asyncFunction) {
             asyncFunction().then(async (result: DatasourceTopic[]) => {
                 setTopics(result);
-
                 const value = data as SelectedTopic | undefined;
-                if (!value) {
-                    return;
+                if (value) {
+                    setSelectedTopic(value.topic);
+                    setSelectedTopicObject(value);
+                    const topic = getTopicByName(value.topic);
+                    if (topic) await fetchTopicDefinition(topic, value);
                 }
-
-                setSelectedTopic(value.topic);
-                setSelectedTopicObject(value);
-
-                const topic_msg_def = await pluginsManager.applyFilterAsync<JsonSchema>(`${value?.source.id}-definition`, {}, value);
-                const treeViewItems = generateTreeView(topic_msg_def, handleItemSelect);
-                setTopicProps(treeViewItems);
             });
         }
-    }, [selectedTopicObject]);
+    }, []);  // run once on mount
 
     return (
         <div className={style.cell}>
@@ -159,65 +112,44 @@ const AsyncTopicControl = (props: ControlProps) => {
                 <div className='flex flex-col gap-2 w-full'>
                     <Popover open={open} onOpenChange={setOpen}>
                         <PopoverTrigger asChild className="w-full">
-                            <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={open}
-                                className="w-full justify-between"
-                            >
+                            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
                                 {selectedTopic || 'Select a topic'}
-
                                 <ChevronsUpDown className="opacity-50" />
                             </Button>
                         </PopoverTrigger>
-
                         <PopoverContent>
                             <Command>
-                                <CommandInput onValueChange={(value: string) => setCmd(value)} placeholder="Search topic..." />
+                                <CommandInput onValueChange={setCmd} placeholder="Search topic..." />
                                 <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
                                 <CommandSeparator />
                                 <CommandList>
                                     <CommandGroup>
-                                        {topics.map((topic: DatasourceTopic) => (
+                                        {topics.map(topic => (
                                             <CommandItem
-                                                key={topic.topic + "-" + topic.source.id}
-                                                value={topic.topic + "@" + topic.source.id}
+                                                key={`${topic.topic}-${topic.source.id}`}
+                                                value={`${topic.topic}@${topic.source.id}`}
                                                 onSelect={handleTopicChange}
                                             >
                                                 <small className="text-gray-500">{topic.source.title}</small>
                                                 <small className="text-gray-500">{topic.type || `${topic.rawType}*`}</small>
                                                 {topic.topic}
-                                                <Check
-                                                    className={cn(
-                                                        "ml-auto",
-                                                        (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0"
-                                                    )}
-                                                />
+                                                <Check className={cn("ml-auto", (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0")} />
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>
                                 </CommandList>
                             </Command>
-
-                            {/* {topics.map((topic: DatasourceTopic) => (
-                            <SelectItem key={topic.topic} value={topic.topic}>
-                                {topic.topic}
-                            </SelectItem>
-                        ))} */}
                         </PopoverContent>
                     </Popover>
-                    <div>
-                        {(topicProps) && (topicProps.length > 0) && (<TreeView data={topicProps} />)}
-                    </div>
+                    <div>{topicProps.length > 0 && <TreeView data={topicProps} />}</div>
                     {!uischema.options?.buffer && (
                         <div className='flex flex-row gap-2'>
                             <label className="text-gray-500">Buffer size (optional)</label>
-                            {<Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />}
+                            <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
                         </div>
                     )}
                 </div>
             </div>
-
         </div>
     );
 };

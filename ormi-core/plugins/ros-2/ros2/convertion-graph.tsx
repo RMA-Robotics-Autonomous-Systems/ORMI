@@ -4,60 +4,60 @@ import { WidgetDefinition } from "@/core/widgets/widget-interface";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { UnifiedConverter } from "./unified-converter";
 
-import ForceGraph from 'force-graph';
+// Removed: import ForceGraph from 'force-graph';
 import { useEffect, useRef } from 'react';
 
 
 function Ros2ConvertionGraph(): JSX.Element {
-
     const divRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Compute nodes and links from UnifiedConverter's converters mapping.
-        const converters = UnifiedConverter.converters;
-        const nodesMap: { [key: string]: boolean } = {};
-        const nodes: { id: string }[] = [];
-        const links: { source: string, target: string, value: "any" }[] = [];
+        (async () => {
+            const { default: ForceGraph } = await import('force-graph');
 
-        Object.keys(converters).forEach(webType => {
-            if (!nodesMap[webType]) {
-                nodes.push({ id: webType });
-                nodesMap[webType] = true;
-            }
-            const conversionMapping = converters[webType].conversions;
-            Object.keys(conversionMapping).forEach(ros2Type => {
-                if (!nodesMap[ros2Type]) {
-                    nodes.push({ id: ros2Type });
-                    nodesMap[ros2Type] = true;
+            // Compute nodes and links from UnifiedConverter's converters mapping.
+            const converters = UnifiedConverter.converters;
+            const nodesMap: { [key: string]: boolean } = {};
+            const nodes: { id: string }[] = [];
+            const links: { source: string, target: string, value: "any" }[] = [];
+
+            Object.keys(converters).forEach(webType => {
+                if (!nodesMap[webType]) {
+                    nodes.push({ id: webType });
+                    nodesMap[webType] = true;
                 }
-                links.push({ source: webType, target: ros2Type, value: "any" });
-            });
-        });
-
-        const fg = new ForceGraph(divRef.current as HTMLElement)
-            .graphData({ nodes, links })
-            // Remove nodeLabel so labels are always drawn using custom canvas drawing
-            .nodeCanvasObject((node: any, ctx, globalScale) => {
-                // Grouping: if node.id exists in converters, it is a Webapp type; otherwise, ROS2 type.
-                const isWebapp = converters[node.id] !== undefined;
-                const color = isWebapp ? "#f97315" : "#2f4f4f";
-                const r = 5;
-                // Draw node circle.
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-                ctx.fillStyle = color;
-                ctx.fill();
-                // Always draw label above the node.
-                ctx.font = `${12 / globalScale}px Sans-Serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillStyle = "#000";
-                ctx.fillText(node.id, node.x, node.y - r - 2);
+                const conversionMapping = converters[webType].conversions;
+                Object.keys(conversionMapping).forEach(ros2Type => {
+                    if (!nodesMap[ros2Type]) {
+                        nodes.push({ id: ros2Type });
+                        nodesMap[ros2Type] = true;
+                    }
+                    links.push({ source: webType, target: ros2Type, value: "any" });
+                });
             });
 
-        setTimeout(() => {
-            fg.zoomToFit(400);
-        }, 500);
+            const fg = new ForceGraph(divRef.current as HTMLElement)
+                .graphData({ nodes, links })
+                // Remove nodeLabel so labels are always drawn using custom canvas drawing
+                .nodeCanvasObject((node: any, ctx, globalScale) => {
+                    const isWebapp = converters[node.id] !== undefined;
+                    const color = isWebapp ? "#f97315" : "#2f4f4f";
+                    const r = 5;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.font = `${12 / globalScale}px Sans-Serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillStyle = "#000";
+                    ctx.fillText(node.id, node.x, node.y - r - 2);
+                });
+
+            setTimeout(() => {
+                fg.zoomToFit(400);
+            }, 500);
+        })();
     }, []);
 
     return (
