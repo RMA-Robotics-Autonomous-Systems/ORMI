@@ -123,11 +123,12 @@ export class UnifiedConverter {
         },
         "string": {
             conversions: {
-                "string": {
+                "std_msgs/msg/String": {
                     toRos2: data => data,
                     fromRos2: data => data.data || data
                 }
-            }
+            },
+            isPrimitive: true
         },
         "number": {
             conversions: {
@@ -160,7 +161,7 @@ export class UnifiedConverter {
         },
         "boolean": {
             conversions: {
-                "bool": {
+                "std_msgs/msg/Boolean": {
                     toRos2: data => ({ data }),
                     fromRos2: data => data.data
                 }
