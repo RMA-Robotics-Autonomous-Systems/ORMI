@@ -3,38 +3,65 @@ import React from 'react';
 import { WidgetDefinition } from "@/core/widgets/widget-interface";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { UnifiedConverter } from "./unified-converter";
-import { hierarchy } from "d3-hierarchy";
-import { ForceGraph, ForceNode, ForceLink } from "@/components/force-graph";
+
+import ForceGraph from 'force-graph';
+import { useEffect, useRef } from 'react';
+
 
 function Ros2ConvertionGraph(): JSX.Element {
-    // Build the graphData from the converters.
-    const graphData = {
-        __typename: "Root",
-        uuid: "Webapp",
-        children: Object.entries(UnifiedConverter.converters).map(([webappType, { conversions }]) => ({
-            __typename: "Webapp",
-            uuid: webappType,
-            key: webappType,
-            label: `${webappType}`,
-            children: Object.keys(conversions).map(ros2Type => ({
-                __typename: "ROS2",
-                uuid: `${webappType}-${ros2Type}`,
-                key: `${webappType}-${ros2Type}`,
-                label: `ROS2: ${ros2Type}`,
-                children: []
-            }))
-        }))
-    };
 
-    // Flatten hierarchy to get nodes and links.
-    const root = hierarchy(graphData, d => d.children);
-    const initialNodes: ForceNode[] = root.descendants();
-    const initialLinks: ForceLink[] = root.links();
+    const divRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        // Compute nodes and links from UnifiedConverter's converters mapping.
+        const converters = UnifiedConverter.converters;
+        const nodesMap: { [key: string]: boolean } = {};
+        const nodes: { id: string }[] = [];
+        const links: { source: string, target: string, value: "any" }[] = [];
+
+        Object.keys(converters).forEach(webType => {
+            if (!nodesMap[webType]) {
+                nodes.push({ id: webType });
+                nodesMap[webType] = true;
+            }
+            const conversionMapping = converters[webType].conversions;
+            Object.keys(conversionMapping).forEach(ros2Type => {
+                if (!nodesMap[ros2Type]) {
+                    nodes.push({ id: ros2Type });
+                    nodesMap[ros2Type] = true;
+                }
+                links.push({ source: webType, target: ros2Type, value: "any" });
+            });
+        });
+
+        const fg = new ForceGraph(divRef.current as HTMLElement)
+            .graphData({ nodes, links })
+            // Remove nodeLabel so labels are always drawn using custom canvas drawing
+            .nodeCanvasObject((node: any, ctx, globalScale) => {
+                // Grouping: if node.id exists in converters, it is a Webapp type; otherwise, ROS2 type.
+                const isWebapp = converters[node.id] !== undefined;
+                const color = isWebapp ? "#f97315" : "#2f4f4f";
+                const r = 5;
+                // Draw node circle.
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
+                ctx.fillStyle = color;
+                ctx.fill();
+                // Always draw label above the node.
+                ctx.font = `${12 / globalScale}px Sans-Serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillStyle = "#000";
+                ctx.fillText(node.id, node.x, node.y - r - 2);
+            });
+
+        setTimeout(() => {
+            fg.zoomToFit(400);
+        }, 500);
+    }, []);
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-            <ForceGraph initialNodes={initialNodes} links={initialLinks} width={800} height={600} />
-        </div>
+        <div ref={divRef} style={{ width: '100%', height: '100%' }}></div>
     );
 }
 

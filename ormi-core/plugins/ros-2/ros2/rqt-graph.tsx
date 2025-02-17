@@ -1,109 +1,154 @@
 "use client"
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { WidgetDefinition } from "@/core/widgets/widget-interface";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { ForceGraph, ForceNode, ForceLink } from "@/components/force-graph";
-import { DatasourceProviderSettings } from '@/core/datasources/datasource-interface';
-import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
-import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import ROSLIB from 'roslib';
+import { usePluginsManager } from '@/core/plugins/components/plugins-provider';
+import ForceGraph from 'force-graph';
+import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
+import { Button } from '@/components/ui/button';
+import { RefreshCwIcon } from 'lucide-react';
+import { PluginsHooks } from '@/core/plugins/plugins-types';
+import { Datasource } from '@/core/datasources/datasource-interface';
 
 interface RQTGraphProps {
     title: string;
-    datasource_id: DatasourceProviderSettings;
+    datasource_id: string;
+    ignoreRosout: boolean;
+    ignoreParameterEvent: boolean;
 }
 
 function RQTGraph(props: RQTGraphProps): JSX.Element {
 
     const pluginsManager = usePluginsManager();
-    const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
-    const [rosNodes, setRosNodes] = useState<Map<string, { subscriptions: string[], publications: string[], services: string[] }>>(new Map());
-    const [graphNodes, setGraphNodes] = useState<ForceNode[]>([]);
-    const [graphLinks, setGraphLinks] = useState<ForceLink[]>([]);
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
 
+
+    const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
+    const [refresh, setRefresh] = useState<boolean>(false);
+    const [rosNodes, setRosNodes] = useState<Map<string, { subscriptions: string[], publications: string[], services: string[] }>>(new Map());
+    const divRef = useRef<HTMLDivElement>(null);
+
+    // Establish ROSLIB connection
     useEffect(() => {
         const to = setTimeout(() => {
             setRoslib(pluginsManager.applyFilter(`${props.datasource_id}-ros-2-connection`, null));
         }, 500);
-        return () => clearTimeout(to);
-    }, []);
-
-    useEffect(() => {
-        if (roslib) {
-            roslib.getNodes((nodes: string[]) => {
-                for (const node of nodes) {
-                    roslib.getNodeDetails(node, (details: any) => {
-                        // Assume details include: details.name, details.publications, details.subscriptions
-                        setRosNodes((prev) => {
-                            const newMap = new Map(prev);
-                            newMap.set(node, details);
-                            return newMap;
-                        });
-
-                        console.log(`Node: ${node}`);
-
-                    });
-                }
 
 
-            });
+        setButtonItem("refresh",
+            <Button variant={"ghost"} onClick={() => { setRefresh(!refresh) }} >
+                <RefreshCwIcon />
+            </Button>
+        );
 
 
+        return () => {
+            clearTimeout(to);
+            removeButtonItem("refresh");
         }
-    }, [roslib]);
+    }, [pluginsManager, props]);
 
-    // Updated useEffect: build graph from rosNodes with default x/y positions
+    // Retrieve ROS nodes details, subscribing: Array(0), publishing: Array(2), services: Array(1)
     useEffect(() => {
-        if (rosNodes.size > 0) {
-            console.log('Building graph...');
-            const nodeMap = new Map<string, ForceNode>();
-            // Create a node for each ROS node with data.key, data.label and default x,y positions.
-            rosNodes.forEach((details, name) => {
-                nodeMap.set(name, { data: { key: name, label: name }, x: 400, y: 300 });
+        if (!roslib) {
+            return;
+        }
+        roslib.getNodes((nodes: string[]) => {
+            nodes.forEach(node => {
+                roslib.getNodeDetails(node, (result: { subscribing: string[], publishing: string[], services: string[] }) => {
+                    setRosNodes(prev => {
+                        const newMap = new Map(prev);
+                        newMap.set(node, { subscriptions: result.subscribing, publications: result.publishing, services: result.services });
+                        return newMap;
+                    });
+                });
             });
-            const links: ForceLink[] = [];
-            // For each node, check its publications and match with other nodes' subscriptions.
+        });
+
+    }, [roslib, refresh]);
+
+    // Build and render graph from rosNodes using ForceGraph
+    useEffect(() => {
+        if (divRef.current && rosNodes.size > 0) {
+            const nodesMap: { [key: string]: boolean } = {};
+            const nodes: { id: string }[] = [];
+            const links: { source: string, target: string, value: any }[] = [];
+
+            rosNodes.forEach((details, nodeName) => {
+                if (!nodesMap[nodeName]) {
+                    nodes.push({ id: nodeName });
+                    nodesMap[nodeName] = true;
+                }
+            });
+
+            // Create links: match publications with subscriptions between nodes.
             rosNodes.forEach((pubDetails, pubName) => {
                 const publications: string[] = pubDetails.publications || [];
                 publications.forEach(topic => {
+
+                    if (props.ignoreRosout && topic === '/rosout') {
+                        return;
+                    }
+
+                    if (props.ignoreParameterEvent && topic === '/parameter_events') {
+                        return;
+                    }
+
                     rosNodes.forEach((subDetails, subName) => {
-                        if (pubName !== subName) {
-                            const subscriptions: string[] = subDetails.subscriptions || [];
-                            if (subscriptions.includes(topic)) {
-                                links.push({
-                                    source: { data: { key: pubName, label: pubName }, x: 400, y: 300 },
-                                    target: { data: { key: subName, label: subName }, x: 400, y: 300 }
-                                });
-                            }
+                        if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
+                            links.push({ source: pubName, target: subName, value: topic });
                         }
                     });
                 });
             });
-            setGraphNodes(Array.from(nodeMap.values()));
-            setGraphLinks(links);
-        } else {
-            console.log('No nodes found');
+
+            const fg = new ForceGraph(divRef.current)
+                .graphData({ nodes, links })
+                .linkDirectionalArrowLength(2)   // add the arrow head
+                .linkDirectionalArrowRelPos(1)     // position arrow at target
+                .linkDirectionalParticles(2)
+                .linkCanvasObjectMode(() => 'after') // draw custom content after default link rendering
+                .linkCanvasObject((link: any, ctx, globalScale) => {
+                    const { source, target, value } = link;
+                    const x = (source.x + target.x) / 2;
+                    const y = (source.y + target.y) / 2;
+                    ctx.font = `${10 / globalScale}px Sans-Serif`;
+                    ctx.fillStyle = "#000";
+                    ctx.textAlign = 'center';
+                    ctx.fillText(value, x, y);
+                })
+                .nodeCanvasObject((node: any, ctx, globalScale) => {
+                    const r = 5;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
+                    ctx.fillStyle = "#1f77b4";
+                    ctx.fill();
+                    ctx.font = `${12 / globalScale}px Sans-Serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillStyle = "#000";
+                    ctx.fillText(node.id, node.x, node.y - r - 2);
+                });
+
+            // Center the graph by zooming to fit
+            setTimeout(() => {
+                fg.zoomToFit(400);
+            }, 500);
         }
     }, [rosNodes]);
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-            {graphNodes.length ? ( // now shows graph if nodes exist, even if links is empty
-                <ForceGraph
-                    initialNodes={graphNodes}
-                    links={graphLinks}
-                    width={800}
-                    height={600}
-                />
-            ) : (
-                <div>Loading graph...</div>
-            )}
+        <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {/* ...existing code if any... */}
         </div>
     );
 }
 
 export function RQTGraphDefinition(): WidgetDefinition {
-    const { datasources } = useDashboardManager();
+
+    const pluginsManager = usePluginsManager();
+
     return {
         id: 'rqt-graph',
         name: 'RQT Graph',
@@ -123,7 +168,9 @@ export function RQTGraphDefinition(): WidgetDefinition {
             type: 'object',
             properties: {
                 title: { type: 'string', title: 'Title' },
-                datasource_id: { type: 'string', title: 'Datasources' }
+                datasource_id: { type: 'string', title: 'Datasources' },
+                ignoreRosout: { type: 'boolean', title: 'Ignore rosout' },
+                ignoreParameterEvent: { type: 'boolean', title: 'Ignore parameter event' }
             },
             required: ['title']
         },
@@ -135,16 +182,16 @@ export function RQTGraphDefinition(): WidgetDefinition {
                     type: "Control", scope: "#/properties/datasource_id", options: {
                         async: true,
                         asyncFunction: async () => {
-                            const values = Array.from(datasources.values()).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
+                            const values = Array.from(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, [])).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
                             return values;
                         }
                     }
-                } as ControlElement
+                } as ControlElement,
+                { type: "Control", scope: "#/properties/ignoreRosout" } as ControlElement,
+                { type: "Control", scope: "#/properties/ignoreParameterEvent" } as ControlElement,
             ]
         } as VerticalLayout,
         data: { title: 'RQT Graph' },
-        Component: (data: RQTGraphProps) => (
-            <RQTGraph {...data} />
-        )
+        Component: (data: RQTGraphProps) => <RQTGraph {...data} />
     }
 }
