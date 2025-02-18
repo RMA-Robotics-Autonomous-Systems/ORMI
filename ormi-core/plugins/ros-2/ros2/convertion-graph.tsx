@@ -6,10 +6,13 @@ import { UnifiedConverter } from "./unified-converter";
 
 // Removed: import ForceGraph from 'force-graph';
 import { useEffect, useRef } from 'react';
+import { useTheme } from 'next-themes';
 
 
 function Ros2ConvertionGraph(): JSX.Element {
     const divRef = useRef<HTMLDivElement>(null);
+
+    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
         (async () => {
@@ -36,8 +39,11 @@ function Ros2ConvertionGraph(): JSX.Element {
                 });
             });
 
+            const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
+            const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
             const fg = new ForceGraph(divRef.current as HTMLElement)
                 .graphData({ nodes, links })
+                .linkColor(() => arrowColor)
                 // Remove nodeLabel so labels are always drawn using custom canvas drawing
                 .nodeCanvasObject((node: any, ctx, globalScale) => {
                     const isWebapp = converters[node.id] !== undefined;
@@ -50,7 +56,7 @@ function Ros2ConvertionGraph(): JSX.Element {
                     ctx.font = `${12 / globalScale}px Sans-Serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
-                    ctx.fillStyle = "#000";
+                    ctx.fillStyle = lineColor;
                     ctx.fillText(node.id, node.x, node.y - r - 2);
                 });
 

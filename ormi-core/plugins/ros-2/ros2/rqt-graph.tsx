@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCwIcon } from 'lucide-react';
 import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { Datasource } from '@/core/datasources/datasource-interface';
+import { useTheme } from "next-themes"
 
 interface RQTGraphProps {
     title: string;
@@ -22,6 +23,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
     const pluginsManager = usePluginsManager();
     const { setButtonItem, removeButtonItem } = useButtonHolder();
 
+    const { resolvedTheme } = useTheme();
 
     const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
     const [refresh, setRefresh] = useState<number>(0);
@@ -36,7 +38,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 
 
         setButtonItem("refresh",
-            <Button variant={"ghost"} onClick={() => { setRefresh((prev: number) => (prev++) % 10) }} >
+            <Button variant={"ghost"} onClick={() => { setRefresh((prev: number) => (prev + 1) % 10) }} >
                 <RefreshCwIcon />
             </Button>
         );
@@ -46,7 +48,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
             clearTimeout(to);
             removeButtonItem("refresh");
         }
-    }, [pluginsManager, props, refresh]);
+    }, [pluginsManager, props, refresh, removeButtonItem, setButtonItem]);
 
     // Retrieve ROS nodes details, subscribing: Array(0), publishing: Array(2), services: Array(1)
     useEffect(() => {
@@ -97,8 +99,11 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                     });
                 });
 
+                const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
+                const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
                 const fg = new ForceGraph(divRef.current!)
                     .graphData({ nodes, links })
+                    .linkColor(() => arrowColor)
                     .linkDirectionalArrowLength(2)
                     .linkDirectionalArrowRelPos(1)
                     .linkDirectionalParticles(2)
@@ -108,7 +113,8 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                         const x = (source.x + target.x) / 2;
                         const y = (source.y + target.y) / 2;
                         ctx.font = `${10 / globalScale}px Sans-Serif`;
-                        ctx.fillStyle = "#000";
+                        ctx.fillStyle = arrowColor;
+                        ctx.strokeStyle = arrowColor;
                         ctx.textAlign = 'center';
                         ctx.fillText(value, x, y);
                     })
@@ -121,7 +127,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                         ctx.font = `${12 / globalScale}px Sans-Serif`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'bottom';
-                        ctx.fillStyle = "#000";
+                        ctx.fillStyle = lineColor;
                         ctx.fillText(node.id, node.x, node.y - r - 2);
                     });
 
@@ -130,7 +136,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                 }, 500);
             })();
         }
-    }, [rosNodes, refresh]);
+    }, [rosNodes, refresh, props.ignoreRosout, props.ignoreParameterEvent, resolvedTheme]);
 
     return (
         <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
