@@ -6,8 +6,10 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { getColorsFromString, getTransparentColorString } from '@/core/utils/Colors';
 import { toast } from '@/hooks/use-toast';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
+import { property } from 'lodash';
 import { ChartLineIcon } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import { useTheme } from 'next-themes';
+import React, { use, useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { AlignedData } from 'uplot';
 import UplotReact from 'uplot-react';
@@ -17,6 +19,11 @@ interface TimeSeriesSettings {
     title: string;
     timeHistory: number;
     updateFrequency: number;
+    axis: {
+        yMin: number;
+        yMax: number;
+        yLabel: string;
+    }
     topics: {
         topic: SelectedTopic;
         color: string;
@@ -32,6 +39,11 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
     const dataBufferRef = useRef<Map<string, { value: number, time: number }[]>>(new Map());
     const [chartKey, setChartKey] = useState(0);
 
+    const { resolvedTheme } = useTheme();
+
+    const strokeColor = resolvedTheme === "light" ? "#333" : "#ccc";
+    const gridStroke = resolvedTheme === "light" ? "#eee" : "#333";
+
     const optionsRef = useRef<uPlot.Options>({
         width: 500,
         height: 500,
@@ -43,12 +55,12 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
         },
         axes: [
             {
-                stroke: "black",
-                grid: { stroke: "#eee" },
+                stroke: strokeColor,
+                grid: { stroke: gridStroke },
             },
             {
-                stroke: "black",
-                grid: { stroke: "#eee" },
+                stroke: strokeColor,
+                grid: { stroke: gridStroke },
             },
         ],
         series: [{ label: 'Time' }]
@@ -64,6 +76,22 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
     useEffect(() => {
         optionsRef.current.series = initializeSeries(props.topics, sources);
     }, [props.topics, sources]);
+
+    // Change the colors when the theme changes
+    useEffect(() => {
+
+        optionsRef.current.axes = [
+            {
+                stroke: strokeColor,
+                grid: { stroke: gridStroke },
+            },
+            {
+                stroke: strokeColor,
+                grid: { stroke: gridStroke },
+            },
+        ];
+
+    }, [gridStroke, resolvedTheme, strokeColor]);
 
     // Handle real-time data updates
     useEffect(() => {
@@ -153,7 +181,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 cancelAnimationFrame(frameRef.current);
             }
         };
-    }, [props.topics, timeSpan, updateInterval]);
+    }, [props.topics, sources, timeSpan, updateInterval]);
 
     return (
         <div ref={divRef} style={{ width: "100%", height: "100%" }}>
@@ -249,6 +277,29 @@ export function TimeSeriesChartDefinition() {
         scope: "#/properties/updateFrequency",
     }
 
+    const axis: ControlElement = {
+        type: "Control",
+        scope: "#/properties/axis",
+        options: {
+            detail: {
+                elements: [
+                    {
+                        type: "Control",
+                        scope: "#/properties/axis/properties/yMin",
+                    },
+                    {
+                        type: "Control",
+                        scope: "#/properties/axis/properties/yMax",
+                    },
+                    {
+                        type: "Control",
+                        scope: "#/properties/axis/properties/yLabel",
+                    },
+                ]
+            }
+        }
+    }
+
     const topic: AsyncTopicControlType = {
         "type": "TopicSelect",
         "scope": "#/properties/topic",
@@ -313,6 +364,24 @@ export function TimeSeriesChartDefinition() {
                     type: 'number',
                     title: 'Update frequency in Hz',
                     default: 32
+                },
+                axis: {
+                    type: 'object',
+                    title: 'Axis',
+                    properties: {
+                        yMin: {
+                            type: 'number',
+                            title: 'Y min',
+                        },
+                        yMax: {
+                            type: 'number',
+                            title: 'Y max',
+                        },
+                        yLabel: {
+                            type: 'string',
+                            title: 'Y label',
+                        }
+                    }
                 },
                 topics: {
                     type: 'array',
