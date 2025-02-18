@@ -19,11 +19,11 @@ interface TimeSeriesSettings {
     title: string;
     timeHistory: number;
     updateFrequency: number;
-    axis: {
-        yMin: number;
-        yMax: number;
-        yLabel: string;
-    }
+    // axis: {
+    //     yMin: number;
+    //     yMax: number;
+    //     yLabel: string;
+    // }
     topics: {
         topic: SelectedTopic;
         color: string;
@@ -250,17 +250,6 @@ function showErrorToast(notFoundTopics: string[]) {
 
 export function TimeSeriesChartDefinition() {
     const pluginsManager = usePluginsManager();
-
-    interface TimeSeriesSettings {
-        title: string;
-        timeHistory: number;
-        updateFrequency: number;
-        topics: {
-            topic: SelectedTopic;
-            color: string;
-            fill: boolean;
-        }[]
-    }
 
     const title: ControlElement = {
         type: "Control",
