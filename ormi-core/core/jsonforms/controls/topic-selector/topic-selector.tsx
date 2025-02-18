@@ -108,47 +108,45 @@ const AsyncTopicControl = (props: ControlProps) => {
     return (
         <div className={style.cell}>
             <Label>{label}</Label>
-            <div>
-                <div className='flex flex-col gap-2 w-full'>
-                    <Popover open={open} onOpenChange={setOpen}>
-                        <PopoverTrigger asChild className="w-full">
-                            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-                                {selectedTopic || 'Select a topic'}
-                                <ChevronsUpDown className="opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent>
-                            <Command>
-                                <CommandInput onValueChange={setCmd} placeholder="Search topic..." />
-                                <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
-                                <CommandSeparator />
-                                <CommandList>
-                                    <CommandGroup>
-                                        {topics.map(topic => (
-                                            <CommandItem
-                                                key={`${topic.topic}-${topic.source.id}`}
-                                                value={`${topic.topic}@${topic.source.id}`}
-                                                onSelect={handleTopicChange}
-                                            >
-                                                <small className="text-gray-500">{topic.source.title}</small>
-                                                <small className="text-gray-500">{topic.type || `${topic.rawType}*`}</small>
-                                                {topic.topic}
-                                                <Check className={cn("ml-auto", (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0")} />
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
-                    <div>{topicProps.length > 0 && <TreeView data={topicProps} />}</div>
-                    {!uischema.options?.buffer && (
-                        <div className='flex flex-row gap-2'>
-                            <label className="text-gray-500">Buffer size (optional)</label>
-                            <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
-                        </div>
-                    )}
-                </div>
+            <div className='flex flex-col gap-2 w-full'>
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild className="w-full">
+                        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+                            {selectedTopic || 'Select a topic'}
+                            <ChevronsUpDown className="opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent>
+                        <Command>
+                            <CommandInput onValueChange={setCmd} placeholder="Search topic..." />
+                            <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
+                            <CommandSeparator />
+                            <CommandList>
+                                <CommandGroup>
+                                    {topics.map(topic => (
+                                        <CommandItem
+                                            key={`${topic.topic}-${topic.source.id}`}
+                                            value={`${topic.topic}@${topic.source.id}`}
+                                            onSelect={handleTopicChange}
+                                        >
+                                            <small className="text-gray-500">{topic.source.title}</small>
+                                            <small className="text-gray-500">{topic.type || `${topic.rawType}*`}</small>
+                                            {topic.topic}
+                                            <Check className={cn("ml-auto", (selectedTopic === topic.topic && selectedTopicObject?.source.id === topic.source.id) ? "opacity-100" : "opacity-0")} />
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                    </PopoverContent>
+                </Popover>
+                <div>{topicProps.length > 0 && <TreeView data={topicProps} />}</div>
+                {!uischema.options?.buffer && (
+                    <div className='flex flex-row gap-2'>
+                        <label className="text-gray-500">Buffer size (optional)</label>
+                        <Input type="number" defaultValue={selectedTopicObject?.bufferSize} onChange={handleBufferChange} />
+                    </div>
+                )}
             </div>
         </div>
     );
