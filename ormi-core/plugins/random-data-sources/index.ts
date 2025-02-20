@@ -30,7 +30,8 @@ class RandomDataSourcePlugins extends PluginServerSide {
 
 interface RandomDataSourceTopicDefinition {
     topic:string,
-    frequency:number
+    frequency:number,
+    type:string
 }
 
 interface RandomDataSourceSettings extends DatasourceProviderSettings {

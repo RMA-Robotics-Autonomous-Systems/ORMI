@@ -23,6 +23,8 @@ import { PluginsHooks } from '@/core/plugins/plugins-types';
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { Spinner } from '@/components/spinner';
+import { IMU, Movement } from '@/core/types/movement';
+import { Vector3 } from '@/core/types/common';
 
 const RandomDataSourceContext = createContext(null);
 
@@ -47,20 +49,116 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
     useEffect(() => {
         const available_topics = props.topics;
 
+        const intervalGenerator = (topic: SelectedTopic): NodeJS.Timeout => {
+
+            const freq = getTopicFrequency(topic.topic);
+
+            switch (topic.type) {
+
+                case 'GeolocationPosition':
+                    return setInterval(() => {
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, {
+                            coords: {
+                                latitude: 50.8503 + Math.random() * 0.1 - 0.05,
+                                longitude: 4.3517 + Math.random() * 0.1 - 0.05,
+                                altitude: Math.random() * 100,
+                                accuracy: Math.random() * 10,
+                                altitudeAccuracy: Math.random() * 10,
+                                heading: Math.random() * 360,
+                                speed: Math.random() * 10
+                            }
+                        } as GeolocationPosition, Date.now());
+                    }, 1000 / freq);
+
+                case 'IMU':
+                    return setInterval(() => {
+
+                        const time = Date.now() / 1000; // Time in seconds
+                        const stepFrequency = 2; // Steps per second
+                        const stepAmplitude = 0.5;
+
+                        const imu_data = {
+                            linear_acceleration: {
+                                x: stepAmplitude * Math.sin(2 * Math.PI * stepFrequency * time), // Forward-backward motion
+                                y: Math.abs(stepAmplitude * Math.sin(4 * Math.PI * stepFrequency * time)), // Up-down motion
+                                z: stepAmplitude * Math.cos(2 * Math.PI * stepFrequency * time) * 0.3, // Side-to-side motion
+                            },
+                            angular_velocity: {
+                                x: stepAmplitude * Math.cos(2 * Math.PI * stepFrequency * time) * 0.2, // Roll
+                                y: stepAmplitude * Math.sin(2 * Math.PI * stepFrequency * time) * 0.1, // Pitch
+                                z: stepAmplitude * Math.sin(4 * Math.PI * stepFrequency * time) * 0.15, // Yaw
+                            },
+                            orientation: {
+                                x: Math.sin(2 * Math.PI * stepFrequency * time) * 0.1,
+                                y: Math.cos(2 * Math.PI * stepFrequency * time) * 0.1,
+                                z: Math.sin(4 * Math.PI * stepFrequency * time) * 0.05,
+                                w: 1.0,
+                            }
+                        } as IMU;
+
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, imu_data, Date.now());
+                    }, 1000 / freq);
+
+                case 'number':
+                    let old_value = Math.random();
+                    return setInterval(() => {
+                        const value = old_value + Math.random() * 0.1 - 0.05;
+                        old_value = value;
+
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, value, Date.now());
+                    }, 1000 / freq);
+
+                case 'Movement':
+                    return setInterval(() => {
+
+                        const data = {
+                            linear: {
+                                x: Math.random() * 2 - 1,
+                                y: Math.random() * 2 - 1,
+                                z: Math.random() * 2 - 1
+
+                            } as Vector3,
+
+                            angular: {
+
+                                x: Math.random() * 2 - 1,
+                                y: Math.random() * 2 - 1,
+                                z: Math.random() * 2 - 1
+
+                            } as Vector3
+
+                        } as Movement;
+
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, data, Date.now());
+
+                    }, 1000 / freq);
+
+                case 'boolean':
+                    return setInterval(() => {
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, Math.random() > 0.5, Date.now());
+                    }, 1000 / freq);
+
+                default:
+                    return setInterval(() => {
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, Math.random(), Date.now());
+                    }, 1000 / freq);
+            }
+        };
+
 
         // create a custom event : 
         // datasource_id-topic-published
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
             priority: 10,
-            filter: (topics: DatasourceTopic[], type: string) => {
+            filter: (topics: DatasourceTopic[]) => {
 
                 for (const topic of available_topics) {
                     topics.push({
                         topic: topic.topic,
                         source: props,
-                        type: typeof 0,
-                        rawType: 'number',
+                        type: topic.type,
+                        rawType: topic.type,
                     });
                 }
 
@@ -82,16 +180,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     return;
                 }
 
-                const freq = getTopicFrequency(topic.topic);
-
-                let old_value = Math.random();
-                const interval = setInterval(() => {
-
-                    const value = old_value + Math.random() * 0.1 - 0.05;
-                    old_value = value;
-
-                    pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, value, Date.now());
-                }, 1000 / freq); // Assuming freq is in hz
+                const interval = intervalGenerator(topic);
 
                 intervalesRef.current.set(topic.topic, interval);
             }
