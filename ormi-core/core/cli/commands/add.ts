@@ -15,8 +15,8 @@ export async function add(pluginName: string, gitUrl: string, options: AddOption
     const targetDir = path.join(process.cwd(), "plugins", pluginName);
 
     if (existsSync(targetDir) && !options.yes) {
-      spinner.fail(`Plugin "${pluginName}" already exists`);
-      process.exit(1);
+      spinner.succeed(`Plugin "${pluginName}" already exists`);
+      process.exit(0);
     }
 
     // Create plugin directory
