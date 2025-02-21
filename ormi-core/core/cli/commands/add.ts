@@ -14,7 +14,7 @@ export async function add(pluginName: string, gitUrl: string, options: AddOption
   try {
     const targetDir = path.join(process.cwd(), "plugins", pluginName);
 
-    if (existsSync(targetDir) && !options.yes) {
+    if (existsSync(targetDir)) {
       spinner.succeed(`Plugin "${pluginName}" already exists`);
       process.exit(0);
     }
