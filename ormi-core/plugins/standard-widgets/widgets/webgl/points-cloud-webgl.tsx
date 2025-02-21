@@ -262,13 +262,13 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             if (hasColors) {
                 const aColorLoc = gl.getAttribLocation(program, 'a_color');
                 gl.disableVertexAttribArray(aColorLoc);
-                // Force white color for all vertices
-                gl.vertexAttrib3f(aColorLoc, 1.0, 1.0, 1.0);
+                // Force dimmer color for grid (less bright)
+                gl.vertexAttrib3f(aColorLoc, 0.5, 0.5, 0.5);
             }
             gl.bindBuffer(gl.ARRAY_BUFFER, gridBuffer);
             gl.vertexAttribPointer(aPositionLoc, 3, gl.FLOAT, false, 0, 0);
             if (uPointSizeLoc) { gl.uniform1f(uPointSizeLoc, 1.0); }
-            if (uColorLoc) { gl.uniform4f(uColorLoc, 1.0, 1.0, 1.0, 1.0); }
+            if (uColorLoc) { gl.uniform4f(uColorLoc, 0.5, 0.5, 0.5, 1.0); }
             gl.drawArrays(gl.LINES, 0, gridVertices.length / 3);
             if (hasColors) {
                 const aColorLoc = gl.getAttribLocation(program, 'a_color');
