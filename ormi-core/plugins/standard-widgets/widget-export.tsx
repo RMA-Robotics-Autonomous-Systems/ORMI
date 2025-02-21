@@ -13,6 +13,8 @@ import { IntStatusIndicatorDefinition } from './widgets/status/int-status-indica
 import { NotAPongDefinition } from './widgets/nothing/not-a-pong';
 import { IframeDefinition } from './widgets/misc/iframe';
 import { LineChartDefinition } from './widgets/charts/line-chart';
+import { PointsCloudDefinition } from './widgets/webgl/points-cloud-webgl';
+// import { PointsCloudDefinition } from './widgets/three-d/points-cloud';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
@@ -27,6 +29,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(PluginsViewerDefinition());
     widgets.push(TreeViewerDefinition());
     widgets.push(JsonViewerDefinition());
+    widgets.push(PointsCloudDefinition());
 
     return widgets;
 }
