@@ -249,6 +249,13 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             id: subscribe_hook,
             priority: 10,
             action: (topic: SelectedTopic) => {
+
+                // check that the topic is available
+                if (!available_topics.find(t => t.topic === topic.topic)) {
+                    console.error(`Topic ${topic.topic} not available in ${datasource_id}`);
+                    return;
+                }
+
                 subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
                 if (intervalesRef.current.has(topic.topic)) {
