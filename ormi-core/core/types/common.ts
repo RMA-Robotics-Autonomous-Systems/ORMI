@@ -30,3 +30,7 @@ export type Color = {
     a: number;
 }
 
+export type PointsCloud = {
+    points: Vector3[];
+    colors?: Color[];
+}
