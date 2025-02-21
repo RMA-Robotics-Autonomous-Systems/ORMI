@@ -36,7 +36,7 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
                             type: {
                                 type: 'string',
                                 title: 'Type',
-                                enum: ['GeolocationPosition', 'IMU', 'number', 'Movement', 'boolean']
+                                enum: ['GeolocationPosition', 'IMU', 'number', 'Movement', 'boolean', 'PointsCloud']
                             }
                         },
                         required: ['topic', 'frequency']

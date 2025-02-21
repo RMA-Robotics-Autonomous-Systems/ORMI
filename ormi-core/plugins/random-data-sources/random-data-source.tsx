@@ -24,7 +24,7 @@ import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic, SelectedTopic } from '@/core/datasources/datasource-interface';
 import { Spinner } from '@/components/spinner';
 import { IMU, Movement } from '@/core/types/movement';
-import { Vector3 } from '@/core/types/common';
+import { Vector3, PointsCloud } from '@/core/types/common';
 
 const RandomDataSourceContext = createContext(null);
 
@@ -56,18 +56,29 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             switch (topic.type) {
 
                 case 'GeolocationPosition':
+
+                    const walker = {
+                        latitude: 50.8503,
+                        longitude: 4.3517,
+                        altitude: 100,
+                        accuracy: 5,
+                        altitudeAccuracy: 5,
+                        heading: 0,
+                        speed: 0,
+                    };
+
                     return setInterval(() => {
-                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, {
-                            coords: {
-                                latitude: 50.8503 + Math.random() * 0.1 - 0.05,
-                                longitude: 4.3517 + Math.random() * 0.1 - 0.05,
-                                altitude: Math.random() * 100,
-                                accuracy: Math.random() * 10,
-                                altitudeAccuracy: Math.random() * 10,
-                                heading: Math.random() * 360,
-                                speed: Math.random() * 10
-                            }
-                        } as GeolocationPosition, Date.now());
+                        walker.latitude += (Math.random() - 0.5) * 0.0001;      // small random step
+                        walker.longitude += (Math.random() - 0.5) * 0.0001;
+                        walker.altitude += (Math.random() - 0.5) * 0.0005;         // slight altitude change
+                        walker.heading += Math.random() * 1;
+                        walker.speed = Math.abs((Math.random() - 0.5) * 0.2);
+
+                        pluginsManager.doAction(
+                            `${datasource_id}-${topic.topic}-published`,
+                            { coords: { ...walker } } as GeolocationPosition,
+                            Date.now()
+                        );
                     }, 1000 / freq);
 
                 case 'IMU':
@@ -109,34 +120,94 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     }, 1000 / freq);
 
                 case 'Movement':
+
+                    const data = {
+                        linear: {
+                            x: Math.random() * 2 - 1,
+                            y: Math.random() * 2 - 1,
+                            z: Math.random() * 2 - 1
+
+                        } as Vector3,
+
+                        angular: {
+
+                            x: Math.random() * 2 - 1,
+                            y: Math.random() * 2 - 1,
+                            z: Math.random() * 2 - 1
+
+                        } as Vector3
+                    } as Movement;
+
                     return setInterval(() => {
 
-                        const data = {
-                            linear: {
-                                x: Math.random() * 2 - 1,
-                                y: Math.random() * 2 - 1,
-                                z: Math.random() * 2 - 1
+                        data.linear.x += Math.random() * 0.1 - 0.05;
+                        data.linear.y += Math.random() * 0.1 - 0.05;
+                        data.linear.z += Math.random() * 0.1 - 0.05;
 
-                            } as Vector3,
-
-                            angular: {
-
-                                x: Math.random() * 2 - 1,
-                                y: Math.random() * 2 - 1,
-                                z: Math.random() * 2 - 1
-
-                            } as Vector3
-
-                        } as Movement;
+                        data.angular.x += Math.random() * 0.1 - 0.05;
+                        data.angular.y += Math.random() * 0.1 - 0.05;
+                        data.angular.z += Math.random() * 0.1 - 0.05;
 
                         pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, data, Date.now());
 
                     }, 1000 / freq);
 
                 case 'boolean':
+
+                    let time_of_change = Date.now();
+                    let value = Math.random() > 0.5;
+
                     return setInterval(() => {
-                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, Math.random() > 0.5, Date.now());
+                        const now = Date.now();
+                        const elapsed = now - time_of_change;
+                        // Increase probability over time (1 at 5 seconds or more)
+                        const probability = Math.min(1, elapsed / 5000);
+                        if (Math.random() < probability) {
+                            value = !value;
+                            time_of_change = now;
+                        }
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, value, now);
                     }, 1000 / freq);
+
+                case 'PointsCloud':
+
+                    const numPoints = 1000;
+                    const sphereRadius = 1;
+
+                    // Generate fixed sphere points
+                    const points: PointsCloud = {
+                        points: Array.from({ length: numPoints }).map(() => {
+                            const theta = Math.acos(2 * Math.random() - 1);
+                            const phi = 2 * Math.PI * Math.random();
+                            return {
+                                x: sphereRadius * Math.sin(theta) * Math.cos(phi),
+                                y: sphereRadius * Math.sin(theta) * Math.sin(phi),
+                                z: sphereRadius * Math.cos(theta)
+                            };
+                        }),
+                        colors: Array.from({ length: numPoints }).map(() => ({
+                            r: Math.random(),
+                            g: Math.random(),
+                            b: Math.random(),
+                            a: 1
+                        }))
+                    };
+
+                    return setInterval(() => {
+                        const t = Date.now() / 1000;
+                        const amplitude = 0.05;
+                        const wiggledPoints: PointsCloud = {
+                            points: points.points.map((point: Vector3) => ({
+                                x: point.x + Math.sin(t + point.x * 10) * amplitude + (Math.random() - 0.5) * 0.02,
+                                y: point.y + Math.cos(t + point.y * 10) * amplitude + (Math.random() - 0.5) * 0.02,
+                                z: point.z + Math.sin(t + point.z * 10) * amplitude + (Math.random() - 0.5) * 0.02,
+                            })),
+                            colors: points.colors
+                        };
+
+                        pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, wiggledPoints, Date.now());
+                    }, 1000 / freq);
+
 
                 default:
                     return setInterval(() => {
