@@ -76,11 +76,14 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
             return value;
         }
 
+        let isMounted = true;
+
         new Promise<Map<string, boolean>>((resolve) => {
 
             const initializedTopics = new Map<string, boolean>();
 
             function setInitializedTopic(topic: string, state: boolean) {
+                if (!isMounted) return;
                 initializedTopics.set(topic, state);
                 if (initializedTopics.size === Topics.length) {
                     resolve(initializedTopics);
@@ -112,6 +115,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                     id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
                     priority: 10,
                     action: (value: any, time: number) => {
+                        if (!isMounted) return;
 
                         const source = sources.get(sourceId);
 
@@ -132,7 +136,11 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
                             source.times.shift();
                         }
 
-                        setSources(new Map(sources));
+                        setSources(prevSources => {
+                            const newSources = new Map(prevSources);
+                            newSources.set(sourceId, source);
+                            return newSources;
+                        });
                     }
                 });
 
@@ -141,6 +149,7 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
 
 
         }).then((initializedTopics) => {
+            if (!isMounted) return;
 
             // add toast for the topics that are not initialized
             const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(topic.topic));
@@ -166,10 +175,12 @@ const LocalDataSourcesProvider: React.FC<LocalDataSourcesProviderProps> = ({ chi
         });
 
         return () => {
+            isMounted = false;
             Topics.forEach(async topic => {
                 // unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
                 // await pluginsManager.WaitForActionToExist(`${topic.source}-unsubscribe`);
                 // pluginsManager.doAction(`${topic.source}-unsubscribe`, topic);
+                console.log('ask to unsubscribe from topic', topic);
                 await pluginsManager.WaitAndDoAction(`${topic.source.id}-unsubscribe`, 1, topic);
 
                 // remove the action that was added to the data hook of the topic,

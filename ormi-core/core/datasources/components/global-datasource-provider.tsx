@@ -118,7 +118,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
             pluginsManager.removeFilter("available_datasources");
         };
 
-    }, [dataSourcesTypes, datasources]);
+    }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, removeNavbarItem, setNavbarItem, updateDatasource]);
 
     // Memoize the provider chain to prevent unnecessary rerenders
     const providerChain = React.useMemo(() => {
@@ -147,7 +147,7 @@ const GlobalDataSourcesProvider: React.FC<{ children: ReactNode }> = ({ children
                 </Provider>
             );
         }, children);
-    }, [initialized, datasources, dataSourcesTypes]);
+    }, [initialized, datasources, children, dataSourcesTypes]);
 
     return (
         <GlobalDataSourcesContext.Provider value={{}}>
