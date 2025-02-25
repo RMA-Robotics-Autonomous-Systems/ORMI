@@ -16,83 +16,86 @@ interface PointsCloudProps {
 
 function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y: number; z: number }[]; colors?: Color[] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    // Added distance property for zoom
     const rotationRef = useRef({ angleX: 0, angleY: 0, dragging: false, lastX: 0, lastY: 0, distance: 5 });
+    const animationFrameRef = useRef<number | null>(null);
+    const glRef = useRef<WebGLRenderingContext | null>(null);
+    const programRef = useRef<WebGLProgram | null>(null);
+    const positionBufferRef = useRef<WebGLBuffer | null>(null);
+    const colorBufferRef = useRef<WebGLBuffer | null>(null);
+    const gridBufferRef = useRef<WebGLBuffer | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const gl = canvas.getContext('webgl');
         if (!gl) return;
+        glRef.current = gl;
 
-        // Set initial canvas dimensions from container
         const resizeCanvas = () => {
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
-            gl!.viewport(0, 0, canvas.width, canvas.height);
+            gl.viewport(0, 0, canvas.width, canvas.height);
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
         const hasColors = colors && colors.length >= pointsArray.length;
 
-        // Use different shaders based on hasColors
         const vertexShaderSource = hasColors ? `
-			attribute vec3 a_position;
-			attribute vec3 a_color;
-			uniform mat4 u_projection;
-			uniform mat4 u_view;
-			uniform float u_pointSize;
-			varying float vDepth;
-			varying vec3 vColor;
-			void main() {
-				vec4 viewPos = u_view * vec4(a_position, 1.0);
-				vDepth = -viewPos.z;
-				gl_PointSize = u_pointSize;
-				gl_Position = u_projection * viewPos;
-				vColor = a_color;
-			}
-		` : `
-			attribute vec3 a_position;
-			uniform mat4 u_projection;
-			uniform mat4 u_view;
-			uniform float u_pointSize;
-			varying float vDepth;
-			void main() {
-				vec4 viewPos = u_view * vec4(a_position, 1.0);
-				vDepth = -viewPos.z;
-				gl_PointSize = u_pointSize;
-				gl_Position = u_projection * viewPos;
-			}
-		`;
+            attribute vec3 a_position;
+            attribute vec3 a_color;
+            uniform mat4 u_projection;
+            uniform mat4 u_view;
+            uniform float u_pointSize;
+            varying float vDepth;
+            varying vec3 vColor;
+            void main() {
+                vec4 viewPos = u_view * vec4(a_position, 1.0);
+                vDepth = -viewPos.z;
+                gl_PointSize = u_pointSize;
+                gl_Position = u_projection * viewPos;
+                vColor = a_color;
+            }
+        ` : `
+            attribute vec3 a_position;
+            uniform mat4 u_projection;
+            uniform mat4 u_view;
+            uniform float u_pointSize;
+            varying float vDepth;
+            void main() {
+                vec4 viewPos = u_view * vec4(a_position, 1.0);
+                vDepth = -viewPos.z;
+                gl_PointSize = u_pointSize;
+                gl_Position = u_projection * viewPos;
+            }
+        `;
 
         const fragmentShaderSource = hasColors ? `
-			precision mediump float;
-			varying float vDepth;
-			varying vec3 vColor;
-			void main() {
-				float factor = clamp(vDepth / 100.0, 0.0, 1.0);
-				gl_FragColor = vec4(vColor * (1.0 - factor * 0.5), 1.0);
-			}
-		` : `
-			precision mediump float;
-			uniform vec4 u_color;
-			varying float vDepth;
-			void main() {
-				float factor = clamp(vDepth / 100.0, 0.0, 1.0);
-				gl_FragColor = vec4(u_color.rgb * (1.0 - factor * 0.5), u_color.a);
-			}
-		`;
+            precision mediump float;
+            varying float vDepth;
+            varying vec3 vColor;
+            void main() {
+                float factor = clamp(vDepth / 100.0, 0.0, 1.0);
+                gl_FragColor = vec4(vColor * (1.0 - factor * 0.5), 1.0);
+            }
+        ` : `
+            precision mediump float;
+            uniform vec4 u_color;
+            varying float vDepth;
+            void main() {
+                float factor = clamp(vDepth / 100.0, 0.0, 1.0);
+                gl_FragColor = vec4(u_color.rgb * (1.0 - factor * 0.5), u_color.a);
+            }
+        `;
 
-        // Helper function to compile shaders
         function compileShader(source: string, type: number) {
-            const shader = gl!.createShader(type);
+            const shader = gl.createShader(type);
             if (!shader) return null;
-            gl!.shaderSource(shader, source);
-            gl!.compileShader(shader);
-            if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
-                console.error(gl!.getShaderInfoLog(shader));
-                gl!.deleteShader(shader);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
                 return null;
             }
             return shader;
@@ -111,43 +114,37 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             console.error(gl.getProgramInfoLog(program));
             return;
         }
+        programRef.current = program;
 
         gl.useProgram(program);
 
-        // Create and bind position buffer; flatten pointsArray
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pointsArray.flatMap(pt => [pt.x, pt.y, pt.z])), gl.STATIC_DRAW);
+        positionBufferRef.current = positionBuffer;
 
-        // NEW: Create grid buffer
         const gridSize = 10;
         const divisions = 10;
         const gridVertices = [];
         for (let i = -divisions; i <= divisions; i++) {
             const p = i * (gridSize / divisions);
-            // vertical line parallel to z-axis
             gridVertices.push(p, 0, -gridSize, p, 0, gridSize);
-            // horizontal line parallel to x-axis
             gridVertices.push(-gridSize, 0, p, gridSize, 0, p);
         }
         const gridBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, gridBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(gridVertices), gl.STATIC_DRAW);
-
-        // Re-bind points buffer for further use:
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gridBufferRef.current = gridBuffer;
 
         const aPositionLoc = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(aPositionLoc);
         gl.vertexAttribPointer(aPositionLoc, 3, gl.FLOAT, false, 0, 0);
 
-        // Retrieve uniform locations including the new ones
         const uProjectionLoc = gl.getUniformLocation(program, 'u_projection');
         const uViewLoc = gl.getUniformLocation(program, 'u_view');
         const uPointSizeLoc = gl.getUniformLocation(program, 'u_pointSize');
         const uColorLoc = gl.getUniformLocation(program, 'u_color');
 
-        // Minimal matrix helper functions remain unchanged
         function perspective(fovy: number, aspect: number, near: number, far: number): number[] {
             const f = 1.0 / Math.tan(fovy / 2);
             return [
@@ -182,10 +179,8 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             ];
         }
 
-        // Ensure the canvas can receive pointer events
         canvas.tabIndex = 0;
 
-        // Replace event listeners with pointer events using the rotationRef:
         const onPointerDown = (e: PointerEvent) => {
             const rect = canvas.getBoundingClientRect();
             rotationRef.current.dragging = true;
@@ -213,24 +208,20 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
         canvas.addEventListener('pointerup', endDragging);
         canvas.addEventListener('pointercancel', endDragging);
 
-        // New: Add scroll-to-zoom event listener
         const onWheel = (e: WheelEvent) => {
             e.preventDefault();
-            // Adjust distance with a sensitivity factor and clamp to minimum distance 1
             rotationRef.current.distance = Math.max(1, rotationRef.current.distance + e.deltaY * 0.01);
         };
         canvas.addEventListener('wheel', onWheel);
 
-        // After creating the position buffer, create a color buffer if colors exist.
         let colorBuffer: WebGLBuffer | null = null;
         if (hasColors) {
             colorBuffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
             const flattenedColors = new Float32Array(colors!.flatMap(c => [c.r, c.g, c.b]));
             gl.bufferData(gl.ARRAY_BUFFER, flattenedColors, gl.STATIC_DRAW);
+            colorBufferRef.current = colorBuffer;
         }
-        // Re-bind positionBuffer for subsequent use:
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
         function render() {
             if (!canvas) return;
@@ -258,14 +249,12 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.enable(gl.DEPTH_TEST);
 
-            // --- Draw grid with fixed white color ---
             if (hasColors) {
                 const aColorLoc = gl.getAttribLocation(program, 'a_color');
                 gl.disableVertexAttribArray(aColorLoc);
-                // Force dimmer color for grid (less bright)
                 gl.vertexAttrib3f(aColorLoc, 0.5, 0.5, 0.5);
             }
-            gl.bindBuffer(gl.ARRAY_BUFFER, gridBuffer);
+            gl.bindBuffer(gl.ARRAY_BUFFER, gridBufferRef.current);
             gl.vertexAttribPointer(aPositionLoc, 3, gl.FLOAT, false, 0, 0);
             if (uPointSizeLoc) { gl.uniform1f(uPointSizeLoc, 1.0); }
             if (uColorLoc) { gl.uniform4f(uColorLoc, 0.5, 0.5, 0.5, 1.0); }
@@ -274,12 +263,11 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
                 const aColorLoc = gl.getAttribLocation(program, 'a_color');
                 gl.enableVertexAttribArray(aColorLoc);
             }
-            // --- Draw points cloud ---
-            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBufferRef.current);
             gl.vertexAttribPointer(aPositionLoc, 3, gl.FLOAT, false, 0, 0);
-            if (hasColors && colorBuffer) {
+            if (hasColors && colorBufferRef.current) {
                 const aColorLoc = gl.getAttribLocation(program, 'a_color');
-                gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+                gl.bindBuffer(gl.ARRAY_BUFFER, colorBufferRef.current);
                 gl.enableVertexAttribArray(aColorLoc);
                 gl.vertexAttribPointer(aColorLoc, 3, gl.FLOAT, false, 0, 0);
             }
@@ -293,11 +281,9 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             }
             gl.drawArrays(gl.POINTS, 0, pointsArray.length);
 
-            // ...existing code for grid and axes...
-
-            requestAnimationFrame(render);
+            animationFrameRef.current = requestAnimationFrame(render);
         }
-        requestAnimationFrame(render);
+        animationFrameRef.current = requestAnimationFrame(render);
 
         return () => {
             window.removeEventListener('resize', resizeCanvas);
@@ -306,6 +292,29 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
             canvas.removeEventListener('pointerup', endDragging);
             canvas.removeEventListener('pointercancel', endDragging);
             canvas.removeEventListener('wheel', onWheel);
+
+            if (animationFrameRef.current !== null) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+
+            if (colorBufferRef.current) {
+                gl.deleteBuffer(colorBufferRef.current);
+            }
+            if (positionBufferRef.current) {
+                gl.deleteBuffer(positionBufferRef.current);
+            }
+            if (gridBufferRef.current) {
+                gl.deleteBuffer(gridBufferRef.current);
+            }
+            if (programRef.current) {
+                gl.deleteProgram(programRef.current);
+            }
+            if (vertexShader) {
+                gl.deleteShader(vertexShader);
+            }
+            if (fragmentShader) {
+                gl.deleteShader(fragmentShader);
+            }
         };
     }, [colors, pointsArray]);
 
@@ -329,7 +338,6 @@ function PointsCloudCompWebGL(props: PointsCloudProps) {
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
-            {/* Render the WebGL canvas */}
             <PointsCloudWebGL pointsArray={pointsArray} colors={pointsColors} />
         </div>
     );
