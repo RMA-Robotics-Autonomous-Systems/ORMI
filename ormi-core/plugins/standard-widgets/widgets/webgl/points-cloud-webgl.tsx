@@ -89,13 +89,13 @@ function PointsCloudWebGL({ pointsArray, colors }: { pointsArray: { x: number; y
         `;
 
         function compileShader(source: string, type: number) {
-            const shader = gl.createShader(type);
+            const shader = gl!.createShader(type);
             if (!shader) return null;
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.error(gl.getShaderInfoLog(shader));
-                gl.deleteShader(shader);
+            gl!.shaderSource(shader, source);
+            gl!.compileShader(shader);
+            if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
+                console.error(gl!.getShaderInfoLog(shader));
+                gl!.deleteShader(shader);
                 return null;
             }
             return shader;
