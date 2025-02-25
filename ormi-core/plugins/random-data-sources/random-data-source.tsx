@@ -170,44 +170,46 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         }, 1000 / freq);
 
                     case 'PointsCloud':
-
                         const numPoints = 1000;
-                        const sphereRadius = 1;
-
-                        // Generate fixed sphere points
-                        const points: PointsCloud = {
-                            points: Array.from({ length: numPoints }).map(() => {
-                                const theta = Math.acos(2 * Math.random() - 1);
-                                const phi = 2 * Math.PI * Math.random();
-                                return {
-                                    x: sphereRadius * Math.sin(theta) * Math.cos(phi),
-                                    y: sphereRadius * Math.sin(theta) * Math.sin(phi),
-                                    z: sphereRadius * Math.cos(theta)
-                                };
-                            }),
-                            colors: Array.from({ length: numPoints }).map(() => ({
-                                r: Math.random(),
-                                g: Math.random(),
-                                b: Math.random(),
-                                a: 1
-                            }))
-                        };
+                        // Create initial point cloud with phase offsets for smooth animation
+                        const basePoints = Array.from({ length: numPoints }, () => ({
+                            x: (Math.random() - 0.5) * 2,
+                            y: (Math.random() - 0.5) * 2,
+                            z: (Math.random() - 0.5) * 2
+                        }));
+                        const baseColors = Array.from({ length: numPoints }, () => ({
+                            r: Math.random(),
+                            g: Math.random(),
+                            b: Math.random(),
+                            a: 1.0
+                        }));
+                        // Precompute phase offsets for each coordinate
+                        const phases = Array.from({ length: numPoints }, () => ({
+                            x: Math.random() * Math.PI * 2,
+                            y: Math.random() * Math.PI * 2,
+                            z: Math.random() * Math.PI * 2
+                        }));
+                        // Create reusable Vector3 objects
+                        const pointsObjects: Vector3[] = basePoints.map(() => ({ x: 0, y: 0, z: 0 }));
 
                         return setInterval(() => {
                             const t = Date.now() / 1000;
                             const amplitude = 0.05;
-                            const wiggledPoints: PointsCloud = {
-                                points: points.points.map((point: Vector3) => ({
-                                    x: point.x + Math.sin(t + point.x * 10) * amplitude + (Math.random() - 0.5) * 0.02,
-                                    y: point.y + Math.cos(t + point.y * 10) * amplitude + (Math.random() - 0.5) * 0.02,
-                                    z: point.z + Math.sin(t + point.z * 10) * amplitude + (Math.random() - 0.5) * 0.02,
-                                })),
-                                colors: points.colors
-                            };
-
-                            pluginsManager.doAction(`${datasource_id}-${topic.topic}-published`, wiggledPoints, Date.now());
+                            // Smoothly update each point based on its phase offset
+                            for (let i = 0; i < numPoints; i++) {
+                                pointsObjects[i].x = basePoints[i].x + Math.sin(t + phases[i].x) * amplitude;
+                                pointsObjects[i].y = basePoints[i].y + Math.sin(t + phases[i].y) * amplitude;
+                                pointsObjects[i].z = basePoints[i].z + Math.sin(t + phases[i].z) * amplitude;
+                            }
+                            pluginsManager.doAction(
+                                `${datasource_id}-${topic.topic}-published`,
+                                {
+                                    points: pointsObjects,
+                                    colors: baseColors
+                                } as PointsCloud,
+                                Date.now()
+                            );
                         }, 1000 / freq);
-
 
                     default:
                         return setInterval(() => {
@@ -256,6 +258,8 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                     return;
                 }
 
+                console.log(`Subscribing to topic ${topic.topic}`);
+
                 subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
                 if (intervalesRef.current.has(topic.topic)) {
@@ -271,13 +275,24 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
         pluginsManager.addAction(unsubscribe_hook, {
             id: unsubscribe_hook,
             priority: 10,
-            action: (topic: SelectedTopic) => {
+            action: (topic: SelectedTopic, ignoreCount = false) => {
+
+                console.log(`Unsubscribing from topic ${topic.topic}`);
+
+                // force clear interval
+                if (ignoreCount && intervalesRef.current.get(topic.topic)) {
+                    console.log(`Forcefully clearing interval for topic ${topic.topic}`);
+                    clearInterval(intervalesRef.current.get(topic.topic));
+                    intervalesRef.current.delete(topic.topic);
+                    return;
+                }
 
                 const count = subscribersCountRef.current.get(topic.topic) || 0;
-                const newCount = Math.max(0, count - 1);
+                const newCount = count - 1;
                 subscribersCountRef.current.set(topic.topic, newCount);
 
-                if (newCount === 0) {
+                if (newCount <= 0) {
+                    console.log(`No more subscribers for topic ${topic.topic}, clearing interval`);
                     clearInterval(intervalesRef.current.get(topic.topic));
                     intervalesRef.current.delete(topic.topic);
                 }
@@ -303,10 +318,15 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
             pluginsManager.removeFilter(definition_hook);
             pluginsManager.removeAction(subscribe_hook);
 
-            available_topics.forEach(topic => {
-                pluginsManager.doAction(unsubscribe_hook, topic, true);
+            console.log('Cleaning up RandomDataSourceProvider');
+            intervalesRef.current.forEach((interval, topic) => {
+                console.log(`Forcefully clearing interval for topic ${topic}`);
+                clearInterval(interval);
             });
+            intervalesRef.current.clear();
+            subscribersCountRef.current.clear();
 
+            // Remove actions after cleanup
             pluginsManager.removeAction(unsubscribe_hook);
 
         };
