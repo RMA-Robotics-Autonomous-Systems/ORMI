@@ -1,1 +1,5 @@
-{}
+{
+  "ormi-test": {
+    "git": "https://github.com/FlorianLebecque/ormi-test.git"
+  }
+}
