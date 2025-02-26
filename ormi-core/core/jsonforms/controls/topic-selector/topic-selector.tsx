@@ -64,14 +64,36 @@ const AsyncTopicControl = (props: ControlProps) => {
         setSelectedTopic(topicName);
         const newTopicObj = topic ? { ...topic, property: '' } : undefined;
         setSelectedTopicObject(newTopicObj);
-        handleChange(path, { topic: topic?.topic, source: topic?.source, property: '', type: topic?.type, bufferSize: topic?.bufferSize || uischema.options?.buffer || 1 } as SelectedTopic);
+        handleChange(path, {
+            topic: topic?.topic,
+            source: topic?.source,
+            property: '',
+            type: topic?.type,
+            rawType: topic?.rawType, // Include rawType property
+            bufferSize: topic?.bufferSize || uischema.options?.buffer || 1
+        } as SelectedTopic);
         if (topic) await fetchTopicDefinition(topic);
     };
 
     const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
         setSelectedTopic(topic);
-        setSelectedTopicObject(prev => prev ? { ...prev, topic, rawType: prev.rawType, source: source.settings, type, property: prev.property || '', bufferSize: prev.bufferSize || uischema.options?.buffer || 1 } : prev);
-        handleChange(path, { topic, source: source.settings, property: '', type, bufferSize: 1 } as SelectedTopic);
+        setSelectedTopicObject(prev => prev ? {
+            ...prev,
+            topic,
+            rawType: prev.rawType,
+            source: source.settings,
+            type,
+            property: prev.property || '',
+            bufferSize: prev.bufferSize || uischema.options?.buffer || 1
+        } : prev);
+        handleChange(path, {
+            topic,
+            source: source.settings,
+            property: '',
+            type,
+            rawType: type, // Include rawType property
+            bufferSize: 1
+        } as SelectedTopic);
         setOpen(false);
     };
 
