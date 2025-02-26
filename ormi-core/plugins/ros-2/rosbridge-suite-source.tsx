@@ -279,17 +279,17 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             return;
                         }
 
-                        const topicType = await GetTopicType(ROSRef.current!, topic.topic);
+                        // const topicType = await GetTopicType(ROSRef.current!, topic.topic);
                         const subscriber = new ROSLIB.Topic({
                             ros: ROSRef.current!,
                             name: topic.topic,
-                            messageType: topicType,
+                            messageType: topic.rawType,
                         });
 
                         subscriber.subscribe((message: any) => {
 
                             // convert the incoming message to webapp format
-                            const convertedMessage = UnifiedConverter.convertToWebapp(message, topic.type, topicType);
+                            const convertedMessage = UnifiedConverter.convertToWebapp(message, topic.type, topic.rawType);
 
                             pluginsManager.doAction(
                                 `${datasource_id}-${topic.topic}-published`,
@@ -316,22 +316,27 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
             pluginsManager.addAction(unsubscribe_hook, {
                 id: unsubscribe_hook,
                 action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
+                    console.log("Unsubscribing from topic", topic);
                     try {
                         await connectionRef.current;
 
                         if (!subscribersRef.current.has(topic.topic)) {
+                            console.log("No subscriber found for topic", topic);
                             return;
                         }
 
                         const count = subscribersCountRef.current.get(topic.topic) || 0;
+                        subscribersCountRef.current.set(topic.topic, count - 1);
+
                         if (count <= 1 || ignoreCount) {
                             const subscriber = subscribersRef.current.get(topic.topic);
                             subscriber!.unsubscribe();
                             subscribersRef.current.delete(topic.topic);
                             subscribersCountRef.current.delete(topic.topic);
+
+                            console.log("deleted subscriber for topic", topic);
                         }
 
-                        subscribersCountRef.current.set(topic.topic, count - 1);
 
                     } catch (error) {
                         console.error("Unsubscribe error:", error);
@@ -390,7 +395,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                         const publisher = new ROSLIB.Topic({
                             ros: ROSRef.current!,
                             name: topic.topic,
-                            messageType: topic.type,
+                            messageType: topic.rawType,
                         });
 
                         const hook = `${datasource_id}-${topic.topic}-publish`;
@@ -405,7 +410,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
                             id: hook,
                             action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
                                 try {
-                                    const converted = UnifiedConverter.convertToROS2(message, webtype, topic.type);
+                                    const converted = UnifiedConverter.convertToROS2(message, webtype, topic.rawType);
 
                                     const msg = new ROSLIB.Message(converted);
 
