@@ -1,6 +1,6 @@
 import React from 'react';
 import { LocalDataSourcesProvider } from "@/core/datasources/components/local-datasource-provider";
-import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from "@/core/datasources/datasource-interface";
+import { DatasourceTopic, DatasourceTopicFilter } from "@/core/datasources/datasource-interface";
 import { AsyncTopicControlType } from "@/core/jsonforms/controls/topic-selector/topic-selector";
 import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
 import { PluginsHooks } from "@/core/plugins/plugins-types";
