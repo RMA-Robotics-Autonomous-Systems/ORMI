@@ -162,7 +162,7 @@ export class UnifiedConverter {
         },
         "boolean": {
             conversions: {
-                "std_msgs/msg/Boolean": {
+                "std_msgs/msg/Bool": {
                     toRos2: data => ({ data }),
                     fromRos2: data => data.data
                 }
