@@ -13,6 +13,8 @@ import {
 } from '../utils/webgl-utils';
 import { PointsCloud } from '@/core/types/common';
 
+const POINTS_SIZE = 5.0;
+
 export default function PointsCloudWebGL({ points, colors }: PointsCloud) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const rotationRef = useRef<RotationState>({ angleX: 0, angleY: 0, dragging: false, lastX: 0, lastY: 0, distance: 5 });
@@ -174,10 +176,8 @@ export default function PointsCloudWebGL({ points, colors }: PointsCloud) {
                 gl.enableVertexAttribArray(aColorLoc);
                 gl.vertexAttribPointer(aColorLoc, 3, gl.FLOAT, false, 0, 0);
             }
-            const baseSize = 1.0;
-            const computedPointSize = baseSize * (5.0 / rotationRef.current.distance);
             if (uPointSizeLoc) {
-                gl.uniform1f(uPointSizeLoc, computedPointSize);
+                gl.uniform1f(uPointSizeLoc, POINTS_SIZE);
             }
             if (!hasColors && uColorLoc) {
                 gl.uniform4f(uColorLoc, 1.0, 1.0, 1.0, 1.0);
