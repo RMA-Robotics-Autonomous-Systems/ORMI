@@ -66,11 +66,11 @@ export function getVertexShaderSource(hasColors: boolean): string {
         uniform mat4 u_projection;
         uniform mat4 u_view;
         uniform float u_pointSize;
-        varying float vDepth;
+        // varying float vDepth;
         varying vec3 vColor;
         void main() {
             vec4 viewPos = u_view * vec4(a_position, 1.0);
-            vDepth = -viewPos.z;
+            // vDepth = -viewPos.z;
             gl_PointSize = u_pointSize;
             gl_Position = u_projection * viewPos;
             vColor = a_color;
@@ -80,10 +80,10 @@ export function getVertexShaderSource(hasColors: boolean): string {
         uniform mat4 u_projection;
         uniform mat4 u_view;
         uniform float u_pointSize;
-        varying float vDepth;
+        // varying float vDepth;
         void main() {
             vec4 viewPos = u_view * vec4(a_position, 1.0);
-            vDepth = -viewPos.z;
+            // vDepth = -viewPos.z;
             gl_PointSize = u_pointSize;
             gl_Position = u_projection * viewPos;
         }
@@ -96,19 +96,19 @@ export function getVertexShaderSource(hasColors: boolean): string {
 export function getFragmentShaderSource(hasColors: boolean): string {
     return hasColors ? `
         precision mediump float;
-        varying float vDepth;
+        // varying float vDepth;
         varying vec3 vColor;
         void main() {
-            float factor = clamp(vDepth / 100.0, 0.0, 1.0);
-            gl_FragColor = vec4(vColor * (1.0 - factor * 0.5), 1.0);
+            // float factor = clamp(vDepth / 100.0, 0.0, 1.0);
+            gl_FragColor = vec4(vColor , 1.0);
         }
     ` : `
         precision mediump float;
         uniform vec4 u_color;
-        varying float vDepth;
+        // varying float vDepth;
         void main() {
-            float factor = clamp(vDepth / 100.0, 0.0, 1.0);
-            gl_FragColor = vec4(u_color.rgb * (1.0 - factor * 0.5), u_color.a);
+            // float factor = clamp(vDepth / 100.0, 0.0, 1.0);
+            gl_FragColor = vec4(u_color.rgb, u_color.a);
         }
     `;
 }
