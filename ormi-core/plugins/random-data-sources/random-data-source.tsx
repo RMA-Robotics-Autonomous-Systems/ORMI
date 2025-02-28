@@ -233,6 +233,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                 for (const topic of available_topics) {
                     topics.push({
                         topic: topic.topic,
+                        datasource_id: "random-data-source",
                         source: props,
                         type: topic.type,
                         rawType: topic.type,

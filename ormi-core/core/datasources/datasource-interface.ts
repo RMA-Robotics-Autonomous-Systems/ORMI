@@ -27,6 +27,7 @@ interface Datasource{
 
 interface DatasourceTopic {
     topic: string;
+    datasource_id: string;
     source: DatasourceProviderSettings;
     type: string;           // type of the data inside the webapp
     rawType: string;        // type of the data inside the datasource
@@ -65,7 +66,7 @@ export class DatasourceTopicFilter {
             return false;
         }
 
-        if(this.source_id && !this.source_id.test(topic.source.id)){
+        if(this.source_id && !this.source_id.test(topic.datasource_id)){
             return false;
         }
 

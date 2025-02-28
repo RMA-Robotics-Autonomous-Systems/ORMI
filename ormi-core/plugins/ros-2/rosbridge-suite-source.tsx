@@ -254,6 +254,7 @@ const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBr
 
                         return [...topics, ...rosTopics.map((topic) => ({
                             topic: topic.topic,
+                            datasource_id: "rosbridge-suite-source",
                             source: props,
                             type: UnifiedConverter.getWebappTypeFromROSType(topic.type) || '',
                             rawType: topic.type
