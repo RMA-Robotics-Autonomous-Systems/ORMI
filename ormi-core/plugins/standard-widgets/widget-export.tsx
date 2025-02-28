@@ -14,6 +14,7 @@ import { NotAPongDefinition } from './widgets/nothing/not-a-pong';
 import { IframeDefinition } from './widgets/misc/iframe';
 import { LineChartDefinition } from './widgets/charts/line-chart';
 import { PointsCloudDefinition } from './widgets/webgl/points-cloud-webgl';
+import { CondStatusIndicatorDefinition } from './widgets/status/cond-status-indicator';
 // import { PointsCloudDefinition } from './widgets/three-d/points-cloud';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
@@ -24,6 +25,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(WebRtcRos2Definition());
     widgets.push(MapsBoxViewerDefinition());
     widgets.push(IntStatusIndicatorDefinition());
+    widgets.push(CondStatusIndicatorDefinition());
     widgets.push(NotAPongDefinition());
     widgets.push(IframeDefinition());
     widgets.push(PluginsViewerDefinition());
