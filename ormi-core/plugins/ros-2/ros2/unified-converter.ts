@@ -179,137 +179,77 @@ export class UnifiedConverter {
 
                         const fields = data.fields;
                         const point_step = data.point_step;
-                        const row_step = data.row_step;
-                        const data_buffer: string = data.data;    // bytes array of the point cloud data
                         const is_bigendian = data.is_bigendian;
                         const height = data.height;
                         const width = data.width;
-                        const is_dense = data.is_dense;
-
-                        // console.log(fields,point_step,row_step,is_bigendian,height,width,is_dense);
-
-                        // Extract points and colors from binary data
-                        const fieldIndexMap : any = {};
-                        // const hasColor = fields.some(field => field.name === 'rgb' || field.name === 'rgba');
-                        // Create lookup map for fields
+                        
+                        // Create field lookup map
+                        const fieldMap: Record<string, {offset: number, datatype: number}> = {};
                         fields.forEach(field => {
-                            fieldIndexMap[field.name] = {
+                            fieldMap[field.name] = {
                                 offset: field.offset,
-                                datatype: field.datatype,
-                                count: field.count
+                                datatype: field.datatype
                             };
                         });
 
-                        // Create one buffer at max needed size
-                        const maxFieldSize = 8; // Size of largest datatype (FLOAT64)
-                        const buffer = new ArrayBuffer(maxFieldSize);
-                        const view = new DataView(buffer);
-
-                        // Then reuse this buffer for each field
-
-                        // Process each point
-                        const totalPoints = width * height;
+                        // Get important field offsets
+                        const xOffset = fieldMap.x?.offset;
+                        const yOffset = fieldMap.y?.offset;
+                        const zOffset = fieldMap.z?.offset;
                         
-                        // create an array of Ros2 points from the binary data
-                        for (let i = 0; i < totalPoints; i++) {
-                            const pointOffset = i * point_step;
-                            
-                            // Skip invalid points if buffer is too short
-                            if (pointOffset + point_step > data_buffer.length) {
-                                continue;
-                            }
-                            
-                            const point_blob = data_buffer.slice(pointOffset, pointOffset + point_step);
-                            const point_object: Record<string, number> = {};
-
-                            // using the fieldIndexMap, extract the fields values from the point_blob
-                            for(const field in fieldIndexMap){
-                                const name = field;
-                                const fieldInfo = fieldIndexMap[field];
-                                const fieldOffset = fieldInfo.offset;
-                                const datatype = fieldInfo.datatype;
-                                const count = fieldInfo.count;
-                                
-                                // Skip if the field offset is outside the point blob
-                                if (fieldOffset >= point_blob.length) {
-                                    continue;
-                                }
-                                
-                                // Calculate field size correctly based on datatype
-                                const bytesPerElement = 
-                                    datatype === 1 || datatype === 2 ? 1 :  // INT8, UINT8
-                                    datatype === 3 || datatype === 4 ? 2 :  // INT16, UINT16
-                                    datatype === 5 || datatype === 6 || datatype === 7 ? 4 :  // INT32, UINT32, FLOAT32
-                                    datatype === 8 ? 8 : 1;  // FLOAT64
-                                
-                                const fieldSize = count * bytesPerElement;
-                                
-                                // Make sure we don't read past the blob
-                                if (fieldOffset + fieldSize > point_blob.length) {
-                                    continue;
-                                }
-                                
-                                const current_blob = point_blob.slice(fieldOffset, fieldOffset + fieldSize);
-                                
-                                // Copy the bytes into the buffer
-                                for (let j = 0; j < current_blob.length; j++) {
-                                    // the current_blob is a base64 encoded string, so we need to convert it to a number
-                                    view.setUint8(j, current_blob.charCodeAt(j));
-                                }
-                                
-                                const littleEndian = !is_bigendian;
-                                
-                                // Extract value based on datatype
-                                try {
-                                    switch(datatype){
-                                        case 1: // INT8
-                                            point_object[name] = view.getInt8(0);
-                                            break;
-                                        case 2: // UINT8
-                                            point_object[name] = view.getUint8(0);
-                                            break;
-                                        case 3: // INT16
-                                            point_object[name] = view.getInt16(0, littleEndian);
-                                            break;
-                                        case 4: // UINT16
-                                            point_object[name] = view.getUint16(0, littleEndian);
-                                            break;
-                                        case 5: // INT32
-                                            point_object[name] = view.getInt32(0, littleEndian);
-                                            break;
-                                        case 6: // UINT32
-                                            point_object[name] = view.getUint32(0, littleEndian);
-                                            break;
-                                        case 7: // FLOAT32
-                                            if (current_blob.length >= 4) {
-                                                point_object[name] = view.getFloat32(0, littleEndian);
-                                            }
-                                            break;
-                                        case 8: // FLOAT64
-                                            if (current_blob.length >= 8) {
-                                                point_object[name] = view.getFloat64(0, littleEndian);
-                                            }
-                                            break;
-                                    }
-                                } catch (e) {
-                                    console.error(`Error parsing ${name} field:`, e);
-                                }
-                            }
-
-                            // Only collect points if all coordinates are valid
-                            const x = point_object['x'];
-                            const y = point_object['y'];
-                            const z = point_object['z'];
-
-                            if (x !== undefined && y !== undefined && z !== undefined) {
-                                // Filter out zero or near-zero points if they're likely invalid
-                                points.push({x, y, z});
-                            }
+                        if (xOffset === undefined || yOffset === undefined || zOffset === undefined) {
+                            console.error("Point cloud missing x, y, or z fields");
+                            return { points: [] };
                         }
 
-                        return {
-                            points: points,
-                        };
+                        // Handle the binary data properly
+                        let buffer: ArrayBuffer;
+                        let totalPoints: number;
+                        
+                        // Check if data is already a buffer or needs conversion
+                        if (data.data.buffer) {
+                            // Use the buffer directly
+                            buffer = data.data.buffer.slice(0, data.data.byteLength);
+                            totalPoints = Math.min(width * height, Math.floor(buffer.byteLength / point_step));
+                        } else if (typeof data.data === 'string') {
+                            // Convert from base64 if needed
+                            const binaryString = atob(data.data);
+                            buffer = new ArrayBuffer(binaryString.length);
+                            const bufferView = new Uint8Array(buffer);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bufferView[i] = binaryString.charCodeAt(i);
+                            }
+                            totalPoints = Math.min(width * height, Math.floor(buffer.byteLength / point_step));
+                        } else {
+                            console.error("Unsupported point cloud data format");
+                            return { points: [] };
+                        }
+
+                        // Create a data view for efficient access
+                        const dataView = new DataView(buffer);
+                        const littleEndian = !is_bigendian;
+                        
+                        // Process all points
+                        for (let i = 0; i < totalPoints; i++) {
+                            const baseOffset = i * point_step;
+                            
+                            // Get x, y, z values directly
+                            try {
+                                const x = dataView.getFloat32(baseOffset + xOffset, littleEndian);
+                                const y = dataView.getFloat32(baseOffset + yOffset, littleEndian);
+                                const z = dataView.getFloat32(baseOffset + zOffset, littleEndian);
+                                
+                                // Add valid points (could add filtering here if needed)
+                                if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                                    points.push({ x, y, z });
+                                }
+                            } catch (e) {
+                                // Skip points that can't be properly read
+                                continue;
+                            }
+                        }
+                        
+                        return { points };
                     }
                 }
             }
