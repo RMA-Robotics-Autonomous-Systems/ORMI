@@ -170,7 +170,7 @@ const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDat
                         }, 1000 / freq);
 
                     case 'PointsCloud':
-                        const numPoints = 1000;
+                        const numPoints = 100000;
                         // Create initial point cloud with phase offsets for smooth animation
                         const basePoints = Array.from({ length: numPoints }, () => ({
                             x: (Math.random() - 0.5) * 2,
