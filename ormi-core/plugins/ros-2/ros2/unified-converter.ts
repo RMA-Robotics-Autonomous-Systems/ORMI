@@ -172,8 +172,8 @@ export class UnifiedConverter {
         "PointsCloud": {
             conversions:{
                 "sensor_msgs/msg/PointCloud2": {
-                    toRos2: (data: any) => ({}),
-                    fromRos2: (data: any) : PointsCloud => {
+                    toRos2: (data: PointsCloud) => ({}),
+                    fromRos2: (data) : PointsCloud => {
                         const points: Vector3[] = [];
                         const colors: Color[] = [];
 
@@ -185,7 +185,7 @@ export class UnifiedConverter {
                         
                         // Create field lookup map
                         const fieldMap: Record<string, {offset: number, datatype: number}> = {};
-                        fields.forEach(field => {
+                        fields.forEach((field: { name: string | number; offset: any; datatype: any; }) => {
                             fieldMap[field.name] = {
                                 offset: field.offset,
                                 datatype: field.datatype
