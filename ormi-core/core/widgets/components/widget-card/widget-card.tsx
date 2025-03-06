@@ -25,6 +25,7 @@ import { JsonForms } from '@jsonforms/react';
 import { toast } from "@/hooks/use-toast";
 import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
 import { CheckIcon, SettingsIcon } from "lucide-react";
+import { AddToTemplatesBtn } from "@/core/templates/components/add-to-templates";
 
 // Import the custom renderers
 
@@ -34,6 +35,7 @@ interface WidgetCardProps {
     definition: WidgetDefinition;
     data?: any;
     onValidate: (widget: WidgetDefinition, settings: object) => void;
+    fromLoaded?: boolean;
 }
 
 
@@ -139,7 +141,8 @@ const WidgetCard = (props: WidgetCardProps) => {
                         cells={cellsRenderers}
                         onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
-                    <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
+                    <div className="flex justify-end mt-1.5 gap-3" style={{ justifyContent: "flex-end" }} >
+                        {props.fromLoaded && props.fromLoaded === true && <AddToTemplatesBtn widget={props.definition} data={data} />}
                         <DialogClose className="float-end" asChild>
                             <Button onClick={() => { handleAdd() }}>
                                 <CheckIcon />

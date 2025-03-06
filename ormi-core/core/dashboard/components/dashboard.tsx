@@ -15,10 +15,14 @@ import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-comb
 import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
 import { ButtonHolderProvider } from "@/components/advanced/ButtonHolder/button-holder-provider";
 import ButtonHolder from "@/components/advanced/ButtonHolder/button-holder";
+import { WidgetTemplateDrawer } from "@/core/templates/components/templates-drawer";
+import { useTemplates } from "@/core/templates/templates-provider";
 
 const Dashboard = () => {
 
     const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload, datasources } = useDashboardManager();
+
+    const { templates, removeTemplate } = useTemplates();
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -41,6 +45,17 @@ const Dashboard = () => {
     const handleValidate = (widget: WidgetDefinition, settings: object) => {
         addWidget(widget, settings);
     }
+
+
+    useEffect(() => {
+        setNavbarItem("right", "template_drawer",
+            <WidgetTemplateDrawer templates={templates} addWidget={addWidget} removeTemplate={removeTemplate} />
+        );
+
+        return () => {
+            removeNavbarItem("right", "template_drawer");
+        }
+    }, [templates]);
 
     useEffect(() => {
 
@@ -76,6 +91,8 @@ const Dashboard = () => {
             </Button>
         );
 
+
+
         return () => {
             removeNavbarItem("center", "widgets_combo");
             removeNavbarItem("center", "lock_unlock");
@@ -83,6 +100,7 @@ const Dashboard = () => {
             removeNavbarItem("center", "moveToVertical");
             removeNavbarItem("center", "exploseLayout");
             removeNavbarItem("center", "save");
+
         }
 
     }, [locked, hasChanged, layouts, widgets]);
@@ -101,7 +119,7 @@ const Dashboard = () => {
 
                                     <ButtonHolder />
 
-                                    {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
+                                    {!locked && (<WidgetCard fromLoaded={true} data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
 
                                     {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                                         <XIcon />
