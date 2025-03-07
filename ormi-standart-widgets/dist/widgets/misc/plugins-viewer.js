@@ -1,5 +1,5 @@
 import { jsx as _jsx } from "react/jsx-runtime";
-import { TreeView } from "@/components/tree-view";
+import { TreeView } from "ormi-core/components";
 import { usePluginsManager } from "ormi-core/plugins";
 import { FolderTreeIcon } from "lucide-react";
 import { useEffect, useState } from "react";

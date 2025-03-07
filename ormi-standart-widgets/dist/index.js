@@ -13,7 +13,7 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import { PluginServerSide, PluginsHooks } from "ormi-core/plugins";
+import { PluginServerSide, PluginsHooks, registerPlugin } from "ormi-core/plugins";
 import WidgetExport from "./widget-export";
 var PluginA = /** @class */ (function (_super) {
     __extends(PluginA, _super);
@@ -34,4 +34,5 @@ var PluginA = /** @class */ (function (_super) {
     }
     return PluginA;
 }(PluginServerSide));
+registerPlugin("my-feature", PluginA);
 export default PluginA;

@@ -6,7 +6,7 @@ import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { Movement } from "ormi-core/types";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "ormi-core/components";
 
 interface KeyboardControlData {
     title: string;

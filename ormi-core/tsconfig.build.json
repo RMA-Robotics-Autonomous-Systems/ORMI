@@ -35,6 +35,7 @@
     "src/utils.ts",
     "src/types.ts",
     "src/jsonforms.ts",
+    "src/components.ts",
     "src/library/css.d.ts",
     "src/library/**/*"
   ]

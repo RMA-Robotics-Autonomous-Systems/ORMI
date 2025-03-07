@@ -35,8 +35,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 import { jsx as _jsx } from "react/jsx-runtime";
-import { Spinner } from "@/components/spinner";
-import { TreeView } from "@/components/tree-view";
+import { TreeView, Spinner } from "ormi-core/components";
 import { LocalDataSourcesProvider, useLocalDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { ListTreeIcon } from "lucide-react";

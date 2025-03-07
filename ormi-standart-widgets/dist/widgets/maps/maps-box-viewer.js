@@ -55,7 +55,7 @@ import { LocalDataSourcesProvider } from "ormi-core/datasources";
 import { DatasourceTopicFilter } from "ormi-core/datasources";
 import { usePluginsManager } from "ormi-core/plugins";
 import { PluginsHooks } from "ormi-core/plugins";
-import { Spinner } from "@/components/spinner";
+import { Spinner } from "ormi-core/components";
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { MapIcon } from "lucide-react";

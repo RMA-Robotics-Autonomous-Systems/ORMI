@@ -49,7 +49,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { LocalDataSourcesProvider, useLocalDataSource } from 'ormi-core/datasources';
 import { usePluginsManager, PluginsHooks } from 'ormi-core/plugins';
 import { getColorsFromString, getTransparentColorString } from 'ormi-core/utils';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'ormi-core/components';
 import { ChartLineIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
@@ -58,7 +58,7 @@ import 'uplot/dist/uPlot.min.css';
 export function TimeChartComponent(props) {
     var sources = useLocalDataSource().sources;
     var divRef = useRef(null);
-    var frameRef = useRef();
+    var frameRef = useRef(0);
     var lastUpdateRef = useRef(0);
     var dataBufferRef = useRef(new Map());
     var _a = useState(0), chartKey = _a[0], setChartKey = _a[1];

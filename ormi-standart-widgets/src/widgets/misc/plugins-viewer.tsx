@@ -1,4 +1,4 @@
-import { TreeView, TreeDataItem } from "@/components/tree-view";
+import { TreeView, TreeDataItem } from "ormi-core/components";
 import { usePluginsManager } from "ormi-core/plugins";
 import { PluginAction, PluginFilter, PluginsHooks } from "ormi-core/plugins";
 import { WidgetDefinition } from "ormi-core/widgets";

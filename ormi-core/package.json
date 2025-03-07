@@ -60,6 +60,10 @@
     "./jsonforms": {
       "import": "./dist/jsonforms.js",
       "require": "./dist/jsonforms.js"
+    },
+    "./components": {
+      "import": "./dist/components.js",
+      "require": "./dist/components.js"
     }
   },
   "main": "dist/exports.js",

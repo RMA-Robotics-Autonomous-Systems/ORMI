@@ -2,7 +2,7 @@ import { LocalDataSourcesProvider, useLocalDataSource, DatasourceTopic, Selected
 import { AsyncTopicControlType } from 'ormi-core/jsonforms';
 import { usePluginsManager, PluginsHooks } from 'ormi-core/plugins';
 import { getColorsFromString, getTransparentColorString } from 'ormi-core/utils';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'ormi-core/components';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { ChartLineIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';

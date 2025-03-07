@@ -51,7 +51,7 @@ import { style } from "ormi-core/jsonforms";
 import { KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { DatasourceTopicFilter, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "ormi-core/components";
 export function KeyBoardControl(props) {
     var _a = useState(false), forward = _a[0], setForward = _a[1];
     var _b = useState(false), backward = _b[0], setBackward = _b[1];
