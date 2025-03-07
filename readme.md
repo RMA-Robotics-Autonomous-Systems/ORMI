@@ -773,8 +773,8 @@ Create a new class that extends PluginServerSide, in index.ts:
 `index.ts`
 
 ```ts
-import { PluginServerSide } from "@/core/plugins/plugin-core";
-import { PluginsHooks } from "@/core/plugins/plugins-types";
+import { PluginServerSide } from "@/library/core/plugins/plugin-core";
+import { PluginsHooks } from "@/library/core/plugins/plugins-types";
 
 class MyDatasourcePlugin extends PluginServerSide {
   constructor() {
@@ -813,7 +813,7 @@ interface MyDatasourceSettings extends DatasourceProviderSettings {
 `my-datasource-provider.tsx`
 
 ```ts
-import { DatasourceDefinition } from "@/core/datasources/datasource-interface";
+import { DatasourceDefinition } from "@/library/core/datasources/datasource-interface";
 const myDatasourceDefinition: DatasourceDefinition = {
   id: "my-datasource",
   name: "My Datasource",
@@ -854,12 +854,12 @@ export function exportDatasource(datasources: DatasourceDefinition<any>[]) {
 
 ```tsx
 import React, { createContext, ReactNode, useEffect, useState } from "react";
-import { usePluginsManager } from "@/core/plugins/components/plugins-provider";
-import { PluginsHooks } from "@/core/plugins/plugins-types";
+import { usePluginsManager } from "@/library/core/plugins/components/plugins-provider";
+import { PluginsHooks } from "@/library/core/plugins/plugins-types";
 import {
   DatasourceTopic,
   SelectedTopic,
-} from "@/core/datasources/datasource-interface";
+} from "@/library/core/datasources/datasource-interface";
 
 // Create context
 const MyDatasourceContext = createContext(null);
