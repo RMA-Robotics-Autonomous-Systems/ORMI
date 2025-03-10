@@ -3,7 +3,7 @@
 
 ### NextJS ###
 # dependencies
-/node_modules
+**/node_modules/
 /.pnp
 .pnp.js
 
@@ -16,8 +16,8 @@
 
 # production
 /build
-/dist
-dist
+**/dist/
+
 # misc
 .DS_Store
 *.pem
@@ -38,9 +38,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Ignore all lock and lockb files wherever they are
-*.lock
-*.lockb
+# Ignore all lock files wherever they are
+**/*.lock
+**/*.lockb
 
 # ignore all folders except the ones specified inside the ormi-core/plugins folder
 # keep 
