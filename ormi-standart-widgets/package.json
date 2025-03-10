@@ -48,5 +48,6 @@
     "tsc-alias": "1.8.11",
     "uplot": "^1.6.31",
     "uplot-react": "^1.2.2"
-  }
+  },
+  "ormi_plugin": true
 }
