@@ -16,7 +16,8 @@
 
 # production
 /build
-
+/dist
+dist
 # misc
 .DS_Store
 *.pem
@@ -54,3 +55,5 @@ ormi-app/plugins/*
 !ormi-app/plugins/standard-widgets
 !ormi-app/plugins/ros-2
 !ormi-app/plugins/random-data-sources
+ormi-core/dist
+ormi-standart-widgets/dist
