@@ -1,1 +1,0 @@
-export declare const useDebouncedChange: (handleChange: (path: string, value: any) => void, defaultValue: any, data: any, path: string, eventToValueFunction?: (ev: any) => any, timeout?: number) => [any, React.ChangeEventHandler, () => void];
