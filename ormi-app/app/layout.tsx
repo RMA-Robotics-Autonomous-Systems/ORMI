@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 // import localFont from "next/font/local";
 import "./globals.css";
 import { PluginsLoader, PluginsProvider } from "ormi-core/plugins";
-import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
-import NavBar from "@/components/advanced/navbar/navbar";
+import { NavbarProvider, NavBar } from "ormi-core/components";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/advanced/theme/theme-provider";
 
@@ -44,8 +43,10 @@ export default function RootLayout({
                         <PluginsProvider pluginsLoader={pl.getClientSide()}>
                             <Toaster />
                             <NavbarProvider>
-                                <NavBar />
-                                {children}
+                                <>
+                                    <NavBar />
+                                    {children}
+                                </>
                             </NavbarProvider>
                         </PluginsProvider>
                     </main>

@@ -117,7 +117,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             pluginsManager.removeFilter("available_datasources");
         };
 
-    }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, removeNavbarItem, setNavbarItem, updateDatasource]);
+    }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
 
     // Memoize the provider chain to prevent unnecessary rerenders
     const providerChain = React.useMemo(() => {

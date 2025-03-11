@@ -1,3 +1,4 @@
+"use client"
 // shadcn dialog that takes an array of actions and displays them in a dialog
 import React from "react";
 import { Button } from "../../ui/button";

@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../ui/popover";
 import { ModeToggle } from "../theme/theme-toggle";
 import React from "react";
 
-const NavBar = () => {
+export const NavBar = () => {
     const { left, center, right } = useNavbar();
     const [open, setOpen] = useState(false);
 
@@ -117,7 +117,4 @@ const NavBar = () => {
             </NavigationMenu>
         </div >
     );
-}
-
-export default NavBar;
-
+};

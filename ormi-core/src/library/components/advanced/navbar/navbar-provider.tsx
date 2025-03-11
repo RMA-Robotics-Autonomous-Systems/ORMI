@@ -47,7 +47,9 @@ interface NavbarProviderProps {
     children: React.ReactNode;
 }
 
-export const NavbarProvider: React.FC<NavbarProviderProps> = ({ children }) => {
+export const NavbarProvider = (props: NavbarProviderProps) => {
+
+    const { children } = props;
 
     const [left, setLeft] = useState<Map<string, NavbarItem>>(new Map());
     const [center, setCenter] = useState<Map<string, NavbarItem>>(new Map());
