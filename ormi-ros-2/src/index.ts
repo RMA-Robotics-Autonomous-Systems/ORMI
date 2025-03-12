@@ -1,9 +1,9 @@
-import { PluginServerSide,PluginsHooks } from "ormi-core/plugins";
+import { Plugin,PluginsHooks } from "ormi-core/plugins";
 import { DatasourceProviderSettings } from "ormi-core/datasources";
 
 import { dataSourceExport, widgetsExport } from "./export";
 
-class RandomDataSourcePlugins extends PluginServerSide {
+class RandomDataSourcePlugins extends Plugin {
 
     constructor() {
         super();

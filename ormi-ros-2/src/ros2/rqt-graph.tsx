@@ -1,11 +1,10 @@
 "use client"
-import React, { useEffect, useRef, useState } from 'react';
+import React, { JSX, useEffect, useRef, useState } from 'react';
 import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import ROSLIB from 'roslib';
 import { usePluginsManager } from 'ormi-core/plugins';
-import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
-import { Button } from '@/components/ui/button';
+import { useButtonHolder, Button } from 'ormi-core/components';
 import { RefreshCwIcon } from 'lucide-react';
 import { PluginsHooks } from 'ormi-core/plugins';
 import { Datasource } from 'ormi-core/datasources';

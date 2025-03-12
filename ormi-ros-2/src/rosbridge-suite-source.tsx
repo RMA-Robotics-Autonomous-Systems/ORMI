@@ -21,10 +21,9 @@ import { usePluginsManager } from 'ormi-core/plugins';
 import { PluginsHooks } from 'ormi-core/plugins';
 
 import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from 'ormi-core/datasources';
-import { toast } from '@/hooks/use-toast';
+import { toast, Spinner } from 'ormi-core/components';
 import { JsonSchema } from '@jsonforms/core';
 import { decodeTypeDefs } from './ros2-message-parser';
-import { Spinner } from '@/components/spinner';
 import { UnifiedConverter } from './ros2/unified-converter';
 
 const RosBridgeSuiteSourceContext = createContext(null);
@@ -149,7 +148,7 @@ type RosTopicAndCounter = {
 }
 
 // Create a provider component
-const RosBridgeSuiteSourceProvider: React.FC<{ children: ReactNode, props: RosBridgeSuiteDataSourceSettings }> = ({ children, props }) => {
+const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuiteDataSourceSettings) => {
     const pluginsManager = usePluginsManager();
 
     const subscribersRef = useRef(new Map<string, ROSLIB.Topic>());

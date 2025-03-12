@@ -1,9 +1,8 @@
-import { useButtonHolder } from '@/components/advanced/ButtonHolder/button-holder-provider';
-import { Button } from '@/components/ui/button';
+import { useButtonHolder, Button } from 'ormi-core/components';
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from 'ormi-core/datasources';
 import { AsyncTopicControlType } from 'ormi-core/jsonforms';
 import { usePluginsManager, PluginsHooks } from 'ormi-core/plugins';
-import { RosBridgeSuiteDataSourceSettings } from '@/plugins/ros-2/rosbridge-suite-source';
+import { RosBridgeSuiteDataSourceSettings } from '../../rosbridge-suite-source';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { CctvIcon, RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';

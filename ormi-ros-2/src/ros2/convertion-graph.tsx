@@ -1,5 +1,5 @@
 "use client"
-import React from 'react';
+import React, { JSX } from 'react';
 import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { UnifiedConverter } from "./unified-converter";
