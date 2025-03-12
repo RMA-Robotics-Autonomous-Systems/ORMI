@@ -54,7 +54,7 @@ function get_plugins(): string[] {
         try {
             const pckg = JSON.parse(readFileSync(package_json, "utf-8"));
             if (pckg["ormi_plugin"] !== undefined) {
-                process.stdout.write(`\n${chalk.green('✓')} Found ORMI plugin: ${chalk.bold(dir)}`);
+                // process.stdout.write(`\n${chalk.green('✓')} Found ORMI plugin: ${chalk.bold(dir)}`);
                 return true;
             }
             return false;
@@ -76,7 +76,6 @@ function get_plugins(): string[] {
 function save_source_file(source:string,path:string){
     const source_file = path;
     try {
-        console.log(chalk.yellow(`📝 Saving source file to ${source_file}`));
         writeFileSync(source_file, source);
         console.log(chalk.green('💾 Source file saved successfully!'));
     } catch (err) {
