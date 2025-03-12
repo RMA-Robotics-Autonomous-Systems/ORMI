@@ -12,7 +12,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 
-
 export default function Page() {
 
     const pl = new PluginsLoader();
@@ -24,23 +23,23 @@ export default function Page() {
                 <small>List of all the plugins that are currently availables in the plugins directory</small>
             </div>
             <div className="flex flex-col gap-1 mt-4">
-                {Array.from(pl.getPlugins()).map(([key, value]) => (
+                {Array.from(pl.plugins).map(([key, value]) => (
                     <Accordion key={key} type="single" collapsible>
                         <AccordionItem value="item-1">
                             <AccordionTrigger>
                                 <div className="flex gap-3 items-center">
                                     <Button asChild>
-                                        <Link href={value.getUrl()}>{value.getName()}</Link>
+                                        <p>{value.name}</p>
                                     </Button>
-                                    <p>{value.getVersion()}</p>
+                                    <p>{value.version}</p>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent>
                                 <div className="flex justify-between">
-                                    <p>{value.getDescription()}</p>
-                                    <p>{value.getAuthor()}</p>
-                                    <p>{value.getEmail()}</p>
-                                    <Switch defaultChecked={true} id={"enable-" + value.getName()} />
+                                    <p>{value.description}</p>
+                                    <p>{ }</p>
+                                    <p>{ }</p>
+                                    <Switch defaultChecked={true} id={"enable-" + value.name} />
                                 </div>
                             </AccordionContent>
                         </AccordionItem>

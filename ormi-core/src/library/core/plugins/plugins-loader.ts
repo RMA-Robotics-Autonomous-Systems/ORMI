@@ -1,62 +1,57 @@
+"use server"
 /*
     Class that loads all plugins using the plugin registry system,
     and stores them in a Map object.
 */
-
-import { PluginServerSide } from './plugin-core';
-import { PluginClientSide } from './plugins-types';
-import PluginRegistry from './plugin-registry';
+import fs from 'fs';
+import path from 'path';
+import { PluginInfo } from './plugins-types';
 
 class PluginsLoader {
-    private plugins: Map<string, PluginServerSide>;
-    
+
+    public plugins: Map<string, PluginInfo>;
+
     constructor() {
-        this.plugins = new Map<string, PluginServerSide>();
-    }
-    
-    addPlugin(plugin: PluginServerSide): void {
-        this.plugins.set(plugin.getName(), plugin);
-    }
+        this.plugins = new Map();
 
-    getPlugin(pluginName: string): unknown {
-        if (this.plugins.has(pluginName)) {
-            return this.plugins.get(pluginName);
-        }
-        throw new Error(`Plugin ${pluginName} not found`);
-    }
-
-    public getPlugins(): Map<string, PluginServerSide> {
-        return this.plugins;
+        this.loadPlugins();
     }
 
     /**
-     * Load plugins from the registry
+     * Load all plugins from the given directory
+     * @param directory 
      */
-    async load(): Promise<boolean> {
-        const registry = PluginRegistry.getInstance();
-        const constructors = registry.getAllConstructors();
+    loadPlugins() {
+        // Path to node_modules
+        const nodeModulesPath = path.resolve(process.cwd(), 'node_modules');
+
+        // Find all packages with ormi_plugin flag
+        const dirs = fs.readdirSync(nodeModulesPath);
+
+        for (const dir of dirs) {
+            const packageJsonPath = path.join(nodeModulesPath, dir, 'package.json');
         
-        constructors.forEach((Constructor, name) => {
-            try {
-                console.log(`Instantiating registered plugin: ${name}`);
-                const pluginInstance = new Constructor();
-                this.addPlugin(pluginInstance);
-            } catch (error) {
-                console.error(`Failed to instantiate plugin ${name}:`, error);
+            if (fs.existsSync(packageJsonPath)) {
+                try {
+                    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+                    
+                    if (packageJson.ormi_plugin === true) {
+
+                        const pluginInfo: PluginInfo = {
+                            name: packageJson.name,
+                            version: packageJson.version,
+                            description: packageJson.description,
+                        };
+
+                        this.plugins.set(packageJson.name, pluginInfo);
+                    }
+                } catch (err) {
+                    console.error(`Error reading package.json from ${dir}:`, err);
+                }
             }
-        });
-        
-        return true;
-    }
+        }
 
-    public getClientSide(): Map<string, PluginClientSide> {
-        const plugins: Map<string, PluginClientSide> = new Map<string, PluginClientSide>();
-
-        this.plugins.forEach((plugin: PluginServerSide, key: string) => {
-            plugins.set(key, plugin.toObject());
-        });
-
-        return plugins;
+        console.log('Plugins loaded:', this.plugins);
     }
 }
 

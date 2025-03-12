@@ -1,4 +1,4 @@
-import { PluginAction, PluginClientSide, PluginFilter } from "./plugins-types";
+import { Plugin, PluginAction, PluginFilter } from "./plugins-types";
 import { PluginsHooks } from "./plugins-types";
 
 /*
@@ -8,19 +8,20 @@ import { PluginsHooks } from "./plugins-types";
 */
 class PluginsManager{
 
-    private plugins: Map<string | PluginsHooks, PluginClientSide>;
+    private plugins: Map<string | PluginsHooks, Plugin>;
 
-    constructor(pluginsMap: Map<string | PluginsHooks, PluginClientSide>){
+    constructor(pluginsMap: Map<string | PluginsHooks, Plugin>){
         this.plugins = pluginsMap
 
         // add a "basic" plugin that will be used to add new filters and actions from the client side
-        this.plugins.set("basic", {
-            actions: new Map(),
-            filters: new Map(),
+        this.plugins.set("basic",new Plugin({
             name: "basic",
-            description: "basic plugin",
-            version: "1.0.0"
-        });
+            description: "Basic plugin",
+            version: "1.0.0",
+        }));
+
+        console.log("PluginsManager initialized");
+        console.log(this.plugins);
     }
 
     applyFilter<T>(filterName: string | PluginsHooks, ...args: any): T{
@@ -227,7 +228,7 @@ class PluginsManager{
         });
     }
 
-    getPlugins(): Map<string | PluginsHooks, PluginClientSide>{
+    getPlugins(): Map<string | PluginsHooks, Plugin>{
         return this.plugins;
     }
 }

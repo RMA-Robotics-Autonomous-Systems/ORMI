@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 // import localFont from "next/font/local";
 import "./globals.css";
-import { PluginsLoader, PluginsProvider } from "ormi-core/plugins";
-import { NavbarProvider, NavBar } from "ormi-core/components";
+import { PluginsProvider, } from "ormi-core/plugins";
+import { NavbarProvider, NavBar, ThemeProvider } from "ormi-core/components";
 import { Toaster } from "@/components/ui/toaster";
-import { ThemeProvider } from "@/components/advanced/theme/theme-provider";
+
+import registry from "@/ormi-plugins";
 
 // const geistSans = localFont({
 //     src: "./fonts/GeistVF.woff",
@@ -28,8 +29,6 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
 
-    const pl = new PluginsLoader();
-
     return (
         <html lang="en" suppressHydrationWarning>
             <body>
@@ -37,10 +36,10 @@ export default function RootLayout({
                     attribute="class"
                     defaultTheme="system"
                     enableSystem
-                    disableTransitionOnChange
+
                 >
                     <main>
-                        <PluginsProvider pluginsLoader={pl.getClientSide()}>
+                        <PluginsProvider PluginsInfo={registry}>
                             <Toaster />
                             <NavbarProvider>
                                 <>

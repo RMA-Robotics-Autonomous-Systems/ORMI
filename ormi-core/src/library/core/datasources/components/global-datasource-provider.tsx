@@ -22,7 +22,6 @@ import DatasourceCard from './datasource-card';
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';
 import DatasourceAdder from './datasource-adder';
 
-
 type GlobalDataSources = object;
 
 const GlobalDataSourcesContext = createContext<GlobalDataSources>({});
@@ -41,6 +40,9 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
+
+
+
     useEffect(() => {
         const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition<DatasourceProviderSettings>[]>(PluginsHooks.DATASOURCES_LIST, []);
         const dataSourcesTypes_map = new Map<string, DatasourceDefinition<DatasourceProviderSettings>>();
@@ -49,6 +51,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
         }
         setDataSourcesTypes(dataSourcesTypes_map);
         setInitialized(true);
+
     }, []);
 
     useEffect(() => {

@@ -1,7 +1,7 @@
-import {PluginServerSide,PluginsHooks,registerPlugin} from "ormi-core/plugins";
+import {Plugin,PluginsHooks} from "ormi-core/plugins";
 import WidgetExport from "./widget-export";
 
-class PluginA extends PluginServerSide{
+class PluginA extends Plugin{
 
     constructor(){
         super();
@@ -22,7 +22,4 @@ class PluginA extends PluginServerSide{
     }
 }
 
-registerPlugin("my-feature", PluginA);
-
 export default PluginA;
-
