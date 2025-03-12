@@ -6,6 +6,7 @@ import { RosBridgeSuiteDataSourceSettings, RosBridgeSuiteSourceProvider } from '
 import { WidgetDefinition } from 'ormi-core/widgets';
 import { Ros2ConvertionGraphDefinition } from './ros2/convertion-graph';
 import { RQTGraphDefinition } from './ros2/rqt-graph';
+import { WebRtcRos2Definition } from './ros2/images/webrtc';
 
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
@@ -58,6 +59,7 @@ export const widgetsExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(Ros2ConvertionGraphDefinition());
     widgets.push(RQTGraphDefinition());
+    widgets.push(WebRtcRos2Definition())
 
     return widgets;
 }
