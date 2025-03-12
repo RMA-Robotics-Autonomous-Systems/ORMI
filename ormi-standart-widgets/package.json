@@ -8,7 +8,8 @@
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
-    "next": ">=15.2.1"
+    "next": ">=15.2.1",
+    "ormi-core": "link:ormi-core"
   },
   "devDependencies": {
     "typescript": "^5",
