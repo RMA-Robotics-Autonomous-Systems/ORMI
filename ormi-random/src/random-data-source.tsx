@@ -21,7 +21,7 @@ import { PluginsHooks } from 'ormi-core/plugins';
 
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic, SelectedTopic } from 'ormi-core/datasources';
-import { Spinner } from '@/components/spinner';
+import { Spinner } from 'ormi-core/components';
 import { IMU, Movement } from 'ormi-core/types';
 import { Vector3, PointsCloud } from 'ormi-core/types';
 
@@ -30,7 +30,7 @@ const RandomDataSourceContext = createContext(null);
 
 
 // Create a provider component
-const RandomDataSourceProvider: React.FC<{ children: ReactNode, props: RandomDataSourceSettings }> = ({ children, props }) => {
+const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSettings) => {
 
     const pluginsManager = usePluginsManager();
 

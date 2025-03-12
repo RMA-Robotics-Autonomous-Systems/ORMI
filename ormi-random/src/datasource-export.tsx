@@ -52,7 +52,7 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
             topics: [],
         },
 
-        Provider: RandomDataSourceProvider
+        Provider: ({ children, props }) => RandomDataSourceProvider(children, props)
 
     } as DatasourceDefinition<RandomDataSourceSettings>)
 
