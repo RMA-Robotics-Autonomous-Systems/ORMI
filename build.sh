@@ -1,9 +1,19 @@
 #!/bin/bash
 
 # Initialize build status tracking
-packages=""
+packages=()
 success_count=0
 total_count=0
+
+# Count the total number of packages before starting
+for dir in */; do
+    dir=${dir%/}
+    if [ "$dir" != "ormi-app" ] && [ "$dir" != "ormi-core" ]; then
+        if [ -f "$dir/package.json" ]; then
+            ((total_count++))
+        fi
+    fi
+done
 
 clear
 echo 
@@ -13,10 +23,9 @@ echo
 
 # First process ormi-core if it exists
 if [ -f "ormi-core/package.json" ]; then
-    ((total_count++))
     clear
     echo 
-    echo " ===== Building ormi-core (1/3) ====="
+    echo " ===== Building ormi-core ====="
     echo " ===================================="
     echo 
     
@@ -42,8 +51,6 @@ if [ -f "ormi-core/package.json" ]; then
     
     echo
     echo "Completed processing ormi-core"
-    packages="${packages}ormi-core (success), "
-    ((success_count++))
     echo " ===================================="
     sleep 2
 fi
@@ -54,10 +61,10 @@ for dir in */; do
     if [ "$dir" != "ormi-app" ] && [ "$dir" != "ormi-core" ]; then
         # Check if the directory contains a package.json file
         if [ -f "$dir/package.json" ]; then
-            ((total_count++))
+            ((success_count++))
             clear
             echo 
-            echo " ===== Building $dir (2/3) ====="
+            echo " ===== Building $dir (${success_count}/${total_count}) ====="
             echo " ===================================="
             echo 
             
@@ -83,43 +90,41 @@ for dir in */; do
             
             echo
             echo "Completed processing $dir"
-            packages="${packages}$dir (success), "
-            ((success_count++))
+            packages+=("$dir")
             echo " ===================================="
             sleep 2
         fi
     fi
 done
 
+# Function to create properly padded table rows
+print_table_row() {
+    local content="$1"
+    local padding="                                   "
+    echo " │ ${content}${padding:${#content}}"
+}
+
 # Display build summary table before building ormi-app
 clear
 echo 
-echo " ===== Build Summary ====="
-echo " ========================="
+echo " ┌───────────────────────────────────┐"
+echo " │      Build Summary                │"
+echo " ├───────────────────────────────────┤"
+printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
+echo " └───────────────────────────────────┘"
 echo 
-echo "Packages built: $success_count/$total_count"
-echo 
-echo "Status:"
-echo "${packages:0:-2}"
-echo 
-echo " ========================="
+echo " Package Status:"
+echo " ┌───────────────────────────────────┐"
+for pkg in "${packages[@]}"; do
+    printf " │ %-25s ✓     │\n" "$pkg"
+done
+echo " └───────────────────────────────────┘"
 echo 
 
 # Finally process ormi-app if it exists
 if [ -f "ormi-app/package.json" ]; then
-    ((total_count++))
     echo 
-    echo " ===== Build Summary ====="
-    echo " ========================="
-    echo 
-    echo "Packages built: $success_count/$total_count"
-    echo 
-    echo "Status:"
-    echo "${packages:0:-2}"
-    echo 
-    echo " ========================="
-    echo 
-    echo " ===== Building ormi-app (3/3) ====="
+    echo " ===== Building ormi-app ====="
     echo " ===================================="
     echo 
     
@@ -141,23 +146,23 @@ if [ -f "ormi-app/package.json" ]; then
     
     echo
     echo "Completed processing ormi-app"
-    ((success_count++))
     echo " ===================================="
 fi
 
 echo 
-echo " ===== All folders processed - Final Results ====="
-echo " ==============================================="
+echo " ┌───────────────────────────────────┐"
+echo " │      Final Build Summary          │"
+echo " ├───────────────────────────────────┤"
+printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
+echo " └───────────────────────────────────┘"
 echo 
-echo "Packages built: $success_count/$total_count"
-echo 
-echo "Status:"
-if [ -n "$packages" ]; then
-    echo "${packages:0:-2}, ormi-app (success)"
+echo " Package Status:"
+echo " ┌───────────────────────────────────┐"
+if [ ${#packages[@]} -eq 0 ]; then
+    echo " │ No packages were built            │"
 else
-    echo "ormi-app (success)"
+    for pkg in "${packages[@]}"; do
+        printf " │ %-25s ✓     │\n" "$pkg"
+    done
 fi
-echo 
-echo " ==============================================="
-
-read -p "Press Enter to continue..."
+echo " └───────────────────────────────────┘"
