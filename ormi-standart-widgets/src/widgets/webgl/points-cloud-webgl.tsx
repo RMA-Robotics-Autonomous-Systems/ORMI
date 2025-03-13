@@ -46,7 +46,7 @@ export function PointsCloudDefinition() {
             ]
         } as VerticalLayout,
         data: {
-            title: 'Status',
+            title: 'Points Cloud',
             use3D: false,
             maxPoints: 100
         },

@@ -40,3 +40,5 @@ export * from "@/library/components/ui/toast";
 export * from "@/library/components/ui/tooltip";
 
 export * from "@/library/hooks/use-toast";
+
+export { useTheme } from "next-themes"

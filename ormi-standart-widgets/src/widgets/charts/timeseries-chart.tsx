@@ -5,7 +5,7 @@ import { getColorsFromString, getTransparentColorString } from 'ormi-core/utils'
 import { toast } from 'ormi-core/components';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { ChartLineIcon } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { useTheme } from 'ormi-core/components';
 import React, { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { AlignedData } from 'uplot';
@@ -38,8 +38,8 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 
     const { resolvedTheme } = useTheme();
 
-    const strokeColor = resolvedTheme === "light" ? "#333" : "#ccc";
-    const gridStroke = resolvedTheme === "light" ? "#eee" : "#333";
+    const strokeColor = resolvedTheme === "light" ? "#726F6D" : "#ccc";
+    const gridStroke = resolvedTheme === "light" ? "#eee" : "#726F6D";
 
     const optionsRef = useRef<uPlot.Options>({
         width: 500,

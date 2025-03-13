@@ -4,11 +4,10 @@ import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import ROSLIB from 'roslib';
 import { usePluginsManager } from 'ormi-core/plugins';
-import { useButtonHolder, Button } from 'ormi-core/components';
+import { useButtonHolder, Button, useTheme } from 'ormi-core/components';
 import { RefreshCwIcon } from 'lucide-react';
 import { PluginsHooks } from 'ormi-core/plugins';
 import { Datasource } from 'ormi-core/datasources';
-import { useTheme } from "next-themes"
 
 interface RQTGraphProps {
     title: string;
