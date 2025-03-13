@@ -2,28 +2,16 @@
 
 Open Robot Management Interface; this is the core application
 
+## Building
+
+Run the `build.sh` script.
+It will build and link `ormi-core`, then all packages/plugins and then it will build `ormi-app`
+
 ## CLI tools
 
-You can enable the CLI tools to install and manage plugins. You can add a `ormi-plugins.json` file in the root of the webapp. This file contains the definition of the plugins used.
+The `ormi-plugins` tool allow the "auto" import of the different plugins. It scans the node_module folder to detect the different plugins. It then generate a file with the required imports (registry)
 
-```json
-{
-  "plugin_name_a": {
-    "git": "remote_git_url_of_plugin_a"
-  },
-  "plugin_name_b": {
-    "git": "remote_git_url_of_plugin_b"
-  }
-}
-```
-
-### Enable the CLI Tools
-
-```bash
-cd ./ormi-core/
-
-bun link
-```
+- `ormi-plugins` is automaticaly called in the `ormi-app` package when you run the `bun run dev` and `bun run build` commande
 
 ### Available Commands
 
@@ -35,40 +23,13 @@ Displays the current version of the ORMI-Core CLI tools.
 ormi-plugins version
 ```
 
-#### `add`
-
-Adds a new plugin to the ORMI-Core application.
-
-```bash
-ormi-plugins add <plugin-name>
-```
-
-- `<plugin-name>`: The name of the plugin to add.
-
-#### `remove`
-
-Removes an existing plugin from the ORMI-Core application.
-
-```bash
-ormi-plugins remove <plugin-name>
-```
-
-- `<plugin-name>`: The name of the plugin to remove.
-
 #### `init`
 
-Initializes the ORMI-Core application with default settings.
+Scan the node_module folder and generate a file registry.
 
 ```bash
-ormi-plugins init
-```
-
-#### `update`
-
-Updates the ORMI-Core application and its plugins to the latest version.
-
-```bash
-ormi-plugins update
+# path -> path to the registry file to be generated
+ormi-plugins init <path>
 ```
 
 ## The basis
@@ -754,176 +715,3 @@ class PluginManager {
   constructor(pluginsMap: Map<string | PluginsHooks, PluginClientSide>); // the plugin maps is the translation from the server side plugin to the cliend side, created by the PluginsLoader
 }
 ```
-
-## Implementing a Datasource Plugin
-
-Exemple that implement a simple datasource plugin.
-
-```
-plugins/
-    MyDatasourcePlugin/
-        index.ts
-        my-datasource-provider.tsx
-```
-
-1. Create Plugin Class
-
-Create a new class that extends PluginServerSide, in index.ts:
-
-`index.ts`
-
-```ts
-import { PluginServerSide } from "@/library/core/plugins/plugin-core";
-import { PluginsHooks } from "@/library/core/plugins/plugins-types";
-
-class MyDatasourcePlugin extends PluginServerSide {
-  constructor() {
-    super();
-    this.name = "My Datasource";
-    this.description = "My custom datasource plugin";
-    this.version = "1.0.0";
-
-    // Register the datasource definition, the datasouce will be added to the datasources list
-    this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-      id: "my-datasource",
-      priority: 10,
-      filter: exportDatasource, // this function MUST BE CLIEN SIDE
-    });
-  }
-}
-```
-
-2. Define Datasource Interface
-   Create settings interface extending DatasourceProviderSettings:
-
-`my-datasource-provider.tsx`
-
-```ts
-interface MyDatasourceSettings extends DatasourceProviderSettings {
-  // Add custom settings
-  url: string;
-  port: number;
-  topics: TopicDefinition[];
-}
-```
-
-3. Create Datasource Definition
-   Implement the datasource definition object:
-
-`my-datasource-provider.tsx`
-
-```ts
-import { DatasourceDefinition } from "@/library/core/datasources/datasource-interface";
-const myDatasourceDefinition: DatasourceDefinition = {
-  id: "my-datasource",
-  name: "My Datasource",
-  description: "Description of my datasource",
-
-  // JSON Schema, use by the core to generate a html for and manage the different settings
-  schema: {
-    type: "object",
-    properties: {
-      url: { type: "string" },
-      port: { type: "number" },
-    },
-  },
-
-  // Default settings
-  data: {
-    id: "",
-    title: "",
-    enable: true,
-    url: "localhost",
-    port: 9090,
-  },
-
-  // React component that provides the datasource
-  Provider: MyDatasourceProvider,
-};
-
-export function exportDatasource(datasources: DatasourceDefinition<any>[]) {
-  datasources.push(myDatasourceDefinition); // add the new datasource
-  return datasources;
-}
-```
-
-4. Implement Provider Component
-   Create a React component to handle datasource lifecycle:
-
-`my-datasource-provider.tsx`
-
-```tsx
-import React, { createContext, ReactNode, useEffect, useState } from "react";
-import { usePluginsManager } from "@/library/core/plugins/components/plugins-provider";
-import { PluginsHooks } from "@/library/core/plugins/plugins-types";
-import {
-  DatasourceTopic,
-  SelectedTopic,
-} from "@/library/core/datasources/datasource-interface";
-
-// Create context
-const MyDatasourceContext = createContext(null);
-
-// Provider component
-const MyDatasourceProvider: React.FC<{
-  children: ReactNode;
-  props: MyDatasourceSettings;
-}> = ({ children, props }) => {
-  const pluginsManager = usePluginsManager();
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    // Register available topics
-    pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-      id: `${props.id}-available-topics`,
-      priority: 10,
-      filter: (topics: DatasourceTopic[]) => {
-        // Add a single demo topic
-        topics.push({
-          topic: "demo/topic",
-          source: props,
-          type: "number",
-        });
-        return topics;
-      },
-    });
-
-    // Handle subscriptions
-    pluginsManager.addAction(`${props.id}-subscribe`, {
-      id: `${props.id}-subscribe`,
-      action: (topic: SelectedTopic) => {
-        // Publish random data every second
-        const interval = setInterval(() => {
-          const value = Math.random();
-          pluginsManager.doAction(
-            `${props.id}-${topic.topic}-published`,
-            value,
-            Date.now()
-          );
-        }, 1000);
-
-        // Store interval for cleanup
-        return () => clearInterval(interval);
-      },
-    });
-
-    setInitialized(true);
-
-    // Cleanup
-    return () => {
-      pluginsManager.removeFilter(`${props.id}-available-topics`);
-      pluginsManager.removeAction(`${props.id}-subscribe`);
-    };
-  }, [props]);
-
-  return (
-    <MyDatasourceContext.Provider value={null}>
-      {initialized && children}
-    </MyDatasourceContext.Provider>
-  );
-};
-
-export { MyDatasourceProvider };
-```
-
-## Implement a widget
