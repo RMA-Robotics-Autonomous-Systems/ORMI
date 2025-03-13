@@ -34,7 +34,7 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
 
     const pluginsManager = usePluginsManager();
 
-    const intervalesRef = useRef(new Map<string, NodeJS.Timeout>());
+    const intervalesRef = useRef(new Map<string, ReturnType<typeof setInterval>>());
     const subscribersCountRef = useRef(new Map<string, number>());
 
     const datasource_id = props.id;
@@ -48,7 +48,7 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
     useEffect(() => {
         const available_topics = props.topics;
 
-        const intervalGenerator = (topic: SelectedTopic): NodeJS.Timeout => {
+        const intervalGenerator = (topic: SelectedTopic): ReturnType<typeof setInterval> => {
             try {
                 const freq = getTopicFrequency(topic.topic);
 
