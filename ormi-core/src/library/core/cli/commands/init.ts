@@ -50,7 +50,7 @@ function get_plugins(): string[] {
         if (scannedCount % 50 === 0 || scannedCount === totalDirs) {
             process.stdout.write(`\r${chalk.blue('⏳')} Scanning packages: ${chalk.green(scannedCount)}/${chalk.green(totalDirs)} [${Math.round((scannedCount/totalDirs)*100)}%]`);
         }
-
+        
         try {
             const pckg = JSON.parse(readFileSync(package_json, "utf-8"));
             if (pckg["ormi_plugin"] !== undefined) {
@@ -63,6 +63,8 @@ function get_plugins(): string[] {
             return false;
         }
     });
+
+    process.stdout.write(`\r${chalk.blue('⏳')} Scanning packages: ${chalk.green(totalDirs)}/${chalk.green(totalDirs)} [${100}%]`)
 
     // Add a newline after progress output
     if (totalDirs > 0) {
