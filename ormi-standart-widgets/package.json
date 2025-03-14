@@ -1,0 +1,42 @@
+{
+  "name": "ormi-standart-widgets",
+  "version": "0.1.0",
+  "private": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && copyfiles -u 1 'src/library/**/*.css' dist"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "next": ">=15.2.1",
+    "ormi-core": "link:ormi-core"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/react-dom": "^19.0.4",
+    "@eslint/eslintrc": "^3"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "main": "dist/index.js",
+  "dependencies": {
+    "@jsonforms/core": "^3.5.1",
+    "copyfiles": "^2.4.1",
+    "lucide-react": "^0.479.0",
+    "maplibre-gl": "^5.2.0",
+    "next-themes": "^0.4.4",
+    "react-map-gl": "^8.0.1",
+    "react-type-animation": "^3.2.0",
+    "tsc-alias": "1.8.11",
+    "uplot": "^1.6.31",
+    "uplot-react": "^1.2.2"
+  },
+  "ormi_plugin": true
+}

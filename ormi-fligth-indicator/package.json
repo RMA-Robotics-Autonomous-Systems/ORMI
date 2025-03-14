@@ -1,0 +1,42 @@
+{
+  "name": "ormi-fligth-indicator",
+  "description": "Add fligth indicator widget",
+  "author": {
+    "name": "Florian Lebecque",
+    "email": "florian.lebecque@mil.be"
+  },
+  "version": "0.1.0",
+  "private": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && copyfiles -u 1 'src/library/**/*.css' dist"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "next": ">=15.2.1",
+    "ormi-core": "link:ormi-core"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/react": "^19.0.10",
+    "@eslint/eslintrc": "^3"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "main": "dist/index.js",
+  "dependencies": {
+    "@jsonforms/core": "^3.5.1",
+    "copyfiles": "^2.4.1",
+    "lucide-react": "^0.479.0",
+    "react-typescript-flight-indicators": "^1.0.4",
+    "tsc-alias": "1.8.11"
+  },
+  "ormi_plugin": true
+}
