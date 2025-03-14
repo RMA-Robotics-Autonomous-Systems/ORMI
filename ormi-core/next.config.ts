@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
         pathname: '/9.x/**',
       },
     ],
+    dangerouslyAllowSVG: true,
+  },
+  experimental: {
+    reactCompiler: true,
   },
 };
 

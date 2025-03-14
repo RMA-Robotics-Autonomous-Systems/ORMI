@@ -7,18 +7,19 @@
 import fs from 'fs';
 // import dynamic from 'next/dynamic';
 
-import {PluginCore, PluginData} from './plugin-core';
+import {PluginServerSide, PluginClientSide} from './plugin-core';
 
 class PluginsLoader{
 
-    private plugins: Map<string, PluginCore>;
+    private plugins: Map<string, PluginServerSide>;
     private static PLUGINS_PATH: string = 'plugins';
 
     constructor(){
-        this.plugins = new Map<string, PluginCore>();
+        this.plugins = new Map<string, PluginServerSide>();
+        this.load();
     }
     
-    addPlugin(plugin: PluginCore): void{
+    addPlugin(plugin: PluginServerSide): void{
 
         // Add plugin to plugins object
         this.plugins.set(plugin.getName(), plugin);
@@ -34,21 +35,21 @@ class PluginsLoader{
         throw new Error(`Plugin ${pluginName} not found`);
     }
 
-    public getPlugins(): Map<string,PluginCore>{
+    public getPlugins(): Map<string,PluginServerSide>{
         return this.plugins;
     }
 
-    async Load(): Promise<boolean>{
+    load(): boolean{
         // Load all plugins in the plugins directory
         const plugins: string[] = PluginsLoader.listPluginsDir();
 
         for(const plugin of plugins){
 
             // Load plugin
-            await import(`@/plugins/${plugin}/index.ts`).then((module) => {
-                const pluginInstance = new module.default();
-                this.addPlugin(pluginInstance);
-            });
+            // eslint-disable-next-line @next/next/no-assign-module-variable, @typescript-eslint/no-require-imports
+            const module = require(`@/plugins/${plugin}/index.ts`);
+            const pluginInstance = new module.default();
+            this.addPlugin(pluginInstance);
 
         }
 
@@ -71,11 +72,11 @@ class PluginsLoader{
         return plugins;
     } 
 
-    public convertToPlainObject(): Map<string, PluginData>{
+    public getClientSide(): Map<string, PluginClientSide>{
             
-        const plugins: Map <string, PluginData> = new Map<string, PluginData>();
+        const plugins: Map <string, PluginClientSide> = new Map<string, PluginClientSide>();
 
-        this.plugins.forEach((plugin: PluginCore, key: string) => {
+        this.plugins.forEach((plugin: PluginServerSide, key: string) => {
             plugins.set(key, plugin.toObject());
         });
 

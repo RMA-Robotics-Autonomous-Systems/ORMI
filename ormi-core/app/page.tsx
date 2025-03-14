@@ -1,24 +1,18 @@
-import PluginsLoader from "@/core/plugins/plugins-loader";
 import styles from "./page.module.css";
 
-import { PluginsProvider } from "@/core/plugins/components/plugins-provider";
-import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
 import { DashboardProvider } from "@/core/dashboard/components/dashboard-provider";
 import DashboardInterface from "@/core/dashboard/dashboard-interface";
 import Dashboard from "@/core/dashboard/components/dashboard";
 import { Widget } from "@/core/widgets/widget-interface";
-import NavBar from "@/components/advanced/navbar/navbar";
-import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
 
+import { Datasource } from "@/core/datasources/datasource-interface";
+import { GlobalDataSourcesProvider } from "@/core/datasources/components/global-datasource-provider";
+import { handleLoad, handleSave } from "@/core/dashboard/components/dashboard-local-storage";
+import WidgetsDialog from "@/core/widgets/components/widgets-dialog/widgets-dialog";
+import { handleLoad as tl, handleSave as ts } from "@/core/templates/templates-localstorage";
+import { TemplatesProvider } from "@/core/templates/templates-provider";
 
-
-export default async function Home() {
-
-    const pl = new PluginsLoader();
-    await pl.Load();
-
-    // convert p to plain object
-    const plugins = pl.convertToPlainObject();
+export default function Home() {
 
     const dashboardDefinition: DashboardInterface = {
         layouts: {
@@ -28,20 +22,21 @@ export default async function Home() {
             xs: [],
             xxs: []
         },
-        widgets: new Map<string, Widget>()
+        widgets: new Map<string, Widget>(),
+        datasources: new Map<string, Datasource>(),
+        locked: false
     }
 
     return (
         <div className={styles.page}>
-            <PluginsProvider pluginsLoader={plugins}>
-                <NavbarProvider>
-                    <DashboardProvider dashboardDefinition={dashboardDefinition}>
-                        <NavBar />
+            <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
+                <TemplatesProvider onLoad={tl} onSave={ts}>
+                    <GlobalDataSourcesProvider>
                         <Dashboard />
                         <WidgetsDialog />
-                    </DashboardProvider>
-                </NavbarProvider>
-            </PluginsProvider>
+                    </GlobalDataSourcesProvider>
+                </TemplatesProvider>
+            </DashboardProvider>
         </div>
     );
 }

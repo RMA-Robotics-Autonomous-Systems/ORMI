@@ -1,10 +1,10 @@
-import {PluginCore} from "@/core/plugins/plugin-core";
+import {PluginServerSide} from "@/core/plugins/plugin-core";
 
 import { PluginsHooks } from "@/core/plugins/plugins-types";
 import WidgetExport from "./widget-export";
 
 
-class PluginA extends PluginCore{
+class PluginA extends PluginServerSide{
 
     constructor(){
         super();
@@ -15,11 +15,13 @@ class PluginA extends PluginCore{
         this.author = "Lbcqu Florian";
         this.email = "florian.lebecque@mil.be";
 
-        this.filters.set(PluginsHooks.WIDGETS_LIST, {
+        const widgetFilter = {
+            id: this.name + "-widget-export",
             priority: 10,
             filter: WidgetExport
-        });
+        };
 
+        this.addFilter(PluginsHooks.WIDGETS_LIST, widgetFilter);
     }
 }
 

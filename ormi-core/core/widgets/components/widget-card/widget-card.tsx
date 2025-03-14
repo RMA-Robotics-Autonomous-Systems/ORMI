@@ -22,21 +22,20 @@ import {
 
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
-import { GearIcon, CheckIcon } from "@radix-ui/react-icons";
 import { toast } from "@/hooks/use-toast";
+import shadcnRenderer, { shadcnCells } from "@/core/jsonforms/ShadcnRender";
+import { CheckIcon, SettingsIcon } from "lucide-react";
+import { AddToTemplatesBtn } from "@/core/templates/components/add-to-templates";
 
 // Import the custom renderers
-import AsyncSelectControl, { asyncSelectTester } from '@/core/jsonforms/async-select/async-select-control';
-import colorSelect, { colorSelectTester } from "@/core/jsonforms/color-select/color-select";
-import SwitchControl, { switchTester } from "@/core/jsonforms/switch/switch-render";
-import TextControl, { TextTester } from "@/core/jsonforms/text-input/text-input";
-import NumberControl, { NumberTester } from "@/core/jsonforms/number-input/number-input";
+
 
 interface WidgetCardProps {
     displayType?: "card" | "list" | "gear";
     definition: WidgetDefinition;
     data?: any;
     onValidate: (widget: WidgetDefinition, settings: object) => void;
+    fromLoaded?: boolean;
 }
 
 
@@ -81,7 +80,7 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayType === "gear") {
             return (
                 <Button variant={"ghost"}>
-                    <GearIcon />
+                    <SettingsIcon />
                 </Button>
             );
         }
@@ -89,38 +88,21 @@ const WidgetCard = (props: WidgetCardProps) => {
         if (props.displayType === "list") {
             return (
                 <Button variant={"ghost"}>
-                    <GearIcon />
+                    {props.definition.icon || <SettingsIcon />}
                     <p>{props.definition.name}</p>
                 </Button>
             );
         }
 
-        if (!props.definition.image) {
-
-            return (
-                <button className={styles.card}>
-                    <div className="flex justify-center items-center">
-                        <h2 className={styles.title}>{props.definition.name}</h2>
-                        <GearIcon className={styles.image} />
-                    </div>
-
-                    <div className={styles.overlay}>
-                        <p className={styles.description}>{props.definition.description}</p>
-                    </div>
-                </button>
-            );
-
-
-        }
 
         return (
             <button className={styles.card}>
-                <div
-                    className={styles.image}
-                    style={{ backgroundImage: `url(${props.definition.image})` }}
-                >
-                    <div className={styles.overlay}>
-                        <p className={styles.description}>{props.definition.description}</p>
+                <div className={styles.overlay}>
+                    <p className={styles.description}>{props.definition.description}</p>
+                </div>
+                <div className={styles.content}>
+                    <div style={{ scale: 3 }}>
+                        {props.definition.icon || <SettingsIcon />}
                     </div>
                     <h2 className={styles.title}>{props.definition.name}</h2>
                 </div>
@@ -130,12 +112,13 @@ const WidgetCard = (props: WidgetCardProps) => {
 
     const renderers = [
         ...materialRenderers,
-        { tester: asyncSelectTester, renderer: AsyncSelectControl },
-        { tester: colorSelectTester, renderer: colorSelect },
-        { tester: switchTester, renderer: SwitchControl },
-        { tester: TextTester, renderer: TextControl },
-        { tester: NumberTester, renderer: NumberControl }
+        ...shadcnRenderer,
     ];
+
+    const cellsRenderers = [
+        ...materialCells,
+        ...shadcnCells
+    ]
 
     return (
         <Dialog>
@@ -155,17 +138,17 @@ const WidgetCard = (props: WidgetCardProps) => {
                         uischema={props.definition.uischema}
                         data={data}
                         renderers={renderers}
-                        cells={materialCells}
+                        cells={cellsRenderers}
                         onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
-                    <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
+                    <div className="flex justify-end mt-1.5 gap-3" style={{ justifyContent: "flex-end" }} >
+                        {props.fromLoaded && props.fromLoaded === true && <AddToTemplatesBtn widget={props.definition} data={data} />}
                         <DialogClose className="float-end" asChild>
                             <Button onClick={() => { handleAdd() }}>
                                 <CheckIcon />
                             </Button>
                         </DialogClose>
                     </div>
-
                 </div>
             </DialogContent>
         </Dialog >

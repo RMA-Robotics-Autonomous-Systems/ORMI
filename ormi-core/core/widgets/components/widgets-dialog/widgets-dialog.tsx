@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 /*
     Dialog that display available widgets as cards
@@ -35,7 +35,7 @@ const WidgetsDialog = () => {
     const pluginsManager = usePluginsManager() as PluginsManager;
     const { addWidget, locked } = useDashboardManager();
 
-    const widgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
+    const widgets: WidgetDefinition[] = pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGETS_LIST, []);
 
     const handleValidate = (widget: WidgetDefinition, settings: object) => {
         addWidget(widget, settings);

@@ -1,0 +1,6 @@
+.cell {
+    display: grid;
+    grid-template-columns: 10dvw 1fr;
+    gap: 1rem;
+    align-items: center;
+}

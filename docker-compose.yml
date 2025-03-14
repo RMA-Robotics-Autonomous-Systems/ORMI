@@ -1,0 +1,61 @@
+services:
+  core:
+    container_name: ormi_core
+    network_mode: host
+    build:
+      context: .
+      dockerfile: Dockerfile.ormi_core
+    restart: always
+    volumes:
+      - ./ormi-core:/ormi-core
+      - ./ormi-core/node_modules:/ormi-core/node_modules
+      - ./ormi-core/.next:/app/.next
+
+  rosbridge_suite:
+    container_name: ormi_rosbridge_suite
+    build:
+      context: . # Build context (optional, defaults to current directory)
+      dockerfile: Dockerfile.rosbridge_suite
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    ipc: host
+    pid: host
+    command: ros2 launch rosbridge_server rosbridge_websocket_launch.xml namespace:=${USER} respawn:=true
+    # environment:
+    # - "ROBOTNAME=${ROBOTNAME}"
+    # - "ROS_DOMAIN_ID=4"
+    # - "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
+    # - CYCLONEDDS_URI=file:///cyclone_profile.xml
+    # volumes:
+    #   - /home/robotaa/cyclone_profile.xml:/cyclone_profile.xml
+
+  # webrtc:
+  #   container_name: ros2_lab_webrtc
+  #   build:
+  #     context: . # Build context (optional, defaults to current directory)
+  #     dockerfile: Dockerfile.webrtc
+  #   restart: unless-stopped
+  #   privileged: true
+  #   network_mode: host
+  #   ipc: host
+  #   pid: host
+  #   command: python3 webrtc_server.py
+  #   environment:
+  #     - "ROBOTNAME=${ROBOTNAME}"
+  #     - "ROS_DOMAIN_ID=4"
+  #     - "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
+  #     - CYCLONEDDS_URI=file:///cyclone_profile.xml
+  #   volumes:
+  #     - /home/robotaa/cyclone_profile.xml:/cyclone_profile.xml #- ./webrtc/webrtc_server.py:/ws_webrtc/webrtc_server.py
+  #     - ./webrtc/:/ws_webrtc/
+
+  # bagapi:
+  #   container_name: ros2_lab_bagapi
+  #   build:
+  #     context: . # Build context (optional, defaults to current directory)
+  #     dockerfile: Dockerfile.bagapi
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - /ssd/bags:/app/bags

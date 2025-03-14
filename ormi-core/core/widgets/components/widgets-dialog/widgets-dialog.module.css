@@ -5,6 +5,7 @@
     gap: 0.5rem;
     overflow-x: auto;
     padding: 0.5rem;
+    justify-content: start;
 }
 
 .floatingButton {
@@ -17,11 +18,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: hsl(var(--foreground));
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    scale: 0.7;
+    opacity: 0.7;
 }
 
 .floatingButton:hover {
     scale: 1.1;
+    opacity: 1;
     transition: 0.1s;
 }

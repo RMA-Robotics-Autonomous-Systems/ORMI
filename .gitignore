@@ -38,4 +38,19 @@ yarn-error.log*
 next-env.d.ts
 
 # 
+ormi-core/bun.lock
 ormi-core/bun.lockb
+
+# ignore all folders except the ones specified inside the ormi-core/plugins folder
+# keep 
+#
+#   - ormi-core/plugins/standard-widgets
+#   - ormi-core/plugins/ros-2
+#   - ormi-core/plugins/random-data-sources
+#
+# Ignore all other folders inside ormi-core/plugins
+
+ormi-core/plugins/*
+!ormi-core/plugins/standard-widgets
+!ormi-core/plugins/ros-2
+!ormi-core/plugins/random-data-sources

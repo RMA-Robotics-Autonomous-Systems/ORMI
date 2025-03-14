@@ -1,8 +1,7 @@
-"use client";
+"use client"
 import { useEffect, useMemo } from "react";
 import { useDashboardManager } from '@/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
-import { Cross1Icon, LockClosedIcon, LockOpen1Icon } from "@radix-ui/react-icons"
 
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -13,15 +12,21 @@ import { Widget, WidgetDefinition } from "@/core/widgets/widget-interface";
 import WidgetCard from "@/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/core/widgets/components/widget-combo/widget-combo";
-import { ArrowLeftFromLine, ArrowUpFromLine, Check, Save } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
+import { ButtonHolderProvider } from "@/components/advanced/ButtonHolder/button-holder-provider";
+import ButtonHolder from "@/components/advanced/ButtonHolder/button-holder";
+import { WidgetTemplateDrawer } from "@/core/templates/components/templates-drawer";
+import { useTemplates } from "@/core/templates/templates-provider";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload, datasources } = useDashboardManager();
 
-    const { setNavbarItem } = useNavbar();
+    const { templates, removeTemplate } = useTemplates();
 
-    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive), []);
+    const { setNavbarItem, removeNavbarItem } = useNavbar();
+
+    const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive) as unknown as React.FC<any>, [forceReload]);  // (improve performance from 'doc', also, juste make it works)
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
@@ -37,13 +42,28 @@ const Dashboard = () => {
         updateWidget(box_id, settings);
     }
 
+    const handleValidate = (widget: WidgetDefinition, settings: object) => {
+        addWidget(widget, settings);
+    }
+
+
+    useEffect(() => {
+        setNavbarItem("right", "template_drawer",
+            <WidgetTemplateDrawer templates={templates} addWidget={addWidget} removeTemplate={removeTemplate} />
+        );
+
+        return () => {
+            removeNavbarItem("right", "template_drawer");
+        }
+    }, [templates]);
+
     useEffect(() => {
 
-        setNavbarItem("center", "widgets_combo", <WidgetsCombo />);
+        setNavbarItem("center", "widgets_combo", <WidgetsCombo onValidate={handleValidate} />);
 
         setNavbarItem("center", "lock_unlock",
             <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>
-                {!locked ? <LockOpen1Icon /> : <LockClosedIcon />}
+                {!locked ? <LockIcon /> : <LockOpenIcon />}
             </Button>
         );
 
@@ -59,13 +79,63 @@ const Dashboard = () => {
             </Button>
         );
 
+        setNavbarItem("center", "exploseLayout",
+            <Button variant={"ghost"} onClick={() => { exploseLayout() }}>
+                <BombIcon />
+            </Button>
+        );
+
         setNavbarItem("center", "save",
             <Button variant={"ghost"} onClick={() => { savesDashboard(); }}>
                 {hasChanged ? <Save /> : <Check />}
             </Button>
         );
 
+
+
+        return () => {
+            removeNavbarItem("center", "widgets_combo");
+            removeNavbarItem("center", "lock_unlock");
+            removeNavbarItem("center", "moveToHorizontal");
+            removeNavbarItem("center", "moveToVertical");
+            removeNavbarItem("center", "exploseLayout");
+            removeNavbarItem("center", "save");
+
+        }
+
     }, [locked, hasChanged, layouts, widgets]);
+
+
+    const widgets_elements = useMemo(() => {
+
+        return (
+            (
+                Array.from(widgets).map(([key, widget]: [string, Widget]) => {
+                    return (
+                        <div key={key} className={style.widget + " shadow-md"}>
+                            <ButtonHolderProvider>
+                                <div className='flex flex-row content-between gap-1' style={{ padding: "0.25rem" }}>
+                                    <div className={style.dragHandle}>{widget.title}</div>
+
+                                    <ButtonHolder />
+
+                                    {!locked && (<WidgetCard fromLoaded={true} data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
+
+                                    {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
+                                        <XIcon />
+                                    </Button>)}
+                                </div>
+                                <div className={style.content}>
+                                    {getComponents(widget.box_id)}
+                                </div>
+                            </ButtonHolderProvider>
+                        </div>
+                    );
+                })
+            )
+        );
+
+    }, [widgets, datasources, locked]);
 
     return (
         <ResponsiveGridLayout
@@ -83,25 +153,7 @@ const Dashboard = () => {
             isDraggable={!locked}
             isResizable={!locked}
         >
-            {Array.from(widgets).map(([key, widget]: [string, Widget]) => {
-                return (
-                    <div key={key} className={style.widget + " shadow-md"}>
-                        <div className='flex flex-row content-between gap-1' style={{ padding: "0.25rem" }}>
-                            <div className={style.dragHandle}>{widget.title}</div>
-
-                            {!locked && (<WidgetCard data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
-
-                            {!locked && (<Button className="m-4" variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
-                                <Cross1Icon />
-                            </Button>)}
-                        </div>
-                        <div className={style.content}>
-                            {getComponents(widget.box_id)}
-                        </div>
-                    </div>
-                );
-            })}
-
+            {widgets_elements}
         </ResponsiveGridLayout>
     );
 

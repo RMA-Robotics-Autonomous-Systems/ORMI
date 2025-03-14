@@ -3,9 +3,9 @@
 */
 
 
-import { PluginAction, PluginFilter, PluginData, PluginsHooks } from "@/core/plugins/plugins-types";
+import { PluginAction, PluginFilter, PluginClientSide, PluginsHooks } from "@/core/plugins/plugins-types";
 
-abstract class PluginCore{
+abstract class PluginServerSide{
 
     protected name: string;
     protected author: string;
@@ -19,9 +19,8 @@ abstract class PluginCore{
 
 
     // actions
-    protected actions: Map<string | PluginsHooks , PluginAction> = new Map<string, PluginAction>();
-    protected filters: Map<string | PluginsHooks, PluginFilter> = new Map<string, PluginFilter>();
-
+    protected actions: Map<string | PluginsHooks, Map<string, PluginAction>> = new Map<string, Map<string, PluginAction>>();
+    protected filters: Map<string | PluginsHooks, Map<string, PluginFilter>> = new Map<string, Map<string, PluginFilter>>();
 
     constructor(){
         this.name = "core";
@@ -30,9 +29,6 @@ abstract class PluginCore{
         this.author = "";
         this.email = ""
         this.url = "";
-        
-
-
     }
 
     // abstract init(pl:PluginsLoader): void;
@@ -64,7 +60,23 @@ abstract class PluginCore{
         return this.dependencies;
     }
 
-    toObject(): PluginData{
+    addAction(actionName: string | PluginsHooks, action: PluginAction): void{
+        if(this.actions.has(actionName)){
+            this.actions.get(actionName)?.set(this.name, action);
+        }else{
+            this.actions.set(actionName, new Map<string, PluginAction>([[this.name, action]]));
+        }
+    }
+
+    addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void{
+        if(this.filters.has(filterName)){
+            this.filters.get(filterName)?.set(this.name, filter);
+        }else{
+            this.filters.set(filterName, new Map<string, PluginFilter>([[this.name, filter]]));
+        }
+    }
+
+    toObject(): PluginClientSide{
         return {
             name: this.name,
             description: this.description,
@@ -75,5 +87,5 @@ abstract class PluginCore{
     }
 }
 
-export { PluginCore };
-export type { PluginAction, PluginFilter, PluginData };
+export { PluginServerSide };
+export type { PluginAction, PluginFilter, PluginClientSide };

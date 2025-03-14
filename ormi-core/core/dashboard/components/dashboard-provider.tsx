@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import DashboardInterface from '../dashboard-interface';
@@ -8,6 +8,7 @@ import { usePluginsManager } from '../../plugins/components/plugins-provider';
 import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/hooks/use-toast';
+import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '@/core/datasources/datasource-interface';
 
 interface DashboardContextInterface {
 
@@ -17,6 +18,7 @@ interface DashboardContextInterface {
     compactType: "vertical" | "horizontal" | null;
     moveToVertical: () => void;
     moveToHorizontal: () => void;
+    exploseLayout: () => void;
 
     getComponents: (boxId: string) => JSX.Element;
     getDefinition: (widget_id: string) => WidgetDefinition;
@@ -32,6 +34,12 @@ interface DashboardContextInterface {
     layoutsChanged: (newLayouts: Layouts) => void;
     savesDashboard: () => void;
     hasChanged: boolean;
+    forceReload: boolean;
+
+    datasources: Map<string, Datasource>;
+    updateDatasource: (datasource_id: string, settings: DatasourceProviderSettings) => void;
+    addDatasource: (datasource_id: string) => void;
+    removeDatasource: (datasource_id: string) => void;
 }
 
 // Create the context with a default value
@@ -48,38 +56,65 @@ const DashboardContext = createContext<DashboardContextInterface>({
     compactType: null,
     moveToVertical: () => { },
     moveToHorizontal: () => { },
+    exploseLayout: () => { },
 
-    getComponents: (boxId: string) => <></>,
-    getBox: (breakpoint: string, boxId: string) => { throw new Error("Method not implemented."); },
-    getDefinition: (widget_id: string) => { throw new Error("Method not implemented."); },
-    addWidget: (widget: WidgetDefinition, settings: any) => { },
-    removeWidget: (box_id: string) => { },
-    updateWidget: (box_id: string, settings: any) => { },
+    getComponents: () => <></>,
+    getBox: () => { throw new Error("Method not implemented."); },
+    getDefinition: () => { throw new Error("Method not implemented."); },
+    addWidget: () => { },
+    removeWidget: () => { },
+    updateWidget: () => { },
 
     lockUnLockDashboard: () => { },
     locked: false,
 
-    layoutsChanged: (newLayouts: Layouts) => { },
+    layoutsChanged: () => { },
     savesDashboard: () => { },
-    hasChanged: false
+    hasChanged: false,
+    forceReload: false,
+
+    datasources: new Map<string, Datasource>(),
+    updateDatasource: () => { },
+    addDatasource: () => { },
+    removeDatasource: () => { }
 });
 
+interface LayoutMatrix {
+    cols: number,
+    rows: number
+}
+
+interface DashboardProviderProps {
+    children: ReactNode;
+    dashboardDefinition: DashboardInterface;
+
+    OnLoad: (
+        setLayouts: React.Dispatch<React.SetStateAction<Layouts>>,
+        setWidgets: React.Dispatch<React.SetStateAction<Map<string, Widget>>>,
+        setLocked: React.Dispatch<React.SetStateAction<boolean>>,
+        setDatasources: React.Dispatch<React.SetStateAction<Map<string, Datasource>>>
+    ) => void;
+    OnSave: (newDashboard: any) => void;
+}
 
 
 // Create a provider component
-const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: DashboardInterface }> = ({ children, dashboardDefinition }) => {
+const DashboardProvider: React.FC<DashboardProviderProps> = ({ children, dashboardDefinition, OnLoad, OnSave }) => {
 
     // const dashboardManager = new DashboardManager(dashboardDefinition);
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
-    const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
+    const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGETS_LIST, []);
 
     const [compactType, setCompactType] = React.useState<"vertical" | "horizontal" | null>(null);
     const [layouts, setLayouts] = React.useState<Layouts>(dashboardDefinition.layouts);
     const [widgets, setWidgets] = React.useState<Map<string, Widget>>(dashboardDefinition.widgets);
     const [locked, setLocked] = React.useState<boolean>(false);
     const [hasChanged, setHasChanged] = React.useState<boolean>(false);
+    const [forceReload, setForceReload] = React.useState<boolean>(false);
+
+    const [datasources, setDatasources] = React.useState<Map<string, Datasource>>(dashboardDefinition.datasources);
 
     const getComponents = (boxId: string) => {
 
@@ -137,9 +172,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
             settings: settings
         }
 
-        console.log(widgets);
-
-        setWidgets(new Map(widgets.set(box_id, new_widgets)));
+        setWidgets(prev => new Map(prev.set(box_id, new_widgets)));
 
         const box: Layout = {
             i: box_id,
@@ -213,10 +246,8 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
     }
 
     const lockUnLockDashboard = () => {
-
-        console.log("Locking dashboard", locked);
-
         setLocked(!locked);
+        setHasChanged(true);
     }
 
     const layoutsChanged = (newLayouts: Layouts) => {
@@ -252,42 +283,19 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         // create a new dashboard definition as a plain object
         const newDashboard = {
             layouts: Object.fromEntries(Object.entries(layouts)),
-            widgets: Object.fromEntries(widgets)
+            widgets: Object.fromEntries(widgets),
+            datasources: Object.fromEntries(datasources),
+            locked: locked
         }
 
         setHasChanged(false);
-        // save the dashboard to local storage
-        localStorage.setItem("dashboard", JSON.stringify(newDashboard));
+
+        OnSave(newDashboard);
 
         toast({
             title: "Dashboard saved",
             description: "The dashboard has been saved",
         })
-    }
-
-    const loadFromLocalStorage = () => {
-        // load the dashboard from the local storage
-        const dashboardDefinition = JSON.parse(localStorage.getItem("dashboard") || JSON.stringify({
-            layouts: {
-                lg: [],
-                md: [],
-                sm: [],
-                xs: [],
-                xxs: []
-            },
-            widgets: new Map<string, Widget>()
-        }) as string) as DashboardInterface;
-
-        // check that the types are correct
-        // if widgets is not a map, convert it to a map
-        if (!(dashboardDefinition.widgets instanceof Map)) {
-            dashboardDefinition.widgets = new Map(Object.entries(dashboardDefinition.widgets));
-        }
-
-
-
-        setLayouts(dashboardDefinition.layouts);
-        setWidgets(dashboardDefinition.widgets);
     }
 
     const moveToVertical = () => {
@@ -325,8 +333,207 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
         }, 500);
     }
 
+    const exploseLayout = () => {
+
+        if (locked) {
+            toast({
+                title: "Dashboard is locked",
+                description: "Unlock the dashboard to explode the layout",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
+        const colsperBreakpoints = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }
+
+        const availables_matrixes: Map<string, LayoutMatrix> = new Map([
+            ["lg", { cols: 3, rows: 3 }],
+            ["md", { cols: 2, rows: 3 }],
+            ["sm", { cols: 2, rows: 2 }],
+            ["xs", { cols: 1, rows: 2 }],
+            ["xxs", { cols: 1, rows: 1 }],
+        ]);
+
+        function getOptimalMatrix(breakpoint: string, number_of_elements: number) {
+            /*
+                Each matrix has a ideal number of elements being cols * rows,
+                The matrix is valid if the number of elements is equal or more than the ideal number of elements
+
+                We try to find the smallest matrix that is valid
+                We start with the biggest matrix available by the breakpoint
+            */
+            const breakpoints_array = ["lg", "md", "sm", "xs", "xxs"];
+            const index_of_breakpoint = breakpoints_array.indexOf(breakpoint);
+            const starting_index = breakpoints_array.indexOf("xxs");
+
+            const distance_matrixes_map = new Map<string, number>();
+
+            for (let i = starting_index; i >= index_of_breakpoint; i--) {
+                const matrix = availables_matrixes.get(breakpoints_array[i]) as LayoutMatrix;
+                const matrix_size = matrix.cols * matrix.rows;
+
+                distance_matrixes_map.set(breakpoints_array[i], Math.abs(matrix_size - number_of_elements));
+            }
+
+            // find the matrix with the smallest difference, if two matrixes have the same difference, we choose the one with the biggest number of elements
+            // sort the map by the difference and the number of elements
+            const sorted_distance_matrixes = Array.from(distance_matrixes_map).sort((a, b) => {
+                if (a[1] === b[1]) {
+                    return availables_matrixes.get(a[0])!.cols * availables_matrixes.get(a[0])!.rows - availables_matrixes.get(b[0])!.cols * availables_matrixes.get(b[0])!.rows;
+                }
+                return b[1] - a[1];
+            });
+
+            //reverse the array to get the matrix with the smallest difference
+            return availables_matrixes.get(sorted_distance_matrixes.reverse()[0][0]);
+        }
+
+        // compute the current breakpoint
+        const width = window.innerWidth;
+        let breakpoint: 'lg' | 'md' | 'sm' | 'xs' | 'xxs' = 'lg';
+        if (width < breakpoints.lg) {
+            breakpoint = 'md';
+        }
+        if (width < breakpoints.md) {
+            breakpoint = 'sm';
+        }
+        if (width < breakpoints.sm) {
+            breakpoint = 'xs';
+        }
+        if (width < breakpoints.xs) {
+            breakpoint = 'xxs';
+        }
+
+        const new_layouts = layouts;
+
+        const row_size_px = 30;
+        const max_number_of_rows = ((window.innerHeight * 0.9) / row_size_px)
+        const optimalMatrix = getOptimalMatrix(breakpoint, widgets.size);
+
+        // sort by distance from (0,0) (top left)
+        const sorted_boxes = new_layouts[breakpoint].sort((a, b) => (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y));
+
+        // place the boxes in the optimal position
+        new_layouts[breakpoint] = sorted_boxes.map((box, index) => {
+            const cols = optimalMatrix!.cols;
+            const total_cols = colsperBreakpoints[breakpoint];
+
+            // Calculate position based on grid index
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+
+            // Calculate width and height
+            const col_width = Math.floor(total_cols / cols);
+            const row_height = Math.floor(max_number_of_rows / optimalMatrix!.rows);
+
+            // Last element special handling
+            if (index === widgets.size - 1) {
+                const remaining_width = total_cols - (col * col_width);
+                return {
+                    ...box,
+                    x: col * col_width,
+                    y: row * row_height,
+                    w: remaining_width,
+                    h: row_height
+                };
+            }
+
+            return {
+                ...box,
+                x: col * col_width,
+                y: row * row_height,
+                w: col_width,
+                h: row_height
+            };
+        });
+
+        layoutsChanged(new_layouts);
+        setForceReload(!forceReload);
+
+        toast({
+            title: "Layout exploded",
+            description: "The layout has been exploded",
+        })
+    };
+
+    const updateDatasource = (datasource_id: string, settings: DatasourceProviderSettings) => {
+
+        const newDatasources = new Map(datasources);
+        const datasource = newDatasources.get(settings.id);
+        console.log(settings.id, datasource, settings);
+        if (datasource) {
+            datasource.settings = settings;
+            datasource.title = settings.title;
+            newDatasources.set(settings.id, datasource);
+            setDatasources(newDatasources);
+            setHasChanged(true);
+        }
+
+    }
+
+    const addDatasource = (datasource_id: string) => {
+        const newDatasources = new Map(datasources);
+
+        const availableDatasources = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
+
+        const datasourceDef = availableDatasources.find((datasource) => datasource.id === datasource_id);
+        if (!datasourceDef) {
+            throw new Error(`Datasource ${datasource_id} not found`);
+        }
+
+        const id = `datasource_${newDatasources.size}_${new Date().getTime()}`;
+
+        const datasource = {
+            datasource_id: datasource_id,
+            title: "New Datasource",
+            settings: {
+                ...datasourceDef.data
+            }
+        } as Datasource;
+
+        datasource.settings.id = id;
+        datasource.settings.title = "New Datasource";
+
+        newDatasources.set(id, datasource);
+
+        setDatasources(newDatasources);
+        setHasChanged(true);
+    }
+
+    const removeDatasource = (source_id: string) => {
+        const newDatasources = new Map(datasources);
+        console.log(source_id);
+        newDatasources.delete(source_id);
+        setDatasources(newDatasources);
+        setHasChanged(true);
+    }
+
+
     useEffect(() => {
-        loadFromLocalStorage();
+        OnLoad(setLayouts, setWidgets, setLocked, setDatasources);
+
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
+            id: "dashboard-available-topics",
+            priority: Infinity,
+            filter: async (topics: DatasourceTopic[], filter?: DatasourceTopicFilter) => {
+                // if the filter object is not defined, we return all the topics
+                if (!filter) {
+                    return topics;
+                }
+
+                console.log(filter);
+
+                // filter the topics based on the filter object
+                return topics.filter((topic) => filter.filter(topic));
+            }
+
+        })
+
+        return () => {
+            pluginsManager.removeFilter("dashboard-available-topics");
+        }
+
     }, []);
 
     return (
@@ -335,6 +542,7 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 compactType,
                 moveToVertical,
                 moveToHorizontal,
+                exploseLayout,
                 layouts,
                 widgets,
                 getComponents,
@@ -347,7 +555,12 @@ const DashboardProvider: React.FC<{ children: ReactNode, dashboardDefinition: Da
                 locked,
                 layoutsChanged,
                 savesDashboard,
-                hasChanged
+                hasChanged,
+                forceReload,
+                datasources,
+                updateDatasource,
+                addDatasource,
+                removeDatasource
             }
         }>
             {children}

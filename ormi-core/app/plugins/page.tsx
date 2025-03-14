@@ -13,10 +13,9 @@ import { Switch } from "@/components/ui/switch";
 
 
 
-export default async function Page() {
+export default function Page() {
 
     const pl = new PluginsLoader();
-    await pl.Load();
 
     return (
         <div className="container mx-auto mt-8">

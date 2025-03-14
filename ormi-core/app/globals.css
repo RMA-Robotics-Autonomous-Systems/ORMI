@@ -23,7 +23,7 @@
         --border: 20 5.9% 90%;
         --input: 20 5.9% 90%;
         --ring: 24.6 95% 53.1%;
-        --radius: 0.5rem;
+        --radius: 0.3rem;
         --chart-1: 12 76% 61%;
         --chart-2: 173 58% 39%;
         --chart-3: 197 37% 24%;
@@ -74,9 +74,24 @@ h1 {
     text-transform: uppercase;
 }
 
+/*
+    Fix for react-grid-layout, don't allow user to select text while dragging or resizing
+*/
 .react-grid-item.react-draggable-dragging,
 .resizing,
 .react-grid-item.react-draggable-dragging~*,
 .resizing~* {
     user-select: none;
+}
+
+[hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+}
+
+/*
+    Fix for leaflet map z-index, it shoulb be behind the resize handle
+*/
+
+.leaflet-container {
+    z-index: 0 !important;
 }
