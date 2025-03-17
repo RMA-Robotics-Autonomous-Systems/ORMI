@@ -32,6 +32,7 @@ export * from "@/library/components/ui/popover";
 export * from "@/library/components/ui/radio-group";
 export * from "@/library/components/ui/scroll-area";
 export * from "@/library/components/ui/select";
+export * from "@/library/components/ui/separator";
 export * from "@/library/components/ui/sheet";
 export * from "@/library/components/ui/skeleton";
 export * from "@/library/components/ui/slider";
