@@ -120,7 +120,8 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
 
         return () => {
-            removeButtonItem("webrtc-viewer-widget");
+            removeButtonItem("webrtc-viewer-widget-rotate-cw");
+            removeButtonItem("webrtc-viewer-widget-rotate-ccw");
             pc.close();
         };
     }, [props]);
