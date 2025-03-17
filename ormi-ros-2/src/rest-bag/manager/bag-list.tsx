@@ -1,5 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core"
-import { ListIcon, Download, Trash2, Check, X, RefreshCwIcon } from "lucide-react"
+import { ListIcon, Download, Trash2, Check, X, RefreshCwIcon, InfoIcon } from "lucide-react"
 import { Datasource } from "ormi-core/datasources"
 import { PluginsHooks, usePluginsManager } from "ormi-core/plugins"
 import { WidgetDefinition } from "ormi-core/widgets"
@@ -172,7 +172,7 @@ const BagList = (props: BagListProps) => {
     );
 
     return (
-        <div className="flex flex-col gap-4 p-2" style={{ height: '100%', overflow: 'auto' }}>
+        <div className="flex flex-col gap-3 p-2" style={{ height: '100%', overflow: 'auto' }}>
             <div className="relative">
                 <Input
                     placeholder="Search bags..."
@@ -222,6 +222,12 @@ const BagList = (props: BagListProps) => {
                                     </div>
                                 ) : (
                                     <>
+                                        <BagViewer bag={bag} trigger={
+                                            <Button variant="outline" title="View bag details" size="icon">
+                                                <InfoIcon />
+                                            </Button>
+                                        } />
+
                                         <Button
                                             onClick={() => handleDownload(bag.name)}
                                             variant="outline"
@@ -239,7 +245,6 @@ const BagList = (props: BagListProps) => {
                                         >
                                             <Trash2 size={18} />
                                         </Button>
-                                        <BagViewer bag={bag} />
                                     </>
                                 )}
                             </div>
