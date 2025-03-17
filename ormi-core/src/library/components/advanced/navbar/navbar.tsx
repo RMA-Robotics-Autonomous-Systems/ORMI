@@ -49,7 +49,7 @@ export const NavBar = () => {
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent style={{ width: "100dvw" }}>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1" style={{ justifyContent: "space-evenly" }}>
                                 <Link href="/" className={navigationMenuTriggerStyle()}>
                                     Home
                                 </Link>
@@ -60,12 +60,12 @@ export const NavBar = () => {
                                     <div key={key}>{value.component}</div>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1" style={{ justifyContent: "space-evenly" }}>
                                 {sortedCenter.map(([key, value]) => (
                                     <div key={key}>{value.component}</div>
                                 ))}
                             </div>
-                            <div className="flex items-end flex-wrap gap-1">
+                            <div className="flex items-end flex-wrap gap-1" style={{ justifyContent: "space-evenly" }}>
                                 {sortedRight.map(([key, value]) => (
                                     <div key={key}>{value.component}</div>
                                 ))}
