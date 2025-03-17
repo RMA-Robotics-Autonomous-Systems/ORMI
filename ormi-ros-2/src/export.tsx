@@ -7,6 +7,8 @@ import { WidgetDefinition } from 'ormi-core/widgets';
 import { Ros2ConvertionGraphDefinition } from './ros2/convertion-graph';
 import { RQTGraphDefinition } from './ros2/rqt-graph';
 import { WebRtcRos2Definition } from './ros2/images/webrtc';
+import { RestBagDatasourceDefinition } from './rest-bag/rest-bag-datasource';
+import { BagListDefinition } from './rest-bag/manager/bag-list';
 
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
@@ -51,6 +53,8 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
     } as DatasourceDefinition<RosBridgeSuiteDataSourceSettings>);
 
+    datasources.push(RestBagDatasourceDefinition);
+
     return datasources;
 };
 
@@ -60,6 +64,7 @@ export const widgetsExport = (widgets: WidgetDefinition[]) => {
     widgets.push(Ros2ConvertionGraphDefinition());
     widgets.push(RQTGraphDefinition());
     widgets.push(WebRtcRos2Definition())
+    widgets.push(BagListDefinition());
 
     return widgets;
 }
