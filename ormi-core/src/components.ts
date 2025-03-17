@@ -13,6 +13,8 @@ export * from "@/library/components/advanced/theme/theme-provider";
 export * from "@/library/components/advanced/theme/theme-toggle";
 
 export * from "@/library/components/ui/accordion";
+export * from "@/library/components/ui/alert";
+export * from "@/library/components/ui/badge";
 export * from "@/library/components/ui/button";
 export * from "@/library/components/ui/calendar";
 export * from "@/library/components/ui/card";
