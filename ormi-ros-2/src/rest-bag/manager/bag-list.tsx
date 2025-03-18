@@ -10,7 +10,7 @@ import { BagInfo, BagsResponse, Duration, Timestamp } from "../bags"
 import { BagViewer } from "./bag-viewer"
 
 // Interfaces for bag data
-
+import { RestBagClient } from "../rest-bag-client"
 
 interface BagListProps {
     datasource_id: string
@@ -19,8 +19,8 @@ interface BagListProps {
 
 const BagList = (props: BagListProps) => {
     const pluginsManager = usePluginsManager();
-    const [apiUrl, setApiUrl] = useState<string>("");
     const [bags, setBags] = useState<BagInfo[]>([]);
+    const [client, setClient] = useState<RestBagClient | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -29,13 +29,9 @@ const BagList = (props: BagListProps) => {
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
 
-
-
     useEffect(() => {
-        console.log("BagList props:", props);
-        const url = pluginsManager.applyFilter<string>(`${props.datasource_id}-api-url`, "");
-        console.log(`API URL from filter: ${url}`);
-        setApiUrl(url);
+        const new_client = pluginsManager.applyFilter<RestBagClient>(`${props.datasource_id}-client`, null);
+        setClient(new_client);
 
         setButtonItem("bag-list-refresh",
             <Button variant="ghost" onClick={() => setRefreshCounter((prev) => (prev + 1) % 10)} title="Refresh bag list">
@@ -50,98 +46,61 @@ const BagList = (props: BagListProps) => {
     }, [props.datasource_id, pluginsManager]);
 
     useEffect(() => {
-        if (!apiUrl) {
-            console.warn("API URL is empty, cannot fetch bags");
+        if (!client) {
+            console.warn("Client is not available, cannot fetch bags");
             return;
         }
-
-        const isValidUrl = (url: string) => {
-            try {
-                new URL(url);
-                return true;
-            } catch (e) {
-                return false;
-            }
-        };
-
-        if (!isValidUrl(apiUrl)) {
-            console.error(`Invalid API URL: ${apiUrl}`);
-            setError(`Invalid API URL: ${apiUrl}. URL must include protocol (e.g., http:// or https://)`);
-            return;
-        }
-
-        console.log(`Attempting to fetch bags from: ${apiUrl}/bags`);
 
         const fetchBags = async () => {
             setLoading(true);
             setError(null);
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
+                const bagsList = await client.getBags();
+                const bags: BagInfo[] = [];
 
-                const response = await fetch(`${apiUrl}/bags`, {
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-
-                console.log("Fetch response:", response);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
+                for (const path in bagsList) {
+                    for (const bagName in bagsList[path]) {
+                        bags.push(bagsList[path][bagName]);
+                    }
                 }
 
-                const bagsData = await response.json() as BagsResponse;
-                const bagsList: BagInfo[] = [];
+                setBags(bags);
 
-                // Extract bags from the nested structure
-                Object.values(bagsData).forEach(pathBags => {
-                    Object.values(pathBags).forEach(bag => {
-                        bagsList.push(bag);
-                    });
-                });
-
-                setBags(bagsList);
             } catch (err: unknown) {
-                if (err instanceof Error && err.name === 'AbortError') {
-                    console.error('Request timed out');
-                    setError('Request timed out. The server took too long to respond.');
-                } else if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-                    console.error('Failed to fetch bags:', err);
-                    setError('Network error: Could not connect to the server. Please check if the server is running and accessible.');
-                } else {
-                    console.error('Failed to fetch bags:', err);
-                    setError(`Failed to fetch bags: ${err instanceof Error ? err.message : String(err)}`);
-                }
+                console.error('Failed to fetch bags:', err);
+                setError(`Failed to fetch bags: ${err instanceof Error ? err.message : String(err)}`);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchBags();
-    }, [apiUrl, refreshCounter])
+    }, [client, refreshCounter])
 
-    const handleDownload = (bagName: string) => {
-        if (!apiUrl.startsWith('http')) {
-            setError('Invalid API URL. Cannot download bag.');
+    const handleDownload = async (bagName: string) => {
+        if (!client) {
+            setError('Client is not available. Cannot download bag.');
             return;
         }
-        window.open(`${apiUrl}/bags/${bagName}/download`, '_blank');
+        const blob = await client.downloadBag(bagName);
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = bagName;
+        a.click();
+
+        URL.revokeObjectURL(url);
     };
 
     const handleDelete = async (bagName: string) => {
+        if (!client) {
+            setError('Client is not available. Cannot delete bag.');
+            return;
+        }
+
         try {
-            const response = await fetch(`${apiUrl}/bags/${bagName}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-
+            await client.deleteBag(bagName);
             // Refresh the bag list after deletion
             setBags(bags.filter(bag => bag.name !== bagName));
         } catch (err) {
