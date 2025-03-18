@@ -5,7 +5,7 @@ import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { usePluginsManager } from "ormi-core/plugins";
 import { PluginsHooks } from "ormi-core/plugins";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { CircleAlertIcon } from "lucide-react";
+import { CloudIcon } from "lucide-react";
 import { PointsCloudProps } from "./types/points-cloud-types";
 import PointsCloudCompWebGL from "./components/points-cloud-comp";
 
@@ -16,7 +16,7 @@ export function PointsCloudDefinition() {
         name: 'Points Cloud WebGL',
         description: 'Display a points cloud using raw WebGL',
         titleProp: 'title',
-        icon: <CircleAlertIcon />,
+        icon: <CloudIcon />,
         schema: {
             type: 'object',
             properties: {

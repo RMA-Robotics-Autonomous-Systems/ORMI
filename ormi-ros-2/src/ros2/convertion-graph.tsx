@@ -7,6 +7,7 @@ import { UnifiedConverter } from "./unified-converter";
 // Removed: import ForceGraph from 'force-graph';
 import { useEffect, useRef } from 'react';
 import { useTheme } from 'ormi-core/components';
+import { BinaryIcon } from 'lucide-react';
 
 
 function Ros2ConvertionGraph(): JSX.Element {
@@ -78,22 +79,7 @@ export function Ros2ConvertionGraphDefinition(): WidgetDefinition {
         description: 'Shows the convertion graph between ROS2 and Webapp types',
         titleProp: 'title',
         icon: (
-            <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <circle cx="5" cy="5" r="2" />
-                <circle cx="19" cy="5" r="2" />
-                <circle cx="12" cy="19" r="2" />
-                <line x1="5" y1="5" x2="12" y2="19" />
-                <line x1="19" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="5" x2="19" y2="5" />
-            </svg>
+            <BinaryIcon />
         ),
         schema: {
             type: 'object',

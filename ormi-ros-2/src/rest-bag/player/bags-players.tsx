@@ -1,13 +1,12 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core"
-import { ListIcon, RefreshCwIcon, InfoIcon } from "lucide-react"
+import { RefreshCwIcon, PlayIcon } from "lucide-react"
 import { Datasource } from "ormi-core/datasources"
 import { PluginsHooks, usePluginsManager } from "ormi-core/plugins"
 import { WidgetDefinition } from "ormi-core/widgets"
 import { useEffect, useState } from "react"
 // Add shadcn component imports
-import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder } from "ormi-core/components"
+import { Badge, Alert, AlertDescription, Button, Card, CardContent, Input, useButtonHolder } from "ormi-core/components"
 import { BagInfo, BagsResponse, Duration, Timestamp } from "../bags"
-import { BagViewer } from "../manager/bag-viewer"
 import { BagPlayer } from "./bag-player"
 
 // Interfaces for bag data
@@ -193,7 +192,7 @@ export function BagsPlayersDefinition(): WidgetDefinition {
         description: 'Allow users to play ROS2 bags from a REST API',
         titleProp: 'title',
         icon: (
-            <ListIcon />
+            <PlayIcon />
         ),
         schema: {
             type: 'object',

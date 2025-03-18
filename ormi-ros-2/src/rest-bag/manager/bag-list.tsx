@@ -1,12 +1,12 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core"
-import { ListIcon, Download, Trash2, Check, X, RefreshCwIcon, InfoIcon } from "lucide-react"
+import { Download, Trash2, Check, X, RefreshCwIcon, InfoIcon, LuggageIcon } from "lucide-react"
 import { Datasource } from "ormi-core/datasources"
 import { PluginsHooks, usePluginsManager } from "ormi-core/plugins"
 import { WidgetDefinition } from "ormi-core/widgets"
 import { useEffect, useState } from "react"
 // Add shadcn component imports
 import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder } from "ormi-core/components"
-import { BagInfo, BagsResponse, Duration, Timestamp } from "../bags"
+import { BagInfo, Duration, Timestamp } from "../bags"
 import { BagViewer } from "./bag-viewer"
 
 // Interfaces for bag data
@@ -236,7 +236,7 @@ export function BagListDefinition(): WidgetDefinition {
         description: 'List of ROS2 Bags',
         titleProp: 'title',
         icon: (
-            <ListIcon />
+            <LuggageIcon />
         ),
         schema: {
             type: 'object',
