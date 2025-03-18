@@ -46,7 +46,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
             clearTimeout(to);
             removeButtonItem("refresh");
         }
-    }, [pluginsManager, props, refresh, removeButtonItem, setButtonItem]);
+    }, [pluginsManager, props, refresh]);
 
     // Retrieve ROS nodes details, subscribing: Array(0), publishing: Array(2), services: Array(1)
     useEffect(() => {
