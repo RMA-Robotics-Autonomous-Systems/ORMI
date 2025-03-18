@@ -28,7 +28,60 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
     useEffect(() => {
         const new_client = pluginsManager.applyFilter<RestBagClient>(`${datasource_id}-client`, null);
         setClient(new_client);
-    }, [datasource_id]);
+
+        // Check for existing playback session when client is initialized
+        if (new_client && bag) {
+            checkExistingPlayback(new_client);
+        }
+    }, [datasource_id, bag]);
+
+    // Function to check for existing playback
+    const checkExistingPlayback = async (client: RestBagClient) => {
+        try {
+            // Fetch active players from the API
+            const response = await client.listPlayers();
+
+            // Extract the players array from the response
+            const activePlayers = response.active_players || [];
+
+            const activePlayer = activePlayers.find(player => player.bag_name === bag.name);
+
+            if (activePlayer) {
+                // Sync UI with existing playback
+                setPlayId(activePlayer.play_id);
+                setStatus(activePlayer.status?.toUpperCase() || 'UNKNOWN');
+
+                // Start polling for status updates
+                if (!statusPollInterval.current) {
+                    const fetchStatus = async () => {
+                        try {
+                            const statusResponse = await client.getPlayerStatus(activePlayer.play_id);
+                            setStatus(statusResponse.status?.toUpperCase() || 'UNKNOWN');
+
+                            if (statusResponse.status === 'stopped' || statusResponse.status === 'completed') {
+                                clearInterval(statusPollInterval.current!);
+                                statusPollInterval.current = null;
+
+                                if (statusResponse.status === 'completed') {
+                                    setPlayId(null);
+                                    setStatus("READY");
+                                    setError(null);
+                                }
+                            }
+                        } catch (error) {
+                            setError(`Error: ${error}`);
+                        }
+                    };
+
+                    fetchStatus(); // Fetch once immediately
+                    statusPollInterval.current = window.setInterval(fetchStatus, 1000);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to check for existing playback:", error);
+            // Don't set UI error here as it's not a critical failure
+        }
+    };
 
     // Clean up interval on component unmount
     useEffect(() => {
@@ -46,12 +99,20 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
         const fetchStatus = async () => {
             try {
                 const statusResponse = await client.getPlayerStatus(playId);
-                setStatus(statusResponse.state?.toUpperCase() || 'UNKNOWN');
+                console.log(statusResponse);
+                setStatus(statusResponse.status?.toUpperCase() || 'UNKNOWN');
 
                 // Auto-stop polling when playback ends
-                if (statusResponse.state === 'stopped' || statusResponse.state === 'completed') {
+                if (statusResponse.status === 'stopped' || statusResponse.status === 'completed') {
                     clearInterval(statusPollInterval.current!);
                     statusPollInterval.current = null;
+
+                    // Reset the player when status is completed
+                    if (statusResponse.status === 'completed') {
+                        setPlayId(null);
+                        setStatus("READY");
+                        setError(null);
+                    }
                 }
             } catch (error) {
                 setError(`Error: ${error}`);

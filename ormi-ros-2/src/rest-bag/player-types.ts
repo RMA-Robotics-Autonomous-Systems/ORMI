@@ -25,6 +25,7 @@ export interface PlayerActionResponse {
 export interface PlayerListResponse {
   active_players: {
     play_id: string;
+    bag_name: string;
     status: string;
   }[];
   all_status: {
