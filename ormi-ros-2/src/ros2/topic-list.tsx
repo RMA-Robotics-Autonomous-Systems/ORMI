@@ -7,6 +7,14 @@ import { usePluginsManager } from 'ormi-core/plugins';
 import { ListIcon } from 'lucide-react';
 import { PluginsHooks } from 'ormi-core/plugins';
 import { Datasource } from 'ormi-core/datasources';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "ormi-core/components";
 
 interface Ros2TopicListProps {
     title: string;
@@ -67,22 +75,22 @@ function Ros2TopicList(props: Ros2TopicListProps): JSX.Element {
 
     return (
         <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Topic</th>
-                        <th>Type</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Topic</TableHead>
+                        <TableHead>Type</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
                     {topics.map((topic, i) => (
-                        <tr key={i}>
-                            <td>{topic.topic}</td>
-                            <td>{topic.type}</td>
-                        </tr>
+                        <TableRow key={i}>
+                            <TableCell className="font-medium">{topic.topic}</TableCell>
+                            <TableCell>{topic.type}</TableCell>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableBody>
+            </Table>
         </div>
     );
 }
