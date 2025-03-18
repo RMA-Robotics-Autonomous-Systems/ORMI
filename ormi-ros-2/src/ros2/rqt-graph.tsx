@@ -12,6 +12,7 @@ import { Datasource } from 'ormi-core/datasources';
 interface RQTGraphProps {
     title: string;
     datasource_id: string;
+    poolingRateHz: number;
     ignoreRosout: boolean;
     ignoreParameterEvent: boolean;
 }
@@ -24,9 +25,11 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
     const { resolvedTheme } = useTheme();
 
     const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
-    const [refresh, setRefresh] = useState<number>(0);
     const [rosNodes, setRosNodes] = useState<Map<string, { subscriptions: string[], publications: string[], services: string[] }>>(new Map());
     const divRef = useRef<HTMLDivElement>(null);
+    const [timer, setTimer] = useState<ReturnType<typeof setInterval> | null>(null);
+    const graphRef = useRef<any>(null);
+    const graphDataRef = useRef<{ nodes: any[], links: any[] }>({ nodes: [], links: [] });
 
     // Establish ROSLIB connection
     useEffect(() => {
@@ -34,73 +37,78 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
             setRoslib(pluginsManager.applyFilter(`${props.datasource_id}-ros-2-connection`, null));
         }, 500);
 
-
-        setButtonItem("refresh",
-            <Button variant={"ghost"} onClick={() => { setRefresh((prev: number) => (prev + 1) % 10) }} >
-                <RefreshCwIcon />
-            </Button>
-        );
-
-
         return () => {
             clearTimeout(to);
-            removeButtonItem("refresh");
+            if (timer) {
+                clearInterval(timer);
+            }
         }
-    }, [pluginsManager, props, refresh]);
+    }, [pluginsManager, props, timer]);
 
-    // Retrieve ROS nodes details, subscribing: Array(0), publishing: Array(2), services: Array(1)
+    // Set up periodic updates based on poolingRateHz
     useEffect(() => {
         if (!roslib) {
             return;
         }
-        roslib.getNodes((nodes: string[]) => {
-            nodes.forEach(node => {
-                roslib.getNodeDetails(node, (result: { subscribing: string[], publishing: string[], services: string[] }) => {
-                    setRosNodes(prev => {
-                        const newMap = new Map(prev);
-                        newMap.set(node, { subscriptions: result.subscribing, publications: result.publishing, services: result.services });
-                        return newMap;
+
+        // Initial data fetch
+        fetchNodeData();
+
+        // Set up interval for periodic updates
+        const refreshTimer = setInterval(() => {
+            fetchNodeData();
+        }, 1000 / props.poolingRateHz);
+
+        setTimer(refreshTimer);
+
+        return () => {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+            }
+        };
+
+        function fetchNodeData() {
+            roslib!.getNodes((nodes: string[]) => {
+                // Create a fresh map for the new state
+                const newNodeMap = new Map<string, { subscriptions: string[], publications: string[], services: string[] }>();
+
+                // Keep track of processed nodes to update state only once after all nodes are processed
+                let processedCount = 0;
+
+                nodes.forEach(node => {
+                    roslib!.getNodeDetails(node, (result: { subscribing: string[], publishing: string[], services: string[] }) => {
+                        newNodeMap.set(node, {
+                            subscriptions: result.subscribing,
+                            publications: result.publishing,
+                            services: result.services
+                        });
+
+                        processedCount++;
+                        if (processedCount === nodes.length) {
+                            // Update state with the complete new map when all nodes are processed
+                            setRosNodes(newNodeMap);
+                        }
                     });
                 });
+
+                // If no nodes are present, we still need to update with an empty map
+                if (nodes.length === 0) {
+                    setRosNodes(newNodeMap);
+                }
             });
-        });
+        }
+    }, [roslib, props.poolingRateHz]);
 
-    }, [roslib, refresh]);
-
-    // Build and render graph from rosNodes using ForceGraph
+    // Initialize the graph once
     useEffect(() => {
-        if (divRef.current && rosNodes.size > 0) {
+        if (divRef.current && !graphRef.current) {
             (async () => {
                 const { default: ForceGraph } = await import('force-graph');
 
-                const nodesMap: { [key: string]: boolean } = {};
-                const nodes: { id: string }[] = [];
-                const links: { source: string, target: string, value: any }[] = [];
-
-                rosNodes.forEach((details, nodeName) => {
-                    if (!nodesMap[nodeName]) {
-                        nodes.push({ id: nodeName });
-                        nodesMap[nodeName] = true;
-                    }
-                });
-
-                rosNodes.forEach((pubDetails, pubName) => {
-                    const publications: string[] = pubDetails.publications || [];
-                    publications.forEach(topic => {
-                        if (props.ignoreRosout && topic === '/rosout') return;
-                        if (props.ignoreParameterEvent && topic === '/parameter_events') return;
-                        rosNodes.forEach((subDetails, subName) => {
-                            if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
-                                links.push({ source: pubName, target: subName, value: topic });
-                            }
-                        });
-                    });
-                });
-
                 const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
                 const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
-                const fg = new ForceGraph(divRef.current!)
-                    .graphData({ nodes, links })
+
+                graphRef.current = new ForceGraph(divRef.current!)
                     .linkColor(() => arrowColor)
                     .linkDirectionalArrowLength(2)
                     .linkDirectionalArrowRelPos(1)
@@ -129,12 +137,137 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                         ctx.fillText(node.id, node.x, node.y - r - 2);
                     });
 
+                // Initial zoom to fit
                 setTimeout(() => {
-                    fg.zoomToFit(400);
-                }, 500);
+                    if (graphRef.current) {
+                        graphRef.current.zoomToFit(400);
+                    }
+                }, 1000);
             })();
         }
-    }, [rosNodes, refresh, props.ignoreRosout, props.ignoreParameterEvent, resolvedTheme]);
+
+        return () => {
+            if (graphRef.current) {
+                graphRef.current._destructor();
+                graphRef.current = null;
+            }
+        };
+    }, [divRef.current, resolvedTheme]);
+
+    // Update only graph data when nodes change
+    useEffect(() => {
+        if (!graphRef.current || rosNodes.size === 0) {
+            return;
+        }
+
+        // Get current data with positions
+        const currentData = graphRef.current.graphData();
+        const existingNodesMap = new Map<string, any>(currentData.nodes.map((node: any) => [node.id, node]));
+
+        // Prepare new data while preserving positions
+        const nodesMap: { [key: string]: boolean } = {};
+        const nodes: any[] = [];
+        const links: { source: string, target: string, value: any }[] = [];
+
+        // First add nodes
+        rosNodes.forEach((details, nodeName) => {
+            if (!nodesMap[nodeName]) {
+                // If the node already exists, keep its position
+                if (existingNodesMap.has(nodeName)) {
+                    const existingNode = existingNodesMap.get(nodeName);
+                    nodes.push({
+                        id: nodeName,
+                        x: existingNode.x,
+                        y: existingNode.y,
+                        vx: existingNode.vx * 0.9, // Dampen velocity for smoother transitions
+                        vy: existingNode.vy * 0.9
+                    });
+                } else {
+                    // For new nodes, try to position near connected nodes or center
+                    nodes.push({ id: nodeName });
+                }
+                nodesMap[nodeName] = true;
+            }
+        });
+
+        // Then add links
+        rosNodes.forEach((pubDetails, pubName) => {
+            const publications: string[] = pubDetails.publications || [];
+            publications.forEach(topic => {
+                if (props.ignoreRosout && topic === '/rosout') return;
+                if (props.ignoreParameterEvent && topic === '/parameter_events') return;
+                rosNodes.forEach((subDetails, subName) => {
+                    if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
+                        links.push({ source: pubName, target: subName, value: topic });
+                    }
+                });
+            });
+        });
+
+        // Store for comparison in next update
+        graphDataRef.current = { nodes, links };
+
+        // Update only if data actually changed
+        if (JSON.stringify(currentData.nodes.map((n: any) => n.id).sort()) !==
+            JSON.stringify(nodes.map(n => n.id).sort()) ||
+            JSON.stringify(currentData.links.map((l: any) => ({ s: l.source.id || l.source, t: l.target.id || l.target, v: l.value }))) !==
+            JSON.stringify(links.map(l => ({ s: l.source, t: l.target, v: l.value })))) {
+
+            // Use cooldown to prevent layout instability
+            const wasCoolingDown = graphRef.current.cooldownTicks() > 0;
+
+            // Update graph data while preserving as much as possible
+            graphRef.current.graphData({ nodes, links });
+
+            if (!wasCoolingDown) {
+                // Apply a gentle reheat instead of full reset
+                graphRef.current.cooldownTicks(20)
+                    .cooldownTime(1000);
+            }
+        }
+    }, [rosNodes, props.ignoreRosout, props.ignoreParameterEvent]);
+
+    // Manual refresh behavior - do a more significant reheat
+    useEffect(() => {
+        if (!graphRef.current) return;
+
+        // When manually refreshed, apply more significant reheat
+        graphRef.current.cooldownTicks(50)
+            .cooldownTime(2000);
+    }, []);
+
+    // Update styling when theme changes
+    useEffect(() => {
+        if (!graphRef.current) return;
+
+        const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
+        const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
+
+        graphRef.current
+            .linkColor(() => arrowColor)
+            .linkCanvasObject((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                const { source, target, value } = link;
+                const x = (source.x + target.x) / 2;
+                const y = (source.y + target.y) / 2;
+                ctx.font = `${10 / globalScale}px Sans-Serif`;
+                ctx.fillStyle = arrowColor;
+                ctx.strokeStyle = arrowColor;
+                ctx.textAlign = 'center';
+                ctx.fillText(value, x, y);
+            })
+            .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                const r = 5;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
+                ctx.fillStyle = "#1f77b4";
+                ctx.fill();
+                ctx.font = `${12 / globalScale}px Sans-Serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillStyle = lineColor;
+                ctx.fillText(node.id, node.x, node.y - r - 2);
+            });
+    }, [resolvedTheme]);
 
     return (
         <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -167,6 +300,7 @@ export function RQTGraphDefinition(): WidgetDefinition {
             properties: {
                 title: { type: 'string', title: 'Title' },
                 datasource_id: { type: 'string', title: 'Datasources' },
+                poolingRateHz: { type: 'number', title: 'Pooling rate (Hz)' },
                 ignoreRosout: { type: 'boolean', title: 'Ignore rosout' },
                 ignoreParameterEvent: { type: 'boolean', title: 'Ignore parameter event' }
             },
@@ -189,11 +323,12 @@ export function RQTGraphDefinition(): WidgetDefinition {
                         }
                     }
                 } as ControlElement,
+                { type: "Control", scope: "#/properties/poolingRateHz" } as ControlElement,
                 { type: "Control", scope: "#/properties/ignoreRosout" } as ControlElement,
                 { type: "Control", scope: "#/properties/ignoreParameterEvent" } as ControlElement,
             ]
         } as VerticalLayout,
-        data: { title: 'RQT Graph' },
+        data: { title: 'RQT Graph', poolingRateHz: 5 },
         Component: (data: RQTGraphProps) => <RQTGraph {...data} />
     }
 }
