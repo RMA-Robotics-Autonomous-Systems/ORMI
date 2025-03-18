@@ -10,6 +10,7 @@ import { WebRtcRos2Definition } from './ros2/images/webrtc';
 import { RestBagDatasourceDefinition } from './rest-bag/rest-bag-datasource';
 import { BagListDefinition } from './rest-bag/manager/bag-list';
 import { BagsPlayersDefinition } from './rest-bag/player/bags-players';
+import { Ros2TopicListDefinition } from './ros2/topic-list';
 
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
@@ -67,6 +68,7 @@ export const widgetsExport = (widgets: WidgetDefinition[]) => {
     widgets.push(WebRtcRos2Definition())
     widgets.push(BagListDefinition());
     widgets.push(BagsPlayersDefinition())
+    widgets.push(Ros2TopicListDefinition());
 
     return widgets;
 }
