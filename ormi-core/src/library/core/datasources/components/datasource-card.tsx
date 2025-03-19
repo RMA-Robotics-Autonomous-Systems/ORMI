@@ -34,7 +34,7 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/library/components/ui/context-menu"
-import shadcnRenderer, { shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
+import { shadcnRenderer, shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
 
 
 

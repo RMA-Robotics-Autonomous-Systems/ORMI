@@ -25,7 +25,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { toast } from "@/library/hooks/use-toast";
-import shadcnRenderer, { shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
+import { shadcnRenderer, shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
 import { CheckIcon, SettingsIcon } from "lucide-react";
 import { AddToTemplatesBtn } from "@/library/core/templates/components/add-to-templates";
 
