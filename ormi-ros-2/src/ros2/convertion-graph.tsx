@@ -75,7 +75,7 @@ function Ros2ConvertionGraph(): JSX.Element {
 export function Ros2ConvertionGraphDefinition(): WidgetDefinition {
     return {
         id: 'ros2-convertion-graph',
-        name: 'Ros2 Convertion Graph',
+        name: 'ROS2 Convertion Graph',
         description: 'Shows the convertion graph between ROS2 and Webapp types',
         titleProp: 'title',
         icon: (
