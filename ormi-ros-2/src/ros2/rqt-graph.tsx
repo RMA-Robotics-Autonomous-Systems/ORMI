@@ -4,10 +4,10 @@ import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import ROSLIB from 'roslib';
 import { usePluginsManager } from 'ormi-core/plugins';
-import { useButtonHolder, Button, useTheme } from 'ormi-core/components';
-import { RefreshCwIcon } from 'lucide-react';
+import { useTheme } from 'ormi-core/components';
 import { PluginsHooks } from 'ormi-core/plugins';
 import { Datasource } from 'ormi-core/datasources';
+import * as d3 from 'd3';
 
 interface RQTGraphProps {
     title: string;
@@ -20,7 +20,6 @@ interface RQTGraphProps {
 function RQTGraph(props: RQTGraphProps): JSX.Element {
 
     const pluginsManager = usePluginsManager();
-    const { setButtonItem, removeButtonItem } = useButtonHolder();
 
     const { resolvedTheme } = useTheme();
 
@@ -112,8 +111,15 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                     .linkColor(() => arrowColor)
                     .linkDirectionalArrowLength(2)
                     .linkDirectionalArrowRelPos(1)
-                    .linkDirectionalParticles(2)
+                    // .linkDirectionalParticles(2)
                     .linkCanvasObjectMode(() => 'after')
+                    // Add center-gravity force to keep disconnected nodes from drifting too far apart
+                    .d3Force('center', d3.forceCenter())
+                    // Adjust charge force (repulsion) to be less aggressive
+                    .d3Force('charge', d3.forceManyBody().strength(-30))
+                    // Add a boundary force to keep nodes within a reasonable area
+                    .d3Force('x', d3.forceX().strength(0.05))
+                    .d3Force('y', d3.forceY().strength(0.05))
                     .linkCanvasObject((link: any, ctx, globalScale) => {
                         const { source, target, value } = link;
                         const x = (source.x + target.x) / 2;
@@ -156,7 +162,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 
     // Update only graph data when nodes change
     useEffect(() => {
-        if (!graphRef.current || rosNodes.size === 0) {
+        if (!graphRef.current) {
             return;
         }
 
@@ -165,65 +171,54 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
         const existingNodesMap = new Map<string, any>(currentData.nodes.map((node: any) => [node.id, node]));
 
         // Prepare new data while preserving positions
-        const nodesMap: { [key: string]: boolean } = {};
         const nodes: any[] = [];
         const links: { source: string, target: string, value: any }[] = [];
 
-        // First add nodes
+        // First add nodes - only include nodes that exist in rosNodes
         rosNodes.forEach((details, nodeName) => {
-            if (!nodesMap[nodeName]) {
-                // If the node already exists, keep its position
-                if (existingNodesMap.has(nodeName)) {
-                    const existingNode = existingNodesMap.get(nodeName);
-                    nodes.push({
-                        id: nodeName,
-                        x: existingNode.x,
-                        y: existingNode.y,
-                        vx: existingNode.vx * 0.9, // Dampen velocity for smoother transitions
-                        vy: existingNode.vy * 0.9
-                    });
-                } else {
-                    // For new nodes, try to position near connected nodes or center
-                    nodes.push({ id: nodeName });
-                }
-                nodesMap[nodeName] = true;
+            // If the node already exists, keep its position
+            if (existingNodesMap.has(nodeName)) {
+                const existingNode = existingNodesMap.get(nodeName);
+                nodes.push({
+                    id: nodeName,
+                    x: existingNode.x,
+                    y: existingNode.y,
+                    vx: existingNode.vx * 0.9, // Dampen velocity for smoother transitions
+                    vy: existingNode.vy * 0.9
+                });
+            } else {
+                // For new nodes
+                nodes.push({ id: nodeName });
             }
         });
 
-        // Then add links
-        rosNodes.forEach((pubDetails, pubName) => {
-            const publications: string[] = pubDetails.publications || [];
-            publications.forEach(topic => {
-                if (props.ignoreRosout && topic === '/rosout') return;
-                if (props.ignoreParameterEvent && topic === '/parameter_events') return;
-                rosNodes.forEach((subDetails, subName) => {
-                    if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
-                        links.push({ source: pubName, target: subName, value: topic });
-                    }
+        // Then add links - rebuild all links from current rosNodes data
+        if (nodes.length > 0) {
+            rosNodes.forEach((pubDetails, pubName) => {
+                const publications: string[] = pubDetails.publications || [];
+                publications.forEach(topic => {
+                    if (props.ignoreRosout && topic === '/rosout') return;
+                    if (props.ignoreParameterEvent && topic === '/parameter_events') return;
+                    rosNodes.forEach((subDetails, subName) => {
+                        if (pubName !== subName && (subDetails.subscriptions || []).includes(topic)) {
+                            links.push({ source: pubName, target: subName, value: topic });
+                        }
+                    });
                 });
             });
-        });
+        }
 
         // Store for comparison in next update
         graphDataRef.current = { nodes, links };
 
-        // Update only if data actually changed
-        if (JSON.stringify(currentData.nodes.map((n: any) => n.id).sort()) !==
-            JSON.stringify(nodes.map(n => n.id).sort()) ||
-            JSON.stringify(currentData.links.map((l: any) => ({ s: l.source.id || l.source, t: l.target.id || l.target, v: l.value }))) !==
-            JSON.stringify(links.map(l => ({ s: l.source, t: l.target, v: l.value })))) {
+        // Always update the graph data to ensure removed nodes are cleared
+        graphRef.current.graphData({ nodes, links });
 
-            // Use cooldown to prevent layout instability
-            const wasCoolingDown = graphRef.current.cooldownTicks() > 0;
-
-            // Update graph data while preserving as much as possible
-            graphRef.current.graphData({ nodes, links });
-
-            if (!wasCoolingDown) {
-                // Apply a gentle reheat instead of full reset
-                graphRef.current.cooldownTicks(20)
-                    .cooldownTime(1000);
-            }
+        // Apply gentle reheat if not already cooling down
+        const wasCoolingDown = graphRef.current.cooldownTicks() > 0;
+        if (!wasCoolingDown) {
+            graphRef.current.cooldownTicks(20)
+                .cooldownTime(1000);
         }
     }, [rosNodes, props.ignoreRosout, props.ignoreParameterEvent]);
 
