@@ -5,12 +5,13 @@ import { PluginsHooks, usePluginsManager } from "ormi-core/plugins"
 import { WidgetDefinition } from "ormi-core/widgets"
 import { useEffect, useState } from "react"
 // Add shadcn component imports
-import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder } from "ormi-core/components"
+import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder, Table, TableBody, TableRow, TableCell } from "ormi-core/components"
 import { BagInfo, Duration, Timestamp } from "../bags"
 import { BagViewer } from "./bag-viewer"
 
 // Interfaces for bag data
 import { RestBagClient } from "../rest-bag-client"
+import { BagPlayer } from "../player/bag-player"
 
 interface BagListProps {
     datasource_id: string
@@ -160,7 +161,7 @@ const BagList = (props: BagListProps) => {
                     <CardHeader className="pb-2">
                         <div className="flex justify-between items-start">
                             <CardTitle>{bag.name}</CardTitle>
-                            <div className="flex space-x-2">
+                            <div className="flex gap-2">
                                 {deleteConfirm === bag.name ? (
                                     <div className="flex items-center space-x-2">
                                         <span className="text-sm text-red-500">Confirm?</span>
@@ -181,6 +182,11 @@ const BagList = (props: BagListProps) => {
                                     </div>
                                 ) : (
                                     <>
+                                        <BagPlayer
+                                            bag={bag}
+                                            datasource_id={props.datasource_id}
+                                            title={props.title}
+                                        />
                                         <BagViewer bag={bag} trigger={
                                             <Button variant="outline" title="View bag details" size="icon">
                                                 <InfoIcon />
@@ -210,15 +216,21 @@ const BagList = (props: BagListProps) => {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm text-gray-600">Path: {bag.path}</p>
-                        <p className="text-sm text-gray-600">
-                            Start time: {formatDateTime(bag.meta.starting_time)}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                            <Badge variant="outline">{formatDuration(bag.meta.duration)}</Badge>
-                            <Badge variant="outline">{bag.meta.message_count} messages</Badge>
-                            <Badge variant="outline">{bag.meta.topics_with_message_count.length} topics</Badge>
+
+                        <div className="flex gap-2 justify-between">
+                            <div className="text-sm">
+                                <div className="flex flex-col gap-1">
+                                    <div><span className="font-medium text-gray-600">Path:</span> {bag.path}</div>
+                                    <div><span className="font-medium text-gray-600">Start:</span> {formatDateTime(bag.meta.starting_time)}</div>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-sm">
+                                <Badge variant="outline">{formatDuration(bag.meta.duration)}</Badge>
+                                <Badge variant="outline">{bag.meta.message_count} messages</Badge>
+                                <Badge variant="outline">{bag.meta.topics_with_message_count.length} topics</Badge>
+                            </div>
                         </div>
+
                     </CardContent>
                 </Card>
             ))}

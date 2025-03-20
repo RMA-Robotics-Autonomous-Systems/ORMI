@@ -196,9 +196,7 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
     }
 
     return (
-        <div className="flex items-center gap-2 p-2">
-            <span className="font-medium text-sm">Bag: {bag.name}</span>
-
+        <div className="flex items-center gap-2">
             <Badge variant={status === "PLAYING" ? "default" : status === "PAUSED" ? "outline" : "secondary"} className="ml-auto">
                 {status}
             </Badge>

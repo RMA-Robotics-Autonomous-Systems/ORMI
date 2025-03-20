@@ -13,6 +13,7 @@ import { NotAPongDefinition } from './widgets/nothing/not-a-pong';
 import { IframeDefinition } from './widgets/misc/iframe';
 import { PointsCloudDefinition } from './widgets/webgl/points-cloud-webgl';
 import { CondStatusIndicatorDefinition } from './widgets/status/cond-status-indicator';
+import { NotAnEyeDefinition } from './widgets/nothing/not-an-eye';
 // import { PointsCloudDefinition } from './widgets/three-d/points-cloud';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
@@ -23,6 +24,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(IntStatusIndicatorDefinition());
     widgets.push(CondStatusIndicatorDefinition());
     widgets.push(NotAPongDefinition());
+    widgets.push(NotAnEyeDefinition());
     widgets.push(IframeDefinition());
     widgets.push(PluginsViewerDefinition());
     widgets.push(TreeViewerDefinition());
