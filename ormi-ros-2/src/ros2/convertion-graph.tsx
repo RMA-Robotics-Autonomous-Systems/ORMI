@@ -8,6 +8,7 @@ import { UnifiedConverter } from "./unified-converter";
 import { useEffect, useRef } from 'react';
 import { useTheme } from 'ormi-core/components';
 import { BinaryIcon } from 'lucide-react';
+import * as d3 from 'd3';
 
 
 function Ros2ConvertionGraph(): JSX.Element {
@@ -45,6 +46,13 @@ function Ros2ConvertionGraph(): JSX.Element {
             const fg = new ForceGraph(divRef.current as HTMLElement)
                 .graphData({ nodes, links })
                 .linkColor(() => arrowColor)
+                // Add center-gravity force to keep disconnected nodes from drifting too far apart
+                .d3Force('center', d3.forceCenter())
+                // Adjust charge force (repulsion) to be less aggressive
+                .d3Force('charge', d3.forceManyBody().strength(-30))
+                // Add a boundary force to keep nodes within a reasonable area
+                .d3Force('x', d3.forceX().strength(0.05))
+                .d3Force('y', d3.forceY().strength(0.05))
                 // Remove nodeLabel so labels are always drawn using custom canvas drawing
                 .nodeCanvasObject((node: any, ctx, globalScale) => {
                     const isWebapp = converters[node.id] !== undefined;
