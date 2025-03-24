@@ -94,7 +94,7 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
 
         fetchTopics();
         fetchTypes();
-    }, [rosclient]);
+    }, [rosclient, dialogOpen]);
 
     // Memoize filtered topics and types for better performance
     const getFilteredTopics = useCallback((index: number) => {
