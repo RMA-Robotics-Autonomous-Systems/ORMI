@@ -315,12 +315,10 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
             pluginsManager.addAction(unsubscribe_hook, {
                 id: unsubscribe_hook,
                 action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
-                    console.log("Unsubscribing from topic", topic);
                     try {
                         await connectionRef.current;
 
                         if (!subscribersRef.current.has(topic.topic)) {
-                            console.log("No subscriber found for topic", topic);
                             return;
                         }
 
@@ -333,7 +331,6 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                             subscribersRef.current.delete(topic.topic);
                             subscribersCountRef.current.delete(topic.topic);
 
-                            console.log("deleted subscriber for topic", topic);
                         }
 
 
@@ -371,8 +368,6 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                     if (!current_topic_raw_type) {
                         return definition;
                     }
-
-                    // console.log(current_topic_raw_type);
 
                     return current_topic_raw_type;
                 }

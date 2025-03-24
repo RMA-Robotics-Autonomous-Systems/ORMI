@@ -47,7 +47,6 @@ const KeySelectorControl = (props: ControlProps) => {
     }, [isSelecting])
 
     const handleSelecting = () => {
-        console.log('selecting');
         setIsSelecting(true);
     }
 

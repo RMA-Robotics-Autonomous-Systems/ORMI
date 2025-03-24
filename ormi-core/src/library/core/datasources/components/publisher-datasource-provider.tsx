@@ -86,8 +86,6 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
 
                 const result = await publisher.advertise();
 
-                console.log('PublisherDataSourcesProvider', topic.topic, result);
-
                 setPublishers((prev) => {
                     const newPublishers = new Map(prev);
                     newPublishers.set(topic.topic, publisher);
@@ -120,7 +118,6 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
                 });
             }
 
-            console.log('PublisherDataSourcesProvider initialized');
             setInitialized(true);
         });
 

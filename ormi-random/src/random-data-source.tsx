@@ -258,7 +258,6 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
                     return;
                 }
 
-                console.log(`Subscribing to topic ${topic.topic}`);
 
                 subscribersCountRef.current.set(topic.topic, (subscribersCountRef.current.get(topic.topic) || 0) + 1);
 
@@ -277,11 +276,9 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
             priority: 10,
             action: (topic: SelectedTopic, ignoreCount = false) => {
 
-                console.log(`Unsubscribing from topic ${topic.topic}`);
 
                 // force clear interval
                 if (ignoreCount && intervalesRef.current.get(topic.topic)) {
-                    console.log(`Forcefully clearing interval for topic ${topic.topic}`);
                     clearInterval(intervalesRef.current.get(topic.topic));
                     intervalesRef.current.delete(topic.topic);
                     return;
@@ -292,7 +289,6 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
                 subscribersCountRef.current.set(topic.topic, newCount);
 
                 if (newCount <= 0) {
-                    console.log(`No more subscribers for topic ${topic.topic}, clearing interval`);
                     clearInterval(intervalesRef.current.get(topic.topic));
                     intervalesRef.current.delete(topic.topic);
                 }
@@ -318,9 +314,7 @@ const RandomDataSourceProvider = (children: ReactNode, props: RandomDataSourceSe
             pluginsManager.removeFilter(definition_hook);
             pluginsManager.removeAction(subscribe_hook);
 
-            console.log('Cleaning up RandomDataSourceProvider');
             intervalesRef.current.forEach((interval, topic) => {
-                console.log(`Forcefully clearing interval for topic ${topic}`);
                 clearInterval(interval);
             });
             intervalesRef.current.clear();
