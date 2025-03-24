@@ -18,7 +18,7 @@ import {
 
 interface BagViewerProps {
     bag: BagInfo;
-    trigger?: React.ReactNode;
+    trigger?: any;
 }
 
 export function BagViewer({ bag, trigger }: BagViewerProps) {
