@@ -6,10 +6,6 @@ services:
       context: .
       dockerfile: Dockerfile.ormi_core
     restart: always
-    volumes:
-      - ./ormi-core:/ormi-core
-      - ./ormi-core/node_modules:/ormi-core/node_modules
-      - ./ormi-core/.next:/app/.next
 
   rosbridge_suite:
     container_name: ormi_rosbridge_suite

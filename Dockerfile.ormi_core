@@ -2,26 +2,15 @@
 FROM oven/bun:latest
 
 # Set working directory
-WORKDIR /ormi-core
+WORKDIR /ORMI-CORE
 
-# Copy package.json and bun.lockb (if exists)
-COPY ./ormi-core/package.json ./
-COPY ./ormi-core/bun.lockb ./
 
-# Install dependencies
-RUN bun install
+# Copy all folders from the host to the container
+COPY . .
 
-# Copy the rest of the application
-COPY ./ormi-core .
+# Run the install script
+RUN ./build.sh
 
-# Link the ormi plugins
-RUN bun link
 
-# Initialize the ormi plugins
-RUN ormi-plugins init
 
-# build the application
-RUN bun run build
-
-# Start the server
-CMD ["bun", "run", "start"]
+CMD cd ormi-app && bun run start
