@@ -87,7 +87,7 @@ export class RestBagClient {
     /**
      * Start a new recording
      */
-    async startRecording(request: RecordingRequest): Promise<RecordingResponse> {
+    async startRecording(request: RecordingRequest): Promise<RecordingResponse | RecordingError> {
         const response = await fetch(`${this.baseUrl}/recordings/start`, {
             method: 'POST',
             headers: {
