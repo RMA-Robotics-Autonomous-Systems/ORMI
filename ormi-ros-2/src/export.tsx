@@ -10,7 +10,7 @@ import { WebRtcRos2Definition } from './ros2/images/webrtc';
 import { RestBagDatasourceDefinition } from './rest-bag/rest-bag-datasource';
 import { BagListDefinition } from './rest-bag/manager/bag-list';
 import { Ros2TopicListDefinition } from './ros2/topic-list';
-import { BagRecorderDefinition } from './rest-bag/recorder/record';
+import { BagRecorderDefinition } from './rest-bag/recorder/records-list';
 
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
