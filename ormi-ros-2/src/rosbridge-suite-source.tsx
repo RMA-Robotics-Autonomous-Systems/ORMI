@@ -37,12 +37,12 @@ interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
     toasts: boolean;
 }
 
-interface ROSTopic {
+export interface ROSTopic {
     topic: string;
     type: string;
 }
 
-async function GetTopicType(ROS: ROSLIB.Ros, topic: string): Promise<string> {
+export async function GetTopicType(ROS: ROSLIB.Ros, topic: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         ROS.getTopicType(topic, (type: string) => {
             resolve(type);
@@ -53,7 +53,7 @@ async function GetTopicType(ROS: ROSLIB.Ros, topic: string): Promise<string> {
 }
 
 
-async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
+export async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
     return new Promise<ROSTopic[]>((resolve, reject) => {
         ROS.getTopics((results: { topics: string[], types: string[] }) => {
 
@@ -76,7 +76,7 @@ async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
     });
 }
 
-async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSchema>> {
+export async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSchema>> {
 
     return new Promise<Map<string, JsonSchema>>((resolve, reject) => {
 
@@ -101,7 +101,7 @@ async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string, JsonSc
 
 }
 
-async function GetServices(ROS: ROSLIB.Ros): Promise<string[]> {
+export async function GetServices(ROS: ROSLIB.Ros): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         ROS.getServices((results: string[]) => {
             resolve(results);
@@ -111,7 +111,7 @@ async function GetServices(ROS: ROSLIB.Ros): Promise<string[]> {
     });
 }
 
-async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
+export async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
     // return all the types in the system
     return new Promise<string[]>(async (resolve, reject) => {
 
