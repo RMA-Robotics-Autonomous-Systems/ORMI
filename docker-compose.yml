@@ -17,7 +17,7 @@ services:
     network_mode: host
     ipc: host
     pid: host
-    command: ros2 launch rosbridge_server rosbridge_websocket_launch.xml namespace:=${USER} respawn:=true
+    command: ros2 launch rosbridge_server rosbridge_websocket_launch.xml respawn:=true
     # environment:
     # - "ROBOTNAME=${ROBOTNAME}"
     # - "ROS_DOMAIN_ID=4"
