@@ -19,14 +19,13 @@ import {
     Alert,
     AlertTitle,
     AlertDescription,
-    AlertCircle,
-    CheckCircle,
 } from 'ormi-core/components';
-import { PlusIcon, TrashIcon, CheckIcon, ChevronsUpDown } from "lucide-react";
+import { PlusIcon, TrashIcon, CheckIcon, ChevronsUpDown, AlertCircle, CheckCircle } from "lucide-react";
 
 interface RecorderCreatorProps {
     client: RestBagClient;
     rosclient: ROSLIB.Ros;
+    refresher: () => void;
 }
 
 // Define field types for better type safety
@@ -314,20 +313,25 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
         setError(null);
         setSuccess(null);
         setIsSubmitting(true);
-        
-        console.log("Recording request:", recordingRequest);
-        
+
         client.startRecording(recordingRequest)
             .then((response) => {
-                console.log("Recording started successfully", response);
+
+                if ('error' in response) {
+                    setError(response.error);
+                    return;
+                }
+
                 setSuccess(`Recording "${recordingRequest.name}" started successfully`);
-                
+
+                props.refresher();
+
                 // Optionally auto-close dialog after success
-                // setTimeout(() => setDialogOpen(false), 2000);
+                setTimeout(() => setDialogOpen(false), 800);
             })
             .catch(error => {
                 console.error("Failed to start recording:", error);
-                
+
                 // Handle specific error messages from API
                 if (error.response) {
                     const errorData = error.response.data;
@@ -388,18 +392,26 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
                         {/* Error message */}
                         {error && (
                             <Alert variant="destructive" className="mb-4">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Error</AlertTitle>
-                                <AlertDescription>{error}</AlertDescription>
+                                <div className="flex items-start">
+                                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                                    <div>
+                                        <AlertTitle className="font-semibold mb-1">Error</AlertTitle>
+                                        <AlertDescription className="text-sm">{error}</AlertDescription>
+                                    </div>
+                                </div>
                             </Alert>
                         )}
 
                         {/* Success message */}
                         {success && (
-                            <Alert variant="success" className="mb-4">
-                                <CheckCircle className="h-4 w-4" />
-                                <AlertTitle>Success</AlertTitle>
-                                <AlertDescription>{success}</AlertDescription>
+                            <Alert className="mb-4 border-green-500 bg-green-50 text-green-800">
+                                <div className="flex items-start">
+                                    <CheckCircle className="h-5 w-5 mr-2 text-green-600 flex-shrink-0" />
+                                    <div>
+                                        <AlertTitle className="font-semibold mb-1">Success</AlertTitle>
+                                        <AlertDescription className="text-sm">{success}</AlertDescription>
+                                    </div>
+                                </div>
                             </Alert>
                         )}
 

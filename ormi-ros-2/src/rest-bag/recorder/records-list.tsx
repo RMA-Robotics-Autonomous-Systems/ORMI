@@ -62,7 +62,9 @@ const BagsRecorders = (props: RecorderListProps) => {
 
         if (roslib && client) {
             setButtonItem("bag-creator",
-                <RecorderCreator client={client!} rosclient={roslib!} />
+                <RecorderCreator client={client!} rosclient={roslib!} refresher={() => {
+                    setRefreshCounter((prev) => (prev + 1) % 10);
+                }} />
             );
         }
         return () => {
