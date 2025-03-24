@@ -1,5 +1,6 @@
 import { BagsResponse, BagInfo } from './bags';
 import { 
+    RecordingError,
     RecordingRequest, 
     RecordingResponse, 
     RecordingStatus, 
@@ -139,7 +140,7 @@ export class RestBagClient {
     /**
      * Get a specific recording by ID
      */
-    async getRecording(recordingId: string): Promise<RecordingStatus> {
+    async getRecording(recordingId: string): Promise<RecordingStatus | RecordingError> {
         const response = await fetch(`${this.baseUrl}/recordings/${encodeURIComponent(recordingId)}`);
         
         if (!response.ok) {

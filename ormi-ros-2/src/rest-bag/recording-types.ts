@@ -1,5 +1,6 @@
 export interface Topic {
   name: string;
+  type: string;
   // Add additional properties if available in the Python implementation
 }
 
@@ -27,4 +28,8 @@ export interface RecordingResponse {
 
 export interface StopRecordingResponse {
   message: string;
+}
+
+export interface RecordingError {
+    error: string;
 }

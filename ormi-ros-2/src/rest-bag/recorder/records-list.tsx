@@ -9,6 +9,7 @@ import { RestBagClient } from "../rest-bag-client"
 import ROSLIB from "roslib"
 import { RecordingStatus } from "../recording-types"
 import { Recorder } from "./recorder"
+import { RecorderCreator } from "./recorder-creator"
 
 interface RecorderListProps {
     title: string;
@@ -37,19 +38,13 @@ const BagsRecorders = (props: RecorderListProps) => {
         const new_ros = pluginsManager.applyFilter<ROSLIB.Ros>(`${props.ros_datasource_id}-ros-2-connection`, null)
         setRoslib(new_ros);
 
-        setTimeout(async () => {
-
-            if (client) {
-                const recs = await client.getRecordings();
-                setRecordings(recs);
-            }
-        }, 100);
-
         setButtonItem("bag-list-refresh",
             <Button variant="ghost" onClick={() => setRefreshCounter((prev) => (prev + 1) % 10)} title="Refresh bag list">
                 <RefreshCwIcon />
             </Button>
         );
+
+
 
         return () => {
             removeButtonItem("bag-list-refresh");
@@ -57,11 +52,29 @@ const BagsRecorders = (props: RecorderListProps) => {
 
     }, [props, pluginsManager, refreshCounter]);
 
+    useEffect(() => {
+        if (client) {
+            setTimeout(async () => {
+                const recs = await client!.getRecordings();
+                setRecordings(recs);
+            }, (100));
+        }
+
+        if (roslib && client) {
+            setButtonItem("bag-creator",
+                <RecorderCreator client={client!} rosclient={roslib!} />
+            );
+        }
+        return () => {
+            removeButtonItem("bag-creator");
+        }
+    }, [client, roslib, refreshCounter]);
+
 
     return (
         <div className="p-3">
-            {recordings.map((rec) => (
-                <Recorder key={rec.recording_id} {...rec} />
+            {recordings && recordings.length > 0 && recordings.map((rec) => (
+                <Recorder key={rec.recording_id} recorder={rec} client={client!} />
             ))}
         </div>
     )

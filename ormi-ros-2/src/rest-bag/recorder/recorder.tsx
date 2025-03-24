@@ -1,9 +1,50 @@
 import { InfoIcon, SquareIcon } from "lucide-react";
-import { RecordingStatus } from "../recording-types";
+import { RecordingStatus, RecordingError } from "../recording-types";
 import { Badge, Button, Card, CardHeader, CardTitle, Table, TableBody, TableRow, TableCell, Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "ormi-core/components"
+import { RestBagClient } from "../rest-bag-client";
+import { useEffect, useState, useRef } from "react";
 
+interface RecorderProps {
+    recorder: RecordingStatus;
+    client: RestBagClient;
+}
 
-export const Recorder = (recorder: RecordingStatus) => {
+export const Recorder = (props: RecorderProps) => {
+
+    const { client } = props;
+
+    const [recorder, setRecorder] = useState<RecordingStatus>(props.recorder);
+    const [isStoppingRecording, setIsStoppingRecording] = useState(false);
+    const [stopError, setStopError] = useState<string | null>(null);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        intervalRef.current = setInterval(async () => {
+            if (recorder.status === "STOPPED") {
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+                return;
+            }
+
+            const rec = await client.getRecording(recorder.recording_id);
+
+            if ('error' in rec) {
+                console.error("Failed to get recording status:", rec.error);
+                return;
+            }
+
+            setRecorder(rec);
+        }, 1000);
+
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        }
+    }, []);
 
     const getDuration = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
@@ -11,6 +52,38 @@ export const Recorder = (recorder: RecordingStatus) => {
         const secs = Math.floor(seconds % 60);
 
         return `${hours}h ${minutes}m ${secs}s`;
+    }
+
+    const stopRecording = async () => {
+        setIsStoppingRecording(true);
+        setStopError(null);
+        let hasError = false;
+
+        try {
+            const response = await client.stopRecording(recorder.recording_id) as any;
+
+            // Check for error in response
+            if (response && response.error) {
+                hasError = true;
+                setStopError(response.error);
+                console.error("Failed to stop recording:", response.error);
+            }
+        } catch (error) {
+            hasError = true;
+            setStopError(error instanceof Error ? error.message : "Failed to stop recording");
+            console.error("Error stopping recording:", error);
+        } finally {
+            setIsStoppingRecording(false);
+
+            // if no error, update the recorder status, stop the update interval
+            if (!hasError) {
+                setRecorder({ ...recorder, status: "STOPPED" });
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+            }
+        }
     }
 
     return (
@@ -26,13 +99,27 @@ export const Recorder = (recorder: RecordingStatus) => {
             </CardHeader>
             <div className="flex items-center justify-end gap-2 w-full p-3">
 
-                <Badge variant={recorder.status === "running" ? "default" : recorder.status === "PAUSED" ? "outline" : "secondary"} className="ml-auto">
+                <Badge variant={recorder.status === "running" ? "default" : recorder.status === "STOPPED" ? "outline" : "secondary"} className="ml-auto">
                     {recorder.status}
                 </Badge>
 
-                <Button size="sm" variant="destructive" onClick={() => { }}>
-                    <SquareIcon />
-                </Button>
+                {recorder.status !== "STOPPED" && <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => { stopRecording() }}
+                    disabled={isStoppingRecording}
+                >
+                    {isStoppingRecording ?
+                        <span className="animate-pulse">Stopping...</span> :
+                        <SquareIcon />
+                    }
+                </Button>}
+
+                {stopError && (
+                    <div className="text-red-500 text-xs">
+                        {stopError}
+                    </div>
+                )}
 
                 <Dialog>
 
