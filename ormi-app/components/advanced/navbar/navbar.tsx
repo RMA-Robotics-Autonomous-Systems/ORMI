@@ -49,10 +49,10 @@ const NavBar = () => {
                         </PopoverTrigger>
                         <PopoverContent style={{ width: "100dvw" }}>
                             <div className="flex flex-wrap gap-1">
-                                <Link href="/" className={navigationMenuTriggerStyle()}>
-                                    Home
+                                <Link href="/dashboard" className={navigationMenuTriggerStyle()}>
+                                    Dashboard
                                 </Link>
-                                <Link href="/plugins" className={navigationMenuTriggerStyle()}>
+                                <Link href="/dashboard/plugins" className={navigationMenuTriggerStyle()}>
                                     Plugins
                                 </Link>
                                 {sortedLeft.map(([key, value]) => (
@@ -80,14 +80,21 @@ const NavBar = () => {
                 <div className="hidden md:flex w-full justify-between">
                     <NavigationMenuList key="left">
                         <NavigationMenuItem>
-                            <Link href="/" legacyBehavior passHref>
+                            <Link href="/dashboard" legacyBehavior passHref>
                                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                                    Home
+                                    Dashboard
                                 </NavigationMenuLink>
                             </Link>
                         </NavigationMenuItem>
                         <NavigationMenuItem>
-                            <Link href="/plugins" legacyBehavior passHref>
+                            <Link href="/dashboard/ws/1" legacyBehavior passHref>
+                                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                                    Workspace
+                                </NavigationMenuLink>
+                            </Link>
+                        </NavigationMenuItem>
+                        <NavigationMenuItem>
+                            <Link href="/dashboard/plugins" legacyBehavior passHref>
                                 <NavigationMenuLink className={navigationMenuTriggerStyle()}>
                                     Plugins
                                 </NavigationMenuLink>

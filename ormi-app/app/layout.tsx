@@ -1,56 +1,87 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport} from "next";
 // import localFont from "next/font/local";
-import "./globals.css";
-import { PluginsProvider, } from "ormi-core/plugins";
-import { NavbarProvider, NavBar, ThemeProvider } from "ormi-core/components";
-import { Toaster } from "@/components/ui/toaster";
+import "@/styles/globals.css"
+import { ThemeProvider } from "@/components/advanced/theme/theme-provider"
 
-import registry from "@/ormi-plugins";
+import { Inter as FontSans} from "next/font/google"
+import localFont from "next/font/local"
 
-// const geistSans = localFont({
-//     src: "./fonts/GeistVF.woff",
-//     variable: "--font-geist-sans",
-//     weight: "100 900",
-// });
-// const geistMono = localFont({
-//     src: "./fonts/GeistMonoVF.woff",
-//     variable: "--font-geist-mono",
-//     weight: "100 900",
-// });
+import { cn } from "@/lib/utils"
+import { Toaster } from "@/components/ui/toaster"
 
-export const metadata: Metadata = {
-    title: "Open Robotics Management Interface",
-    description: "Web interface for managing multi robots systems",
-};
+import { siteConfig } from "@/config/site"
 
-export default function RootLayout({
-    children,
-}: Readonly<{
-    children: React.ReactNode;
-}>) {
 
+const fontSans = FontSans({
+    subsets: ["latin"],
+    variable: "--font-sans",
+  })
+  
+const fontHeading = localFont({
+    src: "../assets/fonts/CalSans-SemiBold.woff2",
+    variable: "--font-heading",
+  })
+
+
+export const metadata : Metadata = {
+
+    metadataBase: new URL(siteConfig.url),
+    title: {
+      default: siteConfig.name,
+      template: `%s | ${siteConfig.name}`,
+    },
+    description: siteConfig.description,
+    keywords: siteConfig.keywords,
+    openGraph: {
+      type: "website",
+      url: siteConfig.url,
+      title: siteConfig.name,
+      description: siteConfig.description,
+      siteName: siteConfig.name,
+      images: siteConfig.ogImage,
+      locale: "en_US" 
+    },
+    icons: siteConfig.icon,
+    manifest: siteConfig.manifest,
+    robots: "index, follow",
+  }
+
+
+export const viewport: Viewport = {
+    colorScheme: "dark light",
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: "white" },
+      { media: "(prefers-color-scheme: dark)", color: "black" },
+    ],
+  }
+
+interface RootLayoutProps {
+    children: React.ReactNode
+  }
+  
+  export default function RootLayout({ children }: RootLayoutProps) {
     return (
-        <html lang="en" suppressHydrationWarning>
-            <body>
-                <ThemeProvider
-                    attribute="class"
-                    defaultTheme="system"
-                    enableSystem
-
-                >
-                    <main>
-                        <PluginsProvider PluginsInfo={registry}>
-                            <Toaster />
-                            <NavbarProvider>
-                                <>
-                                    <NavBar />
-                                    {children}
-                                </>
-                            </NavbarProvider>
-                        </PluginsProvider>
-                    </main>
-                </ThemeProvider>
-            </body>
-        </html >
-    );
-}
+      <html lang="en" suppressHydrationWarning>
+      <head />
+      <body
+          className={cn(
+              "min-h-screen bg-background font-sans antialiased",
+              fontSans.variable,
+              fontHeading.variable
+              )}
+      >
+          <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          >
+              <main>
+                  {children}
+              </main>
+          <Toaster />
+          </ThemeProvider>
+      </body>
+      </html >
+    )
+  }

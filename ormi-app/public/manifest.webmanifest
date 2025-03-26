@@ -1,0 +1,14 @@
+{
+  "name": "RAS-APP",
+  "short_name": "RAS-APP",
+  "icons": [
+    {
+      "src": "icon/ras-app-icon-default.svg",
+      "sizes": "any",
+      "type": "image/svg"
+    }
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}
