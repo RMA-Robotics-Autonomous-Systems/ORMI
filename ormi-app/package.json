@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
+    "dev": "ormi-plugins init ormi-plugins.ts && next dev --turbopack",
+    "build": "ormi-plugins init ormi-plugins.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "db-generate": "prisma generate",
@@ -88,7 +88,12 @@
     "uplot": "^1.6.31",
     "uplot-react": "^1.2.2",
     "webgl-plot": "^0.7.2",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "ormi-core": "link:ormi-core",
+    "ormi-fligth-indicator": "link:ormi-fligth-indicator",
+    "ormi-random": "link:ormi-random",
+    "ormi-ros-2": "link:ormi-ros-2",
+    "ormi-standart-widgets": "link:ormi-standart-widgets"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.15",
