@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 // import localFont from "next/font/local";
 import "@/styles/globals.css";
-import { NavbarProvider } from "@/components/advanced/navbar/navbar-provider";
-import NavBar from "@/components/advanced/navbar/navbar";
-import { Toaster } from "@/components/ui/toaster";
+
 
 // const geistSans = localFont({
 //     src: "./fonts/GeistVF.woff",
@@ -29,7 +27,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     return (
         <div>
-
+            {children}
         </div>
     );
 }
