@@ -58,3 +58,7 @@ ormi-app/plugins/*
 ormi-core/dist
 ormi-standart-widgets/dist
 ormi-app/ormi-plugins.ts
+
+
+# Ignore the postgres folder and files
+postgres/*
