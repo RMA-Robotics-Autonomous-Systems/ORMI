@@ -69,9 +69,6 @@ export const NavBar = () => {
                                 {sortedRight.map(([key, value]) => (
                                     <div key={key}>{value.component}</div>
                                 ))}
-                                <div>
-                                    <ModeToggle />
-                                </div>
                             </div>
                         </PopoverContent>
                     </Popover>
@@ -80,20 +77,6 @@ export const NavBar = () => {
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex w-full justify-between">
                     <NavigationMenuList key="left">
-                        <NavigationMenuItem>
-                            <Link href="/" legacyBehavior passHref>
-                                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                                    Home
-                                </NavigationMenuLink>
-                            </Link>
-                        </NavigationMenuItem>
-                        <NavigationMenuItem>
-                            <Link href="/plugins" legacyBehavior passHref>
-                                <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                                    Plugins
-                                </NavigationMenuLink>
-                            </Link>
-                        </NavigationMenuItem>
                         {sortedLeft.map(([key, value]) => (
                             <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
@@ -109,9 +92,6 @@ export const NavBar = () => {
                         {sortedRight.map(([key, value]) => (
                             <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
                         ))}
-                        <NavigationMenuItem>
-                            <ModeToggle />
-                        </NavigationMenuItem>
                     </NavigationMenuList>
                 </div>
             </NavigationMenu>

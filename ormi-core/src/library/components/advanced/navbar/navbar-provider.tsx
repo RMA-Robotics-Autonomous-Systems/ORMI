@@ -22,7 +22,7 @@ import React, { createContext, JSX, useContext, useState } from 'react';
 export type NavbarZone = "left" | "center" | "right";
 
 // each zone iz an array of react components
-interface NavbarItem {
+export interface NavbarItem {
     component: JSX.Element;
     priority: number;
 }
@@ -45,15 +45,18 @@ const NavbarContext = createContext<NavbarContextType>({
 
 interface NavbarProviderProps {
     children: React.ReactNode;
+    left?: Map<string, NavbarItem>;
+    center?: Map<string, NavbarItem>;
+    right?: Map<string, NavbarItem>;
 }
 
 export const NavbarProvider = (props: NavbarProviderProps) => {
 
     const { children } = props;
 
-    const [left, setLeft] = useState<Map<string, NavbarItem>>(new Map());
-    const [center, setCenter] = useState<Map<string, NavbarItem>>(new Map());
-    const [right, setRight] = useState<Map<string, NavbarItem>>(new Map());
+    const [left, setLeft] = useState<Map<string, NavbarItem>>(props.left || new Map());
+    const [center, setCenter] = useState<Map<string, NavbarItem>>(props.center || new Map());
+    const [right, setRight] = useState<Map<string, NavbarItem>>(props.right || new Map());
 
     const setNavbarItem = (zone: NavbarZone, key: string, component: JSX.Element, priority: number = 5) => {
         /*
