@@ -132,7 +132,15 @@ if [ -f "ormi-app/package.json" ]; then
     
     # Change to the directory
     cd "ormi-app"
-    
+
+
+    # Run the DB migration script
+    echo
+    echo "Generating database migrations..."
+    bun run db-generate
+    echo "Migrate the database..."
+    bun run db-migrate-dev
+
     # Run bun install and build
     echo "Installing dependencies in ormi-app..."
     bun i
@@ -166,3 +174,4 @@ else
     done
 fi
 echo " └───────────────────────────────────┘"
+
