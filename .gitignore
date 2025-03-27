@@ -57,3 +57,4 @@ ormi-app/plugins/*
 !ormi-app/plugins/random-data-sources
 ormi-core/dist
 ormi-standart-widgets/dist
+ormi-app/ormi-plugins.ts
