@@ -29,25 +29,6 @@ export default function signUpPage() {
             </div>
 
             <div className="">
-                <div className="flex justify-between pt-10 lg:pr-5 lg:pl-5">
-                    <Link
-                        href="/"
-                        className={cn(
-                            buttonVariants({ size: "lg" })
-                        )}
-                    >
-                        &#60; Home
-                    </Link>
-                    <Link
-                        href="/signin"
-                        className={cn(
-                            buttonVariants({ size: "lg", className: "bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground" })
-                        )}
-                    >
-                        Sign In &#62;
-                    </Link>
-                </div>
-
                 <div className="w-full h-[calc(100vh-100px)] mx-auto flex  flex-col justify-center space-y-6 lg:w-[400px]">
                     <div className="flex flex-col space-y-3 text-center">
                         <Image

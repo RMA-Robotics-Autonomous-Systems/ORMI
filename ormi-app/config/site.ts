@@ -2,8 +2,8 @@ import { SiteConfig } from "@/types/index"
 import { env } from "@/env.js"
 
 export const siteConfig: SiteConfig = {
-  name: "RAS-APP",
-  description: "A central platform that supports heterogenous and scalable robotics and autonomous systems for RMA-MECA-RAS usage.",
+  name: "ORMI",
+  description: "Open Robotic Management Interface. A central platform that supports heterogenous and scalable robotics and autonomous systems.",
   //name: "Open Robotics Management Interface",
   //description: "Web interface for managing multi robots systems",
   keywords: ["Royal Military Academy Belgium",
@@ -16,7 +16,7 @@ export const siteConfig: SiteConfig = {
     "RAS Lab",
     "Department of Mechanics of Belgian Royal Military Academy"],
   url: env.NEXT_PUBLIC_APP_URL,
-  icon: "/favicon.ico",
+  icon: "/icon/ormi.svg",
   ogImage: "opengraph-image.png",
   manifest: "manifest.webmanifest",
   address: "Robotics & Autonomous Systems Department of Mechanics, Royal Military Academy, Avenue De La Renaissance 30, 1000 Brussels, Belgium",
