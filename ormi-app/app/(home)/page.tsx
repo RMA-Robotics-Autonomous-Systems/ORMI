@@ -21,7 +21,6 @@ export default function HomePage() {
                         height={500}
                         priority
                         alt="RAS-APP Logo Light"
-                        className="dark:hidden"
                     />
                     <p className="max-w-5xl leading-normal sm:text-xl sm:leading-8">
                         {siteConfig.description}
