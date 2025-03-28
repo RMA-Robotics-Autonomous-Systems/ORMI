@@ -36,6 +36,7 @@ export default function SignInPage() {
                             width={500}
                             height={500}
                             priority
+                            className="dark:invert"
                             alt="RAS-APP Logo Light"
                         />
                     </div>
