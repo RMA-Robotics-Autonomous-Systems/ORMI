@@ -75,12 +75,23 @@ const default_left: Map<string, NavbarItem> = new Map([
             ),
             priority: 1
         }
+    ],
+    [
+        "plugins",
+        {
+            component: (
+                <Link href="/plugins" passHref>
+                    <Button variant="ghost">Plugins</Button>
+                </Link>
+            ),
+            priority: 1
+        }
     ]
 ]);
 
 const default_right: Map<string, NavbarItem> = new Map([
     [
-        "plugins",
+        "modetoggle",
         {
             component: (
                 <ModeToggle />
