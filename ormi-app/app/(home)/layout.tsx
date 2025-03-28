@@ -30,6 +30,14 @@ export default function HomeLayout({
                 <UserAccountNav user={session?.user as User} />,
                 -2
             );
+            setNavbarItem(
+                "left",
+                "dashboard",
+                <Link href="/dashboard">
+                    <Button variant="ghost">Dashboard</Button>
+                </Link>,
+                1
+            )
         } else {
             setNavbarItem(
                 "right",
@@ -43,6 +51,7 @@ export default function HomeLayout({
 
         return () => {
             removeNavbarItem("right", "user_account");
+            removeNavbarItem("left", "dashboard");
         }
 
     }, [status])
