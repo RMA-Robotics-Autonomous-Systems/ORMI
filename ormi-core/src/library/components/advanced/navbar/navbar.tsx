@@ -78,19 +78,19 @@ export const NavBar = () => {
                 <div className="hidden md:flex w-full justify-between">
                     <NavigationMenuList key="left">
                         {sortedLeft.map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
+                            <NavigationMenuItem style={{ height: "40px" }} key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
 
                     <NavigationMenuList key="center">
                         {sortedCenter.map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
+                            <NavigationMenuItem style={{ height: "40px" }} key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
 
                     <NavigationMenuList key="right">
                         {sortedRight.map(([key, value]) => (
-                            <NavigationMenuItem key={key}>{value.component}</NavigationMenuItem>
+                            <NavigationMenuItem style={{ height: "40px" }} key={key}>{value.component}</NavigationMenuItem>
                         ))}
                     </NavigationMenuList>
                 </div>
