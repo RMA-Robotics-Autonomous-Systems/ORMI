@@ -167,12 +167,14 @@ export const authOptions: NextAuthOptions = {
                 throw new Error("User already exists");
             }
 
+            const encodedName = encodeURIComponent(credentials.username);
+
             // If no error and we have user data, return it
             const newUser = await db.user.create({
                 data: {
                     name: credentials.username,
                     email: credentials.username,
-                    image: "https://www.gravatar.com/avatar/" + credentials.username,
+                    image: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodedName}`,
                     //role: "guest"
                 },
             })

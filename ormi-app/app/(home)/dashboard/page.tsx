@@ -35,13 +35,13 @@ export default async function DashboardPage() {
     })
 
     return (
-        <DashboardShell className="container mx-auto pt-10">
+        <DashboardShell className="container mx-auto mt-8">
             <DashboardHeader heading="Workspace" text="Click + to create new workspace">
                 <CreateWSButton />
             </DashboardHeader>
             <div>
                 {workspaces?.length ? (
-                    <div className="divide-y divide-border rounded-md border">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         {workspaces.map((workspace) => (
                             <WorkspaceItem key={workspace.id} workspace={workspace} />
                         ))}
