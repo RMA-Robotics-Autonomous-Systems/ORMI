@@ -3,38 +3,88 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import { toast } from "ormi-core/components"
+
+import * as React from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { signIn } from "next-auth/react"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import { userAuthSchema } from "@/lib/validations/auth"
+
+import { LuLoader } from "react-icons/lu";
+
+
+type FormData = z.infer<typeof userAuthSchema>
 
 export function LoginForm({
     className,
     ...props
 }: React.ComponentPropsWithoutRef<"form">) {
+
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<FormData>({
+        resolver: zodResolver(userAuthSchema),
+    })
+    const [isLoading, setIsLoading] = React.useState<boolean>(false)
+    const searchParams = useSearchParams()
+    const router = useRouter()
+
+    async function onSubmit(data: FormData) {
+        setIsLoading(true)
+
+        const callbackUrl = searchParams?.get("from") || "/dashboard"
+
+        const signInResult = await signIn("credentials", {
+            username: data.user.toLowerCase(),
+            redirect: false,
+            callbackUrl,
+        })
+
+        setIsLoading(false)
+
+        if (!signInResult?.ok) {
+            return toast({
+                title: "Something went wrong.",
+                description: "Your sign in request failed. Please try again.",
+                variant: "destructive",
+            })
+        }
+
+        router.push(callbackUrl)
+
+        return toast({
+            title: "Logged in successfully",
+            description: "Welcome back to your account.",
+        })
+    }
+
     return (
-        <form className={cn("flex flex-col gap-6", className)} {...props}>
+        <form onSubmit={handleSubmit(onSubmit)} className={cn("flex flex-col gap-6", className)} {...props}>
+            <div className="grid gap-2">
+                {errors?.user && (
+                    <div className="text-sm text-destructive">
+                        {errors.user.message}
+                    </div>
+                )}
+            </div>
             <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Login to your account</h1>
                 <p className="text-balance text-sm text-muted-foreground">
-                    Enter your email below to login to your account
+                    Enter your username below to login to your account
                 </p>
             </div>
             <div className="grid gap-6">
                 <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="m@example.com" required />
-                </div>
-                <div className="grid gap-2">
-                    <div className="flex items-center">
-                        <Label htmlFor="password">Password</Label>
-                        <a
-                            href="#"
-                            className="ml-auto text-sm underline-offset-4 hover:underline"
-                        >
-                            Forgot your password?
-                        </a>
-                    </div>
-                    <Input id="password" type="password" required />
+                    <Label htmlFor="user">User</Label>
+                    <Input id="user" type="text" placeholder="Username" required {...register("user")} />
                 </div>
                 <Button type="submit" className="w-full">
-                    Login
+                    {isLoading ? <LuLoader className="mr-2 h-4 w-4 animate-spin" /> : "Login"}
                 </Button>
             </div>
             <div className="text-center text-sm">

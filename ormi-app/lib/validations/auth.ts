@@ -1,11 +1,11 @@
 import * as z from "zod"
 
 export const userAuthSchema = z.object({
-  email: z.string().email(),
+  user: z.string(),
 })
 
 export const userSignUpSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  user: z.string(),
+//   password: z.string().min(8),
 })
 
