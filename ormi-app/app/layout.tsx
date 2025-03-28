@@ -16,6 +16,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AuthProvider } from "@/components/providers/session-provider";
 
+import registry from "@/ormi-plugins";
+import { PluginsProvider } from "ormi-core/plugins";
+
 
 const fontSans = FontSans({
     subsets: ["latin"],
@@ -119,13 +122,16 @@ export default function RootLayout({ children }: RootLayoutProps) {
                     disableTransitionOnChange
                 >
                     <AuthProvider>
-                        <NavbarProvider left={default_left} right={default_right}>
-                            <>
-                                <NavBar />
-                                {children}
-                                <Toaster />
-                            </>
-                        </NavbarProvider>
+                        <PluginsProvider PluginsInfo={registry}>
+
+                            <NavbarProvider left={default_left} right={default_right}>
+                                <>
+                                    <NavBar />
+                                    {children}
+                                    <Toaster />
+                                </>
+                            </NavbarProvider>
+                        </PluginsProvider>
                     </AuthProvider>
 
                 </ThemeProvider>
