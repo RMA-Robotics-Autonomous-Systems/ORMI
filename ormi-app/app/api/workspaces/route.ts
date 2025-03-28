@@ -4,52 +4,52 @@ import { NextRequest } from "next/server"
 
 import { authOptions } from "@/server/auth"
 import { db } from "@/server/db"
-import { userNameSchema } from "@/lib/validations/user"
 
-const routeContextSchema = z.object({
-  params: z.object({
-    userId: z.string(),
-  }),
+// Create a schema for workspace creation
+const createWorkspaceSchema = z.object({
+  title: z.string(),
+  userId: z.string(),
 })
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function POST(req: NextRequest) {
   try {
-
-    // wait for the params to resolve
-    const resolvedParams = await params;
-
-    // Validate the route context.
-    routeContextSchema.parse({ params })
-
-    // Ensure user is authentication and has access to this user.
+    // Ensure user is authenticated
     const session = await getServerSession(authOptions)
-    if (!session?.user || resolvedParams.userId !== session?.user.id) {
+    if (!session?.user) {
+      return new Response(null, { status: 401 })
+    }
+
+    // Get the request body and validate it
+    const body = await req.json()
+    const payload = createWorkspaceSchema.parse(body)
+
+    // Verify the userId in the request matches the authenticated user
+    if (payload.userId !== session.user.id) {
       return new Response(null, { status: 403 })
     }
 
-    // Get the request body and validate it.
-    const body = await req.json()
-    const payload = userNameSchema.parse(body)
-
-    // Update the user.
-    await db.user.update({
-      where: {
-        id: session.user.id,
-      },
+    // Create the workspace
+    const workspace = await db.workspace.create({
       data: {
-        name: payload.name,
+        name: payload.title,
+        createdById: payload.userId,
+        createdAT: new Date(),
+        updatedAT: new Date(),
       },
     })
 
-    return new Response(null, { status: 200 })
+    return new Response(JSON.stringify(workspace), { 
+      status: 200,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return new Response(JSON.stringify(error.issues), { status: 422 })
     }
 
+    console.error("Workspace creation error:", error)
     return new Response(null, { status: 500 })
   }
 }
