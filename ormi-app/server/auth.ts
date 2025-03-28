@@ -116,7 +116,8 @@ export const authOptions: NextAuthOptions = {
 
     Credentials({
         // The name to display on the sign in form (e.g. 'Sign in with...')
-        name: 'Credentials',
+        id:'login',
+        name: 'Login',
         // The credentials is used to generate a suitable form on the sign in page.
         // You can specify whatever fields you are expecting to be submitted.
         // e.g. domain, username, password, 2FA token, etc.
@@ -142,7 +143,50 @@ export const authOptions: NextAuthOptions = {
           // Return null if user data could not be retrieved
           throw new Error("Invalid credentials")
         }
+      }),
+
+      Credentials({
+        id: 'register',
+        name: 'Register',
+        credentials: {
+            username: { label: "Username", type: "text", placeholder: "Username" },
+        },
+        async authorize(credentials) {
+            if(!credentials || !credentials.username) {
+                throw new Error("Invalid credentials");
+            }
+
+            const user = await db.user.findFirst({
+                where: {
+                    name: credentials.username,
+                },
+            })
+            
+            // if a user with the same username already exists, throw an error
+            if (user) {
+                throw new Error("User already exists");
+            }
+
+            // If no error and we have user data, return it
+            const newUser = await db.user.create({
+                data: {
+                    name: credentials.username,
+                    email: credentials.username,
+                    image: "https://www.gravatar.com/avatar/" + credentials.username,
+                    //role: "guest"
+                },
+            })
+
+            if (newUser) {
+                return newUser
+            }
+
+          // Return null if user data could not be retrieved
+          throw new Error("Invalid credentials")
+        }
       })
+
+
   ],
   callbacks: {
     async session({ token, session}) {

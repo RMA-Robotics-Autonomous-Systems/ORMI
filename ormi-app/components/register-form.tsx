@@ -18,7 +18,7 @@ import { LuLoader } from "react-icons/lu";
 
 type FormData = z.infer<typeof userAuthSchema>
 
-export function LoginForm({
+export function RegisterForm({
     className,
     ...props
 }: React.ComponentPropsWithoutRef<"form">) {
@@ -39,7 +39,7 @@ export function LoginForm({
 
         const callbackUrl = searchParams?.get("from") || "/dashboard"
 
-        const signInResult = await signIn("login", {
+        const signInResult = await signIn("register", {
             username: data.user.toLowerCase(),
             redirect: false,
             callbackUrl,
@@ -73,9 +73,9 @@ export function LoginForm({
                 )}
             </div>
             <div className="flex flex-col items-center gap-2 text-center">
-                <h1 className="text-2xl font-bold">Login to your account</h1>
+                <h1 className="text-2xl font-bold">Register your account</h1>
                 <p className="text-balance text-sm text-muted-foreground">
-                    Enter your username below to login to your account
+                    Enter your username below to create your account
                 </p>
             </div>
             <div className="grid gap-6">
@@ -84,12 +84,12 @@ export function LoginForm({
                     <Input id="user" type="text" placeholder="Username" required {...register("user")} />
                 </div>
                 <Button type="submit" className="w-full">
-                    {isLoading ? <LuLoader className="mr-2 h-4 w-4 animate-spin" /> : "Login"}
+                    {isLoading ? <LuLoader className="mr-2 h-4 w-4 animate-spin" /> : "Register"}
                 </Button>
             </div>
             <div className="text-center text-sm">
-                Don&apos;t have an account?{" "}
-                <Link href="/signup" className="underline underline-offset-4">Sign up</Link>
+                Already have an account?{" "}
+                <Link href="/signin" className="underline underline-offset-4">Sign in</Link>
             </div>
         </form>
     )
