@@ -1,12 +1,14 @@
 import styles from "@/styles/page.module.css";
 
-import { Dashboard, DashboardProvider, DashboardInterface, handleLoad, handleSave } from "ormi-core/dashboard";
+import { Dashboard, DashboardProvider, DashboardInterface } from "ormi-core/dashboard";
 import { Widget, WidgetsDialog } from "ormi-core/widgets";
 
 import { Datasource, GlobalDataSourcesProvider } from "ormi-core/datasources";
 
 
+
 import { TemplatesProvider, temphandleLoad as tl, temphandleSave as ts } from "ormi-core/templates";
+import { handleLoad, handleSave } from "@/server/prisma-dashboard";
 
 export default function WorkspacePage() {
 

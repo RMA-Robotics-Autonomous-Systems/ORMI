@@ -4,58 +4,121 @@ import { NextRequest } from "next/server"
 import { authOptions } from "@/server/auth"
 import { db } from "@/server/db"
 
-// export async function PATCH(
-//   req: NextRequest,
-//   { params }: { params: Promise<{ userId: string }> }
-// ) {
-//   try {
+export async function GET(
+    req: NextRequest,
+    { params }: { params: Promise<{ wsId: string }> }
+){
+    try {
+        const resolvedParams = await params;
+        const wsId = resolvedParams.wsId;
 
-//     // wait for the params to resolve
-//     const resolvedParams = await params;
+        const session = await getServerSession(authOptions)
+        if (!session?.user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+                status: 401 
+            })
+        }
 
-//     // Validate the route context.
-//     routeContextSchema.parse({ params })
+        const workspaceId = parseInt(wsId);
+        
+        const workspace = await db.workspace.findUnique({
+            where: { 
+                id: workspaceId,
+                createdById: session.user.id 
+            },
+            select: { id: true, name: true, content: true },
+        })
+    
+        return new Response(JSON.stringify(workspace), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+    } catch (error) {
+        console.error("Error fetching workspace:", error)
+        return new Response(JSON.stringify({ error: "Internal server error" }), { 
+            status: 500 
+        })
+    }
+}
 
-//     // Ensure user is authentication and has access to this user.
-//     const session = await getServerSession(authOptions)
-//     if (!session?.user || resolvedParams.userId !== session?.user.id) {
-//       return new Response(null, { status: 403 })
-//     }
+export async function PATCH(
+    req: NextRequest,
+    { params }: { params: Promise<{ wsId: string }> }
+) {
+    try {
+        const resolvedParams = await params;
+        const wsId = resolvedParams.wsId;
+        
+        const session = await getServerSession(authOptions)
+        if (!session?.user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+                status: 401 
+            })
+        }
+        
+        // Parse request body
+        const body = await req.json();
+        
+        // Validate workspace ID
+        const workspaceId = parseInt(wsId);
+        if (isNaN(workspaceId)) {
+            return new Response(JSON.stringify({ error: "Invalid workspace ID format" }), { 
+                status: 400 
+            })
+        }
+        
+        // Check if workspace exists and belongs to user
+        const existingWorkspace = await db.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { createdById: true },
+        });
+        
+        if (!existingWorkspace) {
+            return new Response(JSON.stringify({ error: "Workspace not found" }), { 
+                status: 404 
+            })
+        }
+        
+        if (existingWorkspace.createdById !== session.user.id) {
+            return new Response(JSON.stringify({ error: "You don't have permission to update this workspace" }), { 
+                status: 403 
+            })
+        }
+        
+        // Update workspace with dashboard content
+        const updatedWorkspace = await db.workspace.update({
+            where: { id: workspaceId },
+            data: { 
+                content: body.content 
+            },
+            select: { id: true, name: true }
+        });
+        
+        return new Response(JSON.stringify(updatedWorkspace), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+    } catch (error) {
+        console.error("Error updating workspace content:", error);
+        return new Response(JSON.stringify({ error: "Internal server error" }), { 
+            status: 500 
+        });
+    }
+}
 
-//     // Get the request body and validate it.
-//     const body = await req.json()
-//     const payload = userNameSchema.parse(body)
-
-//     // Update the user.
-//     await db.user.update({
-//       where: {
-//         id: session.user.id,
-//       },
-//       data: {
-//         name: payload.name,
-//       },
-//     })
-
-//     return new Response(null, { status: 200 })
-//   } catch (error) {
-//     if (error instanceof z.ZodError) {
-//       return new Response(JSON.stringify(error.issues), { status: 422 })
-//     }
-
-//     return new Response(null, { status: 500 })
-//   }
-// }
-
-
-  
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ wsId: string }> }
 ){
   try {
-        const resolvedParams = await params;
-
-      const wsId = await resolvedParams.wsId;
+    
+    const resolvedParams = await params;
+      const wsId = resolvedParams.wsId;
       
       if (!wsId) {
           return new Response(JSON.stringify({ error: "Workspace ID is required" }), { 
