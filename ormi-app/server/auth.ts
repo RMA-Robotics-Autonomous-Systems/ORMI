@@ -121,12 +121,12 @@ export const authOptions: NextAuthOptions = {
         // You can specify whatever fields you are expecting to be submitted.
         // e.g. domain, username, password, 2FA token, etc.
         credentials: {
-          username: { label: "Username", type: "text", placeholder: "jsmith" },
+          username: { label: "Username", type: "text", placeholder: "Username" },
         },
         async authorize(credentials) {
 
             if(!credentials || !credentials.username) {
-                return null
+                throw new Error("Invalid credentials");
             }
 
             const user = await db.user.findFirst({
@@ -140,7 +140,7 @@ export const authOptions: NextAuthOptions = {
             return user
           }
           // Return null if user data could not be retrieved
-          return null
+          throw new Error("Invalid credentials")
         }
       })
   ],
