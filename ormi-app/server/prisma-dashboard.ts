@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { Layouts } from "react-grid-layout";
-import { DashboardInterface } from "ormi-core/dashboard";
 import { Widget } from "ormi-core/widgets";
 import { Datasource } from "ormi-core/datasources";
+import { DashboardInterface } from 'ormi-core/dashboard';
 
 const handleSave = async (newDashboard: any) => {
     try {
@@ -65,7 +65,7 @@ const handleLoad = async (
         
         // If there's no content, use default empty dashboard
         const dashboardDefinition = workspace.content ? 
-            workspace.content as DashboardInterface : 
+            workspace.content as any : 
             {
                 layouts: {
                     lg: [],
