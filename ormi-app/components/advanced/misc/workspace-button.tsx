@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Loader2, Plus } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { Button, ButtonProps, buttonVariants } from "@/components/ui/button"
+import { Button, ButtonProps } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import {
     Dialog,
@@ -23,9 +22,6 @@ import { Label } from "@/components/ui/label"
 type CreateWSButtonProps = ButtonProps
 
 export function CreateWSButton({
-    className,
-    variant,
-    ...props
 }: CreateWSButtonProps) {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)

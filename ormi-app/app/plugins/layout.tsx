@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 import "@/styles/globals.css";
 import { useSession } from "next-auth/react";

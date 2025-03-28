@@ -24,10 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/hooks/use-toast"
 import { MoreVertical, Loader2, Trash } from "lucide-react"
-import { useSession } from "next-auth/react"
 
 
-async function deleteWorkspace(wsId: string, userId: string) {
+async function deleteWorkspace(wsId: string) {
     try {
         const response = await fetch(`/api/workspaces/${wsId}`, {
             method: "DELETE",
@@ -62,17 +61,6 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
     const router = useRouter()
     const [showDeleteAlert, setShowDeleteAlert] = React.useState<boolean>(false)
     const [isDeleteLoading, setIsDeleteLoading] = React.useState<boolean>(false)
-
-    const { data: session } = useSession();
-
-    if (!session?.user?.id) {
-        return (
-            <div>
-                <p>This components require user to be connected</p>
-            </div>
-        )
-    }
-
 
     return (
         <>
@@ -113,7 +101,7 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
                                 event.preventDefault()
                                 setIsDeleteLoading(true)
 
-                                const deleted = await deleteWorkspace(workspace.id.toString(), session!.user.id)
+                                const deleted = await deleteWorkspace(workspace.id.toString())
 
                                 if (deleted) {
                                     setIsDeleteLoading(false)
