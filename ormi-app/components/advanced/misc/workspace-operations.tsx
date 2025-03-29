@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/hooks/use-toast"
 import { MoreVertical, Loader2, Trash } from "lucide-react"
+import WorkspaceImport from "./workspace-import"
 
 
 async function deleteWorkspace(wsId: string) {
@@ -68,14 +69,28 @@ async function exportWorkspace(wsId: string) {
         return false
     }
 
+    const workspace = await response.json()
+    if (!workspace) {
+        toast({
+            title: "Error",
+            description: "Failed to export workspace. Please try again.",
+            variant: "destructive",
+        })
+        return false
+    }
+
+    const workspaceTitle = workspace.name || "workspace"
+
     // get the blob from the response
-    const blob = await response.blob()
+    const blob = new Blob([JSON.stringify(workspace)], {
+        type: "application/json",
+    })
     // create a link element
     const link = document.createElement("a")
     // create a url for the blob
     const url = URL.createObjectURL(blob)
     link.href = url
-    link.download = `${wsId}.json`
+    link.download = `${workspaceTitle}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -89,6 +104,8 @@ async function exportWorkspace(wsId: string) {
     })
     return true
 }
+
+
 
 interface WorkspaceOperationsProps {
     workspace: Pick<Workspace, "id" | "name">
@@ -116,8 +133,11 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
                     <DropdownMenuItem onSelect={() => exportWorkspace(workspace.id.toString())}>
                         Export
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                        Import
+                    <DropdownMenuItem onSelect={(e) => {
+                        // Prevent the dropdown from closing when selecting import
+                        e.preventDefault();
+                    }}>
+                        <WorkspaceImport wsId={workspace.id.toString()} />
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         className="flex cursor-pointer items-center text-destructive focus:text-destructive"

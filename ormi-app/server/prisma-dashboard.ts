@@ -6,16 +6,20 @@ import { Widget } from "ormi-core/widgets";
 import { Datasource } from "ormi-core/datasources";
 import { DashboardInterface } from 'ormi-core/dashboard';
 
-const handleSave = async (newDashboard: any) => {
+const handleSave = async (newDashboard: any, wsId = "") => {
     try {
 
         // using searchParams to get the workspaceId 
         // http://localhost:3000/dashboard/ws/7
 
-        const url = new URL(window.location.href);
-        const workspaceId = url.pathname.split('/')[3];
-        if (!workspaceId) {
-            throw new Error("Workspace ID is required");
+        let workspaceId = wsId; 
+
+        if(!workspaceId) {
+            const url = new URL(window.location.href);
+            workspaceId = url.pathname.split('/')[3];
+            if (!workspaceId) {
+                throw new Error("Workspace ID is required");
+            }
         }
 
         const response = await fetch(`/api/workspaces/${workspaceId}`, {
