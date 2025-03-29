@@ -53,6 +53,43 @@ async function deleteWorkspace(wsId: string) {
     }
 }
 
+async function exportWorkspace(wsId: string) {
+    // download the workspace as a json file
+    const response = await fetch(`/api/workspaces/${wsId}`, {
+        method: "GET",
+    })
+
+    if (!response.ok) {
+        toast({
+            title: "Something went wrong.",
+            description: "Your workspace was not exported. Please try again.",
+            variant: "destructive",
+        })
+        return false
+    }
+
+    // get the blob from the response
+    const blob = await response.blob()
+    // create a link element
+    const link = document.createElement("a")
+    // create a url for the blob
+    const url = URL.createObjectURL(blob)
+    link.href = url
+    link.download = `${wsId}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    // revoke the object url
+    URL.revokeObjectURL(url)
+    toast({
+        title: "Exported",
+        description: "Your workspace was exported successfully.",
+        variant: "default",
+    })
+    return true
+}
+
 interface WorkspaceOperationsProps {
     workspace: Pick<Workspace, "id" | "name">
 }
@@ -76,6 +113,12 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
                         </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => exportWorkspace(workspace.id.toString())}>
+                        Export
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                        Import
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                         className="flex cursor-pointer items-center text-destructive focus:text-destructive"
                         onSelect={() => setShowDeleteAlert(true)}
