@@ -26,7 +26,7 @@ export default function WorkspacePage() {
     }
 
     return (
-        <div className={styles.page}>
+        <div className={styles.pageCentered}>
             <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
                 <TemplatesProvider onLoad={tl} onSave={ts}>
                     <GlobalDataSourcesProvider>

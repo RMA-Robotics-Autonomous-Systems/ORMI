@@ -1,0 +1,6 @@
+.pageCentered {
+    height: calc(100dvh - 4rem);
+    display: grid;
+    justify-content: center;
+    align-items: center;
+}
