@@ -6,7 +6,7 @@ import { WidgetDefinition } from "@/widgets";
 
 interface TemplateProps {
     template: Template;
-    key: string;
+    templateId: string;
     removeTemplate: (id: string) => void;
     addWidget: (widget: WidgetDefinition, settings: object) => void;
     availableWidgets: WidgetDefinition[];
@@ -14,10 +14,10 @@ interface TemplateProps {
 
 export const TemplateComponent = (props: TemplateProps) => {
 
-    const { template, key, availableWidgets } = props;
+    const { template, templateId, availableWidgets } = props;
 
     return (
-        <div key={key} className="flex items-center justify-between p-2 border-b border-gray-200">
+        <div key={templateId} className="flex items-center justify-between p-2 border-b border-gray-200">
             <div>
                 {template.widget.settings.title}
             </div>
@@ -30,7 +30,7 @@ export const TemplateComponent = (props: TemplateProps) => {
                         },
                         {
                             title: <CheckIcon />,
-                            action: () => props.removeTemplate(key)
+                            action: () => props.removeTemplate(templateId)
                         }
                     ]
                 }

@@ -62,7 +62,7 @@ export function WidgetTemplateDrawer(props: WidgetTemplateDrawerProps) {
                             <AccordionTrigger>Your templates</AccordionTrigger>
                             <AccordionContent>
                                 {Array.from(yourTemplates.entries()).map(([key, template]) => (
-                                    <TemplateComponent key={key} availableWidgets={availableWidgets} template={template} removeTemplate={removeTemplate} addWidget={addWidget} />
+                                    <TemplateComponent key={key} templateId={key} availableWidgets={availableWidgets} template={template} removeTemplate={removeTemplate} addWidget={addWidget} />
                                 ))}
                             </AccordionContent>
                         </AccordionItem>
@@ -70,7 +70,7 @@ export function WidgetTemplateDrawer(props: WidgetTemplateDrawerProps) {
                             <AccordionTrigger>Public templates</AccordionTrigger>
                             <AccordionContent>
                                 {Array.from(publicTemplates.entries()).map(([key, template]) => (
-                                    <TemplateComponent key={key} availableWidgets={availableWidgets} template={template} removeTemplate={removeTemplate} addWidget={addWidget} />
+                                    <TemplateComponent key={key} templateId={key} availableWidgets={availableWidgets} template={template} removeTemplate={removeTemplate} addWidget={addWidget} />
                                 ))}
                             </AccordionContent>
                         </AccordionItem>

@@ -281,8 +281,9 @@ export class UnifiedConverter {
                                     
                                     // Convert reflectivity to color if needed
                                     if (point.reflectivity !== undefined) {
-                                        // Simple grayscale based on reflectivity (0-255)
-                                        const intensity = point.reflectivity / 255;
+                                        // Simple grayscale based on reflectivity (0-255 -> 0.2 to 1.0)
+                                        const intensity = Math.min(Math.max(point.reflectivity / 255, 0.2), 1.0);
+                                        
                                         colors.push({
                                             r: intensity,
                                             g: intensity,

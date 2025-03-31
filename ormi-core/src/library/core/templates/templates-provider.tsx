@@ -18,9 +18,9 @@ export const TemplatesProviderContext = createContext<TemplatesProviderContextIn
 interface TemplatesProviderProps {
     children: React.ReactNode;
 
-    addTemplate: (template: Template) => string;
-    removeTemplate: (template_id: string) => boolean;
-    onLoad: () => Map<string, Template>;
+    addTemplate: (template: Template) => Promise<string>;
+    removeTemplate: (template_id: string) => Promise<boolean>;
+    onLoad: () => Promise<Map<string, Template>>;
 }
 
 const TemplatesProvider = (props: TemplatesProviderProps) => {
@@ -30,10 +30,10 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-    const addTemplate = (template: Template, key?: string) => {
+    const addTemplate = async (template: Template, key?: string) => {
 
 
-        const template_id = props.addTemplate(template);
+        const template_id = await props.addTemplate(template);
 
         // check if key already exists
         if (templates.has(template_id)) {
@@ -46,7 +46,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 
     };
 
-    const removeTemplate = (id: string) => {
+    const removeTemplate = async (id: string) => {
 
         if (!templates.has(id)) {
             throw new Error("Key does not exist");
@@ -54,7 +54,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 
         const template = templates.get(id);
 
-        if (!props.removeTemplate(id)) {
+        if (!await props.removeTemplate(id)) {
             console.error("Failed to remove template");
             return;
         }
@@ -67,13 +67,13 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
     };
 
     useEffect(() => {
-        const loadedTemplates = props.onLoad();
 
-        setTemplates(loadedTemplates);
+        new Promise(async () => {
+            const loadedTemplates = await props.onLoad();
 
-        return () => {
-            // props.onSave(templates);
-        };
+            setTemplates(loadedTemplates);
+        })
+
     }, [props]);
 
     return (

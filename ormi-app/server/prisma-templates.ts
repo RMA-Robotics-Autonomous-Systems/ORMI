@@ -1,55 +1,60 @@
 "use client"
 
-import React from 'react';
-import { Layouts } from "react-grid-layout";
-import { Widget } from "ormi-core/widgets";
-import { Datasource } from "ormi-core/datasources";
 import { Template } from 'ormi-core/templates';
 
-const handleSave = async (templates: Map<string, Template>) => {
+const handleSave = async (template: Template) : Promise<string> => {
     try {
 
-
         const response = await fetch(`/api/templates/`, {
-            method: 'PATCH',
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ content: newDashboard }),
+            body: JSON.stringify({content : template}),
         });
 
         if (!response.ok) {
-            throw new Error(`Error saving dashboard: ${response.statusText}`);
+            throw new Error(`Error saving template: ${response.statusText}`);
         }
         
-        return true;
+        return "qsd";
     } catch (error) {
-        console.error("Failed to save dashboard:", error);
-        return false;
+        console.error("Failed to save template:", error);
+        return "";
     }
 };
+
+const handleDelete = async (templateId: string): Promise<boolean> => {
+    return true;
+}
 
 const handleLoad = async (): Promise<Map<string, Template>> => {
     try {
 
-        const response = await fetch(`/api/templates}`);
+        const response = await fetch(`/api/templates`);
         
         if (!response.ok) {
-            throw new Error(`Error loading dashboard: ${response.statusText}`);
+            throw new Error(`Error loading templates: ${response.statusText}`);
         }
         
-        const data = await response.json();
+        const data = await response.json(); 
+
+        console.log("Templates loaded:", data);
+
+
         const templates = new Map<string, Template>();
         
         data.forEach((template: any) => {
             templates.set(template.id, {
                 name: template.name,
-                widget: template.content,
+                widget: template.widget, // Directly use the widget property
                 public: template.public,
                 tags: template.tags,
                 yours: template.yours
             });
         });
+
+        console.log("Templates loaded:", templates);
 
         return templates;
         
@@ -59,4 +64,4 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
     }
 };
 
-export { handleSave, handleLoad };
+export { handleSave, handleDelete,handleLoad };
