@@ -2,15 +2,14 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Widget } from "../widgets/widget-interface";
 
+import { Template } from "./templates-types";
 
 import { generateUniqueID } from "../utils/Utils";
 import { useNavbar } from "@/library/components/advanced/navbar/navbar-provider";
-import { WidgetTemplateDrawer } from "./components/templates-drawer";
-import { Button } from "@/library/components/ui/button";
 
 interface TemplatesProviderContextInterface {
-    templates: Map<string, Widget>;
-    addTemplate: (widget: Widget, key?: string) => void;
+    templates: Map<string, Template>;
+    addTemplate: (widget: Template, key?: string) => void;
     removeTemplate: (id: string) => void;
 }
 
@@ -19,18 +18,18 @@ export const TemplatesProviderContext = createContext<TemplatesProviderContextIn
 interface TemplatesProviderProps {
     children: React.ReactNode;
 
-    onSave: (templates: Map<string, Widget>) => void;
-    onLoad: () => Map<string, Widget>;
+    onSave: (templates: Map<string, Template>) => void;
+    onLoad: () => Map<string, Template>;
 }
 
 const TemplatesProvider = (props: TemplatesProviderProps) => {
 
 
-    const [templates, setTemplates] = useState<Map<string, Widget>>(new Map<string, Widget>());
+    const [templates, setTemplates] = useState<Map<string, Template>>(new Map<string, Template>());
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-    const addTemplate = (widget: Widget, key?: string) => {
+    const addTemplate = (template: Template, key?: string) => {
 
         if (!key) {
             key = generateUniqueID();
@@ -41,7 +40,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
             throw new Error("Key already exists");
         }
 
-        const newTemplates = new Map(templates.set(key, widget));
+        const newTemplates = new Map(templates.set(key, template));
 
         setTemplates(newTemplates);
 
@@ -66,8 +65,6 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
         const loadedTemplates = props.onLoad();
 
         setTemplates(loadedTemplates);
-
-
 
         return () => {
             // props.onSave(templates);

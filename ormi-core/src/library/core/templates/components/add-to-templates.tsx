@@ -14,6 +14,7 @@ import { useState } from "react";
 import { WidgetDefinition } from "@/library/core/widgets/widget-interface";
 import { useTemplates } from "../templates-provider";
 import React from "react";
+import { Template } from "../templates-types";
 
 export function AddToTemplatesBtn(props: { widget: WidgetDefinition, data: any }) {
     const [open, setOpen] = useState(false);
@@ -30,7 +31,15 @@ export function AddToTemplatesBtn(props: { widget: WidgetDefinition, data: any }
             settings: props.widget.data,
         }
 
-        addTemplate(widget);
+        const template: Template = {
+            name: props.widget.name,
+            widget: widget,
+            public: false,
+            tags: [],
+            yours: true,
+        }
+
+        addTemplate(template);
 
         setOpen(false);
     };

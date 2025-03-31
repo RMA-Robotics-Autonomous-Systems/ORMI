@@ -1,13 +1,14 @@
 "use client"
 import { Widget } from "../widgets/widget-interface";
+import { Template } from "./templates-types";
 
 
-export const temphandleLoad = (): Map<string, Widget> => {
+export const temphandleLoad = (): Map<string, Template> => {
 
     const templates = localStorage.getItem("ormi_templates");
 
     if (!templates) {
-        return new Map<string, Widget>();
+        return new Map<string, Template>();
     }
 
     // templates is an object, convert it to Map
@@ -15,12 +16,11 @@ export const temphandleLoad = (): Map<string, Widget> => {
 
 }
 
-export const temphandleSave = (templates: Map<string, Widget>) => {
+export const temphandleSave = (templates: Map<string, Template>) => {
 
     // convert to object to save to local storage
 
     const obj = Object.fromEntries(templates);
 
     localStorage.setItem("ormi_templates", JSON.stringify(obj));
-
 }

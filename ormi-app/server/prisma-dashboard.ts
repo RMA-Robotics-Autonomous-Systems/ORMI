@@ -4,7 +4,6 @@ import React from 'react';
 import { Layouts } from "react-grid-layout";
 import { Widget } from "ormi-core/widgets";
 import { Datasource } from "ormi-core/datasources";
-import { DashboardInterface } from 'ormi-core/dashboard';
 
 const handleSave = async (newDashboard: any, wsId = "") => {
     try {
@@ -46,8 +45,6 @@ const handleLoad = async (
     setWidgets: React.Dispatch<React.SetStateAction<Map<string, Widget>>>,
     setLocked: React.Dispatch<React.SetStateAction<boolean>>,
     setDatasources: React.Dispatch<React.SetStateAction<Map<string, Datasource>>>) => {
-
-        
 
     try {
 
