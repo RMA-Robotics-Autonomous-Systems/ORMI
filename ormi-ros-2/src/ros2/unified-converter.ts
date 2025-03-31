@@ -250,6 +250,56 @@ export class UnifiedConverter {
                         
                         return { points };
                     }
+                },
+                "livox_ros_driver2/msg/CustomMsg": {
+                    toRos2: (data: PointsCloud) => ({}),
+                    fromRos2: (data): PointsCloud => {
+
+                        const points: Vector3[] = [];
+                        const colors: Color[] = [];
+                        
+                        // Make sure we have points data
+                        if (!data.points || !Array.isArray(data.points)) {
+                            console.error("Livox point cloud data missing or invalid");
+                            return { points: [] };
+                        }
+                        
+                        // Process each custom point
+                        for (const point of data.points) {
+                            // Extract basic coordinates
+                            if (typeof point.x === 'number' && 
+                                typeof point.y === 'number' && 
+                                typeof point.z === 'number') {
+                                
+                                // Add valid point to points array
+                                if (!isNaN(point.x) && !isNaN(point.y) && !isNaN(point.z)) {
+                                    points.push({
+                                        x: point.x,
+                                        y: point.y, 
+                                        z: point.z
+                                    });
+                                    
+                                    // Convert reflectivity to color if needed
+                                    if (point.reflectivity !== undefined) {
+                                        // Simple grayscale based on reflectivity (0-255)
+                                        const intensity = point.reflectivity / 255;
+                                        colors.push({
+                                            r: intensity,
+                                            g: intensity,
+                                            b: intensity,
+                                            a: 1.0
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Return point cloud with additional metadata if available
+                        return { 
+                            points,
+                            colors: colors.length > 0 ? colors : undefined,
+                        };
+                    }
                 }
             }
         } 
