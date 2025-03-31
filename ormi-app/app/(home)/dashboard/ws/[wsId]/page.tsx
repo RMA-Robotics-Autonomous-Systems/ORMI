@@ -26,15 +26,13 @@ export default function WorkspacePage() {
     }
 
     return (
-        <div className={styles.pageCentered}>
-            <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
-                <TemplatesProvider onLoad={tl} onSave={ts}>
-                    <GlobalDataSourcesProvider>
-                        <Dashboard />
-                        <WidgetsDialog />
-                    </GlobalDataSourcesProvider>
-                </TemplatesProvider>
-            </DashboardProvider>
-        </div >
+        <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
+            <TemplatesProvider onLoad={tl} onSave={ts}>
+                <GlobalDataSourcesProvider>
+                    <Dashboard />
+                    <WidgetsDialog />
+                </GlobalDataSourcesProvider>
+            </TemplatesProvider>
+        </DashboardProvider>
     );
 }
