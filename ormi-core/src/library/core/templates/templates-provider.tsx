@@ -18,7 +18,8 @@ export const TemplatesProviderContext = createContext<TemplatesProviderContextIn
 interface TemplatesProviderProps {
     children: React.ReactNode;
 
-    onSave: (templates: Map<string, Template>) => void;
+    addTemplate: (template: Template) => string;
+    removeTemplate: (template_id: string) => boolean;
     onLoad: () => Map<string, Template>;
 }
 
@@ -31,20 +32,18 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 
     const addTemplate = (template: Template, key?: string) => {
 
-        if (!key) {
-            key = generateUniqueID();
-        }
+
+        const template_id = props.addTemplate(template);
 
         // check if key already exists
-        if (templates.has(key)) {
+        if (templates.has(template_id)) {
             throw new Error("Key already exists");
         }
 
-        const newTemplates = new Map(templates.set(key, template));
+        const newTemplates = new Map(templates.set(template_id, template));
 
         setTemplates(newTemplates);
 
-        props.onSave(newTemplates);
     };
 
     const removeTemplate = (id: string) => {
@@ -53,12 +52,18 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
             throw new Error("Key does not exist");
         }
 
+        const template = templates.get(id);
+
+        if (!props.removeTemplate(id)) {
+            console.error("Failed to remove template");
+            return;
+        }
+
         const newTemplates = new Map(templates);
         newTemplates.delete(id);
 
         setTemplates(newTemplates);
 
-        props.onSave(newTemplates);
     };
 
     useEffect(() => {
