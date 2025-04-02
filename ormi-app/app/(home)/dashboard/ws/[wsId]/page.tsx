@@ -1,4 +1,4 @@
-import styles from "@/styles/page.module.css";
+// import styles from "@/styles/page.module.css";
 
 import { Dashboard, DashboardProvider, DashboardInterface } from "ormi-core/dashboard";
 import { Widget, WidgetsDialog } from "ormi-core/widgets";

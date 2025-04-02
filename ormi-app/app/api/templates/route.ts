@@ -5,7 +5,7 @@ import { authOptions } from "@/server/auth"
 import { db } from "@/server/db"
 import { Template } from "ormi-core/templates"
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user) {
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         templates.forEach((template) => {
             templatesMap.set(template.id.toString(), {
                 name: template.name,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 widget: (template.content! as any).widget, // Extract the widget properly
                 public: template.public,
                 tags: template.tags,
