@@ -54,7 +54,7 @@ export default function SignUpPage() {
                     }}
                 >
                     <Image
-                        src="/wallpaper/robots-field.jpeg"
+                        src="/wallpaper/air-sea-ground.jpeg"
                         fill
                         priority
                         alt="RAS Lab Wallpaper"
