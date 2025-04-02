@@ -17,7 +17,7 @@ const handleSave = async (template: Template) : Promise<string> => {
             throw new Error(`Error saving template: ${response.statusText}`);
         }
         
-        return "qsd";
+        return await response.text();   // this should be the template id
     } catch (error) {
         console.error("Failed to save template:", error);
         return "";
@@ -25,7 +25,20 @@ const handleSave = async (template: Template) : Promise<string> => {
 };
 
 const handleDelete = async (templateId: string): Promise<boolean> => {
-    return true;
+    try {
+        const response = await fetch(`/api/templates/${templateId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error deleting template: ${response.statusText}`);
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Failed to delete template:", error);
+        return false;
+    }
 }
 
 const handleLoad = async (): Promise<Map<string, Template>> => {

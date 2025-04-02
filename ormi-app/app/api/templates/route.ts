@@ -1,11 +1,9 @@
 import { getServerSession } from "next-auth/next"
-import { z } from "zod"
 import { NextRequest } from "next/server"
 
 import { authOptions } from "@/server/auth"
 import { db } from "@/server/db"
 import { Template } from "ormi-core/templates"
-import { Widget } from "ormi-core/widgets"
 
 export async function GET(req: NextRequest) {
     try {
