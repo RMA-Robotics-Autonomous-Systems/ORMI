@@ -35,9 +35,11 @@
   "dependencies": {
     "@jsonforms/core": "^3.5.1",
     "@types/d3": "^7.4.3",
+    "@types/js-yaml": "^4.0.9",
     "copyfiles": "^2.4.1",
     "d3": "^7.9.0",
     "force-graph": "^1.49.2",
+    "js-yaml": "^4.1.0",
     "lucide-react": "^0.479.0",
     "next-themes": "^0.4.4",
     "roslib": "^1.4.1",

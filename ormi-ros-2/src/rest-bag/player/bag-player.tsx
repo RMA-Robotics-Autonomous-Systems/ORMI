@@ -99,7 +99,6 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
         const fetchStatus = async () => {
             try {
                 const statusResponse = await client.getPlayerStatus(playId);
-                console.log(statusResponse);
                 setStatus(statusResponse.status?.toUpperCase() || 'UNKNOWN');
 
                 // Auto-stop polling when playback ends
