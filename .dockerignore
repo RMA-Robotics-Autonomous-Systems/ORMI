@@ -6,7 +6,7 @@ webrtc/
 .git
 .github
 .gitignore
-.env
-.env.*
+# .env
+# .env.*
 *.log
 node_modules/
