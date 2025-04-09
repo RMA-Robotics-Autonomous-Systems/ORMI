@@ -1,0 +1,12 @@
+# Exclude volume directories to prevent them from being copied into images
+postgres/
+webrtc/
+
+# Exclude common development files
+.git
+.github
+.gitignore
+.env
+.env.*
+*.log
+node_modules/

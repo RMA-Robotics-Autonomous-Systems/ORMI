@@ -6,6 +6,9 @@ services:
       context: .
       dockerfile: Dockerfile.ormi_core
     restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   rosbridge_suite:
     container_name: ormi_rosbridge_suite
@@ -38,6 +41,12 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rasappdbuser -d rasapppostgresqldb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # webrtc:
   #   container_name: ros2_lab_webrtc
