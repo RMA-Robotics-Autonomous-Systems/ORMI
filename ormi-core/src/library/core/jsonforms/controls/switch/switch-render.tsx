@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, isBooleanControl } from '@jsonf
 import { Switch } from '@/library/components/ui/switch';
 import { Label } from '@/library/components/ui/label';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 import React from 'react';
 
 
@@ -11,7 +11,7 @@ const SwitchControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id } = props;
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Label htmlFor={id}>{label}</Label>
             <Switch
                 id={id}

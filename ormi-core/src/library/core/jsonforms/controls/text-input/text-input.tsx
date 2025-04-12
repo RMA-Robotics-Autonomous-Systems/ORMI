@@ -2,14 +2,14 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isStringControl, isEnumControl } from '@jsonforms/core';
 import { Label } from '@/library/components/ui/label';
 import { Input } from '@/library/components/ui/input';
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 import React from 'react';
 
 const TextControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id, schema } = props;
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             {(!schema.const) && <Label htmlFor={id}>{label}</Label>}
             <Input
                 id={id}

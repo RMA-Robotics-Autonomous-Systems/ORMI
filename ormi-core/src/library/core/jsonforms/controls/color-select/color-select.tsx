@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, optionIs } from '@jsonforms/cor
 import { Input } from '@/library/components/ui/input';
 import { Label } from '@/library/components/ui/label';
 
-import styles from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 import React from 'react';
 
 

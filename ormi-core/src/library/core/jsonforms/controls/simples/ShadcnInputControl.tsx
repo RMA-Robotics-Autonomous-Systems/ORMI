@@ -31,7 +31,7 @@ import {
 } from '@jsonforms/core';
 import merge from 'lodash/merge';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 
 export interface WithInput {
     input: any;
@@ -65,7 +65,7 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
     }
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Label
                 htmlFor={id}
                 className={cn(

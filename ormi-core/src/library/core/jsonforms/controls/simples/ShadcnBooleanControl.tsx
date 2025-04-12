@@ -34,7 +34,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import merge from 'lodash/merge';
 import React from 'react';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 
 export const ShadcnBooleanControl = ({
     data,
@@ -64,7 +64,7 @@ export const ShadcnBooleanControl = ({
     }
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Checkbox
                 id={id}
                 checked={data || false}

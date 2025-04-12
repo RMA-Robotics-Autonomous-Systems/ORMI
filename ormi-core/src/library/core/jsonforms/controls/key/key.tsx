@@ -7,8 +7,7 @@ import style from './key.module.css';
 
 import { Label } from '@/library/components/ui/label';
 
-import styles from "@/library/core/jsonforms/utils/renderer.module.css";
-
+import styles from "./../../styles/controls.module.css";
 
 
 const KeySelectorControl = (props: ControlProps) => {

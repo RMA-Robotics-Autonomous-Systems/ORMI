@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, isNumberControl } from '@jsonfo
 import { Label } from '@/library/components/ui/label';
 import { Input } from '@/library/components/ui/input';
 import { useEffect } from 'react';
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 import React from 'react';
 
 
@@ -23,7 +23,7 @@ const NumberControl = (props: ControlProps) => {
     }, []);
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Label htmlFor={id}>{label}</Label>
             <Input
                 id={id}

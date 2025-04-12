@@ -42,7 +42,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import merge from 'lodash/merge';
 import React from 'react';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 
 export const ShadcnBooleanToggleControl = ({
     data,
@@ -79,7 +79,7 @@ export const ShadcnBooleanToggleControl = ({
     }
 
     const control = (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Switch
                 id={id}
                 checked={data || false}
@@ -96,7 +96,7 @@ export const ShadcnBooleanToggleControl = ({
     );
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             {showTooltip ? (
                 <TooltipProvider>
                     <Tooltip>

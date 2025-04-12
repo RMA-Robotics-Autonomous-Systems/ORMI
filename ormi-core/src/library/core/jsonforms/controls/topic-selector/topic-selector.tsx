@@ -19,7 +19,7 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { CommandSeparator } from 'cmdk';
 import { Input } from '@/library/components/ui/input';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 import { TreeView, TreeDataItem } from '@/library/components/tree-view';
 
 
@@ -128,7 +128,7 @@ const AsyncTopicControl = (props: ControlProps) => {
     }, []);  // run once on mount
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Label>{label}</Label>
             <div className='flex flex-col gap-2 w-full'>
                 <Popover open={open} onOpenChange={setOpen}>

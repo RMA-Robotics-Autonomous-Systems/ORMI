@@ -38,7 +38,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import merge from 'lodash/merge';
 import React from 'react';
 
-import style from "@/library/core/jsonforms/utils/renderer.module.css";
+import styles from "./../../styles/controls.module.css";
 
 export const ShadcnDateControl = ({
     description,
@@ -67,7 +67,7 @@ export const ShadcnDateControl = ({
     }
 
     return (
-        <div className={style.cell}>
+        <div className={styles.cell}>
             <Popover>
                 <PopoverTrigger asChild>
                     <Button
