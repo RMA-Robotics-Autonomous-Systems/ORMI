@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Function to check the exit status of the last command
+check_status() {
+    if [ $? -ne 0 ]; then
+        echo "Error: Command failed with status $?. Exiting build." >&2
+        exit 1
+    fi
+}
+
 # Initialize build status tracking
 packages=()
 success_count=0
@@ -16,39 +24,42 @@ for dir in */; do
 done
 
 clear
-echo 
+echo
 echo " ===== ORMI Package Builder ====="
 echo " ===================================="
-echo 
+echo
 
 # First process ormi-core if it exists
 if [ -f "ormi-core/package.json" ]; then
     clear
-    echo 
+    echo
     echo " ===== Building ormi-core ====="
     echo " ===================================="
-    echo 
-    
+    echo
+
     echo "Found package.json in ormi-core"
-    
+
     # Change to the directory
-    cd "ormi-core"
-    
+    cd "ormi-core" || exit 1 # Exit if cd fails
+
     # Run bun install and build
     echo "Installing dependencies in ormi-core..."
     bun i
-    
+    check_status
+
     echo
     echo "Building ormi-core..."
     bun run build
+    check_status
 
     echo
     echo "Linking ormi-core..."
     bun link
-    
+    check_status
+
     # Return to the original directory
-    cd ..
-    
+    cd .. || exit 1 # Exit if cd fails
+
     echo
     echo "Completed processing ormi-core"
     echo " ===================================="
@@ -63,31 +74,34 @@ for dir in */; do
         if [ -f "$dir/package.json" ]; then
             ((success_count++))
             clear
-            echo 
+            echo
             echo " ===== Building $dir (${success_count}/${total_count}) ====="
             echo " ===================================="
-            echo 
-            
+            echo
+
             echo "Found package.json in $dir"
-            
+
             # Change to the directory
-            cd "$dir"
-            
+            cd "$dir" || exit 1 # Exit if cd fails
+
             # Run bun install and build
             echo "Installing dependencies in $dir..."
             bun i
-            
+            check_status
+
             echo
             echo "Building $dir..."
             bun run build
+            check_status
 
             echo
             echo "Linking $dir..."
             bun link
-            
+            check_status
+
             # Return to the original directory
-            cd ..
-            
+            cd .. || exit 1 # Exit if cd fails
+
             echo
             echo "Completed processing $dir"
             packages+=("$dir")
@@ -106,63 +120,67 @@ print_table_row() {
 
 # Display build summary table before building ormi-app
 clear
-echo 
+echo
 echo " ┌───────────────────────────────────┐"
 echo " │      Build Summary                │"
 echo " ├───────────────────────────────────┤"
 printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
 echo " └───────────────────────────────────┘"
-echo 
+echo
 echo " Package Status:"
 echo " ┌───────────────────────────────────┐"
 for pkg in "${packages[@]}"; do
     printf " │ %-25s ✓     │\n" "$pkg"
 done
 echo " └───────────────────────────────────┘"
-echo 
+echo
 
 # Finally process ormi-app if it exists
 if [ -f "ormi-app/package.json" ]; then
-    echo 
+    echo
     echo " ===== Building ormi-app ====="
     echo " ===================================="
-    echo 
-    
+    echo
+
     echo "Found package.json in ormi-app"
-    
+
     # Change to the directory
-    cd "ormi-app"
+    cd "ormi-app" || exit 1 # Exit if cd fails
 
     # Run bun install and build
     echo "Installing dependencies in ormi-app..."
     bun i
+    check_status
 
     # Run the DB migration script
-    echo
-    echo "Generating database migrations..."
-    bun run db-generate
-    echo "Migrate the database..."
-    bun run db-migrate-dev
-    
+    # echo
+    # echo "Generating database schema..."
+    # bun run db-generate
+    # check_status
+    # echo "Migrating the database..."
+    # bun run db-migrate-dev
+    # check_status
+
     echo
     echo "Building ormi-app..."
     bun run build
-    
+    check_status
+
     # Return to the original directory
-    cd ..
-    
+    cd .. || exit 1 # Exit if cd fails
+
     echo
     echo "Completed processing ormi-app"
     echo " ===================================="
 fi
 
-echo 
+echo
 echo " ┌───────────────────────────────────┐"
 echo " │      Final Build Summary          │"
 echo " ├───────────────────────────────────┤"
 printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
 echo " └───────────────────────────────────┘"
-echo 
+echo
 echo " Package Status:"
 echo " ┌───────────────────────────────────┐"
 if [ ${#packages[@]} -eq 0 ]; then
@@ -173,4 +191,5 @@ else
     done
 fi
 echo " └───────────────────────────────────┘"
-
+echo
+echo "Build script completed successfully."
