@@ -4,13 +4,13 @@ FROM oven/bun:latest
 # Set working directory
 WORKDIR /ORMI-CORE
 
-
 # Copy all folders from the host to the container
 COPY . .
 
 # Run the install script
 RUN ./build.sh
 
+WORKDIR /ORMI-CORE/ormi-app
 
-
-CMD cd ormi-app && bun run start
+# Run migrations first, then start the app
+CMD ["sh", "-c", "bun run db-generate && bun run db-migrate-dev && echo ${AUTH_SECRET} && bun run start"]
