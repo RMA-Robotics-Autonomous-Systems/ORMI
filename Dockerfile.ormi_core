@@ -1,5 +1,12 @@
 # Use the official Bun image
-FROM oven/bun:latest
+FROM oven/bun:debian
+
+# Install necessary system dependencies for crypto and native modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /ORMI-CORE
@@ -7,10 +14,19 @@ WORKDIR /ORMI-CORE
 # Copy all folders from the host to the container
 COPY . .
 
-# Run the install script
-RUN ./build.sh
+# Copy the entrypoint script
+COPY ormi_entrypoint.sh /entrypoint.sh
 
+# Make scripts executable and run the build script (installs deps, links packages)
+RUN chmod +x /entrypoint.sh \
+    && chmod +x build.sh \
+    && ./build.sh
+
+# Set the working directory for the application runtime
 WORKDIR /ORMI-CORE/ormi-app
 
-# Run migrations first, then start the app
-CMD ["sh", "-c", "bun run db-generate && bun run db-migrate-dev && echo ${AUTH_SECRET} && bun run start"]
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Expose the port Next.js runs on (usually 3000)
+EXPOSE 3000

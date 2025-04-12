@@ -23,6 +23,13 @@ for dir in */; do
     fi
 done
 
+# Make entrypoint script executable if it exists
+if [ -f "entrypoint.sh" ]; then
+    echo "Making entrypoint.sh executable..."
+    chmod +x entrypoint.sh
+    check_status
+fi
+
 clear
 echo
 echo " ===== ORMI Package Builder ====="
@@ -153,9 +160,9 @@ if [ -f "ormi-app/package.json" ]; then
     check_status
 
     # Run the DB migration script
-    # echo
-    # echo "Generating database schema..."
-    # bun run db-generate
+    echo
+    echo "Generating database schema..."
+    bun run db-generate
     # check_status
     # echo "Migrating the database..."
     # bun run db-migrate-dev

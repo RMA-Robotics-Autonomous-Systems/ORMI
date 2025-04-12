@@ -3,15 +3,6 @@ import { db } from "@/server/db"
 
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth"
-
-import EmailProvider from "next-auth/providers/email"
-import * as sendgridClient from '@sendgrid/mail';
-
-import GitlabProvider from "next-auth/providers/gitlab";
-import { GitLabProfile } from "next-auth/providers/gitlab";
-
-import SlackProvider from "next-auth/providers/slack"
-import {SlackProfile} from "next-auth/providers/slack"
 import Credentials from "next-auth/providers/credentials";
 
 
@@ -19,100 +10,12 @@ import Credentials from "next-auth/providers/credentials";
 
 
 export const authOptions: NextAuthOptions = {
-  // We are not using PrismaAdapter library from
-  // the latest "@auth/prisma-adapter" because its
-  // has a lot of bugs
   adapter: PrismaAdapter(db),
   session: {                
     strategy: "jwt"
   },
 
   providers: [
-    // SlackProvider({
-    //   clientId: env.AUTH_SLACK_ID,
-    //   clientSecret: env.AUTH_SLACK_SECRET,
-    //   profile(profile: SlackProfile) {
-    //     return { 
-    //     id: profile.sub,
-    //     name: profile.name,
-    //     email: profile.email,
-    //     image: profile.picture
-    //     //role: profile.role ?? "guest"
-    //   }
-    //   }
-    // }),
-
-    // GitlabProvider({
-    //   clientId: env.AUTH_GITLAB_ID,
-    //   clientSecret: env.AUTH_GITLAB_SECRET,
-    //   id: "gitlab.cylab.be",
-    //   name: "gitlab.cylab.be",
-    //   wellKnown: "https://gitlab.cylab.be/.well-known/openid-configuration",
-    //   authorization: {
-    //     url: "https://gitlab.cylab.be/oauth/authorize",
-    //     params: { scope: "openid email profile read_user" },
-    //   },
-    //   token: "https://gitlab.cylab.be/oauth/token",
-    //   userinfo: "https://gitlab.cylab.be/api/v4/user",
-    //   idToken: true,
-    //   checks: ["pkce", "state"],
-    //   profile(profile: GitLabProfile) {
-    //     return {
-    //       id: String(profile.id),
-    //       name: profile.name ?? profile.username,
-    //       email: profile.email,
-    //       image: profile.avatar_url
-    //       //role: profile.role ?? "guest"
-    //     }
-    //   }
-    // }),
-
-    // EmailProvider(
-    //   {
-    //     from: env.EMAIL_FROM,
-    //     sendVerificationRequest: async ({ identifier, url, provider }) => {
-    //       const user = await db.user.findUnique({
-    //         where: {
-    //           email: identifier,
-    //         },
-    //         select: {
-    //           emailVerified: true,
-    //         },
-    //       })
-  
-    //       const templateID = user?.emailVerified
-    //         ? env.SIGN_IN_TEMPLATE
-    //         : env.SIGN_UP_TEMPLATE
-    //       if (!templateID) {
-    //         throw new Error("Missing template id")
-    //       }
-
-    //       const msg = {
-    //         to: identifier,
-    //         from: {
-    //           name: "RAS-APP",
-    //           email: provider.from as string
-    //         },
-    //         templateId: templateID,
-    //         headers: { 
-    //           Name : "X-Entity-Ref-ID",
-    //           Value: new Date().getTime() + ""
-    //         },
-    //         dynamicTemplateData: {
-    //             action_url: url
-    //         },
-    //         hideWarnings: true
-    //       }
-  
-    //       sendgridClient.send(msg).then(() => {
-    //       })
-    //       .catch((error) => {
-    //         console.error(error)
-    //       })
-          
-    //     },
-    //   }
-    // ),
 
     Credentials({
         // The name to display on the sign in form (e.g. 'Sign in with...')
@@ -124,7 +27,7 @@ export const authOptions: NextAuthOptions = {
         credentials: {
           username: { label: "Username", type: "text", placeholder: "Username" },
         },
-        async authorize(credentials) {
+        async authorize(credentials:any) {
 
             if(!credentials || !credentials.username) {
                 throw new Error("Invalid credentials");
@@ -151,7 +54,7 @@ export const authOptions: NextAuthOptions = {
         credentials: {
             username: { label: "Username", type: "text", placeholder: "Username" },
         },
-        async authorize(credentials) {
+        async authorize(credentials:any) {
             if(!credentials || !credentials.username) {
                 throw new Error("Invalid credentials");
             }
@@ -187,11 +90,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
       })
-
-
   ],
   callbacks: {
-    async session({ token, session}) {
+    async session({ token, session}:any) {
       if (token) {
         
         session.user.id = token.id
@@ -203,7 +104,7 @@ export const authOptions: NextAuthOptions = {
 
       return session
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user }:any) {
       const dbUser = await db.user.findFirst({
         where: {
           email: token.email ?? undefined

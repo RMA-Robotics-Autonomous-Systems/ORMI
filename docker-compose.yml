@@ -9,8 +9,9 @@ services:
     environment:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
-      - AUTH_SECRET=FfLx9FtyrNJ2qfxM8vELwEgGP3SkJSM8a6WuzCBqBP4=
+      - NEXTAUTH_SECRET=FfLx9FtyrNJ2qfxM8vELwEgGP3SkJSM8a6WuzCBqBP4=
       - DATABASE_URL=postgresql://rasappdbuser:rasappdbpwd@localhost:5432/rasapppostgresqldb
+      - NODE_ENV=production
     depends_on:
       postgres:
         condition: service_healthy

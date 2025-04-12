@@ -8,7 +8,7 @@ export const env = createEnv({
      */
     server: {
         NEXTAUTH_URL: z.string().url().min(1),
-        AUTH_SECRET:
+        NEXTAUTH_SECRET:
             process.env.NODE_ENV === "production"
                 ? z.string()
                 : z.string().optional(),
@@ -41,7 +41,7 @@ export const env = createEnv({
      */
     runtimeEnv: {
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-        AUTH_SECRET: process.env.AUTH_SECRET,
+        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
         // AUTH_SLACK_ID: process.env.AUTH_SLACK_ID,
         // AUTH_SLACK_SECRET: process.env.AUTH_SLACK_SECRET,
         // AUTH_GITLAB_ID: process.env.AUTH_GITLAB_ID,
