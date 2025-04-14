@@ -52,9 +52,6 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
         
         const data = await response.json(); 
 
-        console.log("Templates loaded:", data);
-
-
         const templates = new Map<string, Template>();
         
         data.forEach((template: any) => {
@@ -66,8 +63,6 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
                 yours: template.yours
             });
         });
-
-        console.log("Templates loaded:", templates);
 
         return templates;
         
