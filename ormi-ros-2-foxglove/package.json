@@ -1,5 +1,5 @@
 {
-  "name": "ormi-foxglove",
+  "name": "ormi-ros-2-foxglove",
   "description": "Ros 2 plugin using foxglove bridge for ormi app, it allow to connect to ros 2 topics and services",
   "author": {
     "name": "Florian Lebecque",
@@ -35,6 +35,7 @@
   "main": "dist/index.js",
   "dependencies": {
     "@foxglove/cdr": "^3.3.0",
+    "@foxglove/message-definition": "^0.4.0",
     "@foxglove/rosmsg": "^5.0.4",
     "@foxglove/rosmsg2-serialization": "^3.0.2",
     "@foxglove/ws-protocol": "^0.8.0",
