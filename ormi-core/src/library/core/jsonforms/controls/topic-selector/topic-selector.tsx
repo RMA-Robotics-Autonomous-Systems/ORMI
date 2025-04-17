@@ -21,6 +21,7 @@ import { Input } from '@/library/components/ui/input';
 
 import styles from "./../../styles/controls.module.css";
 import { TreeView, TreeDataItem } from '@/library/components/tree-view';
+import { TooltipProvider } from '@/library/components/ui/tooltip';
 
 
 const AsyncTopicControl = (props: ControlProps) => {
@@ -141,7 +142,9 @@ const AsyncTopicControl = (props: ControlProps) => {
                     <PopoverContent>
                         <Command>
                             <CommandInput onValueChange={setCmd} placeholder="Search topic..." />
-                            <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
+                            <TooltipProvider>
+                                <TopicCreator value={cmd} handleTopic={handleCustomTopics} />
+                            </TooltipProvider>
                             <CommandSeparator />
                             <CommandList>
                                 <CommandGroup>
