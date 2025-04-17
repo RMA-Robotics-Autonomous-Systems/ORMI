@@ -24,7 +24,7 @@ import { JsonSchema } from '@jsonforms/core';
 
 import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
 import { parse, stringify } from "@foxglove/rosmsg";
-import { MessageReader } from "@foxglove/rosmsg2-serialization";
+import { MessageReader, MessageWriter } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "ormi-ros-2";
 import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
@@ -65,6 +65,7 @@ interface Publisher {
     webtype: string;
     count: number;
     hook: string;
+    writer: MessageWriter;
 }
 // Create a provider component
 const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSettings) => {
@@ -100,6 +101,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
     // Publisher
     const publisherRef = useRef<Map<number, Publisher>>(new Map<number, Publisher>());
+    const pendingPublisherRef = useRef<Map<string, Promise<string>>>(new Map<string, Promise<string>>());   // raw_type, promise (schema)
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
 
@@ -141,13 +143,26 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 });
 
                 client.on("advertise", (channelsList: Channel[]) => {
+
+                    console.log("Advertised channels:", channelsList);
+
                     channelsList.forEach((channel) => {
                         if (!channelsRef.current.has(channel.id)) {
                             channelsRef.current.set(channel.id, channel);
+
                             processPendingSubscriptions(channel);
                         }
-                    });
 
+                        // Check if this channel id is in pending publishers
+                        // and resolve the promise with the actual schema
+                        if (pendingPublisherRef.current.has(channel.schemaName)) {
+                            // Create a resolver function to resolve the pending promise
+                            const resolveFunction = (pendingPublisherRef.current.get(channel.schemaName) as any).resolve;
+                            if (resolveFunction) {
+                                resolveFunction(channel.schema);
+                            }
+                        }
+                    });
                 });
 
                 client.on("unadvertise", (ids: number[]) => {
@@ -433,7 +448,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         // Create a new publisher
                         const newChannelId = clientRef.current?.advertise({
                             topic: topic.topic,
-                            encoding: "json",
+                            encoding: "cdr",
                             schemaName: topic.rawType
                         });
 
@@ -441,8 +456,29 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             throw new Error(`Failed to advertise topic ${topic.topic}`);
                         }
 
+                        // Create a promise with accessible resolve/reject functions
+                        let promiseObj: {
+                            promise: Promise<string>;
+                            resolve: (schema: string) => void;
+                            reject: (error: Error) => void;
+                        };
+
+                        promiseObj = {} as any;
+                        promiseObj.promise = new Promise<string>((resolve, reject) => {
+                            promiseObj.resolve = resolve;
+                            promiseObj.reject = reject;
+                        });
+
+                        // Store the promise object for later use
+                        pendingPublisherRef.current.set(topic.rawType, promiseObj.promise as any);
+                        (pendingPublisherRef.current.get(topic.rawType) as any).resolve = promiseObj.resolve;
+                        (pendingPublisherRef.current.get(topic.rawType) as any).reject = promiseObj.reject;
+
                         // Queue the operation to add the publisher
                         await enqueueOperation(newChannelId, async () => {
+
+                            const schema: string = await promiseObj.promise;
+
                             // add the publisher to the list
                             const publisher = {
                                 channelId: newChannelId,
@@ -451,6 +487,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 webtype: topic.type,
                                 count: 1,
                                 hook: `${datasource_id}-${topic.topic}-publish`,
+                                writer: new MessageWriter(parse(schema, { ros2: true })),
                             } as Publisher;
 
                             publisherRef.current.set(newChannelId, publisher);
@@ -459,8 +496,10 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 id: hook,
                                 action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
                                     try {
-                                        const converted = UnifiedConverter.convertToROS2(message, webtype, topic.rawType);
-                                        const msg = new Uint8Array(Buffer.from(stringify(converted)));
+
+                                        const converted = UnifiedConverter.convertToROS2(message, webtype, selected_topic.rawType);
+
+                                        const msg = publisher.writer.writeMessage(converted);
                                         clientRef.current?.sendMessage(newChannelId, msg);
                                     } catch (error) {
                                         console.error("Failed to publish message", error);
@@ -555,6 +594,18 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 id: available_types,
                 filter: async (types: string[]) => {
 
+                    await connectionRef.current;
+
+                    // for all channels, get the schemaName
+                    const channelsArray = Array.from(channelsRef.current.values());
+                    const schemas = channelsArray.map((channel) => {
+                        return channel.schemaName;
+                    });
+                    // remove duplicates
+                    const uniqueSchemas = Array.from(new Set(schemas));
+
+
+                    return uniqueSchemas;
                 },
                 priority: 100,
             });
