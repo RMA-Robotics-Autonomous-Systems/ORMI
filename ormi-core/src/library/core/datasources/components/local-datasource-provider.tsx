@@ -106,6 +106,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
                 // subscribe to the topic, this start the data flow inside the datasource
                 // this triggers the published action on the data hook of the topic
+                console.log('ask to subscribe to topic', topic);
                 const result = await pluginsManager.WaitAndDoAction(`${topic.source.id}-subscribe`, 1, topic)
 
                 if (result === false) {
@@ -121,29 +122,42 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                     action: (value: any, time: number) => {
                         if (!isMounted) return;
 
-                        const source = sources.get(sourceId);
-
-                        if (!source) {
-                            console.error('source not found', sourceId, sources);
-                            return;
-                        }
-
-                        if (topic.property && topic.property !== '') {
-                            value = propertiesGetter(value, topic.property);
-                        }
-
-                        source.data.push(value);
-                        source.times.push(time);
-
-                        if (source.data.length > (topic.bufferSize || buffersSize)) {
-                            source.data.shift();
-                            source.times.shift();
-                        }
-
+                        // Use the functional update form of setSources
                         setSources(prevSources => {
+                            const currentSource = prevSources.get(sourceId);
+
+                            if (!currentSource) {
+                                console.error('source not found during update', sourceId, prevSources);
+                                return prevSources; // Return previous state if source not found
+                            }
+
+                            let processedValue = value;
+                            if (topic.property && topic.property !== '') {
+                                processedValue = propertiesGetter(value, topic.property);
+                            }
+
+                            // Create new arrays for immutability
+                            const newData = [...currentSource.data, processedValue];
+                            const newTimes = [...currentSource.times, time];
+
+                            // Apply buffer limit
+                            const bufferLimit = topic.bufferSize || buffersSize;
+                            if (newData.length > bufferLimit) {
+                                newData.shift(); // Remove oldest element from the new array
+                                newTimes.shift(); // Remove corresponding time from the new array
+                            }
+
+                            // Create a new source object
+                            const newSource = {
+                                data: newData,
+                                times: newTimes,
+                            };
+
+                            // Create a new map for the new state
                             const newSources = new Map(prevSources);
-                            newSources.set(sourceId, source);
-                            return newSources;
+                            newSources.set(sourceId, newSource);
+
+                            return newSources; // Return the new map as the next state
                         });
                     }
                 });
