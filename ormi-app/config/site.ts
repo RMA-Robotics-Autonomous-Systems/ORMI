@@ -18,7 +18,7 @@ export const siteConfig: SiteConfig = {
   url: env.NEXT_PUBLIC_APP_URL,
   icon: "/icon/ormi.svg",
   ogImage: "opengraph-image.png",
-  manifest: "manifest.webmanifest",
+  manifest: "/manifest.webmanifest",
   address: "Robotics & Autonomous Systems Department of Mechanics, Royal Military Academy, Avenue De La Renaissance 30, 1000 Brussels, Belgium",
   contacts: {
     telephone: "+32(0)244-14108",
