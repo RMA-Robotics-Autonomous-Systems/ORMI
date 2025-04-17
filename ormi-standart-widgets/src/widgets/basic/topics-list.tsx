@@ -42,15 +42,19 @@ function TopicsList() {
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead>Datasource</TableHead>
                         <TableHead>Topic</TableHead>
                         <TableHead>Type</TableHead>
+                        <TableHead>RawType</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {topics.map((topic, i) => (
                         <TableRow key={i}>
+                            <TableCell className="font-medium">{topic.source.title}</TableCell>
                             <TableCell className="font-medium">{topic.topic}</TableCell>
                             <TableCell>{topic.type}</TableCell>
+                            <TableCell>{topic.rawType}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
