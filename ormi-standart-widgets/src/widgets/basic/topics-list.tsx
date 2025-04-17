@@ -1,0 +1,100 @@
+import { DatasourceTopic, SelectedTopic } from "ormi-core/datasources";
+import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
+import { WidgetDefinition } from "ormi-core/widgets";
+import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { ListIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from "ormi-core/components"
+
+interface TopicsListProps {
+    title: string;
+    topic: SelectedTopic;
+}
+
+function TopicsList() {
+    const pluginsManager = usePluginsManager();
+
+    const [topics, setTopics] = useState<DatasourceTopic[]>([]);
+
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            const current_topics = await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
+
+            setTopics(current_topics);
+        }, 1000);
+
+
+        return () => {
+            clearInterval(interval);
+        }
+    })
+
+    return (
+        <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Topic</TableHead>
+                        <TableHead>Type</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {topics.map((topic, i) => (
+                        <TableRow key={i}>
+                            <TableCell className="font-medium">{topic.topic}</TableCell>
+                            <TableCell>{topic.type}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+
+}
+
+export function TopicsListDefinition(): WidgetDefinition {
+
+    return {
+        id: 'topics-List-widget',
+        name: 'Topics List',
+        description: 'Display a Topics List',
+        titleProp: 'title',
+        icon: <ListIcon />,
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    title: 'Title'
+                },
+            },
+            required: ['title']
+        },
+
+        uischema: {
+            type: "VerticalLayout",
+            elements: [
+                {
+                    type: "Control",
+                    scope: "#/properties/title"
+                } as ControlElement
+            ],
+        } as VerticalLayout,
+
+        data: {
+            title: 'Topics List'
+        },
+        Component: (data: TopicsListProps) => (
+            <TopicsList />
+        )
+
+    } as WidgetDefinition;
+}
