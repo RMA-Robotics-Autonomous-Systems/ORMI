@@ -26,7 +26,7 @@ import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
 import { parse, stringify } from "@foxglove/rosmsg";
 import { MessageReader, MessageWriter } from "@foxglove/rosmsg2-serialization";
 
-import { UnifiedConverter } from "ormi-ros-2";
+import { UnifiedConverter } from "./unified-converter";
 // import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
 
 const FoxgloveSourceContext = createContext(null);
