@@ -46,7 +46,7 @@ export const ShadcnIntegerCell = (props: CellProps & WithClassname) => {
         <Input
             type="number"
             id={id}
-            value={data ?? ''}
+            value={data !== undefined && data !== null ? data : ''}
             onChange={handleInputChange}
             disabled={!enabled}
             className="w-full"

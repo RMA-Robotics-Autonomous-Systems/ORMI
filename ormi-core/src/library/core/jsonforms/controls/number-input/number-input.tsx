@@ -12,7 +12,7 @@ const NumberControl = (props: ControlProps) => {
     const { data, handleChange, path, label, id, schema } = props;
 
     const parseValue = (value: string): number => {
-        if (!value) return 0;
+        if (value === '') return 0;
         return Number(value);
     }
 
@@ -28,7 +28,7 @@ const NumberControl = (props: ControlProps) => {
             <Input
                 id={id}
                 type="number"
-                value={data || schema.default || ''}
+                value={data !== undefined && data !== null ? data : ''}
                 onChange={event => handleChange(path, parseValue(event.target.value))}
             />
         </div>

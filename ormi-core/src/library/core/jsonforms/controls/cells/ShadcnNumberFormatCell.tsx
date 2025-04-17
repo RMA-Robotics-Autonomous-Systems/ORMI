@@ -47,7 +47,7 @@ export const ShadcnNumberFormatCell = (
         <Input
             type="number"
             id={id}
-            value={data ?? ''}
+            value={data !== undefined && data !== null ? data : ''}
             onChange={handleInputChange}
             disabled={!enabled}
             className="w-full"
