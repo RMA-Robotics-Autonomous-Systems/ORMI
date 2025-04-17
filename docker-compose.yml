@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ormi_core
-    restart: always
+    restart: unless-stopped
     environment:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -37,7 +37,7 @@ services:
 
   postgres:
     image: postgres:17.0-alpine
-    restart: always
+    restart: unless-stopped
     ports:
       - 5432:5432
     environment:
