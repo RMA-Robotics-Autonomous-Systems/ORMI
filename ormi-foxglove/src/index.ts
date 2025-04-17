@@ -1,6 +1,7 @@
 import { Plugin, PluginsHooks } from "ormi-core/plugins";
 import { FoxgloveDataSourceSettings, FoxgloveSourceProvider } from "./foxglove-source";
 import { DatasourceDefinition } from "ormi-core";
+import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
 
 /**
  * Foxglove WebSocket Plugin
@@ -72,3 +73,4 @@ class FoxglovePlugin extends Plugin {
 }
 
 export default FoxglovePlugin;
+export { convertMessageDefinitionsToJsonSchema };

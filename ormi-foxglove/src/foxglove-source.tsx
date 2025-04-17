@@ -27,6 +27,7 @@ import { parse, stringify } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "ormi-ros-2";
+import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
 
 const FoxgloveSourceContext = createContext(null);
 
@@ -50,7 +51,21 @@ interface Subscriber {
     reader: MessageReader;
 }
 
+interface PendingSubscription {
+    topic: string;
+    count: number;
+    resolvers: Array<(success: boolean) => void>;
+    rejectors: Array<(error: any) => void>;
+}
 
+interface Publisher {
+    channelId: number;
+    topic: string;
+    schemaName: string;
+    webtype: string;
+    count: number;
+    hook: string;
+}
 // Create a provider component
 const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSettings) => {
     const pluginsManager = usePluginsManager();
@@ -69,17 +84,22 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     const clientRef = useRef<FoxgloveClient | null>(null);
     const [clientConnected, setClientConnected] = React.useState(false);
 
-    const serverConnectionRef = useRef<Promise<boolean> | null>(null);
-
     // channels
     const channelsRef = useRef<Map<number, Channel>>(new Map<number, Channel>());
 
     // subscribers, channel id, subscriber count
     const subscribersRef = useRef<Map<number, Subscriber>>(new Map<number, Subscriber>());
 
+    // pending subscriptions for topics that don't exist yet
+    const pendingSubscriptionsRef = useRef<Map<number, PendingSubscription>>(new Map<number, PendingSubscription>());
+
     // Function queue for ordered processing
     const queueRef = useRef<Map<number, Array<() => Promise<void>>>>(new Map<number, Array<() => Promise<void>>>());
     const processingRef = useRef<Map<number, boolean>>(new Map<number, boolean>());
+
+
+    // Publisher
+    const publisherRef = useRef<Map<number, Publisher>>(new Map<number, Publisher>());
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
 
@@ -124,6 +144,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     channelsList.forEach((channel) => {
                         if (!channelsRef.current.has(channel.id)) {
                             channelsRef.current.set(channel.id, channel);
+                            processPendingSubscriptions(channel);
                         }
                     });
 
@@ -187,7 +208,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 topic: channel.topic,
                                 datasource_id: datasource_id,
                                 source: props,
-                                type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName),
+                                type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || channel.schemaName,
                                 rawType: channel.schemaName,
                                 // bufferSize: 1000,
                             } as DatasourceTopic;
@@ -215,7 +236,9 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     });
 
                     if (!channel) {
-                        throw new Error(`Channel not found for topic ${topic.topic}`);
+                        // Topic doesn't exist yet, add to pending subscriptions
+                        await addPendingSubscription(topic.topic);
+                        return;
                     }
                     const channelId = channel.id;
 
@@ -274,6 +297,44 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     const channel = Array.from(channelsRef.current.values()).find((channel) => {
                         return channel.topic === topic.topic;
                     });
+
+                    // First, check if this is a pending subscription
+                    const pendingId = hashTopicName(topic.topic);
+                    const pendingSubscription = pendingSubscriptionsRef.current.get(pendingId);
+
+                    if (pendingSubscription) {
+                        // Handle unsubscribing from a pending subscription
+                        if (ignoreCount) {
+                            // Remove the pending subscription completely
+                            pendingSubscriptionsRef.current.delete(pendingId);
+
+                            if (props.toasts) {
+                                toast({
+                                    title: "Pending Subscription Canceled",
+                                    description: `Canceled subscription to pending topic ${topic.topic}`,
+                                });
+                            }
+                            return;
+                        } else {
+                            // Decrease the count
+                            pendingSubscription.count--;
+
+                            if (pendingSubscription.count <= 0) {
+                                // Remove the pending subscription
+                                pendingSubscriptionsRef.current.delete(pendingId);
+
+                                if (props.toasts) {
+                                    toast({
+                                        title: "Pending Subscription Canceled",
+                                        description: `Canceled subscription to pending topic ${topic.topic}`,
+                                    });
+                                }
+                            }
+                            return;
+                        }
+                    }
+
+                    // If not a pending subscription and channel not found, throw error
                     if (!channel) {
                         throw new Error(`Channel not found for topic ${topic.topic}`);
                     }
@@ -321,7 +382,28 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 id: definition_hook,
                 priority: 10,
                 filter: async (definition: JsonSchema, topic: DatasourceTopic) => {
-                    return null;
+
+                    await connectionRef.current;
+
+                    // find the channel id
+                    const channel = Array.from(channelsRef.current.values()).find((channel) => {
+                        return channel.topic === topic.topic;
+                    });
+
+                    if (!channel) {
+                        throw new Error(`Channel not found for topic ${topic.topic}`);
+                    }
+
+                    const channelId = channel.id;
+                    const channelSchema = channelsRef.current.get(channelId)?.schema;
+
+                    if (!channelSchema) {
+                        throw new Error(`Channel schema not found for topic ${topic.topic}`);
+                    }
+
+                    const parsedIDL = parse(channelSchema, { ros2: true });
+
+                    return definition;
                 }
             });
 
@@ -330,18 +412,62 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 filter: async (topic: SelectedTopic) => {
                     try {
                         const hook = `${datasource_id}-${topic.topic}-publish`;
+                        await connectionRef.current;
 
-                        pluginsManager.addAction(hook, {
-                            id: hook,
-                            action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
-                                try {
+                        // find the channel id, in the publishers, to see if we are already publishing
+                        const existingPublisher = Array.from(publisherRef.current.values()).find((publisher) => {
+                            return publisher.topic === topic.topic;
+                        });
 
-
-                                } catch (error) {
-                                    console.error("Failed to publish message", error);
+                        if (existingPublisher) {
+                            // Queue the operation to increase the count
+                            await enqueueOperation(existingPublisher.channelId, async () => {
+                                const publisher = publisherRef.current.get(existingPublisher.channelId);
+                                if (publisher) {
+                                    publisher.count++;
                                 }
-                            },
-                            priority: 100,
+                            });
+                            return true;
+                        }
+
+                        // Create a new publisher
+                        const newChannelId = clientRef.current?.advertise({
+                            topic: topic.topic,
+                            encoding: "json",
+                            schemaName: topic.rawType
+                        });
+
+                        if (!newChannelId && newChannelId !== 0) {
+                            throw new Error(`Failed to advertise topic ${topic.topic}`);
+                        }
+
+                        // Queue the operation to add the publisher
+                        await enqueueOperation(newChannelId, async () => {
+                            // add the publisher to the list
+                            const publisher = {
+                                channelId: newChannelId,
+                                topic: topic.topic,
+                                schemaName: topic.rawType,
+                                webtype: topic.type,
+                                count: 1,
+                                hook: `${datasource_id}-${topic.topic}-publish`,
+                            } as Publisher;
+
+                            publisherRef.current.set(newChannelId, publisher);
+
+                            pluginsManager.addAction(hook, {
+                                id: hook,
+                                action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
+                                    try {
+                                        const converted = UnifiedConverter.convertToROS2(message, webtype, topic.rawType);
+                                        const msg = new Uint8Array(Buffer.from(stringify(converted)));
+                                        clientRef.current?.sendMessage(newChannelId, msg);
+                                    } catch (error) {
+                                        console.error("Failed to publish message", error);
+                                    }
+                                },
+                                priority: 100,
+                            });
                         });
 
                         return true;
@@ -359,14 +485,57 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     }
                 },
                 priority: 100,
-
             });
 
             pluginsManager.addAction(unadvertise_hook, {
                 id: unadvertise_hook,
                 action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
                     try {
+                        await connectionRef.current;
 
+                        // find the channel id
+                        const channelId = Array.from(publisherRef.current.values()).find((publisher) => {
+                            return publisher.topic === topic.topic;
+                        })?.channelId;
+
+                        if (!channelId) {
+                            console.warn(`Not publishing to topic ${topic.topic}`);
+                            return;
+                        }
+
+                        // Queue the unadvertise operation
+                        await enqueueOperation(channelId, async () => {
+                            // check if the topic is already published
+                            if (!publisherRef.current.has(channelId)) {
+                                console.warn(`Not publishing to topic ${topic.topic}`);
+                                return;
+                            }
+                            const publisher = publisherRef.current.get(channelId);
+                            if (publisher) {
+                                if (ignoreCount) {
+                                    publisher.count = 0;
+                                } else {
+                                    publisher.count--;
+                                }
+
+                                if (publisher.count <= 0) {
+                                    clientRef.current?.unadvertise(channelId);
+                                    publisherRef.current.delete(channelId);
+                                    pluginsManager.removeAction(publisher.hook);
+                                }
+                            } else {
+                                console.warn(`Not publishing to topic ${topic.topic}`);
+                            }
+                        }).catch(error => {
+                            console.warn("Unadvertise error:", error);
+                            if (props.toasts) {
+                                toast({
+                                    title: "Error",
+                                    description: "Failed to unadvertise topic",
+                                    variant: "destructive",
+                                });
+                            }
+                        });
 
                     } catch (error) {
                         console.error("Unadvertise error:", error);
@@ -422,6 +591,125 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 // Process the queue if it's not already being processed
                 processQueue(id);
             });
+        };
+
+        // Function to add a pending subscription
+        const addPendingSubscription = async (topic: string): Promise<boolean> => {
+            return new Promise<boolean>((resolve, reject) => {
+                // Generate a unique ID for this pending subscription
+                // Using a hash of the topic name for simplicity
+                const pendingId = hashTopicName(topic);
+
+                // Check if there's already a pending subscription for this topic
+                if (pendingSubscriptionsRef.current.has(pendingId)) {
+                    // Increment the count for existing subscription
+                    const existing = pendingSubscriptionsRef.current.get(pendingId)!;
+                    existing.count++;
+                    existing.resolvers.push(resolve);
+                    existing.rejectors.push(reject);
+                } else {
+                    // Create a new pending subscription
+                    pendingSubscriptionsRef.current.set(pendingId, {
+                        topic,
+                        count: 1,
+                        resolvers: [resolve],
+                        rejectors: [reject]
+                    });
+
+                    if (props.toasts) {
+                        toast({
+                            title: "Pending Subscription",
+                            description: `Waiting for topic ${topic} to become available`,
+                        });
+                    }
+                }
+            });
+        };
+
+        // Simple hash function for topic names
+        const hashTopicName = (topic: string): number => {
+            let hash = 0;
+            for (let i = 0; i < topic.length; i++) {
+                const char = topic.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            return Math.abs(hash);
+        };
+
+        // Process pending subscriptions when new channels are advertised
+        const processPendingSubscriptions = (channel: Channel) => {
+            const pendingIds = Array.from(pendingSubscriptionsRef.current.keys());
+
+            for (const pendingId of pendingIds) {
+                const pending = pendingSubscriptionsRef.current.get(pendingId);
+
+                if (pending && pending.topic === channel.topic) {
+                    // Found a matching topic that's now available
+                    // Create a DatasourceTopic for the subscription
+                    const topic: DatasourceTopic = {
+                        topic: channel.topic,
+                        datasource_id: datasource_id,
+                        source: props,
+                        type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || channel.schemaName,
+                        rawType: channel.schemaName
+                    };
+
+                    // Attempt to subscribe to the topic
+                    enqueueOperation(channel.id, async () => {
+                        try {
+                            // Similar to regular subscribe but without throwing errors
+                            const subscriptionId = clientRef.current?.subscribe(channel.id);
+
+                            if (!subscriptionId && subscriptionId !== 0) {
+                                // Subscription failed
+                                for (const rejector of pending.rejectors) {
+                                    rejector(new Error(`Failed to subscribe to topic ${pending.topic}`));
+                                }
+                            } else {
+                                // Subscription succeeded
+                                const subscriber = {
+                                    subscriberId: subscriptionId,
+                                    channelId: channel.id,
+                                    topic: channel.topic,
+                                    schemaName: channel.schemaName,
+                                    webtype: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName),
+                                    count: pending.count,
+                                    hook: `${datasource_id}-${channel.topic}-published`,
+                                    reader: new MessageReader(parse(channel.schema, { ros2: true })),
+                                } as Subscriber;
+
+                                subscribersRef.current.set(channel.id, subscriber);
+
+                                // Resolve all promises for this pending subscription
+                                for (const resolver of pending.resolvers) {
+                                    resolver(true);
+                                }
+
+                                if (props.toasts) {
+                                    toast({
+                                        title: "Subscription Resolved",
+                                        description: `Successfully subscribed to topic ${pending.topic}`,
+                                    });
+                                }
+                            }
+
+                            // Remove from pending subscriptions
+                            pendingSubscriptionsRef.current.delete(pendingId);
+
+                        } catch (error) {
+                            console.error(`Failed to subscribe to pending topic ${pending.topic}:`, error);
+                            // Reject all promises for this pending subscription
+                            for (const rejector of pending.rejectors) {
+                                rejector(error);
+                            }
+                            pendingSubscriptionsRef.current.delete(pendingId);
+                        }
+                    }).catch(error => {
+                        console.error(`Error processing pending subscription for ${pending.topic}:`, error);
+                    });
+                }
+            }
         };
 
         // Process the function queue for a given ID
@@ -481,6 +769,14 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
             subscribersRef.current.clear();
             channelsRef.current.clear();
+
+            // Clear pending subscriptions and reject any outstanding promises
+            pendingSubscriptionsRef.current.forEach((pending) => {
+                for (const rejector of pending.rejectors) {
+                    rejector(new Error("Component unmounted"));
+                }
+            });
+            pendingSubscriptionsRef.current.clear();
 
             // Clear all operation queues
             clearQueues();
