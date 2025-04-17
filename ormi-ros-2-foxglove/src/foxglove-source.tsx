@@ -23,7 +23,7 @@ import { toast, Spinner } from 'ormi-core/components';
 import { JsonSchema } from '@jsonforms/core';
 
 import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
-import { parse, stringify } from "@foxglove/rosmsg";
+import { parse } from "@foxglove/rosmsg"; // Import parse function explicitly
 import { MessageReader, MessageWriter } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";

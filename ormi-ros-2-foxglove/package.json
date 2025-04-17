@@ -34,9 +34,9 @@
   "main": "dist/index.js",
   "dependencies": {
     "@foxglove/cdr": "^3.3.0",
-    "@foxglove/message-definition": "^0.4.0",
-    "@foxglove/rosmsg": "^5.0.4",
-    "@foxglove/rosmsg2-serialization": "^3.0.2",
+    "@foxglove/message-definition": "0.3.0",
+    "@foxglove/rosmsg": "5.0.1",
+    "@foxglove/rosmsg2-serialization": "3.0.0",
     "@foxglove/ws-protocol": "^0.8.0",
     "@jsonforms/core": "^3.5.1",
     "@types/d3": "^7.4.3",
@@ -46,6 +46,7 @@
     "force-graph": "^1.49.2",
     "js-yaml": "^4.1.0",
     "lucide-react": "^0.479.0",
+    "md5-typescript": "^1.0.5",
     "next-themes": "^0.4.4",
     "tsc-alias": "1.8.11"
   },
