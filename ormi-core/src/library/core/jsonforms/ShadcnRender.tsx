@@ -17,6 +17,7 @@ import { ShadcnBooleanCell, shadcnBooleanCellTester, ShadcnBooleanToggleCell, sh
 import { JsonFormsCellRendererRegistryEntry, JsonFormsRendererRegistryEntry } from '@jsonforms/core';
 import ShadcnColorCell, { shadcnColorCellTester } from './controls/cells/ShadcnColorCell';
 import ShadcnColorControl, { shadcnColorControlTester } from './controls/simples/ShadcnColorControl';
+import axisSelectorControl, { axisSelectorTester } from './controls/key/axis';
 
 
 export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
@@ -25,6 +26,7 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
     { tester: colorSelectTester, renderer: colorSelect },
     { tester: asyncTopicTester, renderer: AsyncTopicControl },
     { tester: keySelectorTester, renderer: KeySelectorControl },
+    { tester: axisSelectorTester, renderer: axisSelectorControl },
     { tester: shadcnVerticalLayoutTester, renderer: ShadcnVerticalLayoutRenderer },
     { tester: shadcnHorizontalLayoutTester, renderer: ShadcnHorizontalLayoutRenderer },
     { tester: shadcnGroupTester, renderer: ShadcnGroupLayoutRenderer },

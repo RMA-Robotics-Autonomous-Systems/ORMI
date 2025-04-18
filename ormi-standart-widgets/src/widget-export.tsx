@@ -16,11 +16,13 @@ import { CondStatusIndicatorDefinition } from './widgets/status/cond-status-indi
 import { NotAnEyeDefinition } from './widgets/nothing/not-an-eye';
 import { JsonListDefinition } from './widgets/basic/json-list';
 import { TopicsListDefinition } from './widgets/basic/topics-list';
+import { JoypadControlsDefinition } from './widgets/joystick/cmd-vel-joystick';
 // import { PointsCloudDefinition } from './widgets/three-d/points-cloud';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
     widgets.push(KeyboardControlDefinition());
+    widgets.push(JoypadControlsDefinition());
     widgets.push(TimeSeriesChartDefinition());
     widgets.push(MapsBoxViewerDefinition());
     widgets.push(IntStatusIndicatorDefinition());

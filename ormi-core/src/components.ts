@@ -44,4 +44,10 @@ export * from "@/library/components/ui/tooltip";
 
 export * from "@/library/hooks/use-toast";
 
+export * from "@/library/components/advanced/triggers/digital-trigger-input";
+export * from "@/library/components/advanced/triggers/digital-trigger";
+
+export * from "@/library/components/advanced/triggers/analog-trigger-input";
+export * from "@/library/components/advanced/triggers/analog-trigger";
+
 export { useTheme } from "next-themes"

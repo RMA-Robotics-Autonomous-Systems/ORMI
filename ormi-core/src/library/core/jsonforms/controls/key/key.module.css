@@ -8,6 +8,9 @@
     display: flex;
     justify-content: center;
     align-items: center;
+
+    /* prevent text selection */
+    user-select: none;
 }
 
 .key:hover {

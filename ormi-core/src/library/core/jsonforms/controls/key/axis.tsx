@@ -6,37 +6,37 @@ import React from 'react';
 import { Label } from '@/library/components/ui/label';
 
 import styles from "./../../styles/controls.module.css";
-import { DigitalInput, DigitalInputComponent } from '@/library/components/advanced/triggers/digital-trigger-input';
+import { AnalogInputComponent, AnalogInput } from '@/library/components/advanced/triggers/analog-trigger-input';
 
 
-const DigitalControl = (props: ControlProps) => {
+const AnalogControl = (props: ControlProps) => {
     const { data, handleChange, path, label } = props;
 
-    const handleSelecting = (selectedInput: DigitalInput) => {
+    const handleSelecting = (selectedInput: AnalogInput) => {
         handleChange(path, selectedInput);
     };
 
     return (
         <div className={styles.cell}>
             <Label> {label}</Label>
-            <DigitalInputComponent onChange={handleSelecting} data={data as DigitalInput | null} />
+            <AnalogInputComponent onChange={handleSelecting} data={data as AnalogInput | null} />
         </div >
     );
 }
 
-export default withJsonFormsControlProps(DigitalControl);
+export default withJsonFormsControlProps(AnalogControl);
 
 // Define a tester that checks for a specific option in uischema
-const keySelectorTester = rankWith(
+const axisSelectorTester = rankWith(
     10, // Increase rank to ensure this tester is selected when applicable
     and(
         isControl,
-        uiTypeIs('Key'), // Check if uischema is of type 'Control'
+        uiTypeIs('Axis'), // Check if uischema is of type 'Control'
     )
 );
 
-export { keySelectorTester };
+export { axisSelectorTester };
 
-export interface KeyControlType extends Omit<ControlElement, 'type'> {
-    type: 'Key';
+export interface axisControlType extends Omit<ControlElement, 'type'> {
+    type: 'Axis';
 }

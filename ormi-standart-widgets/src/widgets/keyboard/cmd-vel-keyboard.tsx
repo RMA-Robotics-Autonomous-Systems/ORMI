@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react"; // Import useCallback
 import { style } from "ormi-core/jsonforms";
-import { KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
+import { GaugeIcon, KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { DigitalInput, DigitalComponent } from "ormi-core/components";
 import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
@@ -10,192 +11,204 @@ import { toast } from "ormi-core/components";
 
 interface KeyboardControlData {
     title: string;
-    forward: string;
-    backward: string;
-    left: string;
-    right: string;
+    forward: DigitalInput;
+    backward: DigitalInput;
+    left: DigitalInput;
+    right: DigitalInput;
     startingSpeed: number;
-    incSpeed: string;
-    decSpeed: string;
-    unlock: string;
+    incSpeed: DigitalInput;
+    decSpeed: DigitalInput;
+    unlock: DigitalInput;
     unlocktoggle: boolean;
     topic: SelectedTopic;
     publicationFrequency: number;
 }
 
 export function KeyBoardControl(props: KeyboardControlData) {
-
-    const [forward, setForward] = useState<boolean>(false);
-    const [backward, setBackward] = useState<boolean>(false);
-    const [left, setLeft] = useState<boolean>(false);
-    const [right, setRight] = useState<boolean>(false);
+    const [forwardActive, setForwardActive] = useState<boolean>(false);
+    const [backwardActive, setBackwardActive] = useState<boolean>(false);
+    const [leftActive, setLeftActive] = useState<boolean>(false);
+    const [rightActive, setRightActive] = useState<boolean>(false);
     const [speed, setSpeed] = useState<number>(props.startingSpeed || 50);
-    const [unlock, setUnlock] = useState<boolean>(false);
-    const [speedkeyInc, setSpeedKeyInc] = useState<boolean>(false);
-    const [speedkeyDec, setSpeedKeyDec] = useState<boolean>(false);
+    const [unlockActive, setUnlockActive] = useState<boolean>(false);
+    const [isLocked, setIsLocked] = useState<boolean>(true);
+    const [speedkeyIncActive, setSpeedKeyIncActive] = useState<boolean>(false);
+    const [speedkeyDecActive, setSpeedKeyDecActive] = useState<boolean>(false);
+
+    // Refs to hold the latest active state for movement keys
+    const forwardActiveRef = useRef(forwardActive);
+    const backwardActiveRef = useRef(backwardActive);
+    const leftActiveRef = useRef(leftActive);
+    const rightActiveRef = useRef(rightActive);
+
+    // Update refs whenever state changes (this ensures refs are up-to-date if needed elsewhere, though the interval reads them directly)
+    useEffect(() => { forwardActiveRef.current = forwardActive; }, [forwardActive]);
+    useEffect(() => { backwardActiveRef.current = backwardActive; }, [backwardActive]);
+    useEffect(() => { leftActiveRef.current = leftActive; }, [leftActive]);
+    useEffect(() => { rightActiveRef.current = rightActive; }, [rightActive]);
 
     const { publishers } = usePublisherDataSource();
 
     useEffect(() => {
+        if (speedkeyIncActive) {
+            setSpeed((prev) => prev + 10);
+        }
+    }, [speedkeyIncActive]);
 
-        const publish_freq = props.publicationFrequency || 30; // default to 30Hz
+    useEffect(() => {
+        if (speedkeyDecActive) {
+            setSpeed((prev) => Math.max(0, prev - 10));
+        }
+    }, [speedkeyDecActive]);
+
+    useEffect(() => {
+        if (props.unlocktoggle) {
+            if (unlockActive) {
+                setIsLocked((prev) => !prev);
+            }
+        } else {
+            setIsLocked(!unlockActive);
+        }
+    }, [unlockActive, props.unlocktoggle]);
+
+    useEffect(() => {
+        const publish_freq = props.publicationFrequency || 30;
         const publish_period_ms = 1000 / publish_freq;
         const selectedTopic = props.topic;
+
+        if (!selectedTopic?.topic) {
+            console.warn("KeyboardControl: Topic not selected.");
+            return;
+        }
+
         const publisher = publishers.get(selectedTopic.topic);
 
         if (!publisher) {
-            toast({
-                title: 'Error',
-                description: `Publisher for topic ${props.topic} not found`,
-                variant: 'destructive',
-            })
-        }
-
-        const swtichToggle = (press: boolean) => {
-            if (props.unlocktoggle && press) {
-                setUnlock((prev) => { return !prev });
-            } else if (!props.unlocktoggle) {
-                setUnlock(press);
-            }
-        }
-
-        const keyPressEvent = (event: KeyboardEvent) => {
-
-            if (event.key.toLowerCase() === props.forward.toLowerCase()) {
-                setForward(true);
-            }
-
-            if (event.key.toLowerCase() === props.backward.toLowerCase()) {
-                setBackward(true);
-            }
-
-            if (event.key.toLowerCase() === props.left.toLowerCase()) {
-                setLeft(true);
-            }
-
-            if (event.key.toLowerCase() === props.right.toLowerCase()) {
-                setRight(true);
-            }
-
-            if (event.key.toLowerCase() === props.incSpeed.toLowerCase()) {
-                setSpeed((prev) => { return prev + 10 });
-                setSpeedKeyInc(true);
-            }
-
-            if (event.key.toLowerCase() === props.decSpeed.toLowerCase()) {
-                setSpeed((prev) => {
-                    if (prev - 10 < 0) {
-                        return 0;
-                    }
-                    return prev - 10;
-                });
-                setSpeedKeyDec(true);
-            }
-
-            if (event.key.toLowerCase() === props.unlock.toLowerCase()) {
-                swtichToggle(true);
-            }
-
-        };
-
-        const KeyUpEvent = (event: KeyboardEvent) => {
-            if (event.key.toLowerCase() === props.forward.toLowerCase()) {
-                setForward(false);
-            }
-
-            if (event.key.toLowerCase() === props.backward.toLowerCase()) {
-                setBackward(false);
-            }
-
-            if (event.key.toLowerCase() === props.left.toLowerCase()) {
-                setLeft(false);
-            }
-
-            if (event.key.toLowerCase() === props.right.toLowerCase()) {
-                setRight(false);
-            }
-
-            if (event.key.toLowerCase() === props.unlock.toLowerCase()) {
-                swtichToggle(false);
-            }
-
-            if (event.key.toLowerCase() === props.incSpeed.toLowerCase()) {
-                setSpeedKeyInc(false);
-            }
-
-            if (event.key.toLowerCase() === props.decSpeed.toLowerCase()) {
-                setSpeedKeyDec(false);
-            }
+            const timer = setTimeout(() => {
+                if (!publishers.get(selectedTopic.topic)) {
+                    toast({
+                        title: 'Error',
+                        description: `Publisher for topic ${selectedTopic.topic} not found`,
+                        variant: 'destructive',
+                    });
+                }
+            }, 1000);
+            return () => clearTimeout(timer);
         }
 
         const movementFunction = () => {
-            // only do anything if the keyboard is unlock (we don't want to move de robot by accident)
-            if (!unlock) {
-                return;
+            // Read current state directly from refs inside the interval
+            const fwd = forwardActiveRef.current;
+            const bwd = backwardActiveRef.current;
+            const lft = leftActiveRef.current;
+            const rgt = rightActiveRef.current;
+
+            if (isLocked) {
+                return; // Don't send movement commands while locked
             }
 
-            const movement = {
+            const movement: Movement = {
+                linear: { x: 0, y: 0, z: 0 },
+                angular: { x: 0, y: 0, z: 0 }
+            };
 
-                linear: {
-                    x: 0,
-                    y: 0,
-                    z: 0
-                },
-
-                angular: {
-                    x: 0,
-                    y: 0,
-                    z: 0
-                }
-
-            } as Movement
-
-
-            if (forward) {
+            let isMoving = false;
+            if (fwd) {
                 movement.linear.x += speed / 100;
+                isMoving = true;
             }
-
-            if (backward) {
+            if (bwd) {
                 movement.linear.x -= speed / 100;
+                isMoving = true;
             }
-
-            if (left) {
+            if (lft) {
                 movement.angular.z += speed / 100;
+                isMoving = true;
             }
-
-            if (right) {
+            if (rgt) {
                 movement.angular.z -= speed / 100;
+                isMoving = true;
             }
 
-            if (right || left || forward || backward) {
-                publisher!.publish(movement, "Movement");
+            if (isMoving) {
+                publisher.publish(movement, "Movement");
             }
-        }
-
+        };
 
         const publishInterval = setInterval(movementFunction, publish_period_ms);
 
-
-        document.addEventListener('keydown', keyPressEvent);
-        document.addEventListener('keyup', KeyUpEvent);
-
         return () => {
             clearInterval(publishInterval);
-            document.removeEventListener('keydown', keyPressEvent);
-            document.removeEventListener('keyup', KeyUpEvent);
-        }
+        };
+    }, [props.topic, props.publicationFrequency, publishers, speed, isLocked]);
 
-    }, [props, publishers, forward, backward, left, right, speed, unlock, speedkeyInc, speedkeyDec]);
+    // Memoized handlers using useCallback to ensure stable references
+    const handleForwardActive = useCallback(() => {
+        setForwardActive(true);
+        forwardActiveRef.current = true;
+    }, []);
 
+    const handleForwardInactive = useCallback(() => {
+        setForwardActive(false);
+        forwardActiveRef.current = false;
+    }, []);
+
+    const handleBackwardActive = useCallback(() => {
+        setBackwardActive(true);
+        backwardActiveRef.current = true;
+    }, []);
+
+    const handleBackwardInactive = useCallback(() => {
+        setBackwardActive(false);
+        backwardActiveRef.current = false;
+    }, []);
+
+    const handleLeftActive = useCallback(() => {
+        setLeftActive(true);
+        leftActiveRef.current = true;
+    }, []);
+
+    const handleLeftInactive = useCallback(() => {
+        setLeftActive(false);
+        leftActiveRef.current = false;
+    }, []);
+
+    const handleRightActive = useCallback(() => {
+        setRightActive(true);
+        rightActiveRef.current = true;
+    }, []);
+
+    const handleRightInactive = useCallback(() => {
+        setRightActive(false);
+        rightActiveRef.current = false;
+    }, []);
+
+    const handleIncSpeedActive = useCallback(() => setSpeedKeyIncActive(true), []);
+    const handleIncSpeedInactive = useCallback(() => setSpeedKeyIncActive(false), []);
+    const handleDecSpeedActive = useCallback(() => setSpeedKeyDecActive(true), []);
+    const handleDecSpeedInactive = useCallback(() => setSpeedKeyDecActive(false), []);
+    const handleUnlockActive = useCallback(() => setUnlockActive(true), []);
+    const handleUnlockInactive = useCallback(() => setUnlockActive(false), []);
     return (
-        <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
-            <div className="gap-3" style={{ width: "100%", height: "100%", gap: "1rem", gridTemplateColumns: "1fr 1fr 1fr", display: "grid", gridTemplateRows: "1fr 1fr" }}>
-                <span data-active={unlock} className={style.key}> {!unlock && <LockIcon /> || unlock && <UnlockIcon />}</span>
-                <span data-active={forward} className={style.key}>Z</span>
-                <span data-active={speedkeyInc || speedkeyDec} className={style.key} > {speed}% </span>
-                <span data-active={left} className={style.key}>Q</span>
-                <span data-active={backward} className={style.key}>S</span>
-                <span data-active={right} className={style.key}>D</span>
+        <div className="flex flex-col justify-center items-center p-4 h-full gap-3">
+            <div style={{ display: "none" }}>
+                <DigitalComponent digitalInput={props.decSpeed} onActive={handleDecSpeedActive} onInactive={handleDecSpeedInactive} />
+                <DigitalComponent digitalInput={props.unlock} onActive={handleUnlockActive} onInactive={handleUnlockInactive} />
+                <DigitalComponent digitalInput={props.incSpeed} onActive={handleIncSpeedActive} onInactive={handleIncSpeedInactive} />
+
+            </div>
+            {/* Grid layout for movement controls */}
+            <div className="mb-4" style={{ display: 'grid', alignItems: "center", justifyItems: "center", gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', width: '100%' }}>
+                <div data-active={!isLocked} style={{ width: '10rem' }} className={style.key} onMouseUp={handleUnlockInactive} onMouseDown={handleUnlockActive}>
+                    {isLocked ? <LockIcon className="text-red-500" /> : <UnlockIcon className="text-green-500" />}
+                </div>
+                <DigitalComponent digitalInput={props.forward} onActive={handleForwardActive} onInactive={handleForwardInactive} />
+                <div data-active={speedkeyIncActive || speedkeyDecActive} style={{ width: '10rem' }} className={style.key}>
+                    <span style={{ display: "flex", justifyContent: "space-evenly", width: "100%" }}><GaugeIcon />{speed}%</span>
+                </div>
+                <DigitalComponent digitalInput={props.left} onActive={handleLeftActive} onInactive={handleLeftInactive} />
+                <DigitalComponent digitalInput={props.backward} onActive={handleBackwardActive} onInactive={handleBackwardInactive} />
+                <DigitalComponent digitalInput={props.right} onActive={handleRightActive} onInactive={handleRightInactive} />
             </div>
         </div>
     );
@@ -218,41 +231,44 @@ export function KeyboardControlDefinition() {
                     title: 'Title'
                 },
                 forward: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Forward'
                 },
                 backward: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Backward'
                 },
                 left: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Left'
                 },
                 right: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Right'
                 },
                 startingSpeed: {
                     type: 'number',
-                    title: 'Starting Speed',
-                    default: 50
+                    title: 'Starting Speed (%)',
+                    default: 50,
+                    minimum: 0,
+                    maximum: 100,
                 },
                 incSpeed: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Increase Speed'
                 },
                 decSpeed: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Decrease Speed'
                 },
                 unlock: {
-                    type: 'string',
+                    type: 'object',
                     title: 'Unlock'
                 },
                 unlocktoggle: {
                     type: 'boolean',
-                    title: 'Unlock Toggle'
+                    title: 'Unlock is Toggle',
+                    default: false,
                 },
                 topic: {
                     type: 'object',
@@ -261,10 +277,11 @@ export function KeyboardControlDefinition() {
                 publicationFrequency: {
                     type: 'number',
                     title: 'Publication Frequency (Hz)',
-                    default: 30
+                    default: 30,
+                    minimum: 1,
                 }
             },
-            required: ['title', 'topic']
+            required: ['title', 'topic', 'forward', 'backward', 'left', 'right', 'incSpeed', 'decSpeed', 'unlock']
         },
         uischema: {
             type: "VerticalLayout",
@@ -326,14 +343,28 @@ export function KeyboardControlDefinition() {
             ],
         } as VerticalLayout,
         data: {
-            title: 'Control the robot'
+            title: 'Keyboard Robot Control',
+            startingSpeed: 50,
+            publicationFrequency: 30,
+            unlocktoggle: false,
+            forward: { type: 'keyboard', key: 'z' },
+            backward: { type: 'keyboard', key: 's' },
+            left: { type: 'keyboard', key: 'q' },
+            right: { type: 'keyboard', key: 'd' },
+            incSpeed: { type: 'keyboard', key: 'a' },
+            decSpeed: { type: 'keyboard', key: 'e' },
+            unlock: { type: 'keyboard', key: ' ' },
         },
         Component: (data: KeyboardControlData) => (
-            <PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-                <KeyBoardControl {...data} />
-            </PublisherDataSourcesProvider>
+            data.topic ? (
+                <PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+                    <KeyBoardControl {...data} />
+                </PublisherDataSourcesProvider>
+            ) : (
+                <div className="flex justify-center items-center h-full text-muted-foreground">
+                    Please select a topic in the widget configuration.
+                </div>
+            )
         )
-
     }
-
 }
