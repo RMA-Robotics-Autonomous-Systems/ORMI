@@ -46,11 +46,9 @@ export const AnalogComponent = (props: AnalogInputComponentProps) => {
             }
 
             // Only update if the value actually changed
-            if (activationRef.current !== currentActivationLevel) {
-                activationRef.current = currentActivationLevel;
-                setActivationLevel(currentActivationLevel);
-                props.onValueChange(currentActivationLevel);
-            }
+            activationRef.current = currentActivationLevel;
+            setActivationLevel(currentActivationLevel);
+            props.onValueChange(currentActivationLevel);
 
             if (props.analogInput && !Array.from(currentFrameGamepads).some(gp => gp?.id === props.analogInput.gamepadId)) {
                 activationRef.current = 0;
