@@ -41,8 +41,11 @@ export const AnalogComponent = (props: AnalogInputComponentProps) => {
                     });
                 });
 
-            if (currentActivationLevel <= 0.05) {
-                currentActivationLevel = 0;
+            if (Math.abs(currentActivationLevel) <= 0.1) {
+                currentActivationLevel *= 0.9
+                if (Math.abs(currentActivationLevel) < 0.05) {
+                    currentActivationLevel = 0;
+                }
             }
 
             // Only update if the value actually changed

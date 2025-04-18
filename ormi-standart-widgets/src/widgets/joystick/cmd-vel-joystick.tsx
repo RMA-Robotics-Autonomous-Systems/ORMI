@@ -111,6 +111,12 @@ export function JoypadControls(props: JoypadControlsProps) {
             // Apply all active axis values from refs
             for (const axisConfig of props.axes) {
                 const value = axisValuesRef.current[axisConfig.axis] || 0;
+
+                if (Math.abs(value) <= 0.05) {
+                    axisValuesRef.current[axisConfig.axis] = 0;
+                    continue; // Ignore small values
+                }
+
                 if (value !== 0) {
                     isMoving = true;
 
