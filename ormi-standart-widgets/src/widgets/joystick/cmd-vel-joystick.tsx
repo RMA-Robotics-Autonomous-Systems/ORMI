@@ -112,7 +112,7 @@ export function JoypadControls(props: JoypadControlsProps) {
             for (const axisConfig of props.axes) {
                 const value = axisValuesRef.current[axisConfig.axis] || 0;
 
-                if (Math.abs(value) <= 0.05) {
+                if (Math.abs(value) <= 0.07) {
                     axisValuesRef.current[axisConfig.axis] = 0;
                     continue; // Ignore small values
                 }
