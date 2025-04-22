@@ -827,6 +827,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     rejector(new Error("Component unmounted"));
                 }
             });
+
+            // for each publisher, remove the hook
+            publisherRef.current.forEach((publisher) => {
+                pluginsManager.removeAction(publisher.hook);
+            });
             pendingSubscriptionsRef.current.clear();
 
             // Clear all operation queues
