@@ -526,8 +526,22 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
                 console.log(filter);
 
-                // filter the topics based on the filter object
-                return topics.filter((topic) => filter.filter(topic));
+                const filteredTopics = topics.filter((topic) => filter.filter(topic));
+
+                // if the filtered topics are empty, we log the diagnostic
+                if (filteredTopics.length === 0) {
+
+                    const diagnostic = {
+                        topics: topics,
+                        filter: filter
+                    }
+
+                    console.warn("No topics found for the filter", diagnostic);
+                }
+
+
+
+                return filteredTopics;
             }
 
         })
