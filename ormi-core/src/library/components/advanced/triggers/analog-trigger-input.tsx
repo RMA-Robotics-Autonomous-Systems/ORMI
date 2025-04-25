@@ -33,35 +33,25 @@ export function getGamepadAxisName(index: number | undefined, gamepadId?: string
     return StandardGamepadAxisNames[index] || `Axis ${index}`;
 }
 
+// Threshold for absolute value to be considered active *after* selection
 const ACTIVATION_THRESHOLD = 0.5;
+// Threshold for the *change* in value from resting state to trigger selection
+const DELTA_THRESHOLD = 0.3; // Adjust as needed
 
 export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
     const [isSelecting, setIsSelecting] = useState(false);
     const [activationLevel, setActivationLevel] = useState(0); // 0 to 1
+    // Store resting values when selection starts: Map<gamepad.id, axisValues[]>
+    const [restingAxisValues, setRestingAxisValues] = useState<Map<string, number[]>>(new Map());
 
     const [data, setData] = useState<AnalogInput | null>(props.data);
-    const [gamepads, setGamepads] = useState<Gamepad[] | null>(null);
 
     useEffect(() => {
         const gamepadHandler = (event: GamepadEvent) => {
-            console.log('gamepad event', event);
-            if (event.type === 'gamepadconnected') {
-                setGamepads((prev) => {
-                    const existingIds = prev?.map(gp => gp.index) || [];
-                    if (!existingIds.includes(event.gamepad.index)) {
-                        return [...(prev || []), event.gamepad];
-                    }
-                    return prev;
-                });
-            } else {
-                setGamepads((prev) => prev?.filter((gamepad) => gamepad.index !== event.gamepad.index) || null);
-            }
+            console.log('gamepad event', event.type, event.gamepad.id);
         };
         window.addEventListener('gamepadconnected', gamepadHandler);
         window.addEventListener('gamepaddisconnected', gamepadHandler);
-
-        const initialGamepads = navigator.getGamepads().filter(gp => gp !== null) as Gamepad[];
-        setGamepads(initialGamepads);
 
         return () => {
             window.removeEventListener('gamepadconnected', gamepadHandler);
@@ -70,13 +60,20 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
     }, []);
 
     useEffect(() => {
+        if (!isSelecting && !data) {
+            setActivationLevel(0);
+            return;
+        }
+
         const gamePadInterval = setInterval(() => {
             const currentFrameGamepads = navigator.getGamepads();
-            let currentActivationLevel = 0; // Track activation level for the current frame
+            let currentActivationLevel = 0;
 
             Array.from(currentFrameGamepads)
                 .filter((gp): gp is Gamepad => gp !== null)
                 .forEach((gamepad) => {
+                    const restingAxes = restingAxisValues.get(gamepad.id);
+
                     gamepad.axes.forEach((axisValue, index) => {
                         const absoluteValue = Math.abs(axisValue);
 
@@ -86,30 +83,40 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
                             gamepad.id === data.gamepadId &&
                             index === data.gamepadAxisIndex
                         ) {
-                            if (data.direction === 'positive' && axisValue > 0) {
+                            if (data.direction === 'positive' && axisValue > ACTIVATION_THRESHOLD / 2) {
                                 currentActivationLevel = Math.min(axisValue, 1);
-                            } else if (data.direction === 'negative' && axisValue < 0) {
+                            } else if (data.direction === 'negative' && axisValue < -ACTIVATION_THRESHOLD / 2) {
                                 currentActivationLevel = Math.min(absoluteValue, 1);
                             }
                         }
 
-                        if (isSelecting && absoluteValue > ACTIVATION_THRESHOLD) {
-                            const direction = axisValue > 0 ? 'positive' : 'negative';
-                            const newData: AnalogInput = {
-                                type: 'gamepad',
-                                gamepadAxisIndex: index,
-                                gamepadId: gamepad.id,
-                                direction: direction,
-                            };
-                            setData(newData);
-                            props.onChange(newData);
-                            setIsSelecting(false);
-                            currentActivationLevel = Math.min(absoluteValue, 1);
+                        if (isSelecting && restingAxes) {
+                            const restingValue = restingAxes[index] ?? 0;
+                            const delta = Math.abs(axisValue - restingValue);
+
+                            if (delta > DELTA_THRESHOLD) {
+                                const direction = (axisValue - restingValue) > 0 ? 'positive' : 'negative';
+                                const newData: AnalogInput = {
+                                    type: 'gamepad',
+                                    gamepadAxisIndex: index,
+                                    gamepadId: gamepad.id,
+                                    direction: direction,
+                                };
+                                setData(newData);
+                                props.onChange(newData);
+                                setIsSelecting(false);
+                                setRestingAxisValues(new Map());
+                                currentActivationLevel = Math.min(absoluteValue, 1);
+                                return;
+                            }
                         }
                     });
+                    if (!isSelecting && data) return;
                 });
 
-            setActivationLevel(currentActivationLevel);
+            if (activationLevel !== currentActivationLevel || isSelecting) {
+                setActivationLevel(currentActivationLevel);
+            }
 
             if (data && !Array.from(currentFrameGamepads).some(gp => gp?.id === data.gamepadId)) {
                 setActivationLevel(0);
@@ -120,12 +127,20 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
         return () => {
             clearInterval(gamePadInterval);
         };
-    }, [isSelecting, data, props.onChange]);
+    }, [isSelecting, data, props.onChange, restingAxisValues, activationLevel]);
 
     const handleSelecting = () => {
         setIsSelecting(true);
         setData(null);
         setActivationLevel(0);
+
+        const currentRestingValues = new Map<string, number[]>();
+        navigator.getGamepads().forEach(gp => {
+            if (gp) {
+                currentRestingValues.set(gp.id, [...gp.axes]);
+            }
+        });
+        setRestingAxisValues(currentRestingValues);
     };
 
     const dynamicStyles: CSSProperties = {
@@ -142,7 +157,7 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
                 style={dynamicStyles}
             >
                 {isSelecting ? (
-                    'move axis'
+                    'move axis...'
                 ) : data ? (
                     <div
                         style={{
