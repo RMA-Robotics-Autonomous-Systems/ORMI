@@ -166,7 +166,7 @@ export function WebRtcRos2Definition() {
         options: {
             asyncFunction: async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({
-                    source_id: /rosbridge-suite-source/
+                    source_id: /(rosbridge-suite-source|foxglove-source)/
                 }));
             },
             buffer: 1,
