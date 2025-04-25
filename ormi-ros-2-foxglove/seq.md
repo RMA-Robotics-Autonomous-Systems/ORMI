@@ -1,61 +1,43 @@
 ```mermaid
 sequenceDiagram
-    participant App as Application
-    participant Provider as FoxgloveSourceProvider
-    participant Client as FoxgloveClient
+    participant KW as KeyboardWidget
+    participant PubProv as PublisherProvider
     participant PM as PluginsManager
-    participant Queue as QueueSystem
+    participant FoxProv as FoxgloveProvider
+    participant Client as FoxgloveClient
+    participant Queue as OperationQueue
 
-    %% Component mounting phase
-    App->>Provider: Mount component
-    Provider->>Provider: Initialize refs & state
-    Provider->>Provider: Start timeout (WAIT_FOR_CONNECTION)
-    Note over Provider: After timeout
-    Provider->>Client: Create WebSocket connection
-    Client-->>Provider: "open" event
-    Provider->>Provider: setClientConnected(true)
-    Provider->>PM: Register plugin hooks & filters
-    Provider-->>App: Render children
+    %% Publisher Setup Phase (KeyboardWidget mounts)
+    KW->>PubProv: Mount, request publisher for "cmd_vel" (Movement type)
+    PubProv->>PM: Call advertise filter (`<ds_id>-advertise`, {topic: "cmd_vel", type: "Movement", ...})
+    PM->>FoxProv: Execute advertise_hook
+    FoxProv->>Client: advertise("cmd_vel", schemaName="geometry_msgs/msg/Twist")
+    Client-->>FoxProv: newChannelId
+    Note over FoxProv: Waits for schema if needed (via advertise event)
+    FoxProv->>Queue: enqueueOperation(newChannelId, setupPublisher)
+    Queue->>FoxProv: Store publisher (writer, hook) in publisherRef[newChannelId]
+    Queue->>PM: Register publish hook (`<ds_id>-cmd_vel-publish`)
+    FoxProv-->>PM: Return success (true)
+    PM-->>PubProv: Return success (true)
+    PubProv->>KW: Publisher ready
 
-    %% Subscription phase
-    App->>PM: Call subscribe action (Topic A)
-    PM->>Provider: Execute subscribe_hook
-    Provider->>Provider: Find channel for Topic A
-    Provider->>Queue: enqueueOperation(channelId)
-    Queue->>Client: subscribe(channelId)
-    Client-->>Queue: subscriptionId
-    Queue->>Provider: Store subscriber in subscribersRef
+    %% Publishing Phase (User presses key)
+    KW->>KW: Detect key press, calculate Movement msg
+    KW->>PubProv: Call publish("cmd_vel", MovementMsg)
+    PubProv->>PM: Call publish action (`<ds_id>-cmd_vel-publish`, MovementMsg)
+    PM->>FoxProv: Execute publish hook
+    FoxProv->>FoxProv: Convert MovementMsg to ROS2 Twist (using writer)
+    FoxProv->>Client: sendMessage(channelId, serializedTwistData)
 
-    %% Publisher creation phase
-    App->>PM: Call advertise filter (Topic A)
-    PM->>Provider: Execute advertise_hook
-    Provider->>Client: advertise(Topic A)
-    Client-->>Provider: newChannelId
-    Provider->>Queue: enqueueOperation(newChannelId)
-    Queue->>Provider: Store publisher in publisherRef
-    Queue->>PM: Register publish hook
-
-    %% Publishing messages
-    App->>PM: Call publish action (message 1)
-    PM->>Provider: Execute publish hook
-    Provider->>Provider: Convert message format
-    Provider->>Client: sendMessage(channelId, data)
-
-    App->>PM: Call publish action (message 2)
-    PM->>Provider: Execute publish hook
-    Provider->>Provider: Convert message format
-    Provider->>Client: sendMessage(channelId, data)
-
-    App->>PM: Call publish action (message 3)
-    PM->>Provider: Execute publish hook
-    Provider->>Provider: Convert message format
-    Provider->>Client: sendMessage(channelId, data)
-
-    %% Component unmounting
-    App->>Provider: Unmount component
-    Provider->>PM: Remove all hooks & filters
-    Provider->>Client: unsubscribe for all topics
-    Provider->>Provider: Clear all refs & queues
-    Provider->>Client: close connection
-    Provider-->>App: Component unmounted
+    %% Unmounting Phase (KeyboardWidget unmounts)
+    KW->>PubProv: Unmount component
+    PubProv->>PM: Call unadvertise action (`<ds_id>-unadvertise`, {topic: "cmd_vel", ...})
+    PM->>FoxProv: Execute unadvertise_hook
+    FoxProv->>Queue: enqueueOperation(channelId, teardownPublisher)
+    Queue->>Client: unadvertise(channelId)
+    Queue->>FoxProv: Remove publisher from publisherRef[channelId]
+    Queue->>PM: Remove publish hook (`<ds_id>-cmd_vel-publish`)
+    FoxProv-->>PM: Action complete
+    PM-->>PubProv: Action complete
+    PubProv-->>KW: Component unmounted
 ```
