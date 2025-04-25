@@ -102,6 +102,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     // Publisher
     const publisherRef = useRef<Map<number, Publisher>>(new Map<number, Publisher>());
     const pendingPublisherRef = useRef<Map<string, Promise<string>>>(new Map<string, Promise<string>>());   // raw_type, promise (schema)
+    const advertisingPromisesRef = useRef<Map<string, Promise<boolean>>>(new Map()); // Topic name -> Promise<success>
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
 
@@ -156,10 +157,10 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         // Check if this channel id is in pending publishers
                         // and resolve the promise with the actual schema
                         if (pendingPublisherRef.current.has(channel.schemaName)) {
-                            // Create a resolver function to resolve the pending promise
-                            const resolveFunction = (pendingPublisherRef.current.get(channel.schemaName) as any).resolve;
-                            if (resolveFunction) {
-                                resolveFunction(channel.schema);
+                            const pendingPromise = pendingPublisherRef.current.get(channel.schemaName);
+                            if (pendingPromise && (pendingPromise as any).resolve) {
+                                console.log(`Resolving pending schema for type ${channel.schemaName} via advertised channel ${channel.id}`);
+                                (pendingPromise as any).resolve(channel.schema);
                             }
                         }
                     });
@@ -424,107 +425,172 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
             pluginsManager.addFilter(advertise_hook, {
                 id: advertise_hook,
-                filter: async (topic: SelectedTopic) => {
-                    try {
-                        const hook = `${datasource_id}-${topic.topic}-publish`;
-                        await connectionRef.current;
+                filter: async (topic: SelectedTopic): Promise<boolean> => {
+                    const topicName = topic.topic;
+                    const rawType = topic.rawType;
 
-                        // find the channel id, in the publishers, to see if we are already publishing
-                        const existingPublisher = Array.from(publisherRef.current.values()).find((publisher) => {
-                            return publisher.topic === topic.topic;
-                        });
+                    if (advertisingPromisesRef.current.has(topicName)) {
+                        console.log(`Advertise for ${topicName}: Operation already in progress, awaiting...`);
+                        return await advertisingPromisesRef.current.get(topicName)!;
+                    }
 
-                        if (existingPublisher) {
-                            // Queue the operation to increase the count
-                            await enqueueOperation(existingPublisher.channelId, async () => {
-                                const publisher = publisherRef.current.get(existingPublisher.channelId);
-                                console.log("Publisher already exists increasing count", publisher);
-                                if (publisher) {
-                                    publisher.count++;
+                    const advertisePromise = (async (): Promise<boolean> => {
+                        try {
+                            console.log(`Advertise for ${topicName}: Starting operation...`);
+                            await connectionRef.current;
+
+                            const existingPublisher = Array.from(publisherRef.current.values()).find(p => p.topic === topicName);
+
+                            if (existingPublisher) {
+                                console.log(`Advertise for ${topicName}: Publisher already exists (channel ${existingPublisher.channelId}), incrementing count.`);
+                                await enqueueOperation(existingPublisher.channelId, async () => {
+                                    const publisher = publisherRef.current.get(existingPublisher.channelId);
+                                    if (publisher) {
+                                        publisher.count++;
+                                        console.log(`Advertise for ${topicName}: Count incremented to ${publisher.count} for channel ${existingPublisher.channelId}`);
+                                    } else {
+                                        console.warn(`Advertise for ${topicName}: Publisher disappeared before count increment on channel ${existingPublisher.channelId}?`);
+                                    }
+                                });
+                                return true;
+                            }
+
+                            console.log(`Advertise for ${topicName}: No existing publisher, advertising with type ${rawType}...`);
+                            const newChannelId = clientRef.current?.advertise({
+                                topic: topic.topic,
+                                encoding: "cdr",
+                                schemaName: rawType
+                            });
+
+                            if (newChannelId === undefined || newChannelId === null) {
+                                throw new Error(`Failed to initiate advertisement for topic ${topicName}`);
+                            }
+                            console.log(`Advertise for ${topicName}: Advertise call sent, assigned channelId ${newChannelId}. Waiting for schema...`);
+
+                            let schemaPromise: Promise<string>;
+                            let schemaTimeout: number | null = null;
+
+                            const existingChannelWithSchema = Array.from(channelsRef.current.values()).find(
+                                ch => ch.schemaName === rawType && ch.schema
+                            );
+
+                            if (existingChannelWithSchema) {
+                                console.log(`Advertise for ${topicName}: Schema for ${rawType} found in existing channel ${existingChannelWithSchema.id}`);
+                                schemaPromise = Promise.resolve(existingChannelWithSchema.schema);
+                            } else if (pendingPublisherRef.current.has(rawType)) {
+                                console.log(`Advertise for ${topicName}: Awaiting pending schema for type ${rawType}`);
+                                schemaPromise = pendingPublisherRef.current.get(rawType)!;
+                            } else {
+                                console.log(`Advertise for ${topicName}: Setting up pending schema for type ${rawType}`);
+                                const promiseObj = {} as any;
+                                schemaPromise = new Promise<string>((resolve, reject) => {
+                                    promiseObj.resolve = resolve;
+                                    promiseObj.reject = reject;
+                                });
+                                pendingPublisherRef.current.set(rawType, schemaPromise);
+                                (pendingPublisherRef.current.get(rawType) as any).resolve = promiseObj.resolve;
+                                (pendingPublisherRef.current.get(rawType) as any).reject = promiseObj.reject;
+
+                                schemaTimeout = setTimeout(() => {
+                                    if (pendingPublisherRef.current.has(rawType)) {
+                                        const pendingPromise = pendingPublisherRef.current.get(rawType);
+                                        console.error(`Advertise for ${topicName}: Schema resolution timed out for type ${rawType}`);
+                                        if (pendingPromise && (pendingPromise as any).reject) {
+                                            (pendingPromise as any).reject(new Error(`Schema resolution timed out for ${rawType}`));
+                                        }
+                                        pendingPublisherRef.current.delete(rawType);
+                                    }
+                                }, 10000);
+                            }
+
+                            await enqueueOperation(newChannelId, async () => {
+                                let schema: string | null = null;
+                                try {
+                                    console.log(`Advertise for ${topicName}: Enqueued operation for channel ${newChannelId} starting.`);
+                                    schema = await schemaPromise;
+                                    if (schemaTimeout) clearTimeout(schemaTimeout);
+                                    console.log(`Advertise for ${topicName}: Schema received for channel ${newChannelId}.`);
+
+                                    if (publisherRef.current.has(newChannelId)) {
+                                        console.warn(`Advertise for ${topicName}: Publisher for channel ${newChannelId} already exists in enqueueOperation. Incrementing count.`);
+                                        const pub = publisherRef.current.get(newChannelId)!;
+                                        pub.count++;
+                                        return;
+                                    }
+
+                                    const publisher = {
+                                        channelId: newChannelId,
+                                        topic: topic.topic,
+                                        schemaName: rawType,
+                                        webtype: topic.type,
+                                        count: 1,
+                                        hook: `${datasource_id}-${topic.topic}-publish`,
+                                        writer: new MessageWriter(parse(schema, { ros2: true })),
+                                    } as Publisher;
+
+                                    publisherRef.current.set(newChannelId, publisher);
+                                    console.log(`Advertise for ${topicName}: Publisher added for channel ${newChannelId}.`);
+
+                                    const hook = publisher.hook;
+                                    pluginsManager.removeAction(hook);
+                                    pluginsManager.addAction(hook, {
+                                        id: hook,
+                                        action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
+                                            const currentPublisher = publisherRef.current.get(newChannelId);
+                                            if (!currentPublisher) {
+                                                console.warn(`Publish action for ${topicName} (channel ${newChannelId}): Publisher no longer exists.`);
+                                                return;
+                                            }
+                                            try {
+                                                const converted = UnifiedConverter.convertToROS2(message, webtype, selected_topic.rawType);
+                                                const msg = currentPublisher.writer.writeMessage(converted);
+                                                clientRef.current?.sendMessage(newChannelId, msg);
+                                            } catch (error) {
+                                                console.error(`Failed to publish message on ${topicName} (channel ${newChannelId}):`, error);
+                                            }
+                                        },
+                                        priority: 100,
+                                    });
+                                    console.log(`Advertise for ${topicName}: Publish action registered for hook ${hook}.`);
+
+                                } catch (schemaError) {
+                                    console.error(`Advertise for ${topicName}: Error obtaining schema or setting up publisher for channel ${newChannelId}:`, schemaError);
+                                    try {
+                                        clientRef.current?.unadvertise(newChannelId);
+                                        console.log(`Advertise for ${topicName}: Cleaned up channel ${newChannelId} due to setup error.`);
+                                    } catch (unadvError) {
+                                        console.error(`Advertise for ${topicName}: Failed to unadvertise channel ${newChannelId} after setup error:`, unadvError);
+                                    }
+                                    throw schemaError;
+                                } finally {
+                                    if (pendingPublisherRef.current.has(rawType) && pendingPublisherRef.current.get(rawType) === schemaPromise) {
+                                        pendingPublisherRef.current.delete(rawType);
+                                        console.log(`Advertise for ${topicName}: Cleaned up pending schema promise for type ${rawType}.`);
+                                    }
                                 }
                             });
+
+                            console.log(`Advertise for ${topicName}: Operation setup complete, returning true.`);
                             return true;
+
+                        } catch (error) {
+                            console.error(`Advertise for ${topicName}: Error during operation:`, error);
+                            if (props.toasts) {
+                                toast({
+                                    title: "Error",
+                                    description: `Failed to advertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
+                                    variant: "destructive",
+                                });
+                            }
+                            return false;
+                        } finally {
+                            advertisingPromisesRef.current.delete(topicName);
+                            console.log(`Advertise for ${topicName}: Operation finished, removed promise.`);
                         }
+                    })();
 
-                        // Create a new publisher
-                        const newChannelId = clientRef.current?.advertise({
-                            topic: topic.topic,
-                            encoding: "cdr",
-                            schemaName: topic.rawType
-                        });
-
-                        if (!newChannelId && newChannelId !== 0) {
-                            throw new Error(`Failed to advertise topic ${topic.topic}`);
-                        }
-
-                        // Create a promise with accessible resolve/reject functions
-                        let promiseObj: {
-                            promise: Promise<string>;
-                            resolve: (schema: string) => void;
-                            reject: (error: Error) => void;
-                        };
-
-                        promiseObj = {} as any;
-                        promiseObj.promise = new Promise<string>((resolve, reject) => {
-                            promiseObj.resolve = resolve;
-                            promiseObj.reject = reject;
-                        });
-
-                        // Store the promise object for later use
-                        pendingPublisherRef.current.set(topic.rawType, promiseObj.promise as any);
-                        (pendingPublisherRef.current.get(topic.rawType) as any).resolve = promiseObj.resolve;
-                        (pendingPublisherRef.current.get(topic.rawType) as any).reject = promiseObj.reject;
-
-                        // Queue the operation to add the publisher
-                        await enqueueOperation(newChannelId, async () => {
-
-                            console.log("New publisher created", newChannelId);
-
-                            const schema: string = await promiseObj.promise;
-
-                            // add the publisher to the list
-                            const publisher = {
-                                channelId: newChannelId,
-                                topic: topic.topic,
-                                schemaName: topic.rawType,
-                                webtype: topic.type,
-                                count: 1,
-                                hook: `${datasource_id}-${topic.topic}-publish`,
-                                writer: new MessageWriter(parse(schema, { ros2: true })),
-                            } as Publisher;
-
-                            publisherRef.current.set(newChannelId, publisher);
-
-                            pluginsManager.addAction(hook, {
-                                id: hook,
-                                action: async (selected_topic: SelectedTopic, message: any, webtype: any) => {
-                                    try {
-
-                                        const converted = UnifiedConverter.convertToROS2(message, webtype, selected_topic.rawType);
-
-                                        const msg = publisher.writer.writeMessage(converted);
-                                        clientRef.current?.sendMessage(newChannelId, msg);
-                                    } catch (error) {
-                                        console.error("Failed to publish message", error);
-                                    }
-                                },
-                                priority: 100,
-                            });
-                        });
-
-                        return true;
-
-                    } catch (error) {
-                        console.error("Advertise error:", error);
-                        if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: "Failed to advertise topic",
-                                variant: "destructive",
-                            });
-                        }
-                        return false;
-                    }
+                    advertisingPromisesRef.current.set(topicName, advertisePromise);
+                    return await advertisePromise;
                 },
                 priority: 100,
             });
@@ -532,64 +598,67 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             pluginsManager.addAction(unadvertise_hook, {
                 id: unadvertise_hook,
                 action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
+                    const topicName = topic.topic;
+                    console.log(`Unadvertise for ${topicName}: Starting (ignoreCount: ${ignoreCount}).`);
+
                     try {
                         await connectionRef.current;
 
-                        console.log("Unadvertising topic", topic);
+                        const publisherEntry = Array.from(publisherRef.current.entries()).find(
+                            ([_, pub]) => pub.topic === topicName
+                        );
 
-                        // find the channel id
-                        const channelId = Array.from(publisherRef.current.values()).find((publisher) => {
-                            return publisher.topic === topic.topic;
-                        })?.channelId;
-
-                        if (!channelId) {
-                            console.warn(`Not publishing to topic ${topic.topic}`);
+                        if (!publisherEntry) {
+                            console.warn(`Unadvertise for ${topicName}: Publisher not found.`);
+                            if (advertisingPromisesRef.current.has(topicName)) {
+                                console.warn(`Unadvertise for ${topicName}: Advertise operation still in progress. Cannot unadvertise yet.`);
+                            }
                             return;
                         }
 
-                        // Queue the unadvertise operation
+                        const [channelId, publisher] = publisherEntry;
+
                         await enqueueOperation(channelId, async () => {
-                            // check if the topic is already published
-                            if (!publisherRef.current.has(channelId)) {
-                                console.warn(`Not publishing to topic ${topic.topic}`);
+                            console.log(`Unadvertise for ${topicName}: Enqueued operation for channel ${channelId}.`);
+                            const currentPublisher = publisherRef.current.get(channelId);
+
+                            if (!currentPublisher) {
+                                console.warn(`Unadvertise for ${topicName}: Publisher for channel ${channelId} disappeared before unadvertise operation.`);
+                                pluginsManager.removeAction(`${datasource_id}-${topicName}-publish`);
                                 return;
                             }
-                            const publisher = publisherRef.current.get(channelId);
-                            if (publisher) {
-                                if (ignoreCount) {
-                                    publisher.count = 0;
-                                } else {
-                                    publisher.count--;
-                                }
 
-                                console.log("Unadvertising publisher decreasing count", publisher);
-
-                                if (publisher.count <= 0) {
-                                    clientRef.current?.unadvertise(channelId);
-                                    publisherRef.current.delete(channelId);
-                                    pluginsManager.removeAction(publisher.hook);
-                                    console.log("Publisher unadvertised", publisher);
-                                }
+                            if (ignoreCount) {
+                                currentPublisher.count = 0;
                             } else {
-                                console.warn(`Not publishing to topic ${topic.topic}`);
+                                currentPublisher.count--;
                             }
-                        }).catch(error => {
-                            console.warn("Unadvertise error:", error);
-                            if (props.toasts) {
-                                toast({
-                                    title: "Error",
-                                    description: "Failed to unadvertise topic",
-                                    variant: "destructive",
-                                });
+                            console.log(`Unadvertise for ${topicName}: Count updated to ${currentPublisher.count}.`);
+
+                            if (currentPublisher.count <= 0) {
+                                console.log(`Unadvertise for ${topicName}: Count is zero or less, proceeding with unadvertise for channel ${channelId}.`);
+                                try {
+                                    clientRef.current?.unadvertise(channelId);
+                                    console.log(`Unadvertise for ${topicName}: Unadvertise call sent for channel ${channelId}.`);
+                                } catch (unadvError) {
+                                    console.error(`Unadvertise for ${topicName}: Error calling client.unadvertise for channel ${channelId}:`, unadvError);
+                                }
+
+                                publisherRef.current.delete(channelId);
+                                pluginsManager.removeAction(currentPublisher.hook);
+                                console.log(`Unadvertise for ${topicName}: Publisher state removed for channel ${channelId}, action hook ${currentPublisher.hook} removed.`);
+
+                            } else {
+                                console.log(`Unadvertise for ${topicName}: Count is ${currentPublisher.count}, publisher remains active.`);
                             }
                         });
 
                     } catch (error) {
-                        console.error("Unadvertise error:", error);
+                        console.error(`Unadvertise for ${topicName}: Error:`, error);
                         if (props.toasts) {
                             toast({
                                 title: "Error",
-                                description: "Failed to unadvertise topic",
+                                description: `Failed to unadvertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
                                 variant: "destructive",
                             });
                         }
@@ -604,14 +673,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                     await connectionRef.current;
 
-                    // for all channels, get the schemaName
                     const channelsArray = Array.from(channelsRef.current.values());
                     const schemas = channelsArray.map((channel) => {
                         return channel.schemaName;
                     });
-                    // remove duplicates
                     const uniqueSchemas = Array.from(new Set(schemas));
-
 
                     return uniqueSchemas;
                 },
@@ -627,47 +693,37 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             }
         }
 
-        // Function queue implementation
         const enqueueOperation = async (id: number, operation: () => Promise<void>): Promise<void> => {
-            // Initialize the queue for this ID if it doesn't exist
             if (!queueRef.current.has(id)) {
                 queueRef.current.set(id, []);
                 processingRef.current.set(id, false);
             }
 
-            // Create a promise that will resolve when the operation completes
             return new Promise<void>((resolve, reject) => {
-                // Add the operation to the queue
                 queueRef.current.get(id)?.push(async () => {
                     try {
                         await operation();
                         resolve();
                     } catch (error) {
                         reject(error);
+                        console.error(`Error in enqueued operation for ID ${id}:`, error);
                     }
                 });
 
-                // Process the queue if it's not already being processed
                 processQueue(id);
             });
         };
 
-        // Function to add a pending subscription
         const addPendingSubscription = async (topic: string): Promise<boolean> => {
             return new Promise<boolean>((resolve, reject) => {
-                // Generate a unique ID for this pending subscription
-                // Using a hash of the topic name for simplicity
                 const pendingId = hashTopicName(topic);
 
-                // Check if there's already a pending subscription for this topic
                 if (pendingSubscriptionsRef.current.has(pendingId)) {
-                    // Increment the count for existing subscription
                     const existing = pendingSubscriptionsRef.current.get(pendingId)!;
                     existing.count++;
                     existing.resolvers.push(resolve);
                     existing.rejectors.push(reject);
                 } else {
-                    // Create a new pending subscription
                     pendingSubscriptionsRef.current.set(pendingId, {
                         topic,
                         count: 1,
@@ -685,18 +741,16 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             });
         };
 
-        // Simple hash function for topic names
         const hashTopicName = (topic: string): number => {
             let hash = 0;
             for (let i = 0; i < topic.length; i++) {
                 const char = topic.charCodeAt(i);
                 hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32bit integer
+                hash = hash & hash;
             }
             return Math.abs(hash);
         };
 
-        // Process pending subscriptions when new channels are advertised
         const processPendingSubscriptions = (channel: Channel) => {
             const pendingIds = Array.from(pendingSubscriptionsRef.current.keys());
 
@@ -704,8 +758,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 const pending = pendingSubscriptionsRef.current.get(pendingId);
 
                 if (pending && pending.topic === channel.topic) {
-                    // Found a matching topic that's now available
-                    // Create a DatasourceTopic for the subscription
                     const topic: DatasourceTopic = {
                         topic: channel.topic,
                         datasource_id: datasource_id,
@@ -714,19 +766,15 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         rawType: channel.schemaName
                     };
 
-                    // Attempt to subscribe to the topic
                     enqueueOperation(channel.id, async () => {
                         try {
-                            // Similar to regular subscribe but without throwing errors
                             const subscriptionId = clientRef.current?.subscribe(channel.id);
 
                             if (!subscriptionId && subscriptionId !== 0) {
-                                // Subscription failed
                                 for (const rejector of pending.rejectors) {
                                     rejector(new Error(`Failed to subscribe to topic ${pending.topic}`));
                                 }
                             } else {
-                                // Subscription succeeded
                                 const subscriber = {
                                     subscriberId: subscriptionId,
                                     channelId: channel.id,
@@ -740,7 +788,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                                 subscribersRef.current.set(channel.id, subscriber);
 
-                                // Resolve all promises for this pending subscription
                                 for (const resolver of pending.resolvers) {
                                     resolver(true);
                                 }
@@ -753,12 +800,10 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 }
                             }
 
-                            // Remove from pending subscriptions
                             pendingSubscriptionsRef.current.delete(pendingId);
 
                         } catch (error) {
                             console.error(`Failed to subscribe to pending topic ${pending.topic}:`, error);
-                            // Reject all promises for this pending subscription
                             for (const rejector of pending.rejectors) {
                                 rejector(error);
                             }
@@ -771,33 +816,32 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             }
         };
 
-        // Process the function queue for a given ID
         const processQueue = async (id: number) => {
-            // If already processing, return
             if (processingRef.current.get(id)) {
                 return;
             }
 
-            // Mark as processing
             processingRef.current.set(id, true);
 
-            // Process all operations in the queue
-            while (queueRef.current.get(id)?.length) {
+            while (queueRef.current.has(id) && queueRef.current.get(id)!.length > 0) {
                 const operation = queueRef.current.get(id)?.shift();
                 if (operation) {
                     try {
                         await operation();
                     } catch (error) {
-                        console.error(`Error processing queue operation for ID ${id}:`, error);
+                        console.error(`Unexpected error awaiting queued operation for ID ${id}:`, error);
                     }
                 }
             }
 
-            // Mark as not processing
             processingRef.current.set(id, false);
+
+            if (!queueRef.current.get(id)?.length) {
+                queueRef.current.delete(id);
+                processingRef.current.delete(id);
+            }
         };
 
-        // Clear all queues
         const clearQueues = () => {
             queueRef.current.clear();
             processingRef.current.clear();
@@ -821,7 +865,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             pluginsManager.removeAction(unadvertise_hook);
             pluginsManager.removeFilter(available_types);
 
-            // unsubscribe from all topics
             subscribersRef.current.forEach((subscriber) => {
                 clientRef.current?.unsubscribe(subscriber.subscriberId);
             });
@@ -829,27 +872,33 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             subscribersRef.current.clear();
             channelsRef.current.clear();
 
-            // Clear pending subscriptions and reject any outstanding promises
             pendingSubscriptionsRef.current.forEach((pending) => {
                 for (const rejector of pending.rejectors) {
                     rejector(new Error("Component unmounted"));
                 }
             });
 
-            // for each publisher, remove the hook
             publisherRef.current.forEach((publisher) => {
+                pluginsManager.doAction(unadvertise_hook, { topic: publisher.topic } as DatasourceTopic, true);
                 pluginsManager.removeAction(publisher.hook);
             });
-            pendingSubscriptionsRef.current.clear();
+            publisherRef.current.clear();
 
-            // Clear all operation queues
+            pendingPublisherRef.current.forEach((promise) => {
+                if ((promise as any).reject) {
+                    (promise as any).reject(new Error("Component unmounted"));
+                }
+            });
+            pendingPublisherRef.current.clear();
+
+            advertisingPromisesRef.current.clear();
+
             clearQueues();
 
             disconnect();
         }
 
-    }, [retry, props]);
-
+    }, [retry, props, pluginsManager]);
 
     return (
         <FoxgloveSourceContext.Provider value={null}>
