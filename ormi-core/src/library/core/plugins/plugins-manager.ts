@@ -76,6 +76,7 @@ class PluginsManager{
 
         if(filters.length === 0){
             console.warn(`No filter found for ${filterName}`);
+            return result;
         }
 
         filters.sort((a, b) => a.priority - b.priority);
