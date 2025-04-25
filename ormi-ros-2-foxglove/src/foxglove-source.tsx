@@ -221,7 +221,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                             return {
                                 topic: channel.topic,
-                                datasource_id: datasource_id,
+                                datasource_id: "foxglove-source",
                                 source: props,
                                 type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || channel.schemaName,
                                 rawType: channel.schemaName,
@@ -438,6 +438,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             // Queue the operation to increase the count
                             await enqueueOperation(existingPublisher.channelId, async () => {
                                 const publisher = publisherRef.current.get(existingPublisher.channelId);
+                                console.log("Publisher already exists increasing count", publisher);
                                 if (publisher) {
                                     publisher.count++;
                                 }
@@ -476,6 +477,8 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                         // Queue the operation to add the publisher
                         await enqueueOperation(newChannelId, async () => {
+
+                            console.log("New publisher created", newChannelId);
 
                             const schema: string = await promiseObj.promise;
 
@@ -532,6 +535,8 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     try {
                         await connectionRef.current;
 
+                        console.log("Unadvertising topic", topic);
+
                         // find the channel id
                         const channelId = Array.from(publisherRef.current.values()).find((publisher) => {
                             return publisher.topic === topic.topic;
@@ -557,10 +562,13 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                     publisher.count--;
                                 }
 
+                                console.log("Unadvertising publisher decreasing count", publisher);
+
                                 if (publisher.count <= 0) {
                                     clientRef.current?.unadvertise(channelId);
                                     publisherRef.current.delete(channelId);
                                     pluginsManager.removeAction(publisher.hook);
+                                    console.log("Publisher unadvertised", publisher);
                                 }
                             } else {
                                 console.warn(`Not publishing to topic ${topic.topic}`);
