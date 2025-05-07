@@ -8,7 +8,7 @@ import {
     Airspeed,
 } from "react-typescript-flight-indicators";
 
-import { Vector3 } from "ormi-core/types";
+import { Movement, Vector3 } from "ormi-core/types";
 
 import { GaugeCircleIcon } from "lucide-react";
 
@@ -35,13 +35,13 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
             return;
         }
 
-        const value = data.data[0];
+        const value = data.data[0] as Movement;
         if (!value) {
             return;
         }
 
 
-        const speeds = value.twist.twist.linear as Vector3 | { x: number, y: number, z: number };
+        const speeds = value.linear as Vector3 | { x: number, y: number, z: number };
 
         // convert m/s to knots
         speeds.x = speeds.x * 1.94384;
@@ -64,6 +64,12 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
                 break;
             case 'z':
                 setSpeed(speeds.z);
+                break;
+            case 'all':
+                setSpeed(Math.sqrt(speeds.x * speeds.x + speeds.y * speeds.y + speeds.z * speeds.z));
+                break;
+            default:
+                setSpeed(speeds.x);
                 break;
         }
 
@@ -107,7 +113,7 @@ export function AirspeedDefinition() {
                 speedAxis: {
                     type: 'string',
                     title: 'Speed Axis',
-                    enum: ['x', 'y', 'z'],
+                    enum: ['x', 'y', 'z', 'all'],
                 },
                 invert: {
                     type: 'boolean',
