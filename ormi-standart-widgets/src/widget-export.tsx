@@ -17,7 +17,9 @@ import { NotAnEyeDefinition } from './widgets/nothing/not-an-eye';
 import { JsonListDefinition } from './widgets/basic/json-list';
 import { TopicsListDefinition } from './widgets/basic/topics-list';
 import { JoypadControlsDefinition } from './widgets/joystick/cmd-vel-joystick';
-// import { PointsCloudDefinition } from './widgets/three-d/points-cloud';
+import { ToggleControlDefinition } from './widgets/basic/toggle';
+import { BtnControlDefinition } from './widgets/basic/btn';
+import { CycleControlDefinition } from './widgets/basic/cycle';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
@@ -36,6 +38,10 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(JsonListDefinition());
     widgets.push(TopicsListDefinition());
     widgets.push(PointsCloudDefinition());
+
+    widgets.push(ToggleControlDefinition());
+    widgets.push(BtnControlDefinition());
+    widgets.push(CycleControlDefinition());
 
     return widgets;
 }
