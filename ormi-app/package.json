@@ -75,6 +75,7 @@
     "ormi-ros-2": "link:ormi-ros-2",
     "ormi-standart-widgets": "link:ormi-standart-widgets",
     "ormi-ros-2-foxglove": "link:ormi-ros-2-foxglove",
+    "ormi-tello": "link:ormi-tello",
     "prisma": "^6.5.0",
     "react": "^18.3.1",
     "react-day-picker": "9.6.3",

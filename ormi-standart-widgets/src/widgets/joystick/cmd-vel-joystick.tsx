@@ -23,6 +23,7 @@ interface JoypadControlsProps {
     unlocktoggle: boolean;
     topic: SelectedTopic;
     publicationFrequency: number;
+    keepPublishZero: boolean;
 }
 
 export function JoypadControls(props: JoypadControlsProps) {
@@ -135,6 +136,9 @@ export function JoypadControls(props: JoypadControlsProps) {
             }
 
             if (isMoving) {
+                publisher.publish(movement, "Movement");
+            } else if (props.keepPublishZero) {
+                // If no axes are active and keepPublishZero is true, publish zero movement
                 publisher.publish(movement, "Movement");
             }
         };
@@ -317,6 +321,11 @@ export function JoypadControlsDefinition() {
                     title: 'Publication Frequency (Hz)',
                     default: 30,
                     minimum: 1,
+                },
+                keepPublishZero: {
+                    type: "boolean",
+                    title: "Publish 0 when inactive",
+                    default: false
                 }
 
             },
@@ -386,7 +395,11 @@ export function JoypadControlsDefinition() {
                 {
                     type: "Control",
                     scope: "#/properties/publicationFrequency",
-                } as ControlElement
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/keepPublishZero",
+                } as ControlElement,
             ]
 
         } as VerticalLayout,

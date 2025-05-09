@@ -22,6 +22,7 @@ interface KeyboardControlData {
     unlocktoggle: boolean;
     topic: SelectedTopic;
     publicationFrequency: number;
+    keepPublishZero: boolean;
 }
 
 export function KeyBoardControl(props: KeyboardControlData) {
@@ -132,7 +133,10 @@ export function KeyBoardControl(props: KeyboardControlData) {
 
             if (isMoving) {
                 publisher.publish(movement, "Movement");
+            } else if (props.keepPublishZero) {
+                publisher.publish(movement, "Movement");
             }
+
         };
 
         const publishInterval = setInterval(movementFunction, publish_period_ms);
@@ -279,6 +283,11 @@ export function KeyboardControlDefinition() {
                     title: 'Publication Frequency (Hz)',
                     default: 30,
                     minimum: 1,
+                },
+                keepPublishZero: {
+                    type: "boolean",
+                    title: "Publish 0 when inactive",
+                    default: false
                 }
             },
             required: ['title', 'topic', 'forward', 'backward', 'left', 'right', 'incSpeed', 'decSpeed', 'unlock']
@@ -339,7 +348,12 @@ export function KeyboardControlDefinition() {
                 {
                     type: "Control",
                     scope: "#/properties/publicationFrequency",
-                } as ControlElement
+                } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/keepPublishZero",
+                } as ControlElement,
+
             ],
         } as VerticalLayout,
         data: {
