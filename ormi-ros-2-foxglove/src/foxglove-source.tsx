@@ -224,7 +224,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 topic: channel.topic,
                                 datasource_id: "foxglove-source",
                                 source: props,
-                                type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || channel.schemaName,
+                                type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || "",
                                 rawType: channel.schemaName,
                                 // bufferSize: 1000,
                             } as DatasourceTopic;
