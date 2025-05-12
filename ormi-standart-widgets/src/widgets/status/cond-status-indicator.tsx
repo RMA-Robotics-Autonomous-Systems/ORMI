@@ -155,6 +155,7 @@ export function CondStatusIndicatorDefinition() {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number|boolean/ }));
                         },
                         buffer: 1,
+                        canSelectProperty: true,
                     }
                 } as AsyncTopicControlType,
                 {

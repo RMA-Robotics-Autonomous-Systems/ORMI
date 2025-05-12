@@ -39,7 +39,8 @@ export function PointsCloudDefinition() {
                                 new DatasourceTopicFilter({ type: /PointsCloud/ })
                             );
                         },
-                        buffer: 1
+                        buffer: 1,
+                        canSelectProperty: false,
                     }
                 } as AsyncTopicControlType,
                 { type: "Control", scope: "#/properties/maxPoints" } as ControlElement

@@ -138,7 +138,8 @@ export function HeadingDefinition() {
                         asyncFunction: async () => {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /IMU/ }));
                         },
-                        buffer: 1
+                        buffer: 1,
+                        canSelectProperty: false,
                     }
                 } as AsyncTopicControlType,
                 {

@@ -101,6 +101,7 @@ export function TreeViewerDefinition(): WidgetDefinition {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
                         },
                         buffer: 1,
+                        canSelectProperty: true,
                     }
                 } as AsyncTopicControlType
 

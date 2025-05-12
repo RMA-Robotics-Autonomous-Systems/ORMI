@@ -390,6 +390,7 @@ export function JoypadControlsDefinition() {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /Movement/ }));
                         },
                         buffer: 1,
+                        canSelectProperty: false,
                     }
                 } as AsyncTopicControlType,
                 {

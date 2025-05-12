@@ -154,6 +154,8 @@ export function ToggleControlDefinition() {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number/ }));
                         },
                         buffer: 1,
+                        canSelectProperty: true,
+
                     }
                 } as AsyncTopicControlType,
                 {

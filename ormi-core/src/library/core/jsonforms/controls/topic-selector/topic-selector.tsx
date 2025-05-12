@@ -36,12 +36,14 @@ const AsyncTopicControl = (props: ControlProps) => {
     const pluginsManager = usePluginsManager();
     const [cmd, setCmd] = useState<string>('');
 
+    const canSelectProperty = uischema.options?.canSelectProperty !== undefined ? uischema.options.canSelectProperty : true;
+
     const getTopicByName = (name: string) => topics.find(topic => topic.topic === name);
 
     // Helper function to retrieve topic definition and update tree view items.
     const fetchTopicDefinition = async (topic: DatasourceTopic, currentData?: SelectedTopic) => {
         const topicDef = await pluginsManager.applyFilterAsync<JsonSchema>(`${topic?.source.id}-definition`, {}, topic);
-        if (!topicDef.properties) {
+        if (!topicDef.properties && canSelectProperty) {
             // Validate type if topic definition is primitive.
             if (!uischema.options?.propertyType) return;
             if (topicDef.type !== uischema.options.propertyType) {
@@ -165,7 +167,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                         </Command>
                     </PopoverContent>
                 </Popover>
-                <div>{topicProps.length > 0 && <TreeView data={topicProps} />}</div>
+                <div>{topicProps.length > 0 && canSelectProperty && <TreeView data={topicProps} />}</div>
                 {!uischema.options?.buffer && (
                     <div className='flex flex-row gap-2'>
                         <label className="text-gray-500">Buffer size (optional)</label>

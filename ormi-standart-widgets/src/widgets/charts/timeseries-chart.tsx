@@ -293,7 +293,9 @@ export function TimeSeriesChartDefinition() {
             "asyncFunction": async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
             },
-            "propertyType": "number"
+            "propertyType": "number",
+            "canSelectProperty": true,
+
         }
     }
 

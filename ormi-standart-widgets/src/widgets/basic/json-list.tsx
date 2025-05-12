@@ -216,6 +216,7 @@ export function JsonListDefinition(): WidgetDefinition {
                             return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
                         },
                         buffer: 1000,
+                        canSelectProperty: true,
                     }
                 } as AsyncTopicControlType
 
