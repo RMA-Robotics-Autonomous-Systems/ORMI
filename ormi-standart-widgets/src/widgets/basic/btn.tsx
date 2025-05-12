@@ -13,7 +13,7 @@ interface BtnControlData {
     title: string;
     keyInput: DigitalInput;
     topic: SelectedTopic;
-    value: string;
+    value: number;
 }
 
 export function BtnControl(props: BtnControlData) {
@@ -32,7 +32,7 @@ export function BtnControl(props: BtnControlData) {
             return;
         }
 
-        publisher.publish(props.value, "number");
+        publisher.publish(props.value, props.topic.type || "number");
     }
 
     return (

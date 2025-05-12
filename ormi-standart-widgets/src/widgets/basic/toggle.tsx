@@ -13,8 +13,8 @@ interface ToggleControlData {
     title: string;
     keyInput: DigitalInput;
     topic: SelectedTopic;
-    valueOn: string;
-    valueOff: string;
+    valueOn: number;
+    valueOff: number;
     publishOnOff: boolean;
     publicationFrequency: number;
 }
@@ -57,10 +57,10 @@ export function ToggleControl(props: ToggleControlData) {
         const toggleFunction = () => {
 
             if (toggle) {
-                publisher.publish(props.valueOn, "number");
+                publisher.publish(props.valueOn, props.topic.type || "number");
             } else {
                 if (props.publishOnOff) {
-                    publisher.publish(props.valueOff, "number");
+                    publisher.publish(props.valueOff, props.topic.type || "number");
                 }
             }
         }
