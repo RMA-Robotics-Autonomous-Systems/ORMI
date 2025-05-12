@@ -151,7 +151,7 @@ export function ToggleControlDefinition() {
                     scope: "#/properties/topic",
                     options: {
                         asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number/ }));
+                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number|boolean/ }));
                         },
                         buffer: 1,
                         canSelectProperty: true,
