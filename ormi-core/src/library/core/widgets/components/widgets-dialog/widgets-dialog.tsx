@@ -59,9 +59,15 @@ export function WidgetsDialog() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className={style.widget_container}>
-                        {widgets.map((widget, index) => {
-                            return <WidgetCard key={index} definition={widget} onValidate={handleValidate} />
-                        })}
+                        {widgets.length > 0 ? (
+                            widgets.map((widget, index) => (
+                                <WidgetCard key={index} definition={widget} onValidate={handleValidate} />
+                            ))
+                        ) : (
+                            <div className={style.empty_state}>
+                                <p>No widgets available. Please add and connect a datasource first.</p>
+                            </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

@@ -57,7 +57,7 @@ export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, set
                 <Command>
                     <CommandInput placeholder="Search widgets..." />
                     <CommandList>
-                        <CommandEmpty>No widgets found.</CommandEmpty>
+                        <CommandEmpty>No widgets found. You need to add and connect a datasource first</CommandEmpty>
                         <CommandGroup>
                             {widgets.map((widget) => (
                                 <CommandItem

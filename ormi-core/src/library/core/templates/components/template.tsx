@@ -3,6 +3,7 @@ import { ActionDialog, Button } from "@/components";
 import { Template } from "../templates-types";
 import { CheckIcon, PlusIcon, TrashIcon, XIcon } from "lucide-react";
 import { WidgetDefinition } from "@/widgets";
+import { toast } from '@/library/hooks/use-toast'; // Adjust import according to your project
 
 interface TemplateProps {
     template: Template;
@@ -41,7 +42,14 @@ export const TemplateComponent = (props: TemplateProps) => {
                     // Use the pre-fetched widgets list instead of calling hooks inside event handlers
                     const definition = availableWidgets.find(w => w.id === template.widget.widget_id);
                     if (!definition) {
-                        throw new Error("Widget definition not found");
+                        // Import any notification/alert system if needed
+
+                        // Show an error message
+                        toast({
+                            variant: "destructive",
+                            title: "Widget unavailable",
+                        });
+                        return; // Exit early to prevent adding a non-existent widget
                     }
 
                     props.addWidget(definition, template.widget.settings);

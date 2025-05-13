@@ -120,7 +120,13 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             id: "filter_widgets_list_based_on_datasources",
             priority: Number.MAX_SAFE_INTEGER,
             filter: (widgets: WidgetDefinition[]) => {
-                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, Array.from(datasources.values()));
+                const datasourceArray = Array.from(datasources.values())
+
+                // if no datasources are available, return no widgets
+                if (datasourceArray.length === 0) {
+                    return [];
+                }
+                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
             }
         })
 
