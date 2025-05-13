@@ -89,8 +89,8 @@ export const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasour
     ];
 
     const widget_that_requires_bag = [
-        "bag-list",
-        "bag-recorder"
+        "ros2-bag-list",
+        "ros2-bag-recorder"
     ];
 
     const has_bag = datasources.find((datasource) => {
@@ -101,13 +101,14 @@ export const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasour
     });
 
     if (!has_rosbridge) {
-        return widgets.filter((widget) => {
+        console.log("No rosbridge");
+        widgets = widgets.filter((widget) => {
             return !widget_that_requires_rosbridge.includes(widget.id);
         });
     }
 
     if (!has_bag) {
-        return widgets.filter((widget) => {
+        widgets = widgets.filter((widget) => {
             return !widget_that_requires_bag.includes(widget.id);
         });
     }
