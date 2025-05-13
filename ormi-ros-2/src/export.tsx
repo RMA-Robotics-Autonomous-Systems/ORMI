@@ -1,6 +1,6 @@
 "use client"
 
-import { DatasourceDefinition } from 'ormi-core/datasources';
+import { Datasource, DatasourceDefinition } from 'ormi-core/datasources';
 
 import { RosBridgeSuiteDataSourceSettings, RosBridgeSuiteSourceProvider } from './rosbridge-suite-source';
 import { WidgetDefinition } from 'ormi-core/widgets';
@@ -71,12 +71,32 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
 export const widgetsExport = (widgets: WidgetDefinition[]) => {
 
-    // widgets.push(Ros2ConvertionGraphDefinition());
-    // widgets.push(RQTGraphDefinition());
+    widgets.push(Ros2ConvertionGraphDefinition());
+    widgets.push(RQTGraphDefinition());
     widgets.push(WebRtcRos2Definition());
     widgets.push(BagListDefinition());
     // widgets.push(Ros2TopicListDefinition());
     widgets.push(BagRecorderDefinition());
+
+    return widgets;
+}
+
+export const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasource[]) => {
+
+    const widget_that_requires_rosbridge = [
+        "ros2-convertion-graph",
+        "rqt-graph",
+    ];
+
+    const has_rosbridge = datasources.find((datasource) => {
+        return datasource.datasource_id === "rosbridge-suite-source";
+    });
+
+    if (!has_rosbridge) {
+        return widgets.filter((widget) => {
+            return !widget_that_requires_rosbridge.includes(widget.id);
+        });
+    }
 
     return widgets;
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { DatasourceDefinition } from 'ormi-core/datasources';
+import { Datasource, DatasourceDefinition } from 'ormi-core/datasources';
 
 import { TelloSourceProvider, TelloSourceSettings } from './tello-datasource';
 import { WidgetDefinition } from 'ormi-core';
@@ -50,4 +50,24 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     return widgets;
 }
 
-export { WidgetExport };
+const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasource[]) => {
+
+    const widget_that_requires_tello = [
+        "command-tello-widget"
+    ];
+
+    const has_tello = datasources.find((datasource) => {
+        return datasource.datasource_id === "tello-data-source";
+    });
+
+    if (!has_tello) {
+        return widgets.filter((widget) => {
+            return !widget_that_requires_tello.includes(widget.id);
+        });
+    }
+
+    return widgets;
+}
+
+
+export { WidgetExport, widgetFilters };

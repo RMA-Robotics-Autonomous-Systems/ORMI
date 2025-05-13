@@ -1,7 +1,7 @@
 import { Plugin,PluginsHooks } from "ormi-core/plugins";
 import { DatasourceProviderSettings } from "ormi-core/datasources";
 
-import { dataSourceExport, widgetsExport } from "./export";
+import { dataSourceExport, widgetFilters, widgetsExport } from "./export";
 
 class RandomDataSourcePlugins extends Plugin {
 
@@ -24,6 +24,12 @@ class RandomDataSourcePlugins extends Plugin {
             id: "ros-2-widgets",
             priority: 12,
             filter: widgetsExport
+        });
+
+        this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
+            id: "ros-2-widgets-with-datasource",
+            priority: 12,
+            filter: widgetFilters
         });
     }
 }
