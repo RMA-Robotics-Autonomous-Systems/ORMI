@@ -20,6 +20,7 @@ import { JoypadControlsDefinition } from './widgets/joystick/cmd-vel-joystick';
 import { ToggleControlDefinition } from './widgets/basic/toggle';
 import { BtnControlDefinition } from './widgets/basic/btn';
 import { CycleControlDefinition } from './widgets/basic/cycle';
+import { TransformTreeWidgetDefinition } from './widgets/basic/transform-tree';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
@@ -42,6 +43,8 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(ToggleControlDefinition());
     widgets.push(BtnControlDefinition());
     widgets.push(CycleControlDefinition());
+
+    widgets.push(TransformTreeWidgetDefinition());
 
     return widgets;
 }

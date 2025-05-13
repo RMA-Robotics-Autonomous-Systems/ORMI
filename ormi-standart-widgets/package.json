@@ -28,7 +28,10 @@
   "main": "dist/index.js",
   "dependencies": {
     "@jsonforms/core": "^3.5.1",
+    "@types/d3": "^7.4.3",
     "copyfiles": "^2.4.1",
+    "d3": "^7.9.0",
+    "force-graph": "^1.49.2",
     "lucide-react": "^0.479.0",
     "maplibre-gl": "^5.2.0",
     "next-themes": "^0.4.4",
