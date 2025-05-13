@@ -57,7 +57,7 @@ const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasource[]) =
     ];
 
     const has_tello = datasources.find((datasource) => {
-        return datasource.datasource_id === "tello-data-source";
+        return datasource.datasource_id === "tello-data-source" && datasource.settings.enable;
     });
 
     if (!has_tello) {

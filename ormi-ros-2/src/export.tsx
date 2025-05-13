@@ -88,13 +88,27 @@ export const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasour
         "rqt-graph",
     ];
 
+    const widget_that_requires_bag = [
+        "bag-list",
+        "bag-recorder"
+    ];
+
+    const has_bag = datasources.find((datasource) => {
+        return datasource.datasource_id === "rest-bag-source" && datasource.settings.enable;
+    });
     const has_rosbridge = datasources.find((datasource) => {
-        return datasource.datasource_id === "rosbridge-suite-source";
+        return datasource.datasource_id === "rosbridge-suite-source" && datasource.settings.enable;
     });
 
     if (!has_rosbridge) {
         return widgets.filter((widget) => {
             return !widget_that_requires_rosbridge.includes(widget.id);
+        });
+    }
+
+    if (!has_bag) {
+        return widgets.filter((widget) => {
+            return !widget_that_requires_bag.includes(widget.id);
         });
     }
 
