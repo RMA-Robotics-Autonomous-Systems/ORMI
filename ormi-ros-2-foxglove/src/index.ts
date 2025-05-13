@@ -47,6 +47,13 @@ class FoxglovePlugin extends Plugin {
                             toasts: {
                                 type: 'boolean',
                                 title: 'Display Toasts'
+                            },
+                            transformTreeTopics: {
+                                type: 'array',
+                                title: 'Transform Tree Topics',
+                                items: {
+                                    type: 'string'
+                                }
                             }
                         }
                     },
@@ -56,7 +63,8 @@ class FoxglovePlugin extends Plugin {
                         title: '',
                         enable: true,
                         toasts: false,
-                        url: '',
+                        transformTreeTopics: ["/tf","/tf_static"],
+                        url: 'ws://localhost:8765',
                         reconnectTimeout: 2,
                     },
 
