@@ -10,7 +10,9 @@ enum PluginsHooks {
      *  params: [ topics: DatasourceTopic[], filter?: DatasourceTopicFilter ]
      */
     AVAILABLE_TOPICS = "plugins-topics-list",   // hooks that take an array of topics and return an array of topics
-    AVAILABLE_DATASOURCES = "plugins-datasources-availables"   // hooks that take an array of datasources and return an array of datasources
+    AVAILABLE_DATASOURCES = "plugins-datasources-availables",   // hooks that take an array of datasources and return an array of datasources
+
+    TRANSFORM_TREE = "CORE-TRANSFORM-TREE",   // hooks that take a map of transform tree and return a map transform tree
 }
 
 interface PluginAction{

@@ -6,3 +6,4 @@ export * from '@/widgets';
 export * from '@/utils';
 export * from '@/types';
 export * from '@/jsonforms';
+export * from '@/transforms';

@@ -52,6 +52,10 @@
       "import": "./dist/utils.js",
       "require": "./dist/utils.js"
     },
+    "./transforms": {
+      "import": "./dist/transforms.js",
+      "require": "./dist/transforms.js"
+    },
     "./types": {
       "import": "./dist/types.js",
       "require": "./dist/types.js"
