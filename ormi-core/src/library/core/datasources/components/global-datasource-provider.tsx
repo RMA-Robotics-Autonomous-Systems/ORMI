@@ -7,8 +7,8 @@
 
 */
 
-import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { DatasourceDefinition, DatasourceProviderSettings } from '../datasource-interface';
+import React, { createContext, useContext, ReactNode, useState, useEffect, use } from 'react';
+import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '../datasource-interface';
 
 import PluginsManager from '@/library/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/library/core/plugins/components/plugins-provider';
@@ -116,27 +116,41 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             }
         });
 
-        pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-            id: "filter_widgets_list_based_on_datasources",
-            priority: Number.MAX_SAFE_INTEGER,
-            filter: (widgets: WidgetDefinition[]) => {
-                const datasourceArray = Array.from(datasources.values())
 
-                // if no datasources are available, return no widgets
-                if (datasourceArray.length === 0) {
-                    return [];
-                }
-                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
-            }
-        })
 
         return () => {
             removeNavbarItem("center", "datasources_combo");
             pluginsManager.removeFilter("available_datasources");
-            pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
         };
 
     }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
+
+    useEffect(() => {
+
+        if (!initialized) return;
+
+        const timeout = setTimeout(() => {
+            pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+                id: "filter_widgets_list_based_on_datasources",
+                priority: Number.MAX_SAFE_INTEGER,
+                filter: (widgets: WidgetDefinition[]) => {
+                    const datasourceArray = pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, []);
+
+                    // if no datasources are available, return no widgets
+                    if (datasourceArray.length === 0) {
+                        return [];
+                    }
+                    return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
+                }
+            })
+        }, 100);
+
+        return () => {
+            clearTimeout(timeout);
+            pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
+        }
+
+    }, [datasources, initialized]);
 
     // Memoize the provider chain to prevent unnecessary rerenders
     const providerChain = React.useMemo(() => {
