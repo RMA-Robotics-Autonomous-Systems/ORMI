@@ -56,7 +56,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                 type: 'object',
                 required: ['position', 'rotation'],
                 properties: {
-                    position: getSchemaFromStringName('Vector3'),
+                    position: getSchemaFromStringName('Vector4'),
                     rotation: getSchemaFromStringName('Quaternion')
                 }
             };

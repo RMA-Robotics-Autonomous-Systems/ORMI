@@ -19,8 +19,15 @@ export type Quaternion = {
 }
 
 export type Transform = {
-    position: Vector3;
+    position: Vector4;
     rotation: Quaternion;
+}
+
+export type TransformTree = {
+    id: string;
+    parentId: string;
+    transform: Transform;
+    children: Map<string, TransformTree>;
 }
 
 export type Color = {
