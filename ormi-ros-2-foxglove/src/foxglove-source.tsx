@@ -996,10 +996,12 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             channelsRef.current.clear();
 
             pendingSubscriptionsRef.current.forEach((pending) => {
-                for (const rejector of pending.rejectors) {
-                    rejector(new Error("Component unmounted"));
+                for (const resolver of pending.resolvers) {
+                    // Resolve with false instead of rejecting with an error
+                    resolver(false);
                 }
             });
+            pendingSubscriptionsRef.current.clear();
 
             publisherRef.current.forEach((publisher) => {
                 pluginsManager.doAction(unadvertise_hook, { topic: publisher.topic } as DatasourceTopic, true);
@@ -1008,8 +1010,9 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             publisherRef.current.clear();
 
             pendingPublisherRef.current.forEach((promise) => {
-                if ((promise as any).reject) {
-                    (promise as any).reject(new Error("Component unmounted"));
+                if ((promise as any).resolve) {
+                    // Resolve with empty schema instead of rejecting
+                    (promise as any).resolve("");
                 }
             });
             pendingPublisherRef.current.clear();
