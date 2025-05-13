@@ -71,11 +71,11 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
 export const widgetsExport = (widgets: WidgetDefinition[]) => {
 
-    widgets.push(Ros2ConvertionGraphDefinition());
-    widgets.push(RQTGraphDefinition());
+    // widgets.push(Ros2ConvertionGraphDefinition());
+    // widgets.push(RQTGraphDefinition());
     widgets.push(WebRtcRos2Definition());
     widgets.push(BagListDefinition());
-    widgets.push(Ros2TopicListDefinition());
+    // widgets.push(Ros2TopicListDefinition());
     widgets.push(BagRecorderDefinition());
 
     return widgets;

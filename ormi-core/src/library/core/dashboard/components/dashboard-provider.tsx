@@ -9,6 +9,7 @@ import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/library/hooks/use-toast';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '@/library/core/datasources/datasource-interface';
+import { widgetNotFound } from '../../widgets/components/widget-not-found';
 
 interface DashboardContextInterface {
 
@@ -128,7 +129,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             }
         }
 
-        throw new Error(`Widget ${boxId} not found`);
+        return widgetNotFound.Component(["Widget not found", boxId]);
     }
 
     const getBox = (breakpoint: string, boxId: string) => {
@@ -146,7 +147,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             return widget;
         }
 
-        throw new Error(`Widget ${widget_id} not found`);
+        return widgetNotFound;
     }
 
     const addWidget = (widget: WidgetDefinition, settings: any) => {

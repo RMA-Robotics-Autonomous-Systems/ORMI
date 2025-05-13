@@ -16,7 +16,7 @@ interface WidgetDefinition {
   
     // component that will be put inside of the widget (the widget itself)
     Component: (data: any) => JSX.Element;
-  }
+}
 
 interface Widget{
     widget_id: string;  // point to the widget definition
