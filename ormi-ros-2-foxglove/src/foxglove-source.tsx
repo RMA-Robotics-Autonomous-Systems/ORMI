@@ -151,8 +151,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                 client.on("advertise", (channelsList: Channel[]) => {
 
-                    console.log("Advertised channels:", channelsList);
-
                     channelsList.forEach((channel) => {
                         if (!channelsRef.current.has(channel.id)) {
                             channelsRef.current.set(channel.id, channel);
@@ -165,7 +163,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         if (pendingPublisherRef.current.has(channel.schemaName)) {
                             const pendingPromise = pendingPublisherRef.current.get(channel.schemaName);
                             if (pendingPromise && (pendingPromise as any).resolve) {
-                                console.log(`Resolving pending schema for type ${channel.schemaName} via advertised channel ${channel.id}`);
                                 (pendingPromise as any).resolve(channel.schema);
                             }
                         }
@@ -485,24 +482,20 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     const rawType = topic.rawType;
 
                     if (advertisingPromisesRef.current.has(topicName)) {
-                        console.log(`Advertise for ${topicName}: Operation already in progress, awaiting...`);
                         return await advertisingPromisesRef.current.get(topicName)!;
                     }
 
                     const advertisePromise = (async (): Promise<boolean> => {
                         try {
-                            console.log(`Advertise for ${topicName}: Starting operation...`);
                             await connectionRef.current;
 
                             const existingPublisher = Array.from(publisherRef.current.values()).find(p => p.topic === topicName);
 
                             if (existingPublisher) {
-                                console.log(`Advertise for ${topicName}: Publisher already exists (channel ${existingPublisher.channelId}), incrementing count.`);
                                 await enqueueOperation(existingPublisher.channelId, async () => {
                                     const publisher = publisherRef.current.get(existingPublisher.channelId);
                                     if (publisher) {
                                         publisher.count++;
-                                        console.log(`Advertise for ${topicName}: Count incremented to ${publisher.count} for channel ${existingPublisher.channelId}`);
                                     } else {
                                         console.warn(`Advertise for ${topicName}: Publisher disappeared before count increment on channel ${existingPublisher.channelId}?`);
                                     }
@@ -510,7 +503,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 return true;
                             }
 
-                            console.log(`Advertise for ${topicName}: No existing publisher, advertising with type ${rawType}...`);
                             const newChannelId = clientRef.current?.advertise({
                                 topic: topic.topic,
                                 encoding: "cdr",
@@ -520,7 +512,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             if (newChannelId === undefined || newChannelId === null) {
                                 throw new Error(`Failed to initiate advertisement for topic ${topicName}`);
                             }
-                            console.log(`Advertise for ${topicName}: Advertise call sent, assigned channelId ${newChannelId}. Waiting for schema...`);
 
                             let schemaPromise: Promise<string>;
                             let schemaTimeout: number | null = null;
@@ -530,13 +521,10 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             );
 
                             if (existingChannelWithSchema) {
-                                console.log(`Advertise for ${topicName}: Schema for ${rawType} found in existing channel ${existingChannelWithSchema.id}`);
                                 schemaPromise = Promise.resolve(existingChannelWithSchema.schema);
                             } else if (pendingPublisherRef.current.has(rawType)) {
-                                console.log(`Advertise for ${topicName}: Awaiting pending schema for type ${rawType}`);
                                 schemaPromise = pendingPublisherRef.current.get(rawType)!;
                             } else {
-                                console.log(`Advertise for ${topicName}: Setting up pending schema for type ${rawType}`);
                                 const promiseObj = {} as any;
                                 schemaPromise = new Promise<string>((resolve, reject) => {
                                     promiseObj.resolve = resolve;
@@ -561,10 +549,8 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             await enqueueOperation(newChannelId, async () => {
                                 let schema: string | null = null;
                                 try {
-                                    console.log(`Advertise for ${topicName}: Enqueued operation for channel ${newChannelId} starting.`);
                                     schema = await schemaPromise;
                                     if (schemaTimeout) clearTimeout(schemaTimeout);
-                                    console.log(`Advertise for ${topicName}: Schema received for channel ${newChannelId}.`);
 
                                     if (publisherRef.current.has(newChannelId)) {
                                         console.warn(`Advertise for ${topicName}: Publisher for channel ${newChannelId} already exists in enqueueOperation. Incrementing count.`);
@@ -584,7 +570,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                     } as Publisher;
 
                                     publisherRef.current.set(newChannelId, publisher);
-                                    console.log(`Advertise for ${topicName}: Publisher added for channel ${newChannelId}.`);
 
                                     const hook = publisher.hook;
                                     pluginsManager.removeAction(hook);
@@ -606,13 +591,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                         },
                                         priority: 100,
                                     });
-                                    console.log(`Advertise for ${topicName}: Publish action registered for hook ${hook}.`);
 
                                 } catch (schemaError) {
                                     console.error(`Advertise for ${topicName}: Error obtaining schema or setting up publisher for channel ${newChannelId}:`, schemaError);
                                     try {
                                         clientRef.current?.unadvertise(newChannelId);
-                                        console.log(`Advertise for ${topicName}: Cleaned up channel ${newChannelId} due to setup error.`);
                                     } catch (unadvError) {
                                         console.error(`Advertise for ${topicName}: Failed to unadvertise channel ${newChannelId} after setup error:`, unadvError);
                                     }
@@ -620,12 +603,10 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 } finally {
                                     if (pendingPublisherRef.current.has(rawType) && pendingPublisherRef.current.get(rawType) === schemaPromise) {
                                         pendingPublisherRef.current.delete(rawType);
-                                        console.log(`Advertise for ${topicName}: Cleaned up pending schema promise for type ${rawType}.`);
                                     }
                                 }
                             });
 
-                            console.log(`Advertise for ${topicName}: Operation setup complete, returning true.`);
                             return true;
 
                         } catch (error) {
@@ -640,7 +621,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             return false;
                         } finally {
                             advertisingPromisesRef.current.delete(topicName);
-                            console.log(`Advertise for ${topicName}: Operation finished, removed promise.`);
                         }
                     })();
 
@@ -654,7 +634,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 id: unadvertise_hook,
                 action: async (topic: DatasourceTopic, ignoreCount: boolean = false) => {
                     const topicName = topic.topic;
-                    console.log(`Unadvertise for ${topicName}: Starting (ignoreCount: ${ignoreCount}).`);
 
                     try {
                         await connectionRef.current;
@@ -674,7 +653,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         const [channelId, publisher] = publisherEntry;
 
                         await enqueueOperation(channelId, async () => {
-                            console.log(`Unadvertise for ${topicName}: Enqueued operation for channel ${channelId}.`);
                             const currentPublisher = publisherRef.current.get(channelId);
 
                             if (!currentPublisher) {
@@ -688,23 +666,17 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             } else {
                                 currentPublisher.count--;
                             }
-                            console.log(`Unadvertise for ${topicName}: Count updated to ${currentPublisher.count}.`);
 
                             if (currentPublisher.count <= 0) {
-                                console.log(`Unadvertise for ${topicName}: Count is zero or less, proceeding with unadvertise for channel ${channelId}.`);
                                 try {
                                     clientRef.current?.unadvertise(channelId);
-                                    console.log(`Unadvertise for ${topicName}: Unadvertise call sent for channel ${channelId}.`);
                                 } catch (unadvError) {
                                     console.error(`Unadvertise for ${topicName}: Error calling client.unadvertise for channel ${channelId}:`, unadvError);
                                 }
 
                                 publisherRef.current.delete(channelId);
                                 pluginsManager.removeAction(currentPublisher.hook);
-                                console.log(`Unadvertise for ${topicName}: Publisher state removed for channel ${channelId}, action hook ${currentPublisher.hook} removed.`);
 
-                            } else {
-                                console.log(`Unadvertise for ${topicName}: Count is ${currentPublisher.count}, publisher remains active.`);
                             }
                         });
 
@@ -766,15 +738,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 children: new Map<string, TransformTree>(),
                             };
 
-                            console.log("Transform tree", message);
                             const parentTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.parentId);
                             const existingTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.id);
                             if (parentTree && !existingTree) {
-                                console.log("Adding transform tree to parent tree", transformTree);
                                 parentTree.children.set(transformTree.id, transformTree);
                             } else if (!existingTree) {
-
-                                console.log("no parent tree, creating new tree", transformTree);
 
                                 // create a parent tree
                                 const newTree: TransformTree = {
@@ -803,11 +771,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 // update the transform,
                                 // if the transform is not the same, update it
                                 existingTree.transform = transformTree.transform;
-
-                                console.log("Transform tree already exists, updating it", existingTree);
                             }
-
-                            console.log(transformsRef.current);
                         }
 
 
@@ -819,9 +783,6 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             pluginsManager.addFilter(PluginsHooks.TRANSFORM_TREE, {
                 id: transform_tree_hook,
                 filter: async (transformTree: Map<string, TransformTree>) => {
-
-
-                    console.log(transformsRef.current);
 
                     // add the keys of the transformsRef.current to the transformTree
                     transformsRef.current.forEach((tree, key) => {
