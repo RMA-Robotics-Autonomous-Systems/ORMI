@@ -38,6 +38,7 @@ interface FoxgloveDataSourceSettings extends DatasourceProviderSettings {
     url: string;
     reconnectTimeout: number;
     toasts: boolean;
+    transformTreeTopics: string[];
 }
 
 interface Subscriber {
@@ -188,12 +189,15 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     }
 
                     const parsed = subscriber.reader.readMessage(data);
+                    const frameId = (parsed as any)?.header?.frame_id ?? "unknown";
+
                     const convertedMessage = UnifiedConverter.convertToWebapp(parsed, subscriber.webtype, subscriber.schemaName);
 
                     pluginsManager.doAction(
                         subscriber.hook,
                         convertedMessage,
                         Date.now(),
+                        frameId,
                     );
 
                 });

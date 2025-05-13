@@ -23,6 +23,7 @@ interface LocalDataSources {
 interface Source<T> {
     data: T[];
     times: number[];
+    referenceFrameId: string;   // reference frame id, used to identify the reference frame of the data
 }
 
 interface LocalDataSourcesProviderProps {
@@ -101,7 +102,8 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
                 sources.set(sourceId, {
                     data: [],
-                    times: []
+                    times: [],
+                    referenceFrameId: "unknown"
                 });
 
                 // subscribe to the topic, this start the data flow inside the datasource
@@ -119,7 +121,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                 pluginsManager.addAction(`${topic.source.id}-${topic.topic}-published`, {
                     id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
                     priority: 10,
-                    action: (value: any, time: number) => {
+                    action: (value: any, time: number, referenceFrameId: string) => {
                         if (!isMounted) return;
 
                         // Use the functional update form of setSources
@@ -151,6 +153,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                             const newSource = {
                                 data: newData,
                                 times: newTimes,
+                                referenceFrameId: referenceFrameId || "unknown" // Use the provided referenceFrameId or default to "unknown"
                             };
 
                             // Create a new map for the new state

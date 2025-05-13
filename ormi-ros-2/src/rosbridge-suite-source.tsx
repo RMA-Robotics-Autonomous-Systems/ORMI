@@ -35,6 +35,7 @@ interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
     url: string;
     reconnectTimeout: number;
     toasts: boolean;
+    transformTreeTopics: string[];
 }
 
 export interface ROSTopic {
@@ -287,7 +288,9 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                             messageType: topic.rawType,
                         });
 
-                        subscriber.subscribe((message: any) => {
+                        subscriber.subscribe((message: ROSLIB.Message) => {
+
+                            const frameId = (message as any)?.header?.frame_id ?? "unknown";
 
                             // convert the incoming message to webapp format
                             const convertedMessage = UnifiedConverter.convertToWebapp(message, topic.type, topic.rawType);
@@ -295,7 +298,8 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                             pluginsManager.doAction(
                                 `${datasource_id}-${topic.topic}-published`,
                                 convertedMessage,
-                                Date.now()
+                                Date.now(),
+                                frameId
                             );
                         });
 
