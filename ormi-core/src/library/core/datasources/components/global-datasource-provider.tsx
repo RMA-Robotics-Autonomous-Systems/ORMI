@@ -21,6 +21,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import DatasourceCard from './datasource-card';
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';
 import DatasourceAdder from './datasource-adder';
+import { WidgetDefinition } from '@/widgets';
 
 type GlobalDataSources = object;
 
@@ -115,9 +116,18 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             }
         });
 
+        pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+            id: "filter_widgets_list_based_on_datasources",
+            priority: Number.MAX_SAFE_INTEGER,
+            filter: (widgets: WidgetDefinition[]) => {
+                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, Array.from(datasources.values()));
+            }
+        })
+
         return () => {
             removeNavbarItem("center", "datasources_combo");
             pluginsManager.removeFilter("available_datasources");
+            pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
         };
 
     }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);

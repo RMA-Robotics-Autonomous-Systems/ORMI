@@ -5,12 +5,14 @@ enum PluginsHooks {
     WIDGETS_LIST = "plugins-widgets-list",   // hooks that take an array of widgets and return an array of widgets
     DATASOURCES_LIST = "plugins-datasources-list",   // hooks that take an array of datasources definition and return an array of datasources definition
 
+    WIDGET_LIST_WITH_DATASOURCE = "plugins-widgets-list-with-datasource",   // hooks that take an array of widgets and array of availables datasources then return an array of widgets
+
     /**
      *  hooks that take an array of topics and return an array of all available topics from the different plugins
      *  params: [ topics: DatasourceTopic[], filter?: DatasourceTopicFilter ]
      */
     AVAILABLE_TOPICS = "plugins-topics-list",   // hooks that take an array of topics and return an array of topics
-    AVAILABLE_DATASOURCES = "plugins-datasources-availables",   // hooks that take an array of datasources and return an array of datasources
+    AVAILABLE_DATASOURCES = "plugins-datasources-availables",   // hooks that take an array of datasources and return an array of datasources, Datasource that are enable in the workspace
 
     TRANSFORM_TREE = "CORE-TRANSFORM-TREE",   // hooks that take a map of transform tree and return a map transform tree
 }
