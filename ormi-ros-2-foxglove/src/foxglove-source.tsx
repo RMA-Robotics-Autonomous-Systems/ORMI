@@ -27,6 +27,8 @@ import { parse } from "@foxglove/rosmsg"; // Import parse function explicitly
 import { MessageReader, MessageWriter } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";
+import { TransformTree } from 'ormi-core/types';
+import { getTransfromTreeFromTreeIdInMaps } from 'ormi-core/utils';
 // import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
 
 const FoxgloveSourceContext = createContext(null);
@@ -81,6 +83,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     const advertise_hook = `${datasource_id}-advertise`;
     const unadvertise_hook = `${datasource_id}-unadvertise`;
     const available_types = `${datasource_id}-available-types`;
+    const transform_tree_hook = `${datasource_id}-transform-tree`;
 
     const connectionRef = useRef<Promise<boolean> | null>(null);
     const clientRef = useRef<FoxgloveClient | null>(null);
@@ -99,6 +102,8 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     const queueRef = useRef<Map<number, Array<() => Promise<void>>>>(new Map<number, Array<() => Promise<void>>>());
     const processingRef = useRef<Map<number, boolean>>(new Map<number, boolean>());
 
+    // transforms
+    const transformsRef = useRef<Map<string, TransformTree>>(new Map<string, TransformTree>());
 
     // Publisher
     const publisherRef = useRef<Map<number, Publisher>>(new Map<number, Publisher>());
@@ -164,6 +169,52 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 (pendingPromise as any).resolve(channel.schema);
                             }
                         }
+
+                        // check if this channel is a topic for the transform tree, if yes, subscribe to it
+                        if (props.transformTreeTopics.includes(channel.topic)) {
+                            const topic: DatasourceTopic = {
+                                topic: channel.topic,
+                                datasource_id: datasource_id,
+                                source: props,
+                                type: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName) || channel.schemaName,
+                                rawType: channel.schemaName
+                            };
+
+                            enqueueOperation(channel.id, async () => {
+                                try {
+                                    const subscriptionId = clientRef.current?.subscribe(channel.id);
+
+                                    if (!subscriptionId && subscriptionId !== 0) {
+                                        console.error(`Failed to subscribe to transform tree topic ${channel.topic}`);
+                                        throw new Error(`Failed to subscribe to transform tree topic ${channel.topic}`);
+                                    }
+
+                                    const subscriber = {
+                                        subscriberId: subscriptionId,
+                                        channelId: channel.id,
+                                        topic: channel.topic,
+                                        schemaName: channel.schemaName,
+                                        webtype: UnifiedConverter.getWebappTypeFromROSType(channel.schemaName),
+                                        count: 1,
+                                        hook: `${datasource_id}-${channel.topic}-published`,
+                                        reader: new MessageReader(parse(channel.schema, { ros2: true })),
+                                    } as Subscriber;
+
+                                    subscribersRef.current.set(channel.id, subscriber);
+
+                                } catch (error) {
+                                    console.warn("Subscribe error:", error);
+                                    if (props.toasts) {
+                                        toast({
+                                            title: "Error",
+                                            description: "Failed to subscribe to transform tree topic",
+                                            variant: "destructive",
+                                        });
+                                    }
+                                }
+                            });
+                        }
+
                     });
                 });
 
@@ -688,6 +739,103 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 priority: 100,
             });
 
+            // for each transform tree topic, add the action hook to get the transform tree
+            props.transformTreeTopics.forEach((topic) => {
+                const hook = `${datasource_id}-${topic}-published`;
+                pluginsManager.addAction(hook, {
+                    id: `foxglove-${hook}`,
+                    action: async (message: any, timestamp: number, frameId: string) => {
+                        for (const transform of message.transforms) {
+                            const transformTree: TransformTree = {
+                                id: transform.child_frame_id,
+                                parentId: transform.header.frame_id,
+                                transform: {
+                                    position: {
+                                        x: transform.transform.translation.x,
+                                        y: transform.transform.translation.y,
+                                        z: transform.transform.translation.z,
+                                        w: 1,
+                                    },
+                                    rotation: {
+                                        x: transform.transform.rotation.x,
+                                        y: transform.transform.rotation.y,
+                                        z: transform.transform.rotation.z,
+                                        w: transform.transform.rotation.w,
+                                    }
+                                },
+                                children: new Map<string, TransformTree>(),
+                            };
+
+                            console.log("Transform tree", message);
+                            const parentTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.parentId);
+                            const existingTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.id);
+                            if (parentTree && !existingTree) {
+                                console.log("Adding transform tree to parent tree", transformTree);
+                                parentTree.children.set(transformTree.id, transformTree);
+                            } else if (!existingTree) {
+
+                                console.log("no parent tree, creating new tree", transformTree);
+
+                                // create a parent tree
+                                const newTree: TransformTree = {
+                                    id: transformTree.parentId,
+                                    parentId: "",
+                                    transform: {
+                                        position: {
+                                            x: 0,
+                                            y: 0,
+                                            z: 0,
+                                            w: 1,
+                                        },
+                                        rotation: {
+                                            x: 0,
+                                            y: 0,
+                                            z: 0,
+                                            w: 1,
+                                        }
+                                    },
+                                    children: new Map<string, TransformTree>(),
+                                };
+                                newTree.children.set(transformTree.id, transformTree);
+
+                                transformsRef.current.set(newTree.id, newTree);
+                            } else {
+                                // update the transform,
+                                // if the transform is not the same, update it
+                                existingTree.transform = transformTree.transform;
+
+                                console.log("Transform tree already exists, updating it", existingTree);
+                            }
+
+                            console.log(transformsRef.current);
+                        }
+
+
+                    },
+                    priority: 100,
+                });
+            });
+
+            pluginsManager.addFilter(PluginsHooks.TRANSFORM_TREE, {
+                id: transform_tree_hook,
+                filter: async (transformTree: Map<string, TransformTree>) => {
+
+
+                    console.log(transformsRef.current);
+
+                    // add the keys of the transformsRef.current to the transformTree
+                    transformsRef.current.forEach((tree, key) => {
+                        if (!transformTree.has(key)) {
+                            transformTree.set(key, tree);
+                        }
+                    });
+
+                    return transformTree;
+                },
+                priority: 100,
+            });
+
+
         }, WAIT_FOR_CONNECTION);
 
         const disconnect = async () => {
@@ -868,6 +1016,16 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             pluginsManager.removeFilter(advertise_hook);
             pluginsManager.removeAction(unadvertise_hook);
             pluginsManager.removeFilter(available_types);
+            pluginsManager.removeFilter(transform_tree_hook);
+
+
+            // remove the transform tree topics
+            props.transformTreeTopics.forEach((topic) => {
+                const hook_id = `foxglove-${datasource_id}-${topic}-published`;
+                pluginsManager.removeAction(hook_id);
+            });
+
+            transformsRef.current.clear();
 
             subscribersRef.current.forEach((subscriber) => {
                 clientRef.current?.unsubscribe(subscriber.subscriberId);
