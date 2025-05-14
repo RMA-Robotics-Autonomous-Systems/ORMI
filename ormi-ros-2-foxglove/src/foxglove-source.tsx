@@ -168,7 +168,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         }
 
                         // check if this channel is a topic for the transform tree, if yes, subscribe to it
-                        if (props.transformTreeTopics.includes(channel.topic)) {
+                        if ((props.transformTreeTopics || []).includes(channel.topic)) {
                             const topic: DatasourceTopic = {
                                 topic: channel.topic,
                                 datasource_id: datasource_id,
@@ -712,7 +712,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
             });
 
             // for each transform tree topic, add the action hook to get the transform tree
-            props.transformTreeTopics.forEach((topic) => {
+            (props.transformTreeTopics || []).forEach((topic) => {
                 const hook = `${datasource_id}-${topic}-published`;
                 pluginsManager.addAction(hook, {
                     id: `foxglove-${hook}`,
@@ -1011,7 +1011,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
 
             // remove the transform tree topics
-            props.transformTreeTopics.forEach((topic) => {
+            (props.transformTreeTopics || []).forEach((topic) => {
                 const hook_id = `foxglove-${datasource_id}-${topic}-published`;
                 pluginsManager.removeAction(hook_id);
             });
