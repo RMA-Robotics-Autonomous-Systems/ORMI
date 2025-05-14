@@ -101,7 +101,6 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
                         pointsArray={pointsArray}
                         pointsColors={pointsColors}
                         pointSize={pointSize}
-                        decayTime={decayTime}
                         rotation={rotation}
                         translation={translation}
                     />

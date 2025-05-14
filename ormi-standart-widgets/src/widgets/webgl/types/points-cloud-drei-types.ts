@@ -34,7 +34,6 @@ export interface OptimizedPointsCloudProps {
     pointsArray: THREE.Vector3[];
     pointsColors?: Color[];
     pointSize?: number;
-    decayTime?: number;
     rotation?: { x: number, y: number, z: number };
     translation?: { x: number, y: number, z: number };
 }
