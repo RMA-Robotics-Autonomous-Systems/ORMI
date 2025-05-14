@@ -101,7 +101,6 @@ export const widgetFilters = (widgets: WidgetDefinition[], datasources: Datasour
     });
 
     if (!has_rosbridge) {
-        console.log("No rosbridge");
         widgets = widgets.filter((widget) => {
             return !widget_that_requires_rosbridge.includes(widget.id);
         });
