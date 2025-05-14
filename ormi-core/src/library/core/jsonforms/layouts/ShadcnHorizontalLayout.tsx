@@ -24,6 +24,7 @@
 */
 import React from 'react';
 import {
+    GroupLayout,
     HorizontalLayout,
     LayoutProps,
     RankedTester,
@@ -54,7 +55,7 @@ export const ShadcnHorizontalLayoutRenderer = ({
     enabled,
     visible,
 }: LayoutProps) => {
-    const layout = uischema as HorizontalLayout;
+    const layout = uischema as GroupLayout;
     const childProps: shadcnLayoutRendererProps = {
         elements: layout.elements,
         schema,
@@ -66,7 +67,9 @@ export const ShadcnHorizontalLayoutRenderer = ({
 
     return (
         <>
-            <p>dsqd</p>
+            {layout.label && (
+                <div className="font-medium text-sm mb-2">{layout.label}</div>
+            )}
             <ShadcnLayoutRenderer
                 {...childProps}
                 renderers={renderers}
