@@ -740,6 +740,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 
                             const parentTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.parentId);
                             const existingTree = getTransfromTreeFromTreeIdInMaps(transformsRef.current, transformTree.id);
+
                             if (parentTree && !existingTree) {
                                 parentTree.children.set(transformTree.id, transformTree);
                             } else if (!existingTree) {
@@ -771,6 +772,35 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 // update the transform,
                                 // if the transform is not the same, update it
                                 existingTree.transform = transformTree.transform;
+
+                                // if the existing tree hasn't the parent id, add it and add the 
+                                // transform tree to the parent tree
+                                if (existingTree.parentId === "") {
+                                    existingTree.parentId = transformTree.parentId;
+
+                                    const new_parentTree: TransformTree = {
+                                        id: transformTree.parentId,
+                                        parentId: "",
+                                        transform: {
+                                            position: {
+                                                x: 0,
+                                                y: 0,
+                                                z: 0,
+                                                w: 1,
+                                            },
+                                            rotation: {
+                                                x: 0,
+                                                y: 0,
+                                                z: 0,
+                                                w: 1,
+                                            }
+                                        },
+                                        children: new Map<string, TransformTree>(),
+                                    };
+                                    new_parentTree.children.set(existingTree.id, existingTree);
+                                    transformsRef.current.set(new_parentTree.id, new_parentTree);
+                                    transformsRef.current.delete(existingTree.id);
+                                }
                             }
                         }
 
