@@ -10,6 +10,7 @@ import { Layout, Layouts } from 'react-grid-layout';
 import { toast } from '@/library/hooks/use-toast';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '@/library/core/datasources/datasource-interface';
 import { widgetNotFound } from '../../widgets/components/widget-not-found';
+import { Spinner } from '@/components';
 
 interface DashboardContextInterface {
 
@@ -94,8 +95,8 @@ interface DashboardProviderProps {
         setWidgets: React.Dispatch<React.SetStateAction<Map<string, Widget>>>,
         setLocked: React.Dispatch<React.SetStateAction<boolean>>,
         setDatasources: React.Dispatch<React.SetStateAction<Map<string, Datasource>>>
-    ) => void;
-    OnSave: (newDashboard: any) => void;
+    ) => Promise<boolean>;
+    OnSave: (newDashboard: any) => boolean;
 }
 
 
@@ -118,6 +119,9 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const [forceReload, setForceReload] = React.useState<boolean>(false);
 
     const [datasources, setDatasources] = React.useState<Map<string, Datasource>>(dashboardDefinition.datasources);
+
+    const [dataLoaded, setDataLoaded] = React.useState(false);
+    const [initialized, setInitialized] = React.useState(false);
 
     const getComponents = (boxId: string) => {
 
@@ -514,7 +518,12 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
 
     useEffect(() => {
-        OnLoad(setLayouts, setWidgets, setLocked, setDatasources);
+
+        OnLoad(setLayouts, setWidgets, setLocked, setDatasources).then((result) => {
+            if (result) {
+                setDataLoaded(true);
+            }
+        });
 
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: "dashboard-available-topics",
@@ -553,6 +562,19 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
     }, []);
 
+    // Add a new useEffect to properly handle initialization
+    useEffect(() => {
+        // Only set initialized to true when all data states have been processed
+        if (dataLoaded) {
+            // Small delay to ensure React has processed all state updates
+            const timer = setTimeout(() => {
+                setInitialized(true);
+            }, 0);
+
+            return () => clearTimeout(timer);
+        }
+    }, [dataLoaded, layouts, widgets, datasources, locked]);
+
     return (
         <DashboardContext.Provider value={
             {
@@ -580,7 +602,8 @@ const DashboardProvider = (props: DashboardProviderProps) => {
                 removeDatasource
             }
         }>
-            {children}
+            {initialized && children}
+            {!initialized && <Spinner />}
         </DashboardContext.Provider>
     );
 };

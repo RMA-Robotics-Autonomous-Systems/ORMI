@@ -37,6 +37,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
     const pluginsManager = usePluginsManager() as PluginsManager;
 
+    const [dataLoaded, setDataLoaded] = useState(false);
     const [initialized, setInitialized] = useState(false);
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
@@ -51,11 +52,17 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             dataSourcesTypes_map.set(dataSource.id, dataSource);
         }
         setDataSourcesTypes(dataSourcesTypes_map);
-        setInitialized(true);
+        setDataLoaded(true);
 
     }, []);
 
     useEffect(() => {
+        setInitialized(dataLoaded === true);
+    }, [dataLoaded]);
+
+    useEffect(() => {
+
+        if (!initialized) return;
 
         function getDatasourceDef(datasource_id: string): DatasourceDefinition<DatasourceProviderSettings> {
             if (!dataSourcesTypes.has(datasource_id)) {
@@ -123,30 +130,26 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             pluginsManager.removeFilter("available_datasources");
         };
 
-    }, [addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
+    }, [initialized, addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
 
     useEffect(() => {
-
         if (!initialized) return;
 
-        const timeout = setTimeout(() => {
-            pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-                id: "filter_widgets_list_based_on_datasources",
-                priority: Number.MAX_SAFE_INTEGER,
-                filter: (widgets: WidgetDefinition[]) => {
-                    const datasourceArray = pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, []);
+        pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+            id: "filter_widgets_list_based_on_datasources",
+            priority: Number.MAX_SAFE_INTEGER,
+            filter: (widgets: WidgetDefinition[]) => {
+                const datasourceArray = pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, []);
 
-                    // if no datasources are available, return no widgets
-                    if (datasourceArray.length === 0) {
-                        return [];
-                    }
-                    return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
+                // if no datasources are available, return no widgets
+                if (datasourceArray.length === 0) {
+                    return [];
                 }
-            })
-        }, 100);
+                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
+            }
+        })
 
         return () => {
-            clearTimeout(timeout);
             pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
         }
 
