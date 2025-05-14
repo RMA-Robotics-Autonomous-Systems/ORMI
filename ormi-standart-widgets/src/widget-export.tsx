@@ -21,6 +21,7 @@ import { ToggleControlDefinition } from './widgets/basic/toggle';
 import { BtnControlDefinition } from './widgets/basic/btn';
 import { CycleControlDefinition } from './widgets/basic/cycle';
 import { TransformTreeWidgetDefinition } from './widgets/basic/transform-tree';
+import { PointsCloudDreiDefinition } from './widgets/webgl/points-cloud-drei-definition';
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 
@@ -38,7 +39,9 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(JsonViewerDefinition());
     widgets.push(JsonListDefinition());
     widgets.push(TopicsListDefinition());
+
     widgets.push(PointsCloudDefinition());
+    widgets.push(PointsCloudDreiDefinition());
 
     widgets.push(ToggleControlDefinition());
     widgets.push(BtnControlDefinition());
