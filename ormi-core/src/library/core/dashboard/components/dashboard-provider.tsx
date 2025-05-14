@@ -96,7 +96,7 @@ interface DashboardProviderProps {
         setLocked: React.Dispatch<React.SetStateAction<boolean>>,
         setDatasources: React.Dispatch<React.SetStateAction<Map<string, Datasource>>>
     ) => Promise<boolean>;
-    OnSave: (newDashboard: any) => boolean;
+    OnSave: (newDashboard: any) => Promise<boolean>;
 }
 
 

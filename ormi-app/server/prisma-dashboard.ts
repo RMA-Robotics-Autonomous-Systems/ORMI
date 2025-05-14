@@ -5,7 +5,7 @@ import { Layouts } from "react-grid-layout";
 import { Widget } from "ormi-core/widgets";
 import { Datasource } from "ormi-core/datasources";
 
-const handleSave = async (newDashboard: any, wsId = "") => {
+const handleSave = async (newDashboard: any, wsId = "") : Promise<boolean> => {
     try {
 
         // using searchParams to get the workspaceId 
