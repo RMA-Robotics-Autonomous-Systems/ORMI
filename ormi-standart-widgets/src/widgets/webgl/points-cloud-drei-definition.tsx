@@ -31,6 +31,24 @@ export function PointsCloudDreiDefinition() {
                 pointSize: { type: 'number', title: 'Point Size', minimum: 0.01 },
                 rollingBuffer: { type: 'boolean', title: 'Use Rolling Buffer' },
                 decayTime: { type: 'number', title: 'Decay Time (ms)', minimum: 0 },
+                theme: {
+                    type: 'string',
+                    title: 'Theme',
+                    enum: ['Default', 'Neon', 'Plasma', 'Thermal', 'Solid', 'Distance'],
+                    default: 'Default'
+                },
+                useTransparency: {
+                    type: 'boolean',
+                    title: 'Use Transparency',
+                    description: 'Enable transparency for smoother point edges',
+                    default: false
+                },
+                customColor: {
+                    type: 'string',
+                    title: 'Custom Color',
+                    description: 'Custom color for Solid theme (hex format)',
+                    default: '#ffffff'
+                },
                 rotation: {
                     type: 'object',
                     title: 'Rotation (degrees)',
@@ -74,6 +92,18 @@ export function PointsCloudDreiDefinition() {
                 { type: "Control", scope: "#/properties/pointSize" } as ControlElement,
                 { type: "Control", scope: "#/properties/rollingBuffer" } as ControlElement,
                 { type: "Control", scope: "#/properties/decayTime" } as ControlElement,
+                { type: "Control", scope: "#/properties/theme" } as ControlElement,
+                {
+                    type: "Control",
+                    scope: "#/properties/customColor",
+                    rule: {
+                        effect: "SHOW",
+                        condition: {
+                            scope: "#/properties/theme",
+                            schema: { enum: ["Solid"] }
+                        }
+                    }
+                } as ControlElement,
                 {
                     type: "Group",
                     label: "Rotation (degrees)",
@@ -166,6 +196,9 @@ export function PointsCloudDreiDefinition() {
             pointSize: 0.05,
             rollingBuffer: false,
             decayTime: 0,
+            theme: 'Default',
+            useTransparency: false,
+            customColor: '#ffffff',
             rotation: { x: 0, y: 0, z: 0 },
             translation: { x: 0, y: 0, z: 0 }
         },

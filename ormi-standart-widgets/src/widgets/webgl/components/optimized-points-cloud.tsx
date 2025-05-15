@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import { OptimizedPointsCloudProps } from '../types/points-cloud-drei-types';
+import { themeShaders } from '../utils/theme-shaders';
 
 /**
  * Optimized points renderer using Three.js BufferGeometry
@@ -11,53 +12,46 @@ export const OptimizedPointsCloud = ({
     pointsArray,
     pointsColors,
     pointSize = 0.05,
+    theme = 'Default',
+    useTransparency = false,
+    customColor = '#ffffff',
     rotation,
     translation
 }: OptimizedPointsCloudProps) => {
     const pointsRef = useRef<THREE.Points>(null);
     const { invalidate } = useThree();
 
+    // Material reference for dynamic updates
+    const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+
     // Create and manage the points geometry
     const [geometry] = useState(() => new THREE.BufferGeometry());
 
-    // Create a shader material that properly handles points - simplified version without decay/alpha logic
+    // Create a shader material that properly handles points with selected theme
     const pointsMaterial = useMemo(() => {
-        return new THREE.ShaderMaterial({
+        // Get the selected theme's shaders or fallback to Default
+        const shaders = themeShaders[theme] || themeShaders.Default;
+
+        // Parse custom color for shader use
+        const threeColor = new THREE.Color(customColor);
+
+        const material = new THREE.ShaderMaterial({
             uniforms: {
-                pointSize: { value: pointSize }
+                pointSize: { value: pointSize },
+                useTransparency: { value: useTransparency },
+                customColor: { value: new THREE.Vector3(threeColor.r, threeColor.g, threeColor.b) }
             },
-            vertexShader: `
-                varying vec3 vColor;
-                uniform float pointSize;
-
-                void main() {
-                    vColor = color;
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = pointSize * (300.0 / -mvPosition.z);
-                    gl_Position = projectionMatrix * mvPosition;
-                }
-            `,
-            fragmentShader: `
-                varying vec3 vColor;
-
-                void main() {
-                    // Create circular points
-                    float distance = length(gl_PointCoord - vec2(0.5));
-                    if (distance > 0.5) {
-                        discard;
-                    }
-                    
-                    // Apply smooth edges for better appearance
-                    float opacity = smoothstep(0.5, 0.4, distance);
-                    gl_FragColor = vec4(vColor, opacity);
-                }
-            `,
-            transparent: true,
-            depthWrite: false,  // Keeping this setting for consistent rendering of overlapping points
+            vertexShader: shaders.vertexShader,
+            fragmentShader: shaders.fragmentShader,
+            transparent: useTransparency,
+            depthWrite: !useTransparency,  // Enable depth writing for non-transparent points
             depthTest: true,
             vertexColors: true
         });
-    }, [pointSize]);
+
+        materialRef.current = material;
+        return material;
+    }, [pointSize, theme, useTransparency, customColor]);
 
     // Apply rotation and translation
     useEffect(() => {
@@ -113,6 +107,36 @@ export const OptimizedPointsCloud = ({
         geometry.computeBoundingSphere();
         invalidate();
     }, [pointsArray, pointsColors, geometry, invalidate]);
+
+    // Update theme or transparency settings dynamically
+    useEffect(() => {
+        if (materialRef.current) {
+            // Get the selected theme's shaders
+            const shaders = themeShaders[theme] || themeShaders.Default;
+
+            // Update the material with new shaders
+            materialRef.current.vertexShader = shaders.vertexShader;
+            materialRef.current.fragmentShader = shaders.fragmentShader;
+            materialRef.current.needsUpdate = true;
+
+            // Update uniforms
+            if (materialRef.current.uniforms.useTransparency) {
+                materialRef.current.uniforms.useTransparency.value = useTransparency;
+            }
+
+            // Update custom color uniform
+            if (materialRef.current.uniforms.customColor) {
+                const threeColor = new THREE.Color(customColor);
+                materialRef.current.uniforms.customColor.value.set(threeColor.r, threeColor.g, threeColor.b);
+            }
+
+            // Update transparency setting
+            materialRef.current.transparent = useTransparency;
+            materialRef.current.depthWrite = !useTransparency;
+
+            invalidate();
+        }
+    }, [theme, useTransparency, customColor, invalidate]);
 
     return <points ref={pointsRef} geometry={geometry} material={pointsMaterial} />;
 };

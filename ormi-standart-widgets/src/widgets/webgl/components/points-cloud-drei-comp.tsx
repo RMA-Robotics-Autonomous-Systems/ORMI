@@ -17,6 +17,9 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
     const pointSize = props.pointSize ?? 0.05;
     const decayTime = props.decayTime ?? 0; // Default: no decay
     const rollingBuffer = props.rollingBuffer ?? false;
+    const theme = props.theme ?? 'Default'; // Default theme if none provided
+    const useTransparency = props.useTransparency ?? false; // Default to non-transparent points
+    const customColor = props.customColor ?? '#ffffff'; // Default custom color
     const rotation = props.rotation ?? { x: 0, y: 0, z: 0 };
     const translation = props.translation ?? { x: 0, y: 0, z: 0 };
 
@@ -113,6 +116,9 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
                         pointsArray={pointsArray}
                         pointsColors={pointsColors}
                         pointSize={pointSize}
+                        theme={theme}
+                        useTransparency={useTransparency}
+                        customColor={customColor}
                         rotation={rotation}
                         translation={translation}
                     />
