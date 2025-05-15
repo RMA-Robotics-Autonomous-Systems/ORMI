@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { Grid, OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { Grid, OrbitControls, PerspectiveCamera, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { useLocalDataSource } from "ormi-core/datasources";
 import { PointsCloud, Color } from 'ormi-core/types';
 import { OptimizedPointsCloud } from './optimized-points-cloud';
@@ -96,6 +96,18 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
                 <PerspectiveCamera makeDefault position={[0, 0, 5]} />
                 <ambientLight intensity={1} />
 
+
+                <axesHelper args={[5]} />
+                <GizmoHelper
+                    alignment="bottom-right"
+                    margin={[80, 80]}>
+                    <GizmoViewport axisColors={['red', 'green', 'blue']} labelColor="black" />
+                </GizmoHelper>
+
+
+                <OrbitControls makeDefault />
+                <Grid infiniteGrid={true} sectionColor={THREE.Color.NAMES.lightblue} />
+
                 {pointsArray.length > 0 && (
                     <OptimizedPointsCloud
                         pointsArray={pointsArray}
@@ -105,9 +117,6 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
                         translation={translation}
                     />
                 )}
-
-                <OrbitControls />
-                <Grid infiniteGrid={true} sectionColor={THREE.Color.NAMES.lightblue} />
             </Canvas>
         </div>
     );
