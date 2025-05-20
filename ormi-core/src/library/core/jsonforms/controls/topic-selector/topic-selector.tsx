@@ -78,14 +78,14 @@ const AsyncTopicControl = (props: ControlProps) => {
         if (topic) await fetchTopicDefinition(topic);
     };
 
-    const handleCustomTopics = (source: Datasource, topic: string, type: string) => {
+    const handleCustomTopics = (source: Datasource, topic: string, webtype: string, rawType: string) => {
         setSelectedTopic(topic);
         setSelectedTopicObject(prev => prev ? {
             ...prev,
             topic,
             rawType: prev.rawType,
             source: source.settings,
-            type,
+            webtype,
             property: prev.property || '',
             bufferSize: prev.bufferSize || uischema.options?.buffer || 1
         } : prev);
@@ -93,8 +93,8 @@ const AsyncTopicControl = (props: ControlProps) => {
             topic,
             source: source.settings,
             property: '',
-            type,
-            rawType: type, // Include rawType property
+            type: webtype,
+            rawType: rawType, // Include rawType property
             bufferSize: 1
         } as SelectedTopic);
         setOpen(false);

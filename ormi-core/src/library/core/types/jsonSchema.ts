@@ -4,6 +4,22 @@ import { JSONSchema7 } from 'json-schema';
 import { Vector2, Vector3, Vector4, Quaternion, Color, PointsCloud } from './common';
 import { Movement, IMU } from './movement';
 
+
+export const WebTypes : string[] = [
+    'Vector2',
+    'Vector3',
+    'Vector4',
+    'Quaternion',
+    'Transform',
+    'Color',
+    'PointsCloud',
+    'Movement',
+    'IMU',
+    'number',
+    'string',
+    'boolean',
+];
+
 export const getSchemaFromStringName = (name: string): JSONSchema7 => {
     switch (name) {
         case 'Vector2':

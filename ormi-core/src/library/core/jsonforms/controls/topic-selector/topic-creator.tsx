@@ -9,8 +9,9 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { Toggle } from "@/library/components/ui/toggle"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/library/components/ui/tooltip";
+import { WebTypes } from "@/library/core/types/jsonSchema";
 
-export default function TopicCreator(props: { value: string, handleTopic: (source: Datasource, topic: string, type: string) => void }) {
+export default function TopicCreator(props: { value: string, handleTopic: (source: Datasource, topic: string, webtype: string, rawType: string) => void }) {
 
     const pluginsManager = usePluginsManager();
 
@@ -18,7 +19,8 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
 
     const [selectedDatasource, setSelectedDatasource] = useState<string>('');
     const [selectedTopic, setSelectedTopic] = useState<string>('');
-    const [selectedType, setSelectedType] = useState<string>('');
+    const [selectedWebType, setSelectedWebType] = useState<string>('');
+    const [selectedRawType, setSelectedRawType] = useState<string>('');
 
     const [availableTypes, setAvailableTypes] = useState<string[]>([]);
     const [manualTypeEntry, setManualTypeEntry] = useState<boolean>(false);
@@ -45,8 +47,12 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
         setSelectedTopic(topic);
     }
 
-    const handleTypeChange = (type: string) => {
-        setSelectedType(type);
+    const handleRawTypeChange = (type: string) => {
+        setSelectedRawType(type);
+    }
+
+    const handleWebTypeChange = (type: string) => {
+        setSelectedWebType(type);
     }
 
     const toggleTypeEntryMode = () => {
@@ -60,7 +66,7 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
             return;
         }
 
-        props.handleTopic(datasource, selectedTopic, selectedType);
+        props.handleTopic(datasource, selectedTopic, selectedWebType, selectedRawType);
     }
 
     return (
@@ -78,19 +84,30 @@ export default function TopicCreator(props: { value: string, handleTopic: (sourc
                 </SelectContent>
             </Select>
             <Input placeholder="Topic name" defaultValue={props.value} onChange={(e) => handleTopicChange(e.target.value)} />
-
+            <Select onValueChange={handleWebTypeChange}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Webtype" />
+                </SelectTrigger>
+                <SelectContent>
+                    {WebTypes.map((webtype: string) => (
+                        <SelectItem key={webtype} value={webtype}>
+                            {webtype}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
             <div className="flex gap-1" style={{ alignItems: "center" }}>
                 {manualTypeEntry ? (
                     <Input
                         placeholder="Enter type manually"
-                        value={selectedType}
-                        onChange={(e) => handleTypeChange(e.target.value)}
+                        value={selectedRawType}
+                        onChange={(e) => handleRawTypeChange(e.target.value)}
                         className="flex-grow"
                     />
                 ) : (
-                    <Select onValueChange={handleTypeChange} value={selectedType}>
+                    <Select onValueChange={handleRawTypeChange} value={selectedRawType}>
                         <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Type" />
+                            <SelectValue placeholder="RawType" />
                         </SelectTrigger>
                         <SelectContent>
                             {availableTypes.map((type) => (
