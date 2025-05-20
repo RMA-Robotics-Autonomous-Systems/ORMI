@@ -55,13 +55,16 @@ export function ToggleControl(props: ToggleControlData) {
         }
 
         const toggleFunction = () => {
+            const topicType = props.topic.type || "number";
 
             if (toggle) {
-                publisher.publish(props.valueOn, props.topic.type || "number");
-            } else {
-                if (props.publishOnOff) {
-                    publisher.publish(props.valueOff, props.topic.type || "number");
-                }
+                // For boolean topics, convert 1 to true
+                const valueToPublish = topicType === "boolean" ? Boolean(props.valueOn) : props.valueOn;
+                publisher.publish(valueToPublish, topicType);
+            } else if (props.publishOnOff) {
+                // For boolean topics, convert 0 to false
+                const valueToPublish = topicType === "boolean" ? Boolean(props.valueOff) : props.valueOff;
+                publisher.publish(valueToPublish, topicType);
             }
         }
 

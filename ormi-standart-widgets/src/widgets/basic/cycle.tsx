@@ -73,9 +73,12 @@ export function CycleControl(props: CycleControlData) {
         }
 
         const cycleFunction = () => {
-            console.log(props.values, cycle, props.values[cycle].value);
             if (props.values && props.values.length > 0 && cycle < props.values.length) {
-                publisher.publish(props.values[cycle].value, props.topic.type || "number");
+                // Convert the value to boolean if the topic type is boolean
+                const value = props.topic.type === "boolean"
+                    ? Boolean(props.values[cycle].value)
+                    : props.values[cycle].value;
+                publisher.publish(value, props.topic.type || "number");
             }
         }
 

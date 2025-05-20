@@ -32,7 +32,11 @@ export function BtnControl(props: BtnControlData) {
             return;
         }
 
-        publisher.publish(props.value, props.topic.type || "number");
+        if (props.topic.type === "boolean") {
+            publisher.publish(Boolean(props.value), "boolean");
+        } else {
+            publisher.publish(props.value, props.topic.type || "number");
+        }
     }
 
     return (
