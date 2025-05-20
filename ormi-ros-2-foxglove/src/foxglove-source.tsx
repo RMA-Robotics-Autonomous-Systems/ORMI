@@ -29,6 +29,7 @@ import { MessageReader, MessageWriter } from "@foxglove/rosmsg2-serialization";
 import { UnifiedConverter } from "./unified-converter";
 import { TransformTree } from 'ormi-core/types';
 import { getTransfromTreeFromTreeIdInMaps } from 'ormi-core/utils';
+import { interfaceList } from './interface-list';
 // import { convertMessageDefinitionsToJsonSchema } from "./message-to-jsonschema";
 
 const FoxgloveSourceContext = createContext(null);
@@ -698,13 +699,37 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 id: available_types,
                 filter: async (types: string[]) => {
 
+                    console.log('obtaining available types');
+
                     await connectionRef.current;
 
                     const channelsArray = Array.from(channelsRef.current.values());
                     const schemas = channelsArray.map((channel) => {
                         return channel.schemaName;
                     });
-                    const uniqueSchemas = Array.from(new Set(schemas));
+                    let uniqueSchemas = Array.from(new Set(schemas));
+
+                    // add interfacesList to the uniqueSchemas
+                    uniqueSchemas.push(...interfaceList);
+
+                    console.log(interfaceList)
+
+                    // remove duplicates
+                    const uniqueSet = new Set(uniqueSchemas);
+                    uniqueSchemas = Array.from(uniqueSet);
+
+                    // sort the schemas
+                    uniqueSchemas.sort((a, b) => {
+                        const aParts = a.split("/");
+                        const bParts = b.split("/");
+                        if (aParts[0] < bParts[0]) {
+                            return -1;
+                        } else if (aParts[0] > bParts[0]) {
+                            return 1;
+                        } else {
+                            return a.localeCompare(b);
+                        }
+                    });
 
                     return uniqueSchemas;
                 },
