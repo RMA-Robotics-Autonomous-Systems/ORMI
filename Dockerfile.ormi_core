@@ -1,33 +1,17 @@
-# Use latest Node.js LTS version
-FROM node:lts-bullseye
+FROM oven/bun:latest AS base
 
-# Set the timezone to UTC
-ENV TZ=UTC
-# Set the locale to UTF-8
-ENV LANG=C.UTF-8
-
-
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash && \
-    mv /root/.bun/bin/bun /usr/local/bin/bun
-
-
+RUN apt-get update -y && apt-get install -y openssl
 # Set working directory
 WORKDIR /ORMI-CORE
-
 # Copy all folders from the host to the container
 COPY . .
-
 # Copy the entrypoint script
 COPY ormi_entrypoint.sh /ormi_entrypoint.sh
-
 # Make scripts executable and run the build script (installs deps, links packages)
 RUN chmod +x /ormi_entrypoint.sh \
     && chmod +x build.sh \
     && ./build.sh
-
 # Set the working directory for the application runtime
 WORKDIR /ORMI-CORE/ormi-app
-
 # Set the entrypoint
 ENTRYPOINT ["/ormi_entrypoint.sh"]
