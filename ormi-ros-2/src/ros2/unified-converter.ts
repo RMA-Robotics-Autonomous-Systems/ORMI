@@ -2,21 +2,21 @@
 // import { IMU, Movement } from "ormi-core/types/movement";
 // ...other necessary imports...
 
-import { Color, Vector3,PointsCloud ,IMU, Movement} from "ormi-core/types";
+import { Color, Vector3, PointsCloud, IMU, Movement } from "ormi-core/types";
 
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
 interface ConverterEntry {
-	conversions: {
-		[ros2Type: string]: {
-			toRos2: (data: any) => any;
-			fromRos2: (data: any) => any;
-		}
-	};
+    conversions: {
+        [ros2Type: string]: {
+            toRos2: (data: any) => any;
+            fromRos2: (data: any) => any;
+        }
+    };
     isPrimitive?: boolean;
 }
 
 export class UnifiedConverter {
-	// Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
+    // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
     static converters: { [webType: string]: ConverterEntry } = {
         "Movement": {
             conversions: {
@@ -169,10 +169,10 @@ export class UnifiedConverter {
             isPrimitive: true
         },
         "PointsCloud": {
-            conversions:{
+            conversions: {
                 "sensor_msgs/msg/PointCloud2": {
                     toRos2: (data: PointsCloud) => ({}),
-                    fromRos2: (data) : PointsCloud => {
+                    fromRos2: (data): PointsCloud => {
                         const points: Vector3[] = [];
                         const colors: Color[] = [];
 
@@ -181,9 +181,9 @@ export class UnifiedConverter {
                         const is_bigendian = data.is_bigendian;
                         const height = data.height;
                         const width = data.width;
-                        
+
                         // Create field lookup map
-                        const fieldMap: Record<string, {offset: number, datatype: number}> = {};
+                        const fieldMap: Record<string, { offset: number, datatype: number }> = {};
                         fields.forEach((field: { name: string | number; offset: any; datatype: any; }) => {
                             fieldMap[field.name] = {
                                 offset: field.offset,
@@ -195,7 +195,7 @@ export class UnifiedConverter {
                         const xOffset = fieldMap.x?.offset;
                         const yOffset = fieldMap.y?.offset;
                         const zOffset = fieldMap.z?.offset;
-                        
+
                         if (xOffset === undefined || yOffset === undefined || zOffset === undefined) {
                             console.error("Point cloud missing x, y, or z fields");
                             return { points: [] };
@@ -204,7 +204,7 @@ export class UnifiedConverter {
                         // Handle the binary data properly
                         let buffer: ArrayBuffer;
                         let totalPoints: number;
-                        
+
                         // Check if data is already a buffer or needs conversion
                         if (data.data.buffer) {
                             // Use the buffer directly
@@ -227,17 +227,17 @@ export class UnifiedConverter {
                         // Create a data view for efficient access
                         const dataView = new DataView(buffer);
                         const littleEndian = !is_bigendian;
-                        
+
                         // Process all points
                         for (let i = 0; i < totalPoints; i++) {
                             const baseOffset = i * point_step;
-                            
+
                             // Get x, y, z values directly
                             try {
                                 const x = dataView.getFloat32(baseOffset + xOffset, littleEndian);
                                 const y = dataView.getFloat32(baseOffset + yOffset, littleEndian);
                                 const z = dataView.getFloat32(baseOffset + zOffset, littleEndian);
-                                
+
                                 // Add valid points (could add filtering here if needed)
                                 if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
                                     points.push({ x, y, z });
@@ -247,7 +247,7 @@ export class UnifiedConverter {
                                 continue;
                             }
                         }
-                        
+
                         return { points };
                     }
                 },
@@ -257,33 +257,33 @@ export class UnifiedConverter {
 
                         const points: Vector3[] = [];
                         const colors: Color[] = [];
-                        
+
                         // Make sure we have points data
                         if (!data.points || !Array.isArray(data.points)) {
                             console.error("Livox point cloud data missing or invalid");
                             return { points: [] };
                         }
-                        
+
                         // Process each custom point
                         for (const point of data.points) {
                             // Extract basic coordinates
-                            if (typeof point.x === 'number' && 
-                                typeof point.y === 'number' && 
+                            if (typeof point.x === 'number' &&
+                                typeof point.y === 'number' &&
                                 typeof point.z === 'number') {
-                                
+
                                 // Add valid point to points array
                                 if (!isNaN(point.x) && !isNaN(point.y) && !isNaN(point.z)) {
                                     points.push({
                                         x: point.x,
-                                        y: point.y, 
+                                        y: point.y,
                                         z: point.z
                                     });
-                                    
+
                                     // Convert reflectivity to color if needed
                                     if (point.reflectivity !== undefined) {
                                         // Simple grayscale based on reflectivity (0-255 -> 0.2 to 1.0)
                                         const intensity = Math.min(Math.max(point.reflectivity / 255, 0.2), 1.0);
-                                        
+
                                         colors.push({
                                             r: intensity,
                                             g: intensity,
@@ -294,52 +294,84 @@ export class UnifiedConverter {
                                 }
                             }
                         }
-                        
+
                         // Return point cloud with additional metadata if available
-                        return { 
+                        return {
                             points,
                             colors: colors.length > 0 ? colors : undefined,
                         };
                     }
                 }
             }
-        } 
+        },
+        "Image": {
+            conversions: {
+                "sensor_msgs/msg/Image": {
+                    toRos2: (data: any) => ({
+                        height: data.height,
+                        width: data.width,
+                        encoding: data.encoding,
+                        is_bigendian: data.is_bigendian,
+                        step: data.step,
+                        data: data.data
+                    }),
+                    fromRos2: (data: any) => ({
+                        height: data.height,
+                        width: data.width,
+                        encoding: data.encoding,
+                        is_bigendian: data.is_bigendian,
+                        step: data.step,
+                        data: data.data
+                    })
+                },
+                "sensor_msgs/msg/CompressedImage": {
+                    toRos2: (data: any) => ({
+                        format: data.format,
+                        data: data.data
+                    }),
+                    fromRos2: (data: any) => ({
+                        format: data.format,
+                        data: data.data
+                    })
+                }
+            }
+        }
     };
 
-	// Updated: loops through each ConverterEntry's conversion mapping.
-	static getWebappTypeFromROSType(ros2Type: string): string | undefined {
-		for (const webType in UnifiedConverter.converters) {
-			if (Object.keys(UnifiedConverter.converters[webType].conversions).includes(ros2Type)) {
-				return webType;
-			}
-		}
-		return undefined;
-	}
+    // Updated: loops through each ConverterEntry's conversion mapping.
+    static getWebappTypeFromROSType(ros2Type: string): string | undefined {
+        for (const webType in UnifiedConverter.converters) {
+            if (Object.keys(UnifiedConverter.converters[webType].conversions).includes(ros2Type)) {
+                return webType;
+            }
+        }
+        return undefined;
+    }
 
-	// Returns the primary ros2 type (first key) for a given webapp type.
-	static getROSTypeFromWebappType(webappType: string): string | undefined {
-		const conv = UnifiedConverter.converters[webappType];
-		return conv ? Object.keys(conv.conversions)[0] : undefined;
-	}
+    // Returns the primary ros2 type (first key) for a given webapp type.
+    static getROSTypeFromWebappType(webappType: string): string | undefined {
+        const conv = UnifiedConverter.converters[webappType];
+        return conv ? Object.keys(conv.conversions)[0] : undefined;
+    }
 
-	// Converts a ros2 object to a webapp object using conversion identified by originalRos2Type.
-	static convertToWebapp(rosData: any, targetWebappType: string, originalRos2Type: string): any {
-		const entry = UnifiedConverter.converters[targetWebappType];
-		if (!entry || !entry.conversions[originalRos2Type]) {
-			// throw new Error(`No conversion mapping found for webapp type: ${targetWebappType} and ros2 type: ${originalRos2Type}`);
+    // Converts a ros2 object to a webapp object using conversion identified by originalRos2Type.
+    static convertToWebapp(rosData: any, targetWebappType: string, originalRos2Type: string): any {
+        const entry = UnifiedConverter.converters[targetWebappType];
+        if (!entry || !entry.conversions[originalRos2Type]) {
+            // throw new Error(`No conversion mapping found for webapp type: ${targetWebappType} and ros2 type: ${originalRos2Type}`);
             return rosData;
-		}
-		return entry.conversions[originalRos2Type].fromRos2(rosData);
-	}
+        }
+        return entry.conversions[originalRos2Type].fromRos2(rosData);
+    }
 
-	// Converts a webapp object to a ros2 object using conversion identified by desiredRos2Type.
-	static convertToROS2(webData: any, webappType: string, desiredRos2Type: string): any {
-		const entry = UnifiedConverter.converters[webappType];
-		if (!entry || !entry.conversions[desiredRos2Type]) {
-			throw new Error(`No conversion mapping found for webapp type: ${webappType} and desired ros2 type: ${desiredRos2Type}`);
-		}
-		return entry.conversions[desiredRos2Type].toRos2(webData);
-	}
+    // Converts a webapp object to a ros2 object using conversion identified by desiredRos2Type.
+    static convertToROS2(webData: any, webappType: string, desiredRos2Type: string): any {
+        const entry = UnifiedConverter.converters[webappType];
+        if (!entry || !entry.conversions[desiredRos2Type]) {
+            throw new Error(`No conversion mapping found for webapp type: ${webappType} and desired ros2 type: ${desiredRos2Type}`);
+        }
+        return entry.conversions[desiredRos2Type].toRos2(webData);
+    }
 
-	// ...additional helper methods if needed...
+    // ...additional helper methods if needed...
 }

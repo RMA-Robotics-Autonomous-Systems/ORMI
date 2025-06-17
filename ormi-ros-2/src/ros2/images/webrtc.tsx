@@ -167,7 +167,7 @@ export function WebRtcRos2Definition() {
             asyncFunction: async () => {
                 return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({
                     source_id: /(rosbridge-suite-source|foxglove-source)/,
-                    type: /sensor_msgs\/msg\/Image|sensor_msgs\/msg\/CompressedImage/
+                    type: /Image/
                 }));
             },
             buffer: 1,

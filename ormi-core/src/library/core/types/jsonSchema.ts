@@ -5,7 +5,7 @@ import { Vector2, Vector3, Vector4, Quaternion, Color, PointsCloud } from './com
 import { Movement, IMU } from './movement';
 
 
-export const WebTypes : string[] = [
+export const WebTypes: string[] = [
     'Vector2',
     'Vector3',
     'Vector4',
@@ -18,6 +18,7 @@ export const WebTypes : string[] = [
     'number',
     'string',
     'boolean',
+    'Image'
 ];
 
 export const getSchemaFromStringName = (name: string): JSONSchema7 => {
@@ -31,7 +32,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     y: { type: 'number' }
                 }
             };
-        
+
         case 'Vector3':
             return {
                 type: 'object',
@@ -42,7 +43,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     z: { type: 'number' }
                 }
             };
-        
+
         case 'Vector4':
             return {
                 type: 'object',
@@ -54,7 +55,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     w: { type: 'number' }
                 }
             };
-        
+
         case 'Quaternion':
             return {
                 type: 'object',
@@ -66,7 +67,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     w: { type: 'number' }
                 }
             };
-        
+
         case 'Transform':
             return {
                 type: 'object',
@@ -76,7 +77,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     rotation: getSchemaFromStringName('Quaternion')
                 }
             };
-        
+
         case 'Color':
             return {
                 type: 'object',
@@ -88,7 +89,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     a: { type: 'number' }
                 }
             };
-        
+
         case 'PointsCloud':
             return {
                 type: 'object',
@@ -104,7 +105,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     }
                 }
             };
-        
+
         case 'Movement':
             return {
                 type: 'object',
@@ -114,7 +115,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     angular: getSchemaFromStringName('Vector3')
                 }
             };
-        
+
         case 'IMU':
             return {
                 type: 'object',
@@ -125,7 +126,7 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     orientation: getSchemaFromStringName('Vector4')
                 }
             };
-        
+
         default:
             return {
                 type: 'object',
