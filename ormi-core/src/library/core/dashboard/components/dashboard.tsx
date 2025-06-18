@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
 
@@ -12,12 +12,20 @@ import { Widget, WidgetDefinition } from "@/library/core/widgets/widget-interfac
 import { WidgetCard } from "@/library/core/widgets/components/widget-card/widget-card";
 import { useNavbar } from "@/library/components/advanced/navbar/navbar-provider";
 import { WidgetsCombo } from "@/library/core/widgets/components/widget-combo/widget-combo";
-import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, LockIcon, LockOpenIcon, Save, XIcon } from "lucide-react";
+import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, Columns3, Grid3X3, LayoutGrid, LockIcon, LockOpenIcon, Rows3, Save, Square, XIcon } from "lucide-react";
 import { ButtonHolderProvider } from "@/library/components/advanced/ButtonHolder/button-holder-provider";
 import ButtonHolder from "@/library/components/advanced/ButtonHolder/button-holder";
 import { WidgetTemplateDrawer } from "@/library/core/templates/components/templates-drawer";
 import { useTemplates } from "@/library/core/templates/templates-provider";
 import React from "react";
+
+
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/library/components/ui/context-menu"
 
 const Dashboard = () => {
 
@@ -34,6 +42,11 @@ const Dashboard = () => {
             layoutsChanged({ ...allLayouts });
         }
     }
+
+    const handleLayoutSelect = (layoutType: string) => {
+        // You can implement the logic here
+        console.log('Selected layout:', layoutType);
+    };
 
     const handleRemoveBoxClick = (boxId: string) => {
         removeWidget(boxId);
@@ -81,9 +94,38 @@ const Dashboard = () => {
         );
 
         setNavbarItem("center", "exploseLayout",
-            <Button variant={"ghost"} onClick={() => { exploseLayout() }}>
-                <BombIcon />
-            </Button>
+            <ContextMenu>
+                <ContextMenuTrigger>
+                    <Button
+                        variant={"ghost"}
+                        onClick={() => { exploseLayout() }}
+                    >
+                        <BombIcon />
+                    </Button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                    <ContextMenuItem onClick={() => handleLayoutSelect('custom')}>
+                        <Grid3X3 size={16} className="mr-2" />
+                        Custom
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleLayoutSelect('rows')}>
+                        <Rows3 size={16} className="mr-2" />
+                        Row Layout
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleLayoutSelect('columns')}>
+                        <Columns3 size={16} className="mr-2" />
+                        Column Layout
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleLayoutSelect('masonry')}>
+                        <LayoutGrid size={16} className="mr-2" />
+                        Masonry Layout
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleLayoutSelect('single')}>
+                        <Square size={16} className="mr-2" />
+                        Single Layout
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            </ContextMenu>
         );
 
         setNavbarItem("center", "save",
@@ -92,8 +134,6 @@ const Dashboard = () => {
             </Button>
         );
 
-
-
         return () => {
             removeNavbarItem("center", "widgets_combo");
             removeNavbarItem("center", "lock_unlock");
@@ -101,7 +141,6 @@ const Dashboard = () => {
             removeNavbarItem("center", "moveToVertical");
             removeNavbarItem("center", "exploseLayout");
             removeNavbarItem("center", "save");
-
         }
 
     }, [locked, hasChanged, layouts, widgets]);
