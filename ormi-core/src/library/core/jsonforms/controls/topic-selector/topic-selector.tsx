@@ -38,7 +38,7 @@ const AsyncTopicControl = (props: ControlProps) => {
 
     const canSelectProperty = uischema.options?.canSelectProperty !== undefined ? uischema.options.canSelectProperty : true;
 
-    const getTopicByName = (name: string) => topics.find(topic => topic.topic === name);
+    const getTopicByNameAndSourceId = (topicName: string, sourceId: string = "") => topics.find(topic => topic.topic === topicName && topic.source.id === sourceId);
 
     // Helper function to retrieve topic definition and update tree view items.
     const fetchTopicDefinition = async (topic: DatasourceTopic, currentData?: SelectedTopic) => {
@@ -61,7 +61,11 @@ const AsyncTopicControl = (props: ControlProps) => {
 
     const handleTopicChange = async (topicIdentifier: string) => {
         const topicName = topicIdentifier.split('@')[0];
-        const topic = getTopicByName(topicName);
+        const sourceId = topicIdentifier.split('@')[1] || '';
+        const topic = getTopicByNameAndSourceId(topicName, sourceId);
+
+        console.log("Selected topic:", topic);
+
         setTopicProps([]);
         setOpen(false);
         setSelectedTopic(topicName);
@@ -123,7 +127,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                 if (value) {
                     setSelectedTopic(value.topic);
                     setSelectedTopicObject(value);
-                    const topic = getTopicByName(value.topic);
+                    const topic = getTopicByNameAndSourceId(value.topic, value.source.id);
                     if (topic) await fetchTopicDefinition(topic, value);
                 }
             });
