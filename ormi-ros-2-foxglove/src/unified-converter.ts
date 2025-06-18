@@ -2,7 +2,7 @@
 // import { IMU, Movement } from "ormi-core/types/movement";
 // ...other necessary imports...
 
-import { Color, Vector3, PointsCloud, IMU, Movement } from "ormi-core/types";
+import { Color, Vector3, PointsCloud, IMU, Movement, Image } from "ormi-core/types";
 
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
 interface ConverterEntry {
@@ -300,14 +300,52 @@ export class UnifiedConverter {
                         step: data.step,
                         data: data.data
                     }),
-                    fromRos2: (data: any) => ({
-                        height: data.height,
-                        width: data.width,
-                        encoding: data.encoding,
-                        is_bigendian: data.is_bigendian,
-                        step: data.step,
-                        data: data.data
-                    })
+                    fromRos2: (data: any): Image => {
+                        // Create ImageData from ROS2 image data
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        if (!ctx) {
+                            throw new Error('Could not create canvas context for image conversion');
+                        }
+                        
+                        canvas.width = data.width;
+                        canvas.height = data.height;
+                        
+                        // Create ImageData object
+                        const imageData = ctx.createImageData(data.width, data.height);
+                        
+                        // Convert ROS2 image data based on encoding
+                        if (data.encoding === 'rgb8') {
+                            // RGB8 format: 3 bytes per pixel
+                            for (let i = 0; i < data.width * data.height; i++) {
+                                const srcIndex = i * 3;
+                                const dstIndex = i * 4;
+                                imageData.data[dstIndex] = data.data[srcIndex];     // R
+                                imageData.data[dstIndex + 1] = data.data[srcIndex + 1]; // G
+                                imageData.data[dstIndex + 2] = data.data[srcIndex + 2]; // B
+                                imageData.data[dstIndex + 3] = 255; // A (full opacity)
+                            }
+                        } else if (data.encoding === 'bgr8') {
+                            // BGR8 format: 3 bytes per pixel, BGR order
+                            for (let i = 0; i < data.width * data.height; i++) {
+                                const srcIndex = i * 3;
+                                const dstIndex = i * 4;
+                                imageData.data[dstIndex] = data.data[srcIndex + 2];     // R (from B)
+                                imageData.data[dstIndex + 1] = data.data[srcIndex + 1]; // G
+                                imageData.data[dstIndex + 2] = data.data[srcIndex];     // B (from R)
+                                imageData.data[dstIndex + 3] = 255; // A (full opacity)
+                            }
+                        } else {
+                            // For other encodings, copy data as-is or handle specifically
+                            imageData.data.set(data.data.slice(0, imageData.data.length));
+                        }
+                        return {
+                            width: data.width,
+                            height: data.height,
+                            data: imageData
+                        };
+                    }
                 },
                 "sensor_msgs/msg/CompressedImage": {
                     toRos2: (data: any) => ({

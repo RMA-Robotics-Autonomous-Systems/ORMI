@@ -1,3 +1,5 @@
+import { ta } from "date-fns/locale";
+
 export type Vector2 = {
     x: number;
     y: number;
@@ -40,4 +42,10 @@ export type Color = {
 export type PointsCloud = {
     points: Vector3[];
     colors?: Color[];
+}
+
+export type Image = {
+    width: number;
+    height: number;
+    data: ImageData;
 }
