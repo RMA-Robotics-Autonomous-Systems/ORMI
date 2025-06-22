@@ -1,8 +1,5 @@
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { toast } from "@/hooks/use-toast"
-import { Input } from "@/components/ui/input"
+import { toast, Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "ormi-core/components"
 import { handleSave } from "@/server/prisma-dashboard"
 
 

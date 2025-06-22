@@ -10,9 +10,9 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "ormi-core/components"
 import { UserAvatar } from "@/components/advanced/user/user-avatar"
-import { Button } from "@/components/ui/button"
+import { Button } from "ormi-core/components"
 
 interface UserAccountNavProps extends React.HTMLAttributes<HTMLDivElement> {
     user: Pick<User, "name" | "image" | "email">

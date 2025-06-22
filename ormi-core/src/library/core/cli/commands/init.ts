@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
+import * as fs from "fs";
 import path from "path";
 import chalk from "chalk"; // You may need to install this package
 
@@ -10,20 +10,20 @@ function get_plugins(): string[] {
 
     // get the list of all the directories in the node_modules directory
     const node_modules = path.join(process.cwd(), "node_modules");
-    if (!existsSync(node_modules)) {
+    if (!fs.existsSync(node_modules)) {
         console.log(chalk.red("✗ No node_modules directory found."));
         return [];
     }
 
     console.log(chalk.cyan("🔍 Scanning node_modules directory for ORMI plugins..."));
     
-    const dirs = readdirSync(node_modules, { withFileTypes: true })
+    const dirs = fs.readdirSync(node_modules, { withFileTypes: true })
         .filter(dirent => {
             try {
                 const fullPath = path.join(node_modules, dirent.name);
                 // Check if it's a directory or a symlink that points to a directory
                 return dirent.isDirectory() || 
-                       (dirent.isSymbolicLink() && statSync(fullPath).isDirectory());
+                       (dirent.isSymbolicLink() && fs.statSync(fullPath).isDirectory());
             } catch (err) {
                 // console.log(`Error checking ${dirent.name}: ${err.message}`);
                 return false;
@@ -40,7 +40,7 @@ function get_plugins(): string[] {
     const plugins = dirs.filter(dir => {
         const dirPath = path.join(node_modules, dir);
         const package_json = path.join(dirPath, "package.json");
-        if (!existsSync(package_json)) {
+        if (!fs.existsSync(package_json)) {
             // Skip silently
             return false;
         }
@@ -52,7 +52,7 @@ function get_plugins(): string[] {
         }
         
         try {
-            const pckg = JSON.parse(readFileSync(package_json, "utf-8"));
+            const pckg = JSON.parse(fs.readFileSync(package_json, "utf-8"));
             if (pckg["ormi_plugin"] !== undefined) {
                 // process.stdout.write(`\n${chalk.green('✓')} Found ORMI plugin: ${chalk.bold(dir)}`);
                 return true;
@@ -78,7 +78,7 @@ function get_plugins(): string[] {
 function save_source_file(source:string,path:string){
     const source_file = path;
     try {
-        writeFileSync(source_file, source);
+        fs.writeFileSync(source_file, source);
         console.log(chalk.green('💾 Source file saved successfully!'));
     } catch (err) {
         console.error(chalk.red(`🚨 Error saving source file: ${(err as any).message}`));

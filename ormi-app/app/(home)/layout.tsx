@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "ormi-components"
 import { UserAccountNav } from "@/components/advanced/user/user-home-nav"
 
 import { User } from "next-auth"
@@ -30,6 +31,7 @@ export default function HomeLayout({
                 "user_account",
                 <UserAccountNav user={session?.user as User} />,
                 -2
+
             );
             setNavbarItem(
                 "left",
@@ -65,31 +67,3 @@ export default function HomeLayout({
         </div>
     )
 }
-
-/*
-<header className="container mx-auto sticky top-1 bg-background/95 backdrop-blur rounded-2xl border z-50">
-    <div className="px-2 flex h-20 items-center justify-between py-6">
-        <HomeNav items={homeNavConfig.homeNav} />
-        {user ? (
-        <div className="flex items-center space-x-1">
-        
-        <ThemeSwitcher/> 
-        </div>
-        ) : (
-        <div className="flex items-center space-x-1">
-        <Link
-            href="/signin"
-            className={cn(
-            buttonVariants({ size: "lg", className:"bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground px-4" })
-            )}
-        >
-            Sign In
-        </Link>
-        <ThemeSwitcher/> 
-        </div> 
-        )}
-        
-    </div>
-</header>
-
-*/

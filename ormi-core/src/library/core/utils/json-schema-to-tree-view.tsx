@@ -10,7 +10,7 @@ export function generateTreeView(schema: JsonSchema, handlePropertyChange: (item
             return schema;
         }
 
-        return schema.definitions[ref.replaceAll('#/definitions/', '')];
+        return schema.definitions[ref.replace(/#\/definitions\//g, '')];
     };
 
     const processProperty = (

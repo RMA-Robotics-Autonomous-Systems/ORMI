@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "ormi-core/components";
 import Image from "next/image"
 import { FaGlobe, FaGoogleScholar, FaMastodon, FaYoutube } from "react-icons/fa6";
 

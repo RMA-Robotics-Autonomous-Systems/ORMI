@@ -14,15 +14,15 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+    toast,
+} from "ormi-core/components"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { toast } from "@/hooks/use-toast"
+} from "ormi-core/components"
 import { MoreVertical, Loader2, Trash } from "lucide-react"
 import WorkspaceImport from "./workspace-import"
 

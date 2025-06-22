@@ -5,19 +5,9 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Loader2, Plus } from "lucide-react"
 
-import { Button, ButtonProps } from "@/components/ui/button"
-import { toast } from "@/hooks/use-toast"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+
+import { Button, ButtonProps, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, Input, Label, toast } from "ormi-core/components"
+
 
 type CreateWSButtonProps = ButtonProps
 

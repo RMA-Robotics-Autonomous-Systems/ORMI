@@ -42,6 +42,9 @@ export * from "@/library/components/ui/table";
 export * from "@/library/components/ui/toast";
 export * from "@/library/components/ui/tooltip";
 
+export * from "@/library/components/ui/alert-dialog"
+export * from "@/library/components/ui/avatar";
+
 export * from "@/library/hooks/use-toast";
 
 export * from "@/library/components/advanced/triggers/digital-trigger-input";
