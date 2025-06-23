@@ -95,7 +95,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
                     throw new Error(`Server responded with ${response.status}`);
                 }
 
-                const answer = await response.json();
+                const answer = await response.json() as any;
 
                 await pc.setRemoteDescription(answer);
             } catch (error) {
