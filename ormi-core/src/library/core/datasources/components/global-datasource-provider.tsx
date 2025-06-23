@@ -7,7 +7,7 @@
 
 */
 
-import React, { createContext, useContext, ReactNode, useState, useEffect, use } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '../datasource-interface';
 
 import PluginsManager from '@/library/core/plugins/plugins-manager';

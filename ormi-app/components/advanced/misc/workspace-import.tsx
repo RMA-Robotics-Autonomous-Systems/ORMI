@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react"
 import { toast, Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "ormi-core/components"
 import { handleSave } from "@/server/prisma-dashboard"
@@ -16,7 +17,7 @@ async function importWorkspace(file: File, wsId: string) {
         reader.onerror = () => reject(new Error("Failed to read file"))
         reader.readAsText(file)
     })
-    const parsedContent = JSON.parse(fileContent)
+    const parsedContent = JSON.parse(fileContent) as any;
     if (!parsedContent) {
         toast({
             title: "Invalid file",

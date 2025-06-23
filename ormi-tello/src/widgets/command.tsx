@@ -1,13 +1,10 @@
-import { useEffect, useState, useRef, useCallback, use } from "react"; // Import useCallback
+import { useState } from "react"; // Import useCallback
 import { style } from "ormi-core/jsonforms";
-import { ConciergeBellIcon, GaugeIcon, KeyboardIcon, LockIcon, ToggleLeftIcon, ToggleRightIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { DigitalInput, DigitalComponent } from "ormi-core/components";
 import { KeyControlType } from "ormi-core/jsonforms";
-import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource, DatasourceProviderSettings, Datasource } from "ormi-core/datasources";
+import { Datasource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
-import { Movement } from "ormi-core/types";
-import { toast } from "sonner"
 
 
 interface TelloCommandsControlData {

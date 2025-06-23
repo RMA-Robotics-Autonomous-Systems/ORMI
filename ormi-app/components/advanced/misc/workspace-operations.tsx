@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import * as React from "react"
@@ -69,7 +70,7 @@ async function exportWorkspace(wsId: string) {
         return false
     }
 
-    const workspace = await response.json()
+    const workspace = await response.json() as any
     if (!workspace) {
         toast({
             title: "Error",

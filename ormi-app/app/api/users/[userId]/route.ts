@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getServerSession } from "next-auth/next"
 import { z } from "zod"
 import { NextRequest } from "next/server"
@@ -31,7 +32,7 @@ export async function PATCH(
     }
 
     // Get the request body and validate it.
-    const body = await req.json()
+    const body = await req.json() as any;
     const payload = userNameSchema.parse(body)
 
     // Update the user.

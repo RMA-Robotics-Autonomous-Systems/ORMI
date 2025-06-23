@@ -32,7 +32,7 @@ export class RestBagClient {
             throw new Error(`Failed to fetch bags: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
     
     /**
@@ -45,7 +45,7 @@ export class RestBagClient {
             throw new Error(`Failed to fetch bag "${name}": ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
     
     /**
@@ -60,7 +60,7 @@ export class RestBagClient {
             throw new Error(`Failed to delete bag "${name}": ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
     
     /**
@@ -100,7 +100,7 @@ export class RestBagClient {
             throw new Error(`Failed to start recording: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -121,7 +121,7 @@ export class RestBagClient {
             throw new Error(`Failed to stop recording: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -134,7 +134,7 @@ export class RestBagClient {
             throw new Error(`Failed to fetch recordings: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -147,7 +147,7 @@ export class RestBagClient {
             throw new Error(`Failed to fetch recording: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -166,7 +166,7 @@ export class RestBagClient {
             throw new Error(`Failed to start playback: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -181,7 +181,7 @@ export class RestBagClient {
             throw new Error(`Failed to pause playback: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -196,7 +196,7 @@ export class RestBagClient {
             throw new Error(`Failed to resume playback: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -211,7 +211,7 @@ export class RestBagClient {
             throw new Error(`Failed to stop playback: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -224,7 +224,7 @@ export class RestBagClient {
             throw new Error(`Failed to get player status: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 
     /**
@@ -237,6 +237,6 @@ export class RestBagClient {
             throw new Error(`Failed to list players: ${response.statusText}`);
         }
         
-        return await response.json();
+        return await response.json() as any;
     }
 }

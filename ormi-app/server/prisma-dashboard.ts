@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import React from 'react';
@@ -62,7 +63,7 @@ const handleLoad = async (
             throw new Error(`Error loading dashboard: ${response.statusText}`);
         }
         
-        const workspace = await response.json();
+        const workspace = await response.json() as any;
         
         // If there's no content, use default empty dashboard
         const dashboardDefinition = workspace.content ? 

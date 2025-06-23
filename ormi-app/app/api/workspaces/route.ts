@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getServerSession } from "next-auth/next"
 import { z } from "zod"
 import { NextRequest } from "next/server"
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the request body and validate it
-    const body = await req.json()
+    const body = await req.json() as any;
     const payload = createWorkspaceSchema.parse(body)
 
     // Verify the userId in the request matches the authenticated user

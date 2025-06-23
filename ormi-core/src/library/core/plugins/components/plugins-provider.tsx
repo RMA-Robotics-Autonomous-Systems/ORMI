@@ -18,7 +18,7 @@ const PluginsProvider = (props: PluginsProviderProps) => {
 
     const { children, PluginsInfo } = props;
 
-    const pluginsManagerRef = useRef<PluginsManager>(null);
+    const pluginsManagerRef = useRef<PluginsManager | null>(null);
 
     const [initialized, setInitialized] = React.useState(false);
 

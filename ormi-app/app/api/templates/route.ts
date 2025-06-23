@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getServerSession } from "next-auth/next"
 import { NextRequest } from "next/server"
 
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
         return new Response(null, { status: 401 })
     }
 
-    const body = await req.json()
+    const body = await req.json() as any;
 
     
     const templateWidget = await db.templateWidget.create({

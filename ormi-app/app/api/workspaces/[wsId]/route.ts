@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getServerSession } from "next-auth/next"
 import { NextRequest } from "next/server"
 
@@ -59,7 +60,7 @@ export async function PATCH(
         }
         
         // Parse request body
-        const body = await req.json();
+        const body = await req.json() as any;
         
         // Validate workspace ID
         const workspaceId = parseInt(wsId);

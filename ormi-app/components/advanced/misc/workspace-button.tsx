@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import * as React from "react"
@@ -53,7 +54,7 @@ export function CreateWSButton({
                 throw new Error("Please contact ORMI admin.")
             }
 
-            const workspace = await response.json()
+            const workspace = await response.json() as any
             setOpen(false)
             router.refresh()
             router.push(`/dashboard/ws/${workspace.id}`)

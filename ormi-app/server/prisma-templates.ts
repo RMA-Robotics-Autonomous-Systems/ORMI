@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { Template } from 'ormi-core/templates';
@@ -50,7 +51,7 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
             throw new Error(`Error loading templates: ${response.statusText}`);
         }
         
-        const data = await response.json(); 
+        const data = await response.json() as any; 
 
         const templates = new Map<string, Template>();
         
