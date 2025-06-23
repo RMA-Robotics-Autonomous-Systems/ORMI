@@ -1,5 +1,9 @@
 #!/bin/bash
 
+echo "Cleaning bun cache..."
+bun pm cache rm
+check_status
+
 # Function to check the exit status of the last command
 check_status() {
     if [ $? -ne 0 ]; then
@@ -49,19 +53,9 @@ if [ -f "ormi-core/package.json" ]; then
     # Change to the directory
     cd "ormi-core" || exit 1 # Exit if cd fails
 
-    # Run bun install and build
-    echo "Installing dependencies in ormi-core..."
-    bun i
-    check_status
-
-    echo
+    # Run bun build
     echo "Building ormi-core..."
     bun run build
-    check_status
-
-    echo
-    echo "Linking ormi-core..."
-    bun link
     check_status
 
     # Return to the original directory
@@ -91,19 +85,9 @@ for dir in */; do
             # Change to the directory
             cd "$dir" || exit 1 # Exit if cd fails
 
-            # Run bun install and build
-            echo "Installing dependencies in $dir..."
-            bun i
-            check_status
-
-            echo
+            # Run bun build
             echo "Building $dir..."
             bun run build
-            check_status
-
-            echo
-            echo "Linking $dir..."
-            bun link
             check_status
 
             # Return to the original directory
