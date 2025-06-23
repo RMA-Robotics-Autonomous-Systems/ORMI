@@ -14,7 +14,7 @@
     "jsx": "preserve",
     "incremental": true,
     "declaration": true,
-    "emitDeclarationOnly": true,
+    "emitDeclarationOnly": false,
     "outDir": "./dist/types",
     "plugins": [
       {
