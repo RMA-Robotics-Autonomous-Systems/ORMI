@@ -1,9 +1,5 @@
 #!/bin/bash
 
-echo "Cleaning bun cache..."
-bun pm cache rm
-check_status
-
 # Function to check the exit status of the last command
 check_status() {
     if [ $? -ne 0 ]; then
@@ -12,175 +8,78 @@ check_status() {
     fi
 }
 
-# Initialize build status tracking
-packages=()
-success_count=0
-total_count=0
-
-# Count the total number of packages before starting
-for dir in */; do
-    dir=${dir%/}
-    if [ "$dir" != "ormi-app" ] && [ "$dir" != "ormi-core" ]; then
-        if [ -f "$dir/package.json" ]; then
-            ((total_count++))
-        fi
+# Function to build a package
+build_package() {
+    local package_dir=$1
+    local message=$2
+    if [ -f "$package_dir/package.json" ]; then
+        clear
+        echo
+        echo " ===== $message Building $package_dir ===== "
+        echo " ================================================= "
+        echo
+        echo "Found package.json in $package_dir"
+        cd "$package_dir" || exit 1
+        echo "Building $package_dir..."
+        bun run build
+        check_status
+        cd .. || exit 1
+        echo
+        echo "Completed processing $package_dir"
+        echo " ================================================= "
+        sleep 2
+    else
+        echo "Warning: package.json not found in $package_dir. Skipping."
     fi
-done
-
-# Make entrypoint script executable if it exists
-if [ -f "entrypoint.sh" ]; then
-    echo "Making entrypoint.sh executable..."
-    chmod +x entrypoint.sh
-    check_status
-fi
-
-clear
-echo
-echo " ===== ORMI Package Builder ====="
-echo " ===================================="
-echo
-
-# First process ormi-core if it exists
-if [ -f "ormi-core/package.json" ]; then
-    clear
-    echo
-    echo " ===== Building ormi-core ====="
-    echo " ===================================="
-    echo
-
-    echo "Found package.json in ormi-core"
-
-    # Change to the directory
-    cd "ormi-core" || exit 1 # Exit if cd fails
-
-    # Run bun build
-    echo "Building ormi-core..."
-    bun run build
-    check_status
-
-    # Return to the original directory
-    cd .. || exit 1 # Exit if cd fails
-
-    echo
-    echo "Completed processing ormi-core"
-    echo " ===================================="
-    sleep 2
-fi
-
-# Loop through all directories in the current folder except ormi-app and ormi-core
-for dir in */; do
-    dir=${dir%/}
-    if [ "$dir" != "ormi-app" ] && [ "$dir" != "ormi-core" ]; then
-        # Check if the directory contains a package.json file
-        if [ -f "$dir/package.json" ]; then
-            ((success_count++))
-            clear
-            echo
-            echo " ===== Building $dir (${success_count}/${total_count}) ====="
-            echo " ===================================="
-            echo
-
-            echo "Found package.json in $dir"
-
-            # Change to the directory
-            cd "$dir" || exit 1 # Exit if cd fails
-
-            # Run bun build
-            echo "Building $dir..."
-            bun run build
-            check_status
-
-            # Return to the original directory
-            cd .. || exit 1 # Exit if cd fails
-
-            echo
-            echo "Completed processing $dir"
-            packages+=("$dir")
-            echo " ===================================="
-            sleep 2
-        fi
-    fi
-done
-
-# Function to create properly padded table rows
-print_table_row() {
-    local content="$1"
-    local padding="                                   "
-    echo " │ ${content}${padding:${#content}}"
 }
 
-# Display build summary table before building ormi-app
+echo "Cleaning bun cache..."
+bun pm cache rm
+check_status
+
+# Make entrypoint scripts executable if they exist
+if [ -f "ormi_entrypoint.sh" ]; then
+    chmod +x ormi_entrypoint.sh
+fi
+if [ -f "ros_entrypoint.sh" ]; then
+    chmod +x ros_entrypoint.sh
+fi
+
 clear
 echo
-echo " ┌───────────────────────────────────┐"
-echo " │      Build Summary                │"
-echo " ├───────────────────────────────────┤"
-printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
-echo " └───────────────────────────────────┘"
+echo " ===== ORMI Monorepo Builder ===== "
+echo " ================================= "
 echo
-echo " Package Status:"
-echo " ┌───────────────────────────────────┐"
-for pkg in "${packages[@]}"; do
-    printf " │ %-25s ✓     │\n" "$pkg"
+
+# 1. Build ormi-components
+build_package "ormi-components" "Step 1/4"
+
+# 2. Build ormi-core
+build_package "ormi-core" "Step 2/4"
+
+# 3. Build all other packages
+other_packages=()
+for dir in */; do
+    dir=${dir%/}
+    if [[ -d "$dir" && "$dir" != "ormi-app" && "$dir" != "ormi-core" && "$dir" != "ormi-components" && "$dir" != "postgres" && -f "$dir/package.json" ]]; then
+        other_packages+=("$dir")
+    fi
 done
-echo " └───────────────────────────────────┘"
+
+total_other=${#other_packages[@]}
 echo
+echo " ===== Step 3/4 Building ${total_other} other package(s) ===== "
+echo " ============================================================== "
+echo
+count=0
+for package in "${other_packages[@]}"; do
+    ((count++))
+    build_package "$package" "Step 3/4 (${count}/${total_other})"
+done
 
-# Finally process ormi-app if it exists
-if [ -f "ormi-app/package.json" ]; then
-    echo
-    echo " ===== Building ormi-app ====="
-    echo " ===================================="
-    echo
-
-    echo "Found package.json in ormi-app"
-
-    # Change to the directory
-    cd "ormi-app" || exit 1 # Exit if cd fails
-
-    # Run bun install and build
-    echo "Installing dependencies in ormi-app..."
-    bun i
-    check_status
-
-    # Run the DB migration script
-    echo
-    echo "Generating database schema..."
-    bun run db-generate
-    # check_status
-    # echo "Migrating the database..."
-    # bun run db-migrate-dev
-    # check_status
-
-    echo
-    echo "Building ormi-app..."
-    bun run build
-    check_status
-
-    # Return to the original directory
-    cd .. || exit 1 # Exit if cd fails
-
-    echo
-    echo "Completed processing ormi-app"
-    echo " ===================================="
-fi
+# 4. Build ormi-app
+build_package "ormi-app" "Step 4/4"
 
 echo
-echo " ┌───────────────────────────────────┐"
-echo " │      Final Build Summary          │"
-echo " ├───────────────────────────────────┤"
-printf " │ Packages built: %-17s │\n" "$success_count/$total_count"
-echo " └───────────────────────────────────┘"
+echo " ===== Build process completed successfully! ===== "
 echo
-echo " Package Status:"
-echo " ┌───────────────────────────────────┐"
-if [ ${#packages[@]} -eq 0 ]; then
-    echo " │ No packages were built            │"
-else
-    for pkg in "${packages[@]}"; do
-        printf " │ %-25s ✓     │\n" "$pkg"
-    done
-fi
-echo " └───────────────────────────────────┘"
-echo
-echo "Build script completed successfully."
