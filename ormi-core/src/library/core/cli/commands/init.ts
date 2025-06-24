@@ -53,7 +53,7 @@ function get_plugins(): string[] {
         
         try {
             const pckg = JSON.parse(fs.readFileSync(package_json, "utf-8"));
-            if (pckg["ormi_plugin"] !== undefined) {
+            if (pckg["ormi_plugin"] !== undefined && pckg["ormi_plugin"] === true) {
                 // process.stdout.write(`\n${chalk.green('✓')} Found ORMI plugin: ${chalk.bold(dir)}`);
                 return true;
             }
