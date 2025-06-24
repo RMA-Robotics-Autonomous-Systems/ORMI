@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink, navigationMenuTriggerStyle } from "../../ui/navigation-menu";
 import { useNavbar } from "./navbar-provider";
 import { Cross1Icon, HamburgerMenuIcon } from "@radix-ui/react-icons";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink, navigationMenuTriggerStyle, Button, Popover, PopoverContent, PopoverTrigger } from "ormi-components";
 import { ModeToggle } from "../theme/theme-toggle";
 
 const NavBar = () => {
