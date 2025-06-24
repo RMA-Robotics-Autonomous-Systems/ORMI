@@ -1,6 +1,3 @@
-
-
-
 "use client"
 /*
     The goal of this component is to provide a context for the navbar, so that the navbar can be controlled from anywhere in the app.
