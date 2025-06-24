@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { redirect } from "next/navigation"
 
 import { authOptions } from "@/server/auth"
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
         redirect(authOptions?.pages?.signIn || "/signin")
     }
 
-    const workspaces = await db.workspace.findMany({
+    const workspaces: any = await db.workspace.findMany({
         where: {
             createdById: user.id,
         },
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
             <div>
                 {workspaces?.length ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        {workspaces.map((workspace) => (
+                        {workspaces.map((workspace: any) => (
                             <WorkspaceItem key={workspace.id} workspace={workspace} />
                         ))}
                     </div>

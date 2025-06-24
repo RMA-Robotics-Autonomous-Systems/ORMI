@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 /*
     Provider that creates a datasets with random data
@@ -515,7 +516,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             }
 
                             let schemaPromise: Promise<string>;
-                            let schemaTimeout: number | null = null;
+                            let schemaTimeout: number | null | NodeJS.Timeout = null;
 
                             const existingChannelWithSchema = Array.from(channelsRef.current.values()).find(
                                 ch => ch.schemaName === rawType && ch.schema

@@ -83,7 +83,7 @@ export function CycleControl(props: CycleControlData) {
         }
 
         // Only set up interval if publishOnLoop is true
-        let publishInterval: number | null = null;
+        let publishInterval: number | null | NodeJS.Timeout = null;
         if (props.publishOnLoop) {
             publishInterval = setInterval(cycleFunction, publish_period_ms);
         } else {

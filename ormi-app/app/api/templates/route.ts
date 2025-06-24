@@ -24,7 +24,7 @@ export async function GET() {
         // convert the templates to the format used in the template provider
         const templatesMap = new Map<string, Template>()
 
-        templates.forEach((template) => {
+        templates.forEach((template:any) => {
             templatesMap.set(template.id.toString(), {
                 name: template.name,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
