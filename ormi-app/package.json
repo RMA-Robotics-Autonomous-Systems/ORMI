@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run clean && ormi-plugins init ormi-plugins.ts && next dev --turbopack",
-    "build": "bun run clean && ormi-plugins init ormi-plugins.ts && next build",
+    "build": "bun run clean && ormi-plugins init ormi-plugins.ts && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "clean": "rm -rf .next && rm -rf node_modules && bun i",
@@ -45,6 +45,7 @@
     "ormi-tello": "link:ormi-tello",
     "prisma": "^6.5.0",
     "react": "^18.3.1",
+    "react-compiler-runtime": "^19.1.0-rc.2",
     "react-dom": "^18.3.1",
     "react-grid-layout": "^1.5.1",
     "react-hook-form": "^7.55.0",
@@ -60,13 +61,6 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "15.0.2",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.2"
-  },
-  "resolutions": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@types/react": "^18.3.20",
-    "@types/react-dom": "^18.3.6",
     "typescript": "^5.8.2"
   }
 }
