@@ -22,11 +22,7 @@ export function CreateWSButton({
 
     function handleOpenDialog() {
         if (!session?.user?.id) {
-            return toast({
-                title: "Authentication required",
-                description: "You must be signed in to create a workspace.",
-                variant: "destructive",
-            })
+            return toast("You must be signed in to create a workspace.")
         }
         setOpen(true)
     }
@@ -59,11 +55,7 @@ export function CreateWSButton({
             router.refresh()
             router.push(`/dashboard/ws/${workspace.id}`)
         } catch (error) {
-            toast({
-                title: "Unable to create workspace",
-                description: error instanceof Error ? error.message : "An unknown error occurred",
-                variant: "destructive",
-            })
+            toast(error instanceof Error ? error.message : "An unknown error occurred")
         } finally {
             setIsLoading(false)
         }

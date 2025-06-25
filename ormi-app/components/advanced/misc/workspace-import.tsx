@@ -19,28 +19,16 @@ async function importWorkspace(file: File, wsId: string) {
     })
     const parsedContent = JSON.parse(fileContent) as any;
     if (!parsedContent) {
-        toast({
-            title: "Invalid file",
-            description: "Please select a valid JSON file.",
-            variant: "destructive",
-        })
+        toast("Please select a valid JSON file.")
         return false
     }
 
     if (await handleSave(parsedContent.content, wsId)) {
-        toast({
-            title: "Imported",
-            description: "Your workspace was imported successfully.",
-            variant: "default",
-        })
+        toast("Your workspace was imported successfully.")
         return true
     }
 
-    toast({
-        title: "Error",
-        description: "Failed to import workspace. Please try again.",
-        variant: "destructive",
-    })
+    toast("Failed to import workspace. Please try again.")
     return false
 }
 
@@ -52,11 +40,7 @@ export default function WorkspaceImport(props: WorkspaceImportProps) {
         e.preventDefault()
 
         if (!selectedFile) {
-            toast({
-                title: "No file selected",
-                description: "Please select a file to import.",
-                variant: "destructive",
-            })
+            toast("Please select a file to import.")
             return
         }
 
@@ -94,23 +78,18 @@ export default function WorkspaceImport(props: WorkspaceImportProps) {
                                 if (!file) return
 
                                 if (file.type !== "application/json") {
-                                    toast({
-                                        title: "Invalid file type",
-                                        description: "Please select a JSON file to import.",
-                                        variant: "destructive",
-                                    })
+                                    toast("Please select a JSON file to import.")
                                     return
                                 }
                                 setSelectedFile(file)
                             }}
-                            className="file-input file-input-bordered w-full max-w-xs"
                         />
                     </div>
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                            Cancel
-                        </Button>
                         <Button type="submit">Import</Button>
+                        <DialogTrigger asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogTrigger>
                     </DialogFooter>
                 </form>
             </DialogContent>

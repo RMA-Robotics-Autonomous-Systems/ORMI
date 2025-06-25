@@ -49,19 +49,12 @@ export function RegisterForm({
         setIsLoading(false)
 
         if (!signInResult?.ok) {
-            return toast({
-                title: "Something went wrong.",
-                description: "Your sign in request failed. Please try again.",
-                variant: "destructive",
-            })
+            return toast("Your sign in request failed. Please try again.")
         }
 
         router.push(callbackUrl)
 
-        return toast({
-            title: "Logged in successfully",
-            description: "Welcome back to your account.",
-        })
+        return toast("Logged in successfully")
     }
 
     return (

@@ -35,22 +35,14 @@ async function deleteWorkspace(wsId: string) {
         })
 
         if (!response?.ok) {
-            toast({
-                title: "Something went wrong.",
-                description: "Your workspace was not deleted. Please try again.",
-                variant: "destructive",
-            })
+            toast("Your workspace was not deleted. Please try again.")
             return false
         }
 
         return true
     } catch (error) {
         console.error("Error deleting workspace:", error)
-        toast({
-            title: "Error",
-            description: "Failed to delete workspace. Please try again.",
-            variant: "destructive",
-        })
+        toast("Failed to delete workspace. Please try again.")
         return false
     }
 }
@@ -62,21 +54,13 @@ async function exportWorkspace(wsId: string) {
     })
 
     if (!response.ok) {
-        toast({
-            title: "Something went wrong.",
-            description: "Your workspace was not exported. Please try again.",
-            variant: "destructive",
-        })
+        toast("Your workspace was not exported. Please try again.")
         return false
     }
 
     const workspace = await response.json() as any
     if (!workspace) {
-        toast({
-            title: "Error",
-            description: "Failed to export workspace. Please try again.",
-            variant: "destructive",
-        })
+        toast("Failed to export workspace. Please try again.")
         return false
     }
 
@@ -98,11 +82,7 @@ async function exportWorkspace(wsId: string) {
 
     // revoke the object url
     URL.revokeObjectURL(url)
-    toast({
-        title: "Exported",
-        description: "Your workspace was exported successfully.",
-        variant: "default",
-    })
+    toast("Your workspace was exported successfully.")
     return true
 }
 
