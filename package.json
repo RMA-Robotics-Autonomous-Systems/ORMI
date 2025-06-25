@@ -2,20 +2,13 @@
   "name": "ormi-monorepo",
   "private": true,
   "scripts": {
-    "build": "bash build.sh",
+    "clean": "rm -rf node_modules package-lock.json bun.lock* .next && rm -rf ormi-*/node_modules ormi-*/dist ormi-*/bun.lock*",
+    "build": "bun run clean && bash build.sh",
+    "quick-build": "bash build.sh",
     "build:win": "build.bat",
-    "build:components": "bun --filter ormi-components run build",
     "dev": "bun --filter ormi-app run dev"
   },
   "workspaces": [
-    "ormi-app",
-    "ormi-components",
-    "ormi-core",
-    "ormi-fligth-indicator",
-    "ormi-random",
-    "ormi-ros-2",
-    "ormi-ros-2-foxglove",
-    "ormi-standart-widgets",
-    "ormi-tello"
+    "ormi-*"
   ]
 }
