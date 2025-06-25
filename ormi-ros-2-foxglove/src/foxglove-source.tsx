@@ -204,11 +204,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 } catch (error) {
                                     console.warn("Subscribe error:", error);
                                     if (props.toasts) {
-                                        toast({
-                                            title: "Error",
-                                            description: "Failed to subscribe to transform tree topic",
-                                            variant: "destructive",
-                                        });
+                                        toast("Error: Failed to subscribe to transform tree topic");
                                     }
                                 }
                             });
@@ -349,11 +345,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     }).catch(error => {
                         console.warn("Subscribe error:", error);
                         if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: "Failed to subscribe to topic",
-                                variant: "destructive",
-                            });
+                            toast("Error: Failed to subscribe to topic " + topic.topic);
                         }
                     });
                 },
@@ -379,10 +371,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                             pendingSubscriptionsRef.current.delete(pendingId);
 
                             if (props.toasts) {
-                                toast({
-                                    title: "Pending Subscription Canceled",
-                                    description: `Canceled subscription to pending topic ${topic.topic}`,
-                                });
+                                toast("Pending Subscription Canceled: " + topic.topic);
                             }
                             return;
                         } else {
@@ -394,10 +383,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 pendingSubscriptionsRef.current.delete(pendingId);
 
                                 if (props.toasts) {
-                                    toast({
-                                        title: "Pending Subscription Canceled",
-                                        description: `Canceled subscription to pending topic ${topic.topic}`,
-                                    });
+                                    toast("Pending Subscription Canceled: " + topic.topic);
                                 }
                             }
                             return;
@@ -437,11 +423,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     }).catch(error => {
                         console.warn("Unsubscribe error:", error);
                         if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: "Failed to unsubscribe from topic",
-                                variant: "destructive",
-                            });
+                            toast("Error: Failed to unsubscribe from topic " + topic.topic);
                         }
                     });
                 },
@@ -614,11 +596,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                         } catch (error) {
                             console.error(`Advertise for ${topicName}: Error during operation:`, error);
                             if (props.toasts) {
-                                toast({
-                                    title: "Error",
-                                    description: `Failed to advertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
-                                    variant: "destructive",
-                                });
+                                toast("Error: Failed to advertise topic " + topicName + ": " + (error instanceof Error ? error.message : String(error)));
                             }
                             return false;
                         } finally {
@@ -685,11 +663,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     } catch (error) {
                         console.error(`Unadvertise for ${topicName}: Error:`, error);
                         if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: `Failed to unadvertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
-                                variant: "destructive",
-                            });
+                            toast("Error: Failed to unadvertise topic " + topicName + ": " + (error instanceof Error ? error.message : String(error)));
                         }
                     }
                 },
@@ -901,10 +875,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     });
 
                     if (props.toasts) {
-                        toast({
-                            title: "Pending Subscription",
-                            description: `Waiting for topic ${topic} to become available`,
-                        });
+                        toast("Pending Subscription: " + topic);
                     }
                 }
             });
@@ -962,10 +933,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                                 }
 
                                 if (props.toasts) {
-                                    toast({
-                                        title: "Subscription Resolved",
-                                        description: `Successfully subscribed to topic ${pending.topic}`,
-                                    });
+                                    toast(`Subscribed to pending topic: ${pending.topic}`);
                                 }
                             }
 

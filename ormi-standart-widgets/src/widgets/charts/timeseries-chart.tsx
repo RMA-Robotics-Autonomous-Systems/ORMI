@@ -230,18 +230,7 @@ function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: b
 }
 
 function showErrorToast(notFoundTopics: string[]) {
-    toast({
-        title: 'Error',
-        description: (
-            <div>
-                <p>Some topics were not found:</p>
-                <ul>
-                    {notFoundTopics.map(topic => <li key={topic}>{topic}</li>)}
-                </ul>
-            </div>
-        ),
-        variant: 'destructive'
-    });
+    toast("Error: The following topics were not found: " + notFoundTopics.join(", "));
 }
 
 

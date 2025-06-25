@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react"; // Import useCallback
-import { style } from "ormi-core/jsonforms";
+import { keyStyles as style, KeyControlType } from "ormi-components";
 import { GaugeIcon, KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { DigitalInput, DigitalComponent } from "ormi-components";
-import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
+import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { Movement } from "ormi-core/types";
@@ -87,11 +87,7 @@ export function KeyBoardControl(props: KeyboardControlData) {
         if (!publisher) {
             const timer = setTimeout(() => {
                 if (!publishers.get(selectedTopic.topic)) {
-                    toast({
-                        title: 'Error',
-                        description: `Publisher for topic ${selectedTopic.topic} not found`,
-                        variant: 'destructive',
-                    });
+                    toast.error(`KeyboardControl: Publisher for topic ${selectedTopic.topic} not found. Please check your configuration.`);
                 }
             }, 1000);
             return () => clearTimeout(timer);

@@ -15,6 +15,7 @@ build_package() {
     if [ -f "$package_dir/package.json" ]; then
         clear
         echo
+        echo " ================================================= "
         echo " ===== $message Building $package_dir ===== "
         echo " ================================================= "
         echo

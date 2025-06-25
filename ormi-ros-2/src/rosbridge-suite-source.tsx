@@ -195,10 +195,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                     ros.on('connection', () => {
 
                         if (props.toasts) {
-                            toast({
-                                title: `Connected to ${props.title}`,
-                                description: `Connection established with ${props.url}`,
-                            });
+                            toast("Connecting to ROSBridge Suite at " + props.url);
                         }
 
 
@@ -208,11 +205,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
 
                     ros.on('error', (error) => {
                         if (props.toasts) {
-                            toast({
-                                title: `Error in ${props.title}`,
-                                description: `Failed to connect to ${props.url}`,
-                                variant: 'destructive'
-                            });
+                            toast("Error connecting to ROSBridge Suite: " + error.message);
                         }
                         setConnected(false);
                         reject(error);
@@ -221,10 +214,9 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                     ros.on('close', () => {
 
                         if (props.toasts) {
-                            toast({
-                                title: `Disconnected from ${props.title}`,
-                            });
+                            toast("Disconnected from ROSBridge Suite: " + props.url);
                         }
+
                         setTimeout(() => {
                             setRetry(retry + 1);
                         }, props.reconnectTimeout * 1000);
@@ -307,11 +299,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                         subscribersCountRef.current.set(topic.topic, 1);
                     } catch (error) {
                         if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: "Failed to subscribe to topic",
-                                variant: "destructive",
-                            });
+                            toast("Error subscribing to topic " + topic.topic + ": " + (error instanceof Error ? error.message : String(error)));
                         }
                     }
                 },
@@ -343,11 +331,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                     } catch (error) {
                         console.error("Unsubscribe error:", error);
                         if (props.toasts) {
-                            toast({
-                                title: "Error",
-                                description: "Failed to unsubscribe from topic",
-                                variant: "destructive",
-                            });
+                            toast('Error unsubscribing from topic ' + topic.topic + ': ' + (error instanceof Error ? error.message : String(error)));
                         }
                     }
                 },
@@ -463,11 +447,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                                 console.log(`ROS2 Advertise for ${topicName}: Cleaned up publisher state due to error.`);
                             }
                             if (props.toasts) {
-                                toast({
-                                    title: "Error",
-                                    description: `Failed to advertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
-                                    variant: "destructive",
-                                });
+                                toast("Error advertising topic " + topicName + ": " + (error instanceof Error ? error.message : String(error)));
                             }
                             return false; // Indicate failure
                         } finally {
@@ -562,11 +542,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
                         } catch (error) {
                             console.error(`ROS2 Unadvertise for ${topicName}: Error during operation:`, error);
                             if (props.toasts) {
-                                toast({
-                                    title: "Error",
-                                    description: `Failed to unadvertise topic ${topicName}: ${error instanceof Error ? error.message : String(error)}`,
-                                    variant: "destructive",
-                                });
+                                toast("Error unadvertising topic " + topicName + ": " + (error instanceof Error ? error.message : String(error)));
                             }
                             // Don't re-throw, just log
                         } finally {

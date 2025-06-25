@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { KeyControlType, style } from "ormi-core/jsonforms";
-import { GamepadIcon, KeyboardIcon, LockIcon, UnlockIcon, GaugeIcon } from "lucide-react";
+import { keyStyles as style, KeyControlType, axisControlType } from "ormi-components";
+
+import { GamepadIcon, LockIcon, UnlockIcon, GaugeIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { AsyncTopicControlType, axisControlType } from "ormi-core/jsonforms";
+import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { Movement } from "ormi-core/types";
@@ -85,11 +86,7 @@ export function JoypadControls(props: JoypadControlsProps) {
         if (!publisher) {
             const timer = setTimeout(() => {
                 if (!publishers.get(selectedTopic.topic)) {
-                    toast({
-                        title: 'Error',
-                        description: `Publisher for topic ${selectedTopic.topic} not found`,
-                        variant: 'destructive',
-                    });
+                    toast.error(`JoypadControls: Topic "${selectedTopic.topic}" not found in publishers.`);
                 }
             }, 1000);
             return () => clearTimeout(timer);

@@ -1,12 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from "react"; // Import useCallback
-import { style } from "ormi-core/jsonforms";
-import { ConciergeBellIcon, GaugeIcon, KeyboardIcon, LockIcon, ToggleLeftIcon, ToggleRightIcon, UnlockIcon } from "lucide-react";
+import { KeyControlType } from "ormi-components";
+import { ConciergeBellIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { DigitalInput, DigitalComponent } from "ormi-components";
-import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
+import { AsyncTopicControlType, } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
-import { Movement } from "ormi-core/types";
 import { toast } from "ormi-components";
 
 interface BtnControlData {
@@ -24,11 +22,7 @@ export function BtnControl(props: BtnControlData) {
     const handletoggle = () => {
         const publisher = publishers.get(props.topic.topic);
         if (!publisher) {
-            toast({
-                title: 'Error',
-                description: `Publisher for topic ${props.topic.topic} not found`,
-                variant: 'destructive',
-            });
+            toast("Error: Publisher not found for topic " + props.topic.topic);
             return;
         }
 

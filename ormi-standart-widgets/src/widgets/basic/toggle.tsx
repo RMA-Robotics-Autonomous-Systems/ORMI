@@ -1,12 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from "react"; // Import useCallback
-import { style } from "ormi-core/jsonforms";
-import { GaugeIcon, KeyboardIcon, LockIcon, ToggleLeftIcon, ToggleRightIcon, UnlockIcon } from "lucide-react";
+import { useEffect, useState } from "react"; // Import useCallback
+import { keyStyles as style, KeyControlType } from "ormi-components";
+import { ToggleLeftIcon, ToggleRightIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { DigitalInput, DigitalComponent } from "ormi-components";
-import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
+import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
-import { Movement } from "ormi-core/types";
 import { toast } from "ormi-components";
 
 interface ToggleControlData {
@@ -44,11 +43,7 @@ export function ToggleControl(props: ToggleControlData) {
         if (!publisher) {
             const timer = setTimeout(() => {
                 if (!publishers.get(selectedTopic.topic)) {
-                    toast({
-                        title: 'Error',
-                        description: `Publisher for topic ${selectedTopic.topic} not found`,
-                        variant: 'destructive',
-                    });
+                    toast("Error: Publisher not found for topic " + selectedTopic.topic);
                 }
             }, 1000);
             return () => clearTimeout(timer);
