@@ -22,6 +22,8 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
+'use client';
+
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import React from 'react';

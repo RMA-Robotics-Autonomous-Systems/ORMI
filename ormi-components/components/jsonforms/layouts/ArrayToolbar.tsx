@@ -1,4 +1,4 @@
-
+'use client';
 import React from 'react';
 import { ArrayTranslations } from '@jsonforms/core';
 import { Button } from '@/components/ui/button';

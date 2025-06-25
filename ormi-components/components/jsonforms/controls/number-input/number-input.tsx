@@ -1,3 +1,5 @@
+"use client";
+
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isNumberControl } from '@jsonforms/core';
 import { Label } from '@/components/ui/label';

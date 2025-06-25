@@ -1,10 +1,11 @@
+"use client";
+
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { ControlProps, rankWith, isControl, and, optionIs } from '@jsonforms/core';
+import { ControlProps, rankWith, optionIs } from '@jsonforms/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import styles from "../../../../src/styles/key.module.css";
-import React from 'react';
 
 
 const ColorSelectControl = (props: ControlProps) => {

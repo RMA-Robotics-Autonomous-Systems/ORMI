@@ -1,7 +1,7 @@
+"use client";
+
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, uiTypeIs, ControlElement } from '@jsonforms/core';
-
-import React from 'react';
 
 import { Label } from '@/components/ui/label';
 

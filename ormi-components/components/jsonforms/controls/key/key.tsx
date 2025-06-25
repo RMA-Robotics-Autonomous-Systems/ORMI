@@ -1,3 +1,5 @@
+"use client";
+
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, uiTypeIs, ControlElement } from '@jsonforms/core';
 

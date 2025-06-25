@@ -1,3 +1,4 @@
+'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/rules-of-hooks */
 import merge from 'lodash/merge';

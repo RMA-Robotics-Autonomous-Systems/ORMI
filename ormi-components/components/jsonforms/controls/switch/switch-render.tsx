@@ -1,3 +1,4 @@
+'use client';
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isBooleanControl } from '@jsonforms/core';
 import { Switch } from '@/components/ui/switch';
