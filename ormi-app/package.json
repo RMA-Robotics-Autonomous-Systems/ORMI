@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run clean && ormi-plugins init ormi-plugins.ts && next dev --turbopack",
-    "build": "bun run clean && ormi-plugins init ormi-plugins.ts && prisma generate && next build",
+    "build": "bun run clean && ormi-plugins init ormi-plugins.ts && prisma generate && bun run db-migrate-deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "clean": "rm -rf .next && rm -rf node_modules && bun i",
@@ -31,7 +31,7 @@
     "clsx": "^2.1.1",
     "dotenv-cli": "^8.0.0",
     "lucide-react": "^0.517.0",
-    "next": "^15.2.4",
+    "next": "15.3.4",
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.6",
     "nodemailer": "^6.10.0",
