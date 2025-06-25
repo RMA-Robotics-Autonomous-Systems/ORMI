@@ -6,8 +6,8 @@ import { AsyncTopicControlType, axisControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { Movement } from "ormi-core/types";
-import { AnalogComponent, DigitalInput, DigitalComponent, AnalogInput } from "ormi-core/components";
-import { toast } from "ormi-core/components";
+import { AnalogComponent, DigitalInput, DigitalComponent, AnalogInput } from "ormi-components";
+import { toast } from "ormi-components";
 
 interface JoypadControlsProps {
     title: string;

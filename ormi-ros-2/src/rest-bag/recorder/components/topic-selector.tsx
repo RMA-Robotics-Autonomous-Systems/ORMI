@@ -6,7 +6,7 @@ import {
     PopoverContent,
     PopoverTrigger,
     Input
-} from "ormi-core/components";
+} from "ormi-components";
 import { ChevronsUpDown, CheckIcon, TrashIcon } from "lucide-react";
 import { FieldType, TopicSelectorProps } from "../types";
 import { Topic } from "../../recording-types";

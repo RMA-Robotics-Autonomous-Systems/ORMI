@@ -7,9 +7,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/library/components/ui/dialog"
+} from "ormi-components"
 
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 
 
 import {
@@ -22,7 +22,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
 import { CheckIcon } from "@radix-ui/react-icons";
-import { toast } from "@/library/hooks/use-toast";
+import { toast } from "ormi-components";
 
 // Import the custom renderers
 import { DatasourceDefinition, DatasourceProviderSettings } from "../datasource-interface";
@@ -33,8 +33,8 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuTrigger,
-} from "@/library/components/ui/context-menu"
-import { shadcnRenderer, shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
+} from "ormi-components"
+import { shadcnRenderer, shadcnCells } from "ormi-components";
 
 
 
@@ -56,12 +56,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
         if (errors && errors.length > 0) {
 
             for (const error of errors) {
-                toast({
-                    title: "Error",
-                    description: error.message,
-                    variant: "destructive"
-                });
-
+                toast("Error: " + error.message);
             }
 
             return;

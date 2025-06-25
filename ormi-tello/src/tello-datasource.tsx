@@ -8,7 +8,7 @@ import { PluginAction, usePluginsManager } from 'ormi-core/plugins';
 import { PluginsHooks } from 'ormi-core/plugins';
 
 import { DatasourceTopic, SelectedTopic } from 'ormi-core/datasources';
-import { Spinner, toast } from 'ormi-core/components';
+import { Spinner, toast } from 'ormi-components';
 import { getSchemaFromStringName, IMU, Movement, Vector4 } from 'ormi-core/types';
 import { Vector3 } from 'ormi-core/types';
 import { JsonSchema } from '@jsonforms/core';

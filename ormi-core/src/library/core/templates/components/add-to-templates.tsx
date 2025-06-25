@@ -1,5 +1,5 @@
 "use client"
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 import { BookTemplateIcon } from "lucide-react";
 import {
     Dialog,
@@ -9,7 +9,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/library/components/ui/dialog";
+} from "ormi-components";
 import { useState } from "react";
 import { WidgetDefinition } from "@/library/core/widgets/widget-interface";
 import { useTemplates } from "../templates-provider";

@@ -3,8 +3,8 @@ import Image from "next/image"
 import { Workspace } from "@prisma/client"
 
 import { formatDate } from "@/lib/utils"
-import { Skeleton } from "ormi-core/components"
-import { Card, CardContent, CardFooter, CardHeader } from "ormi-core/components"
+import { Skeleton } from "ormi-components"
+import { Card, CardContent, CardFooter, CardHeader } from "ormi-components"
 import { WorkspaceOperations } from "@/components/advanced/misc/workspace-operations"
 
 interface WorkspaceItemProps {

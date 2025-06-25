@@ -4,7 +4,7 @@ import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import ROSLIB from 'roslib';
 import { usePluginsManager } from 'ormi-core/plugins';
-import { useTheme } from 'ormi-core/components';
+import { useTheme } from 'ormi-components';
 import { PluginsHooks } from 'ormi-core/plugins';
 import { Datasource } from 'ormi-core/datasources';
 import * as d3 from 'd3';

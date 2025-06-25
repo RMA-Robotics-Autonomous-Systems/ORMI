@@ -1,9 +1,10 @@
-import { cn } from "@/lib/utils"
-import { Button } from "ormi-core/components"
-import { Input } from "ormi-core/components"
-import { Label } from "ormi-core/components"
+import { cn } from "ormi-components"
+import { Button } from "ormi-components"
+import { Input } from "ormi-components"
+import { Label } from "ormi-components"
+import { toast } from "ormi-components"
+
 import Link from "next/link"
-import { toast } from "ormi-core/components"
 
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"

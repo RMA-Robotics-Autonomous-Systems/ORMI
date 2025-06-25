@@ -2,10 +2,10 @@ import { LocalDataSourcesProvider, useLocalDataSource, DatasourceTopic, Selected
 import { AsyncTopicControlType } from 'ormi-core/jsonforms';
 import { usePluginsManager, PluginsHooks } from 'ormi-core/plugins';
 import { getColorsFromString, getTransparentColorString } from 'ormi-core/utils';
-import { toast } from 'ormi-core/components';
+import { toast } from 'ormi-components';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { ChartLineIcon } from 'lucide-react';
-import { useTheme } from 'ormi-core/components';
+import { useTheme } from 'ormi-components';
 import React, { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { AlignedData } from 'uplot';

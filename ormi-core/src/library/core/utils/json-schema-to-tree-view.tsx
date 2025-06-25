@@ -1,4 +1,4 @@
-import { TreeDataItem } from "@/library/components/tree-view";
+import { TreeDataItem } from "ormi-components";
 import { JsonSchema } from "@jsonforms/core";
 
 

@@ -2,7 +2,7 @@
 import React, { JSX, useEffect, useRef } from 'react';
 import { WidgetDefinition } from "ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { useTheme } from 'ormi-core/components';
+import { useTheme } from 'ormi-components';
 import { TransformSourcesProvider, useTransformSource } from 'ormi-core/transforms';
 import { TransformTree } from 'ormi-core/types';
 import * as d3 from 'd3';

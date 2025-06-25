@@ -10,7 +10,7 @@ import { usePluginsManager } from "ormi-core/plugins";
 import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { PluginsHooks } from "ormi-core/plugins";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { Spinner } from "ormi-core/components";
+import { Spinner } from "ormi-components";
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { MapIcon } from "lucide-react";

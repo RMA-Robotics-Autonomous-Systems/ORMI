@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react"
 import { Loader2, Plus } from "lucide-react"
 
 
-import { Button, ButtonProps, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, Input, Label, toast } from "ormi-core/components"
+import { Button, ButtonProps, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, Input, Label, toast } from "ormi-components"
 
 
 type CreateWSButtonProps = ButtonProps

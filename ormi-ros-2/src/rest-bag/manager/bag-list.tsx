@@ -5,7 +5,7 @@ import { PluginsHooks, usePluginsManager } from "ormi-core/plugins"
 import { WidgetDefinition } from "ormi-core/widgets"
 import { useEffect, useState } from "react"
 // Add shadcn component imports
-import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder, Table, TableBody, TableRow, TableCell } from "ormi-core/components"
+import { Badge, Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, useButtonHolder, Table, TableBody, TableRow, TableCell } from "ormi-components"
 import { BagInfo, Duration, Timestamp } from "../bags"
 import { BagViewer } from "./bag-viewer"
 

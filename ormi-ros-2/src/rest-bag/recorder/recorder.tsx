@@ -1,6 +1,6 @@
 import { InfoIcon, SquareIcon } from "lucide-react";
 import { RecordingStatus } from "../recording-types";
-import { Badge, Button, Card, CardHeader, CardTitle, Table, TableBody, TableRow, TableCell, Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "ormi-core/components"
+import { Badge, Button, Card, CardHeader, CardTitle, Table, TableBody, TableRow, TableCell, Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "ormi-components"
 import { RestBagClient } from "../rest-bag-client";
 import { useEffect, useState, useRef } from "react";
 

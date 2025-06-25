@@ -16,7 +16,7 @@ import {
     Alert,
     AlertTitle,
     AlertDescription,
-} from 'ormi-core/components';
+} from 'ormi-components';
 import { PlusIcon, AlertCircle, CheckCircle } from "lucide-react";
 import { RecorderCreatorProps } from "./types";
 import { TopicsList } from "./components";

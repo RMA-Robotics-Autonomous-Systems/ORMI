@@ -1,5 +1,5 @@
 "use client"
-import { Button } from "@/library/components/ui/button"
+import { Button } from "ormi-components"
 import {
     Sheet,
     SheetContent,
@@ -7,14 +7,12 @@ import {
     SheetHeader,
     SheetTitle,
     SheetTrigger,
-} from "@/library/components/ui/sheet"
-import { CheckIcon, PlusIcon, TrashIcon, XIcon } from "lucide-react";
-import { ActionDialog } from "@/library/components/advanced/ActionDialog/action-dialog";
-import { Widget, WidgetDefinition } from "@/library/core/widgets/widget-interface";
+} from "ormi-components"
+import { WidgetDefinition } from "@/library/core/widgets/widget-interface";
 import { PluginsHooks } from "@/library/core/plugins/plugins-types";
 import { usePluginsManager } from "@/library/core/plugins/components/plugins-provider";
 import React from "react";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "ormi-components";
 import { TemplateComponent } from "./template";
 import { Template } from "../templates-types";
 

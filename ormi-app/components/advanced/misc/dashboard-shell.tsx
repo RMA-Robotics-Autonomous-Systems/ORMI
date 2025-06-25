@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "ormi-components"
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface DashboardShellProps extends React.HTMLAttributes<HTMLDivElement> { }

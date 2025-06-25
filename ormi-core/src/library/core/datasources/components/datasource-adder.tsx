@@ -7,9 +7,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/library/components/ui/dialog"
+} from "ormi-components"
 
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 
 
 

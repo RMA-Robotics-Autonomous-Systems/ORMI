@@ -11,9 +11,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/library/components/ui/dialog"
+} from "ormi-components"
 
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 
 
 import {
@@ -24,8 +24,8 @@ import {
 
 import React, { useEffect, useState } from 'react';
 import { JsonForms } from '@jsonforms/react';
-import { toast } from "@/library/hooks/use-toast";
-import { shadcnRenderer, shadcnCells } from "@/library/core/jsonforms/ShadcnRender";
+import { toast } from "ormi-components";
+import { shadcnRenderer, shadcnCells } from "ormi-components";
 import { CheckIcon, SettingsIcon } from "lucide-react";
 import { AddToTemplatesBtn } from "@/library/core/templates/components/add-to-templates";
 
@@ -51,12 +51,7 @@ export function WidgetCard(props: WidgetCardProps) {
         if (errors && errors.length > 0) {
 
             for (const error of errors) {
-                toast({
-                    title: "Error",
-                    description: error.message,
-                    variant: "destructive"
-                });
-
+                toast("Error: " + error.message);
             }
 
             return;

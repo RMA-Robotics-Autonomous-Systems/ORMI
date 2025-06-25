@@ -1,4 +1,4 @@
-import { TreeView, TreeDataItem, Spinner } from "ormi-core/components";
+import { TreeView, TreeDataItem, Spinner } from "ormi-components";
 import { LocalDataSourcesProvider, useLocalDataSource, DatasourceTopic, SelectedTopic } from "ormi-core/datasources";
 import { AsyncTopicControlType } from "ormi-core/jsonforms";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";

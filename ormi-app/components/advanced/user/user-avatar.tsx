@@ -1,7 +1,7 @@
 import { User } from "@prisma/client"
 import { AvatarProps } from "@radix-ui/react-avatar"
 
-import { Avatar, AvatarFallback, AvatarImage } from "ormi-core/components"
+import { Avatar, AvatarFallback, AvatarImage } from "ormi-components"
 import { User as UserProfile } from "lucide-react"
 
 interface UserAvatarProps extends AvatarProps {

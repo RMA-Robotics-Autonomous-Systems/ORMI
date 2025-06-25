@@ -1,8 +1,8 @@
 "use client"
 import Link from "next/link"
 import { siteConfig } from "@/config/site"
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "ormi-core/components";
+import { cn } from "ormi-components"
+import { buttonVariants } from "ormi-components";
 import Image from "next/image"
 import { FaGlobe, FaGoogleScholar, FaMastodon, FaYoutube } from "react-icons/fa6";
 

@@ -1,4 +1,4 @@
-import { Button, Label } from "ormi-core/components";
+import { Button, Label } from "ormi-components";
 import { PlusIcon } from "lucide-react";
 import { TopicSelector } from "./topic-selector";
 import { TopicsListProps } from "../types";

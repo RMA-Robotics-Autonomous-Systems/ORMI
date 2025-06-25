@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Button } from "ormi-core/components";
+import { Button } from "ormi-components";
 import { UploadIcon } from "lucide-react";
 import yaml from "js-yaml";
 import { MetadataUploaderProps } from "../types";

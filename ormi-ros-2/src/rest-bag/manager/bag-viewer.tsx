@@ -14,7 +14,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "ormi-core/components";
+} from "ormi-components";
 
 interface BagViewerProps {
     bag: BagInfo;

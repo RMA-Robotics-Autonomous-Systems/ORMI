@@ -7,14 +7,13 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import style from "./dashboard.module.css";
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 import { Widget, WidgetDefinition } from "@/library/core/widgets/widget-interface";
 import { WidgetCard } from "@/library/core/widgets/components/widget-card/widget-card";
-import { useNavbar } from "@/library/components/advanced/navbar/navbar-provider";
+import { useNavbar } from "ormi-components";
 import { WidgetsCombo } from "@/library/core/widgets/components/widget-combo/widget-combo";
 import { ArrowLeftFromLine, ArrowUpFromLine, BombIcon, Check, Columns3, Grid3X3, LayoutGrid, LockIcon, LockOpenIcon, Rows3, Save, Square, XIcon } from "lucide-react";
-import { ButtonHolderProvider } from "@/library/components/advanced/ButtonHolder/button-holder-provider";
-import ButtonHolder from "@/library/components/advanced/ButtonHolder/button-holder";
+import { ButtonHolderProvider, ButtonHolder } from "ormi-components";
 import { WidgetTemplateDrawer } from "@/library/core/templates/components/templates-drawer";
 import { useTemplates } from "@/library/core/templates/templates-provider";
 import React from "react";
@@ -25,7 +24,7 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuTrigger,
-} from "@/library/components/ui/context-menu"
+} from "ormi-components"
 
 const Dashboard = () => {
 

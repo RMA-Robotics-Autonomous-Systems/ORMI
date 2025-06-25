@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { DatasourceProviderSettings, DatasourceDefinition } from 'ormi-core/datasources';
-import { Spinner } from 'ormi-core/components';
+import { Spinner } from 'ormi-components';
 import { usePluginsManager } from 'ormi-core/plugins';
 import { RestBagClient } from './rest-bag-client';
 

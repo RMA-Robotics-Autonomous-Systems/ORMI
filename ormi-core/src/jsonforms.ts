@@ -1,5 +1,1 @@
-export * from "@/library/core/jsonforms/ShadcnRender"
-export type {AsyncTopicControlType} from "@/library/core/jsonforms/controls/topic-selector/topic-selector"
-export type {KeyControlType} from "@/library/core/jsonforms/controls/key/key"
-export type {axisControlType} from "@/library/core/jsonforms/controls/key/axis"
-export { default as style } from "./library/core/jsonforms/controls/key/key.module.css"
+export type {AsyncTopicControlType} from "@/library/components/topic-selector"

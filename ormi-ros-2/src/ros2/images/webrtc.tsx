@@ -1,4 +1,4 @@
-import { useButtonHolder, Button } from 'ormi-core/components';
+import { useButtonHolder, Button } from 'ormi-components';
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic } from 'ormi-core/datasources';
 import { AsyncTopicControlType } from 'ormi-core/jsonforms';
 import { usePluginsManager, PluginsHooks } from 'ormi-core/plugins';

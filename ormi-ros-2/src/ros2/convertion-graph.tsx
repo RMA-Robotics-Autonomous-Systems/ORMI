@@ -6,7 +6,7 @@ import { UnifiedConverter } from "./unified-converter";
 
 // Removed: import ForceGraph from 'force-graph';
 import { useEffect, useRef } from 'react';
-import { useTheme } from 'ormi-core/components';
+import { useTheme } from 'ormi-components';
 import { BinaryIcon } from 'lucide-react';
 import * as d3 from 'd3';
 

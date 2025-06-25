@@ -16,7 +16,7 @@ import {
     CollapsibleTrigger,
     CollapsibleContent,
     Button
-} from "ormi-core/components"
+} from "ormi-components"
 
 interface JsonListProps {
     title: string;

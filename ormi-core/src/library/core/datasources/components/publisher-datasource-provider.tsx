@@ -11,10 +11,10 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 
 import { usePluginsManager } from '@/library/core/plugins/components/plugins-provider';
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';
-import { toast } from '@/library/hooks/use-toast';
+import { toast } from 'ormi-components';
 import PluginsManager from '@/library/core/plugins/plugins-manager';
 import { SelectedTopic } from '../datasource-interface';
-import { Spinner } from '@/library/components/spinner'; // Import Spinner
+import { Spinner } from 'ormi-components'; // Import Spinner
 
 interface PublisherDataSources {
     publishers: Map<string, Publisher>;
@@ -134,11 +134,7 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
                         </ul>
                     </div>
                 )
-                toast({
-                    title: "Publisher Initialization Error",
-                    description: message,
-                    variant: "destructive"
-                });
+                toast("Failed to initialize publishers for topics: " + notInitializedTopics.map(topic => topic.topic).join(", "));
             }
 
             setInitialized(true); // Set initialized regardless of individual topic success

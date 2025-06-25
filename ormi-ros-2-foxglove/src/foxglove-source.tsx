@@ -20,7 +20,7 @@ import { usePluginsManager } from 'ormi-core/plugins';
 import { PluginsHooks } from 'ormi-core/plugins';
 
 import { DatasourceProviderSettings, DatasourceTopic, SelectedTopic } from 'ormi-core/datasources';
-import { toast, Spinner } from 'ormi-core/components';
+import { toast, Spinner } from 'ormi-components';
 import { JsonSchema } from '@jsonforms/core';
 
 import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';

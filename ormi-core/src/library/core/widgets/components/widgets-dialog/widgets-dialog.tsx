@@ -9,7 +9,7 @@
 */
 
 import { useState } from "react";
-import { Button } from "@/library/components/ui/button";
+import { Button } from "ormi-components";
 import {
     Dialog,
     DialogContent,
@@ -17,7 +17,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/library/components/ui/dialog"
+} from "ormi-components"
 import { Plus } from "lucide-react"; // Import the plus icon
 
 import { usePluginsManager } from "../../../plugins/components/plugins-provider";

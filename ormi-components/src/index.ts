@@ -40,5 +40,41 @@ export * from "components/ui/textarea";
 export * from "components/ui/toggle-group";
 export * from "components/ui/toggle";
 export * from "components/ui/tooltip";
+export * from "components/ui/tree-view";
+export * from "components/ui/spinner";
+
+
+// advanced components
+export * from "components/advanced/navbar/navbar";
+export * from "components/advanced/navbar/navbar-provider";
+
+export * from "components/advanced/theme/theme-toggle";
+export * from "components/advanced/theme/theme-provider";
+
+export * from "components/advanced/ActionDialog/action-dialog";
+export * from "components/advanced/ButtonHolder/button-holder";
+export * from "components/advanced/ButtonHolder/button-holder-provider";
+
+export * from "components/advanced/triggers/analog-trigger";
+export * from "components/advanced/triggers/digital-trigger";
+export * from "components/advanced/triggers/analog-trigger-input";
+export * from "components/advanced/triggers/digital-trigger-input";
+
+// jsonforms controls
+export * from "@/components/jsonforms/ShadcnRender"
+export type {KeyControlType} from "@/components/jsonforms/controls/key/key"
+export type {axisControlType} from "@/components/jsonforms/controls/key/axis"
+
+import keyStyles from "@/src/styles/key.module.css";
+export { keyStyles };
+
+import controlsStyles from "@/src/styles/controls.module.css";
+export { controlsStyles };
+
+
+// utils and hooks
+export { useTheme } from "next-themes"
+export { toast } from "sonner"
+export { cn } from "lib/utils"
 export * from "hooks/use-mobile";
 export * from "lib/utils";

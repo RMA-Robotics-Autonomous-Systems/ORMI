@@ -1,7 +1,7 @@
 import { useState } from "react"; // Import useCallback
 import { style } from "ormi-core/jsonforms";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { DigitalInput, DigitalComponent } from "ormi-core/components";
+import { DigitalInput, DigitalComponent } from "ormi-components";
 import { KeyControlType } from "ormi-core/jsonforms";
 import { Datasource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";

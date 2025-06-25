@@ -21,7 +21,7 @@ import { PluginsHooks } from 'ormi-core/plugins';
 
 import { RandomDataSourceSettings } from './index';
 import { DatasourceTopic, SelectedTopic } from 'ormi-core/datasources';
-import { Spinner } from 'ormi-core/components';
+import { Spinner } from 'ormi-components';
 import { IMU, Movement } from 'ormi-core/types';
 import { Vector3, PointsCloud } from 'ormi-core/types';
 

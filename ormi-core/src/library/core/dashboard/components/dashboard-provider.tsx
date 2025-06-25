@@ -7,10 +7,10 @@ import { PluginsHooks } from '../../plugins/plugins-types';
 import { usePluginsManager } from '../../plugins/components/plugins-provider';
 import PluginsManager from '../../plugins/plugins-manager';
 import { Layout, Layouts } from 'react-grid-layout';
-import { toast } from '@/library/hooks/use-toast';
+import { toast } from 'ormi-components';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '@/library/core/datasources/datasource-interface';
 import { widgetNotFound } from '../../widgets/components/widget-not-found';
-import { Spinner } from '@/components';
+import { Spinner } from 'ormi-components';
 
 interface DashboardContextInterface {
 
@@ -157,11 +157,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const addWidget = (widget: WidgetDefinition, settings: any) => {
 
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to add widgets",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to add widgets");
             return;
         }
 
@@ -204,11 +200,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const removeWidget = (box_id: string) => {
 
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to remove widgets",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to remove widgets");
             return;
         }
 
@@ -230,11 +222,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const updateWidget = (box_id: string, settings: any) => {
 
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to update widgets",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to update widgets");
             return;
         }
 
@@ -279,11 +267,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const savesDashboard = () => {
 
         if (!hasChanged) {
-            toast({
-                title: "Dashboard not saved",
-                description: "No changes have been made to the dashboard",
-                // variant: "warning"
-            })
+            toast("No changes to save");
             return;
         }
 
@@ -299,20 +283,13 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
         OnSave(newDashboard);
 
-        toast({
-            title: "Dashboard saved",
-            description: "The dashboard has been saved",
-        })
+        toast("Dashboard saved successfully");
     }
 
     const moveToVertical = () => {
 
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to move widgets",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to move widgets");
             return;
         }
 
@@ -325,11 +302,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
     const moveToHorizontal = () => {
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to move widgets",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to move widgets");
             return;
         }
 
@@ -343,11 +316,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const exploseLayout = () => {
 
         if (locked) {
-            toast({
-                title: "Dashboard is locked",
-                description: "Unlock the dashboard to explode the layout",
-                variant: "destructive"
-            });
+            toast("Dashboard is locked. Unlock the dashboard to explode the layout");
             return;
         }
 
@@ -458,10 +427,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         layoutsChanged(new_layouts);
         setForceReload(!forceReload);
 
-        toast({
-            title: "Layout exploded",
-            description: "The layout has been exploded",
-        })
+        toast("Layout exploded successfully");
     };
 
     const updateDatasource = (datasource_id: string, settings: DatasourceProviderSettings) => {

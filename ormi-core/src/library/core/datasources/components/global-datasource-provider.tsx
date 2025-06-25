@@ -13,10 +13,10 @@ import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '..
 import PluginsManager from '@/library/core/plugins/plugins-manager';
 import { usePluginsManager } from '@/library/core/plugins/components/plugins-provider';
 import { PluginsHooks } from '../../plugins/plugins-types';
-import { useNavbar } from '@/library/components/advanced/navbar/navbar-provider';
-import { Button } from '@/library/components/ui/button';
+import { useNavbar } from 'ormi-components';
+import { Button } from 'ormi-components';
 import { CheckIcon, CloudCogIcon } from 'lucide-react';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/library/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from 'ormi-components';
 
 import DatasourceCard from './datasource-card';
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';

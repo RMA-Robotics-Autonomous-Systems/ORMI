@@ -10,9 +10,9 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 
 import { usePluginsManager } from '@/library/core/plugins/components/plugins-provider';
 import { useDashboardManager } from '@/library/core/dashboard/components/dashboard-provider';
-import { toast } from '@/library/hooks/use-toast';
+import { toast } from 'ormi-components';
 import { SelectedTopic } from '../datasource-interface';
-import { Spinner } from '@/library/components/spinner';
+import { Spinner } from 'ormi-components';
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
@@ -219,11 +219,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
             )
 
             if (notInitializedTopics.length > 0) {
-                toast({
-                    title: "Error",
-                    description: message,
-                    variant: "destructive"
-                });
+                toast("Some topics are not initialized: " + notInitializedTopics.map(topic => topic.topic).join(", "));
             }
 
             setInitialized(true);

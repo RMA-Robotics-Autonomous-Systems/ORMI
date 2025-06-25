@@ -2,14 +2,14 @@ import type { Metadata, Viewport } from "next";
 // import localFont from "next/font/local";
 import "@/styles/globals.css"
 
-import { Toaster, NavbarProvider, NavBar, ThemeProvider, NavbarItem, ModeToggle } from "ormi-core/components";
+import { Toaster, NavbarProvider, NavBar, ThemeProvider, NavbarItem, ModeToggle } from "ormi-components";
 
 import { Button } from "ormi-components";
 
 import { Inter as FontSans } from "next/font/google"
 import localFont from "next/font/local"
 
-import { cn } from "@/lib/utils"
+import { cn } from "ormi-components"
 
 import { siteConfig } from "@/config/site"
 import Link from "next/link";

@@ -1,9 +1,9 @@
 
-import { ActionDialog, Button } from "@/components";
+import { ActionDialog, Button } from "ormi-components";
 import { Template } from "../templates-types";
 import { CheckIcon, PlusIcon, TrashIcon, XIcon } from "lucide-react";
 import { WidgetDefinition } from "@/widgets";
-import { toast } from '@/library/hooks/use-toast'; // Adjust import according to your project
+import { toast } from 'ormi-components'; // Adjust import according to your project
 
 interface TemplateProps {
     template: Template;
@@ -45,10 +45,7 @@ export const TemplateComponent = (props: TemplateProps) => {
                         // Import any notification/alert system if needed
 
                         // Show an error message
-                        toast({
-                            variant: "destructive",
-                            title: "Widget unavailable",
-                        });
+                        toast("Widget unavailable: " + template.widget.widget_id);
                         return; // Exit early to prevent adding a non-existent widget
                     }
 

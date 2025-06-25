@@ -5,7 +5,7 @@ import { Widget } from "../widgets/widget-interface";
 import { Template } from "./templates-types";
 
 import { generateUniqueID } from "../utils/Utils";
-import { useNavbar } from "@/library/components/advanced/navbar/navbar-provider";
+import { useNavbar } from "ormi-components";
 
 interface TemplatesProviderContextInterface {
     templates: Map<string, Template>;

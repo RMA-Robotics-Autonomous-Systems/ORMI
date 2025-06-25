@@ -2,12 +2,12 @@ import { useEffect, useState, useRef, useCallback } from "react"; // Import useC
 import { style } from "ormi-core/jsonforms";
 import { GaugeIcon, KeyboardIcon, LockIcon, RefreshCcwDot, ToggleLeftIcon, ToggleRightIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { DigitalInput, DigitalComponent } from "ormi-core/components";
+import { DigitalInput, DigitalComponent } from "ormi-components";
 import { AsyncTopicControlType, KeyControlType } from "ormi-core/jsonforms";
 import { DatasourceTopic, DatasourceTopicFilter, SelectedTopic, PublisherDataSourcesProvider, usePublisherDataSource } from "ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "ormi-core/plugins";
 import { Movement } from "ormi-core/types";
-import { toast } from "ormi-core/components";
+import { toast } from "ormi-components";
 
 interface CycleControlData {
     title: string;

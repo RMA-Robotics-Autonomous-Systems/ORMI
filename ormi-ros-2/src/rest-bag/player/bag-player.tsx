@@ -2,7 +2,7 @@ import { BagInfo } from "../bags";
 import {
     Button,
     Badge,
-} from "ormi-core/components";
+} from "ormi-components";
 import { usePluginsManager } from "ormi-core/plugins";
 import { PlayIcon, PauseIcon, SquareIcon } from "lucide-react";
 import { useEffect, useState, useRef } from "react";

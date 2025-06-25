@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Search } from "lucide-react"
 
-import { Button } from "@/library/components/ui/button"
+import { Button } from "ormi-components"
 import {
     Command,
     CommandEmpty,
@@ -11,19 +11,19 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-} from "@/library/components/ui/command"
+} from "ormi-components"
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from "@/library/components/ui/popover"
+} from "ormi-components"
 
 import { usePluginsManager } from "@/library/core/plugins/components/plugins-provider"
 import PluginsManager from "@/library/core/plugins/plugins-manager"
 import { PluginsHooks } from "@/library/core/plugins/plugins-types"
 import { WidgetDefinition } from "../../widget-interface"
 import { WidgetCard } from "../widget-card/widget-card"
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/library/components/ui/hover-card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "ormi-components"
 
 
 export function WidgetsCombo(props: { onValidate: (widget: WidgetDefinition, settings: object) => void }) {
