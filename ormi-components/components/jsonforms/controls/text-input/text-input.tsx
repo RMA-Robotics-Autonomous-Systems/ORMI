@@ -2,7 +2,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, isStringControl, isEnumControl } from '@jsonforms/core';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 import React from 'react';
 
 const TextControl = (props: ControlProps) => {

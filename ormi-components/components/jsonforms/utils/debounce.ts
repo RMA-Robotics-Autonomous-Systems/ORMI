@@ -22,6 +22,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
+"use client"
 import debounce from 'lodash/debounce';
 import { useState, useCallback, useEffect } from 'react';
 

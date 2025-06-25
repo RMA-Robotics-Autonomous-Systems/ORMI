@@ -5,7 +5,7 @@ import React from 'react';
 
 import { Label } from '@/components/ui/label';
 
-import styles from "@/src/styles/controls.module.css";
+import styles from "../../../../src/styles/controls.module.css";
 import { AnalogInputComponent, AnalogInput } from '@/components/advanced/triggers/analog-trigger-input';
 
 

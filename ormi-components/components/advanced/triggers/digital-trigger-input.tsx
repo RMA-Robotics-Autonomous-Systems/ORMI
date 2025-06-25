@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../src/styles/key.module.css";
 
 import { GamepadIcon, KeyboardIcon } from 'lucide-react';
 

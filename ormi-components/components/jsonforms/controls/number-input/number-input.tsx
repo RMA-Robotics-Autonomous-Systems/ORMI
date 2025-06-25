@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, isNumberControl } from '@jsonfo
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useEffect } from 'react';
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 import React from 'react';
 
 

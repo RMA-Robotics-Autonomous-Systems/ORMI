@@ -31,7 +31,7 @@ import {
 } from '@jsonforms/core';
 import merge from 'lodash/merge';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 
 export interface WithInput {
     input: any;

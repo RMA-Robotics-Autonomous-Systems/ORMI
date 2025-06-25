@@ -1,3 +1,4 @@
+"use client"
 /*
   The MIT License
 

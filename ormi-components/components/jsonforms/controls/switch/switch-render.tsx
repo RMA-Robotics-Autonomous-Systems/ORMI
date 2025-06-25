@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, isBooleanControl } from '@jsonf
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 import React from 'react';
 
 

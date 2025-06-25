@@ -1,3 +1,5 @@
+"use client";
+
 import { useButtonHolder } from "./button-holder-provider";
 
 export function ButtonHolder() {

@@ -1,7 +1,7 @@
 "use client";
 import React, { CSSProperties, useEffect, useState, useRef } from 'react';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../src/styles/key.module.css";
 
 import { JoystickIcon } from 'lucide-react';
 import { AnalogInput, getGamepadAxisName } from './analog-trigger-input';

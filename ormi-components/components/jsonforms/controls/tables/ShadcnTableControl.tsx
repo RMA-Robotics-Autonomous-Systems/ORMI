@@ -22,6 +22,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
+"use client"
 import isEmpty from 'lodash/isEmpty';
 import union from 'lodash/union';
 import {

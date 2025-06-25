@@ -34,7 +34,7 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
 import merge from 'lodash/merge';
 import React from 'react';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 
 export const ShadcnBooleanControl = ({
     data,

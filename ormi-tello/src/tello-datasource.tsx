@@ -304,10 +304,7 @@ const TelloSourceProvider = (children: ReactNode, props: TelloSourceSettings) =>
 
 
                     } else if (msg["origin"] == "command") {
-                        toast({
-                            title: `Tello says`,
-                            description: msg["data"],
-                        });
+                        toast("Tello says: " + msg["msg"]);
                     }
 
 

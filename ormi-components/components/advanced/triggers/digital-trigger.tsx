@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react'; // Import useRef
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../src/styles/key.module.css";
 
 import { GamepadIcon, KeyboardIcon } from 'lucide-react';
 import { DigitalInput, getGamepadButtonName } from './digital-trigger-input';

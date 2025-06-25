@@ -65,10 +65,10 @@ export * from "@/components/jsonforms/ShadcnRender"
 export type {KeyControlType} from "@/components/jsonforms/controls/key/key"
 export type {axisControlType} from "@/components/jsonforms/controls/key/axis"
 
-import keyStyles from "@/src/styles/key.module.css";
+import keyStyles from "./styles/key.module.css";
 export { keyStyles };
 
-import controlsStyles from "@/src/styles/controls.module.css";
+import controlsStyles from "./styles/controls.module.css";
 export { controlsStyles };
 
 

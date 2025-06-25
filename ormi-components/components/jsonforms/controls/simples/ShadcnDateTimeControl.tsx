@@ -22,6 +22,8 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
+'use client';
+
 import React, { useState } from 'react';
 import merge from 'lodash/merge';
 import {

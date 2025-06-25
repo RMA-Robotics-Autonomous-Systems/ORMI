@@ -3,7 +3,7 @@ import { ControlProps, rankWith, isControl, and, uiTypeIs, ControlElement } from
 
 import { Label } from '@/components/ui/label';
 
-import styles from "@/src/styles/controls.module.css";
+import styles from "../../../../src/styles/controls.module.css";
 import { DigitalInput, DigitalInputComponent } from '@/components/advanced/triggers/digital-trigger-input';
 
 

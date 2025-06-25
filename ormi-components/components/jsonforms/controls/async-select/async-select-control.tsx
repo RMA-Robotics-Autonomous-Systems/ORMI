@@ -1,3 +1,5 @@
+'use client';
+
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { ControlProps, rankWith, isControl, and, optionIs, uiTypeIs } from '@jsonforms/core';
 
@@ -12,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from '@/components/ui/label';
 
-import styles from "@/src/styles/key.module.css";
+import styles from "../../../../src/styles/key.module.css";
 
 
 const AsyncSelectControl = (props: ControlProps) => {
