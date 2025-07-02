@@ -1,0 +1,204 @@
+"use client"
+
+/*
+    Load all available datasources and create a provider for them
+
+    - allow to interact with all datasources
+
+*/
+
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Datasource, DatasourceDefinition, DatasourceProviderSettings } from '../datasource-interface';
+import { useDashboardManager } from '../../dashboard/components/dashboard-provider';
+
+import { PluginsHooks, PluginsManager, usePluginsManager } from '@workspace/ormi-plugins';
+
+
+import { useNavbar } from "@workspace/ui/combined/navbar";
+
+import { Button } from '@workspace/ui/components/button';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@workspace/ui/components/dialog';
+
+import { WidgetDefinition } from '../../widgets/widget-interface';
+import DatasourceAdder from './datasource-adder';
+import DatasourceCard from './datasource-card';
+import { CheckIcon, CloudCogIcon } from 'lucide-react';
+
+type GlobalDataSources = object;
+
+const GlobalDataSourcesContext = createContext<GlobalDataSources>({});
+
+const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
+
+    const { children } = props;
+
+    const { datasources, updateDatasource, addDatasource, removeDatasource } = useDashboardManager();
+
+    const [dataSourcesTypes, setDataSourcesTypes] = useState<Map<string, DatasourceDefinition<DatasourceProviderSettings>>>(new Map());
+
+    const pluginsManager = usePluginsManager() as PluginsManager;
+
+    const [dataLoaded, setDataLoaded] = useState(false);
+    const [initialized, setInitialized] = useState(false);
+
+    const { setNavbarItem, removeNavbarItem } = useNavbar();
+
+
+
+
+    useEffect(() => {
+        const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition<DatasourceProviderSettings>[]>(PluginsHooks.DATASOURCES_LIST, []);
+        const dataSourcesTypes_map = new Map<string, DatasourceDefinition<DatasourceProviderSettings>>();
+        for (const dataSource of dataSourcesTypes_array) {
+            dataSourcesTypes_map.set(dataSource.id, dataSource);
+        }
+        setDataSourcesTypes(dataSourcesTypes_map);
+        setDataLoaded(true);
+
+    }, []);
+
+    useEffect(() => {
+        setInitialized(dataLoaded === true);
+    }, [dataLoaded]);
+
+    useEffect(() => {
+
+        if (!initialized) return;
+
+        function getDatasourceDef(datasource_id: string): DatasourceDefinition<DatasourceProviderSettings> {
+            if (!dataSourcesTypes.has(datasource_id)) {
+                console.error(`Datasource ${datasource_id} not found`);
+                throw new Error(`Datasource ${datasource_id} not found`);
+            }
+            return dataSourcesTypes.get(datasource_id)!;
+        }
+
+        function handleAdd(datasource_id: string) {
+            addDatasource(datasource_id);
+        }
+
+        function handleRemove(source_id: string) {
+            removeDatasource(source_id);
+        }
+
+        setNavbarItem("center", "datasources_combo",
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button variant={"ghost"}>Datasources <CloudCogIcon /></Button>
+                </DialogTrigger>
+                <DialogContent size='large'>
+                    <DialogHeader>
+                        <DialogTitle>Datasources</DialogTitle>
+                        <DialogDescription>
+                            Setup the different datasources used in this workspace.
+                        </DialogDescription>
+                        <div>
+                            <div>
+                                {Array.from(datasources.values()).map((datasource) => {
+                                    return (
+                                        <DatasourceCard onRemove={handleRemove} data={datasource.settings} key={datasource.settings.id} definition={getDatasourceDef(datasource.datasource_id)} onValidate={function (datasource_def, settings: DatasourceProviderSettings): void {
+                                            updateDatasource(datasource.datasource_id, settings);
+                                        }} />
+                                    );
+                                })}
+                            </div>
+                            <div className="flex justify-end mt-1.5 gap-3" style={{ justifyContent: "flex-end" }} >
+                                <DatasourceAdder handleAdd={handleAdd} />
+                                <DialogClose className="float-end" asChild>
+                                    <Button onClick={() => { }}>
+                                        <CheckIcon />
+                                    </Button>
+                                </DialogClose>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                </DialogContent>
+            </Dialog>, 0
+        );
+
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
+            id: "available_datasources",
+            priority: 10,
+            filter: () => {
+                return Array.from(datasources.values())
+            }
+        });
+
+
+
+        return () => {
+            removeNavbarItem("center", "datasources_combo");
+            pluginsManager.removeFilter("available_datasources");
+        };
+
+    }, [initialized, addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
+
+    useEffect(() => {
+        if (!initialized) return;
+
+        pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+            id: "filter_widgets_list_based_on_datasources",
+            priority: Number.MAX_SAFE_INTEGER,
+            filter: (widgets: WidgetDefinition[]) => {
+                const datasourceArray = pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, []);
+
+                // if no datasources are available, return no widgets
+                if (datasourceArray.length === 0) {
+                    return [];
+                }
+                return pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgets, datasourceArray);
+            }
+        })
+
+        return () => {
+            pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
+        }
+
+    }, [datasources, initialized]);
+
+    // Memoize the provider chain to prevent unnecessary rerenders
+    const providerChain = React.useMemo(() => {
+
+        const getProvider = (datasource_id: string) => {
+            const dataSourceType = dataSourcesTypes.get(datasource_id);
+            if (!dataSourceType) {
+                console.error(`Datasource ${datasource_id} not found`);
+                return null;
+            }
+            return dataSourceType.Provider;
+        };
+
+        if (!initialized) return null;
+
+        return Array.from(datasources.values()).reduceRight((children_stack, datasource) => {
+            const Provider = getProvider(datasource.datasource_id);
+            if (!Provider) {
+                return children_stack;
+            }
+
+
+            return (
+                <Provider key={datasource.settings.id} props={datasource.settings}>
+                    {children_stack}
+                </Provider>
+            );
+        }, children);
+    }, [initialized, datasources, children, dataSourcesTypes]);
+
+    return (
+        <GlobalDataSourcesContext.Provider value={{}}>
+            {providerChain}
+        </GlobalDataSourcesContext.Provider>
+    );
+}
+
+const useGlobalDataSources = () => {
+    const context = useContext(GlobalDataSourcesContext);
+    if (!context) {
+        throw new Error('useGlobalDataSources must be used within a GlobalDataSourcesProvider');
+    }
+
+    return context;
+};
+
+export { GlobalDataSourcesProvider, useGlobalDataSources };

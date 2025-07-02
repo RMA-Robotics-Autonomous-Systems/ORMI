@@ -1,0 +1,14 @@
+{
+    "name": "ORMI",
+    "short_name": "ORMI",
+    "icons": [
+        {
+            "src": "icon/ormi.svg",
+            "sizes": "any",
+            "type": "image/svg"
+        }
+    ],
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
+    "display": "standalone"
+}

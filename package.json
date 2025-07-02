@@ -1,14 +1,29 @@
 {
-  "name": "ormi-monorepo",
-  "private": true,
-  "scripts": {
-    "clean": "rm -rf node_modules package-lock.json bun.lock* .next && rm -rf ormi-*/node_modules ormi-*/dist ormi-*/bun.lock*",
-    "build": "bun run clean && bash build.sh",
-    "quick-build": "bash build.sh",
-    "build:win": "build.bat",
-    "dev": "bun --filter ormi-app run dev"
-  },
-  "workspaces": [
-    "ormi-*"
-  ]
+    "name": "ormi",
+    "version": "0.0.1",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*",
+        "plugins/*"
+    ],
+    "scripts": {
+        "build": "turbo build",
+        "start": "cd apps/web && bun run start",
+        "dev": "turbo dev",
+        "lint": "turbo lint",
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "create": "bun scripts/create-package.js"
+    },
+    "devDependencies": {
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "prettier": "^3.5.1",
+        "turbo": "^2.4.2",
+        "typescript": "5.7.3"
+    },
+    "packageManager": "bun@1.2.17",
+    "engines": {
+        "node": ">=20"
+    }
 }

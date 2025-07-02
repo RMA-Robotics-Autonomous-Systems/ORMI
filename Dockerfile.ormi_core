@@ -5,13 +5,8 @@ RUN apt-get update -y && apt-get install -y openssl
 WORKDIR /ORMI-CORE
 # Copy all folders from the host to the container
 COPY . .
-# Copy the entrypoint script
-COPY ormi_entrypoint.sh /ormi_entrypoint.sh
-# Make scripts executable and run the build script (installs deps, links packages)
-RUN chmod +x /ormi_entrypoint.sh \
-    && chmod +x build.sh \
-    && ./build.sh
-# Set the working directory for the application runtime
-WORKDIR /ORMI-CORE/ormi-app
-# Set the entrypoint
-ENTRYPOINT ["/ormi_entrypoint.sh"]
+
+RUN bun install --prod
+RUN bun run build
+
+CMD ["bun", "run", "start"]

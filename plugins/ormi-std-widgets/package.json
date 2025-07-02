@@ -1,0 +1,48 @@
+{
+    "name": "ormi-std-widgets",
+    "version": "1.0.0",
+    "description": "Collection of standard widgets.",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "sonner": "^2.0.5",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "@workspace/ormi-jsonforms": "workspace:*",
+        "@workspace/utils": "workspace:*",
+        "@jsonforms/core": "^3.6.0",
+        "@react-three/drei": "^10.0.7",
+        "@types/d3": "^7.4.3",
+        "copyfiles": "^2.4.1",
+        "d3": "^7.9.0",
+        "force-graph": "^1.49.2",
+        "lucide-react": "^0.479.0",
+        "maplibre-gl": "^5.2.0",
+        "next-themes": "^0.4.4",
+        "react-map-gl": "^8.0.1",
+        "react-type-animation": "^3.2.0",
+        "tsc-alias": "1.8.11",
+        "uplot": "^1.6.31",
+        "uplot-react": "^1.2.2"
+    },
+    "ormi_plugin": true
+}

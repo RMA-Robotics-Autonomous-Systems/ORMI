@@ -1,75 +1,34 @@
 services:
-  core:
-    container_name: ormi_core
-    network_mode: host
-    build:
-      context: .
-      dockerfile: Dockerfile.ormi_core
-    restart: unless-stopped
-    environment:
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=FfLx9FtyrNJ2qfxM8vELwEgGP3SkJSM8a6WuzCBqBP4=
-      - DATABASE_URL=postgresql://rasappdbuser:rasappdbpwd@localhost:5432/rasapppostgresqldb
-      - NODE_ENV=production
-    depends_on:
-      postgres:
-        condition: service_healthy
+    core:
+        container_name: ormi_core
+        network_mode: host
+        build:
+            context: .
+            dockerfile: Dockerfile.ormi_core
+        restart: unless-stopped
+        depends_on:
+            postgres:
+                condition: service_healthy
 
-  rosbridge_suite:
-    container_name: ormi_rosbridge_suite
-    build:
-      context: . # Build context (optional, defaults to current directory)
-      dockerfile: Dockerfile.rosbridge_suite
-    restart: unless-stopped
-    privileged: true
-    network_mode: host
-    ipc: host
-    pid: host
-    command: ros2 launch rosbridge_server rosbridge_websocket_launch.xml respawn:=true
-    # environment:
-    # - "ROBOTNAME=${ROBOTNAME}"
-    # - "ROS_DOMAIN_ID=4"
-    # - "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
-    # - CYCLONEDDS_URI=file:///cyclone_profile.xml
-    # volumes:
-    #   - /home/robotaa/cyclone_profile.xml:/cyclone_profile.xml
-
-  postgres:
-    image: postgres:17.0-alpine
-    restart: unless-stopped
-    ports:
-      - 5432:5432
-    environment:
-      POSTGRES_USER: rasappdbuser
-      POSTGRES_PASSWORD: rasappdbpwd
-      POSTGRES_DB: rasapppostgresqldb
-      POSTGRES_HOST_AUTH_METHOD: trust
-    volumes:
-      - ./postgres:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rasappdbuser -d rasapppostgresqldb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  # webrtc:
-  #   container_name: ros2_lab_webrtc
-  #   build:
-  #     context: . # Build context (optional, defaults to current directory)
-  #     dockerfile: Dockerfile.webrtc
-  #   restart: unless-stopped
-  #   privileged: true
-  #   network_mode: host
-  #   ipc: host
-  #   pid: host
-  #   command: python3 webrtc_server.py
-  #   environment:
-  #     - "ROBOTNAME=${ROBOTNAME}"
-  #     - "ROS_DOMAIN_ID=4"
-  #     - "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
-  #     - CYCLONEDDS_URI=file:///cyclone_profile.xml
-  #   volumes:
-  #     - /home/robotaa/cyclone_profile.xml:/cyclone_profile.xml #- ./webrtc/webrtc_server.py:/ws_webrtc/webrtc_server.py
-  #     - ./webrtc/:/ws_webrtc/
+    postgres:
+        image: postgres:17.0-alpine
+        restart: unless-stopped
+        ports:
+            - 5432:5432
+        environment:
+            POSTGRES_USER: rasappdbuser
+            POSTGRES_PASSWORD: rasappdbpwd
+            POSTGRES_DB: rasapppostgresqldb
+            POSTGRES_HOST_AUTH_METHOD: trust
+        volumes:
+            - ./postgres:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U rasappdbuser -d rasapppostgresqldb",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+            start_period: 10s

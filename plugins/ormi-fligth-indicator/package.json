@@ -1,0 +1,37 @@
+{
+    "name": "ormi-flight-indicator",
+    "version": "1.0.0",
+    "description": "Add flight indicator widgets",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "sonner": "^2.0.5",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "@jsonforms/core": "^3.5.1",
+        "copyfiles": "^2.4.1",
+        "lucide-react": "^0.479.0",
+        "react-typescript-flight-indicators": "^1.0.4",
+        "tsc-alias": "1.8.11"
+    },
+    "ormi_plugin": true
+}

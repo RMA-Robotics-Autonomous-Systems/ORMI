@@ -1,0 +1,38 @@
+{
+    "name": "ormi-tello",
+    "version": "1.0.0",
+    "description": "Allow user to control a Tello drone",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "sonner": "^2.0.5",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "@workspace/ormi-jsonforms": "workspace:*",
+        "@jsonforms/core": "^3.5.1",
+        "copyfiles": "^2.4.1",
+        "lucide-react": "0.525.0",
+        "socket.io-client": "^4.8.1",
+        "tsc-alias": "1.8.11"
+    },
+    "ormi_plugin": true
+}
