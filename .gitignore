@@ -62,3 +62,4 @@ ormi-app/ormi-plugins.ts
 
 # Ignore the postgres folder and files
 postgres/*
+apps/web/.env
