@@ -2,7 +2,6 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core"
 import { RefreshCwIcon, VideotapeIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { RestBagClient } from "../rest-bag-client"
-import ROSLIB from "roslib"
 import { RecordingStatus } from "../recording-types"
 import { Recorder } from "./recorder"
 import { RecorderCreator } from "./recorder-creator"
@@ -24,7 +23,6 @@ const BagsRecorders = (props: RecorderListProps) => {
 
     // Service state
     const [client, setClient] = useState<RestBagClient | null>(null);
-    const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
 
@@ -36,8 +34,6 @@ const BagsRecorders = (props: RecorderListProps) => {
         const new_client = pluginsManager.applyFilter<RestBagClient>(`${props.api_datasource_id}-client`, null);
         setClient(new_client);
 
-        const new_ros = pluginsManager.applyFilter<ROSLIB.Ros>(`${props.ros_datasource_id}-ros-2-connection`, null)
-        setRoslib(new_ros);
 
         setButtonItem("bag-list-refresh",
             <Button variant="ghost" onClick={() => setRefreshCounter((prev) => (prev + 1) % 10)} title="Refresh bag list">
@@ -59,19 +55,18 @@ const BagsRecorders = (props: RecorderListProps) => {
                 const recs = await client!.getRecordings();
                 setRecordings(recs);
             }, (100));
-        }
 
-        if (roslib && client) {
             setButtonItem("bag-creator",
-                <RecorderCreator client={client!} rosclient={roslib!} refresher={() => {
+                <RecorderCreator client={client!} refresher={() => {
                     setRefreshCounter((prev) => (prev + 1) % 10);
                 }} />
             );
         }
+
         return () => {
             removeButtonItem("bag-creator");
         }
-    }, [client, roslib, refreshCounter]);
+    }, [client, refreshCounter]);
 
 
     return (
@@ -100,7 +95,6 @@ export function BagRecorderDefinition(): WidgetDefinition {
             properties: {
                 title: { type: 'string', title: 'Title' },
                 api_datasource_id: { type: 'string', title: 'API Datasource ID' },
-                ros_datasource_id: { type: 'string', title: 'ROS Datasource ID' }
             },
             required: ['title']
         },
@@ -114,19 +108,6 @@ export function BagRecorderDefinition(): WidgetDefinition {
                         asyncFunction: async () => {
 
                             const datasources = Array.from(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, [])).filter(ds => ds.datasource_id === 'rest-bag-source');
-
-                            const values = Array.from(datasources).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
-
-                            return values;
-                        }
-                    }
-                } as ControlElement,
-                {
-                    type: "Control", scope: "#/properties/ros_datasource_id", options: {
-                        async: true,
-                        asyncFunction: async () => {
-
-                            const datasources = Array.from(pluginsManager.applyFilter<Datasource[]>(PluginsHooks.AVAILABLE_DATASOURCES, [])).filter(ds => ds.datasource_id === 'rosbridge-suite-source');
 
                             const values = Array.from(datasources).map(ds => ({ value: ds.settings.id, label: ds.settings.title }));
 

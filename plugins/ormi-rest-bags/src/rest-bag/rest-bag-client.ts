@@ -5,7 +5,8 @@ import {
     RecordingResponse, 
     RecordingStatus, 
     StopRecordingRequest, 
-    StopRecordingResponse 
+    StopRecordingResponse, 
+    Topic
 } from './recording-types';
 import {
     PlayerPlayRequest,
@@ -239,4 +240,34 @@ export class RestBagClient {
         
         return await response.json() as any;
     }
-}
+
+    /**
+     * Get the list of topics available for recording
+     *  dictionary with topic names as keys and types as values in an array
+     */
+    async getAvailableTopics(): Promise<Topic[]> {
+        const response = await fetch(`${this.baseUrl}/topics`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch available topics: ${response.statusText}`);
+        }
+
+        // convert it to an array of Topic
+        // Assuming the response is an object with topic names as keys and arrays of types as values
+        // e.g. { "topic1": ["type1", "type2"], "topic2": ["type3"] }
+        // we take the first type for each topic
+        const topics = await response.json() as { [topicName: string]: string[] };
+        const availableTopics: Topic[] = [];
+        for (const [topicName, types] of Object.entries(topics)) {
+            if (types.length > 0) {
+                availableTopics.push({
+                    name: topicName,
+                    type: types[0]!
+                }); // take the first type for each
+            }
+        }
+
+        return availableTopics;
+    }
+
+}   

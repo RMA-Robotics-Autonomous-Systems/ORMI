@@ -76,7 +76,7 @@ export const TopicSelector = ({
         const term = searchTerm.topic?.toLowerCase() || '';
         if (!term) return availableTopics;
         return availableTopics.filter(t =>
-            t.topic.toLowerCase().includes(term)
+            t.name.toLowerCase().includes(term)
         );
     };
 
@@ -147,23 +147,23 @@ export const TopicSelector = ({
                                 ) : (
                                     getFilteredTopics().map((t) => (
                                         <div
-                                            key={t.topic}
+                                            key={t.name}
                                             className={cn(
                                                 "flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-gray-100",
-                                                topic.name === t.topic ? "bg-gray-100" : ""
+                                                topic.name === t.name ? "bg-gray-100" : ""
                                             )}
                                             onClick={() => {
-                                                onTopicChange(index, 'name', t.topic);
+                                                onTopicChange(index, 'name', t.name);
                                                 togglePopover('topic');
                                             }}
                                         >
                                             <CheckIcon
                                                 className={cn(
                                                     "mr-2 h-4 w-4",
-                                                    topic.name === t.topic ? "opacity-100" : "opacity-0"
+                                                    topic.name === t.name ? "opacity-100" : "opacity-0"
                                                 )}
                                             />
-                                            <span className="truncate text-xs">{t.topic}</span>
+                                            <span className="truncate text-xs">{t.name}</span>
                                         </div>
                                     ))
                                 )}

@@ -4,7 +4,6 @@ import { Topic } from "../recording-types";
 
 export interface RecorderCreatorProps {
     client: RestBagClient;
-    rosclient: ROSLIB.Ros;
     refresher: () => void;
 }
 
@@ -18,7 +17,7 @@ export type FieldKeyMapping = {
 export interface TopicSelectorProps {
     topic: Topic;
     index: number;
-    availableTopics: Array<{ topic: string; type: string }>;
+    availableTopics: Topic[];
     availableTypes: string[];
     topicMap: Record<string, string>;
     onTopicChange: (index: number, field: keyof Topic, value: string) => void;
@@ -27,7 +26,7 @@ export interface TopicSelectorProps {
 
 export interface TopicsListProps {
     topics: Topic[];
-    availableTopics: Array<{ topic: string; type: string }>;
+    availableTopics: Topic[];
     availableTypes: string[];
     topicMap: Record<string, string>;
     onTopicChange: (index: number, field: keyof Topic, value: string) => void;

@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import { GetAllTopicTypes, GetTopicsList, ROSTopic } from "./../../rosbridge-suite-source";
 import { RecordingRequest, Topic } from "../recording-types";
 
 import { PlusIcon, AlertCircle, CheckCircle } from "lucide-react";
@@ -12,10 +11,10 @@ import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 
 export const RecorderCreator = (props: RecorderCreatorProps) => {
-    const { client, rosclient, refresher } = props;
+    const { client, refresher } = props;
 
     // State declarations
-    const [topics, setTopics] = useState<ROSTopic[]>([]);
+    const [topics, setTopics] = useState<Topic[]>([]);
     const [types, setTypes] = useState<string[]>([]);
     const [topicMap, setTopicMap] = useState<Record<string, string>>({});
     const [recordingRequest, setRecordingRequest] = useState<RecordingRequest>({
@@ -33,13 +32,13 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
     useEffect(() => {
         const fetchTopics = async () => {
             try {
-                const topicList = await GetTopicsList(rosclient);
+                const topicList = await client.getAvailableTopics();
                 setTopics(topicList);
 
                 // Create a mapping of topic names to their types
                 const mapping: Record<string, string> = {};
                 topicList.forEach(t => {
-                    mapping[t.topic] = t.type;
+                    mapping[t.name] = t.type;
                 });
                 setTopicMap(mapping);
             } catch (error) {
@@ -49,16 +48,18 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
 
         const fetchTypes = async () => {
             try {
-                const typeList = await GetAllTopicTypes(rosclient);
-                setTypes(typeList);
+                const topicList = await client.getAvailableTopics();
+
+                const uniqueTypes = Array.from(new Set(topicList.map(t => t.type)));
+                setTypes(uniqueTypes);
+
             } catch (error) {
                 console.error("Failed to fetch topic types:", error);
             }
         };
-
         fetchTopics();
         fetchTypes();
-    }, [rosclient, dialogOpen]);
+    }, [dialogOpen]);
 
     // Form handlers
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
