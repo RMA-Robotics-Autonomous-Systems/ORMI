@@ -118,7 +118,7 @@ export function WidgetCard(props: WidgetCardProps) {
             <DialogTrigger asChild>
                 {getButton()}
             </DialogTrigger>
-            <DialogContent className="">
+            <DialogContent size="medium">
                 <DialogHeader>
                     <DialogTitle>{props.definition.name}</DialogTitle>
                     <DialogDescription>

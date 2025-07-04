@@ -89,7 +89,7 @@ export const RestBagDatasourceDefinition = {
         id: '',
         title: '',
         enable: true,
-        url: '',
+        url: 'http://localhost:8000/',
     },
 
     Provider: ({ children, props }) => RestBagDataSourceProvider(children, props)
