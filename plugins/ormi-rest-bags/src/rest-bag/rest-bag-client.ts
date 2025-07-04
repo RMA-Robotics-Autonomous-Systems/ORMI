@@ -1,4 +1,4 @@
-import { BagsResponse, BagInfo } from './bags';
+import { BagsResponse, BagInfo, CompressionTask, CompressionProgress, CompressionStatus, DownloadInfo, CompressionTasksList } from './bags';
 import { 
     RecordingError,
     RecordingRequest, 
@@ -83,6 +83,172 @@ export class RestBagClient {
         }
         
         return await response.blob();
+    }
+
+    /**
+     * Start compression of a bag
+     */
+    async startCompression(name: string, multiple: boolean = false): Promise<CompressionTask> {
+        const response = await fetch(`${this.baseUrl}/bags/${encodeURIComponent(name)}/compress?multiple=${multiple}`, {
+            method: 'POST',
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to start compression for bag "${name}": ${response.statusText}`);
+        }
+        
+        return await response.json() as CompressionTask;
+    }
+
+    /**
+     * Get compression progress as Server-Sent Events stream
+     */
+    createCompressionProgressStream(taskId: string): EventSource {
+        const url = `${this.baseUrl}/bags/compress/${encodeURIComponent(taskId)}/progress`;
+        return new EventSource(url);
+    }
+
+    /**
+     * Get compression status (simple JSON response, no streaming)
+     */
+    async getCompressionStatus(taskId: string): Promise<CompressionStatus> {
+        const response = await fetch(`${this.baseUrl}/bags/compress/${encodeURIComponent(taskId)}/status`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to get compression status for task "${taskId}": ${response.statusText}`);
+        }
+        
+        return await response.json() as CompressionStatus;
+    }
+
+    /**
+     * List all active compression tasks
+     */
+    async listCompressionTasks(): Promise<CompressionTasksList> {
+        const response = await fetch(`${this.baseUrl}/bags/compress/tasks`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to list compression tasks: ${response.statusText}`);
+        }
+        
+        return await response.json() as CompressionTasksList;
+    }
+
+    /**
+     * Get download info for a download ID
+     */
+    async getDownloadInfo(downloadId: string): Promise<DownloadInfo> {
+        const response = await fetch(`${this.baseUrl}/bags/download/${encodeURIComponent(downloadId)}/info`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to get download info for "${downloadId}": ${response.statusText}`);
+        }
+        
+        return await response.json() as DownloadInfo;
+    }
+
+    /**
+     * Get the download URL for a compressed bag using download ID
+     */
+    getCompressedBagDownloadUrl(downloadId: string): string {
+        return `${this.baseUrl}/bags/download/${encodeURIComponent(downloadId)}`;
+    }
+
+    /**
+     * Download a compressed bag using download ID with browser-native download
+     */
+    async downloadCompressedBag(downloadId: string): Promise<void> {
+        const url = this.getCompressedBagDownloadUrl(downloadId);
+        
+        // Get download info to get the filename
+        const downloadInfo = await this.getDownloadInfo(downloadId);
+        
+        // Simple direct download - let browser handle it natively
+        this.triggerDirectDownload(url, downloadInfo.filename);
+    }
+
+    /**
+     * Trigger a direct download using browser's native download mechanism
+     */
+    private triggerDirectDownload(url: string, filename: string): void {
+        // Create a temporary link element
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        
+        // Add to DOM, click, and remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    /**
+     * Legacy method for backward compatibility - downloads as blob
+     */
+    async downloadCompressedBagAsBlob(downloadId: string, onProgress?: (loaded: number, total: number) => void): Promise<Blob> {
+        const url = this.getCompressedBagDownloadUrl(downloadId);
+        
+        if (!onProgress) {
+            // Simple download without progress tracking
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to download compressed bag "${downloadId}": ${response.statusText}`);
+            }
+            
+            return await response.blob();
+        }
+
+        // Download with progress tracking
+        const response = await fetch(url, {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Accept': 'application/zip, application/octet-stream, */*'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to download compressed bag "${downloadId}": ${response.statusText}`);
+        }
+
+        const contentLength = response.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        
+        if (!response.body) {
+            throw new Error('Response body is not available');
+        }
+
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let loaded = 0;
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) break;
+                
+                chunks.push(value);
+                loaded += value.length;
+                
+                if (onProgress) {
+                    // Call progress callback more frequently for better UX
+                    onProgress(loaded, total || loaded);
+                }
+                
+                // Add a small delay to prevent blocking the UI thread
+                if (loaded % (1024 * 1024) === 0) { // Every MB
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+        } finally {
+            reader.releaseLock();
+        }
+
+        const contentType = response.headers.get('content-type') || 'application/zip';
+        const blob = new Blob(chunks, { type: contentType });
+        return blob;
     }
 
     /**
@@ -270,4 +436,4 @@ export class RestBagClient {
         return availableTopics;
     }
 
-}   
+}

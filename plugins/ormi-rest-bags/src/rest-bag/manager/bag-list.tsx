@@ -1,8 +1,8 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core"
-import { Download, Trash2, Check, X, RefreshCwIcon, InfoIcon, LuggageIcon } from "lucide-react"
+import { Download, Trash2, Check, X, RefreshCwIcon, InfoIcon, LuggageIcon, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 // Add shadcn component imports
-import { BagInfo, Duration, Timestamp } from "../bags"
+import { BagInfo, Duration, Timestamp, CompressionTasksList, CompressionTask } from "../bags"
 import { BagViewer } from "./bag-viewer"
 
 // Interfaces for bag data
@@ -25,6 +25,14 @@ interface BagListProps {
 
 const BagList = (props: BagListProps) => {
     const pluginsManager = usePluginsManager();
+    // Define per-bag download state
+    type DownloadState = {
+        status: 'idle' | 'checking' | 'compressing' | 'downloading' | 'completed' | 'error';
+        progress?: number;
+        error?: string;
+        taskId?: string;
+    };
+
     const [bags, setBags] = useState<BagInfo[]>([]);
     const [client, setClient] = useState<RestBagClient | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
@@ -32,6 +40,8 @@ const BagList = (props: BagListProps) => {
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [refreshCounter, setRefreshCounter] = useState<number>(0);
+    const [downloadStates, setDownloadStates] = useState<Map<string, DownloadState>>(new Map());
+    const [compressionTasks, setCompressionTasks] = useState<CompressionTasksList>({ tasks: {}, count: 0 });
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
 
@@ -83,21 +93,127 @@ const BagList = (props: BagListProps) => {
         fetchBags();
     }, [client, refreshCounter])
 
-    const handleDownload = async (bagName: string) => {
-        if (!client) {
-            setError('Client is not available. Cannot download bag.');
-            return;
-        }
-        const blob = await client.downloadBag(bagName);
+    // Fetch compression tasks periodically and update download states
+    useEffect(() => {
+        if (!client) return;
 
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = bagName;
-        a.click();
+        const fetchCompressionTasks = async () => {
+            try {
+                const tasks = await client.listCompressionTasks();
+                setCompressionTasks(tasks);
 
-        URL.revokeObjectURL(url);
+                // Update download states based on tasks
+                setDownloadStates(prev => {
+                    const newStates = new Map(prev);
+
+                    Object.entries(tasks.tasks).forEach(([taskId, task]) => {
+                        const currentState = newStates.get(task.bag_name);
+                        if (task.status === 'compressing' || task.status === 'starting') {
+                            newStates.set(task.bag_name, {
+                                status: 'compressing',
+                                progress: task.progress,
+                                taskId: taskId
+                            });
+                        } else if (task.status === 'completed' && currentState?.status === 'compressing') {
+                            newStates.set(task.bag_name, {
+                                status: 'completed',
+                                progress: 100,
+                                taskId: taskId
+                            });
+                        }
+                    });
+
+                    return newStates;
+                });
+            } catch (error) {
+                console.error('Failed to fetch compression tasks:', error);
+            }
+        };
+
+        fetchCompressionTasks();
+
+        // Refresh tasks every 2 seconds
+        const interval = setInterval(fetchCompressionTasks, 2000);
+
+        return () => clearInterval(interval);
+    }, [client]);
+
+    const updateDownloadState = (bagName: string, state: Partial<DownloadState>) => {
+        setDownloadStates(prev => {
+            const newStates = new Map(prev);
+            const currentState = newStates.get(bagName) || { status: 'idle' as const };
+            newStates.set(bagName, { ...currentState, ...state });
+            return newStates;
+        });
     };
+
+    const handleDownload = async (bagName: string) => {
+        if (!client) return;
+
+        updateDownloadState(bagName, { status: 'checking', error: undefined });
+
+        try {
+            // Check if there's already a completed compression for this bag
+            const tasks = await client.listCompressionTasks();
+            const existingTask = Object.entries(tasks.tasks).find(([_, task]) =>
+                task.bag_name === bagName && task.status === 'completed' && task.download_id
+            );
+
+            if (existingTask) {
+                // Download directly if already compressed
+                const [_, taskInfo] = existingTask;
+                await handleDirectDownload(taskInfo.download_id!, bagName);
+                return;
+            }
+
+            // Start compression if no existing task
+            updateDownloadState(bagName, { status: 'compressing' });
+            await client.startCompression(bagName);
+
+        } catch (error) {
+            console.error('Failed to start download/compression:', error);
+            updateDownloadState(bagName, {
+                status: 'error',
+                error: `Failed to start download: ${error instanceof Error ? error.message : String(error)}`
+            });
+        }
+    };
+
+    const handleDirectDownload = async (downloadId: string, bagName: string) => {
+        if (!client) return;
+
+        try {
+            updateDownloadState(bagName, { status: 'downloading' });
+
+            // Use the simplified download method - browser handles progress natively
+            await client.downloadCompressedBag(downloadId);
+
+            // Clear state after successful download initiation
+            setTimeout(() => {
+                updateDownloadState(bagName, { status: 'idle' });
+            }, 2000); // Clear state after 2 seconds
+
+        } catch (error) {
+            console.error('Failed to download file:', error);
+            updateDownloadState(bagName, {
+                status: 'error',
+                error: `Failed to download: ${error instanceof Error ? error.message : String(error)}`
+            });
+        }
+    };
+
+    // Auto-download when compression completes
+    useEffect(() => {
+        downloadStates.forEach(async (state, bagName) => {
+            if (state.status === 'completed' && state.taskId) {
+                // Find the corresponding task to get download_id
+                const task = compressionTasks.tasks[state.taskId];
+                if (task?.download_id) {
+                    await handleDirectDownload(task.download_id, bagName);
+                }
+            }
+        });
+    }, [downloadStates, compressionTasks]);
 
     const handleDelete = async (bagName: string) => {
         if (!client) {
@@ -150,7 +266,7 @@ const BagList = (props: BagListProps) => {
             {loading && <p className="text-gray-500">Loading bags...</p>}
 
             {error && (
-                <Alert variant="destructive">
+                <Alert variant={error.includes('Downloading') ? 'default' : 'destructive'}>
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             )}
@@ -161,84 +277,123 @@ const BagList = (props: BagListProps) => {
                 </p>
             )}
 
-            {filteredBags.map(bag => (
-                <Card key={bag.name} className="shadow-sm">
-                    <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start">
-                            <CardTitle>{bag.name}</CardTitle>
-                            <div className="flex gap-2">
-                                {deleteConfirm === bag.name ? (
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-sm text-red-500">Confirm?</span>
-                                        <Button
-                                            onClick={() => handleDelete(bag.name)}
-                                            variant="destructive"
-                                            size="icon"
-                                        >
-                                            <Check size={18} />
-                                        </Button>
-                                        <Button
-                                            onClick={() => setDeleteConfirm(null)}
-                                            variant="outline"
-                                            size="icon"
-                                        >
-                                            <X size={18} />
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <BagPlayer
-                                            bag={bag}
-                                            datasource_id={props.datasource_id}
-                                            title={props.title}
-                                        />
-                                        <BagViewer bag={bag} trigger={
-                                            <Button variant="outline" title="View bag details" size="icon">
-                                                <InfoIcon />
+            {filteredBags.map(bag => {
+                const downloadState = downloadStates.get(bag.name) || { status: 'idle' as const };
+
+                return (
+                    <Card key={bag.name} className="shadow-sm">
+                        <CardHeader className="pb-2">
+                            <div className="flex justify-between items-start">
+                                <CardTitle>{bag.name}</CardTitle>
+                                <div className="flex gap-2">
+                                    {deleteConfirm === bag.name ? (
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-sm text-red-500">Confirm?</span>
+                                            <Button
+                                                onClick={() => handleDelete(bag.name)}
+                                                variant="destructive"
+                                                size="icon"
+                                            >
+                                                <Check size={18} />
                                             </Button>
-                                        } />
+                                            <Button
+                                                onClick={() => setDeleteConfirm(null)}
+                                                variant="outline"
+                                                size="icon"
+                                            >
+                                                <X size={18} />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <BagPlayer
+                                                bag={bag}
+                                                datasource_id={props.datasource_id}
+                                                title={props.title}
+                                            />
+                                            <BagViewer bag={bag} trigger={
+                                                <Button variant="outline" title="View bag details" size="icon">
+                                                    <InfoIcon />
+                                                </Button>
+                                            } />
 
-                                        <Button
-                                            onClick={() => handleDownload(bag.name)}
-                                            variant="outline"
-                                            size="icon"
-                                            title="Download bag"
-                                        >
-                                            <Download size={18} />
-                                        </Button>
-                                        <Button
-                                            onClick={() => setDeleteConfirm(bag.name)}
-                                            variant="outline"
-                                            size="icon"
-                                            className="text-red-600 hover:bg-red-100"
-                                            title="Delete bag"
-                                        >
-                                            <Trash2 size={18} />
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
+                                            {/* Single download button with embedded logic */}
+                                            <Button
+                                                onClick={() => handleDownload(bag.name)}
+                                                variant="outline"
+                                                size="icon"
+                                                title={
+                                                    downloadState.status === 'idle' ? "Download bag with compression" :
+                                                        downloadState.status === 'checking' ? "Checking compression status..." :
+                                                            downloadState.status === 'compressing' ? `Compressing... ${downloadState.progress || 0}%` :
+                                                                downloadState.status === 'downloading' ? "Starting download..." :
+                                                                    downloadState.status === 'completed' ? "Download completed" :
+                                                                        downloadState.status === 'error' ? `Error: ${downloadState.error}` :
+                                                                            "Download"
+                                                }
+                                                disabled={downloadState.status !== 'idle' && downloadState.status !== 'error'}
+                                            >
+                                                {downloadState.status === 'checking' || downloadState.status === 'compressing' || downloadState.status === 'downloading' ? (
+                                                    <Loader2 className="animate-spin" size={18} />
+                                                ) : (
+                                                    <Download size={18} />
+                                                )}
+                                            </Button>
 
-                        <div className="flex gap-2 justify-between">
-                            <div className="text-sm">
-                                <div className="flex flex-col gap-1">
-                                    <div><span className="font-medium text-gray-600">Path:</span> {bag.path}</div>
-                                    <div><span className="font-medium text-gray-600">Start:</span> {formatDateTime(bag.meta.starting_time)}</div>
+                                            <Button
+                                                onClick={() => setDeleteConfirm(bag.name)}
+                                                variant="outline"
+                                                size="icon"
+                                                className="text-red-600 hover:bg-red-100"
+                                                title="Delete bag"
+                                            >
+                                                <Trash2 size={18} />
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex flex-wrap gap-2 text-sm">
-                                <Badge variant="outline">{formatDuration(bag.meta.duration)}</Badge>
-                                <Badge variant="outline">{bag.meta.message_count} messages</Badge>
-                                <Badge variant="outline">{bag.meta.topics_with_message_count.length} topics</Badge>
-                            </div>
-                        </div>
+                        </CardHeader>
+                        <CardContent>
+                            {downloadState.status === 'error' && downloadState.error && (
+                                <Alert variant="destructive" className="mb-3">
+                                    <AlertDescription>{downloadState.error}</AlertDescription>
+                                </Alert>
+                            )}
+                            {downloadState.status === 'compressing' && (
+                                <Alert className="mb-3">
+                                    <AlertDescription>
+                                        Compressing bag... {downloadState.progress || 0}%
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                            {downloadState.status === 'downloading' && (
+                                <Alert className="mb-3">
+                                    <AlertDescription>
+                                        Starting download... Check your browser's download manager for progress.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
 
-                    </CardContent>
-                </Card>
-            ))}
+                            <div className="flex gap-2 justify-between">
+                                <div className="text-sm">
+                                    <div className="flex flex-col gap-1">
+                                        <div><span className="font-medium text-gray-600">Path:</span> {bag.path}</div>
+                                        <div><span className="font-medium text-gray-600">Start:</span> {formatDateTime(bag.meta.starting_time)}</div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-sm">
+                                    <Badge variant="outline">{formatDuration(bag.meta.duration)}</Badge>
+                                    <Badge variant="outline">{bag.meta.message_count} messages</Badge>
+                                    <Badge variant="outline">{bag.meta.topics_with_message_count.length} topics</Badge>
+                                </div>
+                            </div>
+
+                        </CardContent>
+                    </Card>
+                );
+            })}
+
         </div>
     )
 }
