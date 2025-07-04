@@ -68,3 +68,4 @@ apps/web/.env
 .turbo
 **/.turbo
 **/.next
+apps/web/ormi-plugins.ts
