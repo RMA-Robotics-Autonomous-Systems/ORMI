@@ -84,7 +84,14 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
         setNavbarItem("center", "datasources_combo",
             <Dialog>
                 <DialogTrigger asChild>
-                    <Button variant={"ghost"}>Datasources <CloudCogIcon /></Button>
+                    <Button variant={"ghost"}
+                        className={datasources.size === 0 ? "animate-pulse" : ""}
+                        style={datasources.size === 0 ? {
+                            animation: "pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+                            boxShadow: "0 0 0 0 hsl(var(--primary))"
+                        } : {}}>
+                        Datasources <CloudCogIcon />
+                    </Button>
                 </DialogTrigger>
                 <DialogContent size='large'>
                     <DialogHeader>
@@ -136,6 +143,13 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
     useEffect(() => {
         if (!initialized) return;
 
+        /**
+         * Filter the widgets list based on the available datasources.
+         * This filter will be applied to the widgets list when the datasources are available.
+         * It will return only the widgets that are compatible with the available datasources.
+         * 
+         * This filter is the last one to be applied.
+         */
         pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
             id: "filter_widgets_list_based_on_datasources",
             priority: Number.MAX_SAFE_INTEGER,
