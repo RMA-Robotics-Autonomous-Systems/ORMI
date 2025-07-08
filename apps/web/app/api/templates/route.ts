@@ -4,7 +4,7 @@ import { NextRequest } from "next/server"
 
 import { authOptions } from "@/server/auth"
 import { db } from "@/server/db"
-import { Template } from "@workspace/ormi-core/templates"
+import { Template, WidgetTemplate, DatasourceTemplate } from "@workspace/ormi-core/templates"
 
 export async function GET() {
     try {
@@ -12,7 +12,9 @@ export async function GET() {
         if (!session?.user) {
             return new Response(null, { status: 401 })
         }
-        const templates = await db.templateWidget.findMany({
+        
+        // Get from new Template table
+        const templates = await db.template.findMany({
             where: {
                 OR: [
                     { public: true },
@@ -21,27 +23,43 @@ export async function GET() {
             },
         })
 
+
+
         // convert the templates to the format used in the template provider
         const templatesMap = new Map<string, Template>()
 
-        templates.forEach((template:any) => {
-            templatesMap.set(template.id.toString(), {
-                name: template.name,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                widget: (template.content! as any).widget, // Extract the widget properly
-                public: template.public,
-                tags: template.tags,
-                yours: template.createdById === session.user.id
-            })
+        // Process new templates
+        templates.forEach((template: any) => {
+            const templateType = template.type.toLowerCase() as 'widget' | 'datasource';
+            
+            if (templateType === 'widget') {
+                templatesMap.set(template.id.toString(), {
+                    name: template.name,
+                    type: 'widget',
+                    widget: (template.content! as any).widget,
+                    public: template.public,
+                    tags: template.tags,
+                    yours: template.createdById === session.user.id
+                } as WidgetTemplate)
+            } else if (templateType === 'datasource') {
+                templatesMap.set(template.id.toString(), {
+                    name: template.name,
+                    type: 'datasource',
+                    datasource: (template.content! as any).datasource,
+                    public: template.public,
+                    tags: template.tags,
+                    yours: template.createdById === session.user.id
+                } as DatasourceTemplate)
+            }
         })
-
-        console.log("Templates loaded:", templatesMap)
 
         // convert the map to an array
         const templatesArray = Array.from(templatesMap.entries()).map(([key, value]) => ({
             id: key,
             name: value.name,
-            widget: value.widget,
+            type: value.type,
+            ...(value.type === 'widget' ? { widget: (value as WidgetTemplate).widget } : {}),
+            ...(value.type === 'datasource' ? { datasource: (value as DatasourceTemplate).datasource } : {}),
             public: value.public,
             tags: value.tags,
             yours: value.yours
@@ -69,26 +87,50 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json() as any;
+    const template = body.content;
 
-    
-    const templateWidget = await db.templateWidget.create({
-        data: {
-            name: body.content.name,
-            content: body.content,
-            public: body.content.public,
-            tags: body.content.tags,
+    // Check if this is the new template format with type
+    if (template.type) {
+        // Use new Template table
+        const newTemplate = await db.template.create({
+            data: {
+                name: template.name,
+                content: template,
+                type: template.type.toUpperCase() as 'WIDGET' | 'DATASOURCE',
+                public: template.public,
+                tags: template.tags,
+                createdById: session.user.id,
+                createdAT: new Date(),
+                updatedAT: new Date(),
+            },
+        });
 
-            createdById: session.user.id,
-            createdAT: new Date(),
-            updatedAT: new Date(),
-        },
-    })
+        return new Response(JSON.stringify(newTemplate.id), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+    } else {
+        // Fallback to old TemplateWidget table for backward compatibility
+        const templateWidget = await db.templateWidget.create({
+            data: {
+                name: template.name,
+                content: template,
+                public: template.public,
+                tags: template.tags,
+                createdById: session.user.id,
+                createdAT: new Date(),
+                updatedAT: new Date(),
+            },
+        });
 
-    return new Response(JSON.stringify(templateWidget.id), {
-        status: 200,
-        headers: {
-            "Content-Type": "application/json",
-        },
-    })
+        return new Response(JSON.stringify(templateWidget.id), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+    }
 
 }

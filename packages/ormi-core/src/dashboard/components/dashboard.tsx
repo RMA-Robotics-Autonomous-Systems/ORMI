@@ -25,9 +25,9 @@ import { useDashboardManager } from "./dashboard-provider";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload, datasources } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, layoutsChanged, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, compactType, moveToHorizontal, moveToVertical, exploseLayout, forceReload, datasources, addDatasource } = useDashboardManager();
 
-    const { templates, removeTemplate } = useTemplates();
+    const { templates, removeTemplate, updateTemplate } = useTemplates();
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -59,13 +59,19 @@ const Dashboard = () => {
 
     useEffect(() => {
         setNavbarItem("right", "template_drawer",
-            <WidgetTemplateDrawer templates={templates} addWidget={addWidget} removeTemplate={removeTemplate} />
+            <WidgetTemplateDrawer
+                templates={templates}
+                addWidget={addWidget}
+                addDatasource={addDatasource}
+                removeTemplate={removeTemplate}
+                updateTemplate={updateTemplate}
+            />
         );
 
         return () => {
             removeNavbarItem("right", "template_drawer");
         }
-    }, [templates]);
+    }, [templates, addWidget, addDatasource]);
 
     useEffect(() => {
 

@@ -82,6 +82,10 @@
     .grid-cols-\[10dvw_1fr\] {
         grid-template-columns: 10dvw 1fr;
     }
+
+    .w-\[15\%\] {
+        width: 15dvw;
+    }
 }
 
 @theme inline {

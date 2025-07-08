@@ -3,37 +3,25 @@ import { BookTemplateIcon } from "lucide-react";
 
 import { useState } from "react";
 import { useTemplates } from "../templates-provider";
-import { WidgetTemplate } from "../templates-types";
+import { DatasourceTemplate } from "../templates-types";
 import { Button } from "@workspace/ui/components/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@workspace/ui/components/dialog";
-import { WidgetDefinition } from "../../widgets";
+import { DatasourceDefinition, Datasource } from "../../datasources";
 
-export function AddToTemplatesBtn(props: { widget: WidgetDefinition, data: any }) {
+export function AddDatasourceToTemplatesBtn(props: { datasource: Datasource, definition: DatasourceDefinition, addTemplate: (template: DatasourceTemplate, key?: string) => void }) {
     const [open, setOpen] = useState(false);
-    const { addTemplate } = useTemplates();
 
     const handleSaveTemplate = () => {
-        // Implementation for saving to templates
-        props.widget.data = props.data;
-
-        const widget = {
-            widget_id: props.widget.id,
-            box_id: "",
-            title: props.widget.name,
-            settings: props.widget.data,
-        }
-
-        const template: WidgetTemplate = {
-            name: props.widget.name,
-            type: 'widget',
-            widget: widget,
+        const template: DatasourceTemplate = {
+            name: props.datasource.title || props.definition.name,
+            type: 'datasource',
+            datasource: props.datasource,
             public: false,
             tags: [],
             yours: true
         }
 
-        addTemplate(template);
-
+        props.addTemplate(template);
         setOpen(false);
     };
 
@@ -46,9 +34,9 @@ export function AddToTemplatesBtn(props: { widget: WidgetDefinition, data: any }
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Save to Templates</DialogTitle>
+                    <DialogTitle>Save Datasource to Templates</DialogTitle>
                     <DialogDescription>
-                        Are you sure you want to save this to your templates?
+                        Are you sure you want to save this datasource configuration to your templates?
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

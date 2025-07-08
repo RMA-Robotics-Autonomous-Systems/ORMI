@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { Template } from "@workspace/ormi-core/templates";
+import { Template, WidgetTemplate, DatasourceTemplate } from "@workspace/ormi-core/templates";
 
 
 const handleSave = async (template: Template) : Promise<string> => {
@@ -57,13 +57,27 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
         const templates = new Map<string, Template>();
         
         data.forEach((template: any) => {
-            templates.set(template.id, {
-                name: template.name,
-                widget: template.widget, // Directly use the widget property
-                public: template.public,
-                tags: template.tags,
-                yours: template.yours
-            });
+            const templateType = template.type?.toLowerCase() || 'widget';
+            
+            if (templateType === 'widget') {
+                templates.set(template.id, {
+                    name: template.name,
+                    type: 'widget',
+                    widget: template.widget || template.content?.widget, // Support both new and legacy format
+                    public: template.public,
+                    tags: template.tags,
+                    yours: template.yours
+                } as WidgetTemplate);
+            } else if (templateType === 'datasource') {
+                templates.set(template.id, {
+                    name: template.name,
+                    type: 'datasource', 
+                    datasource: template.datasource || template.content?.datasource,
+                    public: template.public,
+                    tags: template.tags,
+                    yours: template.yours
+                } as DatasourceTemplate);
+            }
         });
 
         return templates;
@@ -72,6 +86,41 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
         console.error("Failed to load dashboard:", error);
         return new Map<string, Template>();
     }
+};
+
+export const handleUpdate = async (templateId: string, updatedTemplate: Template): Promise<boolean> => {
+  try {
+    const updateData: any = {
+      name: updatedTemplate.name,
+      public: updatedTemplate.public,
+      tags: updatedTemplate.tags,
+    };
+
+    // Add type-specific data
+    if (updatedTemplate.type === 'widget') {
+      updateData.widget = (updatedTemplate as WidgetTemplate).widget;
+    } else if (updatedTemplate.type === 'datasource') {
+      updateData.datasource = (updatedTemplate as DatasourceTemplate).datasource;
+    }
+
+    const response = await fetch(`/api/templates/${templateId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to update template:', response.statusText);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating template:', error);
+    return false;
+  }
 };
 
 export { handleSave, handleDelete,handleLoad };

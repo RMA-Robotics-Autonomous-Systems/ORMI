@@ -3,7 +3,7 @@
 
 
 import { handleLoad, handleSave } from "@/server/prisma-dashboard";
-import { handleLoad as tl, handleSave as ts, handleDelete as td } from "@/server/prisma-templates";
+import { handleLoad as tl, handleSave as ts, handleDelete as td, handleUpdate as tu } from "@/server/prisma-templates";
 
 import { DashboardInterface, DashboardProvider, Dashboard } from "@workspace/ormi-core/dashboard";
 import { Datasource, GlobalDataSourcesProvider } from "@workspace/ormi-core/datasources";
@@ -27,7 +27,7 @@ export default function WorkspacePage() {
 
     return (
         <DashboardProvider OnLoad={handleLoad} OnSave={handleSave} dashboardDefinition={dashboardDefinition}>
-            <TemplatesProvider onLoad={tl} addTemplate={ts} removeTemplate={td}>
+            <TemplatesProvider onLoad={tl} addTemplate={ts} removeTemplate={td} updateTemplate={tu}>
                 <GlobalDataSourcesProvider>
                     <Dashboard />
                     <WidgetsDialog />

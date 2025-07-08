@@ -22,6 +22,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { toast } from 'sonner';
 import { shadcnCells, shadcnRenderer } from '@workspace/ormi-jsonforms';
 import { coreRenderer } from '../../renderers';
+import { AddDatasourceToTemplatesBtn, Template } from '../../templates';
 
 
 interface DatasourceCardProps {
@@ -29,6 +30,7 @@ interface DatasourceCardProps {
     data?: DatasourceProviderSettings;
     onValidate: (datasource: DatasourceDefinition<DatasourceProviderSettings>, settings: any) => void;
     onRemove: (source_id: string) => void;
+    addTemplate: (template: Template, key?: string) => void; // Optional, if you want to add templates directly from the card
 }
 
 
@@ -118,8 +120,21 @@ const DatasourceCard = (props: DatasourceCardProps) => {
                         cells={cellsRenderers}
                         onChange={({ data, errors }) => { setData(data); setErrors(errors) }}
                     />
-                    <div className="flex justify-end mt-1.5" style={{ justifyContent: "flex-end" }} >
-                        <DialogClose className="float-end" asChild>
+                    <div className="flex justify-between items-center mt-1.5">
+                        {/* Save to Templates Button - only show if datasource is configured */}
+                        {props.data && props.data.title !== "New Datasource" && (
+                            <AddDatasourceToTemplatesBtn
+                                datasource={{
+                                    datasource_id: props.definition.id,
+                                    title: data.title,
+                                    settings: data
+                                }}
+                                definition={props.definition}
+                                addTemplate={props.addTemplate}
+                            />
+                        )}
+
+                        <DialogClose className="ml-auto" asChild>
                             <Button onClick={() => { handleAdd() }}>
                                 <CheckIcon />
                             </Button>

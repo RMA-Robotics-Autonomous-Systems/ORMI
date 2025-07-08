@@ -1,15 +1,20 @@
 "use client"
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Widget } from "../widgets/widget-interface";
+import { Datasource } from "../datasources";
 
-import { Template } from "./templates-types";
+import { Template, WidgetTemplate, DatasourceTemplate, TemplateType } from "./templates-types";
 
 import { useNavbar } from "@workspace/ui/combined/navbar";
 
 interface TemplatesProviderContextInterface {
     templates: Map<string, Template>;
-    addTemplate: (widget: Template, key?: string) => void;
+    addTemplate: (template: Template, key?: string) => void;
     removeTemplate: (id: string) => void;
+    updateTemplate: (id: string, updatedTemplate: Template) => void;
+    getTemplatesByType: (type: TemplateType) => Map<string, Template>;
+    getWidgetTemplates: () => Map<string, WidgetTemplate>;
+    getDatasourceTemplates: () => Map<string, DatasourceTemplate>;
 }
 
 export const TemplatesProviderContext = createContext<TemplatesProviderContextInterface | undefined>(undefined);
@@ -19,39 +24,31 @@ interface TemplatesProviderProps {
 
     addTemplate: (template: Template) => Promise<string>;
     removeTemplate: (template_id: string) => Promise<boolean>;
+    updateTemplate: (template_id: string, updatedTemplate: Template) => Promise<boolean>; // Add this
     onLoad: () => Promise<Map<string, Template>>;
 }
 
 const TemplatesProvider = (props: TemplatesProviderProps) => {
-
 
     const [templates, setTemplates] = useState<Map<string, Template>>(new Map<string, Template>());
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
     const addTemplate = async (template: Template, key?: string) => {
-
-
         const template_id = await props.addTemplate(template);
 
-        // check if key already exists
         if (templates.has(template_id)) {
             throw new Error("Key already exists");
         }
 
         const newTemplates = new Map(templates.set(template_id, template));
-
         setTemplates(newTemplates);
-
     };
 
     const removeTemplate = async (id: string) => {
-
         if (!templates.has(id)) {
             throw new Error("Key does not exist");
         }
-
-        const template = templates.get(id);
 
         if (!await props.removeTemplate(id)) {
             console.error("Failed to remove template");
@@ -60,27 +57,74 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 
         const newTemplates = new Map(templates);
         newTemplates.delete(id);
-
         setTemplates(newTemplates);
+    };
 
+    const updateTemplate = async (id: string, updatedTemplate: Template) => {
+        if (!templates.has(id)) {
+            throw new Error("Template does not exist");
+        }
+
+        if (!await props.updateTemplate(id, updatedTemplate)) {
+            console.error("Failed to update template");
+            return;
+        }
+
+        const newTemplates = new Map(templates);
+        newTemplates.set(id, updatedTemplate);
+        setTemplates(newTemplates);
+    };
+
+    const getTemplatesByType = (type: TemplateType): Map<string, Template> => {
+        const filteredTemplates = new Map<string, Template>();
+        templates.forEach((template, id) => {
+            if (template.type === type) {
+                filteredTemplates.set(id, template);
+            }
+        });
+        return filteredTemplates;
+    };
+
+    const getWidgetTemplates = (): Map<string, WidgetTemplate> => {
+        const widgetTemplates = new Map<string, WidgetTemplate>();
+        templates.forEach((template, id) => {
+            if (template.type === 'widget') {
+                widgetTemplates.set(id, template as WidgetTemplate);
+            }
+        });
+        return widgetTemplates;
+    };
+
+    const getDatasourceTemplates = (): Map<string, DatasourceTemplate> => {
+        const datasourceTemplates = new Map<string, DatasourceTemplate>();
+        templates.forEach((template, id) => {
+            if (template.type === 'datasource') {
+                datasourceTemplates.set(id, template as DatasourceTemplate);
+            }
+        });
+        return datasourceTemplates;
     };
 
     useEffect(() => {
-
         new Promise(async () => {
             const loadedTemplates = await props.onLoad();
-
             setTemplates(loadedTemplates);
         })
-
     }, [props]);
 
     return (
-        <TemplatesProviderContext.Provider value={{ templates, addTemplate, removeTemplate }}>
+        <TemplatesProviderContext.Provider value={{
+            templates,
+            addTemplate,
+            removeTemplate,
+            updateTemplate,
+            getTemplatesByType,
+            getWidgetTemplates,
+            getDatasourceTemplates
+        }}>
             {props.children}
         </TemplatesProviderContext.Provider>
     );
-
 }
 
 const useTemplates = () => {

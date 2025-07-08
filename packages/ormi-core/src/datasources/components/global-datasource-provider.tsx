@@ -23,6 +23,7 @@ import { WidgetDefinition } from '../../widgets/widget-interface';
 import DatasourceAdder from './datasource-adder';
 import DatasourceCard from './datasource-card';
 import { CheckIcon, CloudCogIcon } from 'lucide-react';
+import { Template, useTemplates } from '../../templates';
 
 type GlobalDataSources = object;
 
@@ -43,8 +44,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-
-
+    const { addTemplate } = useTemplates();
 
     useEffect(() => {
         const dataSourcesTypes_array = pluginsManager.applyFilter<DatasourceDefinition<DatasourceProviderSettings>[]>(PluginsHooks.DATASOURCES_LIST, []);
@@ -103,7 +103,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
                             <div>
                                 {Array.from(datasources.values()).map((datasource) => {
                                     return (
-                                        <DatasourceCard onRemove={handleRemove} data={datasource.settings} key={datasource.settings.id} definition={getDatasourceDef(datasource.datasource_id)} onValidate={function (datasource_def, settings: DatasourceProviderSettings): void {
+                                        <DatasourceCard addTemplate={addTemplate} onRemove={handleRemove} data={datasource.settings} key={datasource.settings.id} definition={getDatasourceDef(datasource.datasource_id)} onValidate={function (datasource_def, settings: DatasourceProviderSettings): void {
                                             updateDatasource(datasource.datasource_id, settings);
                                         }} />
                                     );

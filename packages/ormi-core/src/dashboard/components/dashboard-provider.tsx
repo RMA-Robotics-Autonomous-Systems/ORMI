@@ -38,7 +38,7 @@ interface DashboardContextInterface {
 
     datasources: Map<string, Datasource>;
     updateDatasource: (datasource_id: string, settings: DatasourceProviderSettings) => void;
-    addDatasource: (datasource_id: string) => void;
+    addDatasource: (datasource_id: string, settings?: DatasourceProviderSettings) => void;
     removeDatasource: (datasource_id: string) => void;
 }
 
@@ -443,7 +443,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
     }
 
-    const addDatasource = (datasource_id: string) => {
+    const addDatasource = (datasource_id: string, settings?: DatasourceProviderSettings) => {
         const newDatasources = new Map(datasources);
 
         const availableDatasources = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
@@ -457,14 +457,16 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
         const datasource = {
             datasource_id: datasource_id,
-            title: "New Datasource",
-            settings: {
-                ...datasourceDef.data
+            title: settings?.title || "New Datasource",
+            settings: settings ? {
+                ...settings,
+                id: id
+            } : {
+                ...datasourceDef.data,
+                id: id,
+                title: "New Datasource"
             }
         } as Datasource;
-
-        datasource.settings.id = id;
-        datasource.settings.title = "New Datasource";
 
         newDatasources.set(id, datasource);
 
