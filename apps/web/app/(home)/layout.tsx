@@ -61,9 +61,9 @@ export default function HomeLayout({
     }, [status])
 
     return (
-        <div className="flex flex-col">
+        <div style={{ minHeight: "96dvh", display: "grid" }}>
 
-            <div className="flex-1">{children}</div>
+            {children}
             {/* <SiteFooter className="container mx-auto px-2 mb-1 bg-background/95 backdrop-blur rounded-2xl border z-50" /> */}
         </div>
     )
