@@ -124,7 +124,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
         const waitTimeOut = setTimeout(() => {
             connectionRef.current = new Promise<boolean>((resolve, reject) => {
 
-                const websocket = new WebSocket(props.url, [FoxgloveClient.SUPPORTED_SUBPROTOCOL]);
+                const websocket = new WebSocket(props.url, [FoxgloveClient.SUPPORTED_SUBPROTOCOL, "foxglove.sdk.v1"]);
 
                 const client = new FoxgloveClient({
                     ws: websocket,
