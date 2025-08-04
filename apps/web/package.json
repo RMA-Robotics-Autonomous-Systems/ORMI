@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun ../packages/utils/dist/cli/index.js init ormi-plugins.ts && next dev --turbopack",
+    "dev": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts && next dev --turbopack",
     "build": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts && bun run db-generate && next build",
     "start": "bun run db-migrate && next start",
     "lint": "next lint",
