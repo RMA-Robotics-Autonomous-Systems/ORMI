@@ -1,12 +1,14 @@
 "use client"
 
-import React, { useEffect, useState } from "react";
-import Map, { StyleSpecification } from 'react-map-gl/maplibre';
+import React, { useEffect, useRef, useState } from "react";
+import Map, { MapRef, StyleSpecification } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
 import TopicMarker from "./marker-simple";
-import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core";
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
+import { TopicListOverlay } from "./topics-overlay";
+
 import { MapIcon } from "lucide-react";
 import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
@@ -22,6 +24,7 @@ interface MapsViewerSettings {
         name: string;
         topic: SelectedTopic;
         makerType: "simple" | "heatmap" | "path",
+        numericalTopic?: SelectedTopic;
     }[]
 }
 
@@ -30,6 +33,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
     const [isLoading, setIsLoading] = useState(true);
 
     const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
+    const mapRef = useRef<MapRef>(null);
 
     useEffect(() => {
         setRasterStyle({
@@ -127,6 +131,16 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         return <Spinner />;
     }
 
+    const getAllTopics = () => {
+        // merge all topics (from the props) and the numerical topics if they exist
+        return props.topics.flatMap(t => {
+            if (t.makerType === "heatmap" && t.numericalTopic) {
+                return [t.topic, t.numericalTopic];
+            }
+            return [t.topic];
+        });
+    }
+
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
             <Map
@@ -139,20 +153,23 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                 }}
                 style={{ width: "100%", height: "100%" }}
                 mapStyle={rasterStyle}
+                ref={mapRef}
             >
                 {(props.topics || []).length !== 0 && (
-                    <LocalDataSourcesProvider SelectedTopics={props.topics.map(t => t.topic)} buffersSize={50} >
+                    <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
                         {props.topics.map(t => {
                             if (t.makerType === "simple") {
                                 return <TopicMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
                             } else if (t.makerType === "heatmap") {
-                                return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                                return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} numericalTopic={t.numericalTopic} />;
                             } else if (t.makerType === "path") {
                                 return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
                             }
 
                             return null;
                         })}
+
+                        <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
                     </LocalDataSourcesProvider >
                 )}
             </Map>
@@ -225,79 +242,106 @@ export function MapsBoxViewerDefinition() {
                     items: {
                         type: "object",
                         properties: {
-                            name: {
-                                "type": "string",
-                                "title": "Name",
-                            },
-                            topic: {
-                                "type": "object",
-                                "title": "Topic",
-                            },
-                            makerType: {
-                                "type": "string",
-                                "title": "Maker Type",
-                                "enum": ["simple", "heatmap", "path"],
-                                "default": "simple"
-                            }
+                            name: { type: "string", title: "Name" },
+                            makerType: { type: "string", title: "Marker Type", enum: ["simple", "heatmap", "path"] },
+                            topic: { type: "object", title: "Topic" },
+                            numericalTopic: { type: "object", title: "Numerical Topic (only for heatmap)" }
                         },
-                        "required": ["topic"]
+
                     }
                 }
             },
             required: ['title']
         },
         uischema: {
-            type: "VerticalLayout",
+            type: "Categorization",
             elements: [
                 {
-                    type: "Control",
-                    scope: "#/properties/title",
-                } as ControlElement,
-                {
-                    type: "Control",
-                    scope: "#/properties/mapUrl",
-                } as ControlElement,
-                {
-                    type: "Control",
-                    scope: "#/properties/use3D",
-                } as ControlElement,
-                {
-                    type: "Control",
-                    scope: "#/properties/apiKey",
-                } as ControlElement,
-                {
-                    type: "Control",
-                    scope: "#/properties/topics",
-                    options: {
-                        detail: {
-                            type: "Group",
-                            elements: [
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/name",
-                                } as ControlElement,
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/makerType",
-                                } as ControlElement,
-                                {
-                                    type: "TopicSelect",
-                                    scope: "#/properties/topic",
-                                    options: {
-                                        asyncFunction: async () => {
-                                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /GeolocationPosition/ }));
-                                        },
-                                        canSelectProperty: false,
+                    type: "Category",
+                    label: "General",
+                    elements: [
+                        {
+                            type: "Control",
+                            scope: "#/properties/title",
+                        } as ControlElement,
+                        {
+                            type: "Control",
+                            scope: "#/properties/mapUrl",
+                        } as ControlElement,
+                        {
+                            type: "Control",
+                            scope: "#/properties/use3D",
+                        } as ControlElement,
+                        {
+                            type: "Control",
+                            scope: "#/properties/apiKey",
+                            rule: {
+                                effect: "SHOW",
+                                condition: {
+                                    scope: "#/properties/use3D",
+                                    schema: { const: true }
+                                }
+                            }
+                        } as ControlElement,
 
-                                    }
-                                } as AsyncTopicControlType
-                            ]
-                        }
-                    }
-                } as ControlElement
-
+                    ]
+                },
+                {
+                    type: "Category",
+                    label: "Topics",
+                    elements: [
+                        {
+                            type: "Control",
+                            scope: "#/properties/topics",
+                            options: {
+                                detail: {
+                                    type: "VerticalLayout",
+                                    elements: [
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/name",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/makerType",
+                                        } as ControlElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/topic",
+                                            options: {
+                                                asyncFunction: async () => {
+                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /GeolocationPosition/ }));
+                                                },
+                                                canSelectProperty: false,
+                                                buffer: 1
+                                            }
+                                        } as AsyncTopicControlType,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/numericalTopic",
+                                            options: {
+                                                asyncFunction: async () => {
+                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number/ }));
+                                                },
+                                                canSelectProperty: false,
+                                                buffer: 200
+                                            },
+                                            rule: {
+                                                effect: "SHOW",
+                                                condition: {
+                                                    scope: "#/properties/makerType",
+                                                    schema: { const: "heatmap" }
+                                                }
+                                            }
+                                        } as AsyncTopicControlType
+                                    ]
+                                }
+                            }
+                        } as ControlElement
+                    ]
+                }
             ]
-        } as VerticalLayout,
+        } as Categorization,
         data: {
             title: 'Chart',
             use3D: false,
