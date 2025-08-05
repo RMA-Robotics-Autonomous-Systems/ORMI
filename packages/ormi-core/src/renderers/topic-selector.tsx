@@ -140,7 +140,7 @@ const AsyncTopicControl = (props: ControlProps) => {
                             <ChevronsUpDown className="opacity-50" />
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent>
+                    <PopoverContent className="w-full max-h-[400px] overflow-y-auto">
                         <Command>
                             <CommandInput onValueChange={setCmd} placeholder="Search topic..." />
                             <TooltipProvider>
