@@ -18,7 +18,7 @@ import { JsonFormsCellRendererRegistryEntry, JsonFormsRendererRegistryEntry } fr
 import ShadcnColorCell, { shadcnColorCellTester } from './controls/cells/ShadcnColorCell';
 import ShadcnColorControl, { shadcnColorControlTester } from './controls/simples/ShadcnColorControl';
 import axisSelectorControl, { axisSelectorTester } from './controls/key/axis';
-
+import {ShadcnOneOfLayoutRenderer, shadcnOneOfTester} from './layouts/ShadcnOneOfLayout';
 
 export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
     { tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
@@ -79,6 +79,10 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
     {
         tester: shadcnColorControlTester,
         renderer: ShadcnColorControl,
+    },
+    {
+        tester: shadcnOneOfTester,
+        renderer: ShadcnOneOfLayoutRenderer,
     }
 
 ];
