@@ -9,11 +9,13 @@ import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { TopicListOverlay } from "./topics-overlay";
 
-import { MapIcon } from "lucide-react";
+import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
 import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
+import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { Button } from "@workspace/ui/components/button";
 
 interface MapsViewerSettings {
     title: string;
@@ -32,8 +34,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
     const [startingLocation, setStartingLocation] = useState<[number, number]>([4.3930369, 50.843941]); // brussels default
     const [isLoading, setIsLoading] = useState(true);
 
+    const [refreshCounter, setRefreshCounter] = useState(0);
+
     const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
     const mapRef = useRef<MapRef>(null);
+
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
+
 
     useEffect(() => {
         setRasterStyle({
@@ -125,7 +132,54 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         } else {
             setIsLoading(false);
         }
-    }, [props]); // Empty dependency array = run once on mount
+
+
+        setButtonItem(
+            "map-box-viewer-widget-zoom-in",
+            <Button variant={"ghost"} onClick={() => {
+                if (mapRef.current) {
+                    const currentZoom = mapRef.current.getZoom();
+                    mapRef.current.setZoom(currentZoom + 1);
+                }
+            }}>
+                <PlusIcon />
+            </Button>,
+            1
+        );
+
+
+        setButtonItem("map-box-viewer-widget-zoom-out",
+            <Button variant={"ghost"} onClick={() => {
+                if (mapRef.current) {
+                    const currentZoom = mapRef.current.getZoom();
+                    mapRef.current.setZoom(currentZoom - 1);
+                }
+            }}>
+                <MinusIcon />
+            </Button>,
+            1
+        );
+
+
+        // refresh button
+        setButtonItem("map-box-viewer-widget-refresh",
+            <Button variant={"ghost"} onClick={() => {
+                // Force a full rerender by incrementing the refresh counter
+                // This will cause the useEffect to run again and remount the Map component
+                setRefreshCounter(prev => prev + 1);
+            }}>
+                <RefreshCcwIcon />
+            </Button>,
+            1
+        );
+
+        return () => {
+            removeButtonItem("map-box-viewer-widget-zoom-in");
+            removeButtonItem("map-box-viewer-widget-zoom-out");
+            removeButtonItem("map-box-viewer-widget-refresh");
+        }
+
+    }, [props, refreshCounter]); // Empty dependency array = run once on mount
 
     if (isLoading) {
         return <Spinner />;
@@ -144,6 +198,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
             <Map
+                key={`map-${refreshCounter}`}
                 initialViewState={{
                     longitude: startingLocation[0],
                     latitude: startingLocation[1],
