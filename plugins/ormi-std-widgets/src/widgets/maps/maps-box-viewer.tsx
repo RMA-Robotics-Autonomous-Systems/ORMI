@@ -8,6 +8,7 @@ import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core"
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { TopicListOverlay } from "./topics-overlay";
+import MapsGrid, { GridUtils, useMapGrid } from "./maps-grid";
 
 import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
 import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
@@ -35,21 +36,27 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
     const [isLoading, setIsLoading] = useState(true);
 
     const [refreshCounter, setRefreshCounter] = useState(0);
+    const [showGrid, setShowGrid] = useState(false);
 
     const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
     const mapRef = useRef<MapRef>(null);
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
+    const gridHook = useMapGrid(mapRef, showGrid);
 
 
     useEffect(() => {
-        setRasterStyle({
+        const baseStyle: StyleSpecification = {
             version: 8,
             sources: {
                 'raster-tiles': {
                     type: 'raster',
                     tiles: [props.mapUrl],
                 },
+                'grid': {
+                    type: 'geojson',
+                    data: GridUtils.createGridLines([-180, -85, 180, 85], 1000) // Start with 1km grid
+                }
             },
             layers: [
                 {
@@ -59,8 +66,22 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     minzoom: 0,
                     maxzoom: 22
                 },
+                {
+                    id: 'grid-layer',
+                    type: 'line',
+                    source: 'grid',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': '#888888',
+                        'line-width': 1,
+                        'line-opacity': showGrid ? 0.5 : 0
+                    }
+                }
             ]
-        });
+        };
 
         if (props.use3D && props.apiKey) {
             setRasterStyle({
@@ -69,6 +90,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     'raster-tiles': {
                         type: 'raster',
                         tiles: [props.mapUrl],
+                    },
+                    'grid': {
+                        type: 'geojson',
+                        data: GridUtils.createGridLines([-180, -85, 180, 85], 1000) // Start with 1km grid
                     },
                     // Add OSM vector tiles source
                     'openmaptiles': {
@@ -83,6 +108,20 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         source: 'raster-tiles',
                         minzoom: 0,
                         maxzoom: 22
+                    },
+                    {
+                        id: 'grid-layer',
+                        type: 'line',
+                        source: 'grid',
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        },
+                        paint: {
+                            'line-color': '#888888',
+                            'line-width': 1,
+                            'line-opacity': showGrid ? 0.5 : 0
+                        }
                     },
                     // Add 3D building layer using OSM data
                     {
@@ -115,6 +154,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     },
                 ]
             });
+        } else {
+            setRasterStyle(baseStyle);
         }
 
         setIsLoading(false);
@@ -173,13 +214,32 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
             1
         );
 
+        // grid toggle button
+        setButtonItem("map-box-viewer-widget-grid",
+            <Button variant={showGrid ? "default" : "ghost"} onClick={() => {
+                setShowGrid(prev => !prev);
+            }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
+                    <line x1="15" y1="3" x2="15" y2="21" />
+                    <line x1="3" y1="9" x2="21" y2="9" />
+                    <line x1="3" y1="15" x2="21" y2="15" />
+                </svg>
+            </Button>,
+            1
+        );
+
+
+
         return () => {
             removeButtonItem("map-box-viewer-widget-zoom-in");
             removeButtonItem("map-box-viewer-widget-zoom-out");
             removeButtonItem("map-box-viewer-widget-refresh");
+            removeButtonItem("map-box-viewer-widget-grid");
         }
 
-    }, [props, refreshCounter]); // Empty dependency array = run once on mount
+    }, [props, refreshCounter, showGrid]); // Add showGrid to dependencies
 
     if (isLoading) {
         return <Spinner />;
@@ -187,12 +247,17 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const getAllTopics = () => {
         // merge all topics (from the props) and the numerical topics if they exist
-        return props.topics.flatMap(t => {
-            if (t.makerType === "heatmap" && t.numericalTopic) {
-                return [t.topic, t.numericalTopic];
+        // clear duplicates, check on topic names
+        const allTopics: SelectedTopic[] = [];
+        props.topics.forEach(t => {
+            if (t.topic && !allTopics.some(existing => existing.topic === t.topic.topic)) {
+                allTopics.push(t.topic);
             }
-            return [t.topic];
+            if (t.numericalTopic && !allTopics.some(existing => existing.topic === t.numericalTopic!.topic)) {
+                allTopics.push(t.numericalTopic);
+            }
         });
+        return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");
     }
 
     return (
@@ -209,7 +274,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                 style={{ width: "100%", height: "100%" }}
                 mapStyle={rasterStyle}
                 ref={mapRef}
+                onMoveEnd={gridHook.updateGridForViewport}
+                onZoomEnd={gridHook.updateGridForViewport}
             >
+                <MapsGrid mapRef={mapRef} showGrid={showGrid} />
                 {(props.topics || []).length !== 0 && (
                     <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
                         {props.topics.map(t => {
