@@ -17,98 +17,95 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
             return;
         }
 
-        try {
-            if (loc_data.data.length > 0) {
-                // Process all location data and associate with numerical data
-                const processedLocations: Array<{ coords: [number, number], value: number }> = [];
+        if (loc_data.data.length > 0) {
+            // Process all location data and associate with numerical data
+            const processedLocations: Array<{ coords: [number, number], value: number }> = [];
 
-                for (let i = 0; i < loc_data.data.length; i++) {
-                    const locationData = loc_data.data[i] as GeolocationPosition;
-                    const locationTime = loc_data.times[i]; // Use time from the times array
+            for (let i = 0; i < loc_data.data.length; i++) {
+                const locationData = loc_data.data[i] as GeolocationPosition;
+                const locationTime = loc_data.times[i]; // Use time from the times array
 
-                    // Skip if time is not available
-                    if (locationTime === undefined) continue;
+                // Skip if time is not available
+                if (locationTime === undefined) continue;
 
-                    let associatedValue = 50; // Default value if no numerical data
+                let associatedValue = 50; // Default value if no numerical data
 
-                    // Find matching numerical data within 5% time accuracy
-                    if (num_data && num_data.data.length > 0) {
-                        let bestMatch = null;
-                        let smallestTimeDiff = Infinity;
-                        let bestMatchIndex = -1;
+                // Find matching numerical data within 5% time accuracy
+                if (num_data && num_data.data.length > 0) {
+                    let bestMatch = null;
+                    let smallestTimeDiff = Infinity;
+                    let bestMatchIndex = -1;
 
-                        for (let j = 0; j < num_data.data.length; j++) {
-                            const numTime = num_data.times[j]; // Use time from the times array
+                    for (let j = 0; j < num_data.data.length; j++) {
+                        const numTime = num_data.times[j]; // Use time from the times array
 
-                            // Skip if time is not available
-                            if (numTime === undefined) continue;
+                        // Skip if time is not available
+                        if (numTime === undefined) continue;
 
-                            const timeDiff = Math.abs(locationTime - numTime);
+                        const timeDiff = Math.abs(locationTime - numTime);
 
-                            // 5% accuracy: allow up to 5% of the timestamp value as difference
-                            const maxAllowedDiff = locationTime * 0.05;
+                        // 5% accuracy: allow up to 5% of the timestamp value as difference
+                        const maxAllowedDiff = locationTime * 0.05;
 
-                            if (timeDiff <= maxAllowedDiff && timeDiff < smallestTimeDiff) {
-                                smallestTimeDiff = timeDiff;
-                                bestMatch = num_data.data[j];
-                                bestMatchIndex = j;
-                            }
-                        }
-
-                        if (bestMatch) {
-                            // Extract numerical value (assuming it's either a direct number or has a value property)
-                            associatedValue = typeof bestMatch === 'number' ? bestMatch :
-                                (bestMatch?.value || bestMatch?.data || 1);
+                        if (timeDiff <= maxAllowedDiff && timeDiff < smallestTimeDiff) {
+                            smallestTimeDiff = timeDiff;
+                            bestMatch = num_data.data[j];
+                            bestMatchIndex = j;
                         }
                     }
 
-                    // Handle different coordinate formats
-                    let latitude: number, longitude: number;
-
-                    if (Array.isArray(locationData.coords)) {
-                        // If coords is already an array [lat, lon]
-                        latitude = locationData.coords[0];
-                        longitude = locationData.coords[1];
-                    } else if (locationData.coords.latitude !== undefined && locationData.coords.longitude !== undefined) {
-                        // If coords is an object with latitude/longitude properties
-                        latitude = locationData.coords.latitude;
-                        longitude = locationData.coords.longitude;
-                    } else {
-                        console.warn("Unknown coordinate format:", locationData.coords);
-                        continue;
-                    }
-
-                    const newLocation = {
-                        coords: [latitude, longitude] as [number, number],
-                        value: associatedValue
-                    };
-
-
-                    // Check if we should add this location (distance threshold)
-                    if (processedLocations.length > 0) {
-                        const lastLocation = processedLocations[processedLocations.length - 1];
-                        if (lastLocation) {
-                            const dist = distance(
-                                latitude,
-                                longitude,
-                                lastLocation.coords[0],
-                                lastLocation.coords[1]
-                            );
-                            if (dist > 1) { // 1 meter threshold
-                                processedLocations.push(newLocation);
-                            }
-                        }
-                    } else {
-                        processedLocations.push(newLocation);
+                    if (bestMatch) {
+                        // Extract numerical value (assuming it's either a direct number or has a value property)
+                        associatedValue = typeof bestMatch === 'number' ? bestMatch :
+                            (bestMatch?.value || bestMatch?.data || 1);
                     }
                 }
 
-                // Append new locations to existing ones instead of replacing
-                setLocations(prevLocations => [...prevLocations, ...processedLocations]);
+                // Handle different coordinate formats
+                let latitude: number, longitude: number;
+
+                if (Array.isArray(locationData.coords)) {
+                    // If coords is already an array [lat, lon]
+                    latitude = locationData.coords[0];
+                    longitude = locationData.coords[1];
+                } else if (locationData.coords.latitude !== undefined && locationData.coords.longitude !== undefined) {
+                    // If coords is an object with latitude/longitude properties
+                    latitude = locationData.coords.latitude;
+                    longitude = locationData.coords.longitude;
+                } else {
+                    console.warn("Unknown coordinate format:", locationData.coords);
+                    continue;
+                }
+
+                const newLocation = {
+                    coords: [latitude, longitude] as [number, number],
+                    value: associatedValue
+                };
+
+
+                // Check if we should add this location (distance threshold)
+                if (processedLocations.length > 0) {
+                    const lastLocation = processedLocations[processedLocations.length - 1];
+                    if (lastLocation) {
+                        const dist = distance(
+                            latitude,
+                            longitude,
+                            lastLocation.coords[0],
+                            lastLocation.coords[1]
+                        );
+                        if (dist > 1) { // 1 meter threshold
+                            processedLocations.push(newLocation);
+                        }
+                    }
+                } else {
+                    processedLocations.push(newLocation);
+                }
             }
-        } catch (error) {
-            console.error("Error parsing data", error, loc_data);
+
+            // Append new locations to existing ones instead of replacing
+            setLocations(prevLocations => [...prevLocations, ...processedLocations]);
         }
+
     }, [sources]);
 
     // Set up hover events for the map
@@ -274,14 +271,7 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
                     anchor="bottom"
                     offset={[0, -10]}
                 >
-                    <div style={{
-                        padding: '4px 8px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        color: 'white',
-                        borderRadius: '4px'
-                    }}>
+                    <div className="rounded-md border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-md">
                         Value: {hoveredPoint.value.toFixed(2)}
                     </div>
                 </Popup>
