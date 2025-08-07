@@ -104,5 +104,3 @@ export function TopicListOverlay({ topics, mapRef }: {
         </div>
     );
 }
-    );
-}
