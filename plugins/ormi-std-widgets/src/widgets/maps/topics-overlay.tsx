@@ -7,6 +7,7 @@ import { Badge } from "@workspace/ui/components/badge";
 import { Card, CardContent } from "@workspace/ui/components/card";
 import Image from "next/image";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { Button } from "@workspace/ui/components/button";
 
 export function TopicListOverlay({ topics, mapRef }: {
     topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
@@ -73,40 +74,54 @@ export function TopicListOverlay({ topics, mapRef }: {
     };
 
     return (
-        <div className="absolute top-2 left-2 max-w-48 z-10">
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-2 mt-2">
             {topics.map((topic) => {
                 return (
                     <div
                         key={topic.name}
                         className={cn(
-                            "flex items-center space-x-1.5 p-1 rounded cursor-pointer transition-colors",
-                            "hover:bg-muted/50"
+                            "relative bg-background bg-muted/50 rounded cursor-pointer transition-all duration-300 ease-in-out overflow-hidden",
+                            "hover-expand-width flex items-center"
                         )}
                     >
-                        <Badge
-                            variant={"secondary"}
-                            className="text-[10px] px-1 py-0 flex-shrink-0"
-                            onClick={() => handleTopicClick(topic)}
-                        >
-                            <Image
-                                width={32}
-                                height={32}
-                                src={`https://api.dicebear.com/9.x/bottts/svg?seed=${topic.name}`}
-                                alt={`Marker for ${topic.name}`}
-                            />
-                            <span>
-                                {topic.name}
-                            </span>
-                            <small className="ml-1">
-                                {topic.makerType}
-                            </small>
+                        {/* Always visible image button */}
+                        <div className="flex-shrink-0 w-12 flex justify-center">
+                            <Button
+                                variant={"ghost"}
+                                size="sm"
+                                className="p-2"
+                                onClick={() => handleTopicClick(topic)}
+                            >
+                                <Image
+                                    width={32}
+                                    height={32}
+                                    src={`https://api.dicebear.com/9.x/bottts/svg?seed=${topic.name}`}
+                                    alt={`Marker for ${topic.name}`}
+                                />
+                            </Button>
+                        </div>
 
-                        </Badge>
-                        {items.has(topic.topic.topic) && (
-                            <small>
-                                {items.get(topic.topic.topic)?.component}
-                            </small>
-                        )}
+                        {/* Sliding content - hidden by default, slides in on hover */}
+                        <div className={cn(
+                            "flex items-center  min-w-0 flex-1",
+                            "slide-in-from-left"
+                        )}>
+                            <div className="flex items-center gap-3 justify-between min-w-0 w-full">
+                                <span className="text-sm font-medium truncate">
+                                    {topic.name}
+                                </span>
+
+                                <small className="text-muted-foreground">
+                                    {topic.makerType}
+                                </small>
+
+                                {items.has(topic.topic.topic) && (
+                                    <div className="flex-shrink-0">
+                                        {items.get(topic.topic.topic)?.component}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 );
             })}

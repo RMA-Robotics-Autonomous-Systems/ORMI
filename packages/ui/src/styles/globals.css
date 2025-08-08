@@ -86,6 +86,34 @@
     .w-\[15\%\] {
         width: 15dvw;
     }
+
+    /* Topic overlay slide animation utilities */
+    /* .slide-in-from-left {
+        transform: translateX(-20px);
+        opacity: 0;
+        transition: transform 300ms ease-in-out, opacity 300ms ease-in-out;
+    } */
+
+    /* .slide-in-active {
+        transform: translateX(0);
+        opacity: 1;
+    } */
+
+    .hover-expand-width {
+        width: 3rem;
+        /* 48px - default width */
+        transition: width 300ms ease-in-out;
+    }
+
+    .hover-expand-width:hover {
+        width: 100%;
+        /* 256px - expanded width */
+    }
+
+    .hover-expand-width:hover .slide-in-from-left {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 @theme inline {
