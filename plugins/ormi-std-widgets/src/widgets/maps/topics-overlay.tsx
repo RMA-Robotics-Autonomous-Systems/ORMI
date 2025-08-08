@@ -8,12 +8,12 @@ import { Card, CardContent } from "@workspace/ui/components/card";
 import Image from "next/image";
 
 export function TopicListOverlay({ topics, mapRef }: {
-    topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" }[],
+    topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
     mapRef?: React.RefObject<MapRef>
 }) {
     const { sources } = useLocalDataSource();
 
-    const handleTopicClick = (topic: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" }) => {
+    const handleTopicClick = (topic: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }) => {
         if (!mapRef?.current) return;
 
         // Get the data source for this topic
@@ -30,7 +30,7 @@ export function TopicListOverlay({ topics, mapRef }: {
                     zoom: 16,
                     duration: 1000
                 });
-            } else if (topic.makerType === "heatmap" || topic.makerType === "path") {
+            } else if (topic.makerType === "heatmap" || topic.makerType === "path" || topic.makerType === "multipoints") {
                 // For heatmap and path, calculate bounds of all points
                 const coordinates: [number, number][] = [];
 

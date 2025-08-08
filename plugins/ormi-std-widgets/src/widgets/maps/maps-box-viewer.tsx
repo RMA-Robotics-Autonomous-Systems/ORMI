@@ -17,6 +17,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
+import MultiPoints from "./marker-multipoints";
 
 interface MapsViewerSettings {
     title: string;
@@ -26,7 +27,7 @@ interface MapsViewerSettings {
     topics: {
         name: string;
         topic: SelectedTopic;
-        makerType: "simple" | "heatmap" | "path",
+        makerType: "simple" | "heatmap" | "path" | "multipoints";
         numericalTopic?: SelectedTopic;
     }[]
 }
@@ -287,8 +288,9 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                                 return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} numericalTopic={t.numericalTopic} />;
                             } else if (t.makerType === "path") {
                                 return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                            } else if (t.makerType === "multipoints") {
+                                return <MultiPoints key={t.name} topic={t.topic} name={t.name} scale={1} />;
                             }
-
                             return null;
                         })}
 
@@ -366,7 +368,7 @@ export function MapsBoxViewerDefinition() {
                         type: "object",
                         properties: {
                             name: { type: "string", title: "Name" },
-                            makerType: { type: "string", title: "Marker Type", enum: ["simple", "heatmap", "path"] },
+                            makerType: { type: "string", title: "Marker Type", enum: ["simple", "heatmap", "path", "multipoints"] },
                             topic: { type: "object", title: "Topic" },
                             numericalTopic: { type: "object", title: "Numerical Topic (only for heatmap)" }
                         },
