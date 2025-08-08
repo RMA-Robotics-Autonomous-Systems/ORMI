@@ -25,13 +25,13 @@ interface ButtonItem {
     priority: number;
 }
 
-interface NavbarContextType {
+interface ButtonHolderContextType {
     items: Map<string, ButtonItem>;
     setButtonItem: (key: string, component: JSX.Element, priority?: number) => void;
     removeButtonItem: (key: string) => void;
 }
 
-const NavbarContext = createContext<NavbarContextType>({
+const ButtonHolderContext = createContext<ButtonHolderContextType>({
     items: new Map(),
     setButtonItem: () => { },
     removeButtonItem: () => { }
@@ -84,14 +84,14 @@ export const ButtonHolderProvider: React.FC<ButtonHolderProviderProps> = ({ chil
 
 
     return (
-        <NavbarContext.Provider value={{ items, setButtonItem, removeButtonItem }}>
+        <ButtonHolderContext.Provider value={{ items, setButtonItem, removeButtonItem }}>
             {children}
-        </NavbarContext.Provider>
+        </ButtonHolderContext.Provider>
     );
 }
 
 export const useButtonHolder = () => {
-    const context = useContext(NavbarContext);
+    const context = useContext(ButtonHolderContext);
     if (!context) {
         throw new Error("useButtonHolder must be used within a ButtonHolderProvider");
     }
