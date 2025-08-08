@@ -68,6 +68,13 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
         // Clear any pending updates
         pendingUpdates.clear();
 
+        // Pre-compute topic lookup map for O(1) access
+        const topicLookupMap = new Map<string, SelectedTopic>();
+        Topics.forEach(topic => {
+            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+            topicLookupMap.set(sourceId, topic);
+        });
+
         // Initialize the sources map with empty sources for all topics
         setSources(prevSources => {
             const newSources = new Map<string, Source<any>>();
@@ -111,7 +118,49 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
             if (pendingUpdates.size === 0) return;
 
             setSources(prevSources => {
-                // Create a completely new Map to ensure React detects the state change
+                // Only update if there are actually pending updates
+                if (pendingUpdates.size === 0) return prevSources;
+
+                // For performance with large datasets, only copy sources that need updates
+                const sourcesToUpdate = new Set(pendingUpdates.keys());
+
+                // If only a few sources need updates, be more selective
+                if (sourcesToUpdate.size <= 3 && prevSources.size > 5) {
+                    const newSources = new Map(prevSources);
+
+                    pendingUpdates.forEach((update, sourceId) => {
+                        const currentSource = newSources.get(sourceId);
+                        if (!currentSource) return;
+
+                        // Get buffer limit using O(1) lookup
+                        const topic = topicLookupMap.get(sourceId);
+                        const bufferLimit = topic?.bufferSize || buffersSize;
+
+                        // Efficient buffer management
+                        let newData: any[];
+                        let newTimes: number[];
+
+                        if (currentSource.data.length < bufferLimit) {
+                            newData = [...currentSource.data, update.value];
+                            newTimes = [...currentSource.times, update.time];
+                        } else {
+                            newData = [...currentSource.data.slice(1), update.value];
+                            newTimes = [...currentSource.times.slice(1), update.time];
+                        }
+
+                        newSources.set(sourceId, {
+                            data: newData,
+                            times: newTimes,
+                            referenceFrameId: update.referenceFrameId || "unknown"
+                        });
+                    });
+
+                    pendingUpdates.clear();
+                    setUpdateCount(prev => prev + 1);
+                    return newSources;
+                }
+
+                // Fallback to full copy for many updates
                 const newSources = new Map<string, Source<any>>();
 
                 // First copy all existing sources
@@ -126,20 +175,22 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                         return;
                     }
 
-                    // Create new arrays for immutability
-                    const newData = [...currentSource.data, update.value];
-                    const newTimes = [...currentSource.times, update.time];
-
-                    // Apply buffer limit
-                    const topic = Topics.find(t => {
-                        const topicId = (t.property !== '') ? t.topic + "+" + t.property : t.topic;
-                        return topicId === sourceId;
-                    });
-
+                    // Get buffer limit using O(1) lookup
+                    const topic = topicLookupMap.get(sourceId);
                     const bufferLimit = topic?.bufferSize || buffersSize;
-                    if (newData.length > bufferLimit) {
-                        newData.shift(); // Remove oldest element
-                        newTimes.shift(); // Remove corresponding time
+
+                    // Efficient buffer management - avoid array spread when possible
+                    let newData: any[];
+                    let newTimes: number[];
+
+                    if (currentSource.data.length < bufferLimit) {
+                        // Still room in buffer - simple append
+                        newData = [...currentSource.data, update.value];
+                        newTimes = [...currentSource.times, update.time];
+                    } else {
+                        // Buffer full - use slice for efficient removal + append
+                        newData = [...currentSource.data.slice(1), update.value];
+                        newTimes = [...currentSource.times.slice(1), update.time];
                     }
 
                     // Update the source with new data - create a new object
@@ -258,16 +309,21 @@ const useLocalDataSource = () => {
         throw new Error('useLocalDataSource must be used within a GlobalDataSourcesProvider');
     }
 
-    // Force component using this hook to re-render when sources change
+    // Use a ref to track the last known sources size to detect changes more efficiently
+    const lastSizeRef = useRef(0);
     const [, forceUpdate] = useState({});
 
     useEffect(() => {
         const intervalId = setInterval(() => {
-            forceUpdate({});
-        }, 100); // Check for changes every 100ms
+            const currentSize = context.sources.size;
+            if (currentSize !== lastSizeRef.current) {
+                lastSizeRef.current = currentSize;
+                forceUpdate({});
+            }
+        }, 50); // Reduced from 100ms to 50ms for better responsiveness
 
         return () => clearInterval(intervalId);
-    }, []);
+    }, [context.sources]);
 
     return context;
 };
