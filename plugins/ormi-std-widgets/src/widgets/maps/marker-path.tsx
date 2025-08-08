@@ -22,7 +22,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
                 if (locations.length > 0) {
                     const lastLocation = locations[locations.length - 1];
                     const dist = distance(lastData.coords.latitude, lastData.coords.longitude, lastLocation[0], lastLocation[1]);
-                    if (dist > 1) {
+                    if (dist > 0.25) {
                         setLocations([...locations, [lastData.coords.latitude, lastData.coords.longitude]]);
                     }
                 } else {
