@@ -6,12 +6,15 @@ import { cn } from "@workspace/ui/lib/utils";
 import { Badge } from "@workspace/ui/components/badge";
 import { Card, CardContent } from "@workspace/ui/components/card";
 import Image from "next/image";
+import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 
 export function TopicListOverlay({ topics, mapRef }: {
     topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
     mapRef?: React.RefObject<MapRef>
 }) {
     const { sources } = useLocalDataSource();
+    const { items } = useButtonHolder();
+
 
     const handleTopicClick = (topic: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }) => {
         if (!mapRef?.current) return;
@@ -79,11 +82,11 @@ export function TopicListOverlay({ topics, mapRef }: {
                             "flex items-center space-x-1.5 p-1 rounded cursor-pointer transition-colors",
                             "hover:bg-muted/50"
                         )}
-                        onClick={() => handleTopicClick(topic)}
                     >
                         <Badge
                             variant={"secondary"}
                             className="text-[10px] px-1 py-0 flex-shrink-0"
+                            onClick={() => handleTopicClick(topic)}
                         >
                             <Image
                                 width={32}
@@ -97,7 +100,13 @@ export function TopicListOverlay({ topics, mapRef }: {
                             <small className="ml-1">
                                 {topic.makerType}
                             </small>
+
                         </Badge>
+                        {items.has(topic.topic.topic) && (
+                            <small>
+                                {items.get(topic.topic.topic)?.component}
+                            </small>
+                        )}
                     </div>
                 );
             })}

@@ -4,12 +4,20 @@ import { useEffect, useState } from "react";
 import TopicMaker from "./marker-simple";
 import { Layer, Source, Popup, useMap } from 'react-map-gl/maplibre';
 import { SelectedTopic, useLocalDataSource } from "@workspace/ormi-core/datasources";
+import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { EyeClosedIcon, EyeIcon } from "lucide-react";
+import { Button } from "@workspace/ui/components/button";
 
 export default function MultiPoints(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
     const [hoveredPoint, setHoveredPoint] = useState<any>(null);
     const { sources } = useLocalDataSource();
     const { current: map } = useMap();
+
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
+    const [show, setShow] = useState(true);
+
+
 
     // Set up hover events for the map
     useEffect(() => {
@@ -48,11 +56,22 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
         map.on('mousemove', handleMouseMove);
         map.on('mouseleave', `points-layer-${props.name}`, handleMouseLeave);
 
+        setButtonItem(props.topic.topic,
+            <Button variant={"ghost"} onClick={() => {
+                setShow(!show);
+            }}>
+                {show ? <EyeIcon className="h-4 w-4" /> : <EyeClosedIcon className="h-4 w-4" />}
+            </Button>,
+            1
+        );
+
         return () => {
             map.off('mousemove', handleMouseMove);
             map.off('mouseleave', `points-layer-${props.name}`, handleMouseLeave);
+
+            removeButtonItem(props.topic.topic);
         };
-    }, [map, props.name]);
+    }, [map, props.name, show]);
 
     useEffect(() => {
         const data = sources.get(props.topic.topic);
@@ -124,7 +143,7 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
 
     return (
         <>
-            <Source id={`points-source-${props.name}`} type="geojson" data={{
+            {show && <Source id={`points-source-${props.name}`} type="geojson" data={{
                 type: 'FeatureCollection',
                 features: locations.map((loc: any, index: number) => ({
                     type: 'Feature',
@@ -148,9 +167,9 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
                         'circle-stroke-color': hashStringToColor(props.topic.topic.split('').reverse().join('')),
                     }}
                 />
-            </Source>
+            </Source>}
 
-            {hoveredPoint && (
+            {show && hoveredPoint && (
                 <Popup
                     longitude={hoveredPoint.longitude}
                     latitude={hoveredPoint.latitude}

@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 import TopicMaker from "./marker-simple";
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { SelectedTopic, useLocalDataSource } from "@workspace/ormi-core/datasources";
+import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { Button } from "@workspace/ui/components/button";
+import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
 export default function PathMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
     const { sources } = useLocalDataSource();
+
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
+    const [show, setShow] = useState(true);
 
     useEffect(() => {
         const data = sources.get(props.topic.topic);
@@ -32,6 +38,20 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
         } catch (error) {
             console.error("Error parsing data", error, data);
         }
+
+        setButtonItem(props.topic.topic,
+            <Button variant={"ghost"} onClick={() => {
+                setShow(!show);
+            }}>
+                {show ? <EyeIcon className="h-4 w-4" /> : <EyeClosedIcon className="h-4 w-4" />}
+            </Button>,
+            1
+        );
+
+        return () => {
+            removeButtonItem(props.topic.topic);
+        }
+
     }, [sources]);
 
     const distance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -58,6 +78,12 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
         return R * c;
     }
 
+    if (!show) {
+        return (
+            null
+        )
+    }
+
     return (
         <>
             <Source id={`path-source-${props.name}`} type="geojson" data={{
@@ -78,7 +104,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
                     }}
                 />
             </Source>
-            <TopicMaker topic={props.topic} name={props.name} scale={props.scale} />
+            <TopicMaker topic={props.topic} name={props.name} scale={props.scale} isChild />
         </>
     );
 }

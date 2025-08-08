@@ -15,7 +15,7 @@ import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTop
 import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
-import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { ButtonHolderProvider, useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import MultiPoints from "./marker-multipoints";
 
@@ -263,41 +263,43 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
-            <Map
-                key={`map-${refreshCounter}`}
-                initialViewState={{
-                    longitude: startingLocation[0],
-                    latitude: startingLocation[1],
-                    zoom: 15,  // Increased zoom to better see buildings
-                    pitch: 45, // Add tilt
-                    bearing: 0
-                }}
-                style={{ width: "100%", height: "100%" }}
-                mapStyle={rasterStyle}
-                ref={mapRef}
-                onMoveEnd={gridHook.updateGridForViewport}
-                onZoomEnd={gridHook.updateGridForViewport}
-            >
-                <MapsGrid mapRef={mapRef} showGrid={showGrid} />
-                {(props.topics || []).length !== 0 && (
-                    <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
-                        {props.topics.map(t => {
-                            if (t.makerType === "simple") {
-                                return <TopicMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                            } else if (t.makerType === "heatmap") {
-                                return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} numericalTopic={t.numericalTopic} />;
-                            } else if (t.makerType === "path") {
-                                return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                            } else if (t.makerType === "multipoints") {
-                                return <MultiPoints key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                            }
-                            return null;
-                        })}
+            <ButtonHolderProvider>
+                <Map
+                    key={`map-${refreshCounter}`}
+                    initialViewState={{
+                        longitude: startingLocation[0],
+                        latitude: startingLocation[1],
+                        zoom: 15,  // Increased zoom to better see buildings
+                        pitch: 45, // Add tilt
+                        bearing: 0
+                    }}
+                    style={{ width: "100%", height: "100%" }}
+                    mapStyle={rasterStyle}
+                    ref={mapRef}
+                    onMoveEnd={gridHook.updateGridForViewport}
+                    onZoomEnd={gridHook.updateGridForViewport}
+                >
+                    <MapsGrid mapRef={mapRef} showGrid={showGrid} />
+                    {(props.topics || []).length !== 0 && (
+                        <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
+                            {props.topics.map(t => {
+                                if (t.makerType === "simple") {
+                                    return <TopicMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                                } else if (t.makerType === "heatmap") {
+                                    return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} numericalTopic={t.numericalTopic} />;
+                                } else if (t.makerType === "path") {
+                                    return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                                } else if (t.makerType === "multipoints") {
+                                    return <MultiPoints key={t.name} topic={t.topic} name={t.name} scale={1} />;
+                                }
+                                return null;
+                            })}
 
-                        <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
-                    </LocalDataSourcesProvider >
-                )}
-            </Map>
+                            <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
+                        </LocalDataSourcesProvider >
+                    )}
+                </Map>
+            </ButtonHolderProvider>
         </div>
     );
 }

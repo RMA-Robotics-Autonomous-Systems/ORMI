@@ -1,6 +1,9 @@
 "use client"
 
 import { SelectedTopic, useLocalDataSource } from "@workspace/ormi-core/datasources";
+import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import { Button } from "@workspace/ui/components/button";
+import { EyeClosedIcon, EyeIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Layer, Source, Popup, useMap } from "react-map-gl/maplibre";
 
@@ -9,6 +12,10 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
     const [hoveredPoint, setHoveredPoint] = useState<{ coords: [number, number], value: number } | null>(null);
     const { sources } = useLocalDataSource();
     const { current: map } = useMap();
+
+
+    const { setButtonItem, removeButtonItem } = useButtonHolder();
+    const [show, setShow] = useState(true);
 
     useEffect(() => {
         const loc_data = sources.get(props.topic.topic);
@@ -111,6 +118,20 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
             } else {
                 setLocations(prevLocations => [...prevLocations, newLocation]);
             }
+        }
+
+
+        setButtonItem(props.topic.topic,
+            <Button variant={"ghost"} onClick={() => {
+                setShow(!show);
+            }}>
+                {show ? <EyeIcon className="h-4 w-4" /> : <EyeClosedIcon className="h-4 w-4" />}
+            </Button>,
+            1
+        );
+
+        return () => {
+            removeButtonItem(props.topic.topic);
         }
 
     }, [sources]);
@@ -219,6 +240,10 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
             }
         }))
     };
+
+    if (!show) {
+        return null;
+    }
 
     return (
         <>
