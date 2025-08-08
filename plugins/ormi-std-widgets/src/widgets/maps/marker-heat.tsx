@@ -18,92 +18,99 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         }
 
         if (loc_data.data.length > 0) {
-            // Process all location data and associate with numerical data
-            const processedLocations: Array<{ coords: [number, number], value: number }> = [];
+            // Process the single location data point and associate with numerical data
+            const locationData = loc_data.data[0] as GeolocationPosition;
+            const locationTime = loc_data.times[0]; // Use time from the times array
 
-            for (let i = 0; i < loc_data.data.length; i++) {
-                const locationData = loc_data.data[i] as GeolocationPosition;
-                const locationTime = loc_data.times[i]; // Use time from the times array
+            // Skip if time is not available
+            if (locationTime === undefined) return;
 
-                // Skip if time is not available
-                if (locationTime === undefined) continue;
+            let associatedValue = 50; // Default value if no numerical data
 
-                let associatedValue = 50; // Default value if no numerical data
+            // Find matching numerical data within 5% time accuracy
+            if (num_data && num_data.data.length > 0) {
+                let bestMatch = null;
+                let smallestTimeDiff = Infinity;
 
-                // Find matching numerical data within 5% time accuracy
-                if (num_data && num_data.data.length > 0) {
-                    let bestMatch = null;
-                    let smallestTimeDiff = Infinity;
-                    let bestMatchIndex = -1;
+                for (let j = 0; j < num_data.data.length; j++) {
+                    const numTime = num_data.times[j]; // Use time from the times array
 
-                    for (let j = 0; j < num_data.data.length; j++) {
-                        const numTime = num_data.times[j]; // Use time from the times array
+                    // Skip if time is not available
+                    if (numTime === undefined) continue;
 
-                        // Skip if time is not available
-                        if (numTime === undefined) continue;
+                    const timeDiff = Math.abs(locationTime - numTime);
 
-                        const timeDiff = Math.abs(locationTime - numTime);
+                    // 5% accuracy: allow up to 5% of the timestamp value as difference
+                    const maxAllowedDiff = locationTime * 0.05;
 
-                        // 5% accuracy: allow up to 5% of the timestamp value as difference
-                        const maxAllowedDiff = locationTime * 0.05;
-
-                        if (timeDiff <= maxAllowedDiff && timeDiff < smallestTimeDiff) {
-                            smallestTimeDiff = timeDiff;
-                            bestMatch = num_data.data[j];
-                            bestMatchIndex = j;
-                        }
-                    }
-
-                    if (bestMatch) {
-                        // Extract numerical value (assuming it's either a direct number or has a value property)
-                        associatedValue = typeof bestMatch === 'number' ? bestMatch :
-                            (bestMatch?.value || bestMatch?.data || 1);
+                    if (timeDiff <= maxAllowedDiff && timeDiff < smallestTimeDiff) {
+                        smallestTimeDiff = timeDiff;
+                        bestMatch = num_data.data[j];
                     }
                 }
 
-                // Handle different coordinate formats
-                let latitude: number, longitude: number;
-
-                if (Array.isArray(locationData.coords)) {
-                    // If coords is already an array [lat, lon]
-                    latitude = locationData.coords[0];
-                    longitude = locationData.coords[1];
-                } else if (locationData.coords.latitude !== undefined && locationData.coords.longitude !== undefined) {
-                    // If coords is an object with latitude/longitude properties
-                    latitude = locationData.coords.latitude;
-                    longitude = locationData.coords.longitude;
-                } else {
-                    console.warn("Unknown coordinate format:", locationData.coords);
-                    continue;
-                }
-
-                const newLocation = {
-                    coords: [latitude, longitude] as [number, number],
-                    value: associatedValue
-                };
-
-
-                // Check if we should add this location (distance threshold)
-                if (processedLocations.length > 0) {
-                    const lastLocation = processedLocations[processedLocations.length - 1];
-                    if (lastLocation) {
-                        const dist = distance(
-                            latitude,
-                            longitude,
-                            lastLocation.coords[0],
-                            lastLocation.coords[1]
-                        );
-                        if (dist > 1) { // 1 meter threshold
-                            processedLocations.push(newLocation);
-                        }
-                    }
-                } else {
-                    processedLocations.push(newLocation);
+                if (bestMatch) {
+                    // Extract numerical value (assuming it's either a direct number or has a value property)
+                    associatedValue = typeof bestMatch === 'number' ? bestMatch :
+                        (bestMatch?.value || bestMatch?.data || 1);
                 }
             }
 
-            // Append new locations to existing ones instead of replacing
-            setLocations(prevLocations => [...prevLocations, ...processedLocations]);
+            let latitude: number, longitude: number;
+            latitude = locationData.coords.latitude;
+            longitude = locationData.coords.longitude;
+
+            const newLocation = {
+                coords: [latitude, longitude] as [number, number],
+                value: associatedValue
+            };
+
+            // Hybrid approach: value-based filtering with different zones
+            if (locations.length > 0) {
+                const lastLocation = locations[locations.length - 1];
+                if (lastLocation) {
+                    const dist = distance(
+                        latitude,
+                        longitude,
+                        lastLocation.coords[0],
+                        lastLocation.coords[1]
+                    );
+
+                    // Calculate current data range for value zones
+                    const currentValues = locations.map(loc => loc.value);
+                    const currentMin = Math.min(...currentValues);
+                    const currentMax = Math.max(...currentValues);
+                    const valueRange = currentMax - currentMin;
+
+                    // Define value zones based on current data
+                    const criticalThreshold = currentMax - (valueRange * 0.1); // Top 10%
+                    const importantThreshold = currentMax - (valueRange * 0.3); // Top 30%
+
+                    // Determine zone and corresponding distance threshold
+                    let distanceThreshold: number;
+                    let shouldAdd = false;
+
+                    if (associatedValue >= criticalThreshold) {
+                        // Critical zone: Always add, regardless of distance
+                        shouldAdd = true;
+                        distanceThreshold = 0;
+                    } else if (associatedValue >= importantThreshold) {
+                        // Important zone: Reduced distance threshold
+                        distanceThreshold = 0.1; // 0.1 meter threshold
+                        shouldAdd = dist > distanceThreshold;
+                    } else {
+                        // Normal zone: Standard distance threshold
+                        distanceThreshold = 0.25; // 0.25 meter threshold
+                        shouldAdd = dist > distanceThreshold;
+                    }
+
+                    if (shouldAdd) {
+                        setLocations(prevLocations => [...prevLocations, newLocation]);
+                    }
+                }
+            } else {
+                setLocations(prevLocations => [...prevLocations, newLocation]);
+            }
         }
 
     }, [sources]);
@@ -196,12 +203,6 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     };
 
-    // Create line segments between consecutive points with gradient colors
-    const lineSegments: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection' as const,
-        features: []
-    };
-
     // Create individual point features for circle visualization, sorted by value (lowest first so highest render on top)
     const sortedLocations = [...locations].sort((a, b) => a.value - b.value);
     const pointFeatures: GeoJSON.FeatureCollection = {
@@ -218,31 +219,6 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
             }
         }))
     };
-
-    // Create line segments between consecutive points
-    for (let i = 0; i < locations.length - 1; i++) {
-        const currentPoint = locations[i];
-        const nextPoint = locations[i + 1];
-
-        if (currentPoint && nextPoint) {
-            const avgValue = (currentPoint.value + nextPoint.value) / 2;
-
-            lineSegments.features.push({
-                type: 'Feature',
-                geometry: {
-                    type: 'LineString',
-                    coordinates: [
-                        [currentPoint.coords[1], currentPoint.coords[0]], // [longitude, latitude]
-                        [nextPoint.coords[1], nextPoint.coords[0]]
-                    ]
-                },
-                properties: {
-                    value: avgValue,
-                    color: getColorForValue(avgValue)
-                }
-            });
-        }
-    }
 
     return (
         <>
@@ -271,8 +247,20 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
                     anchor="bottom"
                     offset={[0, -10]}
                 >
-                    <div className="rounded-md border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-md">
-                        Value: {hoveredPoint.value.toFixed(2)}
+                    <div className="rounded-lg shadow-md p-3 bg-white text-gray-800">
+                        <h3 className="font-semibold text-sm mb-1">Data Point</h3>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-xs font-medium">Value:</span>
+                            <span className="text-xs">{hoveredPoint.value.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-xs font-medium">Latitude:</span>
+                            <span className="text-xs">{hoveredPoint.coords[0].toFixed(6)}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-xs font-medium">Longitude:</span>
+                            <span className="text-xs">{hoveredPoint.coords[1].toFixed(6)}</span>
+                        </div>
                     </div>
                 </Popup>
             )}
