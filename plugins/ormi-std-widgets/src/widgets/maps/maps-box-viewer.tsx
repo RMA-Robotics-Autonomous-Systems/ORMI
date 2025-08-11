@@ -331,26 +331,26 @@ export function MapsBoxViewerDefinition() {
                             const: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                             title: "OpenStreetMap"
                         },
-                        // {
-                        //     const: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-                        //     title: "OpenStreetMap DE"
-                        // },
-                        // {
-                        //     const: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-                        //     title: "OpenTopoMap"
-                        // },
-                        // {
-                        //     const: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
-                        //     title: "Stadia Maps"
-                        // },
-                        // {
-                        //     const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
-                        //     title: "Stadia Maps Dark"
-                        // },
-                        // {
-                        //     const: "https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png",
-                        //     title: "OPNVKarte"
-                        // }
+                        {
+                            const: "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+                            title: "OpenStreetMap Humanitarian"
+                        },
+                        {
+                            const: "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+                            title: "OpenTopoMap A"
+                        },
+                        {   //https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/5/15/10.png
+                            const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png",
+                            title: "Stadia Maps Alidade Smooth Dark"
+                        },
+                        {   //https://tiles.stadiamaps.com/tiles/alidade_satellite/7/72/44.jpg
+                            const: "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg",
+                            title: "Stadia Maps Alidade Satellite"
+                        },
+                        {   //https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/18/88796/141595
+                            const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                            title: "ArcGIS World Imagery"
+                        }
                     ]
                 },
 
