@@ -13,6 +13,9 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
     const { sources } = useLocalDataSource();
     const { current: map } = useMap();
 
+    // Create unique IDs for this heat marker instance
+    const sourceId = `value-points-${props.name}`;
+    const layerId = `value-points-layer-${props.name}`;
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
@@ -141,8 +144,15 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         if (!map) return;
 
         const handleMouseMove = (e: any) => {
+            // Only query features if the layer is currently shown
+            if (!show) {
+                setHoveredPoint(null);
+                map.getCanvas().style.cursor = '';
+                return;
+            }
+
             const features = map.queryRenderedFeatures(e.point, {
-                layers: ['value-points-layer']
+                layers: [layerId]
             });
 
             if (features.length > 0) {
@@ -170,14 +180,13 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         };
 
         map.on('mousemove', handleMouseMove);
-        map.on('mouseleave', 'value-points-layer', handleMouseLeave);
+        map.on('mouseleave', layerId, handleMouseLeave);
 
         return () => {
             map.off('mousemove', handleMouseMove);
-            map.off('mouseleave', 'value-points-layer', handleMouseLeave);
+            map.off('mouseleave', layerId, handleMouseLeave);
         };
-    }, [map]);
-
+    }, [map, layerId]);
     const distance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371e3; // Earth's radius in meters
 
@@ -247,9 +256,9 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
 
     return (
         <>
-            <Source id="value-points" type="geojson" data={pointFeatures}>
+            <Source id={sourceId} type="geojson" data={pointFeatures}>
                 <Layer
-                    id="value-points-layer"
+                    id={layerId}
                     type="circle"
                     paint={{
                         'circle-color': ['get', 'color'],

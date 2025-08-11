@@ -12,6 +12,10 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
     const [locations, setLocations] = useState<any>([]);
     const { sources } = useLocalDataSource();
 
+    // Create unique IDs for this path marker instance
+    const sourceId = `path-source-${props.name}`;
+    const layerId = `path-layer-${props.name}`;
+
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
 
@@ -86,7 +90,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
 
     return (
         <>
-            <Source id={`path-source-${props.name}`} type="geojson" data={{
+            <Source id={sourceId} type="geojson" data={{
                 type: 'Feature',
                 properties: {},
                 geometry: {
@@ -95,9 +99,9 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
                 }
             }}>
                 <Layer
-                    id={`path-layer-${props.name}`}
+                    id={layerId}
                     type="line"
-                    source={`path-source-${props.name}`}
+                    source={sourceId}
                     paint={{
                         'line-color': '#888',
                         'line-width': 4

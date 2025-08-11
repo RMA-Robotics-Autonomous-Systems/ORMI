@@ -14,6 +14,10 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
     const { sources } = useLocalDataSource();
     const { current: map } = useMap();
 
+    // Create unique IDs for this multipoints instance
+    const sourceId = `points-source-${props.name}`;
+    const layerId = `points-layer-${props.name}`;
+
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
 
@@ -24,8 +28,15 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
         if (!map) return;
 
         const handleMouseMove = (e: any) => {
+            // Only query features if the layer is currently shown
+            if (!show) {
+                setHoveredPoint(null);
+                map.getCanvas().style.cursor = '';
+                return;
+            }
+
             const features = map.queryRenderedFeatures(e.point, {
-                layers: [`points-layer-${props.name}`]
+                layers: [layerId]
             });
 
             if (features.length > 0) {
@@ -54,7 +65,7 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
         };
 
         map.on('mousemove', handleMouseMove);
-        map.on('mouseleave', `points-layer-${props.name}`, handleMouseLeave);
+        map.on('mouseleave', layerId, handleMouseLeave);
 
         setButtonItem(props.topic.topic,
             <Button variant={"ghost"} onClick={() => {
@@ -67,11 +78,11 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
 
         return () => {
             map.off('mousemove', handleMouseMove);
-            map.off('mouseleave', `points-layer-${props.name}`, handleMouseLeave);
+            map.off('mouseleave', layerId, handleMouseLeave);
 
             removeButtonItem(props.topic.topic);
         };
-    }, [map, props.name, show]);
+    }, [map, layerId, show]);
 
     useEffect(() => {
         const data = sources.get(props.topic.topic);
@@ -143,7 +154,7 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
 
     return (
         <>
-            {show && <Source id={`points-source-${props.name}`} type="geojson" data={{
+            {show && <Source id={sourceId} type="geojson" data={{
                 type: 'FeatureCollection',
                 features: locations.map((loc: any, index: number) => ({
                     type: 'Feature',
@@ -157,9 +168,9 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
                 }))
             }}>
                 <Layer
-                    id={`points-layer-${props.name}`}
+                    id={layerId}
                     type="circle"
-                    source={`points-source-${props.name}`}
+                    source={sourceId}
                     paint={{
                         'circle-color': hashStringToColor(props.topic.topic),
                         'circle-radius': 6,
