@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { JSX, useEffect, useRef, useState } from "react";
 import Map, { MapRef, StyleSpecification } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
 import TopicMarker from "./marker-simple";
@@ -27,7 +27,7 @@ interface MapsViewerSettings {
     topics: {
         name: string;
         topic: SelectedTopic;
-        makerType: "simple" | "heatmap" | "path" | "multipoints";
+        makerType: "simple" | "heatmap" | "path" | "multipoints" | any;
         numericalTopic?: SelectedTopic;
     }[]
 }
@@ -44,6 +44,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const gridHook = useMapGrid(mapRef, showGrid);
+
+    const pluginsManager = usePluginsManager();
 
 
     useEffect(() => {
@@ -292,7 +294,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                                 } else if (t.makerType === "multipoints") {
                                     return <MultiPoints key={t.name} topic={t.topic} name={t.name} scale={1} />;
                                 }
-                                return null;
+                                return pluginsManager.applyFilter<JSX.Element | null>("std-widgets-map-components", null, t);
                             })}
 
                             <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
@@ -306,6 +308,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
 export function MapsBoxViewerDefinition() {
     const pluginsManager = usePluginsManager();
+
+    const mapType = pluginsManager.applyFilter<string[]>("std-widgets-map-type", ["simple", "heatmap", "path", "multipoints"]);
+    const topicFilter = pluginsManager.applyFilter<DatasourceTopicFilter>("std-widgets-map-topic-available-type", new DatasourceTopicFilter({ type: /GeolocationPosition/ }));
+
 
     return {
         id: 'map-box-viewer',
@@ -387,7 +393,7 @@ export function MapsBoxViewerDefinition() {
                         type: "object",
                         properties: {
                             name: { type: "string", title: "Name" },
-                            makerType: { type: "string", title: "Marker Type", enum: ["simple", "heatmap", "path", "multipoints"] },
+                            makerType: { type: "string", title: "Marker Type", enum: mapType },
                             topic: { type: "object", title: "Topic" },
                             numericalTopic: { type: "object", title: "Numerical Topic (only for heatmap)" }
                         },
@@ -454,7 +460,7 @@ export function MapsBoxViewerDefinition() {
                                             scope: "#/properties/topic",
                                             options: {
                                                 asyncFunction: async () => {
-                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /GeolocationPosition/ }));
+                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], topicFilter);
                                                 },
                                                 canSelectProperty: false,
                                                 buffer: 1
