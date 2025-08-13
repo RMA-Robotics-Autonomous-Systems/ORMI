@@ -3,6 +3,7 @@
 // ...other necessary imports...
 
 import { Movement, IMU, PointsCloud, Vector3,Color,Image} from "@workspace/ormi-core/types";
+import { PluginsManager } from "@workspace/ormi-plugins";
 
 
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
@@ -17,6 +18,9 @@ interface ConverterEntry {
 }
 
 export class UnifiedConverter {
+
+    static pluginManager: PluginsManager | null = null;
+
     // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
     static converters: { [webType: string]: ConverterEntry } = {
         "Movement": {
@@ -364,8 +368,11 @@ export class UnifiedConverter {
 
     // Updated: loops through each ConverterEntry's conversion mapping.
     static getWebappTypeFromROSType(ros2Type: string): string | undefined {
-        for (const webType in UnifiedConverter.converters) {
-            if (Object.keys(UnifiedConverter.converters[webType]!.conversions).includes(ros2Type)) {
+
+        let allConverters = this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>("ros2-converters", UnifiedConverter.converters) || UnifiedConverter.converters;
+
+        for (const webType in allConverters) {
+            if (Object.keys(allConverters[webType]!.conversions).includes(ros2Type)) {
                 return webType;
             }
         }
@@ -374,13 +381,19 @@ export class UnifiedConverter {
 
     // Returns the primary ros2 type (first key) for a given webapp type.
     static getROSTypeFromWebappType(webappType: string): string | undefined {
-        const conv = UnifiedConverter.converters[webappType];
+
+        let allConverters = this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>("ros2-converters", UnifiedConverter.converters) || UnifiedConverter.converters;
+
+        const conv = allConverters[webappType];
         return conv ? Object.keys(conv.conversions)[0] : undefined;
     }
 
     // Converts a ros2 object to a webapp object using conversion identified by originalRos2Type.
     static convertToWebapp(rosData: any, targetWebappType: string, originalRos2Type: string): any {
-        const entry = UnifiedConverter.converters[targetWebappType];
+
+        let allConverters = this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>("ros2-converters", UnifiedConverter.converters) || UnifiedConverter.converters;
+
+        const entry = allConverters[targetWebappType];
         if (!entry || !entry.conversions[originalRos2Type]) {
             // throw new Error(`No conversion mapping found for webapp type: ${targetWebappType} and ros2 type: ${originalRos2Type}`);
             return rosData;
@@ -390,7 +403,10 @@ export class UnifiedConverter {
 
     // Converts a webapp object to a ros2 object using conversion identified by desiredRos2Type.
     static convertToROS2(webData: any, webappType: string, desiredRos2Type: string): any {
-        const entry = UnifiedConverter.converters[webappType];
+
+        let allConverters = this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>("ros2-converters", UnifiedConverter.converters) || UnifiedConverter.converters;
+
+        const entry = allConverters[webappType];
         if (!entry || !entry.conversions[desiredRos2Type]) {
             throw new Error(`No conversion mapping found for webapp type: ${webappType} and desired ros2 type: ${desiredRos2Type}`);
         }

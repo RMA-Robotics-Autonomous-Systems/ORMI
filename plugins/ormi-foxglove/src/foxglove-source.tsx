@@ -14,7 +14,7 @@
         },
 */
 
-import React, { createContext, ReactNode, useEffect, useRef, useState } from 'react';
+import React, { createContext, ReactNode, use, useEffect, useRef, useState } from 'react';
 
 
 import { JsonSchema } from '@jsonforms/core';
@@ -113,6 +113,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     const advertisingPromisesRef = useRef<Map<string, Promise<boolean>>>(new Map()); // Topic name -> Promise<success>
 
     const [retry, setRetry] = React.useState(0);    // force re-render to re-connect
+
+    useEffect(() => {
+        UnifiedConverter.pluginManager = pluginsManager;
+
+    }, [pluginsManager]);
 
     useEffect(() => {
 
