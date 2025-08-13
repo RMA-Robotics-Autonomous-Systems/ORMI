@@ -328,6 +328,10 @@ export function MapsBoxViewerDefinition() {
                     title: 'Map URL',
                     oneOf: [
                         {
+                            const: "https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
+                            title: "Carto Voyager Labels Under"
+                        },
+                        {
                             const: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                             title: "OpenStreetMap"
                         },
@@ -350,8 +354,21 @@ export function MapsBoxViewerDefinition() {
                         {   //https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/18/88796/141595
                             const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                             title: "ArcGIS World Imagery"
-                        }
-                    ]
+                        },
+                        {
+                            const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+                            title: "ArcGIS World Topo Map"
+                        },
+                        {
+                            const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web_grau/default/WEBMERCATOR/{z}/{y}/{x}.png",
+                            title: "GeoDataCenter WMTS TopPlus Open (gray)"
+                        },
+                        {
+                            const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png",
+                            title: "GeoDataCenter WMTS TopPlus Open (color)"
+                        },
+                    ],
+                    default: "https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png"
                 },
 
                 use3D: {
