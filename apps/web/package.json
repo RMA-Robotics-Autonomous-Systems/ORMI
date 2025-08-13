@@ -28,6 +28,7 @@
     "ormi-flight-indicator": "workspace:*",
     "ormi-tello": "workspace:*",
     "ormi-rest-bags": "workspace:*",
+    "ormi-ros2-type-extension": "workspace:*",
     "lucide-react": "^0.475.0",
     "moment": "^2.30.1",
     "next": "^15.2.3",
