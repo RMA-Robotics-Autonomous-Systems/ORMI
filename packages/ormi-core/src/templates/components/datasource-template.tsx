@@ -56,7 +56,7 @@ export const DatasourceTemplateComponent = (props: DatasourceTemplateProps) => {
     return (
         <div key={templateId} className="flex items-center justify-between p-2 border-b border-gray-200">
             <div className="flex gap-2">
-                {template.datasource.title}
+                {template.name}
                 {template.public && <Badge variant="secondary" className="ml-2">Public</Badge>}
             </div>
             <div className="flex gap-2">
