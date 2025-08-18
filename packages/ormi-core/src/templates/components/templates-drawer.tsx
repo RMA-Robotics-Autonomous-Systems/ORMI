@@ -106,7 +106,7 @@ export function WidgetTemplateDrawer(props: WidgetTemplateDrawerProps) {
             <SheetTrigger asChild>
                 <Button variant={"ghost"}>Templates</Button>
             </SheetTrigger>
-            <SheetContent className="w-[15%] min-w-[300px]">
+            <SheetContent className="w-[50%] min-w-[300px]">
                 <SheetHeader>
                     <SheetTitle>Saved widgets</SheetTitle>
                     <SheetDescription>

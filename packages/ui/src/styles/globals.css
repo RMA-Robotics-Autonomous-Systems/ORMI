@@ -87,6 +87,18 @@
         width: 15dvw;
     }
 
+    .w-\[30\%\] {
+        width: 30dvw;
+    }
+
+    .w-\[50\%\] {
+        width: 50dvw;
+    }
+
+    .w-\[100\%\] {
+        width: 100dvw;
+    }
+
     /* Topic overlay slide animation utilities */
     /* .slide-in-from-left {
         transform: translateX(-20px);
