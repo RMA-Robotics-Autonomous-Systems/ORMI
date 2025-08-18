@@ -89,48 +89,25 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as any;
     const template = body.content;
 
-    // Check if this is the new template format with type
-    if (template.type) {
-        // Use new Template table
-        const newTemplate = await db.template.create({
-            data: {
-                name: template.name,
-                content: template,
-                type: template.type.toUpperCase() as 'WIDGET' | 'DATASOURCE',
-                public: template.public,
-                tags: template.tags,
-                createdById: session.user.id,
-                createdAT: new Date(),
-                updatedAT: new Date(),
-            },
-        });
+    // Use new Template table
+    const newTemplate = await db.template.create({
+        data: {
+            name: template.name,
+            content: template,
+            type: template.type.toUpperCase() as 'WIDGET' | 'DATASOURCE',
+            public: template.public,
+            tags: template.tags,
+            createdById: session.user.id,
+            createdAT: new Date(),
+            updatedAT: new Date(),
+        },
+    });
 
-        return new Response(JSON.stringify(newTemplate.id), {
-            status: 200,
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
-    } else {
-        // Fallback to old TemplateWidget table for backward compatibility
-        const templateWidget = await db.templateWidget.create({
-            data: {
-                name: template.name,
-                content: template,
-                public: template.public,
-                tags: template.tags,
-                createdById: session.user.id,
-                createdAT: new Date(),
-                updatedAT: new Date(),
-            },
-        });
-
-        return new Response(JSON.stringify(templateWidget.id), {
-            status: 200,
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
-    }
+    return new Response(JSON.stringify(newTemplate.id), {
+        status: 200,
+        headers: {
+            "Content-Type": "application/json",
+        },
+    });
 
 }

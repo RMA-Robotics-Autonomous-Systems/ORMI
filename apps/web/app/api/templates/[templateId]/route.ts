@@ -37,8 +37,8 @@ export async function DELETE(
       
       console.log(`Attempting to delete template ${templateId} for user ${session.user.id}`);
       
-      // Check if the workspace belongs to the user
-      const template = await db.templateWidget.findUnique({
+      // Check if the template belongs to the user
+      const template = await db.template.findUnique({
           where: { id: templateId },
           select: { createdById: true },
       })
@@ -55,8 +55,8 @@ export async function DELETE(
           })
       }
   
-      // Delete the workspace
-      await db.templateWidget.delete({ where: { id: templateId } })
+      // Delete the template
+      await db.template.delete({ where: { id: templateId } })
       console.log(`Successfully deleted template ${templateId}`);
   
       return new Response(null, { status: 204 })
@@ -101,7 +101,7 @@ export async function PUT(
     const { name, public: isPublic, tags, widget } = body;
     
     // Check if the template belongs to the user
-    const existingTemplate = await db.templateWidget.findUnique({
+    const existingTemplate = await db.template.findUnique({
       where: { id: templateId },
       select: { createdById: true },
     })
@@ -119,7 +119,7 @@ export async function PUT(
     }
 
     // Update the template
-    const updatedTemplate = await db.templateWidget.update({
+    const updatedTemplate = await db.template.update({
       where: { id: templateId },
       data: {
         name,

@@ -63,7 +63,7 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
                 templates.set(template.id, {
                     name: template.name,
                     type: 'widget',
-                    widget: template.widget || template.content?.widget, // Support both new and legacy format
+                    widget: template.widget || template.content?.widget,
                     public: template.public,
                     tags: template.tags,
                     yours: template.yours
