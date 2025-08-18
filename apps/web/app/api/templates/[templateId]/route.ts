@@ -98,12 +98,12 @@ export async function PUT(
     }
     
     const body = await req.json();
-    const { name, public: isPublic, tags, widget } = body;
+    const { name, public: isPublic, tags, widget, datasource, type } = body;
     
     // Check if the template belongs to the user
     const existingTemplate = await db.template.findUnique({
       where: { id: templateId },
-      select: { createdById: true },
+      select: { createdById: true, type: true },
     })
 
     if (!existingTemplate) {
@@ -118,6 +118,36 @@ export async function PUT(
       })
     }
 
+    // Prepare content based on template type
+    const templateType = type || existingTemplate.type.toLowerCase();
+    
+    const contentData = {
+      name,
+      public: isPublic,
+      tags,
+      yours: true,
+      type: templateType,
+      ...(templateType === 'widget' && widget ? { widget } : {}),
+      ...(templateType === 'datasource' && datasource ? { datasource } : {})
+    };
+
+    // Validate that required data is present
+    if (templateType === 'widget' && !widget) {
+      return new Response(JSON.stringify({ 
+        error: "Missing widget data for widget template update" 
+      }), { 
+        status: 400 
+      })
+    }
+    
+    if (templateType === 'datasource' && !datasource) {
+      return new Response(JSON.stringify({ 
+        error: "Missing datasource data for datasource template update" 
+      }), { 
+        status: 400 
+      })
+    }
+
     // Update the template
     const updatedTemplate = await db.template.update({
       where: { id: templateId },
@@ -125,13 +155,8 @@ export async function PUT(
         name,
         public: isPublic,
         tags,
-        content: {
-          name,
-          widget,
-          public: isPublic,
-          tags,
-          yours: true
-        },
+        type: templateType.toUpperCase() as 'WIDGET' | 'DATASOURCE',
+        content: contentData,
         updatedAT: new Date(),
       },
     })
