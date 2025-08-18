@@ -11,7 +11,8 @@
     "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
     "db-generate": "prisma generate",
-    "db-migrate": "prisma migrate dev --name init"
+    "db-migrate": "prisma migrate dev --name init",
+    "db-studio": "prisma studio"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",
