@@ -6,7 +6,6 @@ import { Template, WidgetTemplate, DatasourceTemplate } from "@workspace/ormi-co
 
 const handleSave = async (template: Template) : Promise<string> => {
     try {
-
         const response = await fetch(`/api/templates/`, {
             method: 'POST',
             headers: {
@@ -19,7 +18,9 @@ const handleSave = async (template: Template) : Promise<string> => {
             throw new Error(`Error saving template: ${response.statusText}`);
         }
         
-        return await response.text();   // this should be the template id
+        const templateId = await response.text();
+        // Remove quotes if present (JSON.stringify adds quotes to strings)
+        return templateId.replace(/"/g, '');
     } catch (error) {
         console.error("Failed to save template:", error);
         return "";
@@ -45,7 +46,6 @@ const handleDelete = async (templateId: string): Promise<boolean> => {
 
 const handleLoad = async (): Promise<Map<string, Template>> => {
     try {
-
         const response = await fetch(`/api/templates`);
         
         if (!response.ok) {
@@ -60,7 +60,7 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
             const templateType = template.type?.toLowerCase() || 'widget';
             
             if (templateType === 'widget') {
-                templates.set(template.id, {
+                templates.set(template.id.toString(), {
                     name: template.name,
                     type: 'widget',
                     widget: template.widget || template.content?.widget,
@@ -69,7 +69,7 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
                     yours: template.yours
                 } as WidgetTemplate);
             } else if (templateType === 'datasource') {
-                templates.set(template.id, {
+                templates.set(template.id.toString(), {
                     name: template.name,
                     type: 'datasource', 
                     datasource: template.datasource || template.content?.datasource,
@@ -83,7 +83,7 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
         return templates;
         
     } catch (error) {
-        console.error("Failed to load dashboard:", error);
+        console.error("Failed to load templates:", error);
         return new Map<string, Template>();
     }
 };

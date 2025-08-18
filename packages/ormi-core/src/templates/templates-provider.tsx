@@ -37,11 +37,14 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
     const addTemplate = async (template: Template, key?: string) => {
         const template_id = await props.addTemplate(template);
 
-        if (templates.has(template_id)) {
-            throw new Error("Key already exists");
+        if (!template_id) {
+            console.error("Failed to save template");
+            return;
         }
 
-        const newTemplates = new Map(templates.set(template_id, template));
+        // Add the new template to the existing templates map
+        const newTemplates = new Map(templates);
+        newTemplates.set(template_id, template);
         setTemplates(newTemplates);
     };
 

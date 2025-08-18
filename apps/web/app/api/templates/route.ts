@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         },
     });
 
-    return new Response(JSON.stringify(newTemplate.id), {
+    return new Response(JSON.stringify(newTemplate.id.toString()), {
         status: 200,
         headers: {
             "Content-Type": "application/json",
