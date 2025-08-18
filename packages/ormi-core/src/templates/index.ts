@@ -1,6 +1,6 @@
 export * from "./templates-localstorage";
 export * from "./templates-provider";
-export * from "./templates-types";
+export type * from "./templates-types";
 
 export * from "./components/add-to-templates";
 export * from "./components/add-datasource-to-templates";
