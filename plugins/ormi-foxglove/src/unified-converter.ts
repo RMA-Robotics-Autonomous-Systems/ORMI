@@ -137,6 +137,14 @@ export class UnifiedConverter {
         },
         "number": {
             conversions: {
+                "std_msgs/msg/Int8": {
+                    toRos2: data => ({ data }),
+                    fromRos2: data => data.data
+                },
+                "std_msgs/msg/Int16": {
+                    toRos2: data => ({ data }),
+                    fromRos2: data => data.data
+                },
                 "std_msgs/msg/Int32": {
                     toRos2: data => ({ data }),
                     fromRos2: data => data.data
