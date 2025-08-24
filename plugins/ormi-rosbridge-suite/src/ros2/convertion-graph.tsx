@@ -82,9 +82,9 @@ function Ros2ConvertionGraph(): JSX.Element {
 
 export function Ros2ConvertionGraphDefinition(): WidgetDefinition {
     return {
-        id: 'ros2-convertion-graph',
-        name: 'ROS2 Convertion Graph',
-        description: 'Shows the convertion graph between ROS2 and Webapp types',
+        id: 'ros2-conversion-graph',
+        name: 'ROS2 Conversion Graph',
+        description: 'Shows the conversion graph between ROS2 and Webapp types',
         titleProp: 'title',
         icon: (
             <BinaryIcon />
@@ -102,7 +102,7 @@ export function Ros2ConvertionGraphDefinition(): WidgetDefinition {
                 { type: "Control", scope: "#/properties/title" } as ControlElement,
             ]
         } as VerticalLayout,
-        data: { title: 'ROS2 Convertion Graph' },
+        data: { title: 'ROS2 Conversion Graph' },
         Component: () => <Ros2ConvertionGraph />
     }
 }

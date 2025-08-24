@@ -117,7 +117,7 @@ export function BagRecorderDefinition(): WidgetDefinition {
                 } as ControlElement
             ]
         } as VerticalLayout,
-        data: { title: 'ROS2 Bags recorders' },
+        data: { title: 'ROS2 Bag Recorders' },
 
         Component: (data: RecorderListProps) => <BagsRecorders {...data} />
     }

@@ -196,7 +196,7 @@ export function LevelDefinition() {
             ],
         } as VerticalLayout,
         data: {
-            title: 'Control the robot'
+            title: 'Level Indicator'
         },
         Component: (data: LevelProps) => (
             <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>

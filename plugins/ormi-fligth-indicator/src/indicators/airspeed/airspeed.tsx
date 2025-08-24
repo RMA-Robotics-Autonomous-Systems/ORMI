@@ -153,7 +153,7 @@ export function AirspeedDefinition() {
             ],
         } as VerticalLayout,
         data: {
-            title: 'Control the robot'
+            title: 'Speed Indicator'
         },
         Component: (data: AirSpeedProps) => (
             <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>

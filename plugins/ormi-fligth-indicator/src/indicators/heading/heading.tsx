@@ -157,7 +157,7 @@ export function HeadingDefinition() {
             ],
         } as VerticalLayout,
         data: {
-            title: 'Control the robot'
+            title: 'Heading Indicator'
         },
         Component: (data: HeadingProps) => (
             <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>

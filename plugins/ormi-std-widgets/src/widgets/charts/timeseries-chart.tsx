@@ -388,7 +388,7 @@ export function TimeSeriesChartDefinition() {
         },
         uischema: layout,
         data: {
-            title: 'Chart'
+            title: 'Time Series Chart'
         },
         Component: (data: TimeSeriesSettings) => (
 

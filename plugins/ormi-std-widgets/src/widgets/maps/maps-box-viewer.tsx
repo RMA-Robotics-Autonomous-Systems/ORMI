@@ -493,7 +493,7 @@ export function MapsBoxViewerDefinition() {
             ]
         } as Categorization,
         data: {
-            title: 'Chart',
+            title: 'Maps',
             use3D: false,
         },
         Component: (data: MapsViewerSettings) => (
