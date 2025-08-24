@@ -218,7 +218,7 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
         };
 
         // Rerun effect if SelectedTopics change
-    }, [SelectedTopics, pluginsManager]);
+    }, [SelectedTopics]);
 
 
     return (
