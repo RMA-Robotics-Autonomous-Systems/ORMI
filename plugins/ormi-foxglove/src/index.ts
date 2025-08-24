@@ -2,6 +2,16 @@ import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 import { FoxgloveDataSourceSettings, FoxgloveSourceProvider } from "./foxglove-source";
 import { DatasourceDefinition } from "@workspace/ormi-core/datasources";
 
+// Export components for potential external use
+export { FoxgloveSourceProvider } from './foxglove-source';
+export { FoxgloveDataHandler } from './foxglove-data-handler';
+export { SubscriptionManager } from './subscription-manager';
+export { PublisherManager } from './publisher-manager';
+export { TransformTreeManager } from './transform-tree-manager';
+export { TypeSystemManager } from './type-system-manager';
+export { UnifiedConverter } from './unified-converter';
+export type { FoxgloveDataSourceSettings } from './types';
+
 /**
  * Foxglove WebSocket Plugin
  * 
@@ -80,4 +90,3 @@ class FoxglovePlugin extends Plugin {
 }
 
 export default FoxglovePlugin;
-// export { convertMessageDefinitionsToJsonSchema };
