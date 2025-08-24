@@ -67,81 +67,144 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
     const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
-        let isMounted = true; // Flag to track mount status
-        publishersRef.current = new Map(); // Reset ref on effect run
+        // Differential update: only change what's actually different
+        const currentTopicKeys = new Set(Array.from(publishersRef.current.keys()));
+        const newTopicKeys = new Set(Topics.map(topic => topic.topic));
 
-        new Promise<Map<string, boolean>>((resolve) => {
+        // Find topics to remove (in current but not in new)
+        const topicsToRemove = Array.from(currentTopicKeys).filter(key => !newTopicKeys.has(key));
 
-            const initializedTopics = new Map<string, boolean>();
+        // Find topics to add (in new but not in current)
+        const topicsToAdd = Topics.filter(topic => !currentTopicKeys.has(topic.topic));
 
-            function setInitializedTopic(topic: string, state: boolean) {
-                if (!isMounted) return; // Check mount status
-                initializedTopics.set(topic, state);
-                // Resolve only if all topics have reported status
-                if (initializedTopics.size === Topics.length) {
-                    resolve(initializedTopics);
-                }
-            }
-
-            // Handle empty topics case
-            if (Topics.length === 0) {
-                resolve(initializedTopics);
-                return;
-            }
-
-            // For each topic, create a source
-            Topics.forEach(async topic => {
-                if (!isMounted) return; // Check before async operation
-
-                const publisher = new Publisher(topic, pluginsManager);
-                let result = false; // Default to false
-
+        // Remove topics that are no longer needed
+        topicsToRemove.forEach(topicKey => {
+            const publisher = publishersRef.current.get(topicKey);
+            if (publisher) {
+                console.log(`Removing publisher for topic: ${topicKey}`);
                 try {
-                    result = await publisher.advertise() as boolean;
-                    if (isMounted && result) {
-                        // Update state and ref only if successful and mounted
-                        setPublishers((prev) => {
-                            const newPublishers = new Map(prev);
-                            newPublishers.set(topic.topic, publisher);
-                            publishersRef.current = newPublishers; // Keep ref in sync with state
-                            return newPublishers;
-                        });
-                    }
+                    publisher.unadvertise();
                 } catch (error) {
-                    console.error(`Failed to advertise topic ${topic.topic}:`, error);
-                    // Keep result as false
-                } finally {
-                    // Always report status, even on failure
-                    setInitializedTopic(topic.topic, result);
+                    console.error(`Error unadvertising topic ${topicKey}:`, error);
                 }
-            });
 
-
-        }).then((initializedTopics) => {
-            if (!isMounted) return; // Check mount status
-
-            // add toast for the topics that are not initialized
-            const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(topic.topic));
-
-            if (notInitializedTopics.length > 0) {
-                const message = (
-                    <div>
-                        <div>Failed to initialize publishers for topics:</div>
-                        <ul>
-                            {notInitializedTopics.map((topic, index) => <li key={`${topic.topic}-${index}`}>{topic.topic}</li>)}
-                        </ul>
-                    </div>
-                )
-                toast("Failed to initialize publishers for topics: " + notInitializedTopics.map(topic => topic.topic).join(", "));
+                // Update both state and ref
+                setPublishers(prev => {
+                    const newPublishers = new Map(prev);
+                    newPublishers.delete(topicKey);
+                    publishersRef.current = newPublishers;
+                    return newPublishers;
+                });
             }
-
-            setInitialized(true); // Set initialized regardless of individual topic success
         });
 
+        // Add new topics
+        if (topicsToAdd.length > 0) {
+            const addTopics = async () => {
+                const initializedTopics = new Map<string, boolean>();
+
+                function setInitializedTopic(topic: string, state: boolean) {
+                    initializedTopics.set(topic, state);
+
+                    // Check if all new topics have been processed
+                    if (initializedTopics.size === topicsToAdd.length) {
+                        // Show toast for failed topics
+                        const notInitializedTopics = topicsToAdd.filter(topic => !initializedTopics.get(topic.topic));
+
+                        if (notInitializedTopics.length > 0) {
+                            toast("Failed to initialize publishers for topics: " + notInitializedTopics.map(topic => topic.topic).join(", "));
+                        }
+
+                        setInitialized(true);
+                    }
+                }
+
+                // Add each new topic
+                for (const topic of topicsToAdd) {
+                    console.log(`Adding publisher for topic: ${topic.topic}`);
+                    const publisher = new Publisher(topic, pluginsManager);
+                    let result = false;
+
+                    try {
+                        result = await publisher.advertise() as boolean;
+                        if (result) {
+                            // Update state and ref
+                            setPublishers(prev => {
+                                const newPublishers = new Map(prev);
+                                newPublishers.set(topic.topic, publisher);
+                                publishersRef.current = newPublishers;
+                                return newPublishers;
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Failed to advertise topic ${topic.topic}:`, error);
+                    } finally {
+                        setInitializedTopic(topic.topic, result);
+                    }
+                }
+            };
+
+            addTopics();
+        } else if (topicsToRemove.length === 0) {
+            // No changes at all, just mark as initialized
+            setInitialized(true);
+        }
+
+        // If we only removed topics and didn't add any, mark as initialized
+        if (topicsToAdd.length === 0 && topicsToRemove.length > 0) {
+            setInitialized(true);
+        }
+
+        // Initial case: no publishers exist and we have topics to add
+        if (publishersRef.current.size === 0 && Topics.length > 0 && topicsToAdd.length === 0) {
+            // This means it's the initial load
+            const initializeAllTopics = async () => {
+                const initializedTopics = new Map<string, boolean>();
+
+                function setInitializedTopic(topic: string, state: boolean) {
+                    initializedTopics.set(topic, state);
+                    if (initializedTopics.size === Topics.length) {
+                        const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(topic.topic));
+                        if (notInitializedTopics.length > 0) {
+                            toast("Failed to initialize publishers for topics: " + notInitializedTopics.map(topic => topic.topic).join(", "));
+                        }
+                        setInitialized(true);
+                    }
+                }
+
+                if (Topics.length === 0) {
+                    setInitialized(true);
+                    return;
+                }
+
+                for (const topic of Topics) {
+                    const publisher = new Publisher(topic, pluginsManager);
+                    let result = false;
+
+                    try {
+                        result = await publisher.advertise() as boolean;
+                        if (result) {
+                            setPublishers(prev => {
+                                const newPublishers = new Map(prev);
+                                newPublishers.set(topic.topic, publisher);
+                                publishersRef.current = newPublishers;
+                                return newPublishers;
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Failed to advertise topic ${topic.topic}:`, error);
+                    } finally {
+                        setInitializedTopic(topic.topic, result);
+                    }
+                }
+            };
+
+            initializeAllTopics();
+        }
+
+        // Cleanup function for component unmount only
         return () => {
-            isMounted = false; // Set flag on cleanup
             console.log("Unmounting publisher data source provider, unadvertising topics...");
-            // Use the ref for cleanup
             publishersRef.current.forEach(publisher => {
                 try {
                     publisher.unadvertise();
@@ -149,10 +212,10 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
                     console.error(`Error unadvertising topic ${publisher.topic.topic}:`, error);
                 }
             });
-            publishersRef.current.clear(); // Clear the ref
-            setPublishers(new Map()); // Reset state
-            setInitialized(false); // Reset initialized state
-        }
+            publishersRef.current.clear();
+            setPublishers(new Map());
+            setInitialized(false);
+        };
 
         // Rerun effect if SelectedTopics change
     }, [SelectedTopics, pluginsManager]);
