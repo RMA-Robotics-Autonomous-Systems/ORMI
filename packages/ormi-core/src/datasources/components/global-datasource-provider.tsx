@@ -41,6 +41,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
     const [dataLoaded, setDataLoaded] = useState(false);
     const [initialized, setInitialized] = useState(false);
+    const [providersReady, setProvidersReady] = useState(false);
 
     const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -60,6 +61,24 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
     useEffect(() => {
         setInitialized(dataLoaded === true);
     }, [dataLoaded]);
+
+    // Track provider readiness - ensure all providers are mounted before mounting children
+    useEffect(() => {
+        if (!initialized) {
+            setProvidersReady(false);
+            return;
+        }
+
+        // If no datasources, children can be mounted immediately
+        if (datasources.size === 0) {
+            setProvidersReady(true);
+            return;
+        }
+
+        // For now, set providers ready when initialized
+        // In the future, this could wait for actual provider mounting signals
+        setProvidersReady(true);
+    }, [initialized, datasources.size]);
 
     useEffect(() => {
 
@@ -182,14 +201,20 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             return dataSourceType.Provider;
         };
 
-        if (!initialized) return null;
+        // Don't render anything until providers are ready
+        if (!providersReady) return null;
 
+        // If no datasources, render children directly
+        if (datasources.size === 0) {
+            return children;
+        }
+
+        // Build the provider chain from outside to inside
         return Array.from(datasources.values()).reduceRight((children_stack, datasource) => {
             const Provider = getProvider(datasource.datasource_id);
             if (!Provider) {
                 return children_stack;
             }
-
 
             return (
                 <Provider key={datasource.settings.id} props={datasource.settings}>
@@ -197,7 +222,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
                 </Provider>
             );
         }, children);
-    }, [initialized, datasources, children, dataSourcesTypes]);
+    }, [providersReady, datasources, children, dataSourcesTypes]);
 
     return (
         <GlobalDataSourcesContext.Provider value={{}}>

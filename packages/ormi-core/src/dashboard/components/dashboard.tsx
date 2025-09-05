@@ -56,6 +56,13 @@ const Dashboard = () => {
         addWidget(widget, settings);
     }
 
+    useEffect(() => {
+        console.log("mounting dashboard");
+
+        return () => {
+            console.log("unmounting dashboard");
+        };
+    }, [])
 
     useEffect(() => {
         setNavbarItem("right", "template_drawer",
