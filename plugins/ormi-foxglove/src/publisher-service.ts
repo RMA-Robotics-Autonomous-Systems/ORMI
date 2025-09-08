@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { MessageWriter } from '@foxglove/rosmsg2-serialization';
-import { parse } from '@foxglove/rosmsg';
-import { PluginsManager } from '@workspace/ormi-plugins';
-import { Publisher, DatasourceTopic, FoxgloveDataSourceSettings } from './types';
-import { UnifiedConverter } from './unified-converter';
+import { MessageWriter } from "@foxglove/rosmsg2-serialization";
+import { parse } from "@foxglove/rosmsg";
+import { PluginsManager } from "@workspace/ormi-plugins";
+import {
+  Publisher,
+  DatasourceTopic,
+  FoxgloveDataSourceSettings,
+} from "./types";
+import { UnifiedConverter } from "./unified-converter";
 
 interface Channel {
   id: number;
@@ -38,25 +42,13 @@ export class PublisherService {
 
   /**
    * Updates the internal channel map and resolves any pending schema promises.
-   * 
+   *
    * This method is called when Foxglove discovers new channels or updates existing ones.
    * It's the key method that "completes the circle" of schema resolution.
-   * 
+   *
    * @param channels - Map of channel ID to channel data from Foxglove
    */
   updateChannels(channels: Map<number, any>): void {
-    const pendingSchemas = Array.from(this.schemaResolvers.keys());
-    console.log(`Updating channels for datasource ${this.settings.id}:`, {
-      channelCount: channels.size,
-      pendingSchemas,
-      newChannels: Array.from(channels.values()).map(ch => ({ 
-        id: ch.id, 
-        schemaName: ch.schemaName, 
-        hasSchema: !!ch.schema,
-        schema: ch.schema ? `${ch.schema.substring(0, 50)}...` : 'none'
-      }))
-    });
-
     let resolvedCount = 0;
 
     // Update internal channel map
@@ -64,86 +56,67 @@ export class PublisherService {
       const channelInfo = {
         id,
         schemaName: channel.schemaName,
-        schema: channel.schema
+        schema: channel.schema,
       };
-      
-      console.log(`Processing channel ${id}:`, {
-        schemaName: channel.schemaName,
-        hasSchema: !!channel.schema,
-        schemaLength: channel.schema ? channel.schema.length : 0
-      });
-      
+
       this.channels.set(id, channelInfo);
 
       // Resolve pending schema promises if we now have the schema
       if (channel.schema && this.schemaResolvers.has(channel.schemaName)) {
         const resolver = this.schemaResolvers.get(channel.schemaName)!;
-        
-        console.log(`✅ Resolving pending schema for ${channel.schemaName} from channel ${id}`);
+
         clearTimeout(resolver.timeout);
         resolver.resolve(channel.schema);
         this.schemaResolvers.delete(channel.schemaName);
         resolvedCount++;
       }
     });
-
-    if (resolvedCount > 0) {
-      console.log(`Schema resolution complete: resolved ${resolvedCount} pending schemas`);
-    }
-
-    if (this.schemaResolvers.size > 0) {
-      console.log(`Still waiting for schemas:`, Array.from(this.schemaResolvers.keys()));
-    }
   }
 
   /**
    * Resolves a ROS2 message schema by schemaName.
-   * 
+   *
    * Schema Resolution Flow:
    * 1. Check if we already have the schema in our channels (by schema name OR by channel ID)
    * 2. If not, check if we're already waiting for it (return existing promise)
    * 3. If not waiting, create a new promise that will be resolved when updateChannels() finds the schema
    * 4. Set a timeout to prevent hanging forever
-   * 
+   *
    * @param schemaName - The ROS2 message type (e.g., "geometry_msgs/msg/Twist")
    * @param channelId - Optional channel ID to check for existing schema
    * @returns Promise that resolves with the schema string
    */
-  private async resolveSchema(schemaName: string, channelId?: number): Promise<string> {
-    console.log(`Resolving schema for: ${schemaName}${channelId ? ` (channel ${channelId})` : ''}`);
-
+  private async resolveSchema(
+    schemaName: string,
+    channelId?: number
+  ): Promise<string> {
     // 1a. If channelId provided, check that specific channel first
     if (channelId !== undefined) {
       const specificChannel = this.channels.get(channelId);
-      if (specificChannel && specificChannel.schema) {
-        console.log(`Schema found in channel ${channelId}: ${schemaName}`);
+      if (
+        specificChannel &&
+        specificChannel.schema &&
+        specificChannel.schemaName === schemaName
+      ) {
         return specificChannel.schema;
-      } else if (specificChannel) {
-        console.log(`Channel ${channelId} exists but missing schema, schemaName: ${specificChannel.schemaName}`);
-      } else {
-        console.log(`Channel ${channelId} not found in channels map`);
       }
     }
 
     // 1b. Check if schema is available in any channel by schema name
     const existingChannel = Array.from(this.channels.values()).find(
-      ch => ch.schemaName === schemaName && ch.schema
+      (ch) => ch.schemaName === schemaName && ch.schema
     );
-    
+
     if (existingChannel?.schema) {
-      console.log(`Schema found in existing channel ${existingChannel.id}: ${schemaName}`);
       return existingChannel.schema;
     }
 
     // 2. Check if we're already waiting for this schema type
     if (this.schemaResolvers.has(schemaName)) {
-      console.log(`Already waiting for schema: ${schemaName}, returning existing promise`);
       return this.schemaResolvers.get(schemaName)!.promise;
     }
 
     // 3. Create new schema resolution promise
-    console.log(`Creating new schema resolver for: ${schemaName}`);
-    
     let resolve: (schema: string) => void;
     let reject: (error: Error) => void;
 
@@ -154,15 +127,11 @@ export class PublisherService {
 
     // 4. Set timeout to prevent hanging
     const timeout = setTimeout(() => {
-      console.error(`Schema resolution timeout for ${schemaName} after 10 seconds`);
-      console.error(`Available channels:`, Array.from(this.channels.values()).map(ch => ({
-        id: ch.id,
-        schemaName: ch.schemaName,
-        hasSchema: !!ch.schema
-      })));
       const resolver = this.schemaResolvers.get(schemaName);
       if (resolver) {
-        resolver.reject(new Error(`Schema resolution timeout for ${schemaName}`));
+        resolver.reject(
+          new Error(`Schema resolution timeout for ${schemaName}`)
+        );
         this.schemaResolvers.delete(schemaName);
       }
     }, 10000);
@@ -172,17 +141,16 @@ export class PublisherService {
       promise,
       resolve: resolve!,
       reject: reject!,
-      timeout
+      timeout,
     });
 
-    console.log(`Schema resolver created for ${schemaName}, waiting for channel discovery...`);
     return promise;
   }
 
   async advertise(topic: any): Promise<boolean> {
     try {
       if (!this.client) {
-        throw new Error('Foxglove client not available');
+        throw new Error("Foxglove client not available");
       }
 
       const topicName = topic.topic;
@@ -190,17 +158,14 @@ export class PublisherService {
 
       // Check for existing publisher
       const existingPublisher = Array.from(this.publishers.values()).find(
-        p => p.topic === topicName
+        (p) => p.topic === topicName
       );
 
       if (existingPublisher) {
         existingPublisher.count++;
-        console.log(`Publisher for ${topicName} already exists, incremented count to ${existingPublisher.count}`);
-        
-        // Always re-register the action hook to handle React StrictMode cleanup issues
-        console.log(`Re-registering action hook for ${topicName}: ${existingPublisher.hook}`);
+
         this.registerPublishAction(existingPublisher);
-        
+
         return true;
       }
 
@@ -208,23 +173,35 @@ export class PublisherService {
       const channelId = this.client.advertise({
         topic: topicName,
         encoding: "cdr",
-        schemaName: rawType
+        schemaName: rawType,
       });
 
       if (channelId === undefined || channelId === null) {
         throw new Error(`Failed to advertise topic ${topicName}`);
       }
 
-      console.log(`Advertising ${topicName} on channel ${channelId}`);
-
       // Small delay to allow channel discovery to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       // Trigger channel update to help with schema resolution
       this.triggerChannelUpdate();
 
-      // Resolve schema - check the specific channel first
-      const schema = await this.resolveSchema(rawType, channelId);
+      // Resolve schema - prioritize exact schema name match over channel ID
+      const schema = await this.resolveSchema(rawType);
+
+      // Validate schema matches expected type
+      if (!schema) {
+        throw new Error(`No schema found for ${rawType}`);
+      }
+
+      // Parse schema and create writer
+      let parsedSchema;
+      try {
+        parsedSchema = parse(schema, { ros2: true });
+      } catch (parseError) {
+        console.error(`Schema parsing failed for ${rawType}:`, parseError);
+        throw new Error(`Failed to parse schema for ${rawType}: ${parseError}`);
+      }
 
       // Create publisher
       const publisher: Publisher = {
@@ -234,7 +211,7 @@ export class PublisherService {
         webtype: topic.type,
         count: 1,
         hook: `${this.settings.id}-${topicName}-publish`,
-        writer: new MessageWriter(parse(schema, { ros2: true }))
+        writer: new MessageWriter(parsedSchema),
       };
 
       this.publishers.set(channelId, publisher);
@@ -243,13 +220,9 @@ export class PublisherService {
       this.registerPublishAction(publisher);
 
       return true;
-
     } catch (error) {
       console.error(`Failed to advertise ${topic.topic}:`, error);
-      
-      // Debug: log current state when advertisement fails
-      this.debugLogState();
-      
+
       if (this.settings.toasts) {
         // Toast error notification would go here
       }
@@ -259,7 +232,7 @@ export class PublisherService {
 
   private registerPublishAction(publisher: Publisher): void {
     const hook = publisher.hook;
-    
+
     this.pluginsManager.removeAction(hook);
     this.pluginsManager.addAction(hook, {
       id: hook,
@@ -271,24 +244,92 @@ export class PublisherService {
             return;
           }
 
+          // Add validation before conversion
+          if (!message) {
+            console.error(`Cannot publish empty message on ${publisher.topic}`);
+            return;
+          }
+
+          // Convert webapp message to ROS2 format
           const converted = UnifiedConverter.convertToROS2(
-            message, 
-            webtype, 
+            message,
+            webtype,
             selectedTopic.rawType
           );
-          
+
+          // Validate converted message structure for geometry_msgs/msg/Twist
+          if (selectedTopic.rawType === "geometry_msgs/msg/Twist") {
+            this.validateTwistMessage(converted, publisher.topic);
+          }
+
+          // Serialize message using MessageWriter
           const serialized = currentPublisher.writer.writeMessage(converted);
+
+          // Validate serialized data
+          if (!serialized || serialized.byteLength === 0) {
+            console.error(
+              `Serialization failed for ${publisher.topic}: empty buffer`
+            );
+            return;
+          }
+
           this.client?.sendMessage(publisher.channelId, serialized);
-          
         } catch (error) {
-          console.error(`Failed to publish message on ${publisher.topic}:`, error);
+          console.error(
+            `Failed to publish message on ${publisher.topic}:`,
+            error
+          );
+
+          // Optional: Show toast for critical errors
+          if (this.settings.toasts && error instanceof Error) {
+            console.warn(
+              `Publishing error on ${publisher.topic}: ${error.message}`
+            );
+          }
         }
       },
       priority: 100,
     });
   }
 
-  async unadvertise(topic: DatasourceTopic, ignoreCount = false): Promise<void> {
+  /**
+   * Validates a Twist message structure to ensure it matches the expected schema
+   */
+  private validateTwistMessage(message: any, topicName: string): void {
+    const requiredStructure = {
+      linear: ["x", "y", "z"],
+      angular: ["x", "y", "z"],
+    };
+
+    for (const [key, fields] of Object.entries(requiredStructure)) {
+      if (!message[key]) {
+        throw new Error(
+          `Twist message missing required field '${key}' for topic ${topicName}`
+        );
+      }
+
+      for (const field of fields) {
+        if (typeof message[key][field] !== "number") {
+          throw new Error(
+            `Twist message field '${key}.${field}' must be a number, got ${typeof message[key][field]} for topic ${topicName}`
+          );
+        }
+
+        // Check for NaN or Infinity
+        if (!isFinite(message[key][field])) {
+          console.warn(
+            `Twist message field '${key}.${field}' contains invalid value ${message[key][field]} for topic ${topicName}, setting to 0`
+          );
+          message[key][field] = 0;
+        }
+      }
+    }
+  }
+
+  async unadvertise(
+    topic: DatasourceTopic,
+    ignoreCount = false
+  ): Promise<void> {
     try {
       if (!this.client) {
         console.warn(`Cannot unadvertise ${topic.topic}: client not available`);
@@ -322,12 +363,7 @@ export class PublisherService {
 
         this.publishers.delete(channelId);
         this.pluginsManager.removeAction(publisher.hook);
-        
-        console.log(`Unadvertised ${topic.topic} from channel ${channelId}`);
-      } else {
-        console.log(`Decremented count for ${topic.topic} to ${publisher.count}`);
       }
-
     } catch (error) {
       console.error(`Failed to unadvertise ${topic.topic}:`, error);
       if (this.settings.toasts) {
@@ -337,12 +373,10 @@ export class PublisherService {
   }
 
   cleanup(): void {
-    console.log(`Cleaning up publishers for datasource ${this.settings.id}`);
-
     // Clear schema resolvers
     this.schemaResolvers.forEach((resolver) => {
       clearTimeout(resolver.timeout);
-      resolver.reject(new Error('Publisher service cleanup'));
+      resolver.reject(new Error("Publisher service cleanup"));
     });
     this.schemaResolvers.clear();
 
@@ -353,7 +387,10 @@ export class PublisherService {
         try {
           this.client.unadvertise(publisher.channelId);
         } catch (error) {
-          console.error(`Error unadvertising channel ${publisher.channelId} during cleanup:`, error);
+          console.error(
+            `Error unadvertising channel ${publisher.channelId} during cleanup:`,
+            error
+          );
         }
       }
     });
@@ -377,7 +414,6 @@ export class PublisherService {
   private triggerChannelUpdate(): void {
     // Re-process current channels to see if any pending schemas can be resolved
     if (this.schemaResolvers.size > 0) {
-      console.log('Triggering channel update to help resolve pending schemas...');
       const currentChannels = new Map(this.channels.entries());
       this.updateChannels(currentChannels);
     }
@@ -388,26 +424,18 @@ export class PublisherService {
   getSchemaResolutionState() {
     return {
       availableSchemas: Array.from(this.channels.values())
-        .filter(ch => ch.schema)
-        .map(ch => ({ channelId: ch.id, schemaName: ch.schemaName })),
+        .filter((ch) => ch.schema)
+        .map((ch) => ({ channelId: ch.id, schemaName: ch.schemaName })),
       pendingSchemas: Array.from(this.schemaResolvers.keys()),
       channelCount: this.channels.size,
       publisherCount: this.publishers.size,
-      allChannels: Array.from(this.channels.values()).map(ch => ({
+      allChannels: Array.from(this.channels.values()).map((ch) => ({
         id: ch.id,
         schemaName: ch.schemaName,
         hasSchema: !!ch.schema,
-        schemaPreview: ch.schema ? ch.schema.substring(0, 100) + '...' : 'none'
-      }))
+        schemaPreview: ch.schema ? ch.schema.substring(0, 100) + "..." : "none",
+      })),
     };
-  }
-
-  /**
-   * Debug method to log current state
-   */
-  debugLogState(): void {
-    const state = this.getSchemaResolutionState();
-    console.log('=== Publisher Service State ===', state);
   }
 
   /**
@@ -420,7 +448,6 @@ export class PublisherService {
       clearTimeout(resolver.timeout);
       resolver.resolve(schema);
       this.schemaResolvers.delete(schemaName);
-      console.log(`🔧 DEBUG: Force resolved schema for ${schemaName}`);
       return true;
     }
     return false;

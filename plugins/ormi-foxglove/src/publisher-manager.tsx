@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 import { usePluginsManager } from '@workspace/ormi-plugins';
 import { useFoxgloveData } from './foxglove-data-handler';
@@ -20,33 +20,42 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({ children, settings 
     const [isInitialized, setIsInitialized] = useState(false);
     const publisherServiceRef = useRef<PublisherService | null>(null);
 
-    // Update channels in service when they change
-    useEffect(() => {
-        console.log("PublisherManager: channels updated", channels);
-        console.log("PublisherManager: channels details:", Array.from(channels.entries()).map(([id, ch]) => ({
-            id,
-            schemaName: ch?.schemaName,
-            hasSchema: !!ch?.schema,
-            keys: Object.keys(ch || {})
-        })));
-        console.log("PublisherManager: service exists?", !!publisherServiceRef.current);
+    // Memoize channels to prevent unnecessary re-renders
+    const memoizedChannels = useMemo(() => {
+        // Create a stable reference for channels comparison
+        return new Map(channels);
+    }, [channels.size, Array.from(channels.keys()).join(',')]);
 
+    // Stable callback for updating channels
+    const updateChannels = useCallback((newChannels: Map<number, any>) => {
         if (publisherServiceRef.current) {
-            publisherServiceRef.current.updateChannels(channels);
+            publisherServiceRef.current.updateChannels(newChannels);
+        }
+    }, []);
+
+    // Update channels in service when they change (now using stable references)
+    useEffect(() => {
+        if (publisherServiceRef.current) {
+            updateChannels(memoizedChannels);
         } else {
             console.warn("PublisherManager: No service available to update channels");
         }
-    }, [channels]);
+    }, [memoizedChannels, updateChannels]);
 
     // Initialize service and register hooks (independent of channels)
     useEffect(() => {
-        if (!settings.enable || !client) {
-            setIsInitialized(false);
+        // Only proceed if we need to initialize and have the required dependencies
+        if (!settings.enable || !client || !pluginsManager) {
+
+            return;
+        }
+
+        // Prevent re-initialization if already initialized with same settings
+        if (publisherServiceRef.current) {
             return;
         }
 
         // Create service instance
-        console.log(`PublisherManager: Creating service for datasource ${settings.id}`);
         publisherServiceRef.current = new PublisherService(pluginsManager, settings, client);
 
         const advertiseHook = `${settings.id}-advertise`;
@@ -81,13 +90,16 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({ children, settings 
 
         // Cleanup function
         return () => {
-            console.log(`PublisherManager: Cleaning up for datasource ${settings.id}`);
 
             setIsInitialized(false);
 
             // Remove hooks
-            pluginsManager.removeFilter(advertiseHook);
-            pluginsManager.removeAction(unadvertiseHook);
+            try {
+                pluginsManager.removeFilter(advertiseHook);
+                pluginsManager.removeAction(unadvertiseHook);
+            } catch (error) {
+                console.warn("Error removing hooks during cleanup:", error);
+            }
 
             // Cleanup service
             if (publisherServiceRef.current) {
@@ -99,11 +111,10 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({ children, settings 
 
     // Initialize service with existing channels after it's created
     useEffect(() => {
-        if (publisherServiceRef.current && channels.size > 0) {
-            console.log("PublisherManager: Initializing service with existing channels", channels);
-            publisherServiceRef.current.updateChannels(channels);
+        if (isInitialized && publisherServiceRef.current && memoizedChannels.size > 0) {
+            updateChannels(memoizedChannels);
         }
-    }, [isInitialized]); // Only run when service is first initialized
+    }, [isInitialized, memoizedChannels, updateChannels]);
 
     return <>{isInitialized ? children : null}</>;
 };
