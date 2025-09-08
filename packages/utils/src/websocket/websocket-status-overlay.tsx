@@ -17,7 +17,7 @@ const WebSocketStatusOverlay: React.FC<WebSocketStatusOverlayProps> = ({
     error,
     isVisible = true
 }) => {
-    if (!isVisible || readyState === ReadyState.OPEN || readyState === ReadyState.CLOSED) {
+    if (!isVisible || readyState === ReadyState.OPEN) {
         return null;
     }
 
@@ -30,6 +30,11 @@ const WebSocketStatusOverlay: React.FC<WebSocketStatusOverlayProps> = ({
                 return 'Connecting...';
             case ReadyState.CLOSING:
                 return 'Disconnecting...';
+            case ReadyState.CLOSED:
+                if (reconnectAttempt > 0) {
+                    return `Connection lost. Reconnecting... (${reconnectAttempt}/${maxReconnectAttempts})`;
+                }
+                return 'Disconnected from server';
             case ReadyState.UNINSTANTIATED:
                 return 'Initializing connection...';
             default:
