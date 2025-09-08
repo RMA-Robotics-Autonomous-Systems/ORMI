@@ -14,7 +14,7 @@
         },
 */
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 
 import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
@@ -35,6 +35,13 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
     const [clientConnected, setClientConnected] = React.useState(false);
     const [reconnectAttempt, setReconnectAttempt] = React.useState(0);
     const [connectionError, setConnectionError] = React.useState<string | null>(null);
+    const [showOverlay, setShowOverlay] = React.useState(false);
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Prevent hydration issues by only showing content after mount
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const { lastMessage, sendMessage, readyState, getWebSocket } = useWebSocket(
         props.url,
@@ -50,12 +57,19 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 setClientConnected(true);
                 setReconnectAttempt(0);
                 setConnectionError(null);
+                setShowOverlay(false);
             },
             onClose: (event) => {
                 if (props.toasts && !event.wasClean) {
                     toast('Disconnected from Foxglove server');
                 }
                 setClientConnected(false);
+                setShowOverlay(true);
+
+                // If it's not a clean close, we'll be reconnecting
+                if (!event.wasClean) {
+                    setReconnectAttempt(prev => prev + 1);
+                }
             },
             onError: (event) => {
                 const errorMessage = `Foxglove connection error: ${event.type}`;
@@ -64,23 +78,34 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 }
                 console.error('Foxglove WebSocket error:', event);
                 setConnectionError(errorMessage);
+                setShowOverlay(true);
             },
             onReconnectStop: (numAttempts) => {
-                setConnectionError(`Failed to reconnect after ${numAttempts} attempts`);
+                const errorMessage = `Failed to reconnect after ${numAttempts} attempts`;
+                setConnectionError(errorMessage);
+                setShowOverlay(true);
+                if (props.toasts) {
+                    toast(errorMessage);
+                }
             },
         }
     );
 
     React.useEffect(() => {
         setClientConnected(readyState === ReadyState.OPEN);
+
+        // Show overlay when not connected, except when cleanly closed without reconnection
+        if (readyState === ReadyState.OPEN) {
+            setShowOverlay(false);
+        } else {
+            setShowOverlay(true);
+        }
     }, [readyState]);
 
-    // Track reconnection attempts by monitoring state changes
-    React.useEffect(() => {
-        if (readyState === ReadyState.CONNECTING && clientConnected === false) {
-            setReconnectAttempt(prev => prev + 1);
-        }
-    }, [readyState, clientConnected]);
+    // Don't render anything until mounted to prevent hydration mismatch
+    if (!isMounted) {
+        return null;
+    }
 
     return (
         <>
@@ -89,20 +114,19 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 reconnectAttempt={reconnectAttempt}
                 maxReconnectAttempts={10}
                 error={connectionError}
-                isVisible={!clientConnected}
+                isVisible={showOverlay}
             />
 
             {clientConnected &&
                 <FoxgloveDataHandler settings={props} webSocket={getWebSocket()}>
                     <TypeSystemManager settings={props}>
-                        {/* <SubscriptionManager settings={props}>
+                        <SubscriptionManager settings={props}>
                             <PublisherManager settings={props}>
                                 <TransformTreeManager settings={props}>
                                     {children}
                                 </TransformTreeManager>
                             </PublisherManager>
-                        </SubscriptionManager> */}
-                        {children}
+                        </SubscriptionManager>
                     </TypeSystemManager>
                 </FoxgloveDataHandler>}
         </>
