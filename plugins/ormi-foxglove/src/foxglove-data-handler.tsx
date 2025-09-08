@@ -1,15 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
-import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
+import React, { createContext, ReactNode, use, useContext, useEffect, useRef, useState } from 'react';
+import { Channel, FoxgloveClient, MessageData } from '@foxglove/ws-protocol';
 import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
+import { WebSocketLike } from 'react-use-websocket/dist/lib/types';
 
 import { UnifiedConverter } from "./unified-converter";
 import { FoxgloveDataSourceSettings, Subscriber, FoxgloveMessageData, DatasourceTopic } from './types';
 import { usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
-import { useWebSocket } from '@workspace/utils';
 import { toast } from 'sonner';
 
 // Context for sharing Foxglove client and data across components
@@ -17,45 +17,114 @@ const FoxgloveDataContext = createContext<{
     client: FoxgloveClient | null;
     isConnected: boolean;
     channels: Map<number, Channel>;
-    onChannelAdvertised: (callback: (channel: Channel) => void) => void;
-    onChannelUnadvertised: (callback: (channelIds: number[]) => void) => void;
-    onMessage: (callback: (data: FoxgloveMessageData) => void) => void;
+    addCallback?: (eventType: string, callback: () => void) => void;
+    removeCallback?: (eventType: string, callback: () => void) => void;
 } | null>(null);
 
 interface FoxgloveDataHandlerProps {
     children: ReactNode;
     settings: FoxgloveDataSourceSettings;
+    webSocket: WebSocketLike | null;
 }
 
-const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({ children, settings }) => {
-    const { socket, isConnected } = useWebSocket();
+const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({ children, settings, webSocket }) => {
     const pluginsManager = usePluginsManager();
 
     const [client, setClient] = useState<FoxgloveClient | null>(null);
     const [channels, setChannels] = useState<Map<number, Channel>>(new Map());
-    const initializingRef = useRef<boolean>(false); // Track initialization state
+    const [callbacks, setCallbacks] = useState<Map<string, (() => void)[]>>(new Map());   // event_type -> callbacks[]
+    const [isConnected, setIsConnected] = useState<boolean>(false);
 
-    // Event callback refs
-    const channelAdvertisedCallbacksRef = useRef<Array<(channel: Channel) => void>>([]);
-    const channelUnadvertisedCallbacksRef = useRef<Array<(channelIds: number[]) => void>>([]);
-    const messageCallbacksRef = useRef<Array<(data: { subscriptionId: number; timestamp: any; data: Uint8Array }) => void>>([]);
+    const addCallback = (eventType: string, callback: () => void) => {
+        setCallbacks((prev) => {
+            const updated = new Map(prev);
+            if (!updated.has(eventType)) {
+                updated.set(eventType, []);
+            }
+            updated.get(eventType)!.push(callback);
+            return updated;
+        });
+    };
 
-    // Initialize UnifiedConverter with plugins manager
+    const removeCallback = (eventType: string, callback: () => void) => {
+        setCallbacks((prev) => {
+            const updated = new Map(prev);
+            if (updated.has(eventType)) {
+                const filtered = updated.get(eventType)!.filter(cb => cb !== callback);
+                updated.set(eventType, filtered);
+            }
+            return updated;
+        });
+    };
+
     useEffect(() => {
-        UnifiedConverter.pluginManager = pluginsManager;
-    }, [pluginsManager]);
-
-    // Register plugin system hooks
-    useEffect(() => {
-        if (!settings.enable) {
+        if (!webSocket || !(webSocket instanceof WebSocket)) {
+            setClient(null);
+            setChannels(new Map());
+            setIsConnected(false);
             return;
         }
+
+        setIsConnected(webSocket.readyState === WebSocket.OPEN);
+
+        const newClient = new FoxgloveClient({ ws: webSocket });
+
+        const handleAdvertise = (newChannels: Channel[]) => {
+            console.log("Advertised channels:", newChannels);
+            setChannels((prev) => {
+                const updated = new Map(prev);
+                for (const channel of newChannels) {
+                    updated.set(channel.id, channel);
+                }
+
+                return updated;
+            });
+        };
+
+        const handleUnadvertise = (removedChannelIds: number[]) => {
+            console.log("Unadvertised channel IDs:", removedChannelIds);
+            setChannels((prev) => {
+                const updated = new Map(prev);
+                for (const id of removedChannelIds) {
+                    updated.delete(id);
+                }
+                return updated;
+            });
+        };
+
+        newClient.on("advertise", handleAdvertise);
+        newClient.on("unadvertise", handleUnadvertise);
+
+        for (const [eventType, cbs] of callbacks.entries()) {
+            for (const cb of cbs) {
+                newClient.on(eventType as any, cb as any);
+            }
+        }
+
+        setClient(newClient);
+
+        return () => {
+            newClient.off("advertise", handleAdvertise);
+            newClient.off("unadvertise", handleUnadvertise);
+
+            for (const [eventType, cbs] of callbacks.entries()) {
+                for (const cb of cbs) {
+                    newClient.off(eventType as any, cb as any);
+                }
+            }
+
+            setClient(null);
+        };
+
+    }, [webSocket, callbacks]);
+
+    useEffect(() => {
+        if (!client) return;
 
         const datasource_id = settings.id;
         const available_topics_handler = `${datasource_id}-available-topics`;
         const connection_client_filter = `${datasource_id}-foxglove-connection-client`;
 
-        // Register available topics filter
         pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
             id: available_topics_handler,
             filter: async (topics) => {
@@ -93,189 +162,43 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({ children, set
             priority: 1,
         });
 
-        // Cleanup function
         return () => {
             pluginsManager.removeFilter(available_topics_handler);
             pluginsManager.removeFilter(connection_client_filter);
-        };
-    }, [settings.enable, settings.id, pluginsManager, channels]);
-
-    // Initialize Foxglove client when WebSocket is connected
-    useEffect(() => {
-        if (!isConnected || !socket || !settings.enable) {
-            // Clean up client if disconnected
-            if (client) {
-                setClient(null);
-                setChannels(new Map());
-                initializingRef.current = false;
-            }
-            return;
         }
+    }, [channels]);
 
-        // Prevent duplicate initialization in StrictMode
-        if (client || initializingRef.current) {
-            return;
-        }
-
-        initializingRef.current = true;
-
-        // Create Foxglove client
-        const foxgloveClient = new FoxgloveClient({
-            ws: socket,
-        });
-
-        // Since the socket is externally managed and already connected,
-        // we don't need to wait for the "open" event - set the client immediately
-        setClient(foxgloveClient);
-        initializingRef.current = false;
-
-        if (settings.toasts) {
-            toast('Foxglove client ready');
-        }
-
-        // Set up event handlers for protocol events
-        foxgloveClient.on("open", () => {
-            // This event may not fire with externally managed sockets
-        });
-
-        foxgloveClient.on('error', (error) => {
-            console.error("Foxglove client error:", error);
-            initializingRef.current = false;
-            if (settings.toasts) {
-                toast(`Foxglove client error: ${error.message}`);
-            }
-        });
-
-        foxgloveClient.on("close", () => {
-            setClient(null);
-            setChannels(new Map());
-            initializingRef.current = false;
-        });
-
-        // Handle channel advertisements
-        foxgloveClient.on("advertise", (channelsList: Channel[]) => {
-            setChannels(prevChannels => {
-                const newChannels = new Map(prevChannels);
-                channelsList.forEach((channel) => {
-                    if (!newChannels.has(channel.id)) {
-                        newChannels.set(channel.id, channel);
-
-                        // Notify all registered callbacks
-                        channelAdvertisedCallbacksRef.current.forEach(callback => {
-                            try {
-                                callback(channel);
-                            } catch (error) {
-                                console.error("Error in channel advertised callback:", error);
-                            }
-                        });
-                    }
-                });
-
-                // If we're getting channels but the client isn't set yet, set it now
-                // This shouldn't happen with immediate client setting, but kept as safeguard
-                if (!client && newChannels.size > 0) {
-                    setClient(foxgloveClient);
-                    initializingRef.current = false;
-                }
-
-                return newChannels;
-            });
-        });
-
-        // Handle channel unadvertisements
-        foxgloveClient.on("unadvertise", (ids: number[]) => {
-            setChannels(prevChannels => {
-                const newChannels = new Map(prevChannels);
-                ids.forEach((id) => {
-                    if (newChannels.has(id)) {
-                        newChannels.delete(id);
-                    }
-                });
-                return newChannels;
-            });
-
-            // Notify all registered callbacks
-            channelUnadvertisedCallbacksRef.current.forEach(callback => {
-                try {
-                    callback(ids);
-                } catch (error) {
-                    console.error("Error in channel unadvertised callback:", error);
-                }
-            });
-        });
-
-        // Handle incoming messages
-        foxgloveClient.on("message", (messageData: any) => {
-            // Convert to our expected format
-            const foxgloveMessage: FoxgloveMessageData = {
-                subscriptionId: messageData.subscriptionId,
-                timestamp: messageData.timestamp,
-                data: messageData.data instanceof Uint8Array
-                    ? messageData.data
-                    : new Uint8Array(messageData.data.buffer, messageData.data.byteOffset, messageData.data.byteLength)
-            };
-
-            // Notify all registered callbacks
-            messageCallbacksRef.current.forEach(callback => {
-                try {
-                    callback(foxgloveMessage);
-                } catch (error) {
-                    console.error("Error in message callback:", error);
-                }
-            });
-        });
-
-        return () => {
-            // Only clean up client state, don't close the socket
-            // Socket closure is handled by the WebSocket provider
-            setClient(null);
-            setChannels(new Map());
-            initializingRef.current = false;
+    /*
+        type EventTypes = {
+        open: () => void;
+        error: (error: Error) => void;
+        close: (event: CloseEvent) => void;
+ 
+        serverInfo: (event: ServerInfo) => void;
+        status: (event: StatusMessage) => void;
+        removeStatus: (event: RemoveStatusMessages) => void;
+        message: (event: MessageData) => void;
+        time: (event: Time) => void;
+        advertise: (newChannels: Channel[]) => void;
+        unadvertise: (removedChannels: ChannelId[]) => void;
+        advertiseServices: (newServices: Service[]) => void;
+        unadvertiseServices: (removedServices: ServiceId[]) => void;
+        parameterValues: (event: ParameterValues) => void;
+        serviceCallResponse: (event: ServiceCallResponse) => void;
+        connectionGraphUpdate: (event: ConnectionGraphUpdate) => void;
+        fetchAssetResponse: (event: FetchAssetResponse) => void;
+        serviceCallFailure: (event: ServiceCallFailure) => void;
         };
-    }, [isConnected, socket, settings.enable, settings.toasts]);
+    */
 
-    // Register callback functions
-    const onChannelAdvertised = (callback: (channel: Channel) => void) => {
-        channelAdvertisedCallbacksRef.current.push(callback);
 
-        // Return cleanup function
-        return () => {
-            const index = channelAdvertisedCallbacksRef.current.indexOf(callback);
-            if (index > -1) {
-                channelAdvertisedCallbacksRef.current.splice(index, 1);
-            }
-        };
-    };
-
-    const onChannelUnadvertised = (callback: (channelIds: number[]) => void) => {
-        channelUnadvertisedCallbacksRef.current.push(callback);
-
-        return () => {
-            const index = channelUnadvertisedCallbacksRef.current.indexOf(callback);
-            if (index > -1) {
-                channelUnadvertisedCallbacksRef.current.splice(index, 1);
-            }
-        };
-    };
-
-    const onMessage = (callback: (data: FoxgloveMessageData) => void) => {
-        messageCallbacksRef.current.push(callback);
-
-        return () => {
-            const index = messageCallbacksRef.current.indexOf(callback);
-            if (index > -1) {
-                messageCallbacksRef.current.splice(index, 1);
-            }
-        };
-    };
 
     const contextValue = {
         client,
         isConnected,
         channels,
-        onChannelAdvertised,
-        onChannelUnadvertised,
-        onMessage,
+        addCallback,
+        removeCallback,
     };
 
     return (
