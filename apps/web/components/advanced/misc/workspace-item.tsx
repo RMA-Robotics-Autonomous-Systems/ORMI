@@ -31,6 +31,7 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
                             alt={`${workspace.name} avatar`}
                             fill
                             style={{ objectFit: 'contain' }}
+                            sizes="100"
                             priority
                         />
                     </div>
