@@ -35,12 +35,10 @@ class Publisher {
     }
 
     async advertise() {
-        console.log("ask to advertise", this.topic);
         return await this.pm.applyFilterAsync(`${this.topic.source.id}-advertise`, this.topic);
     }
 
     unadvertise() {
-        console.log("ask to unadvertise", this.topic);
         this.pm.doAction(`${this.topic.source.id}-unadvertise`, this.topic);
     }
 
@@ -81,7 +79,6 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
         topicsToRemove.forEach(topicKey => {
             const publisher = publishersRef.current.get(topicKey);
             if (publisher) {
-                console.log(`Removing publisher for topic: ${topicKey}`);
                 try {
                     publisher.unadvertise();
                 } catch (error) {
@@ -121,7 +118,6 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
 
                 // Add each new topic
                 for (const topic of topicsToAdd) {
-                    console.log(`Adding publisher for topic: ${topic.topic}`);
                     const publisher = new Publisher(topic, pluginsManager);
                     let result = false;
 
@@ -204,7 +200,6 @@ const PublisherDataSourcesProvider = (props: PublisherDataSourcesProviderProps) 
 
         // Cleanup function for component unmount only
         return () => {
-            console.log("Unmounting publisher data source provider, unadvertising topics...");
             publishersRef.current.forEach(publisher => {
                 try {
                     publisher.unadvertise();

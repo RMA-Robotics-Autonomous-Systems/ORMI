@@ -59,7 +59,6 @@ const AsyncTopicControl = (props: ControlProps) => {
         const sourceId = topicIdentifier.split('@')[1] || '';
         const topic = getTopicByNameAndSourceId(topicName, sourceId);
 
-        console.log("Selected topic:", topic);
 
         setTopicProps([]);
         setOpen(false);

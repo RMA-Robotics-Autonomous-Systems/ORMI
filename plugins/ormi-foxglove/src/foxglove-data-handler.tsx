@@ -70,7 +70,6 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({ children, set
         const newClient = new FoxgloveClient({ ws: webSocket });
 
         const handleAdvertise = (newChannels: Channel[]) => {
-            console.log("Advertised channels:", newChannels);
             setChannels((prev) => {
                 const updated = new Map(prev);
                 for (const channel of newChannels) {
@@ -82,7 +81,6 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({ children, set
         };
 
         const handleUnadvertise = (removedChannelIds: number[]) => {
-            console.log("Unadvertised channel IDs:", removedChannelIds);
             setChannels((prev) => {
                 const updated = new Map(prev);
                 for (const id of removedChannelIds) {
