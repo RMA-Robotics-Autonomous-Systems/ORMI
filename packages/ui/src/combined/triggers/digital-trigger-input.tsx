@@ -57,7 +57,6 @@ export const DigitalInputComponent = (props: DigitalInputComponentProps) => {
 
     useEffect(() => {
         const gamepadHandler = (event: GamepadEvent) => {
-            console.log('gamepad event', event);
             if (event.type === 'gamepadconnected') {
                 setGamepads((prev) => [...(prev || []), event.gamepad]);
             } else {
