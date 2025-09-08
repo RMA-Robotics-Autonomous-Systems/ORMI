@@ -8,6 +8,7 @@ import { Movement } from "@workspace/ormi-core/types";
 import { axisControlType, KeyControlType } from "@workspace/ormi-jsonforms";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { AnalogInput, DigitalInput, DigitalComponent, AnalogComponent } from "@workspace/ui/combined/triggers";
+import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
 interface JoypadControlsProps {
@@ -16,6 +17,7 @@ interface JoypadControlsProps {
         axis: string;
         joystick_plus: AnalogInput;
         joystick_minus: AnalogInput;
+        multiplier: number;
     }[];
     startingSpeed: number;
     incSpeed: DigitalInput;
@@ -29,7 +31,7 @@ interface JoypadControlsProps {
 
 export function JoypadControls(props: JoypadControlsProps) {
     // State for speed control
-    const [speed, setSpeed] = useState<number>(props.startingSpeed || 50);
+    const [speed, setSpeed] = useState<number>(props.startingSpeed || 1.0);
     const [speedkeyIncActive, setSpeedKeyIncActive] = useState<boolean>(false);
     const [speedkeyDecActive, setSpeedKeyDecActive] = useState<boolean>(false);
 
@@ -49,13 +51,13 @@ export function JoypadControls(props: JoypadControlsProps) {
     // Speed control handlers
     useEffect(() => {
         if (speedkeyIncActive) {
-            setSpeed((prev) => prev + 10);
+            setSpeed((prev) => Math.min(10, prev + 0.1)); // Increment by 0.1 m/s, max 10 m/s
         }
     }, [speedkeyIncActive]);
 
     useEffect(() => {
         if (speedkeyDecActive) {
-            setSpeed((prev) => Math.max(0, prev - 10));
+            setSpeed((prev) => Math.max(0, prev - 0.1)); // Decrement by 0.1 m/s, min 0 m/s
         }
     }, [speedkeyDecActive]);
 
@@ -107,27 +109,32 @@ export function JoypadControls(props: JoypadControlsProps) {
             let isMoving = false;
 
             // Apply all active axis values from refs
-            for (const axisConfig of props.axes) {
-                const value = axisValuesRef.current[axisConfig.axis] || 0;
+            if (Array.isArray(props.axes)) {
+                for (const axisConfig of props.axes) {
+                    const value = axisValuesRef.current[axisConfig.axis] || 0;
 
-                if (Math.abs(value) <= 0.07) {
-                    axisValuesRef.current[axisConfig.axis] = 0;
-                    continue; // Ignore small values
-                }
+                    if (Math.abs(value) <= 0.07) {
+                        axisValuesRef.current[axisConfig.axis] = 0;
+                        continue; // Ignore small values
+                    }
 
-                if (value !== 0) {
-                    isMoving = true;
+                    if (value !== 0) {
+                        isMoving = true;
 
-                    // Update the appropriate movement axis using a type-safe approach
-                    const [type, axis] = axisConfig.axis.split('.');
-                    if (type === 'linear') {
-                        if (axis === 'x') movement.linear.x = value * (speed / 100);
-                        else if (axis === 'y') movement.linear.y = value * (speed / 100);
-                        else if (axis === 'z') movement.linear.z = value * (speed / 100);
-                    } else if (type === 'angular') {
-                        if (axis === 'x') movement.angular.x = value * (speed / 100);
-                        else if (axis === 'y') movement.angular.y = value * (speed / 100);
-                        else if (axis === 'z') movement.angular.z = value * (speed / 100);
+                        // Get the multiplier for this specific axis
+                        const multiplier = axisConfig.multiplier || 1;
+
+                        // Update the appropriate movement axis using a type-safe approach
+                        const [type, axis] = axisConfig.axis.split('.');
+                        if (type === 'linear') {
+                            if (axis === 'x') movement.linear.x = value * speed * multiplier;
+                            else if (axis === 'y') movement.linear.y = value * speed * multiplier;
+                            else if (axis === 'z') movement.linear.z = value * speed * multiplier;
+                        } else if (type === 'angular') {
+                            if (axis === 'x') movement.angular.x = value * speed * multiplier;
+                            else if (axis === 'y') movement.angular.y = value * speed * multiplier;
+                            else if (axis === 'z') movement.angular.z = value * speed * multiplier;
+                        }
                     }
                 }
             }
@@ -174,82 +181,93 @@ export function JoypadControls(props: JoypadControlsProps) {
     }, [handleJoystickChange]);
 
     return (
-        <div className="flex flex-col justify-center items-center p-4 h-full gap-3">
-            {/* Hidden digital components for key controls */}
-            <div style={{ display: "none" }}>
-                <DigitalComponent digitalInput={props.decSpeed} onActive={handleDecSpeedActive} onInactive={handleDecSpeedInactive} />
-                <DigitalComponent digitalInput={props.unlock} onActive={handleUnlockActive} onInactive={handleUnlockInactive} />
-                <DigitalComponent digitalInput={props.incSpeed} onActive={handleIncSpeedActive} onInactive={handleIncSpeedInactive} />
-            </div>
-
-            {/* Control header with lock and speed */}
-            <div className="flex justify-between w-full mb-4">
-                <div
-                    data-active={!isLocked}
-                    className="
-                        bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
-                        flex justify-center items-center select-none cursor-pointer
-                        hover:bg-black/20 hover:scale-110 transition-all duration-100
-                        data-[active=true]:bg-green-600/20 data-[active=true]:scale-110
-                    "
-                    onMouseUp={handleUnlockInactive}
-                    onMouseDown={handleUnlockActive}
-                    style={{ padding: '0.75rem', cursor: 'pointer' }}
-                >
-                    {isLocked ? <LockIcon className="text-red-500" /> : <UnlockIcon className="text-green-500" />}
+        <div className="flex flex-col h-full overflow-auto">
+            <div className="flex flex-col justify-start items-center p-1 sm:p-2 lg:p-4 h-full gap-1 sm:gap-2 lg:gap-3 min-h-0">
+                {/* Hidden digital components for key controls */}
+                <div style={{ display: "none" }}>
+                    <DigitalComponent digitalInput={props.decSpeed} onActive={handleDecSpeedActive} onInactive={handleDecSpeedInactive} />
+                    <DigitalComponent digitalInput={props.unlock} onActive={handleUnlockActive} onInactive={handleUnlockInactive} />
+                    <DigitalComponent digitalInput={props.incSpeed} onActive={handleIncSpeedActive} onInactive={handleIncSpeedInactive} />
                 </div>
 
-                <div
-                    data-active={speedkeyIncActive || speedkeyDecActive}
-                    className="
-                        bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
-                        flex justify-center items-center select-none cursor-pointer
-                        hover:bg-black/20 hover:scale-110 transition-all duration-100
-                        data-[active=true]:bg-green-600/20 data-[active=true]:scale-110
-                    "
-                    style={{ padding: '0.75rem' }}
-                >
-                    <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <GaugeIcon /> {speed}%
-                    </span>
+                {/* Control header with lock and speed */}
+                <div className="flex justify-between w-full mb-1 sm:mb-2 lg:mb-4 gap-1 sm:gap-2">
+                    <div
+                        data-active={!isLocked}
+                        className="
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            flex justify-center items-center select-none cursor-pointer
+                            hover:bg-black/20 transition-all duration-100
+                            data-[active=true]:bg-green-600/20
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                        "
+                        onMouseUp={handleUnlockInactive}
+                        onMouseDown={handleUnlockActive}
+                        style={{ padding: '0.25rem 0.5rem', cursor: 'pointer' }}
+                    >
+                        {isLocked ? <LockIcon className="text-red-500 w-4 h-4 sm:w-5 sm:h-5" /> : <UnlockIcon className="text-green-500 w-4 h-4 sm:w-5 sm:h-5" />}
+                    </div>
+
+                    <div
+                        data-active={speedkeyIncActive || speedkeyDecActive}
+                        className="
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            flex justify-center items-center select-none cursor-pointer
+                            hover:bg-black/20 transition-all duration-100
+                            data-[active=true]:bg-green-600/20
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                        "
+                        style={{ padding: '0.25rem 0.5rem' }}
+                    >
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                            <GaugeIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="text-xs sm:text-sm">{speed.toFixed(1)} m/s</span>
+                        </span>
+                    </div>
                 </div>
-            </div>
 
-            {/* Joystick axes controls */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                {props.axes.map((axisConfig, index) => {
-                    // Track each axis separately with its own state
-                    const axisValue = axisValues[axisConfig.axis] || 0;
+                {/* Joystick axes controls */}
+                <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:gap-4 w-full flex-1 min-h-0 overflow-auto">
+                    {Array.isArray(props.axes) ? props.axes.map((axisConfig, index) => {
+                        // Track each axis separately with its own state
+                        const axisValue = axisValues[axisConfig.axis] || 0;
 
-                    return (
-                        <div key={index} className="flex flex-col items-center p-2 border rounded">
-                            <div className="text-sm font-medium mb-2">{axisConfig.axis}</div>
-                            <div className="flex justify-between w-full gap-4">
-                                <div className="flex-1 text-center">
-                                    <AnalogComponent
-                                        analogInput={axisConfig.joystick_plus}
-                                        onValueChange={(value) => handleAxisChange(axisConfig, value, true)}
-                                    />
+                        return (
+                            <div key={index} className="flex flex-col items-center p-1 sm:p-2 border rounded min-h-0">
+                                <div className="text-xs sm:text-sm font-medium mb-1 sm:mb-2 truncate w-full text-center">{axisConfig.axis}</div>
+                                <div className="flex justify-around items-center w-full gap-2 sm:gap-4">
+                                    <div className="flex flex-col items-center min-w-0">
+                                        <div className="text-xs mb-1">Joystick (+)</div>
+                                        <AnalogComponent
+                                            analogInput={axisConfig.joystick_plus}
+                                            onValueChange={(value) => handleAxisChange(axisConfig, value, true)}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col items-center min-w-0">
+                                        <div className="text-xs mb-1">Joystick (-)</div>
+                                        <AnalogComponent
+                                            analogInput={axisConfig.joystick_minus}
+                                            onValueChange={(value) => handleAxisChange(axisConfig, value, false)}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex-1 text-center">
-                                    <AnalogComponent
-                                        analogInput={axisConfig.joystick_minus}
-                                        onValueChange={(value) => handleAxisChange(axisConfig, value, false)}
+                                <div className="mt-1 sm:mt-2 h-1 sm:h-2 w-full bg-gray-200 rounded">
+                                    <div
+                                        className="h-full bg-blue-500 rounded transition-all duration-150"
+                                        style={{
+                                            width: `${Math.abs(axisValue) * 100}%`,
+                                            marginLeft: axisValue < 0 ? '0' : `${50 - Math.abs(axisValue) * 50}%`
+                                        }}
                                     />
                                 </div>
                             </div>
-                            <div className="mt-2 h-2 w-full bg-gray-200 rounded">
-                                <div
-                                    className="h-full bg-blue-500 rounded"
-                                    style={{
-                                        width: `${Math.abs(axisValue) * 100}%`,
-                                        marginLeft: axisValue < 0 ? '0' : `${50 - Math.abs(axisValue) * 50}%`
-                                    }}
-                                />
-                            </div>
+                        );
+                    }) : (
+                        <div className="flex justify-center items-center h-full text-muted-foreground">
+                            No axes configured. Please configure axes in the widget settings.
                         </div>
-                    );
-                })}
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -291,16 +309,23 @@ export function JoypadControlsDefinition() {
                                 type: "object",
                                 title: "Joystick -",
                             },
+                            multiplier: {
+                                type: 'number',
+                                title: 'Multiplier',
+                                default: 1,
+                                minimum: 0,
+                                maximum: 10,
+                            },
 
                         }
                     }
                 },
                 startingSpeed: {
                     type: 'number',
-                    title: 'Starting Speed (%)',
-                    default: 50,
+                    title: 'Starting Speed (m/s)',
+                    default: 1.0,
                     minimum: 0,
-                    maximum: 100,
+                    maximum: 10,
                 },
                 incSpeed: {
                     type: 'object',
@@ -365,6 +390,10 @@ export function JoypadControlsDefinition() {
                                     type: "Axis",
                                     scope: "#/properties/joystick_minus"
                                 } as axisControlType,
+                                {
+                                    type: "Control",
+                                    scope: "#/properties/multiplier"
+                                } as ControlElement,
                             ]
                         }
                     }

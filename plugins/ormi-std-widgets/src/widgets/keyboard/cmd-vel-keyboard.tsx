@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react"; // Import useCallback
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { GaugeIcon, KeyboardIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { SelectedTopic, usePublisherDataSource, DatasourceTopic, DatasourceTopicFilter, PublisherDataSourcesProvider } from "@workspace/ormi-core/datasources";
@@ -7,14 +7,17 @@ import { Movement } from "@workspace/ormi-core/types";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { DigitalInput, DigitalComponent } from "@workspace/ui/combined/triggers";
+import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
 interface KeyboardControlData {
     title: string;
-    forward: DigitalInput;
-    backward: DigitalInput;
-    left: DigitalInput;
-    right: DigitalInput;
+    axes: {
+        axis: string;
+        key_positive: DigitalInput;
+        key_negative: DigitalInput;
+        multiplier: number;
+    }[];
     startingSpeed: number;
     incSpeed: DigitalInput;
     decSpeed: DigitalInput;
@@ -26,39 +29,48 @@ interface KeyboardControlData {
 }
 
 export function KeyBoardControl(props: KeyboardControlData) {
-    const [forwardActive, setForwardActive] = useState<boolean>(false);
-    const [backwardActive, setBackwardActive] = useState<boolean>(false);
-    const [leftActive, setLeftActive] = useState<boolean>(false);
-    const [rightActive, setRightActive] = useState<boolean>(false);
-    const [speed, setSpeed] = useState<number>(props.startingSpeed || 50);
+    const [speed, setSpeed] = useState<number>(props.startingSpeed || 1.0);
     const [unlockActive, setUnlockActive] = useState<boolean>(false);
     const [isLocked, setIsLocked] = useState<boolean>(true);
     const [speedkeyIncActive, setSpeedKeyIncActive] = useState<boolean>(false);
     const [speedkeyDecActive, setSpeedKeyDecActive] = useState<boolean>(false);
 
-    // Refs to hold the latest active state for movement keys
-    const forwardActiveRef = useRef(forwardActive);
-    const backwardActiveRef = useRef(backwardActive);
-    const leftActiveRef = useRef(leftActive);
-    const rightActiveRef = useRef(rightActive);
+    // Individual state for each axis key (like the original working version)
+    const [axisKeyStates, setAxisKeyStates] = useState<Record<string, boolean>>({});
 
-    // Update refs whenever state changes (this ensures refs are up-to-date if needed elsewhere, though the interval reads them directly)
-    useEffect(() => { forwardActiveRef.current = forwardActive; }, [forwardActive]);
-    useEffect(() => { backwardActiveRef.current = backwardActive; }, [backwardActive]);
-    useEffect(() => { leftActiveRef.current = leftActive; }, [leftActive]);
-    useEffect(() => { rightActiveRef.current = rightActive; }, [rightActive]);
+    // Individual refs for each axis key (like the original working version)  
+    const axisKeyRefs = useRef<Record<string, boolean>>({});
 
     const { publishers } = usePublisherDataSource();
 
+    // Initialize refs for all axis keys
+    useEffect(() => {
+        const initialRefs: Record<string, boolean> = {};
+        if (Array.isArray(props.axes)) {
+            for (const axisConfig of props.axes) {
+                const positiveKey = `${axisConfig.axis}_positive`;
+                const negativeKey = `${axisConfig.axis}_negative`;
+                initialRefs[positiveKey] = false;
+                initialRefs[negativeKey] = false;
+            }
+        }
+        axisKeyRefs.current = initialRefs;
+    }, [props.axes]);
+
+    // Update refs whenever state changes (like the original)
+    useEffect(() => {
+        axisKeyRefs.current = axisKeyStates;
+    }, [axisKeyStates]);
+
     useEffect(() => {
         if (speedkeyIncActive) {
-            setSpeed((prev) => prev + 10);
+            setSpeed((prev) => Math.min(10, prev + 0.1)); // Increment by 0.1 m/s, max 10 m/s
         }
     }, [speedkeyIncActive]);
 
     useEffect(() => {
         if (speedkeyDecActive) {
-            setSpeed((prev) => Math.max(0, prev - 10));
+            setSpeed((prev) => Math.max(0, prev - 0.1)); // Decrement by 0.1 m/s, min 0 m/s
         }
     }, [speedkeyDecActive]);
 
@@ -94,12 +106,6 @@ export function KeyBoardControl(props: KeyboardControlData) {
         }
 
         const movementFunction = () => {
-            // Read current state directly from refs inside the interval
-            const fwd = forwardActiveRef.current;
-            const bwd = backwardActiveRef.current;
-            const lft = leftActiveRef.current;
-            const rgt = rightActiveRef.current;
-
             if (isLocked) {
                 return; // Don't send movement commands while locked
             }
@@ -110,21 +116,45 @@ export function KeyBoardControl(props: KeyboardControlData) {
             };
 
             let isMoving = false;
-            if (fwd) {
-                movement.linear.x += speed / 100;
-                isMoving = true;
-            }
-            if (bwd) {
-                movement.linear.x -= speed / 100;
-                isMoving = true;
-            }
-            if (lft) {
-                movement.angular.z += speed / 100;
-                isMoving = true;
-            }
-            if (rgt) {
-                movement.angular.z -= speed / 100;
-                isMoving = true;
+
+            // Process each axis based on current key states from refs (like the original)
+            if (Array.isArray(props.axes)) {
+                for (const axisConfig of props.axes) {
+                    const positiveKey = `${axisConfig.axis}_positive`;
+                    const negativeKey = `${axisConfig.axis}_negative`;
+
+                    const positiveActive = axisKeyRefs.current[positiveKey] || false;
+                    const negativeActive = axisKeyRefs.current[negativeKey] || false;
+
+                    let axisValue = 0;
+                    if (positiveActive && !negativeActive) {
+                        axisValue = 1;
+                    } else if (negativeActive && !positiveActive) {
+                        axisValue = -1;
+                    } else if (positiveActive && negativeActive) {
+                        axisValue = 0; // Both keys pressed, cancel out
+                    }
+
+                    if (axisValue !== 0) {
+                        isMoving = true;
+
+                        // Get the multiplier for this specific axis
+                        const multiplier = axisConfig.multiplier || 1;
+                        const finalValue = axisValue * speed * multiplier;
+
+                        // Update the appropriate movement axis - ACCUMULATE values for multiple axes
+                        const [type, axis] = axisConfig.axis.split('.');
+                        if (type === 'linear') {
+                            if (axis === 'x') movement.linear.x += finalValue;
+                            else if (axis === 'y') movement.linear.y += finalValue;
+                            else if (axis === 'z') movement.linear.z += finalValue;
+                        } else if (type === 'angular') {
+                            if (axis === 'x') movement.angular.x += finalValue;
+                            else if (axis === 'y') movement.angular.y += finalValue;
+                            else if (axis === 'z') movement.angular.z += finalValue;
+                        }
+                    }
+                }
             }
 
             if (isMoving) {
@@ -132,7 +162,6 @@ export function KeyBoardControl(props: KeyboardControlData) {
             } else if (props.keepPublishZero) {
                 publisher.publish(movement, "Movement");
             }
-
         };
 
         const publishInterval = setInterval(movementFunction, publish_period_ms);
@@ -140,95 +169,166 @@ export function KeyBoardControl(props: KeyboardControlData) {
         return () => {
             clearInterval(publishInterval);
         };
-    }, [props.topic, props.publicationFrequency, publishers, speed, isLocked]);
+    }, [props.topic, props.publicationFrequency, publishers, speed, isLocked, props.keepPublishZero]);
 
-    // Memoized handlers using useCallback to ensure stable references
-    const handleForwardActive = useCallback(() => {
-        setForwardActive(true);
-        forwardActiveRef.current = true;
-    }, []);
+    // Individual memoized handlers for each axis key (like the original working version)
+    const axisKeyHandlers = useMemo(() => {
+        const handlers: Record<string, { handleActive: () => void; handleInactive: () => void }> = {};
 
-    const handleForwardInactive = useCallback(() => {
-        setForwardActive(false);
-        forwardActiveRef.current = false;
-    }, []);
+        if (Array.isArray(props.axes)) {
+            for (const axisConfig of props.axes) {
+                const positiveKey = `${axisConfig.axis}_positive`;
+                const negativeKey = `${axisConfig.axis}_negative`;
 
-    const handleBackwardActive = useCallback(() => {
-        setBackwardActive(true);
-        backwardActiveRef.current = true;
-    }, []);
+                handlers[positiveKey] = {
+                    handleActive: () => {
+                        setAxisKeyStates(prev => {
+                            const updated = { ...prev, [positiveKey]: true };
+                            axisKeyRefs.current = updated;
+                            return updated;
+                        });
+                    },
+                    handleInactive: () => {
+                        setAxisKeyStates(prev => {
+                            const updated = { ...prev, [positiveKey]: false };
+                            axisKeyRefs.current = updated;
+                            return updated;
+                        });
+                    }
+                };
 
-    const handleBackwardInactive = useCallback(() => {
-        setBackwardActive(false);
-        backwardActiveRef.current = false;
-    }, []);
+                handlers[negativeKey] = {
+                    handleActive: () => {
+                        setAxisKeyStates(prev => {
+                            const updated = { ...prev, [negativeKey]: true };
+                            axisKeyRefs.current = updated;
+                            return updated;
+                        });
+                    },
+                    handleInactive: () => {
+                        setAxisKeyStates(prev => {
+                            const updated = { ...prev, [negativeKey]: false };
+                            axisKeyRefs.current = updated;
+                            return updated;
+                        });
+                    }
+                };
+            }
+        }
 
-    const handleLeftActive = useCallback(() => {
-        setLeftActive(true);
-        leftActiveRef.current = true;
-    }, []);
+        return handlers;
+    }, [props.axes]);
 
-    const handleLeftInactive = useCallback(() => {
-        setLeftActive(false);
-        leftActiveRef.current = false;
-    }, []);
-
-    const handleRightActive = useCallback(() => {
-        setRightActive(true);
-        rightActiveRef.current = true;
-    }, []);
-
-    const handleRightInactive = useCallback(() => {
-        setRightActive(false);
-        rightActiveRef.current = false;
-    }, []);
-
+    // Digital input handlers
     const handleIncSpeedActive = useCallback(() => setSpeedKeyIncActive(true), []);
     const handleIncSpeedInactive = useCallback(() => setSpeedKeyIncActive(false), []);
     const handleDecSpeedActive = useCallback(() => setSpeedKeyDecActive(true), []);
     const handleDecSpeedInactive = useCallback(() => setSpeedKeyDecActive(false), []);
     const handleUnlockActive = useCallback(() => setUnlockActive(true), []);
     const handleUnlockInactive = useCallback(() => setUnlockActive(false), []);
-    return (
-        <div className="flex flex-col justify-center items-center p-4 h-full gap-3">
-            <div style={{ display: "none" }}>
-                <DigitalComponent digitalInput={props.decSpeed} onActive={handleDecSpeedActive} onInactive={handleDecSpeedInactive} />
-                <DigitalComponent digitalInput={props.unlock} onActive={handleUnlockActive} onInactive={handleUnlockInactive} />
-                <DigitalComponent digitalInput={props.incSpeed} onActive={handleIncSpeedActive} onInactive={handleIncSpeedInactive} />
 
-            </div>
-            {/* Grid layout for movement controls */}
-            <div className="mb-4" style={{ display: 'grid', alignItems: "center", justifyItems: "center", gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', width: '100%' }}>
-                <div
-                    data-active={!isLocked}
-                    style={{ width: '10rem' }}
-                    className="
-                        bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
-                        flex justify-center items-center select-none cursor-pointer
-                        hover:bg-black/20 hover:scale-110 transition-all duration-100
-                        data-[active=true]:bg-green-600/20 data-[active=true]:scale-110
-                    "
-                    onMouseUp={handleUnlockInactive}
-                    onMouseDown={handleUnlockActive}
-                >
-                    {isLocked ? <LockIcon className="text-red-500" /> : <UnlockIcon className="text-green-500" />}
+    return (
+        <div className="flex flex-col h-full overflow-auto">
+            <div className="flex flex-col justify-start items-center p-1 sm:p-2 lg:p-4 h-full gap-1 sm:gap-2 lg:gap-3 min-h-0">
+                <div style={{ display: "none" }}>
+                    <DigitalComponent digitalInput={props.decSpeed} onActive={handleDecSpeedActive} onInactive={handleDecSpeedInactive} />
+                    <DigitalComponent digitalInput={props.unlock} onActive={handleUnlockActive} onInactive={handleUnlockInactive} />
+                    <DigitalComponent digitalInput={props.incSpeed} onActive={handleIncSpeedActive} onInactive={handleIncSpeedInactive} />
                 </div>
-                <DigitalComponent digitalInput={props.forward} onActive={handleForwardActive} onInactive={handleForwardInactive} />
-                <div
-                    data-active={speedkeyIncActive || speedkeyDecActive}
-                    style={{ width: '10rem' }}
-                    className="
-                        bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
-                        flex justify-center items-center select-none cursor-pointer
-                        hover:bg-black/20 hover:scale-110 transition-all duration-100
-                        data-[active=true]:bg-green-600/20 data-[active=true]:scale-110
-                    "
-                >
-                    <span style={{ display: "flex", justifyContent: "space-evenly", width: "100%" }}><GaugeIcon />{speed}%</span>
+
+                {/* Control header with lock and speed */}
+                <div className="flex justify-between w-full mb-1 sm:mb-2 lg:mb-4 gap-1 sm:gap-2">
+                    <div
+                        data-active={!isLocked}
+                        className="
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            flex justify-center items-center select-none cursor-pointer
+                            hover:bg-black/20 transition-all duration-100
+                            data-[active=true]:bg-green-600/20
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                        "
+                        onMouseUp={handleUnlockInactive}
+                        onMouseDown={handleUnlockActive}
+                        style={{ padding: '0.25rem 0.5rem', cursor: 'pointer' }}
+                    >
+                        {isLocked ? <LockIcon className="text-red-500 w-4 h-4 sm:w-5 sm:h-5" /> : <UnlockIcon className="text-green-500 w-4 h-4 sm:w-5 sm:h-5" />}
+                    </div>
+
+                    <div
+                        data-active={speedkeyIncActive || speedkeyDecActive}
+                        className="
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            flex justify-center items-center select-none cursor-pointer
+                            hover:bg-black/20 transition-all duration-100
+                            data-[active=true]:bg-green-600/20
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                        "
+                        style={{ padding: '0.25rem 0.5rem' }}
+                    >
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                            <GaugeIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="text-xs sm:text-sm">{speed.toFixed(1)} m/s</span>
+                        </span>
+                    </div>
                 </div>
-                <DigitalComponent digitalInput={props.left} onActive={handleLeftActive} onInactive={handleLeftInactive} />
-                <DigitalComponent digitalInput={props.backward} onActive={handleBackwardActive} onInactive={handleBackwardInactive} />
-                <DigitalComponent digitalInput={props.right} onActive={handleRightActive} onInactive={handleRightInactive} />
+
+                {/* Keyboard axes controls */}
+                <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:gap-4 w-full flex-1 min-h-0 overflow-auto">
+                    {Array.isArray(props.axes) ? props.axes.map((axisConfig, index) => {
+                        const positiveKey = `${axisConfig.axis}_positive`;
+                        const negativeKey = `${axisConfig.axis}_negative`;
+                        const positiveActive = axisKeyStates[positiveKey] || false;
+                        const negativeActive = axisKeyStates[negativeKey] || false;
+
+                        let axisValue = 0;
+                        if (positiveActive && !negativeActive) {
+                            axisValue = 1;
+                        } else if (negativeActive && !positiveActive) {
+                            axisValue = -1;
+                        }
+
+                        // Get handlers for this specific axis
+                        const positiveHandlers = axisKeyHandlers[positiveKey];
+                        const negativeHandlers = axisKeyHandlers[negativeKey];
+
+                        return (
+                            <div key={index} className="flex flex-col items-center p-1 sm:p-2 border rounded min-h-0">
+                                <div className="text-xs sm:text-sm font-medium mb-1 sm:mb-2 truncate w-full text-center">{axisConfig.axis}</div>
+                                <div className="flex justify-around items-center w-full gap-2 sm:gap-4">
+                                    <div className="flex flex-col items-center min-w-0">
+                                        <div className="text-xs mb-1">Positive (+)</div>
+                                        <DigitalComponent
+                                            digitalInput={axisConfig.key_positive}
+                                            onActive={positiveHandlers ? positiveHandlers.handleActive : () => { }}
+                                            onInactive={positiveHandlers ? positiveHandlers.handleInactive : () => { }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col items-center min-w-0">
+                                        <div className="text-xs mb-1">Negative (-)</div>
+                                        <DigitalComponent
+                                            digitalInput={axisConfig.key_negative}
+                                            onActive={negativeHandlers ? negativeHandlers.handleActive : () => { }}
+                                            onInactive={negativeHandlers ? negativeHandlers.handleInactive : () => { }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-1 sm:mt-2 h-1 sm:h-2 w-full bg-gray-200 rounded">
+                                    <div
+                                        className="h-full bg-blue-500 rounded transition-all duration-150"
+                                        style={{
+                                            width: `${Math.abs(axisValue) * 100}%`,
+                                            marginLeft: axisValue < 0 ? '0' : `${50 - Math.abs(axisValue) * 50}%`
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        );
+                    }) : (
+                        <div className="flex justify-center items-center h-full text-muted-foreground">
+                            No axes configured. Please configure axes in the widget settings.
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -250,28 +350,41 @@ export function KeyboardControlDefinition() {
                     type: 'string',
                     title: 'Title'
                 },
-                forward: {
-                    type: 'object',
-                    title: 'Forward'
-                },
-                backward: {
-                    type: 'object',
-                    title: 'Backward'
-                },
-                left: {
-                    type: 'object',
-                    title: 'Left'
-                },
-                right: {
-                    type: 'object',
-                    title: 'Right'
+                axes: {
+                    type: 'array',
+                    title: 'Axes',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            axis: {
+                                type: 'string',
+                                title: 'Axis',
+                                enum: ['linear.x', 'linear.y', 'linear.z', 'angular.x', 'angular.y', 'angular.z'],
+                            },
+                            key_positive: {
+                                type: "object",
+                                title: "Positive Key",
+                            },
+                            key_negative: {
+                                type: "object",
+                                title: "Negative Key",
+                            },
+                            multiplier: {
+                                type: 'number',
+                                title: 'Multiplier',
+                                default: 1,
+                                minimum: 0,
+                                maximum: 10,
+                            },
+                        }
+                    }
                 },
                 startingSpeed: {
                     type: 'number',
-                    title: 'Starting Speed (%)',
-                    default: 50,
+                    title: 'Starting Speed (m/s)',
+                    default: 1.0,
                     minimum: 0,
-                    maximum: 100,
+                    maximum: 10,
                 },
                 incSpeed: {
                     type: 'object',
@@ -306,7 +419,7 @@ export function KeyboardControlDefinition() {
                     default: false
                 }
             },
-            required: ['title', 'topic', 'forward', 'backward', 'left', 'right', 'incSpeed', 'decSpeed', 'unlock']
+            required: ['title', 'topic', 'incSpeed', 'decSpeed', 'unlock']
         },
         uischema: {
             type: "VerticalLayout",
@@ -316,21 +429,32 @@ export function KeyboardControlDefinition() {
                     scope: "#/properties/title",
                 } as ControlElement,
                 {
-                    type: "Key",
-                    scope: "#/properties/forward",
-                } as KeyControlType,
-                {
-                    type: "Key",
-                    scope: "#/properties/backward",
-                } as KeyControlType,
-                {
-                    type: "Key",
-                    scope: "#/properties/left",
-                } as KeyControlType,
-                {
-                    type: "Key",
-                    scope: "#/properties/right",
-                } as KeyControlType,
+                    type: "Control",
+                    scope: "#/properties/axes",
+                    options: {
+                        detail: {
+                            type: "VerticalLayout",
+                            elements: [
+                                {
+                                    type: "Control",
+                                    scope: "#/properties/axis"
+                                } as ControlElement,
+                                {
+                                    type: "Key",
+                                    scope: "#/properties/key_positive"
+                                } as KeyControlType,
+                                {
+                                    type: "Key",
+                                    scope: "#/properties/key_negative"
+                                } as KeyControlType,
+                                {
+                                    type: "Control",
+                                    scope: "#/properties/multiplier"
+                                } as ControlElement,
+                            ]
+                        }
+                    }
+                } as ControlElement,
                 {
                     type: "Control",
                     scope: "#/properties/startingSpeed",
@@ -371,20 +495,29 @@ export function KeyboardControlDefinition() {
                     type: "Control",
                     scope: "#/properties/keepPublishZero",
                 } as ControlElement,
-
             ],
         } as VerticalLayout,
         data: {
             title: 'Keyboard Robot Control',
-            startingSpeed: 50,
+            startingSpeed: 0.5,
             publicationFrequency: 30,
             unlocktoggle: false,
-            forward: { type: 'keyboard', key: 'z' },
-            backward: { type: 'keyboard', key: 's' },
-            left: { type: 'keyboard', key: 'q' },
-            right: { type: 'keyboard', key: 'd' },
-            incSpeed: { type: 'keyboard', key: 'a' },
-            decSpeed: { type: 'keyboard', key: 'e' },
+            axes: [
+                {
+                    axis: 'linear.x',
+                    key_positive: { type: 'keyboard', key: 'w' },
+                    key_negative: { type: 'keyboard', key: 's' },
+                    multiplier: 1
+                },
+                {
+                    axis: 'angular.z',
+                    key_positive: { type: 'keyboard', key: 'd' },
+                    key_negative: { type: 'keyboard', key: 'a' },
+                    multiplier: 1
+                },
+            ],
+            incSpeed: { type: 'keyboard', key: '+' },
+            decSpeed: { type: 'keyboard', key: '-' },
             unlock: { type: 'keyboard', key: ' ' },
         },
         Component: (data: KeyboardControlData) => (
