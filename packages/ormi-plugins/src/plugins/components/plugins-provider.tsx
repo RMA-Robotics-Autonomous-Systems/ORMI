@@ -51,7 +51,6 @@ const PluginsProvider = (props: PluginsProviderProps) => {
                 }
 
                 pluginsMap.set(pluginInstance.name, pluginInstance);
-                console.log("Plugin loaded", pluginInstance.name);
             }
 
 

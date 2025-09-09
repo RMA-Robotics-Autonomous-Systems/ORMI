@@ -52,6 +52,9 @@ function JsonList(props: JsonListProps) {
     const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
     const [isAtBottom, setIsAtBottom] = useState(true);
 
+    // Store stable timestamps for items without their own timestamp
+    const timestampMapRef = useRef<Map<string, string>>(new Map());
+
     // Process the data only when sources change
     const processedData = useMemo(() => {
         const result: Array<{
@@ -62,10 +65,27 @@ function JsonList(props: JsonListProps) {
 
         Array.from(sources.values()).forEach((source, sourceIndex) => {
             source.data.forEach((dataItem, dataIndex) => {
+                const itemId = `${sourceIndex}-${dataIndex}`;
+
+                let timestamp: string;
+                if (dataItem.timestamp) {
+                    // Use the item's own timestamp
+                    timestamp = dataItem.timestamp;
+                } else {
+                    // Check if we already have a stable timestamp for this item
+                    if (timestampMapRef.current.has(itemId)) {
+                        timestamp = timestampMapRef.current.get(itemId)!;
+                    } else {
+                        // Create a new stable timestamp for this item
+                        timestamp = new Date().toISOString();
+                        timestampMapRef.current.set(itemId, timestamp);
+                    }
+                }
+
                 result.push({
                     dataItem,
-                    timestamp: dataItem.timestamp || new Date().toISOString(),
-                    itemId: `${sourceIndex}-${dataIndex}`
+                    timestamp,
+                    itemId
                 });
             });
         });

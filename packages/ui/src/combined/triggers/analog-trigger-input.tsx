@@ -45,19 +45,6 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
     const [data, setData] = useState<AnalogInput | null>(props.data);
 
     useEffect(() => {
-        const gamepadHandler = (event: GamepadEvent) => {
-            console.log('gamepad event', event.type, event.gamepad.id);
-        };
-        window.addEventListener('gamepadconnected', gamepadHandler);
-        window.addEventListener('gamepaddisconnected', gamepadHandler);
-
-        return () => {
-            window.removeEventListener('gamepadconnected', gamepadHandler);
-            window.removeEventListener('gamepaddisconnected', gamepadHandler);
-        };
-    }, []);
-
-    useEffect(() => {
         if (!isSelecting && !data) {
             setActivationLevel(0);
             return;

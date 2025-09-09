@@ -99,6 +99,77 @@
         width: 100dvw;
     }
 
+    /* Responsive minimum height utilities for small containers */
+    .min-h-\[2rem\] {
+        min-height: 2rem;
+    }
+
+    .min-h-\[2\.5rem\] {
+        min-height: 2.5rem;
+    }
+
+    .min-h-\[3rem\] {
+        min-height: 3rem;
+    }
+
+    /* Responsive minimum width utilities */
+    .min-w-\[0\] {
+        min-width: 0;
+    }
+
+    /* Small responsive padding utilities */
+    .p-\[0\.25rem_0\.5rem\] {
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* Responsive gap utilities for tight spaces */
+    .gap-\[0\.25rem\] {
+        gap: 0.25rem;
+    }
+
+    /* Flexbox justify utilities */
+    .justify-around {
+        justify-content: space-around;
+    }
+
+    .justify-evenly {
+        justify-content: space-evenly;
+    }
+
+    /* Container query utilities for responsive design */
+    @container (max-width: 300px) {
+        .container-sm\:grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .container-sm\:p-1 {
+            padding: 0.25rem;
+        }
+
+        .container-sm\:gap-1 {
+            gap: 0.25rem;
+        }
+
+        .container-sm\:text-xs {
+            font-size: 0.75rem;
+            line-height: 1rem;
+        }
+    }
+
+    @container (max-width: 200px) {
+        .container-xs\:hidden {
+            display: none;
+        }
+
+        .container-xs\:flex-col {
+            flex-direction: column;
+        }
+
+        .container-xs\:h-1 {
+            height: 0.25rem;
+        }
+    }
+
     /* Topic overlay slide animation utilities */
     /* .slide-in-from-left {
         transform: translateX(-20px);
@@ -125,6 +196,47 @@
     .hover-expand-width:hover .slide-in-from-left {
         transform: translateX(0);
         opacity: 1;
+    }
+
+    /* Small container adaptations */
+    .resizable-container {
+        container-type: size;
+        container-name: resizable;
+    }
+
+    /* Responsive layout utilities for resizable containers */
+    .responsive-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    @container resizable (max-width: 400px) {
+        .responsive-grid {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
+    }
+
+    @container resizable (max-width: 250px) {
+        .responsive-grid {
+            gap: 0.25rem;
+        }
+    }
+
+    /* Compact button utilities */
+    .btn-compact {
+        min-height: 2rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    @container resizable (max-width: 200px) {
+        .btn-compact {
+            min-height: 1.5rem;
+            padding: 0.125rem 0.25rem;
+            font-size: 0.625rem;
+        }
     }
 }
 

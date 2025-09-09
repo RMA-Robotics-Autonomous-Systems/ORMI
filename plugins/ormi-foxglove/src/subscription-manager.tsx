@@ -2,12 +2,12 @@
 "use client"
 
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
-import { Channel } from '@foxglove/ws-protocol';
+import { Channel, MessageData } from '@foxglove/ws-protocol';
 import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";
-import { FoxgloveDataSourceSettings, Subscriber, PendingSubscription, DatasourceTopic, FoxgloveMessageData } from './types';
+import { FoxgloveDataSourceSettings, Subscriber, PendingSubscription, DatasourceTopic } from './types';
 import { usePluginsManager } from '@workspace/ormi-plugins';
 import { useFoxgloveData } from './foxglove-data-handler';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ interface SubscriptionManagerProps {
 }
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, settings }) => {
-    const { client, channels, onChannelAdvertised, onChannelUnadvertised, onMessage } = useFoxgloveData();
+    const { client, channels, addCallback, removeCallback } = useFoxgloveData();
     const pluginsManager = usePluginsManager();
 
     // Initialization state
@@ -186,13 +186,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, set
         }
     };
 
-    // Retry pending subscriptions when client becomes available
+    // Process pending subscriptions when client and channels become available
     useEffect(() => {
-        if (!client) {
+        if (!client || channels.size === 0) {
             return;
         }
 
-        // Process any pending subscriptions that couldn't be handled due to missing client
+        // Process any pending subscriptions that couldn't be handled due to missing client or channels
         const pendingIds = Array.from(pendingSubscriptionsRef.current.keys());
 
         for (const pendingId of pendingIds) {
@@ -202,7 +202,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, set
             // Find the channel for this pending topic
             const channel = Array.from(channels.values()).find(ch => ch.topic === pending.topic);
             if (channel) {
-                // Process this pending subscription now that client is available
+                // Process this pending subscription now that client and channel are available
                 processPendingSubscriptions(channel);
             }
         }
@@ -210,16 +210,27 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, set
 
     // Handle channel advertisements
     useEffect(() => {
-        const cleanup = onChannelAdvertised((channel: Channel) => {
-            processPendingSubscriptions(channel);
-        });
+        // Process pending subscriptions whenever channels change
+        if (channels.size === 0) return;
 
-        return cleanup;
-    }, [onChannelAdvertised, client, settings, datasource_id]);
+        const pendingIds = Array.from(pendingSubscriptionsRef.current.keys());
+        for (const pendingId of pendingIds) {
+            const pending = pendingSubscriptionsRef.current.get(pendingId);
+            if (!pending) continue;
+
+            // Find the channel for this pending topic
+            const channel = Array.from(channels.values()).find(ch => ch.topic === pending.topic);
+            if (channel) {
+                processPendingSubscriptions(channel);
+            }
+        }
+    }, [channels, client, settings, datasource_id]);
 
     // Handle incoming messages
     useEffect(() => {
-        const cleanup = onMessage((messageData: FoxgloveMessageData) => {
+        if (!client) return;
+
+        const handleMessage = (messageData: MessageData) => {
             // Get the subscriber directly by subscriptionId
             const subscriber = subscribersRef.current.get(messageData.subscriptionId);
 
@@ -227,60 +238,132 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, set
                 return;
             }
 
-            const parsed = subscriber.reader.readMessage(messageData.data);
+            try {
+                const parsed = subscriber.reader.readMessage(messageData.data);
 
-            // Enhanced frameId parsing for complex messages
-            let frameId = "unknown";
+                // Enhanced frameId parsing for complex messages
+                let frameId = "unknown";
 
-            // First, try the standard header.frame_id
-            if ((parsed as any)?.header?.frame_id) {
-                frameId = (parsed as any).header.frame_id;
-            }
-            // For TF messages, extract from first transform
-            else if ((parsed as any)?.transforms && Array.isArray((parsed as any).transforms) && (parsed as any).transforms.length > 0) {
-                const firstTransform = (parsed as any).transforms[0];
-                if (firstTransform?.header?.frame_id) {
-                    frameId = firstTransform.header.frame_id;
-                } else {
-                    frameId = "tf_multiple"; // Multiple transforms without clear single frame
+                // Extract timestamp from ROS2 message if available
+                let timestamp = Date.now();
+
+                // First, try the standard header.frame_id and header.stamp
+                if ((parsed as any)?.header?.frame_id) {
+                    frameId = (parsed as any).header.frame_id;
                 }
-            }
-            // For other complex messages, try to find any frame_id field
-            else if (typeof parsed === 'object' && parsed !== null) {
-                // Search for frame_id in nested structures
-                const findFrameId = (obj: any): string | null => {
-                    if (obj && typeof obj === 'object') {
-                        if (obj.frame_id && typeof obj.frame_id === 'string') {
-                            return obj.frame_id;
-                        }
-                        for (const key in obj) {
-                            if (obj.hasOwnProperty && obj.hasOwnProperty(key)) {
-                                const result = findFrameId(obj[key]);
-                                if (result) return result;
+
+                // Extract timestamp from header.stamp if available
+                if ((parsed as any)?.header?.stamp) {
+                    const stamp = (parsed as any).header.stamp;
+                    if (stamp.sec !== undefined && stamp.nanosec !== undefined) {
+                        // Convert ROS2 timestamp (sec + nanosec) to JavaScript timestamp (milliseconds)
+                        timestamp = (stamp.sec * 1000) + (stamp.nanosec / 1000000);
+                    }
+                }
+
+                // For TF messages, extract from first transform
+                if ((parsed as any)?.transforms && Array.isArray((parsed as any).transforms) && (parsed as any).transforms.length > 0) {
+                    const firstTransform = (parsed as any).transforms[0];
+                    if (firstTransform?.header?.frame_id) {
+                        frameId = firstTransform.header.frame_id;
+
+                        // Also try to get timestamp from first transform if not already found
+                        if (timestamp === Date.now() && firstTransform?.header?.stamp) {
+                            const stamp = firstTransform.header.stamp;
+                            if (stamp.sec !== undefined && stamp.nanosec !== undefined) {
+                                timestamp = (stamp.sec * 1000) + (stamp.nanosec / 1000000);
                             }
                         }
+                    } else {
+                        frameId = "tf_multiple"; // Multiple transforms without clear single frame
                     }
-                    return null;
-                };
-
-                const foundFrameId = findFrameId(parsed);
-                if (foundFrameId) {
-                    frameId = foundFrameId;
                 }
+                // For other complex messages, try to find any frame_id field
+                else if (typeof parsed === 'object' && parsed !== null) {
+                    // Search for frame_id in nested structures
+                    const findFrameId = (obj: any): string | null => {
+                        if (obj && typeof obj === 'object') {
+                            if (obj.frame_id && typeof obj.frame_id === 'string') {
+                                return obj.frame_id;
+                            }
+                            for (const key in obj) {
+                                if (obj.hasOwnProperty && obj.hasOwnProperty(key)) {
+                                    const result = findFrameId(obj[key]);
+                                    if (result) return result;
+                                }
+                            }
+                        }
+                        return null;
+                    };
+
+                    const foundFrameId = findFrameId(parsed);
+                    if (foundFrameId) {
+                        frameId = foundFrameId;
+                    }
+
+                    // Also search for timestamp in nested structures if not found yet
+                    if (timestamp === Date.now()) {
+                        const findTimestamp = (obj: any): number | null => {
+                            if (obj && typeof obj === 'object') {
+                                // Look for stamp field with sec and nanosec
+                                if (obj.stamp && obj.stamp.sec !== undefined && obj.stamp.nanosec !== undefined) {
+                                    return (obj.stamp.sec * 1000) + (obj.stamp.nanosec / 1000000);
+                                }
+                                // Look for header with stamp
+                                if (obj.header?.stamp?.sec !== undefined && obj.header?.stamp?.nanosec !== undefined) {
+                                    return (obj.header.stamp.sec * 1000) + (obj.header.stamp.nanosec / 1000000);
+                                }
+                                // Recursively search nested objects
+                                for (const key in obj) {
+                                    if (obj.hasOwnProperty && obj.hasOwnProperty(key)) {
+                                        const result = findTimestamp(obj[key]);
+                                        if (result !== null) return result;
+                                    }
+                                }
+                            }
+                            return null;
+                        };
+
+                        const foundTimestamp = findTimestamp(parsed);
+                        if (foundTimestamp !== null) {
+                            timestamp = foundTimestamp;
+                        }
+                    }
+                }
+
+                const convertedMessage = UnifiedConverter.convertToWebapp(parsed, subscriber.webtype, subscriber.schemaName);
+
+                pluginsManager.doAction(
+                    subscriber.hook,
+                    convertedMessage,
+                    timestamp,
+                    frameId,
+                );
+            } catch (error) {
+                // Handle CDR reading errors gracefully
+                console.error(`Error parsing message for subscription ${messageData.subscriptionId} (topic: ${subscriber.topic}):`, error);
+
+                // Don't spam the console with repeated errors for the same topic
+                const errorKey = `${subscriber.topic}_parse_error`;
+                if (!(window as any)[errorKey]) {
+                    (window as any)[errorKey] = true;
+                    console.warn(`Suppressing further parse errors for topic ${subscriber.topic}. Check message format and schema compatibility.`);
+
+                    // Optional: Show toast for first occurrence only
+                    if (settings.toasts) {
+                        toast(`Message parsing error on topic ${subscriber.topic}. Check console for details.`);
+                    }
+                }
+                return; // Skip this message
             }
+        };
 
-            const convertedMessage = UnifiedConverter.convertToWebapp(parsed, subscriber.webtype, subscriber.schemaName);
+        client.on("message", handleMessage);
 
-            pluginsManager.doAction(
-                subscriber.hook,
-                convertedMessage,
-                Date.now(),
-                frameId,
-            );
-        });
-
-        return cleanup;
-    }, [onMessage, pluginsManager]);
+        return () => {
+            client.off("message", handleMessage);
+        };
+    }, [client, pluginsManager]);
 
     // Register plugin system hooks
     useEffect(() => {
@@ -390,9 +473,24 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ children, set
                     }
                 }
 
-                // If not a pending subscription and channel not found, throw error
+                // If not a pending subscription and channel not found, handle gracefully
                 if (!channel) {
-                    throw new Error(`Channel not found for topic ${topic.topic}`);
+                    console.warn(`Channel not found for topic ${topic.topic}. This can happen during cleanup or if the topic was never advertised.`);
+
+                    // Try to find and remove any subscriber that might still exist for this topic
+                    const orphanedSubscriber = Array.from(subscribersRef.current.entries()).find(([_, s]) => s.topic === topic.topic);
+                    if (orphanedSubscriber) {
+                        const [subscriptionId, subscriber] = orphanedSubscriber;
+                        subscribersRef.current.delete(subscriptionId);
+
+                        try {
+                            pluginsManager.removeAction(subscriber.hook);
+                        } catch (error) {
+                            console.warn(`Error removing action hook for ${topic.topic}:`, error);
+                        }
+                    }
+
+                    return; // Exit gracefully instead of throwing
                 }
 
                 const channelId = channel.id;
