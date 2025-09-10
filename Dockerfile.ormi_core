@@ -15,7 +15,7 @@ WORKDIR /ORMI-CORE
 # Copy all folders from the host to the container
 COPY . .
 
-RUN bun install --prod
+RUN bun install
 RUN bun run build
 
 CMD ["bun", "run", "start"]
