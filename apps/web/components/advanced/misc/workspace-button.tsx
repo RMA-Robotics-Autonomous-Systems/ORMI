@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import * as React from "react"
@@ -6,16 +5,18 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Loader2, Plus } from "lucide-react"
 
-
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@workspace/ui/components/dialog"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { handleCreate } from "@/server/prisma-workspaces"
 
+interface CreateWSButtonProps {
+    onWorkspaceCreated?: () => void;
+}
 
-
-export function CreateWSButton() {
+export function CreateWSButton({ onWorkspaceCreated }: CreateWSButtonProps = {}) {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [open, setOpen] = React.useState<boolean>(false)
@@ -34,27 +35,17 @@ export function CreateWSButton() {
         setIsLoading(true)
 
         try {
-            const response = await fetch("/api/workspaces", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    title: workspaceName,
-                    userId: session!.user.id,
-                }),
-            })
+            const workspace = await handleCreate(workspaceName, session!.user.id)
 
-            if (!response.ok) {
-                if (response.status === 402) {
-                    throw new Error("Please contact ORMI admin")
-                }
-                throw new Error("Please contact ORMI admin.")
+            if (!workspace) {
+                throw new Error("Failed to create workspace")
             }
 
-            const workspace = await response.json() as any
             setOpen(false)
-            router.refresh()
+            setWorkspaceName("")
+            if (onWorkspaceCreated) {
+                onWorkspaceCreated()
+            }
             router.push(`/dashboard/ws/${workspace.id}`)
         } catch (error) {
             toast(error instanceof Error ? error.message : "An unknown error occurred")

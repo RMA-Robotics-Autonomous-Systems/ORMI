@@ -112,6 +112,75 @@ export async function PATCH(
     }
 }
 
+export async function PUT(
+    req: NextRequest,
+    { params }: { params: Promise<{ wsId: string }> }
+) {
+    try {
+        const resolvedParams = await params;
+        const wsId = resolvedParams.wsId;
+        
+        const session = await getServerSession(authOptions)
+        if (!session?.user) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+                status: 401 
+            })
+        }
+        
+        // Parse request body
+        const body = await req.json() as any;
+        
+        // Validate workspace ID
+        const workspaceId = parseInt(wsId);
+        if (isNaN(workspaceId)) {
+            return new Response(JSON.stringify({ error: "Invalid workspace ID format" }), { 
+                status: 400 
+            })
+        }
+        
+        // Check if workspace exists and belongs to user
+        const existingWorkspace = await db.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { createdById: true },
+        });
+        
+        if (!existingWorkspace) {
+            return new Response(JSON.stringify({ error: "Workspace not found" }), { 
+                status: 404 
+            })
+        }
+        
+        if (existingWorkspace.createdById !== session.user.id) {
+            return new Response(JSON.stringify({ error: "You don't have permission to update this workspace" }), { 
+                status: 403 
+            })
+        }
+        
+        // Update workspace name
+        const updatedWorkspace = await db.workspace.update({
+            where: { id: workspaceId },
+            data: { 
+                name: body.name,
+                updatedAT: new Date()
+            },
+            select: { id: true, name: true, createdAT: true, updatedAT: true }
+        });
+        
+        return new Response(JSON.stringify(updatedWorkspace), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+    } catch (error) {
+        console.error("Error updating workspace name:", error);
+        return new Response(JSON.stringify({ error: "Internal server error" }), { 
+            status: 500 
+        });
+    }
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ wsId: string }> }
