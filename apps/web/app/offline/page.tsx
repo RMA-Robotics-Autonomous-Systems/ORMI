@@ -4,6 +4,9 @@ import { WifiOffIcon, RefreshCcwIcon } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import Image from "next/image"
 
+// Force this page to be statically generated at build time
+export const dynamic = 'force-static'
+
 export default function OfflinePage() {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center px-4">

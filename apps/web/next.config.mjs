@@ -22,6 +22,13 @@ const withSerwist = withSerwistInit({
     // use something else that works, such as "service-worker/index.ts".
     swSrc: "app/sw.ts",
     swDest: "public/sw.js",
+    reloadOnOnline: true,
+    cacheOnNavigation: true,
+    additionalPrecacheEntries: [
+        { url: '/', revision: null },
+        { url: '/offline', revision: null },
+        { url: '/manifest.webmanifest', revision: null },
+    ],
 });
 
 export default withSerwist({
