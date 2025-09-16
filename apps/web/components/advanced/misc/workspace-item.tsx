@@ -46,8 +46,8 @@ export function WorkspaceItem({ workspace, onWorkspaceDeleted }: WorkspaceItemPr
                 </p>
             </CardContent>
             <CardFooter className="pt-1 flex justify-end">
-                <WorkspaceOperations 
-                    workspace={{ id: workspace.id, name: workspace.name }} 
+                <WorkspaceOperations
+                    workspace={{ id: workspace.id, name: workspace.name }}
                     onWorkspaceDeleted={onWorkspaceDeleted}
                 />
             </CardFooter>

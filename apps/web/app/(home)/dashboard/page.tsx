@@ -77,9 +77,9 @@ export default function DashboardPage() {
                 {workspaces?.length ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         {workspaces.map((workspace: Workspace) => (
-                            <WorkspaceItem 
-                                key={workspace.id} 
-                                workspace={workspace} 
+                            <WorkspaceItem
+                                key={workspace.id}
+                                workspace={workspace}
                                 onWorkspaceDeleted={handleWorkspaceDeleted}
                             />
                         ))}
