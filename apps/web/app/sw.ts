@@ -25,103 +25,81 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    ...defaultCache,
+    // Debug matcher - log all requests
+    {
+      matcher: ({ request, url }) => {
+        console.log("🔍 DEBUG: Request intercepted", {
+          url: url.href,
+          pathname: url.pathname,
+          destination: request.destination,
+          method: request.method,
+        });
+        return false; // Don't handle, just log
+      },
+      handler: new NetworkFirst({ cacheName: "debug" }),
+    },
 
-    // Next.js Image optimization
+    // Next.js Image optimization with fallback (BEFORE defaultCache)
     {
       matcher: ({ url }) => {
         const isNextImage = url.pathname.startsWith("/_next/image");
-        console.log("next image matcher", url.pathname, isNextImage);
+        console.log("🖼️ Next.js image matcher", url.pathname, isNextImage);
         return isNextImage;
       },
-      handler: new CacheFirst({
+      handler: new NetworkFirst({
         cacheName: "next-images",
+        networkTimeoutSeconds: 3,
         plugins: [
           {
             cacheKeyWillBeUsed: async ({ request }) => {
-              // Use the full URL with parameters for cache key
               return request.url;
             },
-          },
-        ],
-      }),
-    },
+            handlerDidError: async ({ request }) => {
+              console.log("⚠️ Next.js image failed, trying fallback");
+              // Extract original image path from Next.js image URL
+              const url = new URL(request.url);
+              const originalImageUrl = url.searchParams.get("url");
 
-    // Images - cache first with long expiration
-    {
-      matcher: ({ request }) => {
-        const isImage = request.destination === "image";
-        console.log("image request", request.destination, isImage);
-        return isImage;
-      },
-      handler: new CacheFirst({
-        cacheName: "images",
-        plugins: [
-          {
-            cacheKeyWillBeUsed: async ({ request }) => {
-              return `${request.url}?version=1`;
+              if (originalImageUrl) {
+                console.log(
+                  "📷 Falling back to original image:",
+                  originalImageUrl
+                );
+
+                // Try to get the original image from cache or precache
+                const originalImagePath = decodeURIComponent(originalImageUrl);
+                const fallbackUrl = new URL(originalImagePath, url.origin).href;
+
+                try {
+                  const fallbackResponse = await caches.match(fallbackUrl);
+                  if (fallbackResponse) {
+                    console.log(
+                      "✅ Found original image in cache:",
+                      fallbackUrl
+                    );
+                    return fallbackResponse;
+                  }
+
+                  // If not in cache, try to fetch original (this will only work if online)
+                  const originalResponse = await fetch(fallbackUrl);
+                  if (originalResponse.ok) {
+                    console.log("✅ Fetched original image:", fallbackUrl);
+                    return originalResponse;
+                  }
+                } catch (error) {
+                  console.log("❌ Failed to fetch original image:", error);
+                }
+              }
+
+              // Return null to let the default error handling take over
+              return null;
             },
           },
         ],
       }),
     },
 
-    // Scripts and Styles - stale while revalidate
-    {
-      matcher: ({ request }) => {
-        const isScriptOrStyle =
-          request.destination === "script" || request.destination === "style";
-        console.log(
-          "script/style request",
-          request.destination,
-          isScriptOrStyle
-        );
-        return isScriptOrStyle;
-      },
-      handler: new StaleWhileRevalidate({
-        cacheName: "static-resources",
-      }),
-    },
-
-    // Documents - network first with fallback
-    {
-      matcher: ({ request }) => {
-        const isDocument = request.destination === "document";
-        console.log("document request", request.destination, isDocument);
-        return isDocument;
-      },
-      handler: new NetworkFirst({
-        cacheName: "documents",
-        networkTimeoutSeconds: 3,
-      }),
-    },
-
-    // Font files - cache first
-    {
-      matcher: ({ request }) => {
-        const isFont = request.destination === "font";
-        console.log("font request", request.destination, isFont);
-        return isFont;
-      },
-      handler: new CacheFirst({
-        cacheName: "fonts",
-      }),
-    },
-
-    // Other static assets by file extension
-    {
-      matcher: ({ url }) => {
-        const isStaticAsset =
-          url.pathname.match(
-            /\.(js|css|woff|woff2|ttf|eot|ico|png|jpg|jpeg|gif|svg|webp)$/i
-          ) && !url.pathname.startsWith("/api/");
-        console.log("static asset request", url.pathname, isStaticAsset);
-        return isStaticAsset;
-      },
-      handler: new CacheFirst({
-        cacheName: "static-assets",
-      }),
-    },
+    ...defaultCache,
   ],
   precacheOptions: {
     cleanupOutdatedCaches: true,
