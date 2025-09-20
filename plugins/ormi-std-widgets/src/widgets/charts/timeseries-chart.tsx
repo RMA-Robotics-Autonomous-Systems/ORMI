@@ -182,7 +182,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 
     return (
         <div ref={divRef} style={{ width: "100%", height: "100%" }}>
-            <UplotReact key={chartKey} options={optionsRef.current} data={dataRef.current} />
+            <UplotReact options={optionsRef.current} data={dataRef.current} />
         </div>
     );
 }
