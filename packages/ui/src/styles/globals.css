@@ -99,6 +99,11 @@
         width: 100dvw;
     }
 
+    /* Dynamic viewport height utilities */
+    .max-h-\[80dvh\] {
+        max-height: 80dvh;
+    }
+
     /* Responsive minimum height utilities for small containers */
     .min-h-\[2rem\] {
         min-height: 2rem;
