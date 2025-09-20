@@ -1,11 +1,7 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import {
-  Serwist,
-  NetworkFirst,
-  CacheFirst,
-  StaleWhileRevalidate,
-} from "serwist";
+import { Serwist, NetworkFirst } from "serwist";
+import { OfflineProxy, API_ENDPOINTS } from "../proxy";
 
 // This declares the value of `injectionPoint` to TypeScript.
 // `injectionPoint` is the string that will be replaced by the
@@ -19,12 +15,50 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+// Initialize the offline proxy system
+const offlineProxy = new OfflineProxy();
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
+    // Offline Database API Interceptor (HIGHEST PRIORITY)
+    {
+      matcher: ({ url }) => {
+        const pathname = url.pathname;
+
+        const isOfflineHandled =
+          pathname === API_ENDPOINTS.WORKSPACES ||
+          API_ENDPOINTS.WORKSPACE_BY_ID.test(pathname) ||
+          pathname === API_ENDPOINTS.TEMPLATES ||
+          API_ENDPOINTS.TEMPLATE_BY_ID.test(pathname) ||
+          API_ENDPOINTS.USERS.test(pathname) ||
+          API_ENDPOINTS.AUTH.test(pathname);
+
+        if (isOfflineHandled) {
+          console.log("🔄 API request intercepted by offline proxy:", pathname);
+          return true;
+        }
+        return false;
+      },
+      handler: async ({ request }) => {
+        try {
+          // Let the offline proxy handle the request
+          const response = await offlineProxy.handleRequest(request);
+          if (response) {
+            return response;
+          }
+        } catch (error) {
+          console.error("❌ Offline proxy error:", error);
+        }
+
+        // Fallback to network if proxy can't handle it
+        return fetch(request);
+      },
+    },
+
     // Debug matcher - log all requests
     {
       matcher: ({ request, url }) => {
