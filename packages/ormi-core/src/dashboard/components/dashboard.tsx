@@ -136,9 +136,15 @@ const Dashboard = () => {
                 </ContextMenuContent>
             </ContextMenu>
         );
-
         setNavbarItem("center", "save",
-            <Button variant={"ghost"} onClick={() => { savesDashboard(); }}>
+            <Button variant={"ghost"}
+                className={hasChanged ? "animate-pulse" : ""}
+                style={hasChanged ? {
+                    animation: "pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+                    boxShadow: "0 0 0 0 hsl(var(--primary))"
+                } : {}}
+                onClick={() => { savesDashboard(); }}
+            >
                 {hasChanged ? <Save /> : <Check />}
             </Button>
         );
