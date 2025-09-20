@@ -6,6 +6,7 @@ import { JsonViewerDefinition } from './widgets/basic/json-viewer';
 import { TreeViewerDefinition } from './widgets/basic/tree-viewer';
 import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
 import { TimeSeriesChartDefinition } from './widgets/charts/timeseries-chart';
+import { ChartEchartsWidgetDefinition } from './widgets/charts/chart-echarts';
 import { MapsBoxViewerDefinition } from './widgets/maps/maps-box-viewer';
 import { IntStatusIndicatorDefinition } from './widgets/status/int-status-indicator';
 import { NotAPongDefinition } from './widgets/nothing/not-a-pong';
@@ -27,6 +28,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(KeyboardControlDefinition());
     widgets.push(JoypadControlsDefinition());
     widgets.push(TimeSeriesChartDefinition());
+    widgets.push(ChartEchartsWidgetDefinition());
     widgets.push(MapsBoxViewerDefinition());
     widgets.push(IntStatusIndicatorDefinition());
     widgets.push(CondStatusIndicatorDefinition());

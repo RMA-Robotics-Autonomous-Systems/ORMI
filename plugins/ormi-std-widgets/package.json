@@ -33,6 +33,7 @@
     "@workspace/utils": "workspace:*",
     "copyfiles": "^2.4.1",
     "d3": "^7.9.0",
+    "echarts": "^6.0.0",
     "force-graph": "^1.49.2",
     "lucide-react": "^0.479.0",
     "maplibre-gl": "^5.6.1",
