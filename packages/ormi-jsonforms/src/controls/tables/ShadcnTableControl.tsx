@@ -356,7 +356,7 @@ const NonEmptyRowComponent = ({
                     {!disableRemove ? (
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button onClick={() => openDeleteDialog(childPath, rowIndex)} variant={'ghost'}>
+                                <Button onClick={() => openDeleteDialog(childPath, rowIndex)} variant={'destructive'} size="sm" className="ml-2">
                                     <TrashIcon />
                                 </Button>
                             </TooltipTrigger>

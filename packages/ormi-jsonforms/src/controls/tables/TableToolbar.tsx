@@ -98,7 +98,7 @@ export const TableToolbar = React.memo(function TableToolbar({
                                     <Button
                                         onClick={handleAddClick}
                                         size="sm"
-                                        variant="outline"
+                                        variant="default"
                                     >
                                         <PlusIcon className="h-4 w-4 mr-2" />
                                         {translations.addTooltip}

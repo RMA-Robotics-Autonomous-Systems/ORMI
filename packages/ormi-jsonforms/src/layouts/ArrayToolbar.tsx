@@ -45,7 +45,7 @@ export const ArrayLayoutToolbar = React.memo(function ArrayLayoutToolbar({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
-                                        variant="ghost"
+                                        variant="default"
                                         size="icon"
                                         onClick={addItem(path, createDefault())}
                                         aria-label={translations.addTooltip}

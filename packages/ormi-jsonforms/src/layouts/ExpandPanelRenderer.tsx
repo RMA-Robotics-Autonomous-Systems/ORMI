@@ -141,7 +141,9 @@ const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
                                             e.stopPropagation();
                                             removeItems(path, [index])(e);
                                         }}
-                                        variant={'ghost'}
+                                        variant={'destructive'}
+                                        size="sm"
+                                        className="mr-2"
                                     >
                                         <TrashIcon />
                                     </Button>
