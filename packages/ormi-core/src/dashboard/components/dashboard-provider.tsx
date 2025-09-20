@@ -10,6 +10,38 @@ import { Datasource, DatasourceDefinition, DatasourceProviderSettings, Datasourc
 import { Spinner } from '@workspace/ui/components/spinner';
 import { toast } from 'sonner';
 
+// Simple hash function for dashboard state
+const hashDashboardState = (layouts: Layouts, widgets: Map<string, Widget>, datasources: Map<string, Datasource>, locked: boolean): string => {
+    const state = {
+        layouts: Object.fromEntries(Object.entries(layouts)),
+        widgets: Object.fromEntries(widgets),
+        datasources: Object.fromEntries(datasources),
+        locked
+    };
+
+    const stateString = JSON.stringify(state, (key, value) => {
+        // Ensure consistent ordering for objects
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            const ordered: any = {};
+            Object.keys(value).sort().forEach(k => {
+                ordered[k] = value[k];
+            });
+            return ordered;
+        }
+        return value;
+    });
+
+    // Simple string hash function
+    let hash = 0;
+    for (let i = 0; i < stateString.length; i++) {
+        const char = stateString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    return hash.toString();
+};
+
 interface DashboardContextInterface {
 
     layouts: Layouts;
@@ -120,6 +152,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 
     const [dataLoaded, setDataLoaded] = React.useState(false);
     const [initialized, setInitialized] = React.useState(false);
+    const [initialHash, setInitialHash] = React.useState<string>("");
 
     const getComponents = (boxId: string) => {
 
@@ -185,7 +218,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             isBounded: true,
         };
 
-        setHasChanged(true);
         setLayouts({
             lg: [...(layouts.lg || []), box],
             md: [...(layouts.md || []), box],
@@ -205,13 +237,11 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         const new_widgets = new Map(widgets);
         new_widgets.delete(box_id);
 
-        // remove the widget from the layout
-        const new_layouts = layouts;
+        // remove the widget from the layout - create a new layouts object
+        const new_layouts = { ...layouts };
         for (const key in new_layouts) {
             new_layouts[key] = new_layouts[key]!.filter((box) => box.i !== box_id);
         }
-
-        setHasChanged(true);
 
         setWidgets(new_widgets);
         setLayouts(new_layouts);
@@ -233,14 +263,12 @@ const DashboardProvider = (props: DashboardProviderProps) => {
                 widget.title = settings[widgetdef.titleProp];
             }
 
-            setHasChanged(true);
             setWidgets(new Map(widgets.set(box_id, widget)));
         }
     }
 
     const lockUnLockDashboard = () => {
         setLocked(!locked);
-        setHasChanged(true);
     }
 
     const layoutsChanged = (newLayouts: Layouts) => {
@@ -259,7 +287,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             xs: [...newLayouts.xs || []],
             xxs: [...newLayouts.xxs || []]
         });
-        setHasChanged(true);
     }
 
     const savesDashboard = () => {
@@ -277,9 +304,11 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             locked: locked
         }
 
-        setHasChanged(false);
-
         OnSave(newDashboard);
+
+        // Reset the initial hash to current state after successful save
+        const newHash = hashDashboardState(layouts, widgets, datasources, locked);
+        setInitialHash(newHash);
 
         toast("Dashboard saved successfully");
     }
@@ -379,7 +408,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             breakpoint = 'xxs';
         }
 
-        const new_layouts = layouts;
+        const new_layouts = { ...layouts };
 
         const row_size_px = 30;
         const max_number_of_rows = ((window.innerHeight * 0.9) / row_size_px)
@@ -438,7 +467,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             datasource.title = settings.title;
             newDatasources.set(settings.id, datasource);
             setDatasources(newDatasources);
-            setHasChanged(true);
         }
 
     }
@@ -471,7 +499,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         newDatasources.set(id, datasource);
 
         setDatasources(newDatasources);
-        setHasChanged(true);
     }
 
     const removeDatasource = (source_id: string) => {
@@ -479,7 +506,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         console.log(source_id);
         newDatasources.delete(source_id);
         setDatasources(newDatasources);
-        setHasChanged(true);
     }
 
 
@@ -535,11 +561,26 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             // Small delay to ensure React has processed all state updates
             const timer = setTimeout(() => {
                 setInitialized(true);
+                // Set initial hash after initialization
+                const hash = hashDashboardState(layouts, widgets, datasources, locked);
+                setInitialHash(hash);
             }, 0);
 
             return () => clearTimeout(timer);
         }
-    }, [dataLoaded, layouts, widgets, datasources, locked]);
+    }, [dataLoaded]); // Remove layouts, widgets, datasources, locked from deps to prevent hash updates during changes
+
+    // Automatic change detection based on hash comparison
+    useEffect(() => {
+        if (initialized && initialHash) {
+            const currentHash = hashDashboardState(layouts, widgets, datasources, locked);
+            const hasStateChanged = currentHash !== initialHash;
+
+            if (hasStateChanged !== hasChanged) {
+                setHasChanged(hasStateChanged);
+            }
+        }
+    }, [layouts, widgets, datasources, locked, initialized, initialHash, hasChanged]);
 
     return (
         <DashboardContext.Provider value={
