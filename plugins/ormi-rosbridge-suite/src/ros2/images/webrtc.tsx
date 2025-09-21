@@ -24,6 +24,8 @@ const getHostFromWSUrl = (url: string) => {
 
 const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const pcRef = useRef<RTCPeerConnection | null>(null);
+    const cleanupRef = useRef<boolean>(false);
 
     // check if the topic source is compatible with this widget, it must be coming from ROS2 datasource
     // for that the topic source must be of type RosBridgeSuiteDataSourceSettings
@@ -37,42 +39,124 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
     const topic = props.topic.topic;
 
     const [rotation, setRotation] = React.useState(0);
+    const [connectionStatus, setConnectionStatus] = React.useState('connecting');
 
     useEffect(() => {
+        // Reset cleanup flag
+        cleanupRef.current = false;
+
+        // Prevent multiple connections during development hot reload
+        if (pcRef.current) {
+            console.log('Cleaning up existing connection before creating new one');
+            pcRef.current.close();
+            pcRef.current = null;
+        }
 
         const pc = new RTCPeerConnection({
-            iceServers: props.iceServersUrls?.map((url) => ({ urls: url }))
+            iceServers: props.iceServersUrls?.map((url) => ({ urls: url })) || [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
         });
+
+        pcRef.current = pc;
 
         pc.addTransceiver('video', { direction: 'recvonly' });
 
+        // Enhanced event handlers for debugging
+        pc.oniceconnectionstatechange = () => {
+            console.log(`ICE connection state: ${pc.iceConnectionState}`);
+            setConnectionStatus(pc.iceConnectionState);
+        };
+
+        pc.onconnectionstatechange = () => {
+            console.log(`Connection state: ${pc.connectionState}`);
+            setConnectionStatus(pc.connectionState);
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log(`ICE gathering state: ${pc.iceGatheringState}`);
+        };
+
         pc.ontrack = (event: RTCTrackEvent) => {
-            if (videoRef.current) {
-                videoRef.current.srcObject = event.streams[0]!;
+            console.log('Received track:', event.track.kind);
+            console.log('Track enabled:', event.track.enabled);
+            console.log('Track readyState:', event.track.readyState);
+            console.log('Number of streams:', event.streams.length);
+
+            if (videoRef.current && event.streams[0]) {
+                videoRef.current.srcObject = event.streams[0];
+                console.log('Video stream attached to video element');
+
+                // Check stream properties
+                const stream = event.streams[0];
+                console.log('Stream active:', stream.active);
+                console.log('Stream tracks:', stream.getTracks().length);
+
+                // Add detailed video element event listeners
+                const video = videoRef.current;
+
+                video.onloadstart = () => console.log('Video: loadstart');
+                video.onloadeddata = () => console.log('Video: loadeddata');
+                video.oncanplay = () => console.log('Video: canplay');
+                video.onplay = () => console.log('Video: play');
+                video.onplaying = () => console.log('Video: playing');
+                video.onwaiting = () => console.log('Video: waiting');
+                video.onstalled = () => console.log('Video: stalled');
+                video.onemptied = () => console.log('Video: emptied');
+                video.onended = () => console.log('Video: ended');
+
+                video.onloadedmetadata = () => {
+                    console.log('Video metadata loaded');
+                    console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+                    console.log('Video duration:', video.duration);
+                    console.log('Video ready state:', video.readyState);
+                };
+
+                // Force play (sometimes needed)
+                video.play().catch(e => console.log('Auto-play prevented:', e));
             }
         };
 
         const negotiate = async () => {
             try {
+                // Check if component is being cleaned up
+                if (cleanupRef.current) {
+                    console.log('Component cleanup in progress, aborting negotiation');
+                    return;
+                }
+
+                console.log('Starting WebRTC negotiation...');
 
                 const offer = await pc.createOffer();
+
+                if (cleanupRef.current) {
+                    console.log('Cleanup during offer creation, aborting');
+                    return;
+                }
+
                 await pc.setLocalDescription(offer);
+
+                console.log('Local description set, waiting for ICE gathering...');
 
                 // Wait for ICE gathering to complete with a timeout
                 await new Promise<void>((resolve) => {
                     const timeout = setTimeout(() => {
-                        console.warn('ICE gathering timed out');
+                        console.warn('ICE gathering timed out, proceeding anyway');
                         resolve();
-                    }, 1000); // Adjust timeout as needed
+                    }, 5000);
 
                     if (pc.iceGatheringState === 'complete') {
                         clearTimeout(timeout);
+                        console.log('ICE gathering completed');
                         resolve();
                     } else {
                         const checkState = () => {
-                            if (pc.iceGatheringState === 'complete') {
+                            if (pc.iceGatheringState === 'complete' || cleanupRef.current) {
                                 pc.removeEventListener('icegatheringstatechange', checkState);
                                 clearTimeout(timeout);
+                                if (!cleanupRef.current) {
+                                    console.log('ICE gathering completed');
+                                }
                                 resolve();
                             }
                         }
@@ -80,6 +164,12 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
                     }
                 });
 
+                if (cleanupRef.current) {
+                    console.log('Cleanup during ICE gathering, aborting');
+                    return;
+                }
+
+                console.log(`Sending offer to http://${host}:8080/offer for topic: ${topic}`);
 
                 const response = await fetch(`http://${host}:8080/offer`, {
                     method: 'POST',
@@ -93,15 +183,32 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
                     },
                 });
 
+                if (cleanupRef.current) {
+                    console.log('Cleanup during server request, aborting');
+                    return;
+                }
+
                 if (!response.ok) {
-                    throw new Error(`Server responded with ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`Server responded with ${response.status}: ${errorText}`);
                 }
 
                 const answer = await response.json() as any;
+                console.log('Received answer from server');
+
+                if (cleanupRef.current) {
+                    console.log('Cleanup before setting remote description, aborting');
+                    return;
+                }
 
                 await pc.setRemoteDescription(answer);
+                console.log('Remote description set, WebRTC negotiation complete');
+
             } catch (error) {
-                // console.error("Negotiation failed:", error);
+                if (!cleanupRef.current) {
+                    console.error("Negotiation failed:", error);
+                    setConnectionStatus('failed');
+                }
             }
         };
 
@@ -119,39 +226,64 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
             </Button>
         );
 
-
-
         return () => {
+            console.log('Cleaning up WebRTC connection');
+            cleanupRef.current = true;
+
             removeButtonItem("webrtc-viewer-widget-rotate-cw");
             removeButtonItem("webrtc-viewer-widget-rotate-ccw");
-            pc.close();
+
+            if (pcRef.current) {
+                pcRef.current.close();
+                pcRef.current = null;
+            }
         };
     }, [props]);
 
     return (
         <div>
-            {isCompatibleWithTopicSource && (<video
-                id="video"
-                autoPlay
-                muted
-                playsInline
-                ref={videoRef}
-                style={{ width: '100%', height: 'auto', transform: `rotate(${rotation}deg)` }}
-            />
-            )
-            }
+            {isCompatibleWithTopicSource && (
+                <div>
+                    <div style={{ marginBottom: '10px', fontSize: '12px', color: '#666' }}>
+                        Connection Status: {connectionStatus}
+                        {connectionStatus === 'failed' && (
+                            <span style={{ color: 'red', marginLeft: '10px' }}>
+                                Check browser console for details
+                            </span>
+                        )}
+                    </div>
+                    <video
+                        id="video"
+                        autoPlay
+                        muted
+                        playsInline
+                        ref={videoRef}
+                        style={{
+                            width: '100%',
+                            height: 'auto',
+                            transform: `rotate(${rotation}deg)`,
+                            backgroundColor: '#000'
+                        }}
+                        onLoadedMetadata={() => {
+                            console.log('Video metadata loaded');
+                        }}
+                        onError={(e) => {
+                            console.error('Video element error:', e);
+                        }}
+                    />
+                </div>
+            )}
             {!isCompatibleWithTopicSource && (
                 <div>
                     <h3>Topic source is not compatible with this widget</h3>
                     <p>Topic must be from ROS2 datasource and have a Webrtc server running</p>
-                </div>)}
+                </div>
+            )}
         </div>
     );
 };
 
 export default WebrtcRos2VideoStream;
-
-
 
 export function WebRtcRos2Definition() {
 
@@ -221,7 +353,7 @@ export function WebRtcRos2Definition() {
             iceServersUrls: ['stun:stun.l.google.com:19302']
         },
         Component: (data: WebrtcRos2VideoStreamProps) => (
-            <WebrtcRos2VideoStream title={data.title} topic={data.topic} />
+            <WebrtcRos2VideoStream title={data.title} topic={data.topic} iceServersUrls={data.iceServersUrls} />
         )
 
     }
