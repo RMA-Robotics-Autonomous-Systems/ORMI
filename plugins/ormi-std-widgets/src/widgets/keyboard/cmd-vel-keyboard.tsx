@@ -511,8 +511,8 @@ export function KeyboardControlDefinition() {
                 },
                 {
                     axis: 'angular.z',
-                    key_positive: { type: 'keyboard', key: 'd' },
-                    key_negative: { type: 'keyboard', key: 'a' },
+                    key_positive: { type: 'keyboard', key: 'a' },
+                    key_negative: { type: 'keyboard', key: 'd' },
                     multiplier: 1
                 },
             ],
