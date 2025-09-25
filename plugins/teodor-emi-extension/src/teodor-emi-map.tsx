@@ -69,7 +69,7 @@ export default function TeodorEmiMap(props: {
         sensorId: number,
         alert: boolean
     } | null>(null);
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
     const { current: map } = useMap();
 
     // Create unique IDs for this EMI map instance
@@ -80,7 +80,7 @@ export default function TeodorEmiMap(props: {
     const [show, setShow] = useState(true);
 
     useEffect(() => {
-        const emi_data = sources.get(props.topic.topic);
+        const emi_data = getSource(props.topic);
         if (!emi_data) {
             return;
         }
@@ -153,7 +153,7 @@ export default function TeodorEmiMap(props: {
             removeButtonItem(props.topic.topic);
         }
 
-    }, [sources, props.useRaw2]);
+    }, [getSource, props.topic, props.useRaw2]);
 
     // Set up hover events for the map
     useEffect(() => {

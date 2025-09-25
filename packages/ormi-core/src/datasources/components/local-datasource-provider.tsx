@@ -15,10 +15,15 @@ import { Spinner } from '@workspace/ui/components/spinner';
 
 import { usePluginsManager } from '@workspace/ormi-plugins';
 
-
+// Helper function to generate unique keys from SelectedTopic objects
+const createTopicKey = (selectedTopic: SelectedTopic): string => {
+    return `${selectedTopic.source.id}::${selectedTopic.topic}${selectedTopic.property ? '::' + selectedTopic.property : ''}`;
+};
 
 interface LocalDataSources {
     sources: Map<string, Source<any>>;
+    getSource: (topic: SelectedTopic) => Source<any> | undefined;
+    getSourceId: (topic: SelectedTopic) => string;
 }
 
 interface Source<T> {
@@ -35,7 +40,9 @@ interface LocalDataSourcesProviderProps {
 }
 
 const LocalDataSourcesContext = createContext<LocalDataSources>({
-    sources: new Map<string, Source<any>>()
+    sources: new Map<string, Source<any>>(),
+    getSource: () => undefined,
+    getSourceId: () => ""
 });
 
 const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
@@ -49,13 +56,24 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     // Access the pendingUpdates through the .current property
     const pendingUpdates = pendingUpdatesRef.current;
 
+    // Create getSource function that uses the new key generation
+    const getSource = (topic: SelectedTopic): Source<any> | undefined => {
+        const key = createTopicKey(topic);
+        return sources.get(key);
+    };
+
+    // Create getSourceId function that returns the unique key for a topic
+    const getSourceId = (topic: SelectedTopic): string => {
+        return createTopicKey(topic);
+    };
+
     // Create a stable reference to the context value
-    const contextValue = useRef<LocalDataSources>({ sources });
+    const contextValue = useRef<LocalDataSources>({ sources, getSource, getSourceId });
 
     // Update the context value reference whenever sources changes
     useEffect(() => {
-        contextValue.current = { sources };
-    }, [sources]);
+        contextValue.current = { sources, getSource, getSourceId };
+    }, [sources, getSource, getSourceId]);
 
     const pluginsManager = usePluginsManager();
     const Topics = SelectedTopics;
@@ -74,7 +92,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
             // Initialize empty sources for all topics
             Topics.forEach(topic => {
-                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+                const sourceId = createTopicKey(topic);
                 newSources.set(sourceId, {
                     data: [],
                     times: [],
@@ -131,10 +149,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                     const newTimes = [...currentSource.times, update.time];
 
                     // Apply buffer limit
-                    const topic = Topics.find(t => {
-                        const topicId = (t.property !== '') ? t.topic + "+" + t.property : t.topic;
-                        return topicId === sourceId;
-                    });
+                    const topic = Topics.find(t => createTopicKey(t) === sourceId);
 
                     const bufferLimit = topic?.bufferSize || buffersSize;
                     if (newData.length > bufferLimit) {
@@ -163,9 +178,9 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
         new Promise<Map<string, boolean>>((resolve) => {
             const initializedTopics = new Map<string, boolean>();
 
-            function setInitializedTopic(topic: string, state: boolean) {
+            function setInitializedTopic(topicKey: string, state: boolean) {
                 if (!isMounted) return;
-                initializedTopics.set(topic, state);
+                initializedTopics.set(topicKey, state);
                 if (initializedTopics.size === Topics.length) {
                     resolve(initializedTopics);
                 }
@@ -173,13 +188,13 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
             // For each topic, create a source
             Topics.forEach(async topic => {
-                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+                const sourceId = createTopicKey(topic);
 
                 // subscribe to the topic, this start the data flow inside the datasource
                 const result = await pluginsManager.WaitAndDoAction(`${topic.source.id}-subscribe`, 1, topic)
 
                 if (result === false) {
-                    setInitializedTopic(topic.topic, false);
+                    setInitializedTopic(sourceId, false);
                     return;
                 }
 
@@ -204,13 +219,13 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                     }
                 });
 
-                setInitializedTopic(topic.topic, true);
+                setInitializedTopic(sourceId, true);
             });
         }).then((initializedTopics) => {
             if (!isMounted) return;
 
             // add toast for the topics that are not initialized
-            const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(topic.topic));
+            const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(createTopicKey(topic)));
 
             const message = (
                 <div>
@@ -246,7 +261,11 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     return (
         <LocalDataSourcesContext.Provider value={contextValue.current}>
             {initialized && children}
-            {!initialized && <Spinner />}
+            {!initialized && <>
+                <h1>Waiting for subscriptions</h1>
+                <p>Please wait while we establish connections to the data sources.</p>
+                <Spinner />
+            </>}
         </LocalDataSourcesContext.Provider>
     );
 };

@@ -46,7 +46,7 @@ const MemoizedJsonCard = memo(({ topic, dataItem, timestamp, itemId }: {
 ));
 
 function JsonList(props: JsonListProps) {
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
     const containerRef = useRef<HTMLDivElement>(null);
     const prevDataLengthRef = useRef(0);
     const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
@@ -55,7 +55,7 @@ function JsonList(props: JsonListProps) {
     // Store stable timestamps for items without their own timestamp
     const timestampMapRef = useRef<Map<string, string>>(new Map());
 
-    // Process the data only when sources change
+    // Process the data only when source changes
     const processedData = useMemo(() => {
         const result: Array<{
             dataItem: any;
@@ -63,9 +63,10 @@ function JsonList(props: JsonListProps) {
             itemId: string;
         }> = [];
 
-        Array.from(sources.values()).forEach((source, sourceIndex) => {
+        const source = getSource(props.topic);
+        if (source) {
             source.data.forEach((dataItem, dataIndex) => {
-                const itemId = `${sourceIndex}-${dataIndex}`;
+                const itemId = `0-${dataIndex}`;
 
                 let timestamp: string;
                 if (dataItem.timestamp) {
@@ -88,10 +89,10 @@ function JsonList(props: JsonListProps) {
                     itemId
                 });
             });
-        });
+        }
 
         return result;
-    }, [sources]);
+    }, [getSource, props.topic]);
 
     // Track total number of data items for auto-scrolling detection
     const totalDataItems = processedData.length;

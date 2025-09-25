@@ -29,7 +29,7 @@ interface TimeSeriesSettings {
 }
 
 export function TimeChartComponent(props: TimeSeriesSettings) {
-    const { sources } = useLocalDataSource();
+    const { sources, getSource } = useLocalDataSource();
     const divRef = useRef<HTMLDivElement>(null);
     const frameRef = useRef<number>(0);
     const lastUpdateRef = useRef<number>(0);
@@ -71,7 +71,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 
     // Initialize chart series only when topics change
     useEffect(() => {
-        optionsRef.current.series = initializeSeries(props.topics, sources);
+        optionsRef.current.series = initializeSeries(props.topics, getSource);
     }, [props.topics, sources]);
 
     // Change the colors when the theme changes
@@ -107,7 +107,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 const sourceId = (topic.property !== '') ?
                     topic.topic + "+" + topic.property : topic.topic;
 
-                const source = sources.get(sourceId);
+                const source = getSource(topic);
                 if (!source) continue;
 
                 const newData = source.data.map((value, index) => ({
@@ -188,17 +188,14 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
 }
 
 // Helper functions
-function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: boolean }[], sources: Map<string, any>): uPlot.Series[] {
+function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: boolean }[], getSource: (topic: SelectedTopic) => any): uPlot.Series[] {
     const series: uPlot.Series[] = [{ label: 'Time' }];
     const notFoundTopics: string[] = [];
 
     topics.forEach(topic_props => {
         const topic: SelectedTopic = topic_props.topic;
 
-        const sourceId = (topic.property !== '') ?
-            topic.topic + "+" + topic.property : topic.topic;
-
-        if (!sources.get(sourceId)) {
+        if (!getSource(topic)) {
             notFoundTopics.push(topic.topic);
             return;
         }
@@ -214,7 +211,7 @@ function initializeSeries(topics: { topic: SelectedTopic, color: string, fill: b
 
         series.push({
             label: props_label,
-            stroke: topic_props.color || getColorsFromString(sourceId),
+            stroke: topic_props.color || getColorsFromString(topic.topic),
             width: 1,
             sorted: 0,
             spanGaps: true,

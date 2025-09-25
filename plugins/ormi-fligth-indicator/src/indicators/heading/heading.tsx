@@ -26,12 +26,12 @@ interface HeadingProps {
 
 export function WidgetHeadingIndicator(props: HeadingProps) {
 
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
     const [heading, setHeading] = useState(0);
 
     useEffect(() => {
 
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
         if (!data) {
             return;
         }
@@ -75,7 +75,7 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
         }
         // set the orientation value
 
-    }, [sources]);
+    }, [getSource, props.topic, props.orientationAxis, props.eastValue, props.invert]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>

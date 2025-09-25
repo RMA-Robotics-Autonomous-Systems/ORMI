@@ -8,6 +8,7 @@ import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core"
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { TopicListOverlay } from "./topics-overlay";
+import { CustomLayersOverlay } from "./layers-overlay";
 import MapsGrid, { GridUtils, useMapGrid } from "./maps-grid";
 
 import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
@@ -29,7 +30,14 @@ interface MapsViewerSettings {
         topic: SelectedTopic;
         makerType: "simple" | "heatmap" | "path" | "multipoints" | any;
         numericalTopic?: SelectedTopic;
-    }[]
+    }[];
+    customLayers: {
+        name: string;
+        url: string;
+        opacity: number;
+        visible: boolean;
+        bounds?: [[number, number], [number, number]];
+    }[];
 }
 
 export default function MapsBoxViewer(props: MapsViewerSettings) {
@@ -38,6 +46,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const [refreshCounter, setRefreshCounter] = useState(0);
     const [showGrid, setShowGrid] = useState(false);
+    const [customLayersState, setCustomLayersState] = useState(props.customLayers);
 
     const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
     const mapRef = useRef<MapRef>(null);
@@ -47,8 +56,87 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const pluginsManager = usePluginsManager();
 
+    // Handlers for custom layer control
+    const handleLayerVisibilityChange = (layerIndex: number, visible: boolean) => {
+        setCustomLayersState(prevLayers =>
+            prevLayers.map((layer, index) =>
+                index === layerIndex ? { ...layer, visible } : layer
+            )
+        );
+    };
+
+    const handleLayerOpacityChange = (layerIndex: number, opacity: number) => {
+        setCustomLayersState(prevLayers =>
+            prevLayers.map((layer, index) =>
+                index === layerIndex ? { ...layer, opacity } : layer
+            )
+        );
+    };
 
     useEffect(() => {
+        // Generate custom layer sources and layers
+        const customSources: { [key: string]: any } = {};
+        const customLayersData: any[] = [];
+
+        (customLayersState || []).forEach((layer, index) => {
+            if (layer.url && layer.visible) {
+                const sourceId = `custom-layer-${index}`;
+                const layerId = `custom-layer-${index}`;
+
+                console.log(`Processing custom layer ${index}:`, {
+                    name: layer.name,
+                    url: layer.url,
+                    opacity: layer.opacity,
+                    visible: layer.visible
+                });
+
+                // Determine source type based on URL
+                if (layer.url.startsWith('cog://')) {
+                    // COG protocol source
+                    customSources[sourceId] = {
+                        type: 'raster',
+                        url: layer.url
+                    };
+                    console.log(`Created COG source: ${sourceId}`);
+                } else if (layer.url.includes('{z}') && layer.url.includes('{x}') && layer.url.includes('{y}')) {
+                    // Standard tile template - fix TiTiler URL format
+                    let tileUrl = layer.url;
+                    if (layer.url.includes('cog/tiles/') && !layer.url.includes('WebMercatorQuad')) {
+                        // Fix TiTiler URL format
+                        tileUrl = layer.url.replace('cog/tiles/', 'cog/tiles/WebMercatorQuad/');
+                        tileUrl = tileUrl.replace('.png', ''); // Remove .png extension for TiTiler
+                    }
+                    customSources[sourceId] = {
+                        type: 'raster',
+                        tiles: [tileUrl],
+                        tileSize: 256
+                    };
+                    console.log(`Created tile source: ${sourceId}`, customSources[sourceId]);
+                } else {
+                    // Assume it's a single image or GeoTIFF
+                    customSources[sourceId] = {
+                        type: 'raster',
+                        url: layer.url
+                    };
+                    console.log(`Created raster source: ${sourceId}`);
+                }
+
+                customLayersData.push({
+                    id: layerId,
+                    type: 'raster',
+                    source: sourceId,
+                    paint: {
+                        'raster-opacity': layer.opacity || 1
+                    }
+                });
+
+                console.log(`Created layer: ${layerId}`);
+            }
+        });
+
+        console.log('Custom sources:', customSources);
+        console.log('Custom layers:', customLayersData);
+
         const baseStyle: StyleSpecification = {
             version: 8,
             sources: {
@@ -59,7 +147,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                 'grid': {
                     type: 'geojson',
                     data: GridUtils.createGridLines([-180, -85, 180, 85], 1000) // Start with 1km grid
-                }
+                },
+                ...customSources
             },
             layers: [
                 {
@@ -69,6 +158,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     minzoom: 0,
                     maxzoom: 22
                 },
+                ...customLayersData,
                 {
                     id: 'grid-layer',
                     type: 'line',
@@ -102,7 +192,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     'openmaptiles': {
                         type: 'vector',
                         url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${props.apiKey}`
-                    }
+                    },
+                    ...customSources
                 },
                 layers: [
                     {
@@ -112,6 +203,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         minzoom: 0,
                         maxzoom: 22
                     },
+                    ...customLayersData,
                     {
                         id: 'grid-layer',
                         type: 'line',
@@ -161,6 +253,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
             setRasterStyle(baseStyle);
         }
 
+        console.log('Final MapLibre style:', baseStyle);
         setIsLoading(false);
 
         if (typeof window !== 'undefined' && navigator.geolocation) {
@@ -242,7 +335,12 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
             removeButtonItem("map-box-viewer-widget-grid");
         }
 
-    }, [props, refreshCounter, showGrid]); // Add showGrid to dependencies
+    }, [props, refreshCounter, showGrid, customLayersState]); // Add showGrid and customLayersState to dependencies
+
+    // Sync customLayersState with props.customLayers when props change
+    useEffect(() => {
+        setCustomLayersState(props.customLayers);
+    }, [props.customLayers]);
 
     if (isLoading) {
         return <Spinner />;
@@ -250,14 +348,24 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const getAllTopics = () => {
         // merge all topics (from the props) and the numerical topics if they exist
-        // clear duplicates, check on topic names
+        // clear duplicates, check on unique source IDs (not just topic names)
         const allTopics: SelectedTopic[] = [];
+        const seenSourceIds = new Set<string>();
+
         props.topics.forEach(t => {
-            if (t.topic && !allTopics.some(existing => existing.topic === t.topic.topic)) {
-                allTopics.push(t.topic);
+            if (t.topic) {
+                const sourceId = `${t.topic.source.id}::${t.topic.topic}${t.topic.property ? '::' + t.topic.property : ''}`;
+                if (!seenSourceIds.has(sourceId)) {
+                    allTopics.push(t.topic);
+                    seenSourceIds.add(sourceId);
+                }
             }
-            if (t.numericalTopic && !allTopics.some(existing => existing.topic === t.numericalTopic!.topic)) {
-                allTopics.push(t.numericalTopic);
+            if (t.numericalTopic) {
+                const numericalSourceId = `${t.numericalTopic.source.id}::${t.numericalTopic.topic}${t.numericalTopic.property ? '::' + t.numericalTopic.property : ''}`;
+                if (!seenSourceIds.has(numericalSourceId)) {
+                    allTopics.push(t.numericalTopic);
+                    seenSourceIds.add(numericalSourceId);
+                }
             }
         });
         return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");
@@ -271,8 +379,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     initialViewState={{
                         longitude: startingLocation[0],
                         latitude: startingLocation[1],
-                        zoom: 15,  // Increased zoom to better see buildings
-                        pitch: 45, // Add tilt
+                        zoom: 15,
+                        pitch: 45,
                         bearing: 0
                     }}
                     style={{ width: "100%", height: "100%" }}
@@ -300,6 +408,14 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                             <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
                         </LocalDataSourcesProvider >
                     )}
+
+                    {/* Custom Layers Overlay on the right side */}
+                    <CustomLayersOverlay
+                        customLayers={customLayersState}
+                        mapRef={mapRef as React.RefObject<MapRef>}
+                        onLayerVisibilityChange={handleLayerVisibilityChange}
+                        onLayerOpacityChange={handleLayerOpacityChange}
+                    />
                 </Map>
             </ButtonHolderProvider>
         </div>
@@ -399,6 +515,31 @@ export function MapsBoxViewerDefinition() {
                         },
 
                     }
+                },
+                customLayers: {
+                    type: 'array',
+                    title: 'Custom Layers',
+                    items: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string", title: "Layer Name" },
+                            url: {
+                                type: "string",
+                                title: "Source URL",
+                                description: "COG protocol (cog://...) or tile URL template ({z}/{x}/{y})"
+                            },
+                            opacity: {
+                                type: "number",
+                                title: "Opacity",
+                                default: 1,
+                                minimum: 0,
+                                maximum: 1,
+                                multipleOf: 0.1
+                            },
+                            visible: { type: "boolean", title: "Visible", default: true },
+                        },
+                        required: ["name", "url"]
+                    }
                 }
             },
             required: ['title']
@@ -489,12 +630,46 @@ export function MapsBoxViewerDefinition() {
                             }
                         } as ControlElement
                     ]
+                },
+                {
+                    type: "Category",
+                    label: "Layers",
+                    elements: [
+                        {
+                            type: "Control",
+                            scope: "#/properties/customLayers",
+                            options: {
+                                detail: {
+                                    type: "VerticalLayout",
+                                    elements: [
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/name",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/url",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/opacity",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/visible",
+                                        } as ControlElement
+                                    ]
+                                }
+                            }
+                        } as ControlElement
+                    ]
                 }
             ]
         } as Categorization,
         data: {
             title: 'Maps',
             use3D: false,
+            customLayers: [],
         },
         Component: (data: MapsViewerSettings) => (
             <MapsBoxViewer {...data} />

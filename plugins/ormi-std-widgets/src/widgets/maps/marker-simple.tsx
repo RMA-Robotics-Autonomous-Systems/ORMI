@@ -12,14 +12,14 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
 
     const [location, setLocation] = useState<[number, number]>([50.843941, 4.3930369]);
     const [hasData, setHasData] = useState(false);
-    const { sources } = useLocalDataSource();
+    const { getSource, getSourceId } = useLocalDataSource();
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
 
     useEffect(() => {
 
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
         if (!data) {
             return;
         }
@@ -37,7 +37,9 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
         }
 
         if (!props.isChild) {
-            setButtonItem(props.topic.topic,
+            const buttonKey = getSourceId(props.topic);
+
+            setButtonItem(buttonKey,
                 <Button variant={"ghost"} onClick={() => {
                     setShow(!show);
                 }}>
@@ -48,11 +50,11 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
         }
         return () => {
             if (!props.isChild) {
-                removeButtonItem(props.topic.topic);
+                removeButtonItem(getSourceId(props.topic));
             }
         };
 
-    }, [sources, props]);
+    }, [getSource, props.topic]);
 
     return (
         hasData && show && (
@@ -61,7 +63,7 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
                     <Image
                         width={32}
                         height={32}
-                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${props.name}`}
+                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${getSourceId(props.topic)}`}
                         alt={`Marker for ${props.name}`}
                     />
                     <p style={{ textAlign: "center" }}>{props.name}</p>

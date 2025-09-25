@@ -23,13 +23,13 @@ interface AirSpeedProps {
 
 export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
 
     const [speed, setSpeed] = useState(0);
 
     useEffect(() => {
 
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
 
         if (!data) {
             return;
@@ -74,7 +74,7 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
         }
 
 
-    }, [sources]);
+    }, [getSource, props.topic, props.speedAxis, props.invert]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
