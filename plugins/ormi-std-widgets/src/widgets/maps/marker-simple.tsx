@@ -32,13 +32,6 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
             const lastData = data.data[data.data.length - 1] as GeolocationPosition;
             setHasData(true);
             setLocation([lastData.coords.latitude, lastData.coords.longitude]);
-
-            // Debug logging to see what data each topic is getting
-            console.log(`Marker ${props.name} (${getSourceId(props.topic)}):`, {
-                latitude: lastData.coords.latitude,
-                longitude: lastData.coords.longitude,
-                dataLength: data.data.length
-            });
         } catch (error) {
             console.error("Error parsing data", error, data);
         }
