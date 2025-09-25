@@ -13,7 +13,7 @@ export function TopicListOverlay({ topics, mapRef }: {
     topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
     mapRef?: React.RefObject<MapRef>
 }) {
-    const { sources, getSource } = useLocalDataSource();
+    const { sources, getSource, getSourceId } = useLocalDataSource();
     const { items } = useButtonHolder();
 
 
@@ -76,9 +76,10 @@ export function TopicListOverlay({ topics, mapRef }: {
     return (
         <div className="absolute top-2 left-2 z-10 flex flex-col gap-2 mt-2">
             {topics.map((topic) => {
+                const topicKey = getSourceId(topic.topic);
                 return (
                     <div
-                        key={topic.name}
+                        key={topicKey}
                         className={cn(
                             "relative bg-background bg-muted/50 rounded cursor-pointer transition-all duration-300 ease-in-out overflow-hidden",
                             "hover-expand-width flex items-center"
@@ -95,7 +96,7 @@ export function TopicListOverlay({ topics, mapRef }: {
                                 <Image
                                     width={32}
                                     height={32}
-                                    src={`https://api.dicebear.com/9.x/bottts/svg?seed=${topic.name}`}
+                                    src={`https://api.dicebear.com/9.x/bottts/svg?seed=${topicKey}`}
                                     alt={`Marker for ${topic.name}`}
                                 />
                             </Button>
@@ -115,9 +116,9 @@ export function TopicListOverlay({ topics, mapRef }: {
                                     {topic.makerType}
                                 </small>
 
-                                {items.has(topic.topic.topic) && (
+                                {items.has(topicKey) && (
                                     <div className="flex-shrink-0">
-                                        {items.get(topic.topic.topic)?.component}
+                                        {items.get(topicKey)?.component}
                                     </div>
                                 )}
                             </div>

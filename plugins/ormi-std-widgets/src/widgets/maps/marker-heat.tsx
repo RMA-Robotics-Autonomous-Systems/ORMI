@@ -10,12 +10,13 @@ import { Layer, Source, Popup, useMap } from "react-map-gl/maplibre";
 export default function HeatMarker(props: { topic: SelectedTopic, name: string, scale?: number, numericalTopic?: SelectedTopic }) {
     const [locations, setLocations] = useState<Array<{ coords: [number, number], value: number }>>([]);
     const [hoveredPoint, setHoveredPoint] = useState<{ coords: [number, number], value: number } | null>(null);
-    const { sources, getSource } = useLocalDataSource();
+    const { sources, getSource, getSourceId } = useLocalDataSource();
     const { current: map } = useMap();
 
-    // Create unique IDs for this heat marker instance
-    const sourceId = `value-points-${props.name}`;
-    const layerId = `value-points-layer-${props.name}`;
+    // Create unique IDs for this heat marker instance using source ID
+    const uniqueTopicId = getSourceId(props.topic);
+    const sourceId = `value-points-${uniqueTopicId}`;
+    const layerId = `value-points-layer-${uniqueTopicId}`;
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
@@ -124,7 +125,7 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         }
 
 
-        setButtonItem(props.topic.topic,
+        setButtonItem(getSourceId(props.topic),
             <Button variant={"ghost"} onClick={() => {
                 setShow(!show);
             }}>
@@ -134,7 +135,7 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
         );
 
         return () => {
-            removeButtonItem(props.topic.topic);
+            removeButtonItem(getSourceId(props.topic));
         }
 
     }, [sources]);

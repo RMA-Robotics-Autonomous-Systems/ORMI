@@ -250,14 +250,24 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const getAllTopics = () => {
         // merge all topics (from the props) and the numerical topics if they exist
-        // clear duplicates, check on topic names
+        // clear duplicates, check on unique source IDs (not just topic names)
         const allTopics: SelectedTopic[] = [];
+        const seenSourceIds = new Set<string>();
+
         props.topics.forEach(t => {
-            if (t.topic && !allTopics.some(existing => existing.topic === t.topic.topic)) {
-                allTopics.push(t.topic);
+            if (t.topic) {
+                const sourceId = `${t.topic.source.id}::${t.topic.topic}${t.topic.property ? '::' + t.topic.property : ''}`;
+                if (!seenSourceIds.has(sourceId)) {
+                    allTopics.push(t.topic);
+                    seenSourceIds.add(sourceId);
+                }
             }
-            if (t.numericalTopic && !allTopics.some(existing => existing.topic === t.numericalTopic!.topic)) {
-                allTopics.push(t.numericalTopic);
+            if (t.numericalTopic) {
+                const numericalSourceId = `${t.numericalTopic.source.id}::${t.numericalTopic.topic}${t.numericalTopic.property ? '::' + t.numericalTopic.property : ''}`;
+                if (!seenSourceIds.has(numericalSourceId)) {
+                    allTopics.push(t.numericalTopic);
+                    seenSourceIds.add(numericalSourceId);
+                }
             }
         });
         return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");

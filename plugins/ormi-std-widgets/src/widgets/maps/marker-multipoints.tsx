@@ -11,12 +11,13 @@ import { Button } from "@workspace/ui/components/button";
 export default function MultiPoints(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
     const [hoveredPoint, setHoveredPoint] = useState<any>(null);
-    const { getSource } = useLocalDataSource();
+    const { getSource, getSourceId } = useLocalDataSource();
     const { current: map } = useMap();
 
-    // Create unique IDs for this multipoints instance
-    const sourceId = `points-source-${props.name}`;
-    const layerId = `points-layer-${props.name}`;
+    // Create unique IDs for this multipoints instance using source ID
+    const uniqueTopicId = getSourceId(props.topic);
+    const sourceId = `points-source-${uniqueTopicId}`;
+    const layerId = `points-layer-${uniqueTopicId}`;
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
@@ -67,7 +68,7 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
         map.on('mousemove', handleMouseMove);
         map.on('mouseleave', layerId, handleMouseLeave);
 
-        setButtonItem(props.topic.topic,
+        setButtonItem(getSourceId(props.topic),
             <Button variant={"ghost"} onClick={() => {
                 setShow(!show);
             }}>
@@ -80,7 +81,7 @@ export default function MultiPoints(props: { topic: SelectedTopic, name: string,
             map.off('mousemove', handleMouseMove);
             map.off('mouseleave', layerId, handleMouseLeave);
 
-            removeButtonItem(props.topic.topic);
+            removeButtonItem(getSourceId(props.topic));
         };
     }, [map, layerId, show]);
 

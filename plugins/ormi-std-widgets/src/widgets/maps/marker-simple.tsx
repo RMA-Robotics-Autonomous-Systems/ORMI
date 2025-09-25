@@ -12,7 +12,7 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
 
     const [location, setLocation] = useState<[number, number]>([50.843941, 4.3930369]);
     const [hasData, setHasData] = useState(false);
-    const { getSource } = useLocalDataSource();
+    const { getSource, getSourceId } = useLocalDataSource();
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
@@ -32,12 +32,21 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
             const lastData = data.data[data.data.length - 1] as GeolocationPosition;
             setHasData(true);
             setLocation([lastData.coords.latitude, lastData.coords.longitude]);
+
+            // Debug logging to see what data each topic is getting
+            console.log(`Marker ${props.name} (${getSourceId(props.topic)}):`, {
+                latitude: lastData.coords.latitude,
+                longitude: lastData.coords.longitude,
+                dataLength: data.data.length
+            });
         } catch (error) {
             console.error("Error parsing data", error, data);
         }
 
         if (!props.isChild) {
-            setButtonItem(props.topic.topic,
+            const buttonKey = getSourceId(props.topic);
+
+            setButtonItem(buttonKey,
                 <Button variant={"ghost"} onClick={() => {
                     setShow(!show);
                 }}>
@@ -48,7 +57,7 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
         }
         return () => {
             if (!props.isChild) {
-                removeButtonItem(props.topic.topic);
+                removeButtonItem(getSourceId(props.topic));
             }
         };
 
@@ -61,7 +70,7 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
                     <Image
                         width={32}
                         height={32}
-                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${props.name}`}
+                        src={`https://api.dicebear.com/9.x/bottts/svg?seed=${getSourceId(props.topic)}`}
                         alt={`Marker for ${props.name}`}
                     />
                     <p style={{ textAlign: "center" }}>{props.name}</p>

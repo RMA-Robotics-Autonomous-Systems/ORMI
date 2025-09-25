@@ -10,11 +10,12 @@ import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
 export default function PathMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
-    const { getSource } = useLocalDataSource();
+    const { getSource, getSourceId } = useLocalDataSource();
 
-    // Create unique IDs for this path marker instance
-    const sourceId = `path-source-${props.name}`;
-    const layerId = `path-layer-${props.name}`;
+    // Create unique IDs for this path marker instance using source ID
+    const uniqueTopicId = getSourceId(props.topic);
+    const sourceId = `path-source-${uniqueTopicId}`;
+    const layerId = `path-layer-${uniqueTopicId}`;
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
@@ -43,7 +44,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
             console.error("Error parsing data", error, data);
         }
 
-        setButtonItem(props.topic.topic,
+        setButtonItem(getSourceId(props.topic),
             <Button variant={"ghost"} onClick={() => {
                 setShow(!show);
             }}>
@@ -53,7 +54,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
         );
 
         return () => {
-            removeButtonItem(props.topic.topic);
+            removeButtonItem(getSourceId(props.topic));
         }
 
     }, [getSource, props.topic]);
