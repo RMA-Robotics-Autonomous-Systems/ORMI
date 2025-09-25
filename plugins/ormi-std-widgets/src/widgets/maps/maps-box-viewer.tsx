@@ -8,6 +8,7 @@ import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core"
 import HeatMarker from "./marker-heat";
 import PathMarker from "./marker-path";
 import { TopicListOverlay } from "./topics-overlay";
+import { CustomLayersOverlay } from "./layers-overlay";
 import MapsGrid, { GridUtils, useMapGrid } from "./maps-grid";
 
 import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
@@ -35,6 +36,7 @@ interface MapsViewerSettings {
         url: string;
         opacity: number;
         visible: boolean;
+        bounds?: [[number, number], [number, number]];
     }[];
 }
 
@@ -44,6 +46,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const [refreshCounter, setRefreshCounter] = useState(0);
     const [showGrid, setShowGrid] = useState(false);
+    const [customLayersState, setCustomLayersState] = useState(props.customLayers);
 
     const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
     const mapRef = useRef<MapRef>(null);
@@ -53,13 +56,29 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     const pluginsManager = usePluginsManager();
 
+    // Handlers for custom layer control
+    const handleLayerVisibilityChange = (layerIndex: number, visible: boolean) => {
+        setCustomLayersState(prevLayers =>
+            prevLayers.map((layer, index) =>
+                index === layerIndex ? { ...layer, visible } : layer
+            )
+        );
+    };
+
+    const handleLayerOpacityChange = (layerIndex: number, opacity: number) => {
+        setCustomLayersState(prevLayers =>
+            prevLayers.map((layer, index) =>
+                index === layerIndex ? { ...layer, opacity } : layer
+            )
+        );
+    };
 
     useEffect(() => {
         // Generate custom layer sources and layers
         const customSources: { [key: string]: any } = {};
         const customLayersData: any[] = [];
 
-        (props.customLayers || []).forEach((layer, index) => {
+        (customLayersState || []).forEach((layer, index) => {
             if (layer.url && layer.visible) {
                 const sourceId = `custom-layer-${index}`;
                 const layerId = `custom-layer-${index}`;
@@ -316,7 +335,12 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
             removeButtonItem("map-box-viewer-widget-grid");
         }
 
-    }, [props, refreshCounter, showGrid]); // Add showGrid to dependencies
+    }, [props, refreshCounter, showGrid, customLayersState]); // Add showGrid and customLayersState to dependencies
+
+    // Sync customLayersState with props.customLayers when props change
+    useEffect(() => {
+        setCustomLayersState(props.customLayers);
+    }, [props.customLayers]);
 
     if (isLoading) {
         return <Spinner />;
@@ -384,6 +408,14 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                             <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
                         </LocalDataSourcesProvider >
                     )}
+
+                    {/* Custom Layers Overlay on the right side */}
+                    <CustomLayersOverlay
+                        customLayers={customLayersState}
+                        mapRef={mapRef as React.RefObject<MapRef>}
+                        onLayerVisibilityChange={handleLayerVisibilityChange}
+                        onLayerOpacityChange={handleLayerOpacityChange}
+                    />
                 </Map>
             </ButtonHolderProvider>
         </div>
@@ -504,7 +536,7 @@ export function MapsBoxViewerDefinition() {
                                 maximum: 1,
                                 multipleOf: 0.1
                             },
-                            visible: { type: "boolean", title: "Visible", default: true }
+                            visible: { type: "boolean", title: "Visible", default: true },
                         },
                         required: ["name", "url"]
                     }
