@@ -46,7 +46,7 @@ interface ChartEchartsSettings {
 export function ChartEchartsWidget(props: ChartEchartsSettings) {
     const chartRef = useRef<HTMLDivElement>(null);
     const echartsInstanceRef = useRef<echarts.EChartsType | null>(null);
-    const { sources } = useLocalDataSource();
+    const { sources, getSource, getSourceId } = useLocalDataSource();
     const timeSpan = props.timeHistory || 5;
     const updateFrequency = props.updateFrequency || 32;
     const updateInterval = 1000 / updateFrequency;
@@ -103,7 +103,7 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
             const fallbackName = s.title?.trim() ? s.title : (s.topic.property ? `${s.topic.topic} (${s.topic.property})` : s.topic.topic);
             // Get topic data from buffer
             const topic = s.topic;
-            const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
+            const sourceId = getSourceId(topic);
             const topicData = dataBufferRef.current.get(sourceId) || [];
             // Format for ECharts: [{ value: [time, value] }, ...]
             let data = topicData.map(d => ({ value: [d.time * 1000, d.value] }));
@@ -153,8 +153,8 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
             // Process incoming data for each series
             props.series.forEach(s => {
                 const topic = s.topic;
-                const sourceId = (topic.property !== '') ? topic.topic + "+" + topic.property : topic.topic;
-                const source = sources.get(sourceId);
+                const sourceId = getSourceId(topic);
+                const source = getSource(topic);
                 if (!source) return;
                 const newData = source.data.map((value: number, index: number) => ({
                     value,

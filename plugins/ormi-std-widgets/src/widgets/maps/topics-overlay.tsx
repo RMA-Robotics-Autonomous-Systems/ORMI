@@ -13,7 +13,7 @@ export function TopicListOverlay({ topics, mapRef }: {
     topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
     mapRef?: React.RefObject<MapRef>
 }) {
-    const { sources } = useLocalDataSource();
+    const { sources, getSource } = useLocalDataSource();
     const { items } = useButtonHolder();
 
 
@@ -21,7 +21,7 @@ export function TopicListOverlay({ topics, mapRef }: {
         if (!mapRef?.current) return;
 
         // Get the data source for this topic
-        const data = sources.get(topic.topic.topic);
+        const data = getSource(topic.topic);
 
         if (!data || data.data.length === 0) return;
 

@@ -22,13 +22,13 @@ interface LevelProps {
 
 export function WidgetLevelIndicator(props: LevelProps) {
 
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
     const [pitch, setPitch] = useState(0);
     const [roll, setRoll] = useState(0);
 
     useEffect(() => {
 
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
         if (!data) {
             return;
         }
@@ -87,7 +87,7 @@ export function WidgetLevelIndicator(props: LevelProps) {
                 break;
         }
 
-    }, [sources]);
+    }, [getSource, props.topic, props.pitchAxis, props.rollAxis, props.invert]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>

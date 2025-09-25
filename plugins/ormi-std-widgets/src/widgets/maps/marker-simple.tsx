@@ -12,14 +12,14 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
 
     const [location, setLocation] = useState<[number, number]>([50.843941, 4.3930369]);
     const [hasData, setHasData] = useState(false);
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
     const [show, setShow] = useState(true);
 
     useEffect(() => {
 
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
         if (!data) {
             return;
         }
@@ -52,7 +52,7 @@ export default function TopicMarker(props: { topic: SelectedTopic, name: string,
             }
         };
 
-    }, [sources, props]);
+    }, [getSource, props.topic]);
 
     return (
         hasData && show && (

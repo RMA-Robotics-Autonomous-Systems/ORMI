@@ -10,7 +10,7 @@ import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
 export default function PathMarker(props: { topic: SelectedTopic, name: string, scale?: number }) {
     const [locations, setLocations] = useState<any>([]);
-    const { sources } = useLocalDataSource();
+    const { getSource } = useLocalDataSource();
 
     // Create unique IDs for this path marker instance
     const sourceId = `path-source-${props.name}`;
@@ -20,7 +20,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
     const [show, setShow] = useState(true);
 
     useEffect(() => {
-        const data = sources.get(props.topic.topic);
+        const data = getSource(props.topic);
         if (!data) {
             return;
         }
@@ -56,7 +56,7 @@ export default function PathMarker(props: { topic: SelectedTopic, name: string, 
             removeButtonItem(props.topic.topic);
         }
 
-    }, [sources]);
+    }, [getSource, props.topic]);
 
     const distance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371e3; // Earth's radius in meters

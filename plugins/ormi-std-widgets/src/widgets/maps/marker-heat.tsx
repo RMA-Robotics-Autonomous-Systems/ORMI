@@ -10,7 +10,7 @@ import { Layer, Source, Popup, useMap } from "react-map-gl/maplibre";
 export default function HeatMarker(props: { topic: SelectedTopic, name: string, scale?: number, numericalTopic?: SelectedTopic }) {
     const [locations, setLocations] = useState<Array<{ coords: [number, number], value: number }>>([]);
     const [hoveredPoint, setHoveredPoint] = useState<{ coords: [number, number], value: number } | null>(null);
-    const { sources } = useLocalDataSource();
+    const { sources, getSource } = useLocalDataSource();
     const { current: map } = useMap();
 
     // Create unique IDs for this heat marker instance
@@ -21,8 +21,8 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
     const [show, setShow] = useState(true);
 
     useEffect(() => {
-        const loc_data = sources.get(props.topic.topic);
-        const num_data = props.numericalTopic ? sources.get(props.numericalTopic.topic) : null;
+        const loc_data = getSource(props.topic);
+        const num_data = props.numericalTopic ? getSource(props.numericalTopic) : null;
         if (!loc_data) {
             return;
         }
