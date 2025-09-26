@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollArea } from '@workspace/ui/components/scroll-area';
 import { Badge } from '@workspace/ui/components/badge';
 import { Button } from '@workspace/ui/components/button';
@@ -17,6 +17,7 @@ import { cn } from '@workspace/ui/lib/utils';
 import { DatasourceTopic } from '../../datasources/datasource-interface';
 import { DataRequirements } from '../../widgets/widget-interface';
 import { TopicCompatibilityResult } from '../../widgets/topic-compatibility';
+import { TopicCreatorDialog } from './topic-creator-dialog';
 
 interface TopicBrowserProps {
     topics: DatasourceTopic[];
@@ -27,6 +28,7 @@ interface TopicBrowserProps {
     searchTerm: string;
     showOnlyCompatible: boolean;
     isLoading: boolean;
+    onTopicCreated?: (topic: DatasourceTopic) => void;
 }
 
 export const TopicBrowser: React.FC<TopicBrowserProps> = ({
@@ -37,8 +39,18 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
     requirements,
     searchTerm,
     showOnlyCompatible,
-    isLoading
+    isLoading,
+    onTopicCreated
 }) => {
+    const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+
+    const handleTopicCreated = (newTopic: DatasourceTopic) => {
+        if (onTopicCreated) {
+            onTopicCreated(newTopic);
+        }
+        setIsCreatorOpen(false);
+    };
+
     const getCompatibilityStatus = (topic: DatasourceTopic) => {
         if (!requirements) return 'unknown';
 
@@ -126,7 +138,12 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
                 <div className="p-3 border-b flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Topics (0)</span>
-                        <Button variant="ghost" size="sm" className="h-6 px-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2"
+                            onClick={() => setIsCreatorOpen(true)}
+                        >
                             <Plus className="w-3 h-3 mr-1" />
                             Create
                         </Button>
@@ -145,6 +162,13 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
                         )}
                     </div>
                 </div>
+                {/* Topic Creator Dialog */}
+                <TopicCreatorDialog
+                    isOpen={isCreatorOpen}
+                    onClose={() => setIsCreatorOpen(false)}
+                    onTopicCreated={handleTopicCreated}
+                    requirements={requirements}
+                />
             </div>
         );
     }
@@ -157,7 +181,12 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
                     <span className="text-sm font-medium">
                         Topics ({topics.length})
                     </span>
-                    <Button variant="ghost" size="sm" className="h-6 px-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => setIsCreatorOpen(true)}
+                    >
                         <Plus className="w-3 h-3 mr-1" />
                         Create
                     </Button>
@@ -224,6 +253,14 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
                     })}
                 </div>
             </ScrollArea>
+
+            {/* Topic Creator Dialog */}
+            <TopicCreatorDialog
+                isOpen={isCreatorOpen}
+                onClose={() => setIsCreatorOpen(false)}
+                onTopicCreated={handleTopicCreated}
+                requirements={requirements}
+            />
         </div>
     );
 };

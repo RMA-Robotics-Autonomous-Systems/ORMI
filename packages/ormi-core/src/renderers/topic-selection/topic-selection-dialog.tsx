@@ -161,6 +161,39 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
         dispatch({ type: 'SELECT_PROPERTY', path, source });
     };
 
+    const handleTopicCreated = async (newTopic: DatasourceTopic) => {
+        // Add the new topic to the current topics list
+        const updatedTopics = [...state.topics, newTopic];
+        dispatch({ type: 'SET_TOPICS', topics: updatedTopics });
+
+        // Analyze the new topic for compatibility
+        try {
+            const key = `${newTopic.topic}@${newTopic.source.id}`;
+            const analysis = await analyzeTopicCompatibilityWithTrees(
+                newTopic,
+                requirements,
+                pluginsManager
+            );
+
+            const newAnalysis = new Map(state.compatibilityAnalysis);
+            newAnalysis.set(key, analysis);
+            dispatch({ type: 'SET_COMPATIBILITY_ANALYSIS', analysis: newAnalysis });
+
+            if (analysis.propertyTree) {
+                const newTrees = new Map(state.propertyTrees);
+                newTrees.set(key, analysis.propertyTree);
+                dispatch({ type: 'SET_PROPERTY_TREES', trees: newTrees });
+            }
+
+            // Automatically select the new topic
+            dispatch({ type: 'SELECT_TOPIC', topic: newTopic });
+        } catch (error) {
+            console.warn('Failed to analyze created topic:', error);
+            // Still select the topic even if analysis fails
+            dispatch({ type: 'SELECT_TOPIC', topic: newTopic });
+        }
+    };
+
     const handleConfirmSelection = () => {
         if (!state.selectedTopic) return;
 
@@ -234,6 +267,7 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
                             searchTerm={state.searchTerm}
                             showOnlyCompatible={state.showOnlyCompatible}
                             isLoading={isLoading}
+                            onTopicCreated={handleTopicCreated}
                         />
                     </div>
 
