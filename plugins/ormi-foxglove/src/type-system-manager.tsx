@@ -9,6 +9,7 @@ import { UnifiedConverter } from "./unified-converter";
 import { FoxgloveDataSourceSettings, DatasourceTopic } from './types';
 import { useFoxgloveData } from './foxglove-data-handler';
 import { interfaceList } from './interface-list';
+import { foxgloveIdlToJsonSchema } from './foxglove-idl-to-jsonschema';
 
 interface TypeSystemManagerProps {
     children: ReactNode;
@@ -63,11 +64,13 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({ children, setting
                         throw new Error(`Channel schema not found for topic ${topic.topic}`);
                     }
 
-                    // Parse the schema
+                    // Parse the schema using Foxglove's parser
                     const parsedIDL = parse(channelSchema, { ros2: true });
 
-                    // Return the original definition for now - you may want to modify this
-                    return definition;
+                    // Convert parsed IDL to JsonSchema format
+                    const jsonSchema = foxgloveIdlToJsonSchema(parsedIDL);
+
+                    return jsonSchema;
 
                 } catch (error) {
                     console.error(`TypeSystemManager: Error in definition filter for topic ${topic.topic}:`, error);
@@ -79,7 +82,7 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({ children, setting
         // Register available types filter
         pluginsManager.addFilter(available_types, {
             id: available_types,
-            filter: async (types: string[]): Promise<string[]> => {
+            filter: async (types: string[], webtypes: string[] = []): Promise<string[]> => {
                 try {
                     const channelsArray = Array.from(channels.values());
                     const schemas = channelsArray.map((channel) => {
@@ -106,6 +109,24 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({ children, setting
                             return a.localeCompare(b);
                         }
                     });
+
+                    // If webtypes are provided, filter to include only compatible types
+                    // only the one we can convert to/from
+                    // using getWebappTypeFromROSType and getROSTypeFromWebappType
+                    if (webtypes.length > 0) {
+                        const compatibleTypes = new Set<string>();
+                        webtypes.forEach((webtype) => {
+                            const rosType = UnifiedConverter.getROSTypeFromWebappType(webtype);
+                            if (rosType) {
+                                compatibleTypes.add(rosType);
+                            }
+                            // Also consider direct matches
+                            if (uniqueSet.has(webtype)) {
+                                compatibleTypes.add(webtype);
+                            }
+                        });
+                        uniqueSchemas = uniqueSchemas.filter((schema) => compatibleTypes.has(schema));
+                    }
 
                     return uniqueSchemas;
 

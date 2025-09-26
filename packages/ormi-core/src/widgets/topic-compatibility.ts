@@ -148,8 +148,9 @@ export const analyzeTopicCompatibility = async (
     }
   }
 
-  // 3. Analyze raw type properties (if pluginsManager available)
-  if (pluginsManager && topic.rawType) {
+  // 3. Analyze raw type properties ONLY if no webapp type exists
+  // If there's a webapp type, the data will be converted to webapp format
+  if (pluginsManager && topic.rawType && !topic.type) {
     try {
       const rawSchema = (await pluginsManager.applyFilterAsync(
         `${topic.source.id}-definition`,
@@ -278,14 +279,40 @@ export const getWidgetDataSources = async (
 };
 
 /**
+ * Resolves a $ref reference in a JSON schema
+ */
+const resolveRef = (
+  ref: string,
+  rootSchema: JsonSchema | JSONSchema7
+): JsonSchema | JSONSchema7 | null => {
+  if (!rootSchema.definitions) {
+    return null;
+  }
+
+  const definitionKey = ref.replace(/#\/definitions\//g, "");
+  const definition = rootSchema.definitions[definitionKey];
+
+  // Check if definition exists and is an object (not boolean)
+  if (definition && typeof definition === "object") {
+    return definition as JsonSchema | JSONSchema7;
+  }
+
+  return null;
+};
+
+/**
  * Builds a property tree from a JSON schema
  */
 export const buildPropertyTree = (
   schema: JsonSchema | JSONSchema7,
   acceptedTypes: string[],
-  parentPath: string = ""
+  parentPath: string = "",
+  rootSchema?: JsonSchema | JSONSchema7
 ): PropertyTreeNode[] => {
   const nodes: PropertyTreeNode[] = [];
+
+  // Use the current schema as root schema if not provided
+  const rootSchemaToUse = rootSchema || schema;
 
   if (!schema.properties) return nodes;
 
@@ -293,29 +320,43 @@ export const buildPropertyTree = (
     const currentPath = parentPath ? `${parentPath}.${propName}` : propName;
 
     if (typeof propSchema === "object" && propSchema !== null) {
+      let resolvedSchema = propSchema;
+      let nodeType = propSchema.type as string;
+      let isRefResolved = false;
+
+      // Handle $ref references
+      if (propSchema.$ref) {
+        const referencedSchema = resolveRef(propSchema.$ref, rootSchemaToUse);
+        if (referencedSchema) {
+          resolvedSchema = referencedSchema;
+          nodeType = referencedSchema.type as string;
+          isRefResolved = true;
+        }
+      }
+
       const node: PropertyTreeNode = {
         name: propName,
         path: currentPath,
-        type: propSchema.type as string,
-        isCompatible: propSchema.type
-          ? acceptedTypes.includes("*") ||
-            acceptedTypes.includes(propSchema.type as string)
+        type: nodeType,
+        isCompatible: nodeType
+          ? acceptedTypes.includes("*") || acceptedTypes.includes(nodeType)
           : false,
         children: [],
         isLeaf:
-          !propSchema.properties ||
-          Object.keys(propSchema.properties).length === 0,
+          !resolvedSchema.properties ||
+          Object.keys(resolvedSchema.properties).length === 0,
       };
 
       // Recursively build children if this has nested properties
       if (
-        propSchema.properties &&
-        Object.keys(propSchema.properties).length > 0
+        resolvedSchema.properties &&
+        Object.keys(resolvedSchema.properties).length > 0
       ) {
         node.children = buildPropertyTree(
-          propSchema,
+          resolvedSchema,
           acceptedTypes,
-          currentPath
+          currentPath,
+          rootSchemaToUse
         );
         node.isLeaf = false;
       }
@@ -329,6 +370,10 @@ export const buildPropertyTree = (
 
 /**
  * Builds dual property trees for a topic (separate webapp and raw trees)
+ *
+ * Important: Raw properties are only available when there's no webapp type.
+ * If a topic has a webapp type, the data will be converted to that format,
+ * making raw properties inaccessible to widgets.
  */
 export const buildDualPropertyTree = async (
   topic: DatasourceTopic,
@@ -349,15 +394,22 @@ export const buildDualPropertyTree = async (
   if (topic.type) {
     try {
       const webappSchema = getSchemaFromStringName(topic.type);
-      result.webapp = buildPropertyTree(webappSchema, acceptedTypes);
+      result.webapp = buildPropertyTree(
+        webappSchema,
+        acceptedTypes,
+        "",
+        webappSchema
+      );
       result.hasWebappData = true;
     } catch (error) {
       // Webapp type not found - that's okay
     }
   }
 
-  // Build raw property tree
-  if (pluginsManager && topic.rawType) {
+  // Build raw property tree ONLY if there's no webapp type
+  // If there's a webapp type, the data will be converted to webapp format
+  // so raw properties wouldn't be accessible to widgets
+  if (pluginsManager && topic.rawType && !topic.type) {
     try {
       const rawSchema = (await pluginsManager.applyFilterAsync(
         `${topic.source.id}-definition`,
@@ -366,7 +418,7 @@ export const buildDualPropertyTree = async (
       )) as JsonSchema;
 
       if (rawSchema && rawSchema.properties) {
-        result.raw = buildPropertyTree(rawSchema, acceptedTypes);
+        result.raw = buildPropertyTree(rawSchema, acceptedTypes, "", rawSchema);
         result.hasRawData = true;
       }
     } catch (error) {
