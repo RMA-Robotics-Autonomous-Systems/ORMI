@@ -108,7 +108,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                 return data;
             }
 
-            const properties = property.split('-');
+            const properties = property.split('.');
 
             let value = data;
             for (const prop of properties) {

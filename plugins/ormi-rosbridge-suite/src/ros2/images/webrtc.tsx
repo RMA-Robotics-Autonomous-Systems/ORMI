@@ -2,7 +2,7 @@ import { RosBridgeSuiteDataSourceSettings } from '../../rosbridge-suite-source';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 
 import { SelectedTopic, DatasourceTopic, DatasourceTopicFilter } from '@workspace/ormi-core/datasources';
-import { AsyncTopicControlType } from '@workspace/ormi-core/renderers';
+import { TopicSelectElement } from '@workspace/ormi-core/widgets';
 import { usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
 import { useButtonHolder } from '@workspace/ui/combined/ButtonHolder';
 import { Button } from '@workspace/ui/components/button';
@@ -294,18 +294,13 @@ export function WebRtcRos2Definition() {
         scope: "#/properties/title",
     }
 
-    const topic: AsyncTopicControlType = {
+    const topic: TopicSelectElement = {
         type: "TopicSelect",
         scope: "#/properties/topic",
         options: {
-            asyncFunction: async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({
-                    source_id: /(rosbridge-suite-source|foxglove-source)/,
-                    type: /Image/
-                }));
-            },
-            buffer: 1,
-            canSelectProperty: false,
+            dataRequirements: {
+                accepts: ['sensor_msgs/Image', 'sensor_msgs/CompressedImage', 'Image'] // Accept various image types
+            }
         }
     }
 

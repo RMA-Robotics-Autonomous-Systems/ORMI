@@ -5,7 +5,7 @@ import { useLocalDataSource } from '@workspace/ormi-core/datasources';
 import * as echarts from 'echarts';
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { SelectedTopic, DatasourceTopic, LocalDataSourcesProvider } from '@workspace/ormi-core/datasources';
-import { AsyncTopicControlType } from '@workspace/ormi-core/renderers';
+import { TopicSelectElement } from '@workspace/ormi-core/widgets';
 import { usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
 import { ChartLineIcon } from 'lucide-react';
 interface EchartsSeriesSettings {
@@ -156,8 +156,8 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
                 const sourceId = getSourceId(topic);
                 const source = getSource(topic);
                 if (!source) return;
-                const newData = source.data.map((value: number, index: number) => ({
-                    value,
+                const newData = source.data.map((value: unknown, index: number) => ({
+                    value: value as number,
                     time: source.times[index]! / 1000
                 })).filter(d => d.time > now - timeSpan);
                 dataBufferRef.current.set(sourceId, newData);
@@ -238,15 +238,13 @@ export function ChartEchartsWidgetDefinition() {
         type: "Control",
         scope: "#/properties/title",
     };
-    const seriesTopic: AsyncTopicControlType = {
+    const seriesTopic: TopicSelectElement = {
         type: "TopicSelect",
         scope: "#/properties/topic",
         options: {
-            asyncFunction: async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
-            },
-            propertyType: "number",
-            canSelectProperty: true,
+            dataRequirements: {
+                accepts: ['number']
+            }
         }
     };
     const seriesColor: ControlElement = {

@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { SelectedTopic, usePublisherDataSource, DatasourceTopic, DatasourceTopicFilter, PublisherDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { DigitalInput, DigitalComponent } from "@workspace/ui/combined/triggers";
@@ -199,13 +199,11 @@ export function CycleControlDefinition() {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number|boolean/ }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: false,
+                        dataRequirements: {
+                            accepts: ["number", "boolean"]
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 {
                     type: "Control",
                     scope: "#/properties/values",

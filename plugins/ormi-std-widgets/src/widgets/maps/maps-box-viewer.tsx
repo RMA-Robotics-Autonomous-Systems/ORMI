@@ -13,7 +13,7 @@ import MapsGrid, { GridUtils, useMapGrid } from "./maps-grid";
 
 import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
 import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { ButtonHolderProvider, useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
@@ -600,22 +600,18 @@ export function MapsBoxViewerDefinition() {
                                             type: "TopicSelect",
                                             scope: "#/properties/topic",
                                             options: {
-                                                asyncFunction: async () => {
-                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], topicFilter);
-                                                },
-                                                canSelectProperty: false,
-                                                buffer: 1
+                                                dataRequirements: {
+                                                    accepts: ['GeolocationPosition'] // Geolocation data for map positioning
+                                                }
                                             }
-                                        } as AsyncTopicControlType,
+                                        } as TopicSelectElement,
                                         {
                                             type: "TopicSelect",
                                             scope: "#/properties/numericalTopic",
                                             options: {
-                                                asyncFunction: async () => {
-                                                    return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number/ }));
-                                                },
-                                                canSelectProperty: false,
-                                                buffer: 200
+                                                dataRequirements: {
+                                                    accepts: ['number'] // Numerical data for heatmap visualization
+                                                }
                                             },
                                             rule: {
                                                 effect: "SHOW",
@@ -624,7 +620,7 @@ export function MapsBoxViewerDefinition() {
                                                     schema: { const: "heatmap" }
                                                 }
                                             }
-                                        } as AsyncTopicControlType
+                                        } as TopicSelectElement
                                     ]
                                 }
                             }

@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { SelectedTopic, useLocalDataSource, DatasourceTopic, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Button } from "@workspace/ui/components/button";
@@ -69,9 +69,9 @@ function JsonList(props: JsonListProps) {
                 const itemId = `0-${dataIndex}`;
 
                 let timestamp: string;
-                if (dataItem.timestamp) {
+                if ((dataItem as any)?.timestamp) {
                     // Use the item's own timestamp
-                    timestamp = dataItem.timestamp;
+                    timestamp = (dataItem as any).timestamp;
                 } else {
                     // Check if we already have a stable timestamp for this item
                     if (timestampMapRef.current.has(itemId)) {
@@ -225,14 +225,7 @@ export function JsonListDefinition(): WidgetDefinition {
                 {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
-                    options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
-                        },
-                        buffer: 1000,
-                        canSelectProperty: true,
-                    }
-                } as AsyncTopicControlType
+                } as TopicSelectElement
 
             ],
         } as VerticalLayout,

@@ -10,7 +10,7 @@ import {
 
 import { CompassIcon } from "lucide-react";
 import { SelectedTopic, useLocalDataSource, DatasourceTopic, DatasourceTopicFilter, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { IMU, Vector3 } from "@workspace/ormi-core/types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
@@ -135,13 +135,11 @@ export function HeadingDefinition() {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /IMU/ }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: false,
+                        dataRequirements: {
+                            accepts: ['IMU'] // Accept both webapp type and raw type patterns
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 {
                     type: "Control",
                     scope: "#/properties/orientationAxis",

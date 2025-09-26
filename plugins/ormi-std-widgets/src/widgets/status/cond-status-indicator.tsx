@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { SelectedTopic, useLocalDataSource, DatasourceTopic, DatasourceTopicFilter, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from 'react-type-animation';
@@ -24,7 +24,7 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
     const value = sources_keys.length > 0 ? sources.get(sources_keys[0]!)!.data[0] : 0;
 
     // Convert boolean to number if needed, or keep integer value
-    const parsedValue = typeof value === 'boolean' ? (value ? 1 : 0) : typeof value === 'number' ? value : parseInt(value);
+    const parsedValue = typeof value === 'boolean' ? (value ? 1 : 0) : typeof value === 'number' ? value : parseInt(value as string);
 
     // find the first status that match the condition
     const status = props.status.find((status) => {
@@ -151,13 +151,11 @@ export function CondStatusIndicatorDefinition() {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number|boolean/ }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: true,
+                        dataRequirements: {
+                            accepts: ["number", "boolean"]
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 {
                     type: "Control",
                     scope: "#/properties/status",

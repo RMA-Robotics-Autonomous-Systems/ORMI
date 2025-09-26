@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from '@jsonforms/core';
 import { SelectedTopic, useLocalDataSource, DatasourceTopic, LocalDataSourcesProvider } from '@workspace/ormi-core/datasources';
-import { AsyncTopicControlType } from '@workspace/ormi-core/renderers';
+import { TopicSelectElement } from '@workspace/ormi-core/widgets';
 import { usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
 import { getColorsFromString, getTransparentColorString } from '@workspace/utils';
 import { ChartLineIcon } from 'lucide-react';
@@ -111,7 +111,7 @@ export function TimeChartComponent(props: TimeSeriesSettings) {
                 if (!source) continue;
 
                 const newData = source.data.map((value, index) => ({
-                    value,
+                    value: value as number,
                     time: source.times[index]! / 1000
                 })).filter(d => d.time > now - timeSpan);
 
@@ -272,16 +272,13 @@ export function TimeSeriesChartDefinition() {
         }
     }
 
-    const topic: AsyncTopicControlType = {
+    const topic: TopicSelectElement = {
         "type": "TopicSelect",
         "scope": "#/properties/topic",
         "options": {
-            "asyncFunction": async () => {
-                return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
-            },
-            "propertyType": "number",
-            "canSelectProperty": true,
-
+            "dataRequirements": {
+                "accepts": ["number"]
+            }
         }
     }
 

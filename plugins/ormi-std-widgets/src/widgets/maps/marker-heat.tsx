@@ -63,7 +63,7 @@ export default function HeatMarker(props: { topic: SelectedTopic, name: string, 
                 if (bestMatch) {
                     // Extract numerical value (assuming it's either a direct number or has a value property)
                     associatedValue = typeof bestMatch === 'number' ? bestMatch :
-                        (bestMatch?.value || bestMatch?.data || 1);
+                        ((bestMatch as any)?.value || (bestMatch as any)?.data || 1);
                 }
             }
 

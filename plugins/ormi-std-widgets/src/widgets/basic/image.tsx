@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { useLocalDataSource, SelectedTopic, DatasourceTopic, DatasourceTopicFilter, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { Image } from "@workspace/ormi-core/types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
@@ -10,7 +10,7 @@ import { useEffect, useRef } from "react";
 function ImageViewer() {
     const { sources } = useLocalDataSource();
     const firstKey = Array.from(sources.keys())[0];
-    const image: Image | undefined = firstKey ? sources.get(firstKey)?.data[0] : undefined;
+    const image: Image | undefined = firstKey ? sources.get(firstKey)?.data[0] as Image : undefined;
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -109,15 +109,11 @@ export function ImageViewerDefinition(): WidgetDefinition {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({
-                                type: /Image/
-                            }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: true
+                        dataRequirements: {
+                            accepts: ['sensor_msgs/Image', 'sensor_msgs/CompressedImage'] // Accept various image types
+                        }
                     }
-                } as AsyncTopicControlType
+                } as TopicSelectElement
 
             ],
         } as VerticalLayout,

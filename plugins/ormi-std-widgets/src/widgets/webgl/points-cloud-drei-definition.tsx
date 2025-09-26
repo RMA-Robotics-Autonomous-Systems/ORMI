@@ -4,7 +4,7 @@ import { PointsCloudProps } from './types/points-cloud-drei-types';
 import { PointsCloudComp } from './components/points-cloud-drei-comp';
 import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
 import { DatasourceTopic, DatasourceTopicFilter, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 
 /**
  * Definition for the PointsCloudDrei widget with schema configuration
@@ -72,18 +72,14 @@ export function PointsCloudDreiDefinition() {
             elements: [
                 { type: "Control", scope: "#/properties/title" } as ControlElement,
                 {
-                    type: "TopicSelect", scope: "#/properties/topic", options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(
-                                PluginsHooks.AVAILABLE_TOPICS,
-                                [],
-                                new DatasourceTopicFilter({ type: /PointsCloud/ })
-                            );
-                        },
-                        buffer: 1,
-                        canSelectProperty: false,
+                    type: "TopicSelect",
+                    scope: "#/properties/topic",
+                    options: {
+                        dataRequirements: {
+                            accepts: ["PointsCloud"]
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 { type: "Control", scope: "#/properties/maxPoints" } as ControlElement,
                 { type: "Control", scope: "#/properties/updateRate" } as ControlElement,
                 { type: "Control", scope: "#/properties/pointSize" } as ControlElement,

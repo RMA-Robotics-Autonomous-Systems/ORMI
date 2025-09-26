@@ -1,10 +1,13 @@
 import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
-import AsyncTopicControl,{ asyncTopicTester } from "./topic-selector";
-
+import TopicSelectRenderer, {
+  topicSelectTester,
+} from "./topic-select-renderer";
 
 export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
-    { tester: asyncTopicTester, renderer: AsyncTopicControl },
+  // New topic selection renderer
+  { tester: topicSelectTester, renderer: TopicSelectRenderer },
 ];
 
-
-export * from "./topic-selector";
+// Export new system components
+export * from "./topic-select-renderer";
+export * from "./topic-selection";
