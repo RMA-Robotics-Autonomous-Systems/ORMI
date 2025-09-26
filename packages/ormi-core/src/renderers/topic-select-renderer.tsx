@@ -92,7 +92,6 @@ const TopicSelectRenderer = (props: ControlProps) => {
 
                 <div className="flex items-center gap-2 ml-2">
                     <Settings className="w-4 h-4" />
-                    <ChevronDown className="w-4 h-4" />
                 </div>
             </Button>
 
