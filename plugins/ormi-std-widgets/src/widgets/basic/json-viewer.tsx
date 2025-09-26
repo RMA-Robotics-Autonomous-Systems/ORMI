@@ -1,6 +1,6 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { useLocalDataSource, SelectedTopic, DatasourceTopic, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { FileIcon } from "lucide-react";
@@ -57,14 +57,7 @@ export function JsonViewerDefinition(): WidgetDefinition {
                 {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
-                    options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, []);
-                        },
-                        buffer: 1,
-                        canSelectProperty: true
-                    }
-                } as AsyncTopicControlType
+                } as TopicSelectElement
 
             ],
         } as VerticalLayout,

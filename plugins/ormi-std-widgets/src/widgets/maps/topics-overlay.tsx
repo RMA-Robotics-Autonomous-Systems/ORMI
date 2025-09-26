@@ -38,8 +38,9 @@ export function TopicListOverlay({ topics, mapRef }: {
                 // For heatmap and path, calculate bounds of all points
                 const coordinates: [number, number][] = [];
 
-                data.data.forEach((item: GeolocationPosition) => {
-                    coordinates.push([item.coords.longitude, item.coords.latitude]);
+                data.data.forEach((item: unknown) => {
+                    const geoItem = item as GeolocationPosition;
+                    coordinates.push([geoItem.coords.longitude, geoItem.coords.latitude]);
                 });
 
                 if (coordinates.length === 1) {

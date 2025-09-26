@@ -5,7 +5,7 @@ import { DigitalComponent, DigitalInput } from "@workspace/ui/combined/triggers"
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 
 interface BtnControlData {
     title: string;
@@ -87,13 +87,11 @@ export function BtnControlDefinition() {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /number|boolean/ }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: false,
+                        dataRequirements: {
+                            accepts: ['number', 'boolean'] // Accept primitive types for button control
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 {
                     type: "Control",
                     scope: "#/properties/value",

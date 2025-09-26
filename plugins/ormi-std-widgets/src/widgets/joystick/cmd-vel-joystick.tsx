@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { GamepadIcon, LockIcon, UnlockIcon, GaugeIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { SelectedTopic, usePublisherDataSource, DatasourceTopic, DatasourceTopicFilter, PublisherDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { AsyncTopicControlType } from "@workspace/ormi-core/renderers";
+import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { Movement } from "@workspace/ormi-core/types";
 import { axisControlType, KeyControlType } from "@workspace/ormi-jsonforms";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
@@ -422,13 +422,11 @@ export function JoypadControlsDefinition() {
                     type: "TopicSelect",
                     scope: "#/properties/topic",
                     options: {
-                        asyncFunction: async () => {
-                            return await pluginsManager.applyFilterAsync<DatasourceTopic[]>(PluginsHooks.AVAILABLE_TOPICS, [], new DatasourceTopicFilter({ type: /Movement/ }));
-                        },
-                        buffer: 1,
-                        canSelectProperty: false,
+                        dataRequirements: {
+                            accepts: ['Movement'] // Accept movement/velocity commands
+                        }
                     }
-                } as AsyncTopicControlType,
+                } as TopicSelectElement,
                 {
                     type: "Control",
                     scope: "#/properties/publicationFrequency",

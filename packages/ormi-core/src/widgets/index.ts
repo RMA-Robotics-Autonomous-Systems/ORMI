@@ -1,4 +1,5 @@
 export type * from "./widget-interface";
+export * from "./topic-compatibility";
 
 export * from "./components/widget-card/widget-card";
 export * from "./components/widget-combo/widget-combo";

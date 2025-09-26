@@ -21,15 +21,15 @@ const createTopicKey = (selectedTopic: SelectedTopic): string => {
 };
 
 interface LocalDataSources {
-    sources: Map<string, Source<any>>;
-    getSource: (topic: SelectedTopic) => Source<any> | undefined;
+    sources: Map<string, Source>;
+    getSource: (topic: SelectedTopic) => Source | undefined;
     getSourceId: (topic: SelectedTopic) => string;
 }
 
-interface Source<T> {
-    data: T[];
+interface Source {
+    data: unknown[];
     times: number[];
-    referenceFrameId: string;   // reference frame id, used to identify the reference frame of the data
+    referenceFrameId: string;
 }
 
 interface LocalDataSourcesProviderProps {
@@ -40,7 +40,7 @@ interface LocalDataSourcesProviderProps {
 }
 
 const LocalDataSourcesContext = createContext<LocalDataSources>({
-    sources: new Map<string, Source<any>>(),
+    sources: new Map<string, Source>(),
     getSource: () => undefined,
     getSourceId: () => ""
 });
@@ -48,7 +48,7 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     const { children, SelectedTopics, buffersSize, updateFrequency = 30 } = props;
 
-    const [sources, setSources] = useState<Map<string, Source<any>>>(new Map<string, Source<any>>());
+    const [sources, setSources] = useState<Map<string, Source>>(new Map<string, Source>());
     // Store pendingUpdates in useRef to persist between renders but not trigger re-renders
     const pendingUpdatesRef = useRef<Map<string, { value: any, time: number, referenceFrameId: string }>>(
         new Map<string, { value: any, time: number, referenceFrameId: string }>()
@@ -57,7 +57,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     const pendingUpdates = pendingUpdatesRef.current;
 
     // Create getSource function that uses the new key generation
-    const getSource = (topic: SelectedTopic): Source<any> | undefined => {
+    const getSource = (topic: SelectedTopic): Source | undefined => {
         const key = createTopicKey(topic);
         return sources.get(key);
     };
@@ -88,7 +88,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
         // Initialize the sources map with empty sources for all topics
         setSources(prevSources => {
-            const newSources = new Map<string, Source<any>>();
+            const newSources = new Map<string, Source>();
 
             // Initialize empty sources for all topics
             Topics.forEach(topic => {
@@ -108,7 +108,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                 return data;
             }
 
-            const properties = property.split('-');
+            const properties = property.split('.');
 
             let value = data;
             for (const prop of properties) {
@@ -130,7 +130,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
             setSources(prevSources => {
                 // Create a completely new Map to ensure React detects the state change
-                const newSources = new Map<string, Source<any>>();
+                const newSources = new Map<string, Source>();
 
                 // First copy all existing sources
                 prevSources.forEach((source, key) => {
