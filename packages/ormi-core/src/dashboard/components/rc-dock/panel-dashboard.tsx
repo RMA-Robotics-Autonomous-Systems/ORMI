@@ -165,6 +165,7 @@ const PanelDashboard = () => {
             return {
                 id: widget.box_id,
                 title: createCustomTitle(widget),
+                cached: true,
                 content: content,
                 closable: !locked,
             };
@@ -249,6 +250,7 @@ const PanelDashboard = () => {
                 id: widgetBoxId,
                 title: createCustomTitle(widget),
                 content: content,
+                cached: true,
                 closable: true,
             };
 
