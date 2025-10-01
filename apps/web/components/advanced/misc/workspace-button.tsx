@@ -15,12 +15,15 @@ import { Label } from "@workspace/ui/components/label"
 
 
 
+const DASHBOARD_TYPES = ["GRID", "PANEL"];
+
 export function CreateWSButton() {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [open, setOpen] = React.useState<boolean>(false)
     const [workspaceName, setWorkspaceName] = React.useState<string>("")
     const { data: session } = useSession();
+    const [dashboardType, setDashboardType] = React.useState<string | undefined>(DASHBOARD_TYPES[0]);
 
     function handleOpenDialog() {
         if (!session?.user?.id) {
@@ -42,6 +45,7 @@ export function CreateWSButton() {
                 body: JSON.stringify({
                     title: workspaceName,
                     userId: session!.user.id,
+                    dashboardType,
                 }),
             })
 
@@ -79,18 +83,35 @@ export function CreateWSButton() {
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreateWorkspace}>
-                    <div className="flex items-center gap-4 mb-3">
-                        <Label htmlFor="workspace-name" className="text-right">
-                            Name
-                        </Label>
-                        <Input
-                            id="workspace-name"
-                            value={workspaceName}
-                            placeholder="Workspace Name"
-                            onChange={(e) => setWorkspaceName(e.target.value)}
-                            className="col-span-3"
-                            autoFocus
-                        />
+                    <div className="flex flex-col gap-4 mb-3">
+                        <div className="flex items-center gap-4">
+                            <Label htmlFor="workspace-name" className="text-right">
+                                Name
+                            </Label>
+                            <Input
+                                id="workspace-name"
+                                value={workspaceName}
+                                placeholder="Workspace Name"
+                                onChange={(e) => setWorkspaceName(e.target.value)}
+                                className="col-span-3"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <Label htmlFor="dashboard-type" className="text-right">
+                                Dashboard Type
+                            </Label>
+                            <select
+                                id="dashboard-type"
+                                value={dashboardType}
+                                onChange={e => setDashboardType(e.target.value)}
+                                className="col-span-3 border rounded px-2 py-1"
+                            >
+                                {DASHBOARD_TYPES.map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button
