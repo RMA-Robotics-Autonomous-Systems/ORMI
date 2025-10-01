@@ -4,22 +4,26 @@ import React, { createContext, useContext, ReactNode, useEffect, useReducer, JSX
 import { DashboardInterface } from '../dashboard-interface';
 import { Widget, WidgetDefinition } from '../../widgets/widget-interface';
 import { PluginsManager, usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
-import { Layout, Layouts } from 'react-grid-layout';
 import { widgetNotFound } from '../../widgets/components/widget-not-found';
 import { Datasource, DatasourceDefinition, DatasourceProviderSettings, DatasourceTopic, DatasourceTopicFilter } from '../../datasources/datasource-interface';
 import { Spinner } from '@workspace/ui/components/spinner';
 import { toast } from 'sonner';
 
 // Simple hash function for dashboard state
-const hashDashboardState = (layouts: Layouts, widgets: Map<string, Widget>, datasources: Map<string, Datasource>, locked: boolean): string => {
+const hashDashboardState = (layouts: Record<string, any>, widgets: Map<string, Widget>, datasources: Map<string, Datasource>, locked: boolean): string => {
     const state = {
-        layouts: Object.fromEntries(Object.entries(layouts)),
+        layouts: layouts,
         widgets: Object.fromEntries(widgets),
         datasources: Object.fromEntries(datasources),
         locked
     };
 
     const stateString = JSON.stringify(state, (key, value) => {
+        // Skip circular reference properties that RC-Dock uses internally
+        if (key === 'parent' || key === '_owner' || key === '_store') {
+            return undefined;
+        }
+
         // Ensure consistent ordering for objects
         if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
             const ordered: any = {};
@@ -43,12 +47,11 @@ const hashDashboardState = (layouts: Layouts, widgets: Map<string, Widget>, data
 };
 
 interface DashboardContextInterface {
-    layouts: Layouts;
+    layouts: Record<string, any>;
     widgets: Map<string, Widget>;
 
     getComponents: (boxId: string) => JSX.Element;
     getDefinition: (widget_id: string) => WidgetDefinition;
-    getBox: (breakpoint: string, boxId: string) => Layout | undefined;
 
     addWidget: (widget: WidgetDefinition, settings: any) => void;
     removeWidget: (box_id: string) => void;
@@ -57,7 +60,6 @@ interface DashboardContextInterface {
     lockUnLockDashboard(): void;
     locked: boolean;
 
-    layoutsChanged: (newLayouts: Layouts) => void;
     savesDashboard: () => void;
     hasChanged: boolean;
     forceReload: boolean;
@@ -72,17 +74,10 @@ interface DashboardContextInterface {
 
 // Create the context with a default value
 const DashboardContext = createContext<DashboardContextInterface>({
-    layouts: {
-        lg: [],
-        md: [],
-        sm: [],
-        xs: [],
-        xxs: []
-    },
+    layouts: {},
     widgets: new Map<string, Widget>(),
 
     getComponents: () => <></>,
-    getBox: () => { throw new Error("Method not implemented."); },
     getDefinition: () => { throw new Error("Method not implemented."); },
     addWidget: () => { },
     removeWidget: () => { },
@@ -91,7 +86,6 @@ const DashboardContext = createContext<DashboardContextInterface>({
     lockUnLockDashboard: () => { },
     locked: false,
 
-    layoutsChanged: () => { },
     savesDashboard: () => { },
     hasChanged: false,
     forceReload: false,
@@ -151,11 +145,32 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const { children, dashboardType, dashboardDefinition, OnLoad, OnSave } = props;
     const pluginsManager = usePluginsManager() as PluginsManager;
     const availableWidgets: WidgetDefinition[] = pluginsManager.applyFilter<WidgetDefinition[]>(PluginsHooks.WIDGETS_LIST, []);
+    const availableDatasources: DatasourceDefinition[] = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
 
     const [state, dispatch] = useReducer(dashboardReducer, initialStateFromDefinition(dashboardDefinition));
     const [hasChanged, setHasChanged] = React.useState<boolean>(false);
     const [initialized, setInitialized] = React.useState(false);
     const [initialHash, setInitialHash] = React.useState<string>("");
+
+    // PluginsManager topic filter (restored from old provider)
+    useEffect(() => {
+        pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
+            id: "dashboard-available-topics",
+            priority: Infinity,
+            filter: async (topics: DatasourceTopic[], filter?: DatasourceTopicFilter) => {
+                if (!filter) return topics;
+                const filteredTopics = topics.filter((topic) => filter.filter(topic));
+                if (filteredTopics.length === 0) {
+                    const diagnostic = { topics, filter };
+                    console.warn("No topics found for the filter", diagnostic);
+                }
+                return filteredTopics;
+            }
+        });
+        return () => {
+            pluginsManager.removeFilter("dashboard-available-topics");
+        };
+    }, [pluginsManager]);
 
     // Load initial state from persistence
     useEffect(() => {
@@ -173,10 +188,9 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             const currentHash = hashDashboardState(state.layouts, state.widgets, state.datasources, state.locked);
             if (!initialHash) setInitialHash(currentHash);
             setHasChanged(currentHash !== initialHash);
-            console.log("Dashboard state hash:", currentHash, "Initial hash:", initialHash, "Has changed:", currentHash !== initialHash);
+            // console.log("Dashboard state hash:", currentHash, "Initial hash:", initialHash, "Has changed:", currentHash !== initialHash);
         }
     }, [state, initialized, initialHash]);
-
 
     // Helper: getComponents
     const getComponents = (boxId: string) => {
@@ -187,7 +201,8 @@ const DashboardProvider = (props: DashboardProviderProps) => {
                 return widgetDefinition.Component(widget.settings);
             }
         }
-        return widgetNotFound.Component(["Widget not found", boxId]);
+        console.error("Widget not found for boxId:", boxId);
+        return widgetNotFound.Component([<p>Widget not found</p>, boxId]);
     };
 
     // Helper: getDefinition
@@ -198,7 +213,6 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         }
         return widgetNotFound;
     };
-
 
     // Generic widget CRUD helpers
     const addWidget = (widget: WidgetDefinition, settings: any) => {
@@ -240,14 +254,25 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         }
     };
 
-    // Generic datasource CRUD helpers
+    // Datasource CRUD helpers (restored logic)
     const addDatasource = (datasource_id: string, settings?: DatasourceProviderSettings) => {
         const newDatasources = new Map(state.datasources);
+        const datasourceDef = availableDatasources.find((datasource) => datasource.id === datasource_id);
+        if (!datasourceDef) {
+            throw new Error(`Datasource ${datasource_id} not found`);
+        }
         const id = `datasource_${newDatasources.size}_${Date.now()}`;
         const datasource = {
-            datasource_id,
+            datasource_id: datasource_id,
             title: settings?.title || "New Datasource",
-            settings: settings ? { ...settings, id } : { id, title: "New Datasource" },
+            settings: settings ? {
+                ...settings,
+                id: id
+            } : {
+                ...datasourceDef.data,
+                id: id,
+                title: "New Datasource"
+            }
         } as Datasource;
         newDatasources.set(id, datasource);
         dispatch({ type: "SET_DATASOURCES", payload: newDatasources });

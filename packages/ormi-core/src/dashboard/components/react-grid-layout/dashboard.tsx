@@ -28,7 +28,10 @@ import { useDashboardManager } from "../dashboard-provider";
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, addWidget, layouts, dispatch, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, forceReload, setForceReload, datasources, addDatasource } = useDashboardManager();
+    const { widgets, updateWidget, removeWidget, addWidget, layouts, dispatch, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, forceReload, datasources, addDatasource } = useDashboardManager();
+
+    // Cast generic layouts to react-grid-layout format
+    const gridLayouts = layouts as Layouts;
 
     // Local state for compactType (vertical/horizontal)
     const [compactType, setCompactType] = useState<"vertical" | "horizontal" | null>(null);
@@ -102,7 +105,7 @@ const Dashboard = () => {
         if (width < breakpoints.sm) breakpoint = "xs";
         if (width < breakpoints.xs) breakpoint = "xxs";
 
-        const new_layouts = { ...layouts };
+        const new_layouts = { ...gridLayouts };
         const row_size_px = 30;
         const max_number_of_rows = (typeof window !== "undefined" ? (window.innerHeight * 0.9) : 900) / row_size_px;
         const optimalMatrix = getOptimalMatrix(breakpoint, widgets.size);
@@ -215,7 +218,7 @@ const Dashboard = () => {
     const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive) as unknown as React.FC<any>, [forceReload]);  // (improve performance from 'doc', also, juste make it works)
 
     const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
-        if (JSON.stringify(layouts) !== JSON.stringify(allLayouts)) {
+        if (JSON.stringify(gridLayouts) !== JSON.stringify(allLayouts)) {
             layoutsChanged({ ...allLayouts });
         }
     }
@@ -228,11 +231,8 @@ const Dashboard = () => {
         addWidget(widget, settings);
     }
 
-    const handleSaveWidget = (widget: WidgetDefinition, settings: object) => {
-        // Find the box_id for the widget if needed, or handle as appropriate for your logic
-        // If adding a new widget, use addWidget; if updating, use updateWidget
-        // For now, assume adding a new widget
-        addWidget(widget, settings);
+    const handleSaveWidget = (box_id: string, widget: WidgetDefinition, settings: object) => {
+        updateWidget(box_id, settings);
     }
     // Navbar setup
     useEffect(() => {
@@ -336,7 +336,7 @@ const Dashboard = () => {
             removeNavbarItem("center", "exploseLayout");
             removeNavbarItem("center", "save");
         }
-    }, [locked, hasChanged, layouts, widgets]);
+    }, [locked, hasChanged, gridLayouts, widgets]);
 
 
     const widgets_elements = useMemo(() => {
@@ -352,7 +352,7 @@ const Dashboard = () => {
 
                                     <ButtonHolder />
 
-                                    {!locked && (<WidgetCard fromLoaded={true} data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={handleSaveWidget} />)}
+                                    {!locked && (<WidgetCard fromLoaded={true} data={widget.settings} definition={getDefinition(widget.widget_id)} displayType="gear" onValidate={(widget_def, settings) => { handleSaveWidget(widget.box_id, widget_def, settings) }} />)}
 
                                     {!locked && (<Button variant="destructive" onClick={() => handleRemoveBoxClick(widget.box_id)}>
                                         <XIcon />
@@ -375,7 +375,7 @@ const Dashboard = () => {
             className="layout"
             useCSSTransforms={true}
             margin={[2, 2]}
-            layouts={layouts}
+            layouts={gridLayouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             draggableHandle={`.drag-handle`}
