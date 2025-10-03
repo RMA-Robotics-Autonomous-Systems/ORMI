@@ -83,12 +83,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                 const sourceId = `custom-layer-${index}`;
                 const layerId = `custom-layer-${index}`;
 
-                console.log(`Processing custom layer ${index}:`, {
-                    name: layer.name,
-                    url: layer.url,
-                    opacity: layer.opacity,
-                    visible: layer.visible
-                });
 
                 // Determine source type based on URL
                 if (layer.url.startsWith('cog://')) {
@@ -97,7 +91,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         type: 'raster',
                         url: layer.url
                     };
-                    console.log(`Created COG source: ${sourceId}`);
                 } else if (layer.url.includes('{z}') && layer.url.includes('{x}') && layer.url.includes('{y}')) {
                     // Standard tile template - fix TiTiler URL format
                     let tileUrl = layer.url;
@@ -111,14 +104,12 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         tiles: [tileUrl],
                         tileSize: 256
                     };
-                    console.log(`Created tile source: ${sourceId}`, customSources[sourceId]);
                 } else {
                     // Assume it's a single image or GeoTIFF
                     customSources[sourceId] = {
                         type: 'raster',
                         url: layer.url
                     };
-                    console.log(`Created raster source: ${sourceId}`);
                 }
 
                 customLayersData.push({
@@ -130,12 +121,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     }
                 });
 
-                console.log(`Created layer: ${layerId}`);
             }
         });
-
-        console.log('Custom sources:', customSources);
-        console.log('Custom layers:', customLayersData);
 
         const baseStyle: StyleSpecification = {
             version: 8,
@@ -253,7 +240,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
             setRasterStyle(baseStyle);
         }
 
-        console.log('Final MapLibre style:', baseStyle);
         setIsLoading(false);
 
         if (typeof window !== 'undefined' && navigator.geolocation) {
