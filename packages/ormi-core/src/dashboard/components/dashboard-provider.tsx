@@ -57,6 +57,8 @@ interface DashboardContextInterface {
     removeWidget: (box_id: string) => void;
     updateWidget: (box_id: string, settings: any) => void;
 
+    updateLayouts: (newLayouts: Record<string, any>) => void;
+
     lockUnLockDashboard(): void;
     locked: boolean;
 
@@ -83,6 +85,8 @@ const DashboardContext = createContext<DashboardContextInterface>({
     removeWidget: () => { },
     updateWidget: () => { },
 
+    updateLayouts: (newLayouts: Record<string, any>) => { },
+
     lockUnLockDashboard: () => { },
     locked: false,
 
@@ -96,11 +100,6 @@ const DashboardContext = createContext<DashboardContextInterface>({
     removeDatasource: () => { },
     dispatch: () => { throw new Error("Dispatch not implemented."); }
 });
-
-interface LayoutMatrix {
-    cols: number,
-    rows: number
-}
 
 interface DashboardProviderProps {
     children: ReactNode;
@@ -254,6 +253,10 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         }
     };
 
+    const updateLayouts = (newLayouts: Record<string, any>) => {
+        dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
+    };
+
     // Datasource CRUD helpers (restored logic)
     const addDatasource = (datasource_id: string, settings?: DatasourceProviderSettings) => {
         const newDatasources = new Map(state.datasources);
@@ -296,23 +299,40 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     };
 
     // Save dashboard state
-    const savesDashboard = () => {
+    const savesDashboard = async () => {
         if (!hasChanged) {
             toast("No changes to save");
             return;
         }
-        const newDashboard = {
-            layouts: state.layouts,
-            widgets: state.widgets,
-            datasources: state.datasources,
-            locked: state.locked,
-        };
-        OnSave(newDashboard);
-        toast("Dashboard saved successfully");
 
-        const currentHash = hashDashboardState(state.layouts, state.widgets, state.datasources, state.locked);
-        setInitialHash(currentHash);
-        setHasChanged(false);
+        // Force React to give us the most current state by using a functional update
+        // This ensures all batched SET_LAYOUTS updates are processed
+        let latestState = state;
+        dispatch((currentState: any) => {
+            latestState = currentState;
+            return currentState; // No actual change, just capture the latest state
+        });
+
+        const newDashboard = {
+            layouts: latestState.layouts,
+            widgets: latestState.widgets,
+            datasources: latestState.datasources,
+            locked: latestState.locked,
+        };
+
+        try {
+            const success = await OnSave(newDashboard);
+            if (success) {
+                const currentHash = hashDashboardState(state.layouts, state.widgets, state.datasources, state.locked);
+                setInitialHash((prev) => currentHash);
+                setHasChanged(false);
+            } else {
+                toast("Failed to save dashboard");
+            }
+        } catch (error) {
+            console.error("Save error:", error);
+            toast("Failed to save dashboard");
+        }
     };
 
     // Lock/unlock dashboard
@@ -331,6 +351,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         addWidget,
         removeWidget,
         updateWidget,
+        updateLayouts,
         addDatasource,
         removeDatasource,
         updateDatasource,
