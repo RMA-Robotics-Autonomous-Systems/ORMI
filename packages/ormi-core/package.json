@@ -41,7 +41,8 @@
       "types": "./dist/transforms/index.d.ts",
       "import": "./dist/transforms/index.js"
     },
-    "./rc-dock-theme.css": "./src/dashboard/components/rc-dock/rc-dock-theme.css"
+    "./rc-dock-theme.css": "./src/dashboard/components/rc-dock/rc-dock-theme.css",
+    "./flex-layout-theme.css": "./src/dashboard/components/flex-layout/flex-layout-theme.css"
   },
   "scripts": {
     "build": "tsc && copyfiles -u 1 \"src/**/*.css\" dist && tsc-alias -p tsconfig.json",
@@ -64,6 +65,7 @@
     "@workspace/ormi-jsonforms": "workspace:*",
     "@workspace/ormi-plugins": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "flexlayout-react": "^0.8.17",
     "lucide-react": "^0.523.0",
     "rc-dock": "^4.0.0-alpha.2",
     "react-grid-layout": "^1.5.2",
