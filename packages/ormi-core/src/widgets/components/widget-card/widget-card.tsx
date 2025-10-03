@@ -33,6 +33,8 @@ interface WidgetCardProps {
     data?: any;
     onValidate: (widget: WidgetDefinition, settings: object) => void;
     fromLoaded?: boolean;
+    isDialogOpen?: boolean;
+    onDialogClose?: () => void;
 }
 
 
@@ -114,10 +116,13 @@ export function WidgetCard(props: WidgetCardProps) {
     ]
 
     return (
-        <Dialog>
-            <DialogTrigger asChild>
-                {getButton()}
-            </DialogTrigger>
+        <Dialog open={props.isDialogOpen} onOpenChange={props.onDialogClose}>
+            {/* Only render trigger if not in controlled mode */}
+            {!props.isDialogOpen && (
+                <DialogTrigger asChild>
+                    {getButton()}
+                </DialogTrigger>
+            )}
             <DialogContent size="medium">
                 <DialogHeader>
                     <DialogTitle>{props.definition.name}</DialogTitle>
