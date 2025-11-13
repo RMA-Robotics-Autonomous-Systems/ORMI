@@ -30,7 +30,7 @@ export function BagViewer({ bag, trigger }: BagViewerProps) {
             <DialogTrigger asChild>
                 {trigger || <Button variant="outline">View Bag Details</Button>}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[800px] max-h-[80dvh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Bag Information</DialogTitle>
                     <DialogDescription>

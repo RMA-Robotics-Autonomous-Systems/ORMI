@@ -35,12 +35,15 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
     const { setButtonItem, removeButtonItem } = useButtonHolder();
 
+    // Extract stable values for effect dependencies
     const host = getHostFromWSUrl(ros2Definition.url);
-    const topic = props.topic.topic;
+    const topicName = props.topic.topic;
+    const iceServersUrls = props.iceServersUrls;
 
     const [rotation, setRotation] = React.useState(0);
     const [connectionStatus, setConnectionStatus] = React.useState('connecting');
 
+    // WebRTC connection effect - only reconnect when connection parameters change
     useEffect(() => {
         // Reset cleanup flag
         cleanupRef.current = false;
@@ -53,7 +56,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
         }
 
         const pc = new RTCPeerConnection({
-            iceServers: props.iceServersUrls?.map((url) => ({ urls: url })) || [
+            iceServers: iceServersUrls?.map((url) => ({ urls: url })) || [
                 { urls: 'stun:stun.l.google.com:19302' }
             ]
         });
@@ -169,14 +172,14 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
                     return;
                 }
 
-                console.log(`Sending offer to http://${host}:8080/offer for topic: ${topic}`);
+                console.log(`Sending offer to http://${host}:8080/offer for topic: ${topicName}`);
 
                 const response = await fetch(`http://${host}:8080/offer`, {
                     method: 'POST',
                     body: JSON.stringify({
                         sdp: pc.localDescription?.sdp,
                         type: pc.localDescription?.type,
-                        topic: topic,
+                        topic: topicName,
                     }),
                     headers: {
                         'Content-Type': 'application/json',
@@ -214,6 +217,19 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
         negotiate();
 
+        return () => {
+            console.log('Cleaning up WebRTC connection');
+            cleanupRef.current = true;
+
+            if (pcRef.current) {
+                pcRef.current.close();
+                pcRef.current = null;
+            }
+        };
+    }, [host, topicName, iceServersUrls]); // Only reconnect when these specific values change
+
+    // Button registration effect - separate from WebRTC connection
+    useEffect(() => {
         setButtonItem("webrtc-viewer-widget-rotate-ccw",
             <Button variant={"ghost"} onClick={() => { setRotation((r) => (r - 90) % 360) }}>
                 <RotateCcw />
@@ -227,18 +243,10 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
         );
 
         return () => {
-            console.log('Cleaning up WebRTC connection');
-            cleanupRef.current = true;
-
             removeButtonItem("webrtc-viewer-widget-rotate-cw");
             removeButtonItem("webrtc-viewer-widget-rotate-ccw");
-
-            if (pcRef.current) {
-                pcRef.current.close();
-                pcRef.current = null;
-            }
         };
-    }, [props]);
+    }, []); // Buttons only need to be registered once
 
     return (
         <div>

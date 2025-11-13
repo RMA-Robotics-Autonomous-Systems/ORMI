@@ -104,6 +104,44 @@
         max-height: 80dvh;
     }
 
+    .max-h-\[85dvh\] {
+        max-height: 85dvh;
+    }
+
+    .max-h-\[90dvh\] {
+        max-height: 90dvh;
+    }
+
+    .max-h-\[300px\] {
+        max-height: 300px;
+    }
+
+    .max-h-\[200px\] {
+        max-height: 200px;
+    }
+
+    /* Common max-width utilities */
+    .max-w-\[420px\] {
+        max-width: 420px;
+    }
+
+    .max-w-\[550px\] {
+        max-width: 550px;
+    }
+
+    .max-w-\[800px\] {
+        max-width: 800px;
+    }
+
+    /* Height calculation utilities */
+    .h-\[calc\(100vh-3rem\)\] {
+        height: calc(100vh - 3rem);
+    }
+
+    .h-\[calc\(100\%-1px\)\] {
+        height: calc(100% - 1px);
+    }
+
     /* Responsive minimum height utilities for small containers */
     .min-h-\[2rem\] {
         min-height: 2rem;

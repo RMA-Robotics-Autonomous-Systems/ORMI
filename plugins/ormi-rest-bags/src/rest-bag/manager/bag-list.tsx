@@ -253,13 +253,13 @@ const BagList = (props: BagListProps) => {
     );
 
     return (
-        <div className="flex flex-col gap-3 p-2" style={{ height: '100%', overflow: 'auto' }}>
+        <div className="flex flex-col gap-2 sm:gap-3 p-1 sm:p-2" style={{ height: '100%', overflow: 'auto' }}>
             <div className="relative">
                 <Input
                     placeholder="Search bags..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 text-sm"
                 />
             </div>
 
@@ -283,37 +283,39 @@ const BagList = (props: BagListProps) => {
                 return (
                     <Card key={bag.name} className="shadow-sm">
                         <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                                <CardTitle>{bag.name}</CardTitle>
-                                <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                <CardTitle className="text-sm sm:text-base break-all">{bag.name}</CardTitle>
+                                <div className="flex flex-wrap gap-1 sm:gap-2">
                                     {deleteConfirm === bag.name ? (
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm text-red-500">Confirm?</span>
+                                        <div className="flex items-center space-x-1 sm:space-x-2">
+                                            <span className="text-xs sm:text-sm text-red-500">Confirm?</span>
                                             <Button
                                                 onClick={() => handleDelete(bag.name)}
                                                 variant="destructive"
-                                                size="icon"
+                                                size="sm"
+                                                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                             >
-                                                <Check size={18} />
+                                                <Check size={14} />
                                             </Button>
                                             <Button
                                                 onClick={() => setDeleteConfirm(null)}
                                                 variant="outline"
-                                                size="icon"
+                                                size="sm"
+                                                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                             >
-                                                <X size={18} />
+                                                <X size={14} />
                                             </Button>
                                         </div>
                                     ) : (
-                                        <>
+                                        <div className="flex flex-wrap gap-1 sm:gap-2">
                                             <BagPlayer
                                                 bag={bag}
                                                 datasource_id={props.datasource_id}
                                                 title={props.title}
                                             />
                                             <BagViewer bag={bag} trigger={
-                                                <Button variant="outline" title="View bag details" size="icon">
-                                                    <InfoIcon />
+                                                <Button variant="outline" title="View bag details" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                                    <InfoIcon size={14} />
                                                 </Button>
                                             } />
 
@@ -321,7 +323,8 @@ const BagList = (props: BagListProps) => {
                                             <Button
                                                 onClick={() => handleDownload(bag.name)}
                                                 variant="outline"
-                                                size="icon"
+                                                size="sm"
+                                                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                                                 title={
                                                     downloadState.status === 'idle' ? "Download bag with compression" :
                                                         downloadState.status === 'checking' ? "Checking compression status..." :
@@ -334,22 +337,22 @@ const BagList = (props: BagListProps) => {
                                                 disabled={downloadState.status !== 'idle' && downloadState.status !== 'error'}
                                             >
                                                 {downloadState.status === 'checking' || downloadState.status === 'compressing' || downloadState.status === 'downloading' ? (
-                                                    <Loader2 className="animate-spin" size={18} />
+                                                    <Loader2 className="animate-spin" size={14} />
                                                 ) : (
-                                                    <Download size={18} />
+                                                    <Download size={14} />
                                                 )}
                                             </Button>
 
                                             <Button
                                                 onClick={() => setDeleteConfirm(bag.name)}
                                                 variant="outline"
-                                                size="icon"
-                                                className="text-red-600 hover:bg-red-100"
+                                                size="sm"
+                                                className="text-red-600 hover:bg-red-100 h-7 w-7 sm:h-8 sm:w-8 p-0"
                                                 title="Delete bag"
                                             >
-                                                <Trash2 size={18} />
+                                                <Trash2 size={14} />
                                             </Button>
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -357,35 +360,35 @@ const BagList = (props: BagListProps) => {
                         <CardContent>
                             {downloadState.status === 'error' && downloadState.error && (
                                 <Alert variant="destructive" className="mb-3">
-                                    <AlertDescription>{downloadState.error}</AlertDescription>
+                                    <AlertDescription className="text-xs sm:text-sm">{downloadState.error}</AlertDescription>
                                 </Alert>
                             )}
                             {downloadState.status === 'compressing' && (
                                 <Alert className="mb-3">
-                                    <AlertDescription>
+                                    <AlertDescription className="text-xs sm:text-sm">
                                         Compressing bag... {downloadState.progress || 0}%
                                     </AlertDescription>
                                 </Alert>
                             )}
                             {downloadState.status === 'downloading' && (
                                 <Alert className="mb-3">
-                                    <AlertDescription>
+                                    <AlertDescription className="text-xs sm:text-sm">
                                         Starting download... Check your browser's download manager for progress.
                                     </AlertDescription>
                                 </Alert>
                             )}
 
-                            <div className="flex gap-2 justify-between">
-                                <div className="text-sm">
+                            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-2">
+                                <div className="text-xs sm:text-sm min-w-0 flex-1">
                                     <div className="flex flex-col gap-1">
-                                        <div><span className="font-medium text-gray-600">Path:</span> {bag.path}</div>
-                                        <div><span className="font-medium text-gray-600">Start:</span> {formatDateTime(bag.meta.starting_time)}</div>
+                                        <div className="truncate"><span className="font-medium text-gray-600">Path:</span> <span className="break-all">{bag.path}</span></div>
+                                        <div><span className="font-medium text-gray-600">Start:</span> <span className="break-all">{formatDateTime(bag.meta.starting_time)}</span></div>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 text-sm">
-                                    <Badge variant="outline">{formatDuration(bag.meta.duration)}</Badge>
-                                    <Badge variant="outline">{bag.meta.message_count} messages</Badge>
-                                    <Badge variant="outline">{bag.meta.topics_with_message_count.length} topics</Badge>
+                                <div className="flex flex-wrap gap-1 sm:gap-2 justify-start sm:justify-end">
+                                    <Badge variant="outline" className="text-xs">{formatDuration(bag.meta.duration)}</Badge>
+                                    <Badge variant="outline" className="text-xs">{bag.meta.message_count} messages</Badge>
+                                    <Badge variant="outline" className="text-xs">{bag.meta.topics_with_message_count.length} topics</Badge>
                                 </div>
                             </div>
 
