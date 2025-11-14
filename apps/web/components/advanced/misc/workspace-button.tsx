@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import * as React from "react"
@@ -14,8 +13,7 @@ import { Label } from "@workspace/ui/components/label"
 import { Card, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard"
 
-
-export function CreateWSButton() {
+export function CreateWSButton({ onWorkspaceCreated }: CreateWSButtonProps = {}) {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [open, setOpen] = React.useState<boolean>(false)
@@ -68,11 +66,8 @@ export function CreateWSButton() {
                 }),
             })
 
-            if (!response.ok) {
-                if (response.status === 402) {
-                    throw new Error("Please contact ORMI admin")
-                }
-                throw new Error("Please contact ORMI admin.")
+            if (!workspace) {
+                throw new Error("Failed to create workspace")
             }
 
             const workspace = await response.json() as any

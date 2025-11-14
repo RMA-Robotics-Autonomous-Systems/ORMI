@@ -13,6 +13,42 @@ const createWorkspaceSchema = z.object({
   dashboardType: z.string().optional(),
 });
 
+export async function GET() {
+  try {
+    // Ensure user is authenticated
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new Response(null, { status: 401 });
+    }
+
+    // Get all workspaces for the current user
+    const workspaces = await db.workspace.findMany({
+      where: {
+        createdById: session.user.id,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAT: true,
+        updatedAT: true,
+      },
+      orderBy: {
+        updatedAT: "desc",
+      },
+    });
+
+    return new Response(JSON.stringify(workspaces), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (error) {
+    console.error("Workspace fetch error:", error);
+    return new Response(null, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Ensure user is authenticated

@@ -69,3 +69,7 @@ apps/web/.env
 **/.turbo
 **/.next
 apps/web/ormi-plugins.ts
+
+# Serwist
+apps/web/public/sw*
+apps/web/public/sw-worker*

@@ -1,14 +1,22 @@
 {
-    "name": "ORMI",
-    "short_name": "ORMI",
-    "icons": [
-        {
-            "src": "icon/ormi.svg",
-            "sizes": "any",
-            "type": "image/svg"
-        }
-    ],
-    "theme_color": "#ffffff",
-    "background_color": "#ffffff",
-    "display": "standalone"
+  "name": "ORMI - Open Robotic Management Interface",
+  "short_name": "ORMI",
+  "description": "Open Robotic Management Interface. A central platform that supports heterogenous and scalable robotics and autonomous systems.",
+  "icons": [
+    {
+      "src": "icon/ormi.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "scope": "/",
+  "categories": ["robotics", "management", "automation", "development"],
+  "lang": "en",
+  "dir": "ltr"
 }

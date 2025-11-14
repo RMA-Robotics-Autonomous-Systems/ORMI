@@ -1,50 +1,87 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { redirect } from "next/navigation"
+"use client"
 
-import { authOptions } from "@/server/auth"
-import { db } from "@/server/db"
-import { getCurrentUser } from "@/server/session"
+import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+
 import { EmptyPlaceholder } from "@/components/advanced/misc/empty-placeholder"
 import { DashboardHeader } from "@/components/advanced/misc/dashboard-header"
 import { CreateWSButton } from "@/components/advanced/misc/workspace-button"
 import { WorkspaceItem } from "@/components/advanced/misc/workspace-item"
 import { DashboardShell } from "@/components/advanced/misc/dashboard-shell"
+import { handleLoad, Workspace } from "@/server/prisma-workspaces"
 
-export const metadata = {
-    title: "Dashboard",
-}
+export default function DashboardPage() {
+    const { data: session, status } = useSession()
+    const router = useRouter()
+    const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+    const [isLoading, setIsLoading] = useState(true)
 
-export default async function DashboardPage() {
-    const user = await getCurrentUser()
+    useEffect(() => {
+        if (status === "loading") return // Still loading
 
-    if (!user) {
-        redirect(authOptions?.pages?.signIn || "/signin")
+        if (!session?.user) {
+            router.push("/signin")
+            return
+        }
+
+        loadWorkspaces()
+    }, [session, status, router])
+
+    const loadWorkspaces = async () => {
+        setIsLoading(true)
+        try {
+            const data = await handleLoad()
+            setWorkspaces(data)
+        } catch (error) {
+            console.error("Failed to load workspaces:", error)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    const workspaces: any = await db.workspace.findMany({
-        where: {
-            createdById: user.id,
-        },
-        select: {
-            id: true,
-            name: true,
-            createdAT: true,
-        },
-        orderBy: {
-            updatedAT: "desc",
-        },
-    })
+    const handleWorkspaceCreated = () => {
+        // Refresh workspaces list when a new workspace is created
+        loadWorkspaces()
+    }
+
+    const handleWorkspaceDeleted = () => {
+        // Refresh workspaces list when a workspace is deleted
+        loadWorkspaces()
+    }
+
+    if (status === "loading" || isLoading) {
+        return (
+            <DashboardShell className="container mx-auto mt-8">
+                <DashboardHeader heading="Workspace" text="Loading...">
+                </DashboardHeader>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {[...Array(6)].map((_, i) => (
+                        <WorkspaceItem.Skeleton key={i} />
+                    ))}
+                </div>
+            </DashboardShell>
+        )
+    }
+
+    if (!session?.user) {
+        return null // Will redirect to signin
+    }
 
     return (
         <DashboardShell className="container mx-auto mt-8">
             <DashboardHeader heading="Workspace" text="Click + to create new workspace">
-                <CreateWSButton />
+                <CreateWSButton onWorkspaceCreated={handleWorkspaceCreated} />
             </DashboardHeader>
             <div>
                 {workspaces?.length ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        {workspaces.map((workspace: any) => (
-                            <WorkspaceItem key={workspace.id} workspace={workspace} />
+                        {workspaces.map((workspace: Workspace) => (
+                            <WorkspaceItem
+                                key={workspace.id}
+                                workspace={workspace}
+                                onWorkspaceDeleted={handleWorkspaceDeleted}
+                            />
                         ))}
                     </div>
                 ) : (
@@ -53,7 +90,7 @@ export default async function DashboardPage() {
                         <EmptyPlaceholder.Description>
                             Create new workspace to get started.
                         </EmptyPlaceholder.Description>
-                        <CreateWSButton />
+                        <CreateWSButton onWorkspaceCreated={handleWorkspaceCreated} />
                     </EmptyPlaceholder>
                 )}
             </div>

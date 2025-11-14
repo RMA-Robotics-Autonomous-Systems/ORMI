@@ -10,9 +10,10 @@ import moment from "moment"
 
 interface WorkspaceItemProps {
     workspace: Pick<Workspace, "id" | "name" | "createdAT">
+    onWorkspaceDeleted?: () => void;
 }
 
-export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
+export function WorkspaceItem({ workspace, onWorkspaceDeleted }: WorkspaceItemProps) {
     // Encode workspace name for use in URL
     const encodedName = encodeURIComponent(workspace.name);
     const avatarUrl = `https://api.dicebear.com/9.x/identicon/svg?seed=${encodedName}`;
@@ -45,7 +46,10 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
                 </p>
             </CardContent>
             <CardFooter className="pt-1 flex justify-end">
-                <WorkspaceOperations workspace={{ id: workspace.id, name: workspace.name }} />
+                <WorkspaceOperations
+                    workspace={{ id: workspace.id, name: workspace.name }}
+                    onWorkspaceDeleted={onWorkspaceDeleted}
+                />
             </CardFooter>
         </Card>
     )
