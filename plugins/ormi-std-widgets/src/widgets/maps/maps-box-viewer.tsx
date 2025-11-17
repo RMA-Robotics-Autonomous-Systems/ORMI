@@ -1,7 +1,7 @@
 "use client"
 
 import React, { JSX, useEffect, useRef, useState } from "react";
-import Map, { MapRef, StyleSpecification } from 'react-map-gl/maplibre';
+import MapLibreMap, { MapRef, StyleSpecification } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
 import TopicMarker from "./marker-simple";
 import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core";
@@ -19,18 +19,31 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { ButtonHolderProvider, useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import MultiPoints from "./marker-multipoints";
+import { LocalTopicVisualizer } from "./local-topic-visualizer-types";
+import { TransformSourcesProvider } from "@workspace/ormi-core/transforms";
 
 interface MapsViewerSettings {
     title: string;
     mapUrl: string;
     use3D: boolean;
     apiKey?: string;
+
+    // GPS Topics (already in GPS coordinates)
     topics: {
         name: string;
         topic: SelectedTopic;
         makerType: "simple" | "heatmap" | "path" | "multipoints" | any;
         numericalTopic?: SelectedTopic;
     }[];
+
+    // Local Topics (in local frames, need GPS origin for transformation)
+    localTopics?: {
+        name: string;
+        topic: SelectedTopic;  // Path, PointCloud, etc.
+        gpsOriginTopic: SelectedTopic;  // GPS topic to use as origin
+        visualizerType?: string;  // Optional: specific visualizer to use
+    }[];
+
     customLayers: {
         name: string;
         url: string;
@@ -357,10 +370,37 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");
     }
 
+    const getAllLocalTopics = () => {
+        // Collect all topics from localTopics (including GPS origin topics)
+        const allTopics: SelectedTopic[] = [];
+        const seenSourceIds = new Set<string>();
+
+        (props.localTopics || []).forEach(lt => {
+            // Add the local topic itself
+            if (lt.topic) {
+                const sourceId = `${lt.topic.source.id}::${lt.topic.topic}${lt.topic.property ? '::' + lt.topic.property : ''}`;
+                if (!seenSourceIds.has(sourceId)) {
+                    allTopics.push(lt.topic);
+                    seenSourceIds.add(sourceId);
+                }
+            }
+            // Add the GPS origin topic
+            if (lt.gpsOriginTopic) {
+                const gpsSourceId = `${lt.gpsOriginTopic.source.id}::${lt.gpsOriginTopic.topic}${lt.gpsOriginTopic.property ? '::' + lt.gpsOriginTopic.property : ''}`;
+                if (!seenSourceIds.has(gpsSourceId)) {
+                    allTopics.push(lt.gpsOriginTopic);
+                    seenSourceIds.add(gpsSourceId);
+                }
+            }
+        });
+
+        return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");
+    }
+
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
             <ButtonHolderProvider>
-                <Map
+                <MapLibreMap
                     key={`map-${refreshCounter}`}
                     initialViewState={{
                         longitude: startingLocation[0],
@@ -376,6 +416,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     onZoomEnd={gridHook.updateGridForViewport}
                 >
                     <MapsGrid mapRef={mapRef} showGrid={showGrid} />
+                    {/* GPS Topics (already in GPS coordinates) */}
                     {(props.topics || []).length !== 0 && (
                         <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
                             {props.topics.map(t => {
@@ -395,6 +436,54 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         </LocalDataSourcesProvider >
                     )}
 
+                    {/* Local Topics (in local frames, need transformation) */}
+                    {(props.localTopics || []).length !== 0 && (() => {
+                        // Query available visualizers from plugins
+                        const initialMap: Map<string, LocalTopicVisualizer> = new Map();
+                        const visualizers = pluginsManager.applyFilter<Map<string, LocalTopicVisualizer>>(
+                            PluginsHooks.MAP_LOCAL_VISUALIZERS,
+                            initialMap
+                        );
+
+                        return (
+                            <TransformSourcesProvider updateRate={0.5}>
+                                <LocalDataSourcesProvider SelectedTopics={getAllLocalTopics()} buffersSize={50} >
+                                    {(props.localTopics || []).map(lt => {
+                                        // Find visualizer - either specified or auto-detect from topic type
+                                        let visualizer: LocalTopicVisualizer | undefined;
+
+                                        if (lt.visualizerType && visualizers.has(lt.visualizerType)) {
+                                            visualizer = visualizers.get(lt.visualizerType);
+                                        } else {
+                                            // Auto-detect: find first visualizer that accepts this topic type
+                                            for (const [key, vis] of visualizers.entries()) {
+                                                if (lt.topic.type && vis.accepts.includes(lt.topic.type)) {
+                                                    visualizer = vis;
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        if (!visualizer) {
+                                            console.warn(`No visualizer found for local topic: ${lt.name} (type: ${lt.topic.type})`);
+                                            return null;
+                                        }
+
+                                        const VisualizerComponent = visualizer.component;
+                                        return (
+                                            <VisualizerComponent
+                                                key={lt.name}
+                                                name={lt.name}
+                                                topic={lt.topic}
+                                                gpsOriginTopic={lt.gpsOriginTopic}
+                                            />
+                                        );
+                                    })}
+                                </LocalDataSourcesProvider>
+                            </TransformSourcesProvider>
+                        );
+                    })()}
+
                     {/* Custom Layers Overlay on the right side */}
                     <CustomLayersOverlay
                         customLayers={customLayersState}
@@ -402,7 +491,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         onLayerVisibilityChange={handleLayerVisibilityChange}
                         onLayerOpacityChange={handleLayerOpacityChange}
                     />
-                </Map>
+                </MapLibreMap>
             </ButtonHolderProvider>
         </div>
     );
@@ -500,6 +589,20 @@ export function MapsBoxViewerDefinition() {
                             numericalTopic: { type: "object", title: "Numerical Topic (only for heatmap)" }
                         },
 
+                    }
+                },
+                localTopics: {
+                    type: 'array',
+                    title: 'Local Topics',
+                    items: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string", title: "Name" },
+                            topic: { type: "object", title: "Local Topic" },
+                            gpsOriginTopic: { type: "object", title: "GPS Origin" },
+                            visualizerType: { type: "string", title: "Visualizer Type (optional)" }
+                        },
+                        required: ["name", "topic", "gpsOriginTopic"]
                     }
                 },
                 customLayers: {
@@ -615,6 +718,49 @@ export function MapsBoxViewerDefinition() {
                 },
                 {
                     type: "Category",
+                    label: "Local Topics",
+                    elements: [
+                        {
+                            type: "Control",
+                            scope: "#/properties/localTopics",
+                            options: {
+                                detail: {
+                                    type: "VerticalLayout",
+                                    elements: [
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/name",
+                                        } as ControlElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/topic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['Path', 'PointsCloud'] // Local coordinate topics (Path, PointCloud, etc.)
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/gpsOriginTopic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['GeolocationPosition'] // GPS topic to use as origin
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/visualizerType",
+                                        } as ControlElement
+                                    ]
+                                }
+                            }
+                        } as ControlElement
+                    ]
+                },
+                {
+                    type: "Category",
                     label: "Layers",
                     elements: [
                         {
@@ -652,6 +798,7 @@ export function MapsBoxViewerDefinition() {
             title: 'Maps',
             use3D: false,
             customLayers: [],
+            localTopics: [],
         },
         Component: (data: MapsViewerSettings) => (
             <MapsBoxViewer {...data} />
