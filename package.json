@@ -18,6 +18,7 @@
     "devDependencies": {
         "@workspace/eslint-config": "workspace:*",
         "@workspace/typescript-config": "workspace:*",
+        "babel-plugin-react-compiler": "^1.0.0",
         "prettier": "^3.6.2",
         "turbo": "^2.5.6",
         "typescript": "5.7.3"

@@ -6,7 +6,7 @@
     it also manages the buffer of the data that is being sent to the widgets.
 */
 
-import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { SelectedTopic } from '../datasource-interface';
 
 import { useDashboardManager } from '../../dashboard/components/dashboard-provider';
@@ -22,6 +22,7 @@ const createTopicKey = (selectedTopic: SelectedTopic): string => {
 
 interface LocalDataSources {
     sources: Map<string, Source>;
+    version: number; // Increment on every update to force re-renders
     getSource: (topic: SelectedTopic) => Source | undefined;
     getSourceId: (topic: SelectedTopic) => string;
 }
@@ -41,6 +42,7 @@ interface LocalDataSourcesProviderProps {
 
 const LocalDataSourcesContext = createContext<LocalDataSources>({
     sources: new Map<string, Source>(),
+    version: 0,
     getSource: () => undefined,
     getSourceId: () => ""
 });
@@ -48,7 +50,12 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     const { children, SelectedTopics, buffersSize, updateFrequency = 30 } = props;
 
-    const [sources, setSources] = useState<Map<string, Source>>(new Map<string, Source>());
+    // Use useRef for sources - updates don't trigger re-renders
+    const sourcesRef = useRef<Map<string, Source>>(new Map<string, Source>());
+
+    // Version counter for change notification
+    const [version, setVersion] = useState(0);
+
     // Store pendingUpdates in useRef to persist between renders but not trigger re-renders
     const pendingUpdatesRef = useRef<Map<string, { value: any, time: number, referenceFrameId: string }>>(
         new Map<string, { value: any, time: number, referenceFrameId: string }>()
@@ -56,24 +63,23 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     // Access the pendingUpdates through the .current property
     const pendingUpdates = pendingUpdatesRef.current;
 
-    // Create getSource function that uses the new key generation
-    const getSource = (topic: SelectedTopic): Source | undefined => {
+    // getSource reads from ref - always gets fresh data without recreating
+    const getSource = useCallback((topic: SelectedTopic): Source | undefined => {
         const key = createTopicKey(topic);
-        return sources.get(key);
-    };
+        return sourcesRef.current.get(key);
+    }, []); // No dependencies - stable function
 
-    // Create getSourceId function that returns the unique key for a topic
-    const getSourceId = (topic: SelectedTopic): string => {
+    const getSourceId = useCallback((topic: SelectedTopic): string => {
         return createTopicKey(topic);
-    };
+    }, []);
 
-    // Create a stable reference to the context value
-    const contextValue = useRef<LocalDataSources>({ sources, getSource, getSourceId });
-
-    // Update the context value reference whenever sources changes
-    useEffect(() => {
-        contextValue.current = { sources, getSource, getSourceId };
-    }, [sources, getSource, getSourceId]);
+    // Context value only includes version (changes) and stable functions
+    const contextValue = useMemo(() => ({
+        sources: sourcesRef.current, // Pass ref for direct access
+        version,
+        getSource,
+        getSourceId
+    }), [version, getSource, getSourceId]);
 
     const pluginsManager = usePluginsManager();
     const Topics = SelectedTopics;
@@ -87,21 +93,16 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
         pendingUpdates.clear();
 
         // Initialize the sources map with empty sources for all topics
-        setSources(prevSources => {
-            const newSources = new Map<string, Source>();
-
-            // Initialize empty sources for all topics
-            Topics.forEach(topic => {
-                const sourceId = createTopicKey(topic);
-                newSources.set(sourceId, {
-                    data: [],
-                    times: [],
-                    referenceFrameId: "unknown"
-                });
+        const newSources = new Map<string, Source>();
+        Topics.forEach(topic => {
+            const sourceId = createTopicKey(topic);
+            newSources.set(sourceId, {
+                data: [],
+                times: [],
+                referenceFrameId: "unknown"
             });
-
-            return newSources;
         });
+        sourcesRef.current = newSources;
 
         const propertiesGetter = (data: any, property: string) => {
             if (!property || property === '') {
@@ -128,51 +129,53 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
             if (pendingUpdates.size === 0) return;
 
-            setSources(prevSources => {
-                // Create a completely new Map to ensure React detects the state change
-                const newSources = new Map<string, Source>();
+            // Create a completely new Map to ensure immutability
+            const newSources = new Map<string, Source>();
 
-                // First copy all existing sources
-                prevSources.forEach((source, key) => {
-                    newSources.set(key, { ...source });
-                });
-
-                // Then apply updates
-                pendingUpdates.forEach((update, sourceId) => {
-                    const currentSource = newSources.get(sourceId);
-                    if (!currentSource) {
-                        return;
-                    }
-
-                    // Create new arrays for immutability
-                    const newData = [...currentSource.data, update.value];
-                    const newTimes = [...currentSource.times, update.time];
-
-                    // Apply buffer limit
-                    const topic = Topics.find(t => createTopicKey(t) === sourceId);
-
-                    const bufferLimit = topic?.bufferSize || buffersSize;
-                    if (newData.length > bufferLimit) {
-                        newData.shift(); // Remove oldest element
-                        newTimes.shift(); // Remove corresponding time
-                    }
-
-                    // Update the source with new data - create a new object
-                    newSources.set(sourceId, {
-                        data: newData,
-                        times: newTimes,
-                        referenceFrameId: update.referenceFrameId || "unknown"
-                    });
-                });
-
-                // Increment update counter to verify updates are happening
-                setUpdateCount(prev => prev + 1);
-
-                // Clear pending updates after processing
-                pendingUpdates.clear();
-
-                return newSources;
+            // First copy all existing sources
+            sourcesRef.current.forEach((source, key) => {
+                newSources.set(key, { ...source });
             });
+
+            // Then apply updates
+            pendingUpdates.forEach((update, sourceId) => {
+                const currentSource = newSources.get(sourceId);
+                if (!currentSource) {
+                    return;
+                }
+
+                // Create new arrays for immutability
+                const newData = [...currentSource.data, update.value];
+                const newTimes = [...currentSource.times, update.time];
+
+                // Apply buffer limit
+                const topic = Topics.find(t => createTopicKey(t) === sourceId);
+
+                const bufferLimit = topic?.bufferSize || buffersSize;
+                if (newData.length > bufferLimit) {
+                    newData.shift(); // Remove oldest element
+                    newTimes.shift(); // Remove corresponding time
+                }
+
+                // Update the source with new data - create a new object
+                newSources.set(sourceId, {
+                    data: newData,
+                    times: newTimes,
+                    referenceFrameId: update.referenceFrameId || "unknown"
+                });
+            });
+
+            // Update the ref with new data
+            sourcesRef.current = newSources;
+
+            // Increment update counter to verify updates are happening
+            setUpdateCount(prev => prev + 1);
+
+            // Clear pending updates after processing
+            pendingUpdates.clear();
+
+            // Increment version to force context consumers to re-render
+            setVersion(v => v + 1);
         }, updateInterval);
 
         new Promise<Map<string, boolean>>((resolve) => {
@@ -256,10 +259,13 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
             });
         }
 
-    }, [SelectedTopics, datasources, buffersSize, updateFrequency]);
+    }, [SelectedTopics, buffersSize, updateFrequency, pluginsManager]);
+    // Note: Removed datasources from deps - it's only used for subscription lifecycle
+    // which is controlled by SelectedTopics. Including it causes unnecessary re-subscriptions
+    // when dashboard layout changes.
 
     return (
-        <LocalDataSourcesContext.Provider value={contextValue.current}>
+        <LocalDataSourcesContext.Provider value={contextValue}>
             {initialized && children}
             {!initialized && <>
                 <h1>Waiting for subscriptions</h1>
@@ -276,17 +282,6 @@ const useLocalDataSource = () => {
     if (!context) {
         throw new Error('useLocalDataSource must be used within a GlobalDataSourcesProvider');
     }
-
-    // Force component using this hook to re-render when sources change
-    const [, forceUpdate] = useState({});
-
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            forceUpdate({});
-        }, 100); // Check for changes every 100ms
-
-        return () => clearInterval(intervalId);
-    }, []);
 
     return context;
 };

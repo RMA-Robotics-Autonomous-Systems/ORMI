@@ -46,7 +46,7 @@ interface ChartEchartsSettings {
 export function ChartEchartsWidget(props: ChartEchartsSettings) {
     const chartRef = useRef<HTMLDivElement>(null);
     const echartsInstanceRef = useRef<echarts.EChartsType | null>(null);
-    const { sources, getSource, getSourceId } = useLocalDataSource();
+    const { getSource, getSourceId } = useLocalDataSource(); // ← Don't destructure sources or version
     const timeSpan = props.timeHistory || 5;
     const updateFrequency = props.updateFrequency || 32;
     const updateInterval = 1000 / updateFrequency;
@@ -141,7 +141,7 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
         };
     }
 
-    // Real-time data update loop
+    // Real-time data update loop - runs independently of React renders
     useEffect(() => {
         function processData(timestamp: number) {
             if (timestamp - lastUpdateRef.current < updateInterval) {
@@ -176,7 +176,7 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
         return () => {
             if (frameRef.current) cancelAnimationFrame(frameRef.current);
         };
-    }, [props.series, sources, timeSpan, updateInterval]);
+    }, [props.series, timeSpan, updateInterval, getSource, getSourceId]); // ← Removed sources
 
     // Initialize chart and handle resize
     useEffect(() => {
