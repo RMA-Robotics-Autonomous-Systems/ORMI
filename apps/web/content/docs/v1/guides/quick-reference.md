@@ -85,14 +85,24 @@ export function MyWidgetDefinition(): WidgetDefinition {
 import { LocalDataSourcesProvider, useLocalDataSource, SelectedTopic } from "@workspace/ormi-core/datasources";
 
 function DataWidget({ topic }: { topic: SelectedTopic }) {
-  const { sources } = useLocalDataSource();
-  const data = sources.get(topic?.topic);
+  const { getSource } = useLocalDataSource();
+  const source = getSource(topic);
 
-  if (!data || data.length === 0) {
+  if (!source || source.data.length === 0) {
     return <div>No data</div>;
   }
 
-  return <div>{JSON.stringify(data[data.length - 1])}</div>;
+  // Get the most recent value
+  const latestValue = source.data[source.data.length - 1];
+  const latestTime = source.times[source.times.length - 1];
+
+  return (
+    <div>
+      <div>Value: {JSON.stringify(latestValue)}</div>
+      <div>Time: {new Date(latestTime).toLocaleTimeString()}</div>
+      <div>Frame: {source.referenceFrameId}</div>
+    </div>
+  );
 }
 
 export function DataWidgetDefinition(): WidgetDefinition {
@@ -127,6 +137,7 @@ export function DataWidgetDefinition(): WidgetDefinition {
       <LocalDataSourcesProvider
         SelectedTopics={[data.topic]}
         buffersSize={10}
+        updateFrequency={30}
       >
         <DataWidget {...data} />
       </LocalDataSourcesProvider>
@@ -168,25 +179,46 @@ function MyDatasourceProvider(children, props: MyDatasourceSettings) {
     return () => pluginManager.removeFilter(`${datasource_id}-available-topics`);
   }, []);
 
-  // Subscribe hook
+  // Subscribe hook - handles subscription requests
   useEffect(() => {
+    const subscribersCountRef = useRef(new Map<string, number>());
+
     pluginManager.addAction(`${datasource_id}-subscribe`, {
       id: datasource_id,
       priority: 10,
-      action: (topic, callback) => {
-        console.log(`Subscribed: ${topic.topic}`);
+      action: (topic: SelectedTopic) => {
+        // Track subscriber count
+        const count = subscribersCountRef.current.get(topic.topic) || 0;
+        subscribersCountRef.current.set(topic.topic, count + 1);
+
+        // Start publishing on first subscriber
+        if (count === 0) {
+          startPublishing(topic.topic);
+        }
       }
     });
     return () => pluginManager.removeAction(`${datasource_id}-subscribe`);
   }, []);
 
-  // Unsubscribe hook
+  // Unsubscribe hook - handles unsubscription
   useEffect(() => {
     pluginManager.addAction(`${datasource_id}-unsubscribe`, {
       id: datasource_id,
       priority: 10,
-      action: (topic) => {
-        console.log(`Unsubscribed: ${topic.topic}`);
+      action: (topic: SelectedTopic, ignoreCount = false) => {
+        if (ignoreCount) {
+          stopPublishing(topic.topic);
+          return;
+        }
+
+        const count = subscribersCountRef.current.get(topic.topic) || 0;
+        const newCount = Math.max(0, count - 1);
+        subscribersCountRef.current.set(topic.topic, newCount);
+
+        // Stop publishing when no subscribers
+        if (newCount === 0) {
+          stopPublishing(topic.topic);
+        }
       }
     });
     return () => pluginManager.removeAction(`${datasource_id}-unsubscribe`);
@@ -202,16 +234,19 @@ function MyDatasourceProvider(children, props: MyDatasourceSettings) {
     return () => pluginManager.removeFilter(`${datasource_id}-definition`);
   }, [props]);
 
-  // Publish data
+  // Publish data - example with interval-based generation
   useEffect(() => {
     if (!props.enable) return;
 
     const interval = setInterval(() => {
       const value = Math.random();
+
+      // Publish to PluginManager - triggers LocalDataSourceProvider callbacks
       pluginManager.doAction(
         `${datasource_id}-/data-published`,
-        value,
-        Date.now()
+        value,                    // data
+        Date.now(),              // timestamp
+        "sensor_frame"           // referenceFrameId (optional)
       );
     }, props.interval);
 

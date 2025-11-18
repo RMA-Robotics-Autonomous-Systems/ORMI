@@ -205,7 +205,7 @@ interface NumberDisplayProps {
 }
 
 function NumberDisplay({ unit, decimals, topic }: NumberDisplayProps) {
-  const { sources } = useLocalDataSource();
+  const { getSource } = useLocalDataSource();
 
   if (!topic) {
     return (
@@ -215,8 +215,8 @@ function NumberDisplay({ unit, decimals, topic }: NumberDisplayProps) {
     );
   }
 
-  const data = sources.get(topic.topic);
-  if (!data || data.length === 0) {
+  const source = getSource(topic);
+  if (!source || source.data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         Waiting for data...
@@ -224,7 +224,8 @@ function NumberDisplay({ unit, decimals, topic }: NumberDisplayProps) {
     );
   }
 
-  const value = data[data.length - 1];
+  // Get the most recent value
+  const value = source.data[source.data.length - 1];
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
@@ -471,26 +472,42 @@ function CounterProvider(children: ReactNode, props: CounterDatasourceSettings) 
     return () => pluginManager.removeFilter(available_topics_hook);
   }, []);
 
-  // Subscribe hook
+  // Subscribe hook - track subscriber count
   useEffect(() => {
+    const subscribersCountRef = useRef(new Map<string, number>());
+
     pluginManager.addAction(subscribe_hook, {
       id: datasource_id,
       priority: 10,
-      action: (topic: SelectedTopic, callback: Function) => {
-        console.log(`Subscribed to ${topic.topic}`);
+      action: (topic: SelectedTopic) => {
+        // Track subscriber count
+        const count = subscribersCountRef.current.get(topic.topic) || 0;
+        subscribersCountRef.current.set(topic.topic, count + 1);
+
+        console.log(`Subscribed to ${topic.topic} (count: ${count + 1})`);
       }
     });
 
     return () => pluginManager.removeAction(subscribe_hook);
   }, []);
 
-  // Unsubscribe hook
+  // Unsubscribe hook - decrement subscriber count
   useEffect(() => {
     pluginManager.addAction(unsubscribe_hook, {
       id: datasource_id,
       priority: 10,
-      action: (topic: SelectedTopic) => {
-        console.log(`Unsubscribed from ${topic.topic}`);
+      action: (topic: SelectedTopic, ignoreCount = false) => {
+        if (ignoreCount) {
+          subscribersCountRef.current.delete(topic.topic);
+          console.log(`Force unsubscribed from ${topic.topic}`);
+          return;
+        }
+
+        const count = subscribersCountRef.current.get(topic.topic) || 0;
+        const newCount = Math.max(0, count - 1);
+        subscribersCountRef.current.set(topic.topic, newCount);
+
+        console.log(`Unsubscribed from ${topic.topic} (count: ${newCount})`);
       }
     });
 
@@ -525,11 +542,12 @@ function CounterProvider(children: ReactNode, props: CounterDatasourceSettings) 
         countRef.current = 0;
       }
 
-      // Publish count
+      // Publish count to all registered callbacks
       pluginManager.doAction(
         `${datasource_id}-/counter-published`,
-        countRef.current,
-        Date.now()
+        countRef.current,        // data
+        Date.now(),             // timestamp
+        "counter_frame"         // referenceFrameId (optional)
       );
     }, 1000 / props.frequency);
 

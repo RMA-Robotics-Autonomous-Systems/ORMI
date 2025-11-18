@@ -387,24 +387,49 @@ When a datasource is instantiated, it creates dynamic hooks:
 `${datasourceId}-subscribe`;
 ```
 
-**Purpose:** Register a widget's subscription to a topic
+**Purpose:** Handle subscription requests from LocalDataSourceProvider
 
 **Action Signature:**
 
 ```typescript
-(topic: SelectedTopic, callback: (data: any, timestamp: number) => void) => void
+(topic: SelectedTopic) => void
 ```
 
-**Example:**
+**Important:** LocalDataSourceProvider does NOT pass a callback to subscribe. Instead, it registers its own action callback separately for data updates.
+
+**Example (in datasource provider):**
 
 ```typescript
-pluginManager.doAction(
-    `${datasourceId}-subscribe`,
-    selectedTopic,
-    (data, timestamp) => {
-        console.log("Received data:", data);
-    }
-);
+pluginManager.addAction(`${datasourceId}-subscribe`, {
+    id: `${datasourceId}-subscribe`,
+    priority: 10,
+    action: (topic: SelectedTopic) => {
+        // Track subscriber count
+        const count = subscribersCount.get(topic.topic) || 0;
+        subscribersCount.set(topic.topic, count + 1);
+
+        // Start data flow on first subscriber
+        if (count === 0) {
+            startTopicDataGeneration(topic.topic);
+        }
+    },
+});
+```
+
+**How LocalDataSourceProvider subscribes:**
+
+```typescript
+// 1. Register callback for data updates
+pluginManager.addAction(`${datasourceId}-${topicName}-published`, {
+    id: `local-${uuid}-callback`,
+    priority: 10,
+    action: (data, timestamp, frameId) => {
+        // Handle incoming data
+    },
+});
+
+// 2. Subscribe to topic
+await pluginManager.WaitAndDoAction(`${datasourceId}-subscribe`, 1, topic);
 ```
 
 #### Unsubscribe Hook
@@ -413,12 +438,43 @@ pluginManager.doAction(
 `${datasourceId}-unsubscribe`;
 ```
 
-**Purpose:** Unregister a widget's subscription
+**Purpose:** Handle unsubscription requests
 
 **Action Signature:**
 
 ```typescript
-(topic: SelectedTopic) => void
+(topic: SelectedTopic, ignoreCount?: boolean) => void
+```
+
+**Parameters:**
+
+- `topic`: The topic to unsubscribe from
+- `ignoreCount`: Optional flag to force cleanup regardless of subscriber count
+
+**Example (in datasource provider):**
+
+```typescript
+pluginManager.addAction(`${datasourceId}-unsubscribe`, {
+    id: `${datasourceId}-unsubscribe`,
+    priority: 10,
+    action: (topic: SelectedTopic, ignoreCount = false) => {
+        if (ignoreCount) {
+            stopTopicDataGeneration(topic.topic);
+            subscribersCount.delete(topic.topic);
+            return;
+        }
+
+        // Decrement subscriber count
+        const count = subscribersCount.get(topic.topic) || 0;
+        const newCount = Math.max(0, count - 1);
+        subscribersCount.set(topic.topic, newCount);
+
+        // Stop data flow when no subscribers
+        if (newCount === 0) {
+            stopTopicDataGeneration(topic.topic);
+        }
+    },
+});
 ```
 
 #### Topic Published Hook
@@ -427,24 +483,37 @@ pluginManager.doAction(
 `${datasourceId}-${topicName}-published`;
 ```
 
-**Purpose:** Notify subscribers when new data arrives on a topic
+**Purpose:** Broadcast data to all registered listeners (including LocalDataSourceProvider instances)
 
 **Action Signature:**
 
 ```typescript
-(data: any, timestamp: number) => void
+(data: any, timestamp: number, referenceFrameId?: string) => void
 ```
 
 **Example (from datasource):**
 
 ```typescript
-// Datasource publishes data
-pluginManager.doAction(
-    `${datasourceId}-${topicName}-published`,
-    messageData,
-    Date.now()
-);
+// When data arrives from your source
+const handleData = (topicName: string, rawData: any) => {
+    // Convert to internal type if needed
+    const data = convertToInternalType(rawData);
+
+    // Publish to all registered callbacks via PluginManager
+    pluginManager.doAction(
+        `${datasourceId}-${topicName}-published`,
+        data, // The data
+        Date.now(), // Timestamp in milliseconds
+        "base_link" // Optional: coordinate frame reference
+    );
+};
 ```
+
+**Who receives this?**
+
+- All LocalDataSourceProvider instances that subscribed to this topic
+- Transform managers monitoring coordinate frames
+- Any other plugins listening to this topic
 
 #### Definition Hook
 

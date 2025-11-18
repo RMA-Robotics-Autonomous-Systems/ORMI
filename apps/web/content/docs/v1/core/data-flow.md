@@ -9,22 +9,75 @@ Understanding how data moves through ORMI-CORE is essential for building effecti
 
 ## Overview
 
-Data in ORMI-CORE follows a **publish-subscribe pattern** facilitated by the Plugin Manager:
+Data in ORMI-CORE follows a **publish-subscribe pattern** facilitated by the PluginManager.
+
+### Step 1: Subscription Request (Widget Mount)
 
 ```mermaid
-graph TD
-    A["Data Source<br/>(External system: ROS2, WebSocket, REST API)"] -->|Raw data| B
-    B["Datasource Provider<br/>- Connect to source<br/>- Convert to internal type<br/>- Manage subscriptions"] -->|Publish via PluginManager.doAction| C
-    C["Plugin Manager<br/>(datasourceId)-(topic)-published action"] -->|Notify subscribers| D
-    D["LocalDataSourceProvider<br/>- Buffer management<br/>- Subscription tracking<br/>- Data caching"] -->|Context update| E
-    E["Widget Component<br/>- useLocalDataSource<br/>- Visualize data"]
+graph LR
+    W["Widget Mounts<br/>(LocalDataSourceProvider)"]
+    W -->|"1. addAction()<br/>{datasource}-{topic}-published<br/>(register callback)"| PM["PluginManager"]
+    W -->|"2. WaitAndDoAction()<br/>{datasource}-subscribe<br/>(request subscription)"| PM
+    PM -->|"Subscribe action"| DS["Datasource Provider<br/>receives request"]
+    DS -->|"Starts data<br/>generation/streaming"| DS
 
-    style A fill:#e3f2fd
-    style B fill:#f3e5f5
-    style C fill:#fff3e0
-    style D fill:#e8f5e9
-    style E fill:#c8e6c9
+    style W fill:#e8f5e9
+    style PM fill:#ffecb3
+    style DS fill:#f3e5f5
 ```
+
+**What happens:**
+
+- Widget wraps component in `LocalDataSourceProvider`
+- LocalDS registers a callback for receiving data
+- LocalDS requests subscription from datasource
+- Datasource starts generating/streaming data for that topic
+
+### Step 2: Data Flow (Runtime)
+
+```mermaid
+graph LR
+    DS["Datasource<br/>publishes data"]
+    DS -->|"doAction()<br/>{datasource}-{topic}-published<br/>+ timestamp + frameId"| PM["PluginManager<br/>(broadcast hub)"]
+    PM -->|"Execute all<br/>registered callbacks"| L["LocalDataSourceProvider<br/>(callback)"]
+    L -->|"Buffer data<br/>(useRef)"| L
+    L -->|"Update state<br/>(React)"| W["Widget re-renders<br/>useLocalDataSource()<br/>getSource(topic)"]
+
+    style DS fill:#f3e5f5
+    style PM fill:#ffecb3
+    style L fill:#e8f5e9
+    style W fill:#c8e6c9
+```
+
+**What happens:**
+
+- Datasource publishes data via `doAction()`
+- PluginManager calls all registered callbacks
+- LocalDS callback buffers data
+- State update triggers widget re-render
+- Widget retrieves buffered data with `getSource()`
+
+### Step 3: Unsubscription (Widget Unmount)
+
+```mermaid
+graph LR
+    W["Widget Unmounts"]
+    W -->|"WaitAndDoAction()<br/>{datasource}-unsubscribe<br/>(cleanup)"| PM["PluginManager"]
+    PM -->|"Unsubscribe action"| DS["Datasource Provider"]
+    DS -->|"Decrement counter<br/>stop if no subscribers"| DS
+    W -->|"removeAction()<br/>cleanup callbacks"| PM
+
+    style W fill:#ffcdd2
+    style PM fill:#ffecb3
+    style DS fill:#f3e5f5
+```
+
+**What happens:**
+
+- Widget unmounts, LocalDS cleanup runs
+- Unsubscribe request sent to datasource
+- Datasource stops if no other subscribers
+- Callbacks are removed from PluginManager
 
 ## Data Flow Layers
 
@@ -34,8 +87,11 @@ The **Datasource Provider** is a React Provider component that:
 
 1. Connects to external data sources
 2. Converts raw data to internal types
-3. Manages topic registration
-4. Publishes data via the Plugin Manager
+3. **Listens for subscription requests** via `{datasource_id}-subscribe` action
+4. Manages subscriber counts (start/stop data flow)
+5. Publishes data via the Plugin Manager when active
+
+**Important:** Datasources wait for subscription requests before starting data generation!
 
 **Example from Random Datasource:**
 
@@ -43,21 +99,40 @@ The **Datasource Provider** is a React Provider component that:
 const RandomDataSourceProvider = (children, props: RandomDataSourceSettings) => {
   const pluginManager = usePluginsManager();
   const datasource_id = props.id;
+  const intervalsRef = useRef(new Map());
+  const subscribersCountRef = useRef(new Map());
 
+  // Handle subscription requests
   useEffect(() => {
-    // Set up interval to generate data
-    const interval = setInterval(() => {
-      const data = generateRandomData();
+    pluginManager.addAction(`${datasource_id}-subscribe`, {
+      id: datasource_id,
+      priority: 10,
+      action: (topic: SelectedTopic) => {
+        const count = subscribersCountRef.current.get(topic.topic) || 0;
+        subscribersCountRef.current.set(topic.topic, count + 1);
 
-      // Publish data via Plugin Manager
-      pluginManager.doAction(
-        `${datasource_id}-${topicName}-published`,
-        data,
-        Date.now()
-      );
-    }, 1000 / frequency);
+        // Start data generation on first subscriber
+        if (count === 0) {
+          const interval = setInterval(() => {
+            const data = generateRandomData();
 
-    return () => clearInterval(interval);
+            // Publish data via Plugin Manager
+            pluginManager.doAction(
+              `${datasource_id}-${topic.topic}-published`,
+              data,
+              Date.now(),
+              "sensor_frame"
+            );
+          }, 1000 / frequency);
+
+          intervalsRef.current.set(topic.topic, interval);
+        }
+      }
+    });
+
+    return () => {
+      pluginManager.removeAction(`${datasource_id}-subscribe`);
+    };
   }, []);
 
   return <>{children}</>;
@@ -88,18 +163,27 @@ action2.action(poseData, timestamp);
 
 ### Layer 3: LocalDataSourceProvider
 
-The **LocalDataSourceProvider** wraps widgets and:
+The **LocalDataSourceProvider** wraps individual widgets and:
 
-1. Subscribes to specified topics
-2. Maintains data buffers
-3. Provides React context to child widgets
-4. Manages subscription lifecycle
+1. **Requests subscription** via `pluginsManager.WaitAndDoAction('{datasource_id}-subscribe', topic)`
+2. **Registers action callbacks** on the PluginManager for data updates
+3. Maintains data buffers in memory
+4. Provides React context to child widgets
+5. Manages subscription lifecycle (subscribe on mount, unsubscribe on unmount)
 
 **Key features:**
 
+- **Active subscription request**: LocalDS explicitly asks datasources for data
+- **Callback registration**: Separate from subscription request
 - **Buffer management**: Keep last N messages per topic
-- **Automatic subscription**: Subscribe on mount, unsubscribe on unmount
-- **Efficient updates**: Only re-render when data changes
+- **Subscription coordination**: Uses PluginManager actions to communicate with datasources
+- **Throttled updates**: Batches state updates at specified frequency (default 30Hz)
+- **Automatic lifecycle**: Subscribe on mount, unsubscribe on unmount
+
+- **Buffer management**: Keep last N messages per topic
+- **Subscription coordination**: Uses PluginManager actions to communicate with datasources
+- **Throttled updates**: Batches state updates at specified frequency (default 30Hz)
+- **Automatic lifecycle**: Subscribe on mount, unsubscribe on unmount
 
 **Usage:**
 
@@ -107,78 +191,221 @@ The **LocalDataSourceProvider** wraps widgets and:
 <LocalDataSourcesProvider
   SelectedTopics={[topicSelection]}
   buffersSize={10}
+  updateFrequency={30}  // Optional: Hz, default 30
 >
   <MyWidget />
 </LocalDataSourcesProvider>
 ```
+
+**How it works internally:**
+
+1. On mount, for each topic:
+    - **Step A:** Registers an action callback: `pluginsManager.addAction('{datasource_id}-{topic}-published', callback)`
+    - **Step B:** **Requests subscription**: `await pluginsManager.WaitAndDoAction('{datasource_id}-subscribe', topic)`
+    - This triggers the datasource to start generating/streaming data for this topic
+2. When datasource publishes data via `doAction(...-published)`, the registered callback receives it
+3. Callback stores data in a pending buffer (useRef, doesn't trigger re-render)
+4. At regular intervals (updateFrequency), batches pending updates and updates React state
+5. On unmount, calls `WaitAndDoAction('{datasource_id}-unsubscribe')` and removes callbacks
 
 ### Layer 4: Widget Component
 
 The **Widget** consumes data via React hooks:
 
 ```typescript
-function MyWidget() {
-  const { sources } = useLocalDataSource();
+function MyWidget({ topic }: { topic: SelectedTopic }) {
+  const { getSource, getSourceId } = useLocalDataSource();
 
-  // sources is a Map<string, any[]>
-  // Key: topic name
-  // Value: array of buffered messages
+  // Get the buffered data for this topic
+  const sourceId = getSourceId(topic);
+  const source = getSource(topic);
 
-  const data = sources.get('/robot/pose');
+  if (!source) return <div>No data</div>;
 
-  return <div>{/* visualize data */}</div>;
+  // source.data: array of buffered messages (most recent last)
+  // source.times: corresponding timestamps
+  // source.referenceFrameId: coordinate frame reference
+
+  const latestValue = source.data[source.data.length - 1];
+
+  return <div>Latest: {JSON.stringify(latestValue)}</div>;
+}
+```
+
+**LocalDataSource Context API:**
+
+```typescript
+interface LocalDataSources {
+    getSource: (topic: SelectedTopic) => Source | undefined;
+    getSourceId: (topic: SelectedTopic) => string;
+}
+
+interface Source {
+    data: unknown[];
+    times: number[];
+    referenceFrameId: string;
 }
 ```
 
 ## Subscription Mechanism
 
+### How LocalDataSourceProvider Requests Subscription
+
+**Key Concept:** LocalDataSourceProvider **actively requests** subscription from datasources. Data doesn't flow until subscription is requested.
+
+**Two-step process:**
+
+1. **Register data callback:**
+
+    ```typescript
+    pluginsManager.addAction(`${datasource_id}-${topic}-published`, {
+        id: `unique-callback-id`,
+        priority: 10,
+        action: (data, timestamp, frameId) => {
+            // Handle incoming data
+        },
+    });
+    ```
+
+2. **Request subscription:**
+    ```typescript
+    await pluginsManager.WaitAndDoAction(
+        `${datasource_id}-subscribe`,
+        1, // timeout in seconds
+        topic
+    );
+    ```
+
+**Why this pattern?**
+
+- Datasources only generate/stream data when needed (performance)
+- Multiple widgets can subscribe to same topic (reference counting)
+- Clean lifecycle management (subscribe on mount, unsubscribe on unmount)
+
 ### Widget-Initiated Subscription
 
-When a widget wants data:
+When a widget needs data:
 
 ```mermaid
 sequenceDiagram
     participant W as Widget
     participant L as LocalDataSourceProvider
     participant PM as PluginManager
-    participant DS as Datasource
+    participant DS as DatasourceProvider
 
-    W->>L: Mount
-    L->>L: For each SelectedTopic
-    L->>PM: doAction((datasourceId)-subscribe, topic, callback)
-    PM->>DS: Execute subscribe action
-    DS->>DS: Register callback
+    W->>L: Mount with SelectedTopics
+    L->>L: Initialize empty buffers
 
-    Note over DS: Subscription Active
+    loop For each topic
+        Note over L: STEP 1: Subscribe to topic
+        L->>PM: addAction({datasource}-{topic}-published, callback)
+        Note over L,PM: Register callback for data updates
+        L->>PM: WaitAndDoAction({datasource}-subscribe, topic)
+        Note over L,PM: Request subscription (async, waits for action)
+        PM->>DS: Execute subscribe action
+        Note over DS: STEP 2: Handle subscription request
+        DS->>DS: Increment subscriber count
+        alt First subscriber
+            DS->>DS: Start data generation/connection
+        end
+    end
 
-    DS->>DS: Data arrives
-    DS->>PM: doAction((datasourceId)-(topic)-published, data, timestamp)
-    PM->>L: Callback fires
-    L->>L: Update buffer and state
-    L->>W: Widget re-renders
+    L->>L: setInitialized(true)
+    L->>W: Render children
+
+    Note over DS: STEP 3: Data arrives from source
+    DS->>PM: doAction({datasource}-{topic}-published, data, time, frameId)
+    Note over PM: STEP 4: Broadcast to callbacks
+    PM->>L: Execute registered callback
+    L->>L: Store in pendingUpdates buffer
+
+    Note over L: Update interval fires (e.g., every 33ms for 30Hz)
+    L->>L: Process pendingUpdates batch
+    L->>L: Update buffers with new data
+    L->>L: Apply buffer size limit
+    L->>L: Trigger React state update
+    Note over L,W: STEP 5: Widget re-renders
+    L->>W: Context update → Widget re-renders
+    W->>L: getSource(topic)
+    L->>W: Return buffered data
 ```
+
+**Important Notes:**
+
+- **LocalDataSourceProvider actively requests subscription** via `WaitAndDoAction()`
+- The datasource doesn't push data until a subscription is requested
+- Multiple widgets can subscribe to the same topic (subscriber count tracking)
+- Unsubscribe happens automatically when widget unmounts
 
 ### Subscription Lifecycle
 
 ```typescript
+// Inside LocalDataSourceProvider
 useEffect(() => {
-    // Subscribe action
-    const callback = (data: any, timestamp: number) => {
-        // Add to buffer
-        updateBuffer(topic, data, timestamp);
-    };
+    let isMounted = true;
 
-    pluginManager.doAction(
-        `${datasourceId}-subscribe`,
-        selectedTopic,
-        callback
-    );
+    Topics.forEach(async (topic) => {
+        const sourceId = getSourceId(topic);
+
+        // Register callback for data updates
+        pluginsManager.addAction(
+            `${topic.source.id}-${topic.topic}-published`,
+            {
+                id: `${localId}-${topic.source.id}-${topic.topic}-published`,
+                priority: 10,
+                action: (
+                    value: any,
+                    time: number,
+                    referenceFrameId: string
+                ) => {
+                    if (!isMounted) return;
+
+                    // Process property extraction if needed
+                    const processedValue = topic.property
+                        ? extractProperty(value, topic.property)
+                        : value;
+
+                    // Store in pending updates (batched processing)
+                    pendingUpdates.set(sourceId, {
+                        value: processedValue,
+                        time,
+                        referenceFrameId: referenceFrameId || "unknown",
+                    });
+                },
+            }
+        );
+
+        // Subscribe to the topic
+        const result = await pluginsManager.WaitAndDoAction(
+            `${topic.source.id}-subscribe`,
+            1, // timeout in seconds
+            topic
+        );
+
+        if (!result) {
+            console.error(`Failed to subscribe to ${topic.topic}`);
+        }
+    });
 
     // Cleanup: unsubscribe
     return () => {
-        pluginManager.doAction(`${datasourceId}-unsubscribe`, selectedTopic);
+        isMounted = false;
+
+        Topics.forEach(async (topic) => {
+            // Unsubscribe from topic
+            await pluginsManager.WaitAndDoAction(
+                `${topic.source.id}-unsubscribe`,
+                1,
+                topic
+            );
+
+            // Remove action callback
+            pluginsManager.removeAction(
+                `${localId}-${topic.source.id}-${topic.topic}-published`
+            );
+        });
     };
-}, [datasourceId, topic]);
+}, [SelectedTopics]);
 ```
 
 ## Type System
@@ -201,19 +428,29 @@ Buffers store the last N messages for each topic:
 ### Buffer Structure
 
 ```typescript
-// Internal buffer structure
-const buffers = new Map<
-    string,
-    Array<{
-        data: any;
-        timestamp: number;
-    }>
->();
+// LocalDataSource context provides
+interface LocalDataSources {
+    getSource: (topic: SelectedTopic) => Source | undefined;
+    getSourceId: (topic: SelectedTopic) => string;
+}
 
-// Accessing buffered data
-const { sources } = useLocalDataSource();
-const messages = sources.get("/robot/pose");
-// messages = [data1, data2, ..., data10] (most recent last)
+interface Source {
+    data: unknown[]; // Array of buffered messages
+    times: number[]; // Corresponding timestamps (milliseconds)
+    referenceFrameId: string; // Coordinate frame reference
+}
+
+// Usage in widget
+const { getSource, getSourceId } = useLocalDataSource();
+const source = getSource(myTopic);
+
+if (source) {
+    console.log(source.data); // [msg1, msg2, ..., msgN]
+    console.log(source.times); // [time1, time2, ..., timeN]
+    // Most recent message is at the end of the arrays
+    const latest = source.data[source.data.length - 1];
+    const latestTime = source.times[source.times.length - 1];
+}
 ```
 
 ### Use Cases
@@ -238,17 +475,25 @@ function TimeSeriesChart({ topic }: { topic: SelectedTopic }) {
     <LocalDataSourcesProvider
       SelectedTopics={[topic]}
       buffersSize={100}  // Keep last 100 points
+      updateFrequency={30}  // Update at 30Hz
     >
-      <ChartComponent />
+      <ChartComponent topic={topic} />
     </LocalDataSourcesProvider>
   );
 }
 
-function ChartComponent() {
-  const { sources } = useLocalDataSource();
-  const dataPoints = sources.get(topic.topic) || [];
+function ChartComponent({ topic }: { topic: SelectedTopic }) {
+  const { getSource } = useLocalDataSource();
+  const source = getSource(topic);
 
-  // Plot all 100 points
+  if (!source) return <div>Loading...</div>;
+
+  // Plot all buffered points (up to 100)
+  const dataPoints = source.data.map((value, index) => ({
+    x: source.times[index],
+    y: value as number
+  }));
+
   return <LineChart data={dataPoints} />;
 }
 ```
@@ -368,37 +613,73 @@ function JoystickWidget({ publishTopic }: { publishTopic: SelectedTopic }) {
 
 ## GlobalDataSourceProvider
 
-The **GlobalDataSourceProvider** manages datasource instances:
+The **GlobalDataSourceProvider** manages datasource lifecycle and creates a nested provider chain:
 
 ```typescript
-<GlobalDataSourceProvider datasources={[datasource1, datasource2]}>
+// Conceptual usage
+<GlobalDataSourceProvider datasources={datasourcesMap}>
   <Dashboard />
 </GlobalDataSourceProvider>
 ```
 
 **Responsibilities:**
 
-- Instantiate datasource providers based on dashboard configuration
-- Pass settings to each datasource
-- Enable/disable datasources
-- Coordinate datasource lifecycle
+- Load available datasource definitions via plugins
+- Build a nested chain of datasource providers using `reduceRight()`
+- Pass configuration settings to each datasource provider
+- Coordinate datasource lifecycle (enable/disable)
+- Provide UI for datasource management
+
+**How it works:**
+
+```typescript
+// Internal implementation (simplified)
+const providerChain = Array.from(datasources.values()).reduceRight(
+  (children, datasource) => {
+    const Provider = getDatasourceProvider(datasource.datasource_id);
+    return (
+      <Provider key={datasource.settings.id} props={datasource.settings}>
+        {children}
+      </Provider>
+    );
+  },
+  children // Start with dashboard children
+);
+
+// Result is nested like:
+// <FoxgloveProvider>
+//   <ROSBridgeProvider>
+//     <RandomDataProvider>
+//       <Dashboard />
+//     </RandomDataProvider>
+//   </ROSBridgeProvider>
+// </FoxgloveProvider>
+```
 
 **Data flow:**
 
 ```mermaid
 graph TD
-    A["Dashboard Config"] --> B["datasource1<br/>(enabled: true)"]
-    A --> C["datasource2<br/>(enabled: false)"]
-    B --> D["GlobalDataSourceProvider<br/>creates Provider"]
-    D --> E["Provider connects and<br/>starts publishing"]
-    C --> F["Not instantiated"]
+    A["Dashboard Config<br/>{datasources: Map}"] --> B["datasource1<br/>(id: 'foxglove-1', enabled: true)"]
+    A --> C["datasource2<br/>(id: 'random-1', enabled: true)"]
+    A --> D["datasource3<br/>(id: 'rosbridge-1', enabled: false)"]
+
+    B --> E["GlobalDataSourceProvider<br/>creates nested chain"]
+    C --> E
+
+    E --> F["FoxgloveProvider<br/>(connects & publishes)"]
+    F --> G["RandomDataProvider<br/>(generates & publishes)"]
+    G --> H["Dashboard & Widgets"]
+
+    D --> I["Not instantiated<br/>(disabled)"]
 
     style A fill:#e3f2fd
     style B fill:#c8e6c9
-    style C fill:#ffcdd2
-    style D fill:#fff3e0
+    style C fill:#c8e6c9
+    style D fill:#ffcdd2
     style E fill:#fff3e0
-    style F fill:#f5f5f5
+    style F fill:#f3e5f5
+    style G fill:#f3e5f5
 ```
 
 ## Performance Considerations

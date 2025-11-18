@@ -20,49 +20,105 @@ ORMI-CORE is a **modular, plugin-based framework** for building real-time data v
 
 ## Architecture Overview
 
+### 1. Application Hierarchy
+
+```mermaid
+graph TD
+    Root["App Root<br/>(layout.tsx)"]
+    Root --> Plugins["PluginsProvider<br/>- Loads plugin registry<br/>- Creates PluginsManager<br/>- Central pub/sub hub"]
+    Plugins --> Pages["Page Content"]
+    Pages --> Dashboard["Dashboard Page"]
+
+    style Root fill:#e3f2fd
+    style Plugins fill:#e3f2fd
+    style Dashboard fill:#fff3e0
+```
+
+**Key:** PluginsProvider wraps the entire application and provides the PluginManager instance.
+
+### 2. Dashboard Provider Chain
+
+```mermaid
+graph TD
+    Dashboard["Dashboard Page"]
+    Dashboard --> DashMgr["DashboardProvider<br/>- Manages workspace state<br/>- Datasource & widget CRUD"]
+    DashMgr --> GlobalDS["GlobalDataSourceProvider<br/>- Builds nested provider chain"]
+
+    GlobalDS --> DS1["FoxgloveProvider"]
+    DS1 --> DS2["ROSBridgeProvider"]
+    DS2 --> DS3["RandomDataProvider"]
+    DS3 --> Layout["Widget Grid/Layout"]
+
+    style DashMgr fill:#fff3e0
+    style GlobalDS fill:#fff3e0
+    style DS1 fill:#f3e5f5
+    style DS2 fill:#f3e5f5
+    style DS3 fill:#f3e5f5
+    style Layout fill:#e8f5e9
+```
+
+**Key:** GlobalDataSourceProvider nests all datasource providers using `reduceRight()`, so data flows through all datasources before reaching widgets.
+
+### 3. Widget Data Sources
+
+```mermaid
+graph TD
+    Layout["Widget Grid/Layout"]
+    Layout --> W1["Widget 1"]
+    Layout --> W2["Widget 2"]
+    Layout --> W3["Widget 3"]
+
+    W1 --> LocalDS1["LocalDataSourceProvider<br/>- Requests subscription<br/>- Buffers data<br/>- Provides context"]
+    W2 --> LocalDS2["LocalDataSourceProvider<br/>- Requests subscription<br/>- Buffers data<br/>- Provides context"]
+    W3 --> LocalDS3["LocalDataSourceProvider<br/>- Requests subscription<br/>- Buffers data<br/>- Provides context"]
+
+    LocalDS1 --> Comp1["Widget Component<br/>useLocalDataSource()"]
+    LocalDS2 --> Comp2["Widget Component<br/>useLocalDataSource()"]
+    LocalDS3 --> Comp3["Widget Component<br/>useLocalDataSource()"]
+
+    style LocalDS1 fill:#e8f5e9
+    style LocalDS2 fill:#e8f5e9
+    style LocalDS3 fill:#e8f5e9
+    style Comp1 fill:#c8e6c9
+    style Comp2 fill:#c8e6c9
+    style Comp3 fill:#c8e6c9
+```
+
+**Key:** Each widget is wrapped in its own LocalDataSourceProvider for independent data subscription and buffering.
+
+### 4. Data Flow (Pub/Sub Pattern)
+
 ```mermaid
 graph TB
-    subgraph Application["ORMI-CORE Application"]
-        subgraph PluginMgr["PluginsProvider (Plugin Manager)"]
-            PM1["Loads plugins from registry"]
-            PM2["Manages hooks and filters"]
-            PM3["Provides pub/sub for data flow"]
-        end
-
-        subgraph Dashboard["Dashboard Layer"]
-            W1["Widget 1<br/>(Map)"]
-            W2["Widget 2<br/>(Chart)"]
-            W3["Widget 3<br/>(Viewer)"]
-            LocalDS["LocalDataSourceProvider<br/>- Subscribe to topics<br/>- Buffer management"]
-
-            W1 --> LocalDS
-            W2 --> LocalDS
-            W3 --> LocalDS
-        end
-
-        GlobalDS["GlobalDataSourceProvider<br/>- Manages active datasource instances<br/>- Coordinates datasource lifecycle"]
-
-        subgraph Datasources["Datasource Instances (Providers)"]
-            DS1["Foxglove<br/>WebSocket"]
-            DS2["ROSBridge<br/>WebSocket"]
-            DS3["Random Data<br/>Generator"]
-        end
-
-        Transform["Transform System (Optional)<br/>- Coordinate transformations (TF trees)<br/>- Data conversions between coordinate frames"]
-
-        PluginMgr --> Dashboard
-        LocalDS --> GlobalDS
-        GlobalDS --> Datasources
-        DS1 -.Publish data via PluginManager.-> PluginMgr
-        DS2 -.Publish data via PluginManager.-> PluginMgr
-        DS3 -.Publish data via PluginManager.-> PluginMgr
+    subgraph Init["Initialization (Widget Mount)"]
+        direction LR
+        W1["Widget Mounts"]
+        W1 -->|"1. addAction({datasource}-{topic}-published)"| PM1["PluginManager"]
+        W1 -->|"2. WaitAndDoAction({datasource}-subscribe)"| PM1
+        PM1 -->|"Request received"| DS1["Datasource<br/>starts streaming"]
     end
 
-    style PluginMgr fill:#e3f2fd
-    style Dashboard fill:#f3e5f5
-    style Datasources fill:#e8f5e9
-    style Transform fill:#fff3e0
+    subgraph Runtime["Runtime (Data Arrives)"]
+        direction LR
+        DS2["Datasource<br/>publishes"]
+        DS2 -->|"3. doAction({datasource}-{topic}-published)"| PM2["PluginManager<br/>broadcasts"]
+        PM2 -->|"4. Execute callback"| L1["LocalDataSourceProvider<br/>buffers data"]
+        L1 -->|"5. Update state"| W2["Widget re-renders"]
+    end
+
+    style W1 fill:#c8e6c9
+    style PM1 fill:#ffecb3
+    style DS1 fill:#f3e5f5
+    style DS2 fill:#f3e5f5
+    style PM2 fill:#ffecb3
+    style L1 fill:#e8f5e9
+    style W2 fill:#c8e6c9
 ```
+
+**Key:**
+
+- **Initialization:** LocalDataSourceProvider requests subscription when widget mounts
+- **Runtime:** Datasource publishes data, PluginManager routes to all callbacks, widget re-renders
 
 ## Extension Points
 

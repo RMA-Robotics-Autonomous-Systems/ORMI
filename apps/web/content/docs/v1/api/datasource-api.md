@@ -275,21 +275,33 @@ useEffect(() => {
 
 #### 2. Subscribe Hook
 
-**Purpose:** Register widget callbacks for topic updates
+**Purpose:** Handle subscription requests from LocalDataSourceProvider
+
+**Important:** The subscribe hook does NOT receive a callback parameter. Instead, LocalDataSourceProvider registers its own action callback for data updates.
 
 ```typescript
 useEffect(() => {
     pluginManager.addAction(subscribe_hook, {
         id: datasource_id,
         priority: 10,
-        action: (topic: SelectedTopic, callback: Function) => {
-            // Track subscriber
-            if (!subscribersRef.current.has(topic.topic)) {
-                subscribersRef.current.set(topic.topic, new Set());
+        action: (topic: SelectedTopic) => {
+            // Check if topic is available
+            const topicDef = props.topics.find((t) => t.topic === topic.topic);
+            if (!topicDef) {
+                console.error(`Topic ${topic.topic} not available`);
+                return;
             }
-            subscribersRef.current.get(topic.topic)!.add(callback);
 
-            console.log(`Subscribed to ${topic.topic}`);
+            // Track subscriber count
+            const count = subscribersCountRef.current.get(topic.topic) || 0;
+            subscribersCountRef.current.set(topic.topic, count + 1);
+
+            // Start data generation/connection on first subscriber
+            if (count === 0) {
+                startTopicDataFlow(topic.topic);
+            }
+
+            console.log(`Subscribed to ${topic.topic} (count: ${count + 1})`);
         },
     });
 
@@ -301,18 +313,34 @@ useEffect(() => {
 
 #### 3. Unsubscribe Hook
 
-**Purpose:** Remove widget callbacks
+**Purpose:** Handle unsubscription requests
 
 ```typescript
 useEffect(() => {
     pluginManager.addAction(unsubscribe_hook, {
         id: datasource_id,
         priority: 10,
-        action: (topic: SelectedTopic) => {
-            // Remove all subscribers for this topic
-            subscribersRef.current.delete(topic.topic);
+        action: (topic: SelectedTopic, ignoreCount = false) => {
+            // Force cleanup if ignoreCount is true
+            if (ignoreCount) {
+                stopTopicDataFlow(topic.topic);
+                subscribersCountRef.current.delete(topic.topic);
+                return;
+            }
 
-            console.log(`Unsubscribed from ${topic.topic}`);
+            // Decrement subscriber count
+            const count = subscribersCountRef.current.get(topic.topic) || 0;
+            const newCount = Math.max(0, count - 1);
+            subscribersCountRef.current.set(topic.topic, newCount);
+
+            // Stop data flow when no subscribers remain
+            if (newCount === 0) {
+                stopTopicDataFlow(topic.topic);
+            }
+
+            console.log(
+                `Unsubscribed from ${topic.topic} (count: ${newCount})`
+            );
         },
     });
 
@@ -342,26 +370,54 @@ useEffect(() => {
 
 ### Publishing Data
 
-When data arrives, publish to all subscribers:
+When data arrives from your source, publish it via the PluginManager:
 
 ```typescript
-const publishData = (topic: string, data: any, timestamp: number) => {
-    // Notify via Plugin Manager (triggers LocalDataSourceProvider)
+const publishData = (
+    topic: string,
+    data: any,
+    timestamp: number,
+    referenceFrameId?: string
+) => {
+    // Publish to PluginManager - triggers ALL registered action callbacks
+    // including those from LocalDataSourceProvider instances
     pluginManager.doAction(
         `${datasource_id}-${topic}-published`,
         data,
-        timestamp
+        timestamp,
+        referenceFrameId || "unknown"
     );
 };
 
 // Example: WebSocket message handler
 ws.onmessage = (event) => {
     const message = JSON.parse(event.data);
-    const data = convertToInternalType(message);
 
-    publishData(message.topic, data, Date.now());
+    // Convert to internal type if needed
+    const data = convertToInternalType(message.data, message.type);
+
+    publishData(
+        message.topic,
+        data,
+        message.timestamp || Date.now(),
+        message.frame_id
+    );
 };
+
+// Example: Interval-based data generation
+const interval = setInterval(() => {
+    const randomValue = Math.random() * 100;
+
+    publishData("/sensor/temperature", randomValue, Date.now());
+}, 1000 / frequency);
 ```
+
+**Key Points:**
+
+- Use `doAction` (not `doActionAsync`) for data publishing
+- Published data is immediately sent to all registered callbacks
+- LocalDataSourceProvider instances receive data via their registered action callbacks
+- No need to track callbacks manually - PluginManager handles routing
 
 ## Complete Datasource Example
 
