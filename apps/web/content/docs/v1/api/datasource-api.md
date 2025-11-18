@@ -868,6 +868,6 @@ console.log(`[${datasource_id}] Subscribers: ${subscriberCount}`);
 
 ## Next Steps
 
-- **[Creating a Datasource Guide](../guides/creating-datasource)** - Step-by-step tutorial
+- **[Creating a Plugin](../guides/creating-plugin)** - Step-by-step plugin development guide
 - **[Data Flow](../core/data-flow)** - Understanding the pub/sub system
-- **[Datasource Examples](../examples/datasource-example)** - Real implementations
+- **[Plugin System](../core/plugin-system)** - Understanding datasource providers

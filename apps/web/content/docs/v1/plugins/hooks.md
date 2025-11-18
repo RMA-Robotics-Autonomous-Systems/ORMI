@@ -516,6 +516,6 @@ this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 
 ## Next Steps
 
-- [Plugin Integration](integration) - Complete plugin setup guide
-- [Provider Pattern](../datasources/provider-pattern) - Implement providers
-- [Creating a Datasource](../implementation/creating-datasource) - Build complete datasource
+- [Plugin API](../api/plugin-api) - Complete plugin API reference
+- [Creating a Plugin](../guides/creating-plugin) - Step-by-step plugin development guide
+- [Data Flow](../core/data-flow) - Understanding data flow in ORMI-CORE
