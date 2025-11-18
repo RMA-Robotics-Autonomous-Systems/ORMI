@@ -5,16 +5,7 @@ import rehypeHighlight from 'rehype-highlight'
 import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import remarkGfm from 'remark-gfm'
-
-// Import your UI components for use in MDX
-import { Button } from '@workspace/ui/components/button'
-import { Card } from '@workspace/ui/components/card'
-
-const components = {
-    Button,
-    Card,
-    // Add more components as needed
-}
+import components from '@/components/docs/mdx-components'
 
 interface PageProps {
     params: Promise<{
@@ -60,7 +51,7 @@ export default async function DocPage({ params }: PageProps) {
     }
 
     return (
-        <article className="prose prose-slate dark:prose-invert max-w-none">
+        <article className="max-w-none">
             <MDXRemote
                 source={doc.content}
                 components={components}

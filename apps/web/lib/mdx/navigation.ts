@@ -80,8 +80,15 @@ function buildNavFromDirectory(
     for (const fileInfo of fileInfos) {
         const fileName = fileInfo.name.replace(/\.(md|mdx)$/, "");
 
-        // Skip index files, they represent the parent directory
+        // Handle index files specially
         if (fileName === "index" || fileName === "README") {
+            // Only add index at the root level (when basePath is empty)
+            if (basePath === "") {
+                items.push({
+                    title: fileInfo.title || "Documentation Home",
+                    href: `/docs/${version}`,
+                });
+            }
             continue;
         }
 

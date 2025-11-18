@@ -21,7 +21,7 @@ A walkthrough of the **Random Data datasource** - the simplest type of datasourc
 
 ## Architecture
 
-```
+```ascii
 Timer (setInterval)
     ↓
 Generate Random Data
