@@ -6,6 +6,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Separator } from '@workspace/ui/components/separator'
 import { AlertCircle, Info, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { DocsLink } from './docs-link'
+import { Mermaid } from './mermaid'
 
 // Custom styled components for MDX
 const components = {
@@ -111,13 +112,34 @@ const components = {
         />
     ),
 
-    // Code blocks - let CSS handle the styling
-    pre: ({ className, ...props }: React.HTMLAttributes<HTMLPreElement>) => (
-        <pre
-            className={className}
-            {...props}
-        />
-    ),
+    // Code blocks - let CSS handle the styling, but check for mermaid
+    pre: ({ className, children, ...props }: React.HTMLAttributes<HTMLPreElement>) => {
+        // Check if this is a mermaid diagram
+        const childElement = children as any
+        const language = childElement?.props?.className?.replace('language-', '') || ''
+        const code = childElement?.props?.children || ''
+
+        const affectiveLanguage = language.toLowerCase().trim().replace('hljs ', '');
+        if (affectiveLanguage.startsWith('mermaid') && typeof code === 'string') {
+            // Parse size from language (e.g., "mermaid-large", "mermaid-small")
+            let size: 'small' | 'medium' | 'large' = 'medium'
+            if (affectiveLanguage.includes('-large')) {
+                size = 'large'
+            } else if (affectiveLanguage.includes('-small')) {
+                size = 'small'
+            }
+            return <Mermaid chart={code.trim()} size={size} />
+        }
+
+        return (
+            <pre
+                className={className}
+                {...props}
+            >
+                {children}
+            </pre>
+        )
+    },
 
     // Tables
     table: ({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) => (

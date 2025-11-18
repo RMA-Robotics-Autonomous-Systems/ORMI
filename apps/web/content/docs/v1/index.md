@@ -3,87 +3,229 @@ title: "Overview"
 order: -1
 ---
 
-# ORMI-CORE Documentation
+# ORMI-CORE Developer Documentation
 
-Welcome to the ORMI-CORE documentation. This documentation focuses on the **Datasource System** architecture and implementation.
+Welcome to the ORMI-CORE developer documentation. This guide covers everything you need to extend the webapp through plugins, widgets, datasources, and custom renderers.
 
 ## What is ORMI-CORE?
 
-ORMI-CORE is a modular plugin-based system for creating real-time data visualization dashboards. The datasource system is the foundation that enables widgets to subscribe to and publish data from various sources like ROS2, WebSocket connections, REST APIs, and more.
+ORMI-CORE is a **modular, plugin-based framework** for building real-time data visualization dashboards. It provides a flexible architecture where developers can:
 
-## Quick Links
+- Create **custom widgets** for data visualization
+- Implement **datasources** to connect to various data streams (ROS2, WebSocket, REST APIs)
+- Build **plugins** that extend functionality through a powerful hooks system
+- Add **custom JSON Forms renderers** for specialized UI components
+- Define **templates** for reusable configurations
+- Implement **data transforms** for coordinate system conversions
 
-- **[Datasource Overview](datasources/overview)** - Understand the datasource system architecture
-- **[Core Interfaces](datasources/core-interfaces)** - Reference for TypeScript interfaces
-- **[Creating a Datasource](implementation/creating-datasource)** - Step-by-step guide
-- **[Plugin Integration](plugins/integration)** - How datasources integrate with the plugin system
+## Architecture Overview
 
-## System Architecture
+```mermaid
+graph TB
+    subgraph Application["ORMI-CORE Application"]
+        subgraph PluginMgr["PluginsProvider (Plugin Manager)"]
+            PM1["Loads plugins from registry"]
+            PM2["Manages hooks and filters"]
+            PM3["Provides pub/sub for data flow"]
+        end
 
-```ascii
-┌─────────────────────────────────────────────────────┐
-│                   Dashboard                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
-│  │ Widget 1 │  │ Widget 2 │  │ Widget 3 │           │
-│  └─────┬────┘  └─────┬────┘  └─────┬────┘           │
-│        │             │             │                │
-│        └─────────────┴─────────────┘                │
-│                      │                              │
-│            ┌─────────▼─────────┐                    │
-│            │   Plugin Manager  │                    │
-│            │   (Pub/Sub Hub)   │                    │
-│            └─────────┬─────────┘                    │
-│                      │                              │
-│        ┌─────────────┼─────────────┐                │
-│        │             │             │                │
-│  ┌─────▼─────┐ ┌────▼─────┐ ┌────▼─────┐            │
-│  │Datasource │ │Datasource│ │Datasource│            │
-│  │ Foxglove  │ │ Random   │ │REST Bags │            │
-│  └───────────┘ └──────────┘ └──────────┘            │
-└─────────────────────────────────────────────────────┘
+        subgraph Dashboard["Dashboard Layer"]
+            W1["Widget 1<br/>(Map)"]
+            W2["Widget 2<br/>(Chart)"]
+            W3["Widget 3<br/>(Viewer)"]
+            LocalDS["LocalDataSourceProvider<br/>- Subscribe to topics<br/>- Buffer management"]
+
+            W1 --> LocalDS
+            W2 --> LocalDS
+            W3 --> LocalDS
+        end
+
+        GlobalDS["GlobalDataSourceProvider<br/>- Manages active datasource instances<br/>- Coordinates datasource lifecycle"]
+
+        subgraph Datasources["Datasource Instances (Providers)"]
+            DS1["Foxglove<br/>WebSocket"]
+            DS2["ROSBridge<br/>WebSocket"]
+            DS3["Random Data<br/>Generator"]
+        end
+
+        Transform["Transform System (Optional)<br/>- Coordinate transformations (TF trees)<br/>- Data conversions between coordinate frames"]
+
+        PluginMgr --> Dashboard
+        LocalDS --> GlobalDS
+        GlobalDS --> Datasources
+        DS1 -.Publish data via PluginManager.-> PluginMgr
+        DS2 -.Publish data via PluginManager.-> PluginMgr
+        DS3 -.Publish data via PluginManager.-> PluginMgr
+    end
+
+    style PluginMgr fill:#e3f2fd
+    style Dashboard fill:#f3e5f5
+    style Datasources fill:#e8f5e9
+    style Transform fill:#fff3e0
 ```
 
-## Key Concepts
+## Extension Points
 
-### Datasource
+ORMI-CORE provides multiple extension mechanisms:
 
-A datasource is a **data provider** that exposes topics (data streams) to the system. Each datasource:
+### 1. **Plugins**
 
-- Implements a React Provider component
-- Publishes data to topics via the plugin manager
-- Manages subscriptions and connections
-- Can be configured via JSON Schema
+The foundation of extensibility. Plugins use a **hooks and filters** system to inject functionality.
 
-### Topic
+**Use plugins to:**
 
-A topic represents a **data stream** with:
+- Register widgets and datasources
+- Add custom JSON Forms renderers
+- Extend transform systems
+- Provide map visualizers
+- Add any cross-cutting functionality
 
-- A unique name (e.g., `/robot/position`)
-- Type information (both internal and raw)
-- Source datasource reference
-- Optional buffer size
+### 2. **Widgets**
 
-### Plugin Integration
+React components that visualize or interact with data.
 
-Datasources integrate through the **PluginsHooks** system:
+**Create widgets for:**
 
-- `DATASOURCES_LIST` - Register datasource definitions
-- `AVAILABLE_TOPICS` - Expose available topics
-- Topic-specific hooks for pub/sub
+- Data visualization (charts, maps, 3D views)
+- Control interfaces (joystick, keyboard)
+- Status indicators
+- Custom UI components
 
-## Current Datasources
+### 3. **Datasources**
 
-| Plugin                     | Description                         | Status        |
-| -------------------------- | ----------------------------------- | ------------- |
-| `ormi-foxglove`            | Foxglove WebSocket protocol support | ✅ Production |
-| `ormi-rosbridge-suite`     | ROSBridge websocket connection      | ✅ Production |
-| `ormi-rest-bags`           | REST API for ROS2 bag playback      | ✅ Production |
-| `ormi-randoms-datasources` | Random test data generator          | ✅ Production |
-| `ormi-tello`               | Tello drone control/telemetry       | ✅ Production |
+React Providers that connect to data sources and publish to topics.
 
-## Next Steps
+**Build datasources for:**
 
-1. Read the [Datasource Overview](datasources/overview) to understand the architecture
-2. Review [Core Interfaces](datasources/core-interfaces) for the TypeScript definitions
-3. Follow the [Creating a Datasource](implementation/creating-datasource) guide to build your own
-4. Check out [Example implementations](implementation/example-random) for reference
+- WebSocket connections (ROS2, Foxglove)
+- REST APIs
+- Hardware interfaces
+- Data generators
+- File playback systems
+
+### 4. **Custom Renderers**
+
+JSON Forms renderers for specialized input controls.
+
+**Add renderers for:**
+
+- Topic selection
+- Complex configuration UIs
+- Custom data type editors
+
+### 5. **Transforms**
+
+Coordinate system transformations for robotics applications.
+
+**Implement transforms for:**
+
+- TF tree management
+- Coordinate frame conversions
+- Sensor fusion
+
+## Quick Start
+
+### For Widget Developers
+
+```typescript
+// Create a custom widget
+export function MyWidgetDefinition(): WidgetDefinition {
+  return {
+    id: 'my-widget',
+    name: 'My Custom Widget',
+    description: 'Does something cool',
+    schema: { /* JSON Schema */ },
+    uischema: { /* UI Schema */ },
+    data: { /* default data */ },
+    Component: (data) => <MyWidget {...data} />
+  }
+}
+```
+
+### For Datasource Developers
+
+```typescript
+// Create a custom datasource
+export const MyDatasourceDefinition: DatasourceDefinition = {
+  id: 'my-datasource',
+  name: 'My Data Source',
+  schema: { /* config schema */ },
+  data: { /* default config */ },
+  Provider: ({ children, props }) => (
+    <MyDatasourceProvider {...props}>
+      {children}
+    </MyDatasourceProvider>
+  )
+}
+```
+
+### For Plugin Developers
+
+```typescript
+// Create a plugin that registers extensions
+class MyPlugin extends Plugin {
+    constructor() {
+        super();
+        this.name = "My Plugin";
+
+        // Register widgets
+        this.addFilter(PluginsHooks.WIDGETS_LIST, {
+            id: "my-widgets",
+            priority: 10,
+            filter: (widgets) => {
+                widgets.push(MyWidgetDefinition());
+                return widgets;
+            },
+        });
+
+        // Register datasources
+        this.addFilter(PluginsHooks.DATASOURCES_LIST, {
+            id: "my-datasources",
+            priority: 10,
+            filter: (datasources) => {
+                datasources.push(MyDatasourceDefinition);
+                return datasources;
+            },
+        });
+    }
+}
+```
+
+## Documentation Structure
+
+### Core Concepts
+
+- **[Plugin System](core/plugin-system)** - Hooks, filters, and the plugin architecture
+- **[Data Flow](core/data-flow)** - How data moves from datasources to widgets
+- **[Type System](core/type-system)** - Internal types and raw type conversions
+
+### API Reference
+
+- **[Plugin API](api/plugin-api)** - Plugin class and PluginManager reference
+- **[Widget API](api/widget-api)** - Complete widget interface documentation
+- **[Datasource API](api/datasource-api)** - Datasource implementation guide
+
+### Guides
+
+- **[Creating a Plugin](guides/creating-plugin)** - Step-by-step plugin development
+- **[Development Setup](guides/development-setup)** - Environment configuration
+- **[Quick Reference](guides/quick-reference)** - Common patterns and code snippets
+
+## Getting Started
+
+1. **Understand the architecture** - Read [Plugin System](core/plugin-system) and [Data Flow](core/data-flow)
+2. **Choose your extension point** - Widget, Datasource, or Plugin?
+3. **Follow the guide** - Step-by-step instructions in [Creating a Plugin](guides/creating-plugin)
+4. **Reference the API** - Detailed interfaces in the API Reference section
+
+## Development Environment
+
+ORMI-CORE is a monorepo using:
+
+- **Turborepo** for build orchestration
+- **TypeScript** for type safety
+- **React** for UI components
+- **JSON Forms** for configuration UIs
+- **Bun** for package management
+
+See [Development Setup](guides/development-setup) for complete environment configuration.
