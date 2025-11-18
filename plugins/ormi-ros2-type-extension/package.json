@@ -1,39 +1,40 @@
 {
-  "name": "ormi-ros2-type-extension",
-  "version": "1.0.0",
-  "description": "Plugin to extend ROS2 types in the webapp.",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.2.17",
-    "@types/node": "^20",
-    "@workspace/eslint-config": "workspace:*",
-    "@workspace/typescript-config": "workspace:*",
-    "typescript": "^5.7.3"
-  },
-  "dependencies": {
-    "sonner": "^2.0.5",
-    "@workspace/ormi-plugins": "workspace:*",
-    "@workspace/ormi-core": "workspace:*",
-    "@workspace/ui": "workspace:*",
-    "@workspace/ormi-jsonforms": "workspace:*",
-    "@jsonforms/core": "^3.5.1",
-    "copyfiles": "^2.4.1",
-    "lucide-react": "0.525.0",
-    "tsc-alias": "1.8.11"
-  },
-  "ormi_plugin": true
+    "name": "ormi-ros2-type-extension",
+    "version": "1.0.0",
+    "description": "Plugin to extend ROS2 types in the webapp.",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist build .turbo node_modules"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.2.17",
+        "@types/node": "^20",
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "sonner": "^2.0.5",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "@workspace/ormi-jsonforms": "workspace:*",
+        "@jsonforms/core": "^3.5.1",
+        "copyfiles": "^2.4.1",
+        "lucide-react": "0.525.0",
+        "tsc-alias": "1.8.11"
+    },
+    "ormi_plugin": true
 }

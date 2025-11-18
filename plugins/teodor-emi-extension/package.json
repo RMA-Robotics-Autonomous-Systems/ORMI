@@ -1,43 +1,44 @@
 {
-  "name": "teodor-emi-extension",
-  "version": "1.0.0",
-  "description": "Add visualization for the Teodor EMI",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.2.17",
-    "@types/geojson": "^7946.0.14",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@workspace/eslint-config": "workspace:*",
-    "@workspace/typescript-config": "workspace:*",
-    "react": "^19.0.0",
-    "react-map-gl": "^7.1.7",
-    "typescript": "^5.7.3"
-  },
-  "dependencies": {
-    "sonner": "^2.0.5",
-    "@workspace/ormi-plugins": "workspace:*",
-    "@workspace/ormi-core": "workspace:*",
-    "@workspace/ui": "workspace:*",
-    "@workspace/ormi-jsonforms": "workspace:*",
-    "@jsonforms/core": "^3.5.1",
-    "copyfiles": "^2.4.1",
-    "lucide-react": "0.525.0",
-    "tsc-alias": "1.8.11"
-  },
-  "ormi_plugin": true
+    "name": "teodor-emi-extension",
+    "version": "1.0.0",
+    "description": "Add visualization for the Teodor EMI",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist build .turbo node_modules"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.2.17",
+        "@types/geojson": "^7946.0.14",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "react": "^19.0.0",
+        "react-map-gl": "^7.1.7",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "sonner": "^2.0.5",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "@workspace/ormi-jsonforms": "workspace:*",
+        "@jsonforms/core": "^3.5.1",
+        "copyfiles": "^2.4.1",
+        "lucide-react": "0.525.0",
+        "tsc-alias": "1.8.11"
+    },
+    "ormi_plugin": true
 }

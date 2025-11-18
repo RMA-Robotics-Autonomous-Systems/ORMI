@@ -13,6 +13,10 @@ import { Label } from "@workspace/ui/components/label"
 import { Card, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard"
 
+interface CreateWSButtonProps {
+    onWorkspaceCreated?: (workspaceId: number) => void;
+}
+
 export function CreateWSButton({ onWorkspaceCreated }: CreateWSButtonProps = {}) {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
@@ -66,15 +70,17 @@ export function CreateWSButton({ onWorkspaceCreated }: CreateWSButtonProps = {})
                 }),
             })
 
+            const workspace = await response.json() as any
+
             if (!workspace) {
                 throw new Error("Failed to create workspace")
             }
 
-            const workspace = await response.json() as any
             toast(`Workspace "${workspaceName}" created successfully!`)
             handleDialogChange(false)
             router.refresh()
             router.push(`/dashboard/ws/${workspace.id}`)
+            onWorkspaceCreated?.(workspace.id)
         } catch (error) {
             toast(error instanceof Error ? error.message : "An unknown error occurred")
         } finally {

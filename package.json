@@ -10,10 +10,11 @@
     "scripts": {
         "build": "turbo build",
         "start": "cd apps/web && bun run start",
-        "dev": "turbo dev",
+        "dev": "bunx turbo dev",
         "lint": "turbo lint",
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-        "create": "bun scripts/create-package.js"
+        "create": "bun scripts/create-package.js",
+        "clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules"
     },
     "devDependencies": {
         "@workspace/eslint-config": "workspace:*",
