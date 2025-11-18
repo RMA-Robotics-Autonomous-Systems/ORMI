@@ -138,5 +138,5 @@ export const OptimizedPointsCloud = ({
         }
     }, [theme, useTransparency, customColor, invalidate]);
 
-    return <points ref={pointsRef} geometry={geometry} material={pointsMaterial} />;
+    return <points ref={pointsRef} geometry={geometry as any} material={pointsMaterial as any} />;
 };
