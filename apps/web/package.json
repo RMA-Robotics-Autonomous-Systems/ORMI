@@ -49,9 +49,16 @@
         "rehype-highlight": "^7.0.1",
         "rehype-slug": "^6.0.0",
         "remark-gfm": "^4.0.0",
-        "teodor-emi-extension": "workspace:*"
+        "teodor-emi-extension": "workspace:*",
+        "sonner": "^2.0.7",
+        "react-hook-form": "^7.58.1",
+        "@hookform/resolvers": "^5.1.1",
+        "zod": "^3.25.67",
+        "@radix-ui/react-avatar": "^1.1.11"
     },
     "devDependencies": {
+        "@tailwindcss/postcss": "^4.1.17",
+        "@serwist/next": "^9.2.1",
         "@types/bun": "^1.2.17",
         "@types/node": "^20",
         "@types/react": "^19",
