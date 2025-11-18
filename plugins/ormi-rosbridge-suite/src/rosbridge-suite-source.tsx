@@ -57,7 +57,7 @@ export async function GetTopicType(ROS: ROSLIB.Ros, topic: string): Promise<stri
 
 export async function GetTopicsList(ROS: ROSLIB.Ros): Promise<ROSTopic[]> {
     return new Promise<ROSTopic[]>((resolve, reject) => {
-        ROS.getTopics((results: { topics: string[], types: string[] }) => {
+        (ROS as any).getTopics((results: { topics: string[], types: string[] }) => {
 
             const topics: ROSTopic[] = [];
 
@@ -82,7 +82,7 @@ export async function GetTopicsAndRawTypes(ROS: ROSLIB.Ros): Promise<Map<string,
 
     return new Promise<Map<string, JsonSchema>>((resolve, reject) => {
 
-        ROS.getTopicsAndRawTypes((results: { topics: string[], types: string[], typedefs_full_text: string[] }) => {
+        (ROS as any).getTopicsAndRawTypes((results: { topics: string[], types: string[], typedefs_full_text: string[] }) => {
             const topics = new Map<string, JsonSchema>();
 
             for (let i = 0; i < results.topics.length; i++) {
@@ -188,7 +188,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
 
         const waitTimeOut = setTimeout(() => {
             connectionRef.current = new Promise<boolean>((resolve, reject) => {
-                if (!ROSRef.current || !ROSRef.current.isConnected) {
+                if (!ROSRef.current || !(ROSRef.current as any).isConnected) {
                     const ros = new ROSLIB.Ros({
                         url: props.url
                     });
@@ -583,7 +583,7 @@ const RosBridgeSuiteSourceProvider = (children: ReactNode, props: RosBridgeSuite
 
             await connectionRef.current;
 
-            if (ROSRef.current && ROSRef.current.isConnected) {
+            if (ROSRef.current && (ROSRef.current as any).isConnected) {
                 ROSRef.current.close();
             }
         }

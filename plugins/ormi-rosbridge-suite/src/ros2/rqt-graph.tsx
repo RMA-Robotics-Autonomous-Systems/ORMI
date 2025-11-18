@@ -74,7 +74,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
                 let processedCount = 0;
 
                 nodes.forEach(node => {
-                    roslib!.getNodeDetails(node, (result: { subscribing: string[], publishing: string[], services: string[] }) => {
+                    (roslib as any)!.getNodeDetails(node, (result: { subscribing: string[], publishing: string[], services: string[] }) => {
                         newNodeMap.set(node, {
                             subscriptions: result.subscribing,
                             publications: result.publishing,
