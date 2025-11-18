@@ -1,43 +1,54 @@
 import { or } from "@jsonforms/core";
-import { Color, IMU, Movement, PointsCloud, Quaternion, Vector3 } from "@workspace/ormi-core/types";
+import {
+    Color,
+    IMU,
+    Movement,
+    PointsCloud,
+    Quaternion,
+    Vector3,
+    Path,
+    PoseStamped,
+} from "@workspace/ormi-core/types";
 
 interface ConverterEntry {
     conversions: {
         [ros2Type: string]: {
             toRos2: (data: any) => any;
             fromRos2: (data: any) => any;
-        }
+        };
     };
     isPrimitive?: boolean;
 }
 
-
-class Converters{
-        // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
+class Converters {
+    // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
     static converters: { [webType: string]: ConverterEntry } = {
-        "number": {
+        number: {
             conversions: {
                 "sensor_msgs/msg/Temperature": {
-                    toRos2: data => ({ temperature: data, variance: 0 }),
-                    fromRos2: data => data.temperature || 0
+                    toRos2: (data) => ({ temperature: data, variance: 0 }),
+                    fromRos2: (data) => data.temperature || 0,
                 },
                 "sensor_msgs/msg/FluidPressure": {
-                    toRos2: data => ({ fluid_pressure: data, variance: 0 }),
-                    fromRos2: data => data.fluid_pressure || 0
-                }
+                    toRos2: (data) => ({ fluid_pressure: data, variance: 0 }),
+                    fromRos2: (data) => data.fluid_pressure || 0,
+                },
             },
-            isPrimitive: true
+            isPrimitive: true,
         },
-        "IMU": {
+        IMU: {
             conversions: {
-                "sensor_msgs/msg/MagneticField": {  // mag is encoded in IMU linear_acceleration
+                "sensor_msgs/msg/MagneticField": {
+                    // mag is encoded in IMU linear_acceleration
                     toRos2: (data: IMU) => ({
-                        magnetic_field: data.linear_acceleration
-
+                        magnetic_field: data.linear_acceleration,
                     }),
                     fromRos2: (data: any) => {
-                        
-                        function eulerToQuaternion(x: number, y: number, z: number): { x: number; y: number; z: number; w: number } {
+                        function eulerToQuaternion(
+                            x: number,
+                            y: number,
+                            z: number
+                        ): { x: number; y: number; z: number; w: number } {
                             const cy = Math.cos(z * 0.5);
                             const sy = Math.sin(z * 0.5);
                             const cp = Math.cos(y * 0.5);
@@ -49,65 +60,151 @@ class Converters{
                                 w: cr * cp * cy + sr * sp * sy,
                                 x: sr * cp * cy - cr * sp * sy,
                                 y: cr * sp * cy + sr * cp * sy,
-                                z: cr * cp * sy - sr * sp * cy
+                                z: cr * cp * sy - sr * sp * cy,
                             };
                         }
 
-                        const mag = data.magnetic_field;    // in Tesla
+                        const mag = data.magnetic_field; // in Tesla
 
                         // Convert magnetic field to heading (assuming sensor is perfectly level)
                         // Heading = atan2(mag_y, mag_x) in radians
                         const heading = Math.atan2(mag.y, mag.x);
-                        
+
                         // Convert heading to quaternion (rotation around Z-axis)
                         const orientation = eulerToQuaternion(0, 0, heading);
 
-                        return ({
-                            linear_acceleration: data.magnetic_field || { x: 0, y: 0, z: 0 },
+                        return {
+                            linear_acceleration: data.magnetic_field || {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                            },
                             angular_velocity: { x: 0, y: 0, z: 0 },
-                            orientation: orientation
-                        });
-                    }
-                }
-            }
+                            orientation: orientation,
+                        };
+                    },
+                },
+            },
         },
-        "Vector3": {
+        Vector3: {
             conversions: {
                 "geometry_msgs/msg/Vector3Stamped": {
                     toRos2: (data: Vector3) => ({
                         vector: {
                             x: data.x,
                             y: data.y,
-                            z: data.z
-                        }
+                            z: data.z,
+                        },
                     }),
                     fromRos2: (data: any) => {
                         return {
                             x: data.vector?.x || 0,
                             y: data.vector?.y || 0,
-                            z: data.vector?.z || 0
+                            z: data.vector?.z || 0,
                         };
-                    }
+                    },
                 },
                 "geometry_msgs/msg/Vector3": {
                     toRos2: (data: Vector3) => ({
                         vector: {
                             x: data.x,
                             y: data.y,
-                            z: data.z
-                        }
+                            z: data.z,
+                        },
                     }),
                     fromRos2: (data: any) => {
                         return {
                             x: data.vector?.x || 0,
                             y: data.vector?.y || 0,
-                            z: data.vector?.z || 0
+                            z: data.vector?.z || 0,
                         };
-                    }
-                }
-            }
+                    },
+                },
+            },
         },
-        "Transform": {
+        Path: {
+            conversions: {
+                "nav_msgs/msg/Path": {
+                    toRos2: (data: Path) => ({
+                        header: {
+                            stamp: {
+                                sec: Math.floor(data.timestamp),
+                                nanosec: Math.floor((data.timestamp % 1) * 1e9),
+                            },
+                            frame_id: "", // Frame ID will be taken from referenceFrameId in Source
+                        },
+                        poses: data.poses.map((pose: PoseStamped) => ({
+                            header: {
+                                stamp: {
+                                    sec: Math.floor(pose.timestamp),
+                                    nanosec: Math.floor(
+                                        (pose.timestamp % 1) * 1e9
+                                    ),
+                                },
+                                frame_id: "",
+                            },
+                            pose: {
+                                position: {
+                                    x: pose.position.x,
+                                    y: pose.position.y,
+                                    z: pose.position.z,
+                                },
+                                orientation: {
+                                    x: pose.orientation.x,
+                                    y: pose.orientation.y,
+                                    z: pose.orientation.z,
+                                    w: pose.orientation.w,
+                                },
+                            },
+                        })),
+                    }),
+                    fromRos2: (data: any) => {
+                        const timestamp = data.header?.stamp
+                            ? data.header.stamp.sec +
+                              data.header.stamp.nanosec / 1e9
+                            : Date.now() / 1000;
+
+                        const poses: PoseStamped[] = (data.poses || []).map(
+                            (poseStamped: any) => {
+                                const poseTimestamp = poseStamped.header?.stamp
+                                    ? poseStamped.header.stamp.sec +
+                                      poseStamped.header.stamp.nanosec / 1e9
+                                    : timestamp;
+
+                                return {
+                                    position: {
+                                        x: poseStamped.pose?.position?.x || 0,
+                                        y: poseStamped.pose?.position?.y || 0,
+                                        z: poseStamped.pose?.position?.z || 0,
+                                    },
+                                    orientation: {
+                                        x:
+                                            poseStamped.pose?.orientation?.x ||
+                                            0,
+                                        y:
+                                            poseStamped.pose?.orientation?.y ||
+                                            0,
+                                        z:
+                                            poseStamped.pose?.orientation?.z ||
+                                            0,
+                                        w:
+                                            poseStamped.pose?.orientation?.w ||
+                                            1,
+                                    },
+                                    timestamp: poseTimestamp,
+                                };
+                            }
+                        );
+
+                        return {
+                            poses,
+                            timestamp,
+                        };
+                    },
+                },
+            },
+        },
+        Transform: {
             conversions: {
                 // "geometry_msgs/msg/TransformStamped": {
                 //     toRos2: (data: { position: Vector3; rotation: Quaternion }) => ({
@@ -186,13 +283,14 @@ class Converters{
                 //         };
                 //     }
                 // }
-            }
+            },
         },
     };
 }
 
-export const ConverterFilterFunction = (converters: { [webType: string]: ConverterEntry }) => {
-    
+export const ConverterFilterFunction = (converters: {
+    [webType: string]: ConverterEntry;
+}) => {
     // apply additional filters or modifications to the converters if needed
 
     let converterEntries: { [webType: string]: ConverterEntry } = {};
@@ -212,10 +310,12 @@ export const ConverterFilterFunction = (converters: { [webType: string]: Convert
                 converterEntries[webType] = converter;
             }
         } else {
-
             const converter = Converters.converters[webType];
             if (converter && converter.conversions) {
-                Object.assign(converterEntries[webType].conversions, converter.conversions);
+                Object.assign(
+                    converterEntries[webType].conversions,
+                    converter.conversions
+                );
             }
         }
     }

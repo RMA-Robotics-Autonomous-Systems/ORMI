@@ -1,36 +1,48 @@
 "use client"
 
-import React, { JSX, useEffect, useRef, useState } from "react";
-import Map, { MapRef, StyleSpecification } from 'react-map-gl/maplibre';
+import React, { useEffect, useRef, useState } from "react";
+import MapLibreMap, { MapRef } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
-import TopicMarker from "./marker-simple";
-import { ControlElement, VerticalLayout, Categorization } from "@jsonforms/core";
-import HeatMarker from "./marker-heat";
-import PathMarker from "./marker-path";
-import { TopicListOverlay } from "./topics-overlay";
+import { ControlElement, Categorization } from "@jsonforms/core";
 import { CustomLayersOverlay } from "./layers-overlay";
-import MapsGrid, { GridUtils, useMapGrid } from "./maps-grid";
+import MapsGrid, { useMapGrid } from "./maps-grid";
 
-import { MapIcon, MinusIcon, PlusIcon, RefreshCcw, RefreshCcwIcon } from "lucide-react";
-import { SelectedTopic, LocalDataSourcesProvider, DatasourceTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
+import { MapIcon } from "lucide-react";
+import { SelectedTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginsManager } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
-import { ButtonHolderProvider, useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
-import { Button } from "@workspace/ui/components/button";
-import MultiPoints from "./marker-multipoints";
+import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
+
+// Import new sub-components and hooks
+import { useMapStyle } from "./hooks/useMapStyle";
+import { useMapInitialization } from "./hooks/useMapInitialization";
+import { MapToolbar } from "./components/MapToolbar";
+import { GpsTopicsLayer } from "./components/GpsTopicsLayer";
+import { LocalTopicsLayer } from "./components/LocalTopicsLayer";
 
 interface MapsViewerSettings {
     title: string;
     mapUrl: string;
     use3D: boolean;
     apiKey?: string;
+
+    // GPS Topics (already in GPS coordinates)
     topics: {
         name: string;
         topic: SelectedTopic;
         makerType: "simple" | "heatmap" | "path" | "multipoints" | any;
         numericalTopic?: SelectedTopic;
     }[];
+
+    // Local Topics (in local frames, need GPS origin for transformation)
+    localTopics?: {
+        name: string;
+        topic: SelectedTopic;  // Path, PointCloud, etc.
+        gpsOriginTopic: SelectedTopic;  // GPS topic to use as origin
+        visualizerType?: string;  // Optional: specific visualizer to use
+    }[];
+
     customLayers: {
         name: string;
         url: string;
@@ -41,20 +53,24 @@ interface MapsViewerSettings {
 }
 
 export default function MapsBoxViewer(props: MapsViewerSettings) {
-    const [startingLocation, setStartingLocation] = useState<[number, number]>([4.3930369, 50.843941]); // brussels default
-    const [isLoading, setIsLoading] = useState(true);
-
+    // State management
     const [refreshCounter, setRefreshCounter] = useState(0);
     const [showGrid, setShowGrid] = useState(false);
     const [customLayersState, setCustomLayersState] = useState(props.customLayers);
 
-    const [rasterStyle, setRasterStyle] = useState<StyleSpecification>();
+    // Refs
     const mapRef = useRef<MapRef>(null);
 
-    const { setButtonItem, removeButtonItem } = useButtonHolder();
+    // Custom hooks
+    const { startingLocation, isLoading } = useMapInitialization();
     const gridHook = useMapGrid(mapRef, showGrid);
-
-    const pluginsManager = usePluginsManager();
+    const mapStyle = useMapStyle({
+        mapUrl: props.mapUrl,
+        use3D: props.use3D,
+        apiKey: props.apiKey,
+        customLayers: customLayersState,
+        showGrid
+    });
 
     // Handlers for custom layer control
     const handleLayerVisibilityChange = (layerIndex: number, visible: boolean) => {
@@ -73,255 +89,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         );
     };
 
-    useEffect(() => {
-        // Generate custom layer sources and layers
-        const customSources: { [key: string]: any } = {};
-        const customLayersData: any[] = [];
+    const handleRefresh = () => {
+        setRefreshCounter(prev => prev + 1);
+    };
 
-        (customLayersState || []).forEach((layer, index) => {
-            if (layer.url && layer.visible) {
-                const sourceId = `custom-layer-${index}`;
-                const layerId = `custom-layer-${index}`;
-
-
-                // Determine source type based on URL
-                if (layer.url.startsWith('cog://')) {
-                    // COG protocol source
-                    customSources[sourceId] = {
-                        type: 'raster',
-                        url: layer.url
-                    };
-                } else if (layer.url.includes('{z}') && layer.url.includes('{x}') && layer.url.includes('{y}')) {
-                    // Standard tile template - fix TiTiler URL format
-                    let tileUrl = layer.url;
-                    if (layer.url.includes('cog/tiles/') && !layer.url.includes('WebMercatorQuad')) {
-                        // Fix TiTiler URL format
-                        tileUrl = layer.url.replace('cog/tiles/', 'cog/tiles/WebMercatorQuad/');
-                        tileUrl = tileUrl.replace('.png', ''); // Remove .png extension for TiTiler
-                    }
-                    customSources[sourceId] = {
-                        type: 'raster',
-                        tiles: [tileUrl],
-                        tileSize: 256
-                    };
-                } else {
-                    // Assume it's a single image or GeoTIFF
-                    customSources[sourceId] = {
-                        type: 'raster',
-                        url: layer.url
-                    };
-                }
-
-                customLayersData.push({
-                    id: layerId,
-                    type: 'raster',
-                    source: sourceId,
-                    paint: {
-                        'raster-opacity': layer.opacity || 1
-                    }
-                });
-
-            }
-        });
-
-        const baseStyle: StyleSpecification = {
-            version: 8,
-            sources: {
-                'raster-tiles': {
-                    type: 'raster',
-                    tiles: [props.mapUrl],
-                },
-                'grid': {
-                    type: 'geojson',
-                    data: GridUtils.createGridLines([-180, -85, 180, 85], 1000) // Start with 1km grid
-                },
-                ...customSources
-            },
-            layers: [
-                {
-                    id: 'simple-tiles',
-                    type: 'raster',
-                    source: 'raster-tiles',
-                    minzoom: 0,
-                    maxzoom: 22
-                },
-                ...customLayersData,
-                {
-                    id: 'grid-layer',
-                    type: 'line',
-                    source: 'grid',
-                    layout: {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
-                    paint: {
-                        'line-color': '#888888',
-                        'line-width': 1,
-                        'line-opacity': showGrid ? 0.5 : 0
-                    }
-                }
-            ]
-        };
-
-        if (props.use3D && props.apiKey) {
-            setRasterStyle({
-                version: 8,
-                sources: {
-                    'raster-tiles': {
-                        type: 'raster',
-                        tiles: [props.mapUrl],
-                    },
-                    'grid': {
-                        type: 'geojson',
-                        data: GridUtils.createGridLines([-180, -85, 180, 85], 1000) // Start with 1km grid
-                    },
-                    // Add OSM vector tiles source
-                    'openmaptiles': {
-                        type: 'vector',
-                        url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${props.apiKey}`
-                    },
-                    ...customSources
-                },
-                layers: [
-                    {
-                        id: 'simple-tiles',
-                        type: 'raster',
-                        source: 'raster-tiles',
-                        minzoom: 0,
-                        maxzoom: 22
-                    },
-                    ...customLayersData,
-                    {
-                        id: 'grid-layer',
-                        type: 'line',
-                        source: 'grid',
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round'
-                        },
-                        paint: {
-                            'line-color': '#888888',
-                            'line-width': 1,
-                            'line-opacity': showGrid ? 0.5 : 0
-                        }
-                    },
-                    // Add 3D building layer using OSM data
-                    {
-                        'id': '3d-buildings',
-                        'source': 'openmaptiles',
-                        'source-layer': 'building',
-                        'type': 'fill-extrusion',
-                        'minzoom': 15,
-                        'filter': ['!=', ['get', 'hide_3d'], true],
-                        'paint': {
-                            'fill-extrusion-color': [
-                                'interpolate',
-                                ['linear'],
-                                ['get', 'render_height'], 0, 'lightgray', 200, 'royalblue', 400, 'lightblue'
-                            ],
-                            'fill-extrusion-height': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                15,
-                                0,
-                                16,
-                                ['get', 'render_height']
-                            ],
-                            'fill-extrusion-base': ['case',
-                                ['>=', ['get', 'zoom'], 16],
-                                ['get', 'render_min_height'], 0
-                            ]
-                        }
-                    },
-                ]
-            });
-        } else {
-            setRasterStyle(baseStyle);
-        }
-
-        setIsLoading(false);
-
-        if (typeof window !== 'undefined' && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setStartingLocation([position.coords.longitude, position.coords.latitude]);
-                    setIsLoading(false);
-                },
-                () => {
-                    setIsLoading(false);
-                }
-            );
-        } else {
-            setIsLoading(false);
-        }
-
-
-        setButtonItem(
-            "map-box-viewer-widget-zoom-in",
-            <Button variant={"ghost"} onClick={() => {
-                if (mapRef.current) {
-                    const currentZoom = mapRef.current.getZoom();
-                    mapRef.current.setZoom(currentZoom + 1);
-                }
-            }}>
-                <PlusIcon />
-            </Button>,
-            1
-        );
-
-
-        setButtonItem("map-box-viewer-widget-zoom-out",
-            <Button variant={"ghost"} onClick={() => {
-                if (mapRef.current) {
-                    const currentZoom = mapRef.current.getZoom();
-                    mapRef.current.setZoom(currentZoom - 1);
-                }
-            }}>
-                <MinusIcon />
-            </Button>,
-            1
-        );
-
-
-        // refresh button
-        setButtonItem("map-box-viewer-widget-refresh",
-            <Button variant={"ghost"} onClick={() => {
-                // Force a full rerender by incrementing the refresh counter
-                // This will cause the useEffect to run again and remount the Map component
-                setRefreshCounter(prev => prev + 1);
-            }}>
-                <RefreshCcwIcon />
-            </Button>,
-            1
-        );
-
-        // grid toggle button
-        setButtonItem("map-box-viewer-widget-grid",
-            <Button variant={showGrid ? "default" : "ghost"} onClick={() => {
-                setShowGrid(prev => !prev);
-            }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="9" y1="3" x2="9" y2="21" />
-                    <line x1="15" y1="3" x2="15" y2="21" />
-                    <line x1="3" y1="9" x2="21" y2="9" />
-                    <line x1="3" y1="15" x2="21" y2="15" />
-                </svg>
-            </Button>,
-            1
-        );
-
-
-
-        return () => {
-            removeButtonItem("map-box-viewer-widget-zoom-in");
-            removeButtonItem("map-box-viewer-widget-zoom-out");
-            removeButtonItem("map-box-viewer-widget-refresh");
-            removeButtonItem("map-box-viewer-widget-grid");
-        }
-
-    }, [props, refreshCounter, showGrid, customLayersState]); // Add showGrid and customLayersState to dependencies
+    const handleToggleGrid = () => {
+        setShowGrid(prev => !prev);
+    };
 
     // Sync customLayersState with props.customLayers when props change
     useEffect(() => {
@@ -332,35 +106,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
         return <Spinner />;
     }
 
-    const getAllTopics = () => {
-        // merge all topics (from the props) and the numerical topics if they exist
-        // clear duplicates, check on unique source IDs (not just topic names)
-        const allTopics: SelectedTopic[] = [];
-        const seenSourceIds = new Set<string>();
-
-        props.topics.forEach(t => {
-            if (t.topic) {
-                const sourceId = `${t.topic.source.id}::${t.topic.topic}${t.topic.property ? '::' + t.topic.property : ''}`;
-                if (!seenSourceIds.has(sourceId)) {
-                    allTopics.push(t.topic);
-                    seenSourceIds.add(sourceId);
-                }
-            }
-            if (t.numericalTopic) {
-                const numericalSourceId = `${t.numericalTopic.source.id}::${t.numericalTopic.topic}${t.numericalTopic.property ? '::' + t.numericalTopic.property : ''}`;
-                if (!seenSourceIds.has(numericalSourceId)) {
-                    allTopics.push(t.numericalTopic);
-                    seenSourceIds.add(numericalSourceId);
-                }
-            }
-        });
-        return allTopics.filter(t => t !== undefined && t.topic !== undefined && t.topic !== "");
-    }
-
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
             <ButtonHolderProvider>
-                <Map
+                <MapLibreMap
                     key={`map-${refreshCounter}`}
                     initialViewState={{
                         longitude: startingLocation[0],
@@ -370,39 +119,36 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                         bearing: 0
                     }}
                     style={{ width: "100%", height: "100%" }}
-                    mapStyle={rasterStyle}
+                    mapStyle={mapStyle}
                     ref={mapRef}
                     onMoveEnd={gridHook.updateGridForViewport}
                     onZoomEnd={gridHook.updateGridForViewport}
                 >
+                    {/* Map toolbar buttons */}
+                    <MapToolbar
+                        mapRef={mapRef}
+                        showGrid={showGrid}
+                        onToggleGrid={handleToggleGrid}
+                        onRefresh={handleRefresh}
+                    />
+
+                    {/* Grid overlay */}
                     <MapsGrid mapRef={mapRef} showGrid={showGrid} />
-                    {(props.topics || []).length !== 0 && (
-                        <LocalDataSourcesProvider SelectedTopics={getAllTopics()} buffersSize={50} >
-                            {props.topics.map(t => {
-                                if (t.makerType === "simple") {
-                                    return <TopicMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                                } else if (t.makerType === "heatmap") {
-                                    return <HeatMarker key={t.name} topic={t.topic} name={t.name} scale={1} numericalTopic={t.numericalTopic} />;
-                                } else if (t.makerType === "path") {
-                                    return <PathMarker key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                                } else if (t.makerType === "multipoints") {
-                                    return <MultiPoints key={t.name} topic={t.topic} name={t.name} scale={1} />;
-                                }
-                                return pluginsManager.applyFilter<JSX.Element | null>("std-widgets-map-components", null, t);
-                            })}
 
-                            <TopicListOverlay topics={props.topics} mapRef={mapRef as React.RefObject<MapRef>} />
-                        </LocalDataSourcesProvider >
-                    )}
+                    {/* GPS Topics Layer */}
+                    <GpsTopicsLayer topics={props.topics || []} mapRef={mapRef} />
 
-                    {/* Custom Layers Overlay on the right side */}
+                    {/* Local Topics Layer */}
+                    <LocalTopicsLayer localTopics={props.localTopics || []} />
+
+                    {/* Custom Layers Overlay */}
                     <CustomLayersOverlay
                         customLayers={customLayersState}
-                        mapRef={mapRef as React.RefObject<MapRef>}
+                        mapRef={mapRef}
                         onLayerVisibilityChange={handleLayerVisibilityChange}
                         onLayerOpacityChange={handleLayerOpacityChange}
                     />
-                </Map>
+                </MapLibreMap>
             </ButtonHolderProvider>
         </div>
     );
@@ -500,6 +246,20 @@ export function MapsBoxViewerDefinition() {
                             numericalTopic: { type: "object", title: "Numerical Topic (only for heatmap)" }
                         },
 
+                    }
+                },
+                localTopics: {
+                    type: 'array',
+                    title: 'Local Topics',
+                    items: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string", title: "Name" },
+                            topic: { type: "object", title: "Local Topic" },
+                            gpsOriginTopic: { type: "object", title: "GPS Origin" },
+                            visualizerType: { type: "string", title: "Visualizer Type (optional)" }
+                        },
+                        required: ["name", "topic", "gpsOriginTopic"]
                     }
                 },
                 customLayers: {
@@ -615,6 +375,49 @@ export function MapsBoxViewerDefinition() {
                 },
                 {
                     type: "Category",
+                    label: "Local Topics",
+                    elements: [
+                        {
+                            type: "Control",
+                            scope: "#/properties/localTopics",
+                            options: {
+                                detail: {
+                                    type: "VerticalLayout",
+                                    elements: [
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/name",
+                                        } as ControlElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/topic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['Path', 'PointsCloud'] // Local coordinate topics (Path, PointCloud, etc.)
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/gpsOriginTopic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['GeolocationPosition'] // GPS topic to use as origin
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/visualizerType",
+                                        } as ControlElement
+                                    ]
+                                }
+                            }
+                        } as ControlElement
+                    ]
+                },
+                {
+                    type: "Category",
                     label: "Layers",
                     elements: [
                         {
@@ -652,6 +455,7 @@ export function MapsBoxViewerDefinition() {
             title: 'Maps',
             use3D: false,
             customLayers: [],
+            localTopics: [],
         },
         Component: (data: MapsViewerSettings) => (
             <MapsBoxViewer {...data} />

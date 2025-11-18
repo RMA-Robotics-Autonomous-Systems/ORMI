@@ -16,7 +16,7 @@
     The component takes a title, a zone, and a react components as children.
 */
 
-import React, { createContext, JSX, useContext, useState } from 'react';
+import React, { createContext, JSX, useCallback, useContext, useState } from 'react';
 
 
 // each zone iz an array of react components
@@ -45,42 +45,21 @@ export const ButtonHolderProvider: React.FC<ButtonHolderProviderProps> = ({ chil
 
     const [items, setItems] = useState<Map<string, ButtonItem>>(new Map());
 
-    const setButtonItem = (key: string, component: JSX.Element, priority: number = 5) => {
-        /*
-            This function is used to register a component in the navbar.
-            It takes a zone, a key, and a component.
-            The zone is the zone where the component will be displayed.
-            The key is the unique identifier of the component.
-            The component is the react component to display.
-
-            if the key is already used, the component will be replaced.
-            
-            the priority is used to sort the components in the zone.
-            lower priority means the component will be displayed first.
-        */
-
-        const item: ButtonItem = { component, priority };
-
-
-        setItems((prev) => {
+    const setButtonItem = useCallback((key: string, component: JSX.Element, priority = 5) => {
+        setItems(prev => {
             const newMap = new Map(prev);
-            newMap.set(key, item);
+            newMap.set(key, { component, priority });
             return newMap;
         });
+    }, []);
 
-
-    }
-
-    const removeButtonItem = (key: string) => {
-
-        setItems((prev) => {
+    const removeButtonItem = useCallback((key: string) => {
+        setItems(prev => {
             const newMap = new Map(prev);
             newMap.delete(key);
             return newMap;
         });
-
-
-    }
+    }, []);
 
 
     return (

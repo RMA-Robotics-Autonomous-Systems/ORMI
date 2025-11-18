@@ -23,7 +23,7 @@ export function CustomLayersOverlay({
     onLayerOpacityChange
 }: {
     customLayers: CustomLayer[],
-    mapRef?: React.RefObject<MapRef>,
+    mapRef?: React.RefObject<MapRef | null>,
     onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void,
     onLayerOpacityChange: (layerIndex: number, opacity: number) => void
 }) {

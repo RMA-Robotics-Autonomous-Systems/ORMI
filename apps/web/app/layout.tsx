@@ -93,6 +93,17 @@ const default_left: Map<string, NavbarItem> = new Map([
             ),
             priority: 1
         }
+    ],
+    [
+        "docs",
+        {
+            component: (
+                <Link href="/docs" passHref>
+                    <Button variant="ghost">Docs</Button>
+                </Link>
+            ),
+            priority: 1
+        }
     ]
 ]);
 

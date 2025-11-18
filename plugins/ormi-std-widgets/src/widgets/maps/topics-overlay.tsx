@@ -11,7 +11,7 @@ import { Button } from "@workspace/ui/components/button";
 
 export function TopicListOverlay({ topics, mapRef }: {
     topics: { name: string, topic: SelectedTopic, makerType: "simple" | "heatmap" | "path" | "multipoints" }[],
-    mapRef?: React.RefObject<MapRef>
+    mapRef?: React.RefObject<MapRef | null>
 }) {
     const { sources, getSource, getSourceId } = useLocalDataSource();
     const { items } = useButtonHolder();
