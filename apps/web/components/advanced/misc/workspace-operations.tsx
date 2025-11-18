@@ -30,26 +30,13 @@ import { MoreVertical, Loader2, Trash } from "lucide-react"
 import WorkspaceImport from "./workspace-import"
 
 
-async function deleteWorkspace(wsId: string) {
-    try {
-        const response = await fetch(`/api/workspaces/${wsId}`, {
-            method: "DELETE",
-        })
+import { handleDelete } from "@/server/prisma-workspaces"
 
-        if (!response?.ok) {
-            toast("Your workspace was not deleted. Please try again.")
-            return false
-        }
-
-        return true
-    } catch (error) {
-        console.error("Error deleting workspace:", error)
-        toast("Failed to delete workspace. Please try again.")
-        return false
-    }
+async function deleteWorkspace(wsId: number) {
+    return await handleDelete(wsId)
 }
 
-async function exportWorkspace(wsId: string) {
+async function exportWorkspace(wsId: number) {
     // download the workspace as a json file
     const response = await fetch(`/api/workspaces/${wsId}`, {
         method: "GET",
@@ -92,9 +79,10 @@ async function exportWorkspace(wsId: string) {
 
 interface WorkspaceOperationsProps {
     workspace: Pick<Workspace, "id" | "name">
+    onWorkspaceDeleted?: () => void;
 }
 
-export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
+export function WorkspaceOperations({ workspace, onWorkspaceDeleted }: WorkspaceOperationsProps) {
     const router = useRouter()
     const [showDeleteAlert, setShowDeleteAlert] = React.useState<boolean>(false)
     const [isDeleteLoading, setIsDeleteLoading] = React.useState<boolean>(false)
@@ -113,7 +101,7 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
                         </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => exportWorkspace(workspace.id.toString())}>
+                    <DropdownMenuItem onSelect={() => exportWorkspace(workspace.id)}>
                         Export
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={(e) => {
@@ -147,11 +135,14 @@ export function WorkspaceOperations({ workspace }: WorkspaceOperationsProps) {
                                 event.preventDefault()
                                 setIsDeleteLoading(true)
 
-                                const deleted = await deleteWorkspace(workspace.id.toString())
+                                const deleted = await deleteWorkspace(workspace.id)
 
                                 if (deleted) {
                                     setIsDeleteLoading(false)
                                     setShowDeleteAlert(false)
+                                    if (onWorkspaceDeleted) {
+                                        onWorkspaceDeleted()
+                                    }
                                     router.refresh()
                                 }
                             }}

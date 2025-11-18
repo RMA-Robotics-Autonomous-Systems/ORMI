@@ -3,7 +3,7 @@ import "@workspace/ui/globals.css";
 import { Inter as FontSans } from "next/font/google"
 import localFont from "next/font/local"
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -32,14 +32,22 @@ const fontHeading = localFont({
 })
 
 export const metadata: Metadata = {
-
     metadataBase: new URL(siteConfig.url),
+    applicationName: siteConfig.name,
     title: {
         default: siteConfig.name,
         template: `%s | ${siteConfig.name}`,
     },
     description: siteConfig.description,
     keywords: siteConfig.keywords,
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "default",
+        title: siteConfig.name,
+    },
+    formatDetection: {
+        telephone: false,
+    },
     openGraph: {
         type: "website",
         url: siteConfig.url,
@@ -49,9 +57,18 @@ export const metadata: Metadata = {
         images: siteConfig.ogImage,
         locale: "en_US"
     },
+    twitter: {
+        card: "summary",
+        title: siteConfig.name,
+        description: siteConfig.description,
+    },
     icons: siteConfig.icon,
     manifest: siteConfig.manifest,
     robots: "index, follow",
+}
+
+export const viewport: Viewport = {
+    themeColor: "#ffffff",
 }
 
 const default_left: Map<string, NavbarItem> = new Map([
