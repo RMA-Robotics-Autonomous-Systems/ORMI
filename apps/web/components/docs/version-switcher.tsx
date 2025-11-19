@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 
 interface DocsVersionSwitcherProps {
@@ -10,11 +10,10 @@ interface DocsVersionSwitcherProps {
 
 export function DocsVersionSwitcher({ currentVersion, versions }: DocsVersionSwitcherProps) {
     const router = useRouter()
-    const pathname = usePathname()
 
     const handleVersionChange = (newVersion: string) => {
-        // Replace the version in the current path
-        const newPath = pathname.replace(`/docs/${currentVersion}`, `/docs/${newVersion}`)
+        // Go to the root path with the new version
+        const newPath = `/docs/${newVersion}`;
         router.push(newPath)
     }
 
