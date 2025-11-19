@@ -27,35 +27,38 @@ Main hook for accessing transform data and TF tree operations.
 
 ```typescript
 function useTransformSource(): {
-  getTransform: (from: string, to: string, time?: number) => Transform | null
-  getFrameTree: () => FrameNode[]
-  getAllFrames: () => string[]
-  lookupTransform: (targetFrame: string, sourceFrame: string) => TransformStamped | null
-  canTransform: (from: string, to: string) => boolean
-  isLoading: boolean
-}
+    getTransform: (from: string, to: string, time?: number) => Transform | null;
+    getFrameTree: () => FrameNode[];
+    getAllFrames: () => string[];
+    lookupTransform: (
+        targetFrame: string,
+        sourceFrame: string
+    ) => TransformStamped | null;
+    canTransform: (from: string, to: string) => boolean;
+    isLoading: boolean;
+};
 ```
 
 ### Transform Types
 
 ```typescript
 interface Transform {
-  translation: { x: number; y: number; z: number }
-  rotation: { x: number; y: number; z: number; w: number } // Quaternion
+    translation: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number; w: number }; // Quaternion
 }
 
 interface TransformStamped extends Transform {
-  header: {
-    frameId: string
-    stamp: number
-  }
-  childFrameId: string
+    header: {
+        frameId: string;
+        stamp: number;
+    };
+    childFrameId: string;
 }
 
 interface FrameNode {
-  name: string
-  parent: string | null
-  children: FrameNode[]
+    name: string;
+    parent: string | null;
+    children: FrameNode[];
 }
 ```
 
@@ -77,7 +80,7 @@ function RobotVisualizer() {
 
   return (
     <div>
-      <p>Position: {mapToBaseLinkTransform.translation.x}, 
+      <p>Position: {mapToBaseLinkTransform.translation.x},
          {mapToBaseLinkTransform.translation.y},
          {mapToBaseLinkTransform.translation.z}</p>
     </div>
@@ -401,10 +404,10 @@ function App() {
 
 ```typescript
 // Always check before using
-const tf = getTransform('map', 'base_link')
+const tf = getTransform("map", "base_link");
 if (!tf) {
-  // Handle missing transform
-  return
+    // Handle missing transform
+    return;
 }
 ```
 
@@ -413,8 +416,8 @@ if (!tf) {
 ```typescript
 // Validate before expensive operations
 if (!canTransform(sourceFrame, targetFrame)) {
-  toast.error(`Transform ${sourceFrame} → ${targetFrame} not available`)
-  return
+    toast.error(`Transform ${sourceFrame} → ${targetFrame} not available`);
+    return;
 }
 ```
 
@@ -437,22 +440,22 @@ function SafeTransformComponent() {
 
 ```typescript
 // Don't call getAllFrames() on every render
-const frames = useMemo(() => getAllFrames(), [getAllFrames])
+const frames = useMemo(() => getAllFrames(), [getAllFrames]);
 ```
 
 ### 5. Throttle Updates
 
 ```typescript
 // Throttle high-frequency updates
-const [transform, setTransform] = useState<Transform | null>(null)
+const [transform, setTransform] = useState<Transform | null>(null);
 
 useEffect(() => {
-  const interval = setInterval(() => {
-    setTransform(getTransform('map', 'base_link'))
-  }, 100) // 10Hz instead of every render
+    const interval = setInterval(() => {
+        setTransform(getTransform("map", "base_link"));
+    }, 100); // 10Hz instead of every render
 
-  return () => clearInterval(interval)
-}, [])
+    return () => clearInterval(interval);
+}, []);
 ```
 
 ## Common Issues
@@ -462,11 +465,13 @@ useEffect(() => {
 **Problem:** `getTransform()` returns `null`
 
 **Causes:**
+
 - Transform not yet published
 - Frame names misspelled
 - TF tree not connected
 
 **Solutions:**
+
 - Use `canTransform()` to check availability
 - Verify frame names with `getAllFrames()`
 - Check TF publisher is running
@@ -476,11 +481,13 @@ useEffect(() => {
 **Problem:** Transforms don't update
 
 **Causes:**
+
 - TF publisher stopped
 - Network connection lost
 - Transform source not subscribed
 
 **Solutions:**
+
 - Check `isLoading` status
 - Verify datasource connection
 - Monitor TF topic activity
@@ -506,11 +513,11 @@ const tf = getTransform('base_link', 'map')
 **Solution:** Use helper library:
 
 ```typescript
-import { quaternionToEuler } from '@workspace/utils'
+import { quaternionToEuler } from "@workspace/utils";
 
-const { rotation } = transform
-const euler = quaternionToEuler(rotation)
-console.log(`Roll: ${euler.roll}, Pitch: ${euler.pitch}, Yaw: ${euler.yaw}`)
+const { rotation } = transform;
+const euler = quaternionToEuler(rotation);
+console.log(`Roll: ${euler.roll}, Pitch: ${euler.pitch}, Yaw: ${euler.yaw}`);
 ```
 
 ## See Also

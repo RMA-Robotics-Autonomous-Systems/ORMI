@@ -25,24 +25,24 @@ For architectural details on renderer registration and JSON Forms integration, s
 
 ```typescript
 interface RendererEntry {
-  renderer: React.ComponentType<RendererProps>
-  tester: RankedTester
+    renderer: React.ComponentType<RendererProps>;
+    tester: RankedTester;
 }
 
 interface RendererProps {
-  data: any
-  path: string
-  schema: JsonSchema
-  uischema: UISchemaElement
-  handleChange(path: string, value: any): void
-  errors?: string
+    data: any;
+    path: string;
+    schema: JsonSchema;
+    uischema: UISchemaElement;
+    handleChange(path: string, value: any): void;
+    errors?: string;
 }
 
 type RankedTester = (
-  uischema: UISchemaElement,
-  schema: JsonSchema,
-  context: any
-) => number
+    uischema: UISchemaElement,
+    schema: JsonSchema,
+    context: any
+) => number;
 ```
 
 ### Renderer Priority
@@ -206,40 +206,43 @@ export const RangeSliderRendererEntry = {
 
 ```typescript
 import {
-  rankWith,
-  scopeEndsWith,
-  scopeEndsWith,
-  uiTypeIs,
-  schemaMatches,
-  and,
-  or,
-} from '@jsonforms/core'
+    rankWith,
+    scopeEndsWith,
+    scopeEndsWith,
+    uiTypeIs,
+    schemaMatches,
+    and,
+    or,
+} from "@jsonforms/core";
 
 // Match by scope (JSON path)
-rankWith(5, scopeEndsWith('topic'))
+rankWith(5, scopeEndsWith("topic"));
 
 // Match by UI schema type
-rankWith(6, uiTypeIs('TopicSelect'))
+rankWith(6, uiTypeIs("TopicSelect"));
 
 // Match by schema properties
-rankWith(4, schemaMatches(s => s.type === 'string' && s.format === 'color'))
+rankWith(
+    4,
+    schemaMatches((s) => s.type === "string" && s.format === "color")
+);
 
 // Combine conditions
 rankWith(
-  5,
-  and(
-    schemaMatches(s => s.type === 'number'),
-    scopeEndsWith('Angle')
-  )
-)
+    5,
+    and(
+        schemaMatches((s) => s.type === "number"),
+        scopeEndsWith("Angle")
+    )
+);
 
 rankWith(
-  3,
-  or(
-    scopeEndsWith('Color'),
-    schemaMatches(s => s.format === 'color')
-  )
-)
+    3,
+    or(
+        scopeEndsWith("Color"),
+        schemaMatches((s) => s.format === "color")
+    )
+);
 ```
 
 ### Custom Tester
@@ -247,17 +250,17 @@ rankWith(
 ```typescript
 // Custom logic for complex matching
 const customTester: RankedTester = (uischema, schema, context) => {
-  // Check if it's a ROS message type field
-  if (schema.type === 'string' && uischema.options?.isRosTopic) {
-    return 7 // High priority
-  }
-  return -1 // Not applicable
-}
+    // Check if it's a ROS message type field
+    if (schema.type === "string" && uischema.options?.isRosTopic) {
+        return 7; // High priority
+    }
+    return -1; // Not applicable
+};
 
 export const CustomRendererEntry = {
-  renderer: withJsonFormsControlProps(CustomRenderer),
-  tester: rankWith(7, customTester),
-}
+    renderer: withJsonFormsControlProps(CustomRenderer),
+    tester: rankWith(7, customTester),
+};
 ```
 
 ## Registering Renderers
@@ -266,26 +269,31 @@ export const CustomRendererEntry = {
 
 ```typescript
 // In your plugin registration
-import { ColorPickerRendererEntry, TopicSelectRendererEntry } from './renderers'
-
-export const MyPlugin = {
-  id: 'my-plugin',
-  name: 'My Plugin',
-  renderers: [
+import {
     ColorPickerRendererEntry,
     TopicSelectRendererEntry,
-  ],
-  widgets: [/* ... */],
-}
+} from "./renderers";
+
+export const MyPlugin = {
+    id: "my-plugin",
+    name: "My Plugin",
+    renderers: [ColorPickerRendererEntry, TopicSelectRendererEntry],
+    widgets: [
+        /* ... */
+    ],
+};
 ```
 
 ### Register Globally
 
 ```typescript
 // In app setup
-import { registerRenderer } from '@workspace/ormi-jsonforms'
+import { registerRenderer } from "@workspace/ormi-jsonforms";
 
-registerRenderer(ColorPickerRendererEntry.renderer, ColorPickerRendererEntry.tester)
+registerRenderer(
+    ColorPickerRendererEntry.renderer,
+    ColorPickerRendererEntry.tester
+);
 ```
 
 ## Common Patterns
@@ -437,13 +445,13 @@ export const vector3Tester = rankWith(
 
 ```json
 {
-  "type": "Control",
-  "scope": "#/properties/topic",
-  "options": {
-    "type": "TopicSelect",
-    "messageType": "sensor_msgs/Image",
-    "showMessageType": true
-  }
+    "type": "Control",
+    "scope": "#/properties/topic",
+    "options": {
+        "type": "TopicSelect",
+        "messageType": "sensor_msgs/Image",
+        "showMessageType": true
+    }
 }
 ```
 
@@ -451,17 +459,17 @@ export const vector3Tester = rankWith(
 
 ```typescript
 const TopicSelectRenderer = ({
-  data,
-  handleChange,
-  path,
-  uischema,
+    data,
+    handleChange,
+    path,
+    uischema,
 }: RendererProps) => {
-  const options = uischema.options || {}
-  const messageType = options.messageType as string | undefined
-  const showMessageType = options.showMessageType as boolean
+    const options = uischema.options || {};
+    const messageType = options.messageType as string | undefined;
+    const showMessageType = options.showMessageType as boolean;
 
-  // Use options...
-}
+    // Use options...
+};
 ```
 
 ## Best Practices
@@ -482,17 +490,17 @@ rankWith(2, schemaMatches(s => s.type === 'string'))
 ### 2. Handle Undefined Data
 
 ```typescript
-const value = data || defaultValue
+const value = data || defaultValue;
 ```
 
 ### 3. Validate Before Changing
 
 ```typescript
 const handleInput = (newValue: any) => {
-  if (isValid(newValue)) {
-    handleChange(path, newValue)
-  }
-}
+    if (isValid(newValue)) {
+        handleChange(path, newValue);
+    }
+};
 ```
 
 ### 4. Show Error States
@@ -511,9 +519,9 @@ const handleInput = (newValue: any) => {
 ```typescript
 // Always wrap with HOC
 export const MyRendererEntry = {
-  renderer: withJsonFormsControlProps(MyRenderer),
-  tester: myTester,
-}
+    renderer: withJsonFormsControlProps(MyRenderer),
+    tester: myTester,
+};
 ```
 
 ## Common Issues
@@ -523,11 +531,13 @@ export const MyRendererEntry = {
 **Problem:** Default renderer used instead of custom
 
 **Causes:**
+
 - Tester rank too low
 - Tester conditions don't match
 - Renderer not registered
 
 **Solutions:**
+
 - Increase tester rank
 - Debug tester with console.log
 - Verify renderer in plugin exports
@@ -542,10 +552,10 @@ export const MyRendererEntry = {
 
 ```typescript
 // Correct
-handleChange(path, newValue)
+handleChange(path, newValue);
 
 // Incorrect
-setState(newValue) // Won't update form data
+setState(newValue); // Won't update form data
 ```
 
 ### Type Mismatches

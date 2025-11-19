@@ -27,25 +27,25 @@ Main hook for accessing template management functionality.
 
 ```typescript
 function useTemplates(): {
-  templates: Template[]
-  saveTemplate: (name: string, description?: string) => void
-  loadTemplate: (templateId: string) => void
-  deleteTemplate: (templateId: string) => void
-  updateTemplate: (templateId: string, updates: Partial<Template>) => void
-  isLoading: boolean
-}
+    templates: Template[];
+    saveTemplate: (name: string, description?: string) => void;
+    loadTemplate: (templateId: string) => void;
+    deleteTemplate: (templateId: string) => void;
+    updateTemplate: (templateId: string, updates: Partial<Template>) => void;
+    isLoading: boolean;
+};
 ```
 
 ### Template Type
 
 ```typescript
 interface Template {
-  id: string
-  name: string
-  description?: string
-  timestamp: number
-  workspaceConfig: WorkspaceConfig
-  widgetInstances: WidgetInstance[]
+    id: string;
+    name: string;
+    description?: string;
+    timestamp: number;
+    workspaceConfig: WorkspaceConfig;
+    widgetInstances: WidgetInstance[];
 }
 ```
 
@@ -251,7 +251,7 @@ function TemplateSidebar() {
   return (
     <div className="w-64 border-r p-4">
       <h2 className="text-lg font-semibold mb-4">Templates</h2>
-      
+
       <Input
         value={filter}
         onChange={e => setFilter(e.target.value)}
@@ -458,45 +458,45 @@ function App() {
 
 ```typescript
 // Good
-saveTemplate('Mission Control - 4 Cameras')
-saveTemplate('Diagnostics Dashboard')
+saveTemplate("Mission Control - 4 Cameras");
+saveTemplate("Diagnostics Dashboard");
 
 // Bad
-saveTemplate('Template 1')
-saveTemplate('test')
+saveTemplate("Template 1");
+saveTemplate("test");
 ```
 
 ### 2. Add Descriptions
 
 ```typescript
 saveTemplate(
-  'Autonomous Flight',
-  'Dashboard for monitoring autonomous UAV missions with telemetry and camera feeds'
-)
+    "Autonomous Flight",
+    "Dashboard for monitoring autonomous UAV missions with telemetry and camera feeds"
+);
 ```
 
 ### 3. Handle Load Errors
 
 ```typescript
 const handleLoad = (templateId: string) => {
-  try {
-    loadTemplate(templateId)
-    toast.success('Template loaded')
-  } catch (error) {
-    toast.error('Failed to load template')
-    console.error(error)
-  }
-}
+    try {
+        loadTemplate(templateId);
+        toast.success("Template loaded");
+    } catch (error) {
+        toast.error("Failed to load template");
+        console.error(error);
+    }
+};
 ```
 
 ### 4. Confirm Destructive Actions
 
 ```typescript
 const handleDelete = (templateId: string, name: string) => {
-  if (confirm(`Delete template "${name}"?`)) {
-    deleteTemplate(templateId)
-  }
-}
+    if (confirm(`Delete template "${name}"?`)) {
+        deleteTemplate(templateId);
+    }
+};
 ```
 
 ### 5. Show Loading States
@@ -520,6 +520,7 @@ function TemplateList() {
 **Problem:** Templates disappear after refresh
 
 **Solutions:**
+
 - Check localStorage quota (may be full)
 - Verify TemplatesProvider wraps app
 - Check browser privacy settings (localStorage may be disabled)
@@ -529,6 +530,7 @@ function TemplateList() {
 **Problem:** `loadTemplate()` throws error
 
 **Causes:**
+
 - Template references deleted widget types
 - Workspace structure changed
 - Corrupted template data
@@ -537,11 +539,11 @@ function TemplateList() {
 
 ```typescript
 try {
-  loadTemplate(id)
+    loadTemplate(id);
 } catch (error) {
-  console.error('Failed to load template:', error)
-  // Optionally delete corrupted template
-  deleteTemplate(id)
+    console.error("Failed to load template:", error);
+    // Optionally delete corrupted template
+    deleteTemplate(id);
 }
 ```
 
@@ -553,9 +555,10 @@ try {
 
 ```typescript
 // Check template size before saving
-const estimatedSize = JSON.stringify(workspaceConfig).length
-if (estimatedSize > 1000000) { // 1MB
-  console.warn('Template is very large')
+const estimatedSize = JSON.stringify(workspaceConfig).length;
+if (estimatedSize > 1000000) {
+    // 1MB
+    console.warn("Template is very large");
 }
 ```
 

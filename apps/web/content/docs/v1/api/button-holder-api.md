@@ -27,9 +27,13 @@ Main hook for registering controls from within a widget.
 
 ```typescript
 function useButtonHolder(): {
-  setButtonItem: (key: string, component: JSX.Element, priority?: number) => void
-  removeButtonItem: (key: string) => void
-}
+    setButtonItem: (
+        key: string,
+        component: JSX.Element,
+        priority?: number
+    ) => void;
+    removeButtonItem: (key: string) => void;
+};
 ```
 
 ### Basic Usage
@@ -302,7 +306,7 @@ function WrappedWidget(props) {
 ```typescript
 useEffect(() => {
   setButtonItem('my-button', <Button>Click</Button>)
-  
+
   // REQUIRED: Remove on unmount
   return () => {
     removeButtonItem('my-button')
@@ -358,6 +362,7 @@ setButtonItem('settings', <Button />, 5)          // Rightmost
 **Problem:** Buttons don't show in title bar
 
 **Solutions:**
+
 - Ensure widget is wrapped in `ButtonHolderProvider`
 - Check that layout system supports ButtonHolder
 - Verify button registration happens after mount

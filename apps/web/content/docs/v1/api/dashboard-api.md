@@ -28,47 +28,50 @@ Main hook for accessing dashboard state and operations.
 
 ```typescript
 function useDashboard(): {
-  // State
-  widgets: Map<string, Widget>
-  datasources: Map<string, Datasource>
-  layouts: Record<string, any>
-  locked: boolean
-  hasChanged: boolean
-  
-  // Widget operations
-  addWidget: (widget: Widget) => void
-  removeWidget: (widgetId: string) => void
-  updateWidget: (widgetId: string, updates: Partial<Widget>) => void
-  getComponents: () => WidgetComponent[]
-  getDefinition: (widgetTypeId: string) => WidgetDefinition | undefined
-  
-  // Layout operations
-  updateLayouts: (layoutType: string, layout: any) => void
-  lockUnLockDashboard: () => void
-  
-  // Datasource operations
-  addDatasource: (datasource: Datasource) => void
-  removeDatasource: (datasourceId: string) => void
-  updateDatasource: (datasourceId: string, updates: Partial<Datasource>) => void
-  
-  // Persistence
-  saveDashboard: () => Promise<void>
-}
+    // State
+    widgets: Map<string, Widget>;
+    datasources: Map<string, Datasource>;
+    layouts: Record<string, any>;
+    locked: boolean;
+    hasChanged: boolean;
+
+    // Widget operations
+    addWidget: (widget: Widget) => void;
+    removeWidget: (widgetId: string) => void;
+    updateWidget: (widgetId: string, updates: Partial<Widget>) => void;
+    getComponents: () => WidgetComponent[];
+    getDefinition: (widgetTypeId: string) => WidgetDefinition | undefined;
+
+    // Layout operations
+    updateLayouts: (layoutType: string, layout: any) => void;
+    lockUnLockDashboard: () => void;
+
+    // Datasource operations
+    addDatasource: (datasource: Datasource) => void;
+    removeDatasource: (datasourceId: string) => void;
+    updateDatasource: (
+        datasourceId: string,
+        updates: Partial<Datasource>
+    ) => void;
+
+    // Persistence
+    saveDashboard: () => Promise<void>;
+};
 ```
 
 ### Widget Type
 
 ```typescript
 interface Widget {
-  id: string
-  type: string
-  settings: Record<string, any>
-  layout?: {
-    x: number
-    y: number
-    w: number
-    h: number
-  }
+    id: string;
+    type: string;
+    settings: Record<string, any>;
+    layout?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
 }
 ```
 
@@ -76,10 +79,10 @@ interface Widget {
 
 ```typescript
 interface Datasource {
-  id: string
-  type: string
-  config: Record<string, any>
-  connected: boolean
+    id: string;
+    type: string;
+    config: Record<string, any>;
+    connected: boolean;
 }
 ```
 
@@ -470,52 +473,52 @@ function App() {
 
 ```typescript
 // Good: Timestamp-based unique ID
-const widgetId = `widget-${Date.now()}-${Math.random()}`
+const widgetId = `widget-${Date.now()}-${Math.random()}`;
 
 // Bad: Sequential numbers (conflicts possible)
-const widgetId = `widget-${widgets.size + 1}`
+const widgetId = `widget-${widgets.size + 1}`;
 ```
 
 ### 2. Validate Before Adding Widgets
 
 ```typescript
 const handleAddWidget = (widgetType: string) => {
-  const definition = getDefinition(widgetType)
-  if (!definition) {
-    toast.error('Widget type not found')
-    return
-  }
+    const definition = getDefinition(widgetType);
+    if (!definition) {
+        toast.error("Widget type not found");
+        return;
+    }
 
-  addWidget({
-    id: generateId(),
-    type: widgetType,
-    settings: definition.defaultSettings || {},
-  })
-}
+    addWidget({
+        id: generateId(),
+        type: widgetType,
+        settings: definition.defaultSettings || {},
+    });
+};
 ```
 
 ### 3. Confirm Destructive Actions
 
 ```typescript
 const handleRemove = (widgetId: string) => {
-  if (confirm('Remove this widget? This action cannot be undone.')) {
-    removeWidget(widgetId)
-  }
-}
+    if (confirm("Remove this widget? This action cannot be undone.")) {
+        removeWidget(widgetId);
+    }
+};
 ```
 
 ### 4. Handle Save Errors
 
 ```typescript
 const handleSave = async () => {
-  try {
-    await saveDashboard()
-    toast.success('Dashboard saved')
-  } catch (error) {
-    toast.error('Failed to save dashboard')
-    console.error(error)
-  }
-}
+    try {
+        await saveDashboard();
+        toast.success("Dashboard saved");
+    } catch (error) {
+        toast.error("Failed to save dashboard");
+        console.error(error);
+    }
+};
 ```
 
 ### 5. Update Settings Immutably
@@ -523,14 +526,14 @@ const handleSave = async () => {
 ```typescript
 // Good: Create new settings object
 updateWidget(widgetId, {
-  settings: {
-    ...widget.settings,
-    topic: newTopic,
-  },
-})
+    settings: {
+        ...widget.settings,
+        topic: newTopic,
+    },
+});
 
 // Bad: Mutate existing object
-widget.settings.topic = newTopic
+widget.settings.topic = newTopic;
 ```
 
 ## Common Issues
@@ -540,11 +543,13 @@ widget.settings.topic = newTopic
 **Problem:** Widget added but doesn't render
 
 **Causes:**
+
 - Widget type not registered
 - Missing required settings
 - Layout position off-screen
 
 **Solutions:**
+
 - Verify widget type exists with `getDefinition()`
 - Check required settings in widget schema
 - Set valid layout coordinates
@@ -554,11 +559,13 @@ widget.settings.topic = newTopic
 **Problem:** Layout resets after refresh
 
 **Causes:**
+
 - `saveDashboard()` not called
 - localStorage quota exceeded
 - Browser privacy mode
 
 **Solutions:**
+
 - Call `saveDashboard()` after layout changes
 - Check for storage errors
 - Implement server-side persistence
@@ -573,11 +580,11 @@ widget.settings.topic = newTopic
 
 ```typescript
 updateWidget(widgetId, {
-  settings: {
-    ...currentSettings,
-    newField: newValue,
-  },
-})
+    settings: {
+        ...currentSettings,
+        newField: newValue,
+    },
+});
 ```
 
 ### Multiple Dashboard Instances

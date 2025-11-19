@@ -24,35 +24,35 @@ For architectural details on the dual type system and conversion mechanisms, see
 ### Primitive Types
 
 ```typescript
-type InternalNumber = number
-type InternalBoolean = boolean
-type InternalString = string
+type InternalNumber = number;
+type InternalBoolean = boolean;
+type InternalString = string;
 ```
 
 ### Geometric Types
 
 ```typescript
 interface Vector3 {
-  x: number
-  y: number
-  z: number
+    x: number;
+    y: number;
+    z: number;
 }
 
 interface Quaternion {
-  x: number
-  y: number
-  z: number
-  w: number
+    x: number;
+    y: number;
+    z: number;
+    w: number;
 }
 
 interface Pose {
-  position: Vector3
-  orientation: Quaternion
+    position: Vector3;
+    orientation: Quaternion;
 }
 
 interface Transform {
-  translation: Vector3
-  rotation: Quaternion
+    translation: Vector3;
+    rotation: Quaternion;
 }
 ```
 
@@ -60,29 +60,29 @@ interface Transform {
 
 ```typescript
 interface Image {
-  width: number
-  height: number
-  encoding: string
-  data: Uint8Array
+    width: number;
+    height: number;
+    encoding: string;
+    data: Uint8Array;
 }
 
 interface LaserScan {
-  angleMin: number
-  angleMax: number
-  angleIncrement: number
-  rangeMin: number
-  rangeMax: number
-  ranges: number[]
-  intensities: number[]
+    angleMin: number;
+    angleMax: number;
+    angleIncrement: number;
+    rangeMin: number;
+    rangeMax: number;
+    ranges: number[];
+    intensities: number[];
 }
 
 interface PointCloud {
-  points: Array<{
-    x: number
-    y: number
-    z: number
-    rgb?: number
-  }>
+    points: Array<{
+        x: number;
+        y: number;
+        z: number;
+        rgb?: number;
+    }>;
 }
 ```
 
@@ -90,16 +90,16 @@ interface PointCloud {
 
 ```typescript
 interface BatteryState {
-  voltage: number
-  current: number
-  percentage: number
-  charging: boolean
+    voltage: number;
+    current: number;
+    percentage: number;
+    charging: boolean;
 }
 
 interface NavSatFix {
-  latitude: number
-  longitude: number
-  altitude: number
+    latitude: number;
+    longitude: number;
+    altitude: number;
 }
 ```
 
@@ -111,25 +111,25 @@ Convert ROS message type to internal type.
 
 ```typescript
 function convertRosToInternal(
-  rosType: string,
-  data: any
-): { type: string; data: any }
+    rosType: string,
+    data: any
+): { type: string; data: any };
 ```
 
 **Usage:**
 
 ```typescript
-import { convertRosToInternal } from '@workspace/utils'
+import { convertRosToInternal } from "@workspace/utils";
 
 const rosMessage = {
-  linear: { x: 1.0, y: 0, z: 0 },
-  angular: { x: 0, y: 0, z: 0.5 },
-}
+    linear: { x: 1.0, y: 0, z: 0 },
+    angular: { x: 0, y: 0, z: 0.5 },
+};
 
-const { type, data } = convertRosToInternal('geometry_msgs/Twist', rosMessage)
+const { type, data } = convertRosToInternal("geometry_msgs/Twist", rosMessage);
 
-console.log(type) // "Movement"
-console.log(data) // { linear: { x: 1.0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0.5 } }
+console.log(type); // "Movement"
+console.log(data); // { linear: { x: 1.0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0.5 } }
 ```
 
 ### convertInternalToRos
@@ -138,25 +138,29 @@ Convert internal type back to ROS message format.
 
 ```typescript
 function convertInternalToRos(
-  internalType: string,
-  data: any,
-  targetRosType: string
-): any
+    internalType: string,
+    data: any,
+    targetRosType: string
+): any;
 ```
 
 **Usage:**
 
 ```typescript
-import { convertInternalToRos } from '@workspace/utils'
+import { convertInternalToRos } from "@workspace/utils";
 
 const internalData = {
-  position: { x: 1, y: 2, z: 3 },
-  orientation: { x: 0, y: 0, z: 0, w: 1 },
-}
+    position: { x: 1, y: 2, z: 3 },
+    orientation: { x: 0, y: 0, z: 0, w: 1 },
+};
 
-const rosMessage = convertInternalToRos('Pose', internalData, 'geometry_msgs/Pose')
+const rosMessage = convertInternalToRos(
+    "Pose",
+    internalData,
+    "geometry_msgs/Pose"
+);
 
-console.log(rosMessage)
+console.log(rosMessage);
 // { position: { x: 1, y: 2, z: 3 }, orientation: { x: 0, y: 0, z: 0, w: 1 } }
 ```
 
@@ -165,19 +169,19 @@ console.log(rosMessage)
 Get internal type name for a ROS message type.
 
 ```typescript
-function getInternalTypeForRos(rosType: string): string | null
+function getInternalTypeForRos(rosType: string): string | null;
 ```
 
 **Usage:**
 
 ```typescript
-import { getInternalTypeForRos } from '@workspace/utils'
+import { getInternalTypeForRos } from "@workspace/utils";
 
-const internalType = getInternalTypeForRos('geometry_msgs/Twist')
-console.log(internalType) // "Movement"
+const internalType = getInternalTypeForRos("geometry_msgs/Twist");
+console.log(internalType); // "Movement"
 
-const imageType = getInternalTypeForRos('sensor_msgs/Image')
-console.log(imageType) // "Image"
+const imageType = getInternalTypeForRos("sensor_msgs/Image");
+console.log(imageType); // "Image"
 ```
 
 ### isTypeCompatible
@@ -185,21 +189,21 @@ console.log(imageType) // "Image"
 Check if two types are compatible.
 
 ```typescript
-function isTypeCompatible(type1: string, type2: string): boolean
+function isTypeCompatible(type1: string, type2: string): boolean;
 ```
 
 **Usage:**
 
 ```typescript
-import { isTypeCompatible } from '@workspace/utils'
+import { isTypeCompatible } from "@workspace/utils";
 
 // Check ROS to internal compatibility
-const compatible = isTypeCompatible('geometry_msgs/Twist', 'Movement')
-console.log(compatible) // true
+const compatible = isTypeCompatible("geometry_msgs/Twist", "Movement");
+console.log(compatible); // true
 
 // Check incompatible types
-const incompatible = isTypeCompatible('sensor_msgs/Image', 'Movement')
-console.log(incompatible) // false
+const incompatible = isTypeCompatible("sensor_msgs/Image", "Movement");
+console.log(incompatible); // false
 ```
 
 ## Common Patterns
@@ -429,30 +433,30 @@ function DataInspector({ topic }: { topic: string }) {
 
 ```typescript
 function isVector3(data: any): data is Vector3 {
-  return (
-    typeof data === 'object' &&
-    typeof data.x === 'number' &&
-    typeof data.y === 'number' &&
-    typeof data.z === 'number'
-  )
+    return (
+        typeof data === "object" &&
+        typeof data.x === "number" &&
+        typeof data.y === "number" &&
+        typeof data.z === "number"
+    );
 }
 
 function isPose(data: any): data is Pose {
-  return (
-    typeof data === 'object' &&
-    isVector3(data.position) &&
-    isQuaternion(data.orientation)
-  )
+    return (
+        typeof data === "object" &&
+        isVector3(data.position) &&
+        isQuaternion(data.orientation)
+    );
 }
 
 function isQuaternion(data: any): data is Quaternion {
-  return (
-    typeof data === 'object' &&
-    typeof data.x === 'number' &&
-    typeof data.y === 'number' &&
-    typeof data.z === 'number' &&
-    typeof data.w === 'number'
-  )
+    return (
+        typeof data === "object" &&
+        typeof data.x === "number" &&
+        typeof data.y === "number" &&
+        typeof data.z === "number" &&
+        typeof data.w === "number"
+    );
 }
 ```
 
@@ -460,16 +464,16 @@ function isQuaternion(data: any): data is Quaternion {
 
 ```typescript
 const handleData = (rawType: string, rawData: any) => {
-  const { type, data } = convertRosToInternal(rawType, rawData)
+    const { type, data } = convertRosToInternal(rawType, rawData);
 
-  if (isPose(data)) {
-    // TypeScript knows data is Pose
-    console.log(data.position.x)
-  } else if (isVector3(data)) {
-    // TypeScript knows data is Vector3
-    console.log(data.x)
-  }
-}
+    if (isPose(data)) {
+        // TypeScript knows data is Pose
+        console.log(data.position.x);
+    } else if (isVector3(data)) {
+        // TypeScript knows data is Vector3
+        console.log(data.x);
+    }
+};
 ```
 
 ## Best Practices
@@ -478,20 +482,20 @@ const handleData = (rawType: string, rawData: any) => {
 
 ```typescript
 // Good: Convert to internal type
-const { type, data } = convertRosToInternal(rosType, rosData)
+const { type, data } = convertRosToInternal(rosType, rosData);
 
 // Bad: Use raw ROS data directly
-const linearX = rosData.linear.x // Couples widget to ROS structure
+const linearX = rosData.linear.x; // Couples widget to ROS structure
 ```
 
 ### 2. Validate Types at Runtime
 
 ```typescript
-const { type, data } = convertRosToInternal(rawType, rawData)
+const { type, data } = convertRosToInternal(rawType, rawData);
 
-if (type !== 'Movement') {
-  console.error(`Expected Movement, got ${type}`)
-  return
+if (type !== "Movement") {
+    console.error(`Expected Movement, got ${type}`);
+    return;
 }
 ```
 
@@ -499,21 +503,21 @@ if (type !== 'Movement') {
 
 ```typescript
 if (isPose(data)) {
-  // Type-safe access
-  renderPose(data)
+    // Type-safe access
+    renderPose(data);
 }
 ```
 
 ### 4. Check Compatibility Before Subscribe
 
 ```typescript
-const topic = '/cmd_vel'
-const topicType = getTopicType(topic) // e.g., 'geometry_msgs/Twist'
-const internalType = getInternalTypeForRos(topicType)
+const topic = "/cmd_vel";
+const topicType = getTopicType(topic); // e.g., 'geometry_msgs/Twist'
+const internalType = getInternalTypeForRos(topicType);
 
-if (internalType !== 'Movement') {
-  console.error('Incompatible topic type')
-  return
+if (internalType !== "Movement") {
+    console.error("Incompatible topic type");
+    return;
 }
 ```
 
@@ -525,7 +529,7 @@ if (internalType !== 'Movement') {
  * @param topic - Must publish Movement type (geometry_msgs/Twist)
  */
 function VelocityWidget({ topic }: { topic: string }) {
-  // ...
+    // ...
 }
 ```
 
@@ -536,11 +540,13 @@ function VelocityWidget({ topic }: { topic: string }) {
 **Problem:** `convertRosToInternal` returns unexpected type
 
 **Causes:**
+
 - ROS type not mapped
 - Data structure mismatch
 - Custom message type
 
 **Solutions:**
+
 - Check type mapping with `getInternalTypeForRos()`
 - Register custom type converter
 - Verify message structure
@@ -554,14 +560,14 @@ function VelocityWidget({ topic }: { topic: string }) {
 **Solution:** Add field mapping:
 
 ```typescript
-const { type, data } = convertRosToInternal(rawType, rawData)
+const { type, data } = convertRosToInternal(rawType, rawData);
 
 // Map fields if needed
 const normalized = {
-  x: data.linear?.x ?? 0,
-  y: data.linear?.y ?? 0,
-  z: data.linear?.z ?? 0,
-}
+    x: data.linear?.x ?? 0,
+    y: data.linear?.y ?? 0,
+    z: data.linear?.z ?? 0,
+};
 ```
 
 ### Type Compatibility Issues
@@ -571,11 +577,11 @@ const normalized = {
 **Solution:** Use type validators:
 
 ```typescript
-const { type, data } = convertRosToInternal(rawType, rawData)
+const { type, data } = convertRosToInternal(rawType, rawData);
 
-if (!isTypeCompatible(type, 'Movement')) {
-  console.error(`Incompatible type: ${type}`)
-  return
+if (!isTypeCompatible(type, "Movement")) {
+    console.error(`Incompatible type: ${type}`);
+    return;
 }
 ```
 
