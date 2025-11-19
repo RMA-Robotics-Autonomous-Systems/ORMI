@@ -187,264 +187,38 @@ export default IMUVisualizer
 
 ### Example: WebSocket Connection
 
-Complete WebSocket datasource implementation:
+Key responsibilities of a WebSocket Connection:
 
-```typescript
-import { EventEmitter } from "events";
-import {
-    Connection,
-    ConnectionConfig,
-    ConnectionStatus,
-    ConnectionError,
-    TopicInfo,
-    MessageMetadata,
-} from "@workspace/ormi-core/v2";
+**Connection Lifecycle:**
 
-interface WebSocketMessage {
-    op: string;
-    topic: string;
-    data: any;
-    timestamp?: number;
-    frameId?: string;
-}
+- `connect()`: Establish WebSocket connection, handle open/error/close events
+- `disconnect()`: Close connection and cleanup
 
-class WebSocketConnection extends EventEmitter implements Connection {
-    private ws: WebSocket | null = null;
-    private config: ConnectionConfig | null = null;
-    private status: ConnectionStatus = {
-        state: "disconnected",
-        error: null,
-        connectedAt: null,
-        lastDataAt: null,
-    };
-    private activeSubscriptions = new Set<string>();
-    private availableTopics: TopicInfo[] = [];
+**Topic Management:**
 
-    async connect(config: ConnectionConfig): Promise<void> {
-        this.config = config;
+- `subscribe(topic)`: Send subscription message to server, track active subscriptions
+- `unsubscribe(topic)`: Send unsubscription message, clean up tracking
+- Track subscriber counts to avoid duplicate subscriptions
 
-        return new Promise((resolve, reject) => {
-            this.status.state = "connecting";
-            this.emit("status-changed", this.status);
+**Data Flow:**
 
-            try {
-                this.ws = new WebSocket(config.url!);
+- Listen to `ws.onmessage` for incoming data
+- Parse messages and extract topic/data
+- Emit `"message"` event with topic, data, and metadata
+- DatasourceManager listens and routes to atoms
 
-                this.ws.onopen = async () => {
-                    this.status.state = "connected";
-                    this.status.connectedAt = Date.now();
-                    this.status.error = null;
-                    this.emit("status-changed", this.status);
-                    this.emit("connected");
+**Discovery:**
 
-                    // Discover topics
-                    await this.discoverTopics();
+- `getAvailableTopics()`: Query server for available topics
+- `getTopicType(topic)`: Return type information
 
-                    resolve();
-                };
+**Error Handling:**
 
-                this.ws.onerror = (event) => {
-                    const error: ConnectionError = {
-                        type: "connection",
-                        message: "WebSocket connection failed",
-                        timestamp: Date.now(),
-                        recoverable: true,
-                    };
-                    this.status.state = "error";
-                    this.status.error = error;
-                    this.emit("status-changed", this.status);
-                    this.emit("error", error);
-                    reject(error);
-                };
+- Emit `"error"` events for connection failures
+- Implement auto-reconnect logic
+- Update connection status appropriately
 
-                this.ws.onmessage = (event) => this.handleMessage(event);
-
-                this.ws.onclose = () => {
-                    if (this.status.state === "connected") {
-                        this.handleDisconnect();
-                    }
-                };
-            } catch (error) {
-                const connError: ConnectionError = {
-                    type: "connection",
-                    message: error.message,
-                    timestamp: Date.now(),
-                    recoverable: false,
-                };
-                reject(connError);
-            }
-        });
-    }
-
-    async disconnect(): Promise<void> {
-        if (!this.ws) return;
-
-        // Unsubscribe from all
-        for (const topic of this.activeSubscriptions) {
-            this.unsubscribe(topic);
-        }
-
-        return new Promise((resolve) => {
-            this.ws!.onclose = () => {
-                this.status.state = "disconnected";
-                this.status.connectedAt = null;
-                this.emit("status-changed", this.status);
-                this.emit("disconnected");
-                this.ws = null;
-                resolve();
-            };
-
-            this.ws!.close();
-        });
-    }
-
-    async reconnect(): Promise<void> {
-        const previousSubs = Array.from(this.activeSubscriptions);
-        await this.disconnect();
-
-        if (this.config) {
-            this.status.state = "reconnecting";
-            this.emit("status-changed", this.status);
-
-            await this.connect(this.config);
-
-            // Re-subscribe
-            for (const topic of previousSubs) {
-                this.subscribe(topic);
-            }
-        }
-    }
-
-    subscribe(topic: string): void {
-        if (this.activeSubscriptions.has(topic)) return;
-
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            const error: ConnectionError = {
-                type: "subscription",
-                message: "Cannot subscribe: not connected",
-                topic,
-                timestamp: Date.now(),
-                recoverable: true,
-            };
-            this.emit("error", error);
-            return;
-        }
-
-        // Send subscription request
-        this.ws.send(
-            JSON.stringify({
-                op: "subscribe",
-                topic: topic,
-            })
-        );
-
-        this.activeSubscriptions.add(topic);
-        this.emit("subscribed", topic);
-    }
-
-    unsubscribe(topic: string): void {
-        if (!this.activeSubscriptions.has(topic)) return;
-
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(
-                JSON.stringify({
-                    op: "unsubscribe",
-                    topic: topic,
-                })
-            );
-        }
-
-        this.activeSubscriptions.delete(topic);
-        this.emit("unsubscribed", topic);
-    }
-
-    async getAvailableTopics(): Promise<TopicInfo[]> {
-        return this.availableTopics;
-    }
-
-    async getTopicType(topic: string): Promise<string | null> {
-        const topicInfo = this.availableTopics.find((t) => t.topic === topic);
-        return topicInfo?.type || null;
-    }
-
-    getStatus(): ConnectionStatus {
-        return { ...this.status };
-    }
-
-    private async discoverTopics(): Promise<void> {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-        return new Promise((resolve) => {
-            const handler = (event: MessageEvent) => {
-                const message = JSON.parse(event.data);
-                if (message.op === "topics_list") {
-                    this.availableTopics = message.topics.map((t: any) => ({
-                        topic: t.name,
-                        type: t.type,
-                        frequency: t.frequency,
-                    }));
-
-                    this.ws!.removeEventListener("message", handler);
-                    resolve();
-                }
-            };
-
-            this.ws.addEventListener("message", handler);
-            this.ws.send(JSON.stringify({ op: "get_topics" }));
-
-            setTimeout(() => {
-                this.ws!.removeEventListener("message", handler);
-                resolve();
-            }, 5000);
-        });
-    }
-
-    private handleMessage(event: MessageEvent): void {
-        try {
-            const message: WebSocketMessage = JSON.parse(event.data);
-
-            if (message.op === "publish") {
-                this.status.lastDataAt = Date.now();
-
-                const metadata: MessageMetadata = {
-                    timestamp: message.timestamp || Date.now(),
-                    frameId: message.frameId || "world",
-                };
-
-                // Emit to DatasourceManager (which writes to atoms)
-                this.emit("message", message.topic, message.data, metadata);
-            }
-        } catch (error) {
-            const dataError: ConnectionError = {
-                type: "data",
-                message: `Failed to parse message: ${error.message}`,
-                timestamp: Date.now(),
-                recoverable: true,
-                details: error,
-            };
-            this.emit("error", dataError);
-        }
-    }
-
-    private handleDisconnect(): void {
-        this.status.state = "disconnected";
-        this.emit("status-changed", this.status);
-        this.emit("disconnected", "Connection closed unexpectedly");
-
-        // Auto-reconnect logic
-        if (
-            this.config?.reconnectAttempts &&
-            this.config.reconnectAttempts > 0
-        ) {
-            setTimeout(() => {
-                this.reconnect();
-            }, this.config.reconnectInterval || 3000);
-        }
-    }
-}
-
-export default WebSocketConnection;
-```
+See the [Connection API documentation](../api/connection-api) for the complete interface and detailed implementation guide.
 
 ---
 
@@ -1118,700 +892,67 @@ export function FusionWidgetDefinition(): WidgetDefinition {
 
 ### WebSocket Datasource
 
-Generic WebSocket connection.
+**Key Implementation Points:**
 
-```typescript
-// datasources/websocket-connection.ts
-import {
-    Connection,
-    TopicInfo,
-    MessageMetadata,
-} from "@workspace/ormi-core/v2";
-
-interface WebSocketConfig {
-    id: string;
-    url: string;
-    reconnectTimeout?: number;
-    autoReconnect?: boolean;
-}
-
-export class WebSocketConnection implements Connection {
-    private ws: WebSocket | null = null;
-    private config: WebSocketConfig;
-    private subscriptions = new Map<string, number>();
-    private eventTarget = new EventTarget();
-    private reconnectTimer?: NodeJS.Timeout;
-
-    constructor(config: WebSocketConfig) {
-        this.config = {
-            reconnectTimeout: 5000,
-            autoReconnect: true,
-            ...config,
-        };
-    }
-
-    async connect(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            this.ws = new WebSocket(this.config.url);
-
-            this.ws.onopen = () => {
-                this.emit("connected");
-                resolve();
-            };
-
-            this.ws.onerror = (error) => {
-                this.emit("error", new Error("WebSocket connection failed"));
-                reject(error);
-            };
-
-            this.ws.onclose = () => {
-                this.emit("disconnected");
-                if (this.config.autoReconnect) {
-                    this.scheduleReconnect();
-                }
-            };
-
-            this.ws.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    this.handleMessage(message);
-                } catch (error) {
-                    console.error("Failed to parse message:", error);
-                }
-            };
-        });
-    }
-
-    async disconnect(): Promise<void> {
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-        }
-
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    isConnected(): boolean {
-        return this.ws?.readyState === WebSocket.OPEN;
-    }
-
-    subscribe(topic: string): void {
-        const count = this.subscriptions.get(topic) || 0;
-        this.subscriptions.set(topic, count + 1);
-
-        if (count === 0 && this.ws) {
-            // First subscriber - send subscribe message
-            this.ws.send(
-                JSON.stringify({
-                    op: "subscribe",
-                    topic: topic,
-                })
-            );
-        }
-    }
-
-    unsubscribe(topic: string): void {
-        const count = this.subscriptions.get(topic) || 0;
-
-        if (count <= 1) {
-            // Last subscriber - send unsubscribe message
-            if (this.ws) {
-                this.ws.send(
-                    JSON.stringify({
-                        op: "unsubscribe",
-                        topic: topic,
-                    })
-                );
-            }
-            this.subscriptions.delete(topic);
-        } else {
-            this.subscriptions.set(topic, count - 1);
-        }
-    }
-
-    async discoverTopics(): Promise<TopicInfo[]> {
-        return new Promise((resolve, reject) => {
-            if (!this.ws) {
-                reject(new Error("Not connected"));
-                return;
-            }
-
-            // Send discovery request
-            const requestId = Math.random().toString(36);
-            this.ws.send(
-                JSON.stringify({
-                    op: "get_topics",
-                    id: requestId,
-                })
-            );
-
-            // Wait for response
-            const handler = (event: MessageEvent) => {
-                const msg = JSON.parse(event.data);
-                if (msg.op === "topics_list" && msg.id === requestId) {
-                    this.ws?.removeEventListener("message", handler);
-                    resolve(msg.topics);
-                }
-            };
-
-            this.ws.addEventListener("message", handler);
-
-            // Timeout after 5 seconds
-            setTimeout(() => {
-                this.ws?.removeEventListener("message", handler);
-                reject(new Error("Topic discovery timeout"));
-            }, 5000);
-        });
-    }
-
-    async publish(topic: string, data: any): Promise<void> {
-        if (!this.ws) {
-            throw new Error("Not connected");
-        }
-
-        this.ws.send(
-            JSON.stringify({
-                op: "publish",
-                topic: topic,
-                msg: data,
-            })
-        );
-    }
-
-    on(event: string, callback: Function): void {
-        this.eventTarget.addEventListener(event, ((e: CustomEvent) => {
-            if (event === "message") {
-                callback(e.detail.topic, e.detail.data, e.detail.metadata);
-            } else {
-                callback(e.detail);
-            }
-        }) as EventListener);
-    }
-
-    off(event: string, callback: Function): void {
-        this.eventTarget.removeEventListener(event, callback as EventListener);
-    }
-
-    private handleMessage(message: any) {
-        if (message.op === "publish") {
-            this.emit("message", message.topic, message.msg, {
-                timestamp: message.timestamp || Date.now(),
-                frameId: message.frame_id,
-            });
-        }
-    }
-
-    private emit(event: string, ...args: any[]) {
-        const detail =
-            event === "message"
-                ? { topic: args[0], data: args[1], metadata: args[2] }
-                : args[0];
-
-        this.eventTarget.dispatchEvent(new CustomEvent(event, { detail }));
-    }
-
-    private scheduleReconnect() {
-        this.reconnectTimer = setTimeout(() => {
-            console.log("Attempting to reconnect...");
-            this.connect().catch(console.error);
-        }, this.config.reconnectTimeout);
-    }
-}
-
-// Registration
-export const WebSocketDatasourceDefinition = {
-    id: "websocket",
-    name: "WebSocket",
-    version: 2,
-    createConnection: (config: WebSocketConfig) =>
-        new WebSocketConnection(config),
-    schema: {
-        type: "object",
-        required: ["id", "url"],
-        properties: {
-            id: { type: "string", title: "ID" },
-            url: { type: "string", title: "WebSocket URL" },
-            reconnectTimeout: {
-                type: "number",
-                title: "Reconnect Timeout (ms)",
-                default: 5000,
-            },
-            autoReconnect: {
-                type: "boolean",
-                title: "Auto Reconnect",
-                default: true,
-            },
-        },
-    },
-};
-```
+- `subscribe()`: Track subscriber count, send subscription message on first subscriber
+- `unsubscribe()`: Decrement count, send unsubscription on last subscriber
+- `connect()`: Establish WebSocket, set up event handlers
+- `handleMessage()`: Parse incoming messages, emit to DatasourceManager
+- Auto-reconnect logic for connection failures
 
 ### REST API Datasource
 
-Polling-based REST API connection.
+**Key Implementation Points:**
 
-```typescript
-// datasources/rest-connection.ts
-import { Connection, TopicInfo } from "@workspace/ormi-core/v2";
-
-interface RESTConfig {
-    id: string;
-    baseUrl: string;
-    pollRate?: number; // milliseconds
-    headers?: Record<string, string>;
-}
-
-export class RESTConnection implements Connection {
-    private config: RESTConfig;
-    private pollIntervals = new Map<string, NodeJS.Timer>();
-    private eventTarget = new EventTarget();
-    private connected = false;
-
-    constructor(config: RESTConfig) {
-        this.config = {
-            pollRate: 1000, // Default 1 Hz
-            ...config,
-        };
-    }
-
-    async connect(): Promise<void> {
-        // Test connection
-        try {
-            const response = await fetch(`${this.config.baseUrl}/health`);
-            if (!response.ok) {
-                throw new Error("Health check failed");
-            }
-            this.connected = true;
-            this.emit("connected");
-        } catch (error) {
-            this.emit("error", error as Error);
-            throw error;
-        }
-    }
-
-    async disconnect(): Promise<void> {
-        // Stop all polling
-        this.pollIntervals.forEach(clearInterval);
-        this.pollIntervals.clear();
-        this.connected = false;
-        this.emit("disconnected");
-    }
-
-    isConnected(): boolean {
-        return this.connected;
-    }
-
-    subscribe(topic: string): void {
-        if (this.pollIntervals.has(topic)) {
-            return; // Already polling
-        }
-
-        const interval = setInterval(async () => {
-            try {
-                const response = await fetch(`${this.config.baseUrl}${topic}`, {
-                    headers: this.config.headers,
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                this.emit("message", topic, data, {
-                    timestamp: Date.now(),
-                });
-            } catch (error) {
-                this.emit("error", error as Error);
-            }
-        }, this.config.pollRate);
-
-        this.pollIntervals.set(topic, interval);
-    }
-
-    unsubscribe(topic: string): void {
-        const interval = this.pollIntervals.get(topic);
-        if (interval) {
-            clearInterval(interval);
-            this.pollIntervals.delete(topic);
-        }
-    }
-
-    async discoverTopics(): Promise<TopicInfo[]> {
-        const response = await fetch(`${this.config.baseUrl}/topics`);
-        const topics = await response.json();
-        return topics;
-    }
-
-    async publish(topic: string, data: any): Promise<void> {
-        await fetch(`${this.config.baseUrl}${topic}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...this.config.headers,
-            },
-            body: JSON.stringify(data),
-        });
-    }
-
-    on(event: string, callback: Function): void {
-        this.eventTarget.addEventListener(event, ((e: CustomEvent) => {
-            if (event === "message") {
-                callback(e.detail.topic, e.detail.data, e.detail.metadata);
-            } else {
-                callback(e.detail);
-            }
-        }) as EventListener);
-    }
-
-    off(event: string, callback: Function): void {
-        this.eventTarget.removeEventListener(event, callback as EventListener);
-    }
-
-    private emit(event: string, ...args: any[]) {
-        const detail =
-            event === "message"
-                ? { topic: args[0], data: args[1], metadata: args[2] }
-                : args[0];
-
-        this.eventTarget.dispatchEvent(new CustomEvent(event, { detail }));
-    }
-}
-
-export const RESTDatasourceDefinition = {
-    id: "rest-api",
-    name: "REST API",
-    version: 2,
-    createConnection: (config: RESTConfig) => new RESTConnection(config),
-    schema: {
-        type: "object",
-        required: ["id", "baseUrl"],
-        properties: {
-            id: { type: "string" },
-            baseUrl: { type: "string", title: "Base URL" },
-            pollRate: {
-                type: "number",
-                title: "Poll Rate (ms)",
-                default: 1000,
-            },
-            headers: {
-                type: "object",
-                title: "Custom Headers",
-                additionalProperties: { type: "string" },
-            },
-        },
-    },
-};
-```
+- Poll-based approach using `setInterval()`
+- `subscribe()`: Start polling interval for topic
+- `unsubscribe()`: Clear polling interval
+- `connect()`: Validate connection with health check
+- Configurable poll rate and custom headers
 
 ### Random Data Generator
 
-Test datasource for development.
+**Key Implementation Points:**
 
-```typescript
-// datasources/random-connection.ts
-import { Connection, TopicInfo } from "@workspace/ormi-core/v2";
+- Simple test datasource for development
+- `subscribe()`: Start interval generating random data
+- `generateData()`: Create mock data based on topic pattern
+- Useful for testing widgets without real data sources
 
-interface RandomConfig {
-    id: string;
-    updateRate?: number; // Hz
-}
-
-export class RandomConnection implements Connection {
-    private config: RandomConfig;
-    private intervals = new Map<string, NodeJS.Timer>();
-    private eventTarget = new EventTarget();
-
-    constructor(config: RandomConfig) {
-        this.config = {
-            updateRate: 10, // Default 10 Hz
-            ...config,
-        };
-    }
-
-    async connect(): Promise<void> {
-        // Instant "connection" for random data
-        this.emit("connected");
-    }
-
-    async disconnect(): Promise<void> {
-        this.intervals.forEach(clearInterval);
-        this.intervals.clear();
-        this.emit("disconnected");
-    }
-
-    isConnected(): boolean {
-        return true;
-    }
-
-    subscribe(topic: string): void {
-        if (this.intervals.has(topic)) return;
-
-        const interval = setInterval(() => {
-            const data = this.generateData(topic);
-            this.emit("message", topic, data, {
-                timestamp: Date.now(),
-                frameId: "random",
-            });
-        }, 1000 / this.config.updateRate!);
-
-        this.intervals.set(topic, interval);
-    }
-
-    unsubscribe(topic: string): void {
-        const interval = this.intervals.get(topic);
-        if (interval) {
-            clearInterval(interval);
-            this.intervals.delete(topic);
-        }
-    }
-
-    async discoverTopics(): Promise<TopicInfo[]> {
-        return [
-            { topic: "/random/float", type: "std_msgs/Float64" },
-            { topic: "/random/int", type: "std_msgs/Int32" },
-            { topic: "/random/string", type: "std_msgs/String" },
-            { topic: "/random/bool", type: "std_msgs/Bool" },
-            { topic: "/random/array", type: "std_msgs/Float64MultiArray" },
-        ];
-    }
-
-    on(event: string, callback: Function): void {
-        this.eventTarget.addEventListener(event, ((e: CustomEvent) => {
-            if (event === "message") {
-                callback(e.detail.topic, e.detail.data, e.detail.metadata);
-            } else {
-                callback(e.detail);
-            }
-        }) as EventListener);
-    }
-
-    off(event: string, callback: Function): void {
-        this.eventTarget.removeEventListener(event, callback as EventListener);
-    }
-
-    private generateData(topic: string): any {
-        if (topic.includes("float")) {
-            return Math.random() * 100;
-        } else if (topic.includes("int")) {
-            return Math.floor(Math.random() * 100);
-        } else if (topic.includes("string")) {
-            return `Random string ${Math.random().toString(36).substr(2, 9)}`;
-        } else if (topic.includes("bool")) {
-            return Math.random() > 0.5;
-        } else if (topic.includes("array")) {
-            return Array.from({ length: 10 }, () => Math.random());
-        }
-        return Math.random();
-    }
-
-    private emit(event: string, ...args: any[]) {
-        const detail =
-            event === "message"
-                ? { topic: args[0], data: args[1], metadata: args[2] }
-                : args[0];
-
-        this.eventTarget.dispatchEvent(new CustomEvent(event, { detail }));
-    }
-}
-
-export const RandomDatasourceDefinition = {
-    id: "random-generator",
-    name: "Random Data Generator",
-    version: 2,
-    createConnection: (config: RandomConfig) => new RandomConnection(config),
-    schema: {
-        type: "object",
-        required: ["id"],
-        properties: {
-            id: { type: "string" },
-            updateRate: {
-                type: "number",
-                title: "Update Rate (Hz)",
-                default: 10,
-                minimum: 1,
-                maximum: 100,
-            },
-        },
-    },
-};
-```
+For complete Connection implementation examples, see the [Connection API documentation](../api/connection-api).
 
 ---
 
 ## Type Conversion in Datasources
 
-The V2 API maintains V1's type conversion system. Datasources work with native formats (rawType) while widgets use standardized internal types (type).
+V2 maintains the type conversion system from V1. Datasources work with native formats (`rawType`) while widgets use standardized internal types (`type`).
 
-### Implementing Type Converters
+### Key Concepts
 
-Example from ROS datasource showing bidirectional type conversion:
+**Type Converter Interface:**
 
-```typescript
-// datasources/rosbridge/type-converters.ts
-import { TypeConverter } from "@workspace/ormi-core/v2";
+- `convertToWebapp()` - Convert datasource format to internal format
+- `convertFromWebapp()` - Convert internal format to datasource format (for publishing)
+- `getWebappTypeFromROSType()` - Map external type names to internal types
 
-export const ROSImageConverter: TypeConverter = {
-    // Convert from ROS format to internal format
-    convertToWebapp(rosmsg: any, rosType: string, internalType: string): any {
-        if (rosType !== "sensor_msgs/Image") return rosmsg;
-
-        // Convert ROS Image message to internal Image format
-        return {
-            width: rosmsg.width,
-            height: rosmsg.height,
-            encoding: rosmsg.encoding,
-            data: rosmsg.data,
-            step: rosmsg.step,
-            header: {
-                frameId: rosmsg.header.frame_id,
-                timestamp:
-                    rosmsg.header.stamp.sec * 1000 +
-                    rosmsg.header.stamp.nsec / 1e6,
-            },
-        };
-    },
-
-    // Convert from internal format to ROS format (for publishing)
-    convertFromWebapp(
-        webappData: any,
-        rosType: string,
-        internalType: string
-    ): any {
-        if (rosType !== "sensor_msgs/Image") return webappData;
-
-        // Convert internal Image to ROS format
-        return {
-            width: webappData.width,
-            height: webappData.height,
-            encoding: webappData.encoding,
-            data: webappData.data,
-            step: webappData.step,
-            header: {
-                frame_id: webappData.header.frameId,
-                stamp: {
-                    sec: Math.floor(webappData.header.timestamp / 1000),
-                    nsec: (webappData.header.timestamp % 1000) * 1e6,
-                },
-            },
-        };
-    },
-
-    // Map ROS types to internal types
-    getWebappTypeFromROSType(rosType: string): string | undefined {
-        const typeMap: Record<string, string> = {
-            "sensor_msgs/Image": "Image",
-            "sensor_msgs/PointCloud2": "PointCloud",
-            "geometry_msgs/PoseStamped": "Pose",
-            "std_msgs/Float64": "number",
-            "std_msgs/String": "string",
-        };
-        return typeMap[rosType];
-    },
-};
-```
-
-### Registering Type Converters
-
-Datasources register their converters with the UnifiedConverterRegistry:
+**Registration:**
+Connections register their converters with `UnifiedConverterRegistry` during `connect()`:
 
 ```typescript
-// datasources/rosbridge/rosbridge-connection.ts
-import {
-    Connection,
-    DatasourceTopic,
-    UnifiedConverterRegistry,
-} from "@workspace/ormi-core/v2";
-import { ROSImageConverter } from "./type-converters";
-
-export class RosbridgeConnection implements Connection {
-    private ws: WebSocket | null = null;
-
-    async connect(): Promise<void> {
-        // Register type converters on connection
-        UnifiedConverterRegistry.registerConverter(
-            "sensor_msgs/Image",
-            ROSImageConverter
-        );
-        UnifiedConverterRegistry.registerConverter(
-            "sensor_msgs/PointCloud2",
-            ROSImageConverter
-        );
-        // ... register other converters
-
-        // Connect to ROS bridge
-        this.ws = new WebSocket(this.config.url);
-        // ... connection setup
-    }
-
-    subscribe(topicConfig: DatasourceTopic): void {
-        // Subscribe to ROS topic
-        this.ws?.send(
-            JSON.stringify({
-                op: "subscribe",
-                topic: topicConfig.topic,
-                type: topicConfig.rawType, // Use ROS type for subscription
-            })
-        );
-    }
-
-    private handleMessage(topic: string, msg: any, rosType: string): void {
-        // Get the topic configuration
-        const topicConfig = this.getTopicConfig(topic);
-
-        // Convert from ROS format to internal format
-        const converted = UnifiedConverterRegistry.convertToWebapp(
-            msg,
-            topicConfig.rawType, // sensor_msgs/Image
-            topicConfig.type // Image
-        );
-
-        // Emit converted message
-        this.emit("message", topicConfig, converted, {
-            timestamp: Date.now(),
-            frameId: msg.header?.frame_id,
-        });
-    }
-}
+UnifiedConverterRegistry.registerConverter(
+    "sensor_msgs/Image",
+    ROSImageConverter
+);
 ```
 
-### Type Conversion Flow
+**Conversion Flow:**
 
-1. **Widget subscribes** via `useDataStream`:
+1. Widget subscribes via `useDataStream<Image>(datasourceId, topic)`
+2. DatasourceManager creates `DatasourceTopic` with both `rawType` and `type`
+3. Connection receives native message, converts using registered converter
+4. Widget receives data in standard internal format
 
-    ```typescript
-    const { data } = useDataStream<Image>(datasourceId, topic);
-    ```
-
-2. **DatasourceManager** creates `DatasourceTopic` with type info:
-
-    ```typescript
-    {
-      topic: "/camera/image",
-      datasource_id: "ros-1",
-      source: "rosbridge",
-      rawType: "sensor_msgs/Image",  // ROS format
-      type: "Image"                   // Internal format
-    }
-    ```
-
-3. **Connection** receives native message and converts:
-
-    ```typescript
-    // ROS sends sensor_msgs/Image
-    const rosmsg = { width: 640, height: 480, ... }
-
-    // Convert to internal format
-    const webappmsg = converter.convertToWebapp(rosmsg, rawType, type)
-    ```
-
-4. **Widget receives** converted data in standard format:
-    ```typescript
-    // data is now in internal Image format
-    <ImageRenderer data={data} />
-    ```
+For detailed converter examples, see the Type System documentation.
 
 ---
 

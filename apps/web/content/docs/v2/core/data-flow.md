@@ -181,108 +181,24 @@ When a widget first mounts and calls `useDataStream()`:
 
 #### Step 1: Atom Registration
 
-```typescript
-// Inside useDataStream
-const dataAtom = useMemo(
-    () => dataAtomFamily({ datasourceId, topic }),
-    [datasourceId, topic]
-);
-
-// Subscribe to atom
-const [atomValue] = useAtom(dataAtom);
-```
-
-**What happens:**
-
-- Atom family checks if atom exists for this datasource+topic
-- If not, creates new atom with `null` initial state
-- Hook subscribes to atom changes
-- Returns current value (null on first subscription)
+Widget hook subscribes to the atom for this datasource+topic combination. If the atom doesn't exist, it's created automatically with null initial state.
 
 #### Step 2: Subscription Tracking
 
-```typescript
-// Inside useDataStream
-const subscriptionAtom = subscriptionAtomFamily({ datasourceId, topic });
-const widgetId = useId(); // Unique ID per widget instance
-
-useEffect(() => {
-    // Add this widget to subscribers
-    const currentSet = store.get(subscriptionAtom);
-    store.set(subscriptionAtom, new Set([...currentSet, widgetId]));
-
-    return () => {
-        // Remove on cleanup
-        const currentSet = store.get(subscriptionAtom);
-        const newSet = new Set(currentSet);
-        newSet.delete(widgetId);
-        store.set(subscriptionAtom, newSet);
-    };
-}, [datasourceId, topic, widgetId]);
-```
-
-**What happens:**
-
-- Widget ID added to subscription set atom
-- Set size changes from 0 to 1 (or increments)
-- Change triggers DatasourceManager monitoring effect
+Widget's unique ID is added to the subscription tracking atom. This increments the subscriber count from 0 to 1 (or higher if other widgets are already subscribed).
 
 #### Step 3: Connection Subscription (Lazy Activation)
 
-```typescript
-// Inside DatasourceManager
-useEffect(() => {
-    const subscriptionAtom = subscriptionAtomFamily({ datasourceId, topic });
+**LAZY SUBSCRIPTION - Key Feature:**
 
-    const unsubscribe = store.sub(subscriptionAtom, () => {
-        const subscribers = store.get(subscriptionAtom);
+DatasourceManager monitors subscription count changes. When the count transitions:
 
-        if (subscribers.size > 0 && !isSubscribed(datasourceId, topic)) {
-            // First subscriber - start streaming NOW
-            console.log(
-                `First subscriber for ${datasourceId}::${topic}, starting stream`
-            );
-            const connection = connections.get(datasourceId);
-            connection.subscribe(topic);
+- **0 → 1 (First subscriber)**: Calls `connection.subscribe(topic)` to START the data stream
+- **1 → 2+ (Additional subscribers)**: No action - already streaming, new widgets use existing stream
+- **2+ → 1 (Subscriber removed)**: No action - keep streaming for remaining widgets
+- **1 → 0 (Last subscriber removed)**: Calls `connection.unsubscribe(topic)` to STOP the data stream
 
-            activeSubscriptions.add(`${datasourceId}::${topic}`);
-        } else if (
-            subscribers.size === 0 &&
-            isSubscribed(datasourceId, topic)
-        ) {
-            // Last subscriber gone - stop streaming NOW
-            console.log(
-                `No subscribers for ${datasourceId}::${topic}, stopping stream`
-            );
-            const connection = connections.get(datasourceId);
-            connection.unsubscribe(topic);
-
-            activeSubscriptions.delete(`${datasourceId}::${topic}`);
-        }
-    });
-
-    return unsubscribe;
-}, [datasourceId, topic]);
-```
-
-**What happens (LAZY SUBSCRIPTION):**
-
-- DatasourceManager monitors subscription count changes
-- **When count goes 0 → 1**: This is the FIRST subscriber!
-    - Calls `connection.subscribe(topic)` to start the data stream
-    - Adds to active subscriptions tracking
-    - Connection begins requesting/generating data
-- **When count goes 1 → 2+**: Additional subscribers
-    - NO action taken - already streaming
-    - New widgets get existing data stream
-- **When count goes 2 → 1**: Still has subscribers
-    - NO action taken - keep streaming
-- **When count goes 1 → 0**: LAST subscriber removed!
-    - Calls `connection.unsubscribe(topic)` to stop the data stream
-    - Removes from active subscriptions tracking
-    - Connection stops requesting/generating data to save resources
-
-**Critical: The datasource connection does NOT subscribe to topics until a widget actually needs the data. This prevents wasted bandwidth and CPU for unused topics.**
+**Critical Insight:** The datasource connection does NOT subscribe to topics until a widget actually needs the data. This prevents wasted bandwidth and CPU for unused topics.
 
 ### Phase 2: Data Streaming (Detailed)
 
@@ -290,116 +206,31 @@ Once subscribed, data flows continuously:
 
 #### Step 1: Data Arrives at Connection
 
-```typescript
-// Inside Connection implementation
-class WebSocketConnection implements Connection {
-    private ws: WebSocket;
+Connection receives data from the external source (WebSocket, REST API, etc.), transforms it to internal format if needed, and emits a "message" event with:
 
-    subscribe(topic: string) {
-        // Request subscription from data source
-        this.ws.send(
-            JSON.stringify({
-                op: "subscribe",
-                topic: topic,
-            })
-        );
+- Topic name
+- Data payload (in internal format)
+- Metadata (timestamp, frameId, etc.)
 
-        // Listen for incoming messages
-        this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-
-            if (message.topic === topic) {
-                // Emit to DatasourceManager
-                this.emit("message", topic, message.data, {
-                    timestamp: message.timestamp || Date.now(),
-                    frameId: message.frameId || "world",
-                    sequenceId: message.seq,
-                });
-            }
-        };
-    }
-}
-```
-
-**What happens:**
-
-- Connection receives data from external source
-- Transforms to internal format if needed
-- Emits "message" event with topic, data, and metadata
-- No knowledge of who will consume the data
+The Connection has no knowledge of who will consume the data.
 
 #### Step 2: DatasourceManager Writes to Atom
 
-```typescript
-// Inside DatasourceManager
-connection.on(
-    "message",
-    (topic: string, data: any, metadata: MessageMetadata) => {
-        const dataAtom = dataAtomFamily({ datasourceId, topic });
+DatasourceManager listens to the Connection's "message" event and:
 
-        // Direct atom write
-        store.set(dataAtom, {
-            value: data,
-            timestamp: metadata.timestamp,
-            frameId: metadata.frameId,
-            sequenceId: metadata.sequenceId,
-        });
-
-        // Also update buffered atom if configured
-        if (hasBufferedSubscribers(datasourceId, topic)) {
-            const bufferedAtom = bufferedDataFamily({
-                datasourceId,
-                topic,
-                bufferSize: 100,
-            });
-
-            const currentBuffer = store.get(bufferedAtom);
-            const newBuffer = [
-                ...currentBuffer,
-                {
-                    value: data,
-                    timestamp: metadata.timestamp,
-                    frameId: metadata.frameId,
-                },
-            ].slice(-100); // Keep last 100
-
-            store.set(bufferedAtom, newBuffer);
-        }
-    }
-);
-```
-
-**What happens:**
-
-- DatasourceManager receives "message" event
-- Looks up atom for this datasource+topic
-- Writes data directly to atom (synchronous operation)
-- If buffered subscriptions exist, updates buffer atom too
-- Atom system handles notifications automatically
+- Looks up the atom for this datasource+topic
+- Writes data directly to the atom (synchronous operation)
+- If widgets need buffered data, also updates buffer atom
+- Atom system handles notifying subscribers automatically
 
 #### Step 3: Widget Receives Update
 
-```typescript
-// Inside useDataStream
-const [atomValue] = useAtom(dataAtom);
+Widget's `useDataStream` hook:
 
-useEffect(() => {
-    // Atom changed - process update
-    if (atomValue) {
-        setData(atomValue.value);
-        setTimestamp(atomValue.timestamp);
-        setIsLoading(false);
-        setError(null);
-    }
-}, [atomValue]);
-```
-
-**What happens:**
-
-- Atom change triggers hook re-evaluation
-- Component re-renders with new data
-- Only this specific component re-renders
-- No other widgets affected (even siblings)
+- Detects atom change
+- Extracts new data value
+- Triggers component re-render with new data
+- Only this specific component re-renders (isolated updates)
 
 ### Phase 3: Unsubscription (Detailed)
 
@@ -407,61 +238,23 @@ When widget unmounts:
 
 #### Step 1: Cleanup Hook
 
-```typescript
-// Inside useDataStream
-useEffect(() => {
-    // ... subscription code ...
-
-    return () => {
-        // Cleanup runs on unmount
-        const currentSet = store.get(subscriptionAtom);
-        const newSet = new Set(currentSet);
-        newSet.delete(widgetId);
-        store.set(subscriptionAtom, newSet);
-    };
-}, [datasourceId, topic, widgetId]);
-```
-
-**What happens:**
-
-- React calls cleanup function
-- Widget ID removed from subscription set
-- Set size decrements (1 → 0 if last subscriber)
-- Triggers DatasourceManager monitoring effect
+React cleanup runs on component unmount, removing the widget's ID from the subscription tracking atom. This decrements the subscriber count.
 
 #### Step 2: Connection Unsubscribe
 
-```typescript
-// Inside DatasourceManager monitoring effect
-if (subscribers.size === 0 && isSubscribed(datasourceId, topic)) {
-    const connection = connections.get(datasourceId);
-    connection.unsubscribe(topic);
-    activeSubscriptions.delete(`${datasourceId}::${topic}`);
-}
-```
+When DatasourceManager detects the count reached 0 (last subscriber):
 
-**What happens:**
-
-- DatasourceManager detects count reached 0
 - Calls `connection.unsubscribe(topic)`
-- Connection stops requesting data
-- Active subscription tracking updated
+- Connection stops requesting data from the source
+- Active subscription tracking is updated
 
 #### Step 3: Atom Persistence
 
-```typescript
-// Atom remains in store with last value
-const lastValue = store.get(dataAtom);
-// lastValue: { value: {...}, timestamp: 12345, frameId: "base_link" }
-```
+The atom is NOT destroyed - it remains in the store with its last value. This means:
 
-**What happens:**
-
-- Atom is NOT destroyed
-- Last value remains accessible
-- If widget re-mounts, it gets last known value immediately
-- Avoids "flash of null" on re-mount
+- If a widget re-mounts, it gets the last known value immediately (no "flash of null")
 - Reduces redundant subscriptions for frequently mounted/unmounted widgets
+- Efficient for dashboard tab switching
 
 ## Multiple Subscribers
 
@@ -553,112 +346,44 @@ function ChartWidget({ topic }) {
 
 **How it works:**
 
-1. **Separate Atoms**: The system maintains TWO different atoms:
-    - `dataAtomFamily({ datasourceId, topic })` - Latest value only
-    - `bufferedDataFamily({ datasourceId, topic, bufferSize })` - Historical buffer
+1. **Separate Atoms**: The system maintains two atom types:
+    - Latest value atom: stores only the most recent message
+    - Buffer atom: stores historical array of messages
 
-2. **Both Updated**: When new data arrives, DatasourceManager updates BOTH atoms:
+2. **Both Updated**: When data arrives, DatasourceManager updates:
+    - Always: the latest value atom
+    - Conditionally: the buffer atom (if any widget requests buffering)
 
-    ```typescript
-    connection.on("message", (topic, data, metadata) => {
-        // Always update latest value atom
-        const dataAtom = dataAtomFamily({ datasourceId, topic });
-        store.set(dataAtom, { value: data, timestamp, frameId });
-
-        // ALSO update buffer atom if ANY widget needs it
-        if (hasBufferedSubscribers(datasourceId, topic)) {
-            const bufferedAtom = bufferedDataFamily({
-                datasourceId,
-                topic,
-                bufferSize,
-            });
-            const currentBuffer = store.get(bufferedAtom);
-            const newBuffer = [
-                ...currentBuffer,
-                { value: data, timestamp, frameId },
-            ];
-
-            // Circular buffer
-            if (newBuffer.length > bufferSize) {
-                newBuffer.shift();
-            }
-
-            store.set(bufferedAtom, newBuffer);
-        }
-    });
-    ```
-
-3. **No Conflict**: Each widget subscribes to its own atom:
-    - GaugeWidget subscribes to `dataAtomFamily` → gets only latest value
-    - ChartWidget subscribes to `bufferedDataFamily` → gets full buffer array
+3. **No Conflict**: Each widget subscribes to the atom type it needs:
+    - Non-buffered widgets: subscribe to latest value atom
+    - Buffered widgets: subscribe to buffer atom
     - Both receive updates from the SAME data stream
-    - No duplicate subscriptions to the datasource
 
-4. **Efficient**:
-    - Only ONE `connection.subscribe(topic)` call regardless of buffer needs
-    - Data arrives once, distributed to both atoms
-    - Widgets only re-render when their specific atom changes
+4. **Efficient**: Only ONE `connection.subscribe(topic)` regardless of buffer needs
 
-```mermaid
-sequenceDiagram
-    participant C as Connection
-    participant DM as DatasourceManager
-    participant DA as Data Atom<br/>(latest only)
-    participant BA as Buffer Atom<br/>(history)
-    participant GW as GaugeWidget
-    participant CW as ChartWidget
+**Key Insight**: Buffer requirement is a property of the subscription, not the data source. Multiple widgets can have different views (latest vs buffered) of the same data stream.
 
-    Note over GW,CW: Both widgets subscribe to same topic
-    GW->>DA: useDataStream(topic)
-    CW->>BA: useDataStream(topic, {bufferSize: 1000})
+**Data Flow:**
 
-    Note over DM: Detects 2 subscribers, 1 buffered
-    DM->>C: connection.subscribe(topic) - ONCE
-
-    loop Every data arrival
-        C->>DM: emit("message", data)
-        DM->>DA: Update latest value
-        DM->>BA: Append to buffer
-        DA->>GW: Notify (new value)
-        BA->>CW: Notify (updated buffer)
-    end
-```
-
-**Key Insight**: The buffer requirement is a **property of the subscription**, not the data source. Multiple widgets can have different views (latest vs buffered) of the same data stream without conflict.
+1. Both GaugeWidget and ChartWidget subscribe to the same topic
+2. DatasourceManager sees at least one subscriber, calls `connection.subscribe(topic)` once
+3. When data arrives:
+    - Latest value atom is updated → GaugeWidget re-renders
+    - Buffer atom is updated → ChartWidget re-renders
+4. Each widget re-renders independently based on its atom
 
 ### Buffer Updates
 
-```typescript
-// Inside DatasourceManager on message receive
-connection.on("message", (topic, data, metadata) => {
-    // Update latest value atom
-    const dataAtom = dataAtomFamily({ datasourceId, topic });
-    store.set(dataAtom, { value: data, timestamp, frameId });
+Buffer atoms maintain a circular buffer automatically:
 
-    // Update buffer atom
-    const bufferedAtom = bufferedDataFamily({
-        datasourceId,
-        topic,
-        bufferSize: 100,
-    });
-
-    const currentBuffer = store.get(bufferedAtom);
-    const newBuffer = [...currentBuffer, { value: data, timestamp, frameId }];
-
-    // Circular buffer - remove oldest if exceeds size
-    if (newBuffer.length > 100) {
-        newBuffer.shift();
-    }
-
-    store.set(bufferedAtom, newBuffer);
-});
-```
+- New data is appended to the buffer array
+- When buffer exceeds configured size, oldest entries are removed
+- Widgets always receive the most recent N messages
 
 ### Widget Usage
 
 ```typescript
 function ChartWidget({ topic }) {
-  // Get buffered data
   const { buffer } = useDataStream(topic, {
     bufferSize: 100
   })
@@ -685,106 +410,78 @@ sequenceDiagram
     W->>W: Display error UI
 ```
 
-### Error Types
+**Error flow principles:**
 
-```typescript
-interface ConnectionError {
-    type: "connection" | "subscription" | "data";
-    message: string;
-    timestamp: number;
-    topic?: string;
-    recoverable: boolean;
-}
+- Errors propagate through the atom layer (same as data)
+- Connection-level errors affect all subscribed topics
+- Topic-specific errors only affect that topic's subscribers
+- Widgets receive errors via `useDataStream` hook's error property
+- Error atoms maintain last error state until cleared
+
+For error types, widget error handling patterns, and API details, see **[Hooks API - Error Handling](../api/hooks-api#error-handling)**.
+
+## Connection Status Monitoring
+
+Connection health is tracked independently from data flow:
+
+## Connection Status Monitoring
+
+Connection health is tracked independently from data flow:
+
+```mermaid
+graph LR
+    C[Connection] -->|state changes| SA[Status Atom]
+    SA -->|notification| W1[Widget 1]
+    SA -->|notification| W2[Widget 2]
+    SA -->|notification| UI[Status Bar]
 ```
 
-### Widget Error Handling
+**Status tracking principles:**
 
-```typescript
-function MyWidget({ topic }: { topic: SelectedTopic }) {
-  const { data, error, isLoading } = useDataStream(topic)
+- Each connection has a status atom tracking its state
+- Status changes independently of data messages
+- Multiple components can monitor the same connection
+- Status states: `disconnected`, `connecting`, `connected`, `reconnecting`, `error`
 
-  if (error) {
-    return <ErrorDisplay error={error} />
-  }
+For `useConnectionStatus` API, status types, and usage patterns, see **[Hooks API - useConnectionStatus](../api/hooks-api#useconnectionstatus)**.
 
-  if (isLoading) {
-    return <Spinner />
-  }
+## Performance Optimization Principles
 
-  return <DataDisplay data={data} />
-}
+### Lazy Subscription
+
+Connections only subscribe to topics when widgets actually need them:
+
+```mermaid
+graph TD
+    A[No Widgets] --> A1[Connection: Not subscribed]
+    B[Widget Mounts] --> B1[Connection: Subscribe to topic]
+    C[Widget Unmounts] --> C1[Connection: Unsubscribe from topic]
 ```
 
-## Connection Status
+**Benefits:**
 
-Widgets can monitor connection health:
-
-```typescript
-function MyWidget({ topic }: { topic: SelectedTopic }) {
-  const { data } = useDataStream(topic)
-  const status = useConnectionStatus(topic.datasource_id)
-
-  return (
-    <div>
-      <StatusIndicator status={status.state} />
-      <DataDisplay data={data} />
-    </div>
-  )
-}
-```
-
-### Status States
-
-```typescript
-type ConnectionState =
-    | "disconnected" // Not connected
-    | "connecting" // Connection in progress
-    | "connected" // Active connection
-    | "reconnecting" // Attempting to reconnect
-    | "error"; // Connection failed
-
-interface ConnectionStatus {
-    state: ConnectionState;
-    error: string | null;
-    connectedAt: number | null;
-    lastDataAt: number | null;
-}
-```
-
-## Performance Optimization
+- No unnecessary network traffic
+- Reduced server load
+- Lower memory usage
+- Faster initial page load
 
 ### Selective Subscriptions
 
-Only subscribe to needed data:
+Only subscribe to the specific data you need - avoid over-subscribing:
 
-```typescript
-// Bad: Subscribe to all, use one
-const { data: imu } = useDataStream(imuTopic)
-const { data: gps } = useDataStream(gpsTopic)
-const { data: camera } = useDataStream(cameraTopic)
-
-return <div>{imu.x}</div> // Only using IMU!
-```
-
-```typescript
-// Good: Subscribe only to what you need
-const { data: imu } = useDataStream(imuTopic)
-
-return <div>{imu.x}</div>
-```
+- ✅ Widget needs `/imu/data` → Subscribe to `/imu/data` only
+- ❌ Widget needs `/imu/data` → Don't subscribe to `/camera/image`, `/gps/fix`, etc.
 
 ### Conditional Subscriptions
 
-```typescript
-function MyWidget({ topic, enabled }: { topic: SelectedTopic; enabled: boolean }) {
-  // Only subscribe when enabled
-  const { data } = useDataStream(enabled ? topic : null)
+Subscriptions can be enabled/disabled dynamically based on UI state:
 
-  if (!enabled) return <div>Disabled</div>
+- Widget hidden/collapsed → Pass `null` to `useDataStream` (unsubscribe)
+- Widget visible → Pass topic to `useDataStream` (subscribe)
+- Tab inactive → Unsubscribe
+- Tab active → Re-subscribe
 
-  return <DataDisplay data={data} />
-}
-```
+For API usage patterns (conditional subscriptions, throttling, selective updates), see **[Hooks API - Performance](../api/hooks-api#performance-optimization)**.
 
 ### Throttling Re-renders
 

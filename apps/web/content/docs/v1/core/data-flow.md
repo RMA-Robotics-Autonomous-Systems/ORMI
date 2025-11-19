@@ -93,51 +93,21 @@ The **Datasource Provider** is a React Provider component that:
 
 **Important:** Datasources wait for subscription requests before starting data generation!
 
-**Example from Random Datasource:**
+**Key Responsibilities:**
 
-```typescript
-const RandomDataSourceProvider = (children, props: RandomDataSourceSettings) => {
-  const pluginManager = usePluginsManager();
-  const datasource_id = props.id;
-  const intervalsRef = useRef(new Map());
-  const subscribersCountRef = useRef(new Map());
+- Listen for subscription requests via action hooks
+- Track subscriber counts (reference counting)
+- Start/stop data generation based on demand
+- Publish data through Plugin Manager using action hooks
+- Convert external formats to internal types
 
-  // Handle subscription requests
-  useEffect(() => {
-    pluginManager.addAction(`${datasource_id}-subscribe`, {
-      id: datasource_id,
-      priority: 10,
-      action: (topic: SelectedTopic) => {
-        const count = subscribersCountRef.current.get(topic.topic) || 0;
-        subscribersCountRef.current.set(topic.topic, count + 1);
+**Subscription Workflow:**
 
-        // Start data generation on first subscriber
-        if (count === 0) {
-          const interval = setInterval(() => {
-            const data = generateRandomData();
-
-            // Publish data via Plugin Manager
-            pluginManager.doAction(
-              `${datasource_id}-${topic.topic}-published`,
-              data,
-              Date.now(),
-              "sensor_frame"
-            );
-          }, 1000 / frequency);
-
-          intervalsRef.current.set(topic.topic, interval);
-        }
-      }
-    });
-
-    return () => {
-      pluginManager.removeAction(`${datasource_id}-subscribe`);
-    };
-  }, []);
-
-  return <>{children}</>;
-};
-```
+1. Receives `{datasource_id}-subscribe` action with topic
+2. Tracks number of subscribers per topic
+3. On first subscriber: starts data generation/streaming
+4. On additional subscribers: reuses existing stream
+5. On last unsubscribe: stops data generation to save resources
 
 ### Layer 2: Plugin Manager (Pub/Sub Hub)
 
@@ -197,16 +167,13 @@ The **LocalDataSourceProvider** wraps individual widgets and:
 </LocalDataSourcesProvider>
 ```
 
-**How it works internally:**
+**Responsibilities:**
 
-1. On mount, for each topic:
-    - **Step A:** Registers an action callback: `pluginsManager.addAction('{datasource_id}-{topic}-published', callback)`
-    - **Step B:** **Requests subscription**: `await pluginsManager.WaitAndDoAction('{datasource_id}-subscribe', topic)`
-    - This triggers the datasource to start generating/streaming data for this topic
-2. When datasource publishes data via `doAction(...-published)`, the registered callback receives it
-3. Callback stores data in a pending buffer (useRef, doesn't trigger re-render)
-4. At regular intervals (updateFrequency), batches pending updates and updates React state
-5. On unmount, calls `WaitAndDoAction('{datasource_id}-unsubscribe')` and removes callbacks
+1. **Subscribe on mount**: Registers for topic data and requests datasource subscription
+2. **Buffer data**: Maintains circular buffer of recent messages per topic
+3. **Throttle updates**: Batches React state updates at configured frequency (default 30Hz)
+4. **Provide context**: Exposes data through React context to child widgets
+5. **Cleanup on unmount**: Unsubscribes and removes registered callbacks
 
 ### Layer 4: Widget Component
 
@@ -339,74 +306,24 @@ sequenceDiagram
 
 ### Subscription Lifecycle
 
-```typescript
-// Inside LocalDataSourceProvider
-useEffect(() => {
-    let isMounted = true;
+**On Mount:**
 
-    Topics.forEach(async (topic) => {
-        const sourceId = getSourceId(topic);
+1. For each topic, register a callback to receive published data
+2. Request subscription from datasource using action hook
+3. Datasource starts streaming data if this is the first subscriber
 
-        // Register callback for data updates
-        pluginsManager.addAction(
-            `${topic.source.id}-${topic.topic}-published`,
-            {
-                id: `${localId}-${topic.source.id}-${topic.topic}-published`,
-                priority: 10,
-                action: (
-                    value: any,
-                    time: number,
-                    referenceFrameId: string
-                ) => {
-                    if (!isMounted) return;
+**During Operation:**
 
-                    // Process property extraction if needed
-                    const processedValue = topic.property
-                        ? extractProperty(value, topic.property)
-                        : value;
+1. Datasource publishes new data via action hook
+2. LocalDataSourceProvider callback receives and buffers the data
+3. Updates are batched and applied at configured frequency
+4. Widget context updates trigger re-renders
 
-                    // Store in pending updates (batched processing)
-                    pendingUpdates.set(sourceId, {
-                        value: processedValue,
-                        time,
-                        referenceFrameId: referenceFrameId || "unknown",
-                    });
-                },
-            }
-        );
+**On Unmount:**
 
-        // Subscribe to the topic
-        const result = await pluginsManager.WaitAndDoAction(
-            `${topic.source.id}-subscribe`,
-            1, // timeout in seconds
-            topic
-        );
-
-        if (!result) {
-            console.error(`Failed to subscribe to ${topic.topic}`);
-        }
-    });
-
-    // Cleanup: unsubscribe
-    return () => {
-        isMounted = false;
-
-        Topics.forEach(async (topic) => {
-            // Unsubscribe from topic
-            await pluginsManager.WaitAndDoAction(
-                `${topic.source.id}-unsubscribe`,
-                1,
-                topic
-            );
-
-            // Remove action callback
-            pluginsManager.removeAction(
-                `${localId}-${topic.source.id}-${topic.topic}-published`
-            );
-        });
-    };
-}, [SelectedTopics]);
-```
+1. Send unsubscribe request to datasource
+2. Remove action callback from Plugin Manager
+3. Datasource stops streaming if this was the last subscriber
 
 ## Type System
 
@@ -561,29 +478,19 @@ const foxgloveTopics = new DatasourceTopicFilter({
 
 ### From Datasources
 
-Datasources publish data when it arrives:
+Datasources publish data when it arrives by broadcasting through the Plugin Manager:
 
 ```typescript
-// In your datasource provider
-useEffect(() => {
-    const ws = new WebSocket(url);
-
-    ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        const topic = message.topic;
-        const data = convertToInternalType(message.data);
-
-        // Publish to subscribers
-        pluginManager.doAction(
-            `${datasource_id}-${topic}-published`,
-            data,
-            Date.now()
-        );
-    };
-
-    return () => ws.close();
-}, []);
+// Publish to all subscribers
+pluginManager.doAction(
+    `${datasource_id}-${topic}-published`,
+    data, // Converted to internal type
+    Date.now(), // Timestamp
+    "sensor_frame" // Reference frame
+);
 ```
+
+All LocalDataSourceProviders subscribed to this topic will receive the data.
 
 ### From Widgets (Control Widgets)
 
@@ -613,48 +520,31 @@ function JoystickWidget({ publishTopic }: { publishTopic: SelectedTopic }) {
 
 ## GlobalDataSourceProvider
 
-The **GlobalDataSourceProvider** manages datasource lifecycle and creates a nested provider chain:
-
-```typescript
-// Conceptual usage
-<GlobalDataSourceProvider datasources={datasourcesMap}>
-  <Dashboard />
-</GlobalDataSourceProvider>
-```
+The **GlobalDataSourceProvider** manages datasource lifecycle and creates a nested provider chain.
 
 **Responsibilities:**
 
 - Load available datasource definitions via plugins
-- Build a nested chain of datasource providers using `reduceRight()`
+- Build nested chain of datasource providers
 - Pass configuration settings to each datasource provider
 - Coordinate datasource lifecycle (enable/disable)
 - Provide UI for datasource management
 
-**How it works:**
+**Nested Provider Pattern:**
 
-```typescript
-// Internal implementation (simplified)
-const providerChain = Array.from(datasources.values()).reduceRight(
-  (children, datasource) => {
-    const Provider = getDatasourceProvider(datasource.datasource_id);
-    return (
-      <Provider key={datasource.settings.id} props={datasource.settings}>
-        {children}
-      </Provider>
-    );
-  },
-  children // Start with dashboard children
-);
+Datasources are nested using `reduceRight()`, creating a chain where each provider wraps the next:
 
-// Result is nested like:
-// <FoxgloveProvider>
-//   <ROSBridgeProvider>
-//     <RandomDataProvider>
-//       <Dashboard />
-//     </RandomDataProvider>
-//   </ROSBridgeProvider>
-// </FoxgloveProvider>
 ```
+<FoxgloveProvider>
+  <ROSBridgeProvider>
+    <RandomDataProvider>
+      <Dashboard />
+    </RandomDataProvider>
+  </ROSBridgeProvider>
+</FoxgloveProvider>
+```
+
+Only enabled datasources are included in the chain.
 
 **Data flow:**
 
@@ -701,30 +591,20 @@ Use buffer size wisely:
 Only subscribe to topics you need:
 
 ```typescript
-// ❌ Bad: Subscribe to all topics
-<LocalDataSourcesProvider SelectedTopics={allTopics}>
-
 // ✅ Good: Only topics used by this widget
 <LocalDataSourcesProvider SelectedTopics={[velocityTopic]}>
 ```
 
 ### 3. Throttle High-Frequency Data
 
-In your datasource, throttle updates:
+Configure appropriate update frequency:
 
 ```typescript
-let lastPublishTime = 0;
-const THROTTLE_MS = 100; // Max 10 Hz
-
-ws.onmessage = (event) => {
-    const now = Date.now();
-    if (now - lastPublishTime < THROTTLE_MS) {
-        return; // Skip this message
-    }
-
-    lastPublishTime = now;
-    pluginManager.doAction(/* ... */);
-};
+// For high-frequency data (100+ Hz), throttle updates
+<LocalDataSourcesProvider
+  SelectedTopics={[lidarTopic]}
+  updateFrequency={10}  // Only 10 UI updates per second
+/>
 ```
 
 ## Debugging Data Flow
@@ -749,15 +629,7 @@ Use the Topics List widget to see all available topics:
 
 ### 3. Monitor Subscriptions
 
-Track subscription counts in your datasource:
-
-```typescript
-const subscribersCountRef = useRef(new Map<string, number>());
-
-// On subscribe
-subscribersCountRef.current.set(topic, count + 1);
-console.log(`Topic ${topic} now has ${count + 1} subscribers`);
-```
+Check subscription status in the Plugin Manager or use debugging widgets to track active subscriptions.
 
 ## Common Patterns
 

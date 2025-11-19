@@ -88,74 +88,23 @@ export default function RootLayout({ children }) {
 
 ### Step 3: Initialize DatasourceManager
 
-**V1: Multiple Providers**
+**V1:** Multiple nested providers
 
 ```tsx
-// app/dashboard/page.tsx
-<DashboardProvider>
-    <GlobalDataSourceProvider>
-        {/* Nested providers created automatically */}
-        <Dashboard />
-    </GlobalDataSourceProvider>
-</DashboardProvider>
+<GlobalDataSourceProvider>{/* Nested providers */}</GlobalDataSourceProvider>
 ```
 
-**V2: Single Manager**
+**V2:** Single DatasourceManagerProvider
 
 ```tsx
-// app/dashboard/page.tsx
 import { DatasourceManagerProvider } from "@workspace/ormi-core/v2";
 
-<DashboardProvider>
-    <DatasourceManagerProvider datasources={datasources}>
-        <Dashboard />
-    </DatasourceManagerProvider>
-</DashboardProvider>;
+<DatasourceManagerProvider datasources={datasources}>
+    <Dashboard />
+</DatasourceManagerProvider>;
 ```
 
-**DatasourceManagerProvider implementation:**
-
-```tsx
-// packages/ormi-core/src/v2/provider.tsx
-import { createContext, useContext, useEffect, useState } from "react";
-import { useStore } from "jotai";
-import { DatasourceManager } from "./datasource-manager";
-
-const DatasourceManagerContext = createContext<DatasourceManager | null>(null);
-
-export function DatasourceManagerProvider({ children, datasources }) {
-    const store = useStore();
-    const [manager] = useState(() => new DatasourceManager(store));
-
-    // Connect to datasources
-    useEffect(() => {
-        datasources.forEach(async (config) => {
-            if (config.enabled) {
-                await manager.connect(config);
-            }
-        });
-
-        return () => {
-            manager.destroy();
-        };
-    }, [datasources, manager]);
-
-    return (
-        <DatasourceManagerContext.Provider value={manager}>
-            {children}
-        </DatasourceManagerContext.Provider>
-    );
-}
-
-export function useDatasourceManager() {
-    const manager = useContext(DatasourceManagerContext);
-    if (!manager)
-        throw new Error(
-            "useDatasourceManager must be used within DatasourceManagerProvider"
-        );
-    return manager;
-}
-```
+For complete DatasourceManagerProvider implementation, see **[Datasource Manager](./core/datasource-manager)**.
 
 ### Step 4: Migrate Widgets
 
@@ -225,147 +174,95 @@ function FloatWidget({ datasourceId, topic }: FloatWidgetProps) {
 
 ### Step 5: Migrate Datasources
 
-#### V1 Datasource Pattern
+**Key changes:**
+
+1. ❌ Remove React Provider pattern
+2. ❌ Remove `pluginManager.addAction()` / `pluginManager.doAction()` calls
+3. ✅ Create Connection class implementing `Connection` interface
+4. ✅ Use `this.emit("message", topic, data, metadata)` to publish
+5. ✅ Implement `connect()`, `disconnect()`, `subscribe()`, `unsubscribe()` methods
+
+**Pattern:**
 
 ```tsx
-// V1: React Provider that uses pub/sub
-const RandomDataSourceProvider = ({ children, props }) => {
-    const pluginManager = usePluginsManager();
-    const datasource_id = props.id;
-
+// V1: React Provider + pub/sub
+const MyProvider = ({ children, props }) => {
     useEffect(() => {
-        // Handle subscribe requests
-        pluginManager.addAction(`${datasource_id}-subscribe`, {
-            id: datasource_id,
-            priority: 10,
-            action: (topic: SelectedTopic) => {
-                // Start generating data
-                const interval = setInterval(() => {
-                    const value = Math.random();
-
-                    // Publish via plugin manager
-                    pluginManager.doAction(
-                        `${datasource_id}-${topic.topic}-published`,
-                        value,
-                        Date.now(),
-                        "unknown"
-                    );
-                }, 1000);
-
-                intervals.set(topic.topic, interval);
-            },
-        });
-
-        // Handle unsubscribe
-        pluginManager.addAction(`${datasource_id}-unsubscribe`, {
-            id: datasource_id,
-            priority: 10,
-            action: (topic: SelectedTopic) => {
-                const interval = intervals.get(topic.topic);
-                if (interval) clearInterval(interval);
-            },
-        });
-
-        return () => {
-            // Cleanup
-        };
+        pluginManager.doAction(`${id}-${topic}-published`, data, timestamp);
     }, []);
-
     return <>{children}</>;
 };
-```
 
-#### V2 Datasource Pattern
-
-```tsx
-// V2: Connection class that emits events
-class RandomConnection implements Connection {
-    private intervals = new Map<string, NodeJS.Timer>();
-    private eventTarget = new EventTarget();
-
-    async connect() {
-        // No actual connection needed for random data
-        this.emit("connected");
-    }
-
-    async disconnect() {
-        this.intervals.forEach(clearInterval);
-        this.intervals.clear();
-        this.emit("disconnected");
-    }
-
+// V2: Connection class + events
+class MyConnection implements Connection {
     subscribe(topic: string) {
-        const interval = setInterval(() => {
-            const value = Math.random();
-
-            // Emit message event - manager handles atom updates
-            this.emit("message", topic, value, {
-                timestamp: Date.now(),
-                frameId: "unknown",
-            });
-        }, 1000);
-
-        this.intervals.set(topic, interval);
-    }
-
-    unsubscribe(topic: string) {
-        const interval = this.intervals.get(topic);
-        if (interval) {
-            clearInterval(interval);
-            this.intervals.delete(topic);
-        }
-    }
-
-    async discoverTopics(): Promise<TopicInfo[]> {
-        return [
-            { topic: "/random/float", type: "std_msgs/Float64" },
-            { topic: "/random/int", type: "std_msgs/Int32" },
-        ];
-    }
-
-    // Event emitter methods
-    on(event: string, callback: Function) {
-        this.eventTarget.addEventListener(event, (e: any) => {
-            if (event === "message") {
-                callback(e.detail.topic, e.detail.data, e.detail.metadata);
-            } else {
-                callback(e.detail);
-            }
-        });
-    }
-
-    private emit(event: string, ...args: any[]) {
-        const detail =
-            event === "message"
-                ? { topic: args[0], data: args[1], metadata: args[2] }
-                : args[0];
-
-        this.eventTarget.dispatchEvent(new CustomEvent(event, { detail }));
+        // Start streaming
+        this.emit("message", topic, data, { timestamp, frameId });
     }
 }
+```
+
+For complete Connection implementation examples (WebSocket, REST, Random), see:
+
+- **[Connection API](./api/connection-api)** - Full interface and lifecycle
+- **[Examples - Datasource Implementations](./examples#datasource-implementations)** - Complete working examples
+
+        async connect() {
+            // No actual connection needed for random data
+            this.emit("connected");
+        }
+
+        async disconnect() {
+            this.intervals.forEach(clearInterval);
+            this.intervals.clear();
+            this.emit("disconnected");
+        }
+
+        subscribe(topic: string) {
+            const interval = setInterval(() => {
+                const value = Math.random();
+
+                // Emit message event - manager handles atom updates
+                this.emit("message", topic, value, {
+                    timestamp: Date.now(),
+                    frameId: "unknown",
+                });
+            }, 1000);
+
+            this.intervals.set(topic, interval);
+        }
+
+        unsubscribe(topic: string) {
+            const interval = this.intervals.get(topic);
+        async discoverTopics(): Promise<TopicInfo[]> {
+            return [
+                { topic: "/random/float", type: "std_msgs/Float64" },
+                { topic: "/random/int", type: "std_msgs/Int32" },
+            ];
+        }
+
+    }
 
 // Registration
 export const RandomDatasourceDefinition: DatasourceDefinition = {
-    id: "random",
-    name: "Random Data Generator",
-    version: 2, // Mark as V2
-    createConnection: (config) => new RandomConnection(config),
-    schema: {
-        /* ... */
-    },
+id: "random",
+name: "Random Data Generator",
+version: 2, // Mark as V2
+createConnection: (config) => new RandomConnection(config),
+schema: { /_ config schema _/ },
 };
-```
+
+````
 
 #### Migration Checklist for Datasources
 
 - [ ] Convert Provider component to Connection class
-- [ ] Implement Connection interface
-- [ ] Replace `pluginManager.addAction()` with event emitters
+- [ ] Implement Connection interface methods
+- [ ] Replace `pluginManager.addAction()` with event listeners (`on()`)
 - [ ] Replace `pluginManager.doAction()` with `emit('message')`
 - [ ] Implement `discoverTopics()` method
 - [ ] Add connection lifecycle (`connect()`, `disconnect()`)
-- [ ] Remove pub/sub dependency
-- [ ] Update registration to use `createConnection`
+- [ ] Update registration to use `createConnection` and `version: 2`
 
 ### Step 6: Update Plugin Registration
 
@@ -398,7 +295,7 @@ class MyPlugin extends Plugin {
         });
     }
 }
-```
+````
 
 #### V2 Plugin Registration
 
@@ -536,76 +433,51 @@ function Dashboard() {
 
 ---
 
-## Common Patterns
+## Common Migration Patterns
 
 ### Pattern 1: Basic Data Display
 
-**V1:**
-
 ```tsx
-<LocalDataSourcesProvider SelectedTopics={[topic]} buffersSize={1}>
-    <Component />
-</LocalDataSourcesProvider>;
+// V1: Wrapper + getSource
+<LocalDataSourcesProvider SelectedTopics={[topic]}>
+  <Component />
+</LocalDataSourcesProvider>
 
-// Inside component
-const { sources, getSource } = useLocalDataSource();
-const source = getSource(topic);
-const value = source?.data[0];
-```
-
-**V2:**
-
-```tsx
-<Component datasourceId={datasourceId} topic={topic} />;
-
-// Inside component
-const { data } = useDataStream(datasourceId, topic);
+// V2: Direct props + useDataStream
+<Component datasourceId={id} topic={topic} />
 ```
 
 ### Pattern 2: Multiple Topics
 
-**V1:**
-
 ```tsx
-<LocalDataSourcesProvider SelectedTopics={[topic1, topic2]} buffersSize={1}>
+// V1: Array of topics
+<LocalDataSourcesProvider SelectedTopics={[topic1, topic2]}>
     <Component />
 </LocalDataSourcesProvider>;
 
-// Inside
-const { sources, getSource } = useLocalDataSource();
-const data1 = getSource(topic1)?.data[0];
-const data2 = getSource(topic2)?.data[0];
+// V2: Multiple hook calls
+const { data: data1 } = useDataStream(id, topic1);
+const { data: data2 } = useDataStream(id, topic2);
 ```
 
-**V2:**
+### Pattern 3: Historical Data (Buffer)
 
 ```tsx
-<Component
-    topics={[
-        { key: "data1", datasourceId, topic: topic1 },
-        { key: "data2", datasourceId, topic: topic2 },
-    ]}
-/>;
-
-// Inside
-const { data } = useMultiStream(topics);
-// data.data1, data.data2
-```
-
-### Pattern 3: Historical Data
-
-**V1:**
-
-```tsx
+// V1: buffersSize prop
 <LocalDataSourcesProvider SelectedTopics={[topic]} buffersSize={100}>
     <Component />
 </LocalDataSourcesProvider>;
 
-// Inside
+// V2: buffer option in hook
+const { buffer } = useDataStream(id, topic, { bufferSize: 100 });
+```
+
+For complete pattern examples with full context, see **[Examples](./examples)**.
 const { sources, getSource } = useLocalDataSource();
 const source = getSource(topic);
 const history = source?.data; // Array of last 100 messages
-```
+
+````
 
 **V2:**
 
@@ -614,7 +486,7 @@ const history = source?.data; // Array of last 100 messages
 
 // Inside
 const { buffer } = useDataBuffer(datasourceId, topic, 100);
-```
+````
 
 ### Pattern 4: Connection Status
 

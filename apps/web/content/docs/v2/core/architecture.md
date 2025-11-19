@@ -73,8 +73,8 @@ graph TD
 
 **Problems:**
 
-- **Deep nesting**: 5-7 levels deep
-- **Cascading re-renders**: Parent provider updates trigger all children
+- **Deep nesting**: 5-7 levels deep creates complex component hierarchy
+- **Circular dependencies**: GlobalDataSourceProvider depends on DashboardProvider, which can cause "Maximum update depth exceeded" errors
 - **Provider wrappers**: Every widget needs `LocalDataSourceProvider`
 - **Pub/sub overhead**: PluginManager broadcasts to all callbacks
 - **Sequential startup**: Datasources initialize in sequence
@@ -125,10 +125,10 @@ graph TD
 
 **Benefits:**
 
-- **Flat hierarchy**: 2-3 levels
-- **No cascading**: Widget re-renders only on its own data changes
+- **Flat hierarchy**: 2-3 levels eliminates nested dependencies
+- **No circular dependencies**: DatasourceManager and Dashboard are independent, preventing update loops
 - **No wrappers**: Widgets use hooks directly
-- **Direct atom access**: No pub/sub broadcasting
+- **Direct atom access**: Clean subscription model
 - **Parallel startup**: All connections initialize simultaneously
 - **Zero coupling**: Connections completely independent
 
@@ -162,91 +162,35 @@ export default function RootLayout({ children }) {
 
 Orchestrates connections and manages the atom lifecycle:
 
-```typescript
-interface DatasourceManager {
-    // Connection management
-    addConnection(datasourceId: string, connection: Connection): void;
-    removeConnection(datasourceId: string): void;
-
-    // Subscription coordination
-    subscribe(datasourceId: string, topic: string, subscriberId: string): void;
-    unsubscribe(
-        datasourceId: string,
-        topic: string,
-        subscriberId: string
-    ): void;
-
-    // Status monitoring
-    getConnectionStatus(datasourceId: string): ConnectionStatus;
-    listActiveSubscriptions(): Map<string, Set<string>>;
-}
-```
-
 **Responsibilities:**
 
-- Register Connection instances
+- Register and manage Connection instances
 - Listen to Connection events (`message`, `error`, `connected`, etc.)
 - Write received data to appropriate atoms
 - Track subscription counts via subscription atoms
-- Start/stop connections based on demand
+- Start/stop connections based on demand (lazy subscription)
 
-**Connection event flow:**
+**Key Feature - Lazy Subscription:**
 
-```typescript
-// DatasourceManager implementation (conceptual)
-class DatasourceManager {
-    private connections = new Map<string, Connection>();
-
-    addConnection(datasourceId: string, connection: Connection) {
-        this.connections.set(datasourceId, connection);
-
-        // Listen to connection events
-        connection.on("message", (topic, data, metadata) => {
-            // Write directly to atom
-            const atom = dataAtomFamily({ datasourceId, topic });
-            store.set(atom, {
-                value: data,
-                timestamp: metadata.timestamp,
-                frameId: metadata.frameId,
-            });
-        });
-
-        connection.on("error", (error) => {
-            // Update status atom
-            const statusAtom = connectionStatusFamily(datasourceId);
-            store.set(statusAtom, {
-                state: "error",
-                error: error.message,
-                connectedAt: null,
-            });
-        });
-    }
-}
-```
+- Monitors subscription count atoms
+- When first subscriber arrives (count 0→1): starts connection streaming
+- While subscribers exist: maintains connection
+- When last subscriber leaves (count 1→0): stops connection streaming
+- Saves bandwidth and CPU by only streaming data when needed
 
 ### 3. Connection Interface
 
-Data sources implement the Connection interface:
+Data sources implement the Connection interface to integrate with the system:
 
-```typescript
-interface Connection extends EventEmitter {
-    // Lifecycle
-    connect(config: ConnectionConfig): Promise<void>;
-    disconnect(): Promise<void>;
+**Core Methods:**
 
-    // Topic management
-    subscribe(topic: string): void;
-    unsubscribe(topic: string): void;
+- `connect(config)` - Establish connection to data source
+- `disconnect()` - Close connection and cleanup
+- `subscribe(topic)` - Start streaming data for a topic
+- `unsubscribe(topic)` - Stop streaming data for a topic
+- `getAvailableTopics()` - Discover available topics
 
-    // Topic discovery
-    getAvailableTopics(): Promise<TopicInfo[]>;
-
-    // Status
-    getStatus(): ConnectionStatus;
-}
-```
-
-**Events emitted:**
+**Events Emitted:**
 
 - `"connected"` - Connection established
 - `"disconnected"` - Connection closed
@@ -254,100 +198,69 @@ interface Connection extends EventEmitter {
 - `"error"` - Error occurred
 - `"topic-discovered"` - New topic became available
 
+Connections emit events which the DatasourceManager listens to and routes to atoms.
+
 ### 4. Widget Hooks
 
-Widgets access data through simple hooks:
+Widgets access data through hooks that automatically handle atom subscriptions and lifecycle:
 
-```typescript
-function MyWidget({ topic }: { topic: SelectedTopic }) {
-  // Hook automatically:
-  // 1. Subscribes to atom
-  // 2. Notifies DatasourceManager
-  // 3. Re-renders on atom updates
-  const { data, isLoading, error } = useDataStream(topic);
+**Key responsibilities:**
 
-  return <div>{data}</div>;
-}
+- Subscribe to atom for requested topic
+- Notify DatasourceManager to start streaming (if first subscriber)
+- Re-render component when atom updates with new data
+- Unsubscribe and stop streaming on unmount (if last subscriber)
+
+**Example flow:**
+
 ```
+Widget mounts → useDataStream(topic) → Subscribe to atom →
+Request Connection.subscribe() → Data flows → Widget re-renders
+```
+
+For complete hook API, usage patterns, and examples, see **[Hooks API](../api/hooks-api)**.
 
 ## Atom Families
 
-V2 uses **atom families** to dynamically create atoms per topic:
+V2 uses **atom families** to dynamically create atoms per topic. Atom families act like factories - you provide a key (datasourceId + topic), and they return the corresponding atom.
 
 ### Data Atoms
 
-```typescript
-import { atomFamily } from "jotai/utils";
+Each datasource+topic combination gets its own atom to store the latest message:
 
-// Atom family - creates one atom per datasourceId+topic
-const dataAtomFamily = atomFamily(({ datasourceId, topic }: DataKey) =>
-    atom<DataMessage | null>(null)
-);
-
-// Usage - atoms are created on-demand
-const imuAtom = dataAtomFamily({
-    datasourceId: "ros-1",
-    topic: "/imu/data",
-});
-
-const cameraAtom = dataAtomFamily({
-    datasourceId: "foxglove-1",
-    topic: "/camera/image",
-});
 ```
-
-**Key insight:** You don't pre-create atoms. They're created automatically when first accessed, just like topic registration.
+Topic Key: "ros-1::/imu/data" → dataAtomFamily → Unique Atom
+Topic Key: "ros-1::/gps/fix" → dataAtomFamily → Different Atom
+```
 
 ### Buffered Data Atoms
 
-For historical data (charts, playback):
+For widgets needing historical data, buffer atoms store multiple messages:
 
-```typescript
-const bufferedDataFamily = atomFamily(
-    ({ datasourceId, topic, bufferSize = 100 }: BufferedDataKey) =>
-        atom<DataMessage[]>([])
-);
-
-// Different buffer sizes create different atoms
-const shortBuffer = bufferedDataFamily({
-    datasourceId: "ros-1",
-    topic: "/imu/data",
-    bufferSize: 10,
-});
-
-const longBuffer = bufferedDataFamily({
-    datasourceId: "ros-1",
-    topic: "/imu/data",
-    bufferSize: 1000,
-});
 ```
+Buffer Key: "ros-1::/imu/data::bufferSize=10" → bufferedDataFamily → Atom with 10-message buffer
+Buffer Key: "ros-1::/imu/data::bufferSize=100" → bufferedDataFamily → Different atom with 100-message buffer
+```
+
+Different buffer sizes create different atoms to avoid conflicts.
 
 ### Subscription Tracking Atoms
 
-Track which widgets are subscribed:
+Track active subscribers per topic:
 
 ```typescript
-const subscriptionAtomFamily = atomFamily(({ datasourceId, topic }: DataKey) =>
-    atom<Set<string>>(new Set())
-);
-
-// DatasourceManager monitors these atoms
-// When set.size > 0: start streaming
-// When set.size === 0: stop streaming
+// DatasourceManager monitors these atoms to start/stop streaming
+const subscriptionAtom = subscriptionAtomFamily({ datasourceId, topic });
+// Contains Set<widgetId> of active subscribers
 ```
 
 ### Connection Status Atoms
 
-Per-datasource status:
+Per-datasource status tracking:
 
 ```typescript
-const connectionStatusFamily = atomFamily((datasourceId: string) =>
-    atom<ConnectionStatus>({
-        state: "disconnected",
-        error: null,
-        connectedAt: null,
-    })
-);
+const statusAtom = connectionStatusFamily(datasourceId);
+// Contains: { state, error, connectedAt, lastDataAt }
 ```
 
 ## Data Flow Lifecycle
@@ -436,16 +349,47 @@ sequenceDiagram
 
 ## Performance Characteristics
 
-### Re-render Analysis
+### Architectural Improvements
+
+**V1 architectural issues:**
+
+```
+Circular dependency chain:
+DashboardProvider (state: datasources)
+  ↓ useDashboardManager()
+GlobalDataSourceProvider
+  ↓ useEffect([datasources]) creates UI with callbacks
+  ↓ callbacks reference dashboard functions
+DashboardProvider re-renders
+  ↓ new function references
+GlobalDataSourceProvider useEffect triggers again
+→ Infinite loop → "Maximum update depth exceeded"
+```
+
+**V2 architectural improvements:**
+
+```
+Flat, independent architecture:
+DatasourceManager (standalone, manages connections)
+  ↓ writes to atoms
+Atom Store (independent state)
+  ↓ notifies subscribers
+Widget Hooks (read atoms directly)
+  ↓ no circular references
+Dashboard (manages layout only, no datasource coupling)
+
+→ No circular dependencies possible
+→ Clean separation of concerns
+```
+
+### Re-render Behavior
 
 **V1 behavior:**
 
 ```
 Data arrives → PluginManager.doAction() → All callbacks execute
 → All LocalDataSourceProviders update → All child widgets re-render
-→ Even widgets not using that topic re-render due to context updates
-
-10 widgets × 30 Hz = 300 re-renders/sec
+→ Potential circular update if GlobalDataSourceProvider triggers dashboard update
 ```
 
 **V2 behavior:**
@@ -453,25 +397,25 @@ Data arrives → PluginManager.doAction() → All callbacks execute
 ```
 Data arrives → Connection.emit() → DatasourceManager writes atom
 → Only subscribed widget's hook notified → Only that widget re-renders
-
-10 widgets × 30 Hz, but only 1 widget per topic = 30 re-renders/sec
+→ No provider chain, no circular dependencies
 ```
 
 ### Memory Efficiency
 
-**V1 overhead:**
+**V1 considerations:**
 
 - Every widget wrapped in LocalDataSourceProvider (React context)
 - Each provider maintains its own buffer
 - Pub/sub maintains callback lists
 - Nested provider memory overhead
 
-**V2 efficiency:**
+**V2 improvements:**
 
 - Atoms are lightweight (just JavaScript objects)
 - Single buffer per topic (shared across widgets)
 - No provider overhead
 - No callback list maintenance
+- Clean garbage collection (atoms are removed when unused)
 
 ### Startup Performance
 
@@ -533,9 +477,9 @@ const { data: gps } = useDataStream("ros-1", "/gps");
 // Only re-renders when its specific topic updates
 ```
 
-## DevTools Integration
+### Debugging
 
-V2 provides excellent debugging through Jotai DevTools:
+V2 provides excellent debugging through Jotai DevTools. Install and wrap your app:
 
 ```typescript
 import { DevTools } from 'jotai-devtools'
@@ -546,28 +490,88 @@ import { DevTools } from 'jotai-devtools'
 </JotaiProvider>
 ```
 
-**Features:**
+**DevTools Features:**
 
-- Visualize all atoms and their current values
+- Visualize all atoms and their values
 - See subscription counts per topic
 - Track atom updates in real-time
 - Time-travel debugging
 - Atom dependency graphs
 
+## Reused Systems from V1
+
+Several V1 systems work perfectly and are **reused as-is** in V2:
+
+### JSON Forms Renderers
+
+**Status**: ✅ **Reused as-is**
+
+The V1 renderer system (`coreRenderer` with `TopicSelectRenderer` and shadcn renderers) works perfectly with V2. Widget configuration dialogs use the same JSON Forms integration.
+
+**Why it works**: Renderers are UI components for JSON Forms - they don't depend on data flow architecture. They work identically whether data comes from providers or atoms.
+
+See [V1 Renderers Documentation](/docs/v1/core/renderers.md) for complete details.
+
+### ButtonHolder System
+
+**Status**: ✅ **Reused as-is**
+
+The V1 `ButtonHolderProvider` and floating action buttons work identically in V2.
+
+**Why it works**: ButtonHolder manages UI state (button visibility, positions) independent of data flow. It can be converted to atoms if needed, but V1 provider works fine.
+
+See [V1 ButtonHolder Documentation](/docs/v1/core/button-holder.md) for complete details.
+
+### Widget API (Props)
+
+**Status**: ✅ **Nearly identical**
+
+V2 widget props are nearly identical to V1, just replacing `LocalDataSourceProvider` wrapper with `useDataStream` hook.
+
+**V1 widget:**
+
+```tsx
+<LocalDataSourceProvider {...props}>
+    <MyWidgetComponent />
+</LocalDataSourceProvider>
+```
+
+**V2 widget:**
+
+```tsx
+function MyWidget({ datasourceId, topic }: WidgetProps) {
+    const { data } = useDataStream(datasourceId, topic);
+    // Same rendering logic as V1
+}
+```
+
+See [Widget API](/docs/v2/api/widget-api.md) for complete V2 widget development guide.
+
 ## Comparison Summary
 
-| Aspect             | V1 (Nested + Pub/Sub)            | V2 (Atoms + Parallel)       |
-| ------------------ | -------------------------------- | --------------------------- |
-| **Hierarchy**      | 5-7 levels deep                  | 2-3 levels flat             |
-| **Data routing**   | PluginManager broadcasts         | Atom subscriptions          |
-| **Widget wrapper** | LocalDataSourceProvider required | No wrapper, direct hooks    |
-| **Re-renders**     | Cascading, all widgets           | Surgical, only subscribed   |
-| **Startup**        | Sequential                       | Parallel                    |
-| **Coupling**       | Datasources coupled by nesting   | Zero coupling               |
-| **Memory**         | High (providers + contexts)      | Low (atoms only)            |
-| **Debugging**      | Limited                          | Jotai DevTools              |
-| **Scalability**    | Difficult (nested structure)     | Easy (just add connections) |
+| Aspect                    | V1 (Nested + Pub/Sub)              | V2 (Atoms + Parallel)             |
+| ------------------------- | ---------------------------------- | --------------------------------- |
+| **Hierarchy**             | 5-7 levels deep                    | 2-3 levels flat                   |
+| **Circular Dependencies** | Present (GDS ↔ Dashboard)         | None (flat architecture)          |
+| **Data routing**          | PluginManager broadcasts           | Atom subscriptions                |
+| **Widget wrapper**        | LocalDataSourceProvider required   | No wrapper, direct hooks          |
+| **Re-render pattern**     | Context-based, can cascade         | Atom-based, isolated              |
+| **Startup**               | Sequential                         | Parallel                          |
+| **Coupling**              | Datasources coupled by nesting     | Zero coupling                     |
+| **Memory**                | Higher (providers + contexts)      | Lower (atoms only)                |
+| **Debugging**             | Limited                            | Jotai DevTools                    |
+| **Scalability**           | Difficult (nested structure)       | Easy (just add connections)       |
+| **Stability**             | Circular dependency bugs possible  | Clean architecture                |
+| **Renderers**             | ✅ Reused as-is from V1            | ✅ Reused as-is from V1           |
+| **ButtonHolder**          | ✅ Reused as-is from V1            | ✅ Reused as-is from V1           |
+| **Dashboard**             | DashboardProvider (context)        | Atoms (dashboardConfigAtom, etc.) |
+| **Templates**             | TemplatesProvider (context)        | Atoms (widgetTemplatesAtom, etc.) |
+| **Transforms**            | TransformSourcesProvider (polling) | Atoms (event-driven updates)      |
 
 ---
 
-**Next:** See [Data Flow](./data-flow) for detailed async pub/sub patterns and subscription lifecycle documentation.
+**Next:**
+
+- [Data Flow](./data-flow) - Async pub/sub patterns and subscription lifecycle
+- [Dashboard Integration](./dashboard-integration) - How dashboard state uses atoms
+- [DatasourceManager](./datasource-manager) - Connection orchestration and plugin API

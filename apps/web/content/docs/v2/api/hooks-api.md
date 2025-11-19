@@ -254,6 +254,132 @@ function IMUWidget({ topic }: Props) {
 }
 ```
 
+### Error Handling
+
+All hooks return error information that should be handled in your widgets.
+
+#### Error Types
+
+```typescript
+interface ConnectionError {
+    type: "connection" | "subscription" | "data";
+    message: string;
+    timestamp: number;
+    topic?: string;
+    recoverable: boolean;
+}
+```
+
+#### Basic Error Display
+
+```typescript
+function MyWidget({ topic }: Props) {
+  const { data, error, isLoading } = useDataStream(topic)
+
+  if (error) {
+    return (
+      <div className="error">
+        <h4>Error: {error.type}</h4>
+        <p>{error.message}</p>
+        {error.recoverable && <button>Retry</button>}
+      </div>
+    )
+  }
+
+  if (isLoading) return <Spinner />
+
+  return <DataDisplay data={data} />
+}
+```
+
+#### Error Callback
+
+```typescript
+function CameraWidget({ topic }: Props) {
+  const [errorCount, setErrorCount] = useState(0)
+
+  const { data } = useDataStream(topic, {
+    onError: (error) => {
+      console.error("Camera error:", error)
+      setErrorCount(prev => prev + 1)
+
+      // Show toast notification
+      if (error.type === 'connection') {
+        toast.error("Connection lost, attempting reconnect...")
+      }
+    }
+  })
+
+  return (
+    <div>
+      {errorCount > 0 && (
+        <div className="warning">
+          {errorCount} error(s) occurred
+        </div>
+      )}
+      <ImageDisplay image={data} />
+    </div>
+  )
+}
+```
+
+For error flow architecture and how errors propagate through the system, see **[Core - Data Flow - Error Handling](../core/data-flow#error-handling)**.
+
+### Performance Optimization
+
+#### Selective Subscriptions
+
+Only subscribe to data you actually need:
+
+```typescript
+// ❌ Bad: Subscribe to everything
+const { data: imu } = useDataStream(imuTopic)
+const { data: gps } = useDataStream(gpsTopic)
+const { data: camera } = useDataStream(cameraTopic)
+
+return <div>{imu.x}</div> // Only using IMU!
+
+// ✅ Good: Subscribe only to what you need
+const { data: imu } = useDataStream(imuTopic)
+
+return <div>{imu.x}</div>
+```
+
+#### Conditional Subscriptions
+
+Disable subscriptions when not needed:
+
+```typescript
+function MyWidget({ topic, enabled, isVisible }: Props) {
+  // Only subscribe when enabled AND visible
+  const { data } = useDataStream(
+    enabled && isVisible ? topic : null
+  )
+
+  if (!enabled) return <div>Widget disabled</div>
+  if (!isVisible) return null
+
+  return <DataDisplay data={data} />
+}
+```
+
+#### Throttling Updates
+
+Reduce re-render frequency for high-rate topics:
+
+```typescript
+function ChartWidget({ topic }: Props) {
+  // Update at most every 100ms (10 Hz) even if data arrives faster
+  const { data } = useDataStream(topic, {
+    throttle: 100
+  })
+
+  return <LineChart data={data} />
+}
+```
+
+For performance principles and architecture, see **[Core - Data Flow - Performance](../core/data-flow#performance-optimization-principles)**.
+
 ## useConnectionStatus
 
 Monitor connection health and status.
