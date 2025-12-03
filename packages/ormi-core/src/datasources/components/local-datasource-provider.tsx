@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { Spinner } from '@workspace/ui/components/spinner';
 
 import { usePluginsManager } from '@workspace/ormi-plugins';
+import { atom, useAtom } from 'jotai';
 
 // Helper function to generate unique keys from SelectedTopic objects
 const createTopicKey = (selectedTopic: SelectedTopic): string => {
@@ -50,11 +51,9 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     const { children, SelectedTopics, buffersSize, updateFrequency = 30 } = props;
 
-    // Use useRef for sources - updates don't trigger re-renders
-    const sourcesRef = useRef<Map<string, Source>>(new Map<string, Source>());
-
-    // Version counter for change notification
-    const [version, setVersion] = useState(0);
+    // Use Jotai atom for sources state
+    const sourcesAtom = useMemo(() => atom(new Map<string, Source>()), []);
+    const [sources, setSources] = useAtom(sourcesAtom);
 
     // Store pendingUpdates in useRef to persist between renders but not trigger re-renders
     const pendingUpdatesRef = useRef<Map<string, { value: any, time: number, referenceFrameId: string }>>(
@@ -63,11 +62,11 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
     // Access the pendingUpdates through the .current property
     const pendingUpdates = pendingUpdatesRef.current;
 
-    // getSource reads from ref - always gets fresh data without recreating
+    // getSource reads from sources state
     const getSource = useCallback((topic: SelectedTopic): Source | undefined => {
         const key = createTopicKey(topic);
-        return sourcesRef.current.get(key);
-    }, []); // No dependencies - stable function
+        return sources.get(key);
+    }, [sources]);
 
     const getSourceId = useCallback((topic: SelectedTopic): string => {
         return createTopicKey(topic);
@@ -75,18 +74,17 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
     // Context value only includes version (changes) and stable functions
     const contextValue = useMemo(() => ({
-        sources: sourcesRef.current, // Pass ref for direct access
-        version,
+        sources: sources,
+        version: sources.size, // Just a value to indicate change, though sources itself changes
         getSource,
         getSourceId
-    }), [version, getSource, getSourceId]);
+    }), [sources, getSource, getSourceId]);
 
     const pluginsManager = usePluginsManager();
     const Topics = SelectedTopics;
     const local_id = useRef(Math.random().toString(36).substring(7)).current;
     const [initialized, setInitialized] = useState(false);
     const { datasources } = useDashboardManager();
-    const [updateCount, setUpdateCount] = useState(0);
 
     useEffect(() => {
         // Clear any pending updates
@@ -102,7 +100,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                 referenceFrameId: "unknown"
             });
         });
-        sourcesRef.current = newSources;
+        setSources(newSources);
 
         const propertiesGetter = (data: any, property: string) => {
             if (!property || property === '') {
@@ -127,55 +125,47 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
         const intervalId = setInterval(() => {
             if (!isMounted) return;
 
-            if (pendingUpdates.size === 0) return;
+            if (pendingUpdatesRef.current.size === 0) return;
 
-            // Create a completely new Map to ensure immutability
-            const newSources = new Map<string, Source>();
+            // Capture pending updates and clear the ref immediately
+            const updatesToProcess = new Map(pendingUpdatesRef.current);
+            pendingUpdatesRef.current.clear();
 
-            // First copy all existing sources
-            sourcesRef.current.forEach((source, key) => {
-                newSources.set(key, { ...source });
-            });
+            setSources(prevSources => {
+                // Create a completely new Map to ensure immutability
+                const newSources = new Map(prevSources);
 
-            // Then apply updates
-            pendingUpdates.forEach((update, sourceId) => {
-                const currentSource = newSources.get(sourceId);
-                if (!currentSource) {
-                    return;
-                }
+                // Then apply updates
+                updatesToProcess.forEach((update, sourceId) => {
+                    const currentSource = newSources.get(sourceId);
+                    if (!currentSource) {
+                        return;
+                    }
 
-                // Create new arrays for immutability
-                const newData = [...currentSource.data, update.value];
-                const newTimes = [...currentSource.times, update.time];
+                    // Create new arrays for immutability
+                    const newData = [...currentSource.data, update.value];
+                    const newTimes = [...currentSource.times, update.time];
 
-                // Apply buffer limit
-                const topic = Topics.find(t => createTopicKey(t) === sourceId);
+                    // Apply buffer limit
+                    const topic = Topics.find(t => createTopicKey(t) === sourceId);
 
-                const bufferLimit = topic?.bufferSize || buffersSize;
-                if (newData.length > bufferLimit) {
-                    newData.shift(); // Remove oldest element
-                    newTimes.shift(); // Remove corresponding time
-                }
+                    const bufferLimit = topic?.bufferSize || buffersSize;
+                    if (newData.length > bufferLimit) {
+                        newData.shift(); // Remove oldest element
+                        newTimes.shift(); // Remove corresponding time
+                    }
 
-                // Update the source with new data - create a new object
-                newSources.set(sourceId, {
-                    data: newData,
-                    times: newTimes,
-                    referenceFrameId: update.referenceFrameId || "unknown"
+                    // Update the source with new data - create a new object
+                    newSources.set(sourceId, {
+                        data: newData,
+                        times: newTimes,
+                        referenceFrameId: update.referenceFrameId || "unknown"
+                    });
                 });
+
+                return newSources;
             });
 
-            // Update the ref with new data
-            sourcesRef.current = newSources;
-
-            // Increment update counter to verify updates are happening
-            setUpdateCount(prev => prev + 1);
-
-            // Clear pending updates after processing
-            pendingUpdates.clear();
-
-            // Increment version to force context consumers to re-render
-            setVersion(v => v + 1);
         }, updateInterval);
 
         new Promise<Map<string, boolean>>((resolve) => {
@@ -214,7 +204,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
                         }
 
                         // Store in pendingUpdates
-                        pendingUpdates.set(sourceId, {
+                        pendingUpdatesRef.current.set(sourceId, {
                             value: processedValue,
                             time,
                             referenceFrameId: referenceFrameId || "unknown"
