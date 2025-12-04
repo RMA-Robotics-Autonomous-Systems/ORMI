@@ -220,15 +220,6 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
             // add toast for the topics that are not initialized
             const notInitializedTopics = Topics.filter(topic => !initializedTopics.get(createTopicKey(topic)));
 
-            const message = (
-                <div>
-                    <div>Some topics are not initialized:</div>
-                    <ul>
-                        {notInitializedTopics.map((topic, index) => <li key={`${topic.topic}-${index}`}>{topic.topic}</li>)}
-                    </ul>
-                </div>
-            )
-
             if (notInitializedTopics.length > 0) {
                 toast("Some topics are not initialized: " + notInitializedTopics.map(topic => topic.topic).join(", "));
             }

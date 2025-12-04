@@ -108,6 +108,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
     return (
         <div className="h-full w-full" style={{ display: "grid" }}>
+            {/* Map toolbar buttons */}
+            <MapToolbar
+                mapRef={mapRef}
+                showGrid={showGrid}
+                onToggleGrid={handleToggleGrid}
+                onRefresh={handleRefresh}
+            />
             <ButtonHolderProvider>
                 <MapLibreMap
                     key={`map-${refreshCounter}`}
@@ -124,13 +131,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     onMoveEnd={gridHook.updateGridForViewport}
                     onZoomEnd={gridHook.updateGridForViewport}
                 >
-                    {/* Map toolbar buttons */}
-                    <MapToolbar
-                        mapRef={mapRef}
-                        showGrid={showGrid}
-                        onToggleGrid={handleToggleGrid}
-                        onRefresh={handleRefresh}
-                    />
+
 
                     {/* Grid overlay */}
                     <MapsGrid mapRef={mapRef} showGrid={showGrid} />
