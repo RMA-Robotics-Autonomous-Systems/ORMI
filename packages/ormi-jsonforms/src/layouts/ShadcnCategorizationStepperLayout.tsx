@@ -105,9 +105,9 @@ export const ShadcnCategorizationStepperLayoutRenderer = (
     const categories = useMemo(
         () =>
             categorization.elements.filter((category: Categorization | Category) =>
-                isVisible(category, data, '', ajv)
+                isVisible(category, data, '', ajv, config)
             ),
-        [categorization, data, ajv]
+        [categorization, data, ajv, config]
     );
     const childProps: shadcnLayoutRendererProps = {
         elements: categories[activeCategory]!.elements,

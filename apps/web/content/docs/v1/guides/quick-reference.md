@@ -469,7 +469,7 @@ console.log("[MyWidget] Received:", data);
 
 ## Resources
 
-- **[Plugin System](core/plugin-system)** - Full architecture
-- **[Widget API](api/widget-api)** - Complete reference
-- **[Datasource API](api/datasource-api)** - Complete reference
-- **[Creating a Plugin](guides/creating-plugin)** - Step-by-step guide
+- **[Plugin System](../core/plugin-system)** - Full architecture
+- **[Widget API](../api/widget-api)** - Complete reference
+- **[Datasource API](../api/datasource-api)** - Complete reference
+- **[Creating a Plugin](creating-plugin)** - Step-by-step guide

@@ -653,4 +653,4 @@ this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 
 - **[Widget API](../api/widget-api)** - Advanced widget features
 - **[Datasource API](../api/datasource-api)** - Complex datasources
-- **[Plugin Examples](../examples/plugin-bundle)** - Real-world plugins
+- **[Plugin System](../core/plugin-system)** - Understanding the plugin architecture

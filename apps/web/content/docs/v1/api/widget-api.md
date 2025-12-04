@@ -789,6 +789,6 @@ Component: (data) => (
 
 ## Next Steps
 
-- **[Creating a Widget Guide](../guides/creating-widget)** - Step-by-step tutorial
+- **[Creating a Plugin](../guides/creating-plugin)** - Step-by-step plugin development guide
 - **[Datasource API](datasource-api)** - Understanding data sources
-- **[Widget Examples](../examples/simple-widget)** - Real implementations
+- **[Data Flow](../core/data-flow)** - Understanding how data flows to widgets

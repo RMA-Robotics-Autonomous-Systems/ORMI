@@ -99,6 +99,7 @@ export const ShadcnCategorizationLayoutRenderer = (
         onChange,
         ajv,
         t,
+        config,
     } = props;
     const categorization = uischema as Categorization;
     const [previousCategorization, setPreviousCategorization] =
@@ -107,9 +108,9 @@ export const ShadcnCategorizationLayoutRenderer = (
     const categories = useMemo(
         () =>
             categorization.elements.filter((category: Categorization | Category) =>
-                isVisible(category, data, '', ajv)
+                isVisible(category, data, '', ajv, config)
             ),
-        [categorization, data, ajv]
+        [categorization, data, ajv, config]
     );
 
     if (categorization !== previousCategorization) {

@@ -20,7 +20,7 @@ export default async function DocsLayout({ children, params }: DocsLayoutProps) 
 
     return (
         <SidebarProvider defaultOpen={true}>
-            <Sidebar className="top-12 h-[calc(100vh-4rem)]">
+            <Sidebar className="sticky h-[calc(100vh-4rem)]">
                 <SidebarHeader className="border-b px-4 py-4">
                     <h2 className="text-lg font-semibold mb-3">Documentation</h2>
                     <DocsVersionSwitcher currentVersion={version} versions={versions} />
