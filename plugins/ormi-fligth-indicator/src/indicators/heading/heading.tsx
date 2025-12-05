@@ -18,10 +18,8 @@ interface HeadingProps {
     title: string;
     topic: SelectedTopic;
 
-    orientationAxis: string;    // with axis to show the orientation
-    eastValue: number;           // Est value (in degrees)
-    invert: boolean;
-
+    orientationAxis: string;    // which axis to show the orientation
+    imuFrame: "ENU" | "NED" | "NWU"; // IMU frame convention
 }
 
 export function WidgetHeadingIndicator(props: HeadingProps) {
@@ -41,8 +39,6 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
             return;
         }
 
-        let orientation = { x: 0, y: 0, z: 0 } as Vector3;
-
         // convert the value.orientation to the orientation (quaternion to euler)
         const quaternion = value.orientation;
         const q0 = quaternion.w;
@@ -50,32 +46,52 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
         const q2 = quaternion.y;
         const q3 = quaternion.z;
 
-        orientation = {
-            x: Math.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2)),
-            y: Math.asin(2 * (q0 * q2 - q3 * q1)),
-            z: Math.atan2(2 * (q0 * q3 + q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3))
-        };
+        // Convert quaternion to Euler angles (ZYX convention)
+        // Roll (x-axis rotation)
+        const sinr_cosp = 2 * (q0 * q1 + q2 * q3);
+        const cosr_cosp = 1 - 2 * (q1 * q1 + q2 * q2);
+        const roll = Math.atan2(sinr_cosp, cosr_cosp);
 
-        if (props.invert) {
-            orientation.x = -orientation.x;
-            orientation.y = -orientation.y;
-            orientation.z = -orientation.z;
-        }
+        // Pitch (y-axis rotation)
+        const sinp = 2 * (q0 * q2 - q3 * q1);
+        const pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp) * Math.PI / 2 : Math.asin(sinp);
 
+        // Yaw (z-axis rotation)
+        const siny_cosp = 2 * (q0 * q3 + q1 * q2);
+        const cosy_cosp = 1 - 2 * (q2 * q2 + q3 * q3);
+        const yaw = Math.atan2(siny_cosp, cosy_cosp);
+
+        // Select the appropriate angle based on heading axis
+        let headingRadians = 0;
         switch (props.orientationAxis) {
             case 'X':
-                setHeading((orientation.x * 180 / Math.PI) + props.eastValue);
+                headingRadians = roll;
                 break;
             case 'Y':
-                setHeading((orientation.y * 180 / Math.PI) + props.eastValue);
+                headingRadians = pitch;
                 break;
             case 'Z':
-                setHeading((orientation.z * 180 / Math.PI) + props.eastValue);
+                headingRadians = yaw;
                 break;
         }
-        // set the orientation value
 
-    }, [getSource, props.topic, props.orientationAxis, props.eastValue, props.invert]);
+        // Convert based on IMU frame convention to aviation standard (0° = North)
+        switch (props.imuFrame) {
+            case "ENU": // East-North-Up: 0° = East, need to rotate 90° so 0° = North
+                headingRadians = -(headingRadians - Math.PI / 2); // Convert East to North and flip sign to correct E/W
+                break;
+            case "NED": // North-East-Down: 0° = North (already correct)
+                // No conversion needed
+                break;
+            case "NWU": // North-West-Up: 0° = North but coordinates are mirrored
+                headingRadians = -headingRadians; // Mirror for West-positive convention
+                break;
+        }
+
+        // Convert to degrees (HeadingIndicator expects degrees with 0° = North)
+        setHeading(headingRadians * 180 / Math.PI);
+
+    }, [getSource, props.topic, props.orientationAxis, props.imuFrame]);
 
     return (
         <div className="flex justify-center items-center" style={{ padding: "1rem", height: "100%" }}>
@@ -110,17 +126,12 @@ export function HeadingDefinition() {
                     enum: ['X', 'Y', 'Z'],
                     default: 'Z'
                 },
-                eastValue: {
-                    type: 'number',
-                    title: 'East Value',
-                    default: 0
-                },
-                invert: {
-                    type: 'boolean',
-                    title: 'Invert',
-                    default: false
+                imuFrame: {
+                    type: 'string',
+                    title: 'IMU Frame Convention',
+                    enum: ['ENU', 'NED', 'NWU'],
+                    default: 'ENU'
                 }
-
             },
             required: ['title', 'topic']
         },
@@ -146,11 +157,7 @@ export function HeadingDefinition() {
                 } as ControlElement,
                 {
                     type: "Control",
-                    scope: "#/properties/eastValue",
-                } as ControlElement,
-                {
-                    type: "Control",
-                    scope: "#/properties/invert",
+                    scope: "#/properties/imuFrame",
                 } as ControlElement
             ],
         } as VerticalLayout,

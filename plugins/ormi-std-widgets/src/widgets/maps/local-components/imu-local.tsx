@@ -14,9 +14,15 @@ import { toast } from "sonner";
 export interface IMULocalTopic extends LocalTopic {
     imuFrame: "ENU" | "NED" | "NWU";
     headingAxis: "X" | "Y" | "Z";
+    minDistance?: number; // Minimum distance in meters between arrows (default: 0.5m)
+    maxArrows?: number; // Maximum number of arrows to display (default: 500)
+    timeWindow?: number; // Time window in milliseconds for IMU matching (default: 100ms)
 }
 
 interface IMUVisualizerProps extends LocalTopicVisualizerProps {
+    minDistance?: number;
+    maxArrows?: number;
+    timeWindow?: number;
     settings?: {
         imuFrame: "ENU" | "NED" | "NWU";
         headingAxis: "X" | "Y" | "Z";
@@ -26,6 +32,59 @@ interface IMUVisualizerProps extends LocalTopicVisualizerProps {
 interface ArrowData {
     coords: [number, number];
     heading: number; // in radians
+    timestamp: number; // GPS timestamp
+}
+
+/**
+ * Calculate distance between two GPS coordinates using Haversine formula
+ */
+function calculateDistance(
+    lat1: number, lon1: number,
+    lat2: number, lon2: number
+): number {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+}
+
+/**
+ * Find best matching IMU data using interpolation or nearest neighbor
+ */
+function findMatchingIMU(
+    gpsTime: number,
+    imuData: any[],
+    imuTimes: (number | undefined)[],
+    timeWindowMs: number
+): IMU | null {
+    let bestMatch: IMU | null = null;
+    let smallestTimeDiff = Infinity;
+
+    // Convert time window to seconds (assuming timestamps are in seconds)
+    const timeWindowSec = timeWindowMs / 1000;
+
+    for (let j = 0; j < imuData.length; j++) {
+        const imuTime = imuTimes[j];
+        if (imuTime === undefined) continue;
+
+        const timeDiff = Math.abs(gpsTime - imuTime);
+
+        // Only consider IMU data within the time window
+        if (timeDiff <= timeWindowSec && timeDiff < smallestTimeDiff) {
+            smallestTimeDiff = timeDiff;
+            bestMatch = imuData[j] as IMU;
+        }
+    }
+
+    return bestMatch;
 }
 
 /**
@@ -134,9 +193,15 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
     const lastErrorToastTime = useRef<number>(0);
     const ERROR_TOAST_THROTTLE_MS = 10000;
 
+    // Track last arrow position for distance filtering
+    const lastArrowPosition = useRef<{ lat: number, lon: number } | null>(null);
+
     // Get IMU settings from props or use defaults
     const imuFrame = (settings?.imuFrame || (props as any).imuFrame) ?? "ENU";
     const headingAxis = (settings?.headingAxis || (props as any).headingAxis) ?? "Z";
+    const minDistance = (props as any).minDistance ?? 0.5; // 0.5 meters default
+    const maxArrows = (props as any).maxArrows ?? 500; // 500 arrows max default
+    const timeWindow = (props as any).timeWindow ?? 100; // 100ms default
 
     // Get the source data
     const imuSourceData = getSource(topic);
@@ -161,7 +226,6 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
         }
 
         try {
-            // Get the latest GPS data
             const newArrows: ArrowData[] = [];
 
             // Process each GPS data point
@@ -171,22 +235,31 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
 
                 if (gpsTime === undefined) continue;
 
-                // Find matching IMU data within 5% time accuracy
-                let bestMatch: IMU | null = null;
-                let smallestTimeDiff = Infinity;
+                const currentLat = gpsData.coords.latitude;
+                const currentLon = gpsData.coords.longitude;
 
-                for (let j = 0; j < imuSourceData.data.length; j++) {
-                    const imuTime = imuSourceData.times[j];
-                    if (imuTime === undefined) continue;
+                // Check distance from last arrow to reduce clutter when stationary
+                if (lastArrowPosition.current) {
+                    const distance = calculateDistance(
+                        lastArrowPosition.current.lat,
+                        lastArrowPosition.current.lon,
+                        currentLat,
+                        currentLon
+                    );
 
-                    const timeDiff = Math.abs(gpsTime - imuTime);
-                    const maxAllowedDiff = gpsTime * 0.05;
-
-                    if (timeDiff <= maxAllowedDiff && timeDiff < smallestTimeDiff) {
-                        smallestTimeDiff = timeDiff;
-                        bestMatch = imuSourceData.data[j] as IMU;
+                    // Skip if GPS hasn't moved enough
+                    if (distance < minDistance) {
+                        continue;
                     }
                 }
+
+                // Find matching IMU data using improved matching
+                const bestMatch = findMatchingIMU(
+                    gpsTime,
+                    imuSourceData.data,
+                    imuSourceData.times,
+                    timeWindow
+                );
 
                 if (bestMatch && bestMatch.orientation) {
                     // Extract quaternion (assuming Vector4 is {x, y, z, w})
@@ -196,14 +269,27 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
                     const heading = quaternionToHeading(qx, qy, qz, qw, imuFrame, headingAxis);
 
                     newArrows.push({
-                        coords: [gpsData.coords.longitude, gpsData.coords.latitude],
-                        heading
+                        coords: [currentLon, currentLat],
+                        heading,
+                        timestamp: gpsTime
                     });
+
+                    // Update last arrow position
+                    lastArrowPosition.current = { lat: currentLat, lon: currentLon };
                 }
             }
 
             if (newArrows.length > 0) {
-                setArrows(prevArrows => [...prevArrows, ...newArrows]);
+                setArrows(prevArrows => {
+                    const updatedArrows = [...prevArrows, ...newArrows];
+
+                    // Enforce max arrows limit (keep most recent)
+                    if (updatedArrows.length > maxArrows) {
+                        return updatedArrows.slice(updatedArrows.length - maxArrows);
+                    }
+
+                    return updatedArrows;
+                });
             }
         } catch (error) {
             console.error(`Error processing IMU data for ${name}:`, error);
@@ -255,7 +341,7 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
                 source={sourceId}
                 paint={{
                     'line-color': arrowColor,
-                    'line-width': 1,
+                    'line-width': 2,
                     'line-opacity': 0.8
                 }}
             />

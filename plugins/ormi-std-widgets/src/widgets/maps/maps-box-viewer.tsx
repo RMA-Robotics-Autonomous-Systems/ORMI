@@ -293,6 +293,27 @@ export function MapsBoxViewerDefinition() {
                                         title: "Heading Axis",
                                         enum: ["X", "Y", "Z"],
                                         default: "Z"
+                                    },
+                                    minDistance: {
+                                        type: "number",
+                                        title: "Minimum Distance Between Arrows (meters)",
+                                        default: 0.5,
+                                        minimum: 0,
+                                        description: "Only show arrows when GPS moves at least this distance"
+                                    },
+                                    maxArrows: {
+                                        type: "number",
+                                        title: "Maximum Number of Arrows",
+                                        default: 500,
+                                        minimum: 1,
+                                        description: "Maximum arrows to display (older arrows are removed)"
+                                    },
+                                    timeWindow: {
+                                        type: "number",
+                                        title: "IMU Matching Time Window (ms)",
+                                        default: 100,
+                                        minimum: 1,
+                                        description: "Time window for matching IMU data to GPS (milliseconds)"
                                     }
                                 },
                                 required: ["name", "topic", "gpsOriginTopic",]
@@ -492,6 +513,18 @@ export function MapsBoxViewerDefinition() {
                                         {
                                             type: "Control",
                                             scope: "#/properties/headingAxis",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/minDistance",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/maxArrows",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/timeWindow",
                                         } as ControlElement,
                                         {
                                             type: "Control",
