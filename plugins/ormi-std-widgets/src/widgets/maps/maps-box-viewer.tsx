@@ -281,7 +281,7 @@ export function MapsBoxViewerDefinition() {
                                     topic: { type: "object", title: "IMU Topic" },
                                     gpsOriginTopic: { type: "object", title: "GPS Origin" },
                                     visualizerType: { type: "string", title: "Visualizer Type (optional)" },
-                                    transform: { type: "string", title: "Transform Mode", enum: ["continuous", "first", "none"], default: "none" },
+                                    transform: { type: "string", title: "Transform Mode", enum: ["none"], default: "none" },
                                     imuFrame: {
                                         type: "string",
                                         title: "IMU Frame Convention",
@@ -292,10 +292,10 @@ export function MapsBoxViewerDefinition() {
                                         type: "string",
                                         title: "Heading Axis",
                                         enum: ["X", "Y", "Z"],
-                                        default: "X"
+                                        default: "Z"
                                     }
                                 },
-                                required: ["name", "topic", "gpsOriginTopic", "imuFrame", "headingAxis"]
+                                required: ["name", "topic", "gpsOriginTopic",]
                             }
                         }
                     }
