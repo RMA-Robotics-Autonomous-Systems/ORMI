@@ -102,11 +102,11 @@ function createArrowGeometry(
     const arrowheadLength = lengthMeters * 0.3;
     const arrowAngle = 30 * Math.PI / 180;
 
-    const leftLon = endLon - arrowheadLength * Math.cos(heading + Math.PI - arrowAngle) * metersToDegreesLon;
-    const leftLat = endLat - arrowheadLength * Math.sin(heading + Math.PI - arrowAngle) * metersToDegreesLat;
+    const leftLon = endLon - arrowheadLength * Math.cos(heading - arrowAngle) * metersToDegreesLon;
+    const leftLat = endLat - arrowheadLength * Math.sin(heading - arrowAngle) * metersToDegreesLat;
 
-    const rightLon = endLon - arrowheadLength * Math.cos(heading + Math.PI + arrowAngle) * metersToDegreesLon;
-    const rightLat = endLat - arrowheadLength * Math.sin(heading + Math.PI + arrowAngle) * metersToDegreesLat;
+    const rightLon = endLon - arrowheadLength * Math.cos(heading + arrowAngle) * metersToDegreesLon;
+    const rightLat = endLat - arrowheadLength * Math.sin(heading + arrowAngle) * metersToDegreesLat;
 
     return {
         type: 'Feature',
