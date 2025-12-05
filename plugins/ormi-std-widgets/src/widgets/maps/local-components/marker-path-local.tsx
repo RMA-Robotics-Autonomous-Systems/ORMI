@@ -8,7 +8,7 @@ import { Button } from "@workspace/ui/components/button";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 import { useTransformToGPS } from "@workspace/ormi-core/transforms";
 import { Path, Vector3 } from "@workspace/ormi-core/types";
-import { LocalTopicVisualizerProps } from "./local-topic-visualizer-types";
+import { LocalTopicVisualizerProps } from "../local-topic-visualizer-types";
 import { toast } from "sonner";
 
 export default function PathLocalMarker(props: LocalTopicVisualizerProps) {

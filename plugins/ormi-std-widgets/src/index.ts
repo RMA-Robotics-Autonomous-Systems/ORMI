@@ -1,6 +1,6 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
 import WidgetExport from "./widget-export";
-import PathLocalMarker from "./widgets/maps/marker-path-local";
+import PathLocalMarker from "./widgets/maps/local-components/marker-path-local";
 // import PointCloudLocalMarker from "./widgets/maps/marker-pointcloud-local";
 import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-types";
 

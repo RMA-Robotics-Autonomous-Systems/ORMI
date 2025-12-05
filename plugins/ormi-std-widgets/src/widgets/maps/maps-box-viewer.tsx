@@ -5,7 +5,7 @@ import MapLibreMap, { MapRef } from 'react-map-gl/maplibre';
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ControlElement, Categorization } from "@jsonforms/core";
 import { CustomLayersOverlay } from "./layers-overlay";
-import MapsGrid, { useMapGrid } from "./maps-grid";
+import MapsGrid, { useMapGrid } from "./gps-components/maps-grid";
 
 import { MapIcon } from "lucide-react";
 import { SelectedTopic, DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
@@ -20,6 +20,8 @@ import { useMapInitialization } from "./hooks/useMapInitialization";
 import { MapToolbar } from "./components/MapToolbar";
 import { GpsTopicsLayer } from "./components/GpsTopicsLayer";
 import { LocalTopicsLayer } from "./components/LocalTopicsLayer";
+import { LocalTopic } from "./local-topic-visualizer-types";
+import { IMULocalTopic } from "./local-components/imu-local";
 
 interface MapsViewerSettings {
     title: string;
@@ -37,11 +39,9 @@ interface MapsViewerSettings {
 
     // Local Topics (in local frames, need GPS origin for transformation)
     localTopics?: {
-        name: string;
-        topic: SelectedTopic;  // Path, PointCloud, etc.
-        gpsOriginTopic: SelectedTopic;  // GPS topic to use as origin
-        visualizerType?: string;  // Optional: specific visualizer to use
-    }[];
+        pathTopics: LocalTopic[],
+        imuTopics: IMULocalTopic[]
+    };
 
     customLayers: {
         name: string;
@@ -140,7 +140,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
                     <GpsTopicsLayer topics={props.topics || []} mapRef={mapRef} />
 
                     {/* Local Topics Layer */}
-                    <LocalTopicsLayer localTopics={props.localTopics || []} />
+                    <LocalTopicsLayer localTopics={[
+                        ...(props.localTopics?.pathTopics || []),
+                        ...(props.localTopics?.imuTopics || [])
+                    ]} />
 
                     {/* Custom Layers Overlay */}
                     <CustomLayersOverlay
@@ -250,17 +253,51 @@ export function MapsBoxViewerDefinition() {
                     }
                 },
                 localTopics: {
-                    type: 'array',
+                    type: 'object',
                     title: 'Local Topics',
-                    items: {
-                        type: "object",
-                        properties: {
-                            name: { type: "string", title: "Name" },
-                            topic: { type: "object", title: "Local Topic" },
-                            gpsOriginTopic: { type: "object", title: "GPS Origin" },
-                            visualizerType: { type: "string", title: "Visualizer Type (optional)" }
+                    properties: {
+                        pathTopics: {
+                            type: 'array',
+                            title: 'Path Topics',
+                            items: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string", title: "Name" },
+                                    topic: { type: "object", title: "Local Topic" },
+                                    gpsOriginTopic: { type: "object", title: "GPS Origin" },
+                                    visualizerType: { type: "string", title: "Visualizer Type (optional)" },
+                                    transform: { type: "string", title: "Transform Mode", enum: ["continuous", "first", "none"], default: "continuous" }
+                                },
+                                required: ["name", "topic", "gpsOriginTopic"],
+                            }
                         },
-                        required: ["name", "topic", "gpsOriginTopic"]
+                        imuTopics: {
+                            type: 'array',
+                            title: 'IMU Topics',
+                            items: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string", title: "Name" },
+                                    topic: { type: "object", title: "IMU Topic" },
+                                    gpsOriginTopic: { type: "object", title: "GPS Origin" },
+                                    visualizerType: { type: "string", title: "Visualizer Type (optional)" },
+                                    transform: { type: "string", title: "Transform Mode", enum: ["continuous", "first", "none"], default: "none" },
+                                    imuFrame: {
+                                        type: "string",
+                                        title: "IMU Frame Convention",
+                                        enum: ["ENU", "NED", "NWU"],
+                                        default: "ENU"
+                                    },
+                                    headingAxis: {
+                                        type: "string",
+                                        title: "Heading Axis",
+                                        enum: ["X", "Y", "Z"],
+                                        default: "X"
+                                    }
+                                },
+                                required: ["name", "topic", "gpsOriginTopic", "imuFrame", "headingAxis"]
+                            }
+                        }
                     }
                 },
                 customLayers: {
@@ -380,7 +417,7 @@ export function MapsBoxViewerDefinition() {
                     elements: [
                         {
                             type: "Control",
-                            scope: "#/properties/localTopics",
+                            scope: "#/properties/localTopics/properties/pathTopics",
                             options: {
                                 detail: {
                                     type: "VerticalLayout",
@@ -407,6 +444,59 @@ export function MapsBoxViewerDefinition() {
                                                 }
                                             }
                                         } as TopicSelectElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/transform",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/visualizerType",
+                                        } as ControlElement
+                                    ]
+                                }
+                            }
+                        } as ControlElement,
+                        {
+                            type: "Control",
+                            scope: "#/properties/localTopics/properties/imuTopics",
+                            options: {
+                                detail: {
+                                    type: "VerticalLayout",
+                                    elements: [
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/name",
+                                        } as ControlElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/topic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['IMU'] // IMU data topics
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "TopicSelect",
+                                            scope: "#/properties/gpsOriginTopic",
+                                            options: {
+                                                dataRequirements: {
+                                                    accepts: ['GeolocationPosition'] // GPS topic to use as origin
+                                                }
+                                            }
+                                        } as TopicSelectElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/imuFrame",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/headingAxis",
+                                        } as ControlElement,
+                                        {
+                                            type: "Control",
+                                            scope: "#/properties/transform",
+                                        } as ControlElement,
                                         {
                                             type: "Control",
                                             scope: "#/properties/visualizerType",
@@ -456,7 +546,10 @@ export function MapsBoxViewerDefinition() {
             title: 'Maps',
             use3D: false,
             customLayers: [],
-            localTopics: [],
+            localTopics: {
+                pathTopics: [],
+                imuTopics: []
+            },
         },
         Component: (data: MapsViewerSettings) => (
             <MapsBoxViewer {...data} />
