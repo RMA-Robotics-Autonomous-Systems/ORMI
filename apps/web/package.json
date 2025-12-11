@@ -19,7 +19,12 @@
     },
     "dependencies": {
         "@auth/prisma-adapter": "^2.8.0",
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/sortable": "^10.0.0",
+        "@dnd-kit/utilities": "^3.2.2",
+        "@hookform/resolvers": "^5.1.1",
         "@prisma/client": "^6.5.0",
+        "@radix-ui/react-avatar": "^1.1.11",
         "@t3-oss/env-nextjs": "^0.12.0",
         "@workspace/ormi-core": "workspace:*",
         "@workspace/ormi-plugins": "workspace:*",
@@ -45,16 +50,14 @@
         "prisma": "^6.5.0",
         "react": "^19.2.1",
         "react-dom": "^19.2.1",
+        "react-hook-form": "^7.58.1",
         "rehype-autolink-headings": "^7.1.0",
         "rehype-highlight": "^7.0.1",
         "rehype-slug": "^6.0.0",
         "remark-gfm": "^4.0.0",
-        "teodor-emi-extension": "workspace:*",
         "sonner": "^2.0.7",
-        "react-hook-form": "^7.58.1",
-        "@hookform/resolvers": "^5.1.1",
-        "zod": "^3.25.67",
-        "@radix-ui/react-avatar": "^1.1.11"
+        "teodor-emi-extension": "workspace:*",
+        "zod": "^3.25.67"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.1.17",
