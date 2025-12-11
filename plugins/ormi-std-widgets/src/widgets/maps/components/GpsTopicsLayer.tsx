@@ -4,11 +4,12 @@ import { JSX, useMemo } from "react";
 import { MapRef } from "react-map-gl/maplibre";
 import { SelectedTopic, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
 import { usePluginsManager } from "@workspace/ormi-plugins";
-import TopicMarker from "../marker-simple";
-import HeatMarker from "../marker-heat";
-import PathMarker from "../marker-path";
-import MultiPoints from "../marker-multipoints";
+
 import { TopicListOverlay } from "../topics-overlay";
+import TopicMarker from "../gps-components/marker-simple";
+import HeatMarker from "../gps-components/marker-heat";
+import PathMarker from "../gps-components/marker-path";
+import MultiPoints from "../gps-components/marker-multipoints";
 
 interface GpsTopicConfig {
     name: string;

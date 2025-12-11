@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { StyleSpecification } from "react-map-gl/maplibre";
-import { GridUtils } from "../maps-grid";
+import { GridUtils } from "../gps-components/maps-grid";
 
 interface CustomLayer {
     name: string;

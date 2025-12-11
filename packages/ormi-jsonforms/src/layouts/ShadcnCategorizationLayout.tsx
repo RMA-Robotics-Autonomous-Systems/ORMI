@@ -108,9 +108,9 @@ export const ShadcnCategorizationLayoutRenderer = (
     const categories = useMemo(
         () =>
             categorization.elements.filter((category: Categorization | Category) =>
-                isVisible(category, data, '', ajv, config)
+                isVisible(category, data, '', ajv)
             ),
-        [categorization, data, ajv, config]
+        [categorization, data, ajv]
     );
 
     if (categorization !== previousCategorization) {

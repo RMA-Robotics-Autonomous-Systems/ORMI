@@ -1,6 +1,7 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
 import WidgetExport from "./widget-export";
-import PathLocalMarker from "./widgets/maps/marker-path-local";
+import PathLocalMarker from "./widgets/maps/local-components/marker-path-local";
+import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 // import PointCloudLocalMarker from "./widgets/maps/marker-pointcloud-local";
 import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-types";
 
@@ -35,6 +36,15 @@ class PluginA extends Plugin {
                     name: "Path Visualization",
                     description:
                         "Visualizes ROS2 nav_msgs/Path in local coordinates",
+                });
+
+                // Register IMU visualizer
+                visualizers.set("imu", {
+                    component: IMULocalMarker,
+                    accepts: ["IMU"],
+                    name: "IMU Visualization",
+                    description:
+                        "Visualizes IMU orientation as arrows on GPS positions",
                 });
 
                 // Register PointCloud visualizer

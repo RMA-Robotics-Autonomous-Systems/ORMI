@@ -17,7 +17,7 @@
         "@types/react": "^19",
         "@workspace/eslint-config": "workspace:*",
         "@workspace/typescript-config": "workspace:*",
-        "react": "^19.0.0",
+        "react": "^19.2.1",
         "typescript": "^5.7.3"
     },
     "exports": {

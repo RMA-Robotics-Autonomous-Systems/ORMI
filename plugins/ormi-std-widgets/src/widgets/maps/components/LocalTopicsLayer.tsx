@@ -67,7 +67,7 @@ export function LocalTopicsLayer({ localTopics }: LocalTopicsLayerProps) {
     return (
         <TransformSourcesProvider updateRate={0.5}>
             <LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
-                {localTopics.map(lt => {
+                {localTopics.map((lt, index) => {
                     // Find visualizer - either specified or auto-detect from topic type
                     let visualizer: LocalTopicVisualizer | undefined;
 
@@ -89,12 +89,13 @@ export function LocalTopicsLayer({ localTopics }: LocalTopicsLayerProps) {
                     }
 
                     const VisualizerComponent = visualizer.component;
+                    // Create unique key combining topic source, topic name, and array index
+                    const uniqueKey = `${lt.topic.source.id}_${lt.topic.topic}_${lt.name}_${index}`;
+
                     return (
                         <VisualizerComponent
-                            key={lt.name}
-                            name={lt.name}
-                            topic={lt.topic}
-                            gpsOriginTopic={lt.gpsOriginTopic}
+                            key={uniqueKey}
+                            {...lt}
                         />
                     );
                 })}
