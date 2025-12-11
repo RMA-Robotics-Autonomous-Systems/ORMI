@@ -12,13 +12,34 @@ model Workspace {
     id        Int      @id @default(autoincrement())
     name      String
     content   Json?
+    order     Int      @default(0)
     createdAT DateTime @default(now())
     updatedAT DateTime @default(now())
 
     dashboardType String @default("GRID") // GRID or FREE
 
+    // Category relationship for Kanban view
+    category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+    categoryId Int?
+
     createdBy   User   @relation(fields: [createdById], references: [id])
     createdById String
+}
+
+// Category model for Kanban organization
+model Category {
+    id        Int      @id @default(autoincrement())
+    name      String
+    order     Int      @default(0)
+    createdAT DateTime @default(now())
+    updatedAT DateTime @updatedAt
+
+    createdBy   User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+    createdById String
+    workspaces  Workspace[]
+
+    @@unique([name, createdById])
+    @@index([createdById, order])
 }
 
 model Template {
@@ -53,6 +74,7 @@ model User {
     // Declare workspace for each user
     workspaces Workspace[]
     templates  Template[]
+    categories Category[]
 
     //// Optional for WebAuthn support
     // Authenticator Authenticator[]
