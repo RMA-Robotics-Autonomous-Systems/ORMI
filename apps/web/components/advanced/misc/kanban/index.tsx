@@ -52,6 +52,7 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
     const [isLoading, setIsLoading] = useState(true)
     const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
     const [activeColumn, setActiveColumn] = useState<Category | null>(null)
+    const [originalActiveContainer, setOriginalActiveContainer] = useState<UniqueIdentifier | null>(null)
 
     // Category management state
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -110,10 +111,10 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
             setCategories([...categories, newCategory])
             setNewCategoryName("")
             setIsCreateDialogOpen(false)
-            toast.success("Category created")
+            toast("Category created")
         } catch (error) {
             console.error(error)
-            toast.error("Failed to create category")
+            toast("Failed to create category")
         }
     }
 
@@ -133,10 +134,10 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
             setCategories(categories.map(c => c.id === updatedCategory.id ? updatedCategory : c))
             setEditingCategory(null)
             setEditCategoryName("")
-            toast.success("Category updated")
+            toast("Category updated")
         } catch (error) {
             console.error(error)
-            toast.error("Failed to update category")
+            toast("Failed to update category")
         }
     }
 
@@ -153,10 +154,10 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
             setWorkspaces(workspaces.map(w =>
                 w.categoryId === categoryId ? { ...w, categoryId: null } : w
             ))
-            toast.success("Category deleted")
+            toast("Category deleted")
         } catch (error) {
             console.error(error)
-            toast.error("Failed to delete category")
+            toast("Failed to delete category")
         }
     }
 
@@ -197,6 +198,9 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
             return
         }
         setActiveId(event.active.id)
+        // Store the original container before any dragOver changes it
+        const container = findContainer(event.active.id)
+        setOriginalActiveContainer(container || null)
     }
 
     const handleDragOver = (event: DragOverEvent) => {
@@ -272,12 +276,13 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
                         })
                     } catch (error) {
                         console.error("Failed to update category order", error)
-                        toast.error("Failed to save category order")
+                        toast("Failed to save category order")
                     }
                 }
             }
             setActiveId(null)
             setActiveColumn(null)
+            setOriginalActiveContainer(null)
             return
         }
 
@@ -286,10 +291,12 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
 
         if (!overId) {
             setActiveId(null)
+            setOriginalActiveContainer(null)
             return
         }
 
-        const activeContainer = findContainer(activeId)
+        // Use the ORIGINAL container (from dragStart), not the current one (which may have changed in dragOver)
+        const activeContainer = originalActiveContainer
         const overContainer = findContainer(overId)
 
         if (activeContainer && overContainer) {
@@ -383,13 +390,14 @@ export function KanbanView({ onWorkspaceDeleted, onWorkspaceUpdate }: KanbanView
                     await onWorkspaceUpdate(updates)
                 } catch (error) {
                     console.error("Failed to update workspaces", error)
-                    toast.error("Failed to save changes")
+                    toast("Failed to save changes")
                     // Revert? For now just show error
                 }
             }
         }
 
         setActiveId(null)
+        setOriginalActiveContainer(null)
     }
 
     const findContainer = (id: UniqueIdentifier) => {
