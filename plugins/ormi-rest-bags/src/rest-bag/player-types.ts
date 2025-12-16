@@ -1,34 +1,34 @@
-
 export interface PlayerPlayRequest {
-  bag_name: string;
-  rate?: number;
+    bag_name: string;
+    rate?: number;
+    use_system_time?: boolean;
 }
 
 export interface PlayerPlayResponse {
-  play_id: string;
-  bag_name: string;
-  rate: number;
-  status: string;
+    play_id: string;
+    bag_name: string;
+    rate: number;
+    status: string;
 }
 
 export interface PlayerStatusResponse {
-  play_id: string;
-  status: string;
-  [key: string]: any; // For any additional fields in the status
+    play_id: string;
+    status: string;
+    [key: string]: any; // For any additional fields in the status
 }
 
 export interface PlayerActionResponse {
-  play_id: string;
-  status: string;
+    play_id: string;
+    status: string;
 }
 
 export interface PlayerListResponse {
-  active_players: {
-    play_id: string;
-    bag_name: string;
-    status: string;
-  }[];
-  all_status: {
-    [play_id: string]: PlayerStatusResponse;
-  };
+    active_players: {
+        play_id: string;
+        bag_name: string;
+        status: string;
+    }[];
+    all_status: {
+        [play_id: string]: PlayerStatusResponse;
+    };
 }
