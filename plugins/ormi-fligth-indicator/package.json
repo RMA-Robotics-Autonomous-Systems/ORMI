@@ -32,7 +32,7 @@
         "@workspace/ormi-plugins": "workspace:*",
         "@workspace/ormi-core": "workspace:*",
         "@workspace/ui": "workspace:*",
-        "@jsonforms/core": "^3.5.1",
+        "@jsonforms/core": "^3.7.0",
         "copyfiles": "^2.4.1",
         "lucide-react": "^0.479.0",
         "react-typescript-flight-indicators": "^1.0.4",

@@ -25,8 +25,8 @@
         "typescript": "^5.7.3"
     },
     "dependencies": {
-        "@jsonforms/core": "^3.6.0",
-        "@jsonforms/react": "^3.6.0",
+        "@jsonforms/core": "^3.7.0",
+        "@jsonforms/react": "^3.7.0",
         "@types/lodash": "^4.17.19",
         "date-fns": "^4.1.0",
         "dayjs": "^1.11.13",
