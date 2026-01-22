@@ -7,6 +7,7 @@ import { PlayerPlayRequest } from "../player-types";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { Button } from "@workspace/ui/components/button";
 import { Badge } from "@workspace/ui/components/badge";
+import { Checkbox } from "@workspace/ui/components/checkbox";
 
 interface BagPlayerProps {
     bag: BagInfo;
@@ -18,6 +19,7 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
     const [playId, setPlayId] = useState<string | null>(null);
     const [status, setStatus] = useState<string>("READY");
     const [error, setError] = useState<string | null>(null);
+    const [useSystemTime, setUseSystemTime] = useState<boolean>(false);
     const statusPollInterval = useRef<number | null>(null);
     const [client, setClient] = useState<RestBagClient | null>(null);
 
@@ -138,6 +140,7 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
             const request: PlayerPlayRequest = {
                 bag_name: bag.name,
                 rate: 1.0,
+                use_system_time: useSystemTime,
             };
 
             const response = await client.startPlayback(request);
@@ -194,35 +197,50 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
     }
 
     return (
-        <div className="flex items-center gap-2">
-            <Badge variant={status === "PLAYING" ? "default" : status === "PAUSED" ? "outline" : "secondary"} className="ml-auto">
-                {status}
-            </Badge>
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <Badge variant={status === "PLAYING" ? "default" : status === "PAUSED" ? "outline" : "secondary"}>
+                    {status}
+                </Badge>
 
-            {error && <span className="text-red-500 text-xs">{error}</span>}
+                {error && <span className="text-red-500 text-xs">{error}</span>}
 
-            <div className="flex gap-1">
-                {!playId ? (
-                    <Button size="sm" onClick={playBag}>
-                        <PlayIcon className="h-4 w-4" />
-                    </Button>
-                ) : (
-                    <>
-                        {status === "PAUSED" ? (
-                            <Button size="sm" onClick={resumePlayback}>
-                                <PlayIcon className="h-4 w-4" />
-                            </Button>
-                        ) : (
-                            <Button size="sm" onClick={pausePlayback}>
-                                <PauseIcon className="h-4 w-4" />
-                            </Button>
-                        )}
-                        <Button size="sm" variant="destructive" onClick={stopPlayback}>
-                            <SquareIcon className="h-4 w-4" />
+                <div className="flex gap-1 ml-auto">
+                    {!playId ? (
+                        <Button size="sm" onClick={playBag}>
+                            <PlayIcon className="h-4 w-4" />
                         </Button>
-                    </>
-                )}
+                    ) : (
+                        <>
+                            {status === "PAUSED" ? (
+                                <Button size="sm" onClick={resumePlayback}>
+                                    <PlayIcon className="h-4 w-4" />
+                                </Button>
+                            ) : (
+                                <Button size="sm" onClick={pausePlayback}>
+                                    <PauseIcon className="h-4 w-4" />
+                                </Button>
+                            )}
+                            <Button size="sm" variant="destructive" onClick={stopPlayback}>
+                                <SquareIcon className="h-4 w-4" />
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
+
+            {!playId && (
+                <div className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                        id="use-system-time"
+                        checked={useSystemTime}
+                        onCheckedChange={(checked) => setUseSystemTime(checked as boolean)}
+                    />
+                    <label htmlFor="use-system-time" className="cursor-pointer">
+                        Use System Time
+                    </label>
+                </div>
+            )}
         </div>
     );
 }

@@ -37,9 +37,11 @@ export default function DashboardPage() {
             if (!response.ok) {
                 throw new Error("Failed to update workspaces")
             }
+
+            toast("Workspaces updated")
         } catch (error) {
             console.error("Error updating workspaces:", error)
-            toast.error("Failed to update workspaces")
+            toast("Failed to update workspaces")
             // Refresh to restore the correct state
             setRefreshKey((prev) => prev + 1)
         }

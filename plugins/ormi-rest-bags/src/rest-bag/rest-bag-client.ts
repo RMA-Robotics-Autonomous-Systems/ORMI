@@ -259,7 +259,11 @@ export class RestBagClient {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(request),
+            body: JSON.stringify({
+                bag_name: request.bag_name,
+                rate: request.rate ?? 1.0,
+                use_system_time: request.use_system_time ?? false
+            }),
         });
         
         if (!response.ok) {
