@@ -35,7 +35,7 @@
         "@workspace/ormi-core": "workspace:*",
         "@workspace/ui": "workspace:*",
         "@workspace/ormi-jsonforms": "workspace:*",
-        "@jsonforms/core": "^3.5.1",
+        "@jsonforms/core": "^3.7.0",
         "copyfiles": "^2.4.1",
         "lucide-react": "0.525.0",
         "tsc-alias": "1.8.11"

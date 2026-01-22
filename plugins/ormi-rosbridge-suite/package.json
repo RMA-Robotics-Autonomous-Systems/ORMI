@@ -33,7 +33,7 @@
         "@workspace/ormi-plugins": "workspace:*",
         "@workspace/ormi-core": "workspace:*",
         "@workspace/ui": "workspace:*",
-        "@jsonforms/core": "^3.5.1",
+        "@jsonforms/core": "^3.7.0",
         "@types/d3": "^7.4.3",
         "@types/js-yaml": "^4.0.9",
         "copyfiles": "^2.4.1",

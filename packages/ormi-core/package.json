@@ -67,9 +67,9 @@
         "tsc-alias": "^1.8.10"
     },
     "dependencies": {
-        "@jsonforms/core": "^3.6.0",
+        "@jsonforms/core": "^3.7.0",
         "@jsonforms/material-renderers": "^3.6.0",
-        "@jsonforms/react": "^3.6.0",
+        "@jsonforms/react": "^3.7.0",
         "@types/react-grid-layout": "^1.3.5",
         "@workspace/ormi-jsonforms": "workspace:*",
         "@workspace/ormi-plugins": "workspace:*",

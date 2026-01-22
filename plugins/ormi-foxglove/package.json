@@ -33,7 +33,7 @@
         "@foxglove/rosmsg": "5.0.1",
         "@foxglove/rosmsg2-serialization": "3.0.0",
         "@foxglove/ws-protocol": "^0.8.0",
-        "@jsonforms/core": "^3.6.0",
+        "@jsonforms/core": "^3.7.0",
         "@types/d3": "^7.4.3",
         "@types/js-yaml": "^4.0.9",
         "@workspace/ormi-core": "workspace:*",
