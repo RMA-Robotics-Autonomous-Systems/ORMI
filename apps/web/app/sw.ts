@@ -154,8 +154,8 @@ const serwist = new Serwist({
                                 }
                             }
 
-                            // Return null to let the default error handling take over
-                            return null;
+                            // Return undefined to let the default error handling take over
+                            return undefined;
                         },
                     },
                 ],
