@@ -61,6 +61,19 @@ function StatusBadge({ status }: { status: RemoteCallStatus }) {
 }
 
 // ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Safely stringify a value, handling BigInt by converting to string
+ */
+function safeStringify(value: unknown, space?: number): string {
+    return JSON.stringify(value, (_key, val) => 
+        typeof val === "bigint" ? val.toString() : val
+    , space);
+}
+
+// ============================================================================
 // Feedback Display Component
 // ============================================================================
 
@@ -113,7 +126,7 @@ function FeedbackDisplay({ feedback, feedbackType, feedbackSchema }: FeedbackDis
             )}
             {displayType === "json" && (
                 <pre className="text-xs bg-muted p-2 rounded-md overflow-auto max-h-32">
-                    {JSON.stringify(feedback, null, 2)}
+                    {safeStringify(feedback, 2)}
                 </pre>
             )}
         </div>
@@ -165,7 +178,7 @@ function ResultDisplay({ result, error, duration, status }: ResultDisplayProps) 
                         </div>
                     ) : (
                         <pre className="text-xs bg-muted p-2 rounded-md overflow-auto max-h-48">
-                            {JSON.stringify(result, null, 2)}
+                            {safeStringify(result, 2)}
                         </pre>
                     )}
                 </>
