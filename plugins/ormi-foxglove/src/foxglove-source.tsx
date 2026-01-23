@@ -28,6 +28,7 @@ import { SubscriptionManager } from './subscription-manager';
 import { PublisherManager } from './publisher-manager';
 import { TransformTreeManager } from './transform-tree-manager';
 import { TypeSystemManager } from './type-system-manager';
+import { ServiceManager } from './service-manager';
 import { FoxgloveDataSourceSettings, Subscriber, PendingSubscription, Publisher } from './types';
 
 
@@ -122,9 +123,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                     <TypeSystemManager settings={props}>
                         <SubscriptionManager settings={props}>
                             <PublisherManager settings={props}>
-                                <TransformTreeManager settings={props}>
-                                    {children}
-                                </TransformTreeManager>
+                                <ServiceManager settings={props}>
+                                    <TransformTreeManager settings={props}>
+                                        {children}
+                                    </TransformTreeManager>
+                                </ServiceManager>
                             </PublisherManager>
                         </SubscriptionManager>
                     </TypeSystemManager>
