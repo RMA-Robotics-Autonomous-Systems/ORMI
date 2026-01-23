@@ -1,9 +1,14 @@
-import { SelectedTopic } from '@workspace/ormi-core/datasources';
-import { Color } from '@workspace/ormi-core/types';
-import * as THREE from 'three';
+import { SelectedTopic } from "@workspace/ormi-core/datasources";
+import { CoordinateConvention } from "@workspace/ormi-core/types";
 
 // Theme options for point cloud visualization
-export type PointCloudTheme = 'Default' | 'Neon' | 'Plasma' | 'Thermal' | 'Solid' | 'Distance';
+export type PointCloudTheme =
+    | "Default"
+    | "Neon"
+    | "Plasma"
+    | "Thermal"
+    | "Solid"
+    | "Distance";
 
 // Shader definitions for each theme
 export interface ThemeShaders {
@@ -13,42 +18,19 @@ export interface ThemeShaders {
 
 export interface PointsCloudProps {
     title: string;
-    topic: SelectedTopic;
-    maxPoints?: number;
-    updateRate?: number; // ms between updates
-    pointSize?: number; // size of points
-    decayTime?: number; // Time in ms for points to fade away completely
-    rollingBuffer?: boolean; // Whether to use rolling buffer with decay
-    theme?: PointCloudTheme; // Theme for visualization
-    useTransparency?: boolean; // Whether to use transparency for points
-    customColor?: string; // Custom color for solid theme (hex format)
-    rotation?: {
-        x: number;
-        y: number;
-        z: number;
-    };
-    translation?: {
-        x: number;
-        y: number;
-        z: number;
-    };
-}
-
-// Track point with timestamp for decay calculation
-export interface TimestampedPoint {
-    position: THREE.Vector3;
-    color?: THREE.Color;
-    timestamp: number;
-}
-
-// Props for OptimizedPointsCloud component
-export interface OptimizedPointsCloudProps {
-    pointsArray: THREE.Vector3[];
-    pointsColors?: THREE.Color[];
+    topics?: Array<{ topic: SelectedTopic }>;
     pointSize?: number;
+    decayTime?: number;
+    rollingBuffer?: boolean;
     theme?: PointCloudTheme;
     useTransparency?: boolean;
     customColor?: string;
-    rotation?: { x: number, y: number, z: number };
-    translation?: { x: number, y: number, z: number };
+    colorMode?: "source" | "reflectivity";
+    targetFrame?: string;
+    /**
+     * Coordinate convention of the source data.
+     * The component will convert from this convention to Three.js for rendering.
+     * Defaults to 'ROS' for backwards compatibility.
+     */
+    sourceConvention?: CoordinateConvention;
 }

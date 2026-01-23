@@ -2,7 +2,7 @@ import { Transform, TransformTree, Vector3, Quaternion } from "../types";
 
 export function getTransformTreeFromTreeId(
     tree: TransformTree,
-    id: string
+    id: string,
 ): TransformTree | null {
     if (tree.id === id) {
         return tree;
@@ -21,9 +21,9 @@ export function getTransformTreeFromTreeId(
     return result;
 }
 
-export function getTransfromTreeFromTreeIdInMaps(
+export function getTransformTreeFromTreeIdInMaps(
     treeMap: Map<string, TransformTree>,
-    id: string
+    id: string,
 ): TransformTree | null {
     let result: TransformTree | null = null;
 
@@ -51,7 +51,7 @@ export function getTransfromTreeFromTreeIdInMaps(
 export function findTransformChain(
     treeMap: Map<string, TransformTree>,
     sourceFrameId: string,
-    targetFrameId: string
+    targetFrameId: string,
 ): Transform[] | null {
     // If source and target are the same, return identity transform
     if (sourceFrameId === targetFrameId) {
@@ -59,8 +59,8 @@ export function findTransformChain(
     }
 
     // Find both nodes in the tree
-    const sourceNode = getTransfromTreeFromTreeIdInMaps(treeMap, sourceFrameId);
-    const targetNode = getTransfromTreeFromTreeIdInMaps(treeMap, targetFrameId);
+    const sourceNode = getTransformTreeFromTreeIdInMaps(treeMap, sourceFrameId);
+    const targetNode = getTransformTreeFromTreeIdInMaps(treeMap, targetFrameId);
 
     if (!sourceNode || !targetNode) {
         return null; // One or both frames not found
@@ -75,13 +75,8 @@ export function findTransformChain(
         if (current.parentId === "") {
             break; // Reached root
         }
-        current = getTransfromTreeFromTreeIdInMaps(treeMap, current.parentId);
+        current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
     }
-
-    console.log(
-        `[TransformChain] Source to root path for ${sourceFrameId}:`,
-        sourceToRoot.map((n) => n.id)
-    );
 
     // Build path from target to root
     const targetToRoot: TransformTree[] = [];
@@ -92,13 +87,8 @@ export function findTransformChain(
         if (current.parentId === "") {
             break; // Reached root
         }
-        current = getTransfromTreeFromTreeIdInMaps(treeMap, current.parentId);
+        current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
     }
-
-    console.log(
-        `[TransformChain] Target to root path for ${targetFrameId}:`,
-        targetToRoot.map((n) => n.id)
-    );
 
     // Check if both frames are in the same tree (have the same root)
     const sourceRoot = sourceToRoot[sourceToRoot.length - 1];
@@ -106,9 +96,6 @@ export function findTransformChain(
 
     if (sourceRoot && targetRoot && sourceRoot.id !== targetRoot.id) {
         // Frames are in different trees - no transform chain possible
-        console.log(
-            `[TransformChain] Frames in different trees: ${sourceFrameId} in ${sourceRoot.id}, ${targetFrameId} in ${targetRoot.id}`
-        );
         return null;
     }
 
@@ -130,29 +117,32 @@ export function findTransformChain(
         if (commonAncestorIndex !== -1) break;
     }
 
-    console.log(
-        `[TransformChain] Common ancestor index: ${commonAncestorIndex} (${commonAncestorIndex >= 0 ? sourceToRoot[commonAncestorIndex]?.id : "none"})`
-    );
-
     if (commonAncestorIndex === -1) {
-        console.log(
-            `[TransformChain] No common ancestor found for ${sourceFrameId} -> ${targetFrameId}`
-        );
         return null; // No common ancestor, disconnected trees
     }
 
     // Build transform chain: source -> common ancestor -> target
     const transforms: Transform[] = [];
 
-    // Transforms from source up to common ancestor (inverted)
+    // In ROS TF, the transform stored at a node describes:
+    // "The position and orientation of THIS frame (child) expressed in the PARENT frame"
+    //
+    // This means the stored transform IS the child-to-parent transform.
+    // To transform a point from child to parent: P_parent = R * P_child + T
+    //
+    // So when going UP the tree (child -> parent), we use the transform DIRECTLY.
+    // When going DOWN the tree (parent -> child), we need to INVERT it.
+
+    // Transforms from source up to common ancestor (use directly - child to parent)
     for (let i = 0; i < commonAncestorIndex; i++) {
         const node = sourceToRoot[i];
         if (node) {
-            transforms.push(invertTransform(node.transform));
+            // The node's transform is child-to-parent, which is what we need
+            transforms.push(node.transform);
         }
     }
 
-    // Transforms from common ancestor down to target
+    // Transforms from common ancestor down to target (inverted - parent to child)
     const commonNode = sourceToRoot[commonAncestorIndex];
     if (!commonNode) {
         return null;
@@ -160,19 +150,16 @@ export function findTransformChain(
 
     const commonId = commonNode.id;
     const targetAncestorIndex = targetToRoot.findIndex(
-        (node) => node.id === commonId
+        (node) => node.id === commonId,
     );
 
     for (let i = targetAncestorIndex - 1; i >= 0; i--) {
         const node = targetToRoot[i];
         if (node) {
-            transforms.push(node.transform);
+            // Going down the tree: need to invert (parent to child)
+            transforms.push(invertTransform(node.transform));
         }
     }
-
-    console.log(
-        `[TransformChain] Final transform chain for ${sourceFrameId} -> ${targetFrameId}: ${transforms.length} transforms`
-    );
 
     return transforms;
 }
@@ -197,7 +184,7 @@ export function applyTransform(point: Vector3, transform: Transform): Vector3 {
  */
 export function applyTransformChain(
     point: Vector3,
-    transforms: Transform[]
+    transforms: Transform[],
 ): Vector3 {
     let result = { ...point };
 
@@ -209,9 +196,13 @@ export function applyTransformChain(
 }
 
 /**
- * Rotate a vector by a quaternion
+ * Rotate a vector by a quaternion using the formula: q * v * q^-1
+ *
+ * @param v - The vector to rotate
+ * @param q - The quaternion representing the rotation
+ * @returns The rotated vector
  */
-function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
+export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
     // Convert to quaternion multiplication: q * v * q^-1
     const qx = q.x,
         qy = q.y,
@@ -236,9 +227,15 @@ function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
 }
 
 /**
- * Invert a transform (for going up the tree)
+ * Invert a transform.
+ *
+ * For a transform T that takes points from frame A to frame B,
+ * the inverse T^-1 takes points from frame B to frame A.
+ *
+ * @param transform - The transform to invert
+ * @returns The inverted transform
  */
-function invertTransform(transform: Transform): Transform {
+export function invertTransform(transform: Transform): Transform {
     // Invert quaternion (conjugate for unit quaternions)
     const invRotation: Quaternion = {
         x: -transform.rotation.x,
@@ -256,7 +253,7 @@ function invertTransform(transform: Transform): Transform {
 
     const invTranslation = rotateVectorByQuaternion(
         negTranslation,
-        invRotation
+        invRotation,
     );
 
     return {
@@ -289,7 +286,7 @@ export interface GPSCoords {
  */
 export function localToGPS(
     localPoint: Vector3,
-    originGPS: GPSCoords
+    originGPS: GPSCoords,
 ): GPSCoords {
     // Earth's radius in meters
     const EARTH_RADIUS = 6371000;

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { SelectedTopic, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
-import { TransformSourcesProvider } from "@workspace/ormi-core/transforms";
 import { LocalTopicVisualizer } from "../local-topic-visualizer-types";
 
 interface LocalTopicConfig {
@@ -65,41 +64,39 @@ export function LocalTopicsLayer({ localTopics }: LocalTopicsLayerProps) {
     }
 
     return (
-        <TransformSourcesProvider updateRate={0.5}>
-            <LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
-                {localTopics.map((lt, index) => {
-                    // Find visualizer - either specified or auto-detect from topic type
-                    let visualizer: LocalTopicVisualizer | undefined;
+        <LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
+            {localTopics.map((lt, index) => {
+                // Find visualizer - either specified or auto-detect from topic type
+                let visualizer: LocalTopicVisualizer | undefined;
 
-                    if (lt.visualizerType && visualizers.has(lt.visualizerType)) {
-                        visualizer = visualizers.get(lt.visualizerType);
-                    } else {
-                        // Auto-detect: find first visualizer that accepts this topic type
-                        for (const [key, vis] of visualizers.entries()) {
-                            if (lt.topic.type && vis.accepts.includes(lt.topic.type)) {
-                                visualizer = vis;
-                                break;
-                            }
+                if (lt.visualizerType && visualizers.has(lt.visualizerType)) {
+                    visualizer = visualizers.get(lt.visualizerType);
+                } else {
+                    // Auto-detect: find first visualizer that accepts this topic type
+                    for (const [key, vis] of visualizers.entries()) {
+                        if (lt.topic.type && vis.accepts.includes(lt.topic.type)) {
+                            visualizer = vis;
+                            break;
                         }
                     }
+                }
 
-                    if (!visualizer) {
-                        console.warn(`No visualizer found for local topic: ${lt.name} (type: ${lt.topic.type})`);
-                        return null;
-                    }
+                if (!visualizer) {
+                    console.warn(`No visualizer found for local topic: ${lt.name} (type: ${lt.topic.type})`);
+                    return null;
+                }
 
-                    const VisualizerComponent = visualizer.component;
-                    // Create unique key combining topic source, topic name, and array index
-                    const uniqueKey = `${lt.topic.source.id}_${lt.topic.topic}_${lt.name}_${index}`;
+                const VisualizerComponent = visualizer.component;
+                // Create unique key combining topic source, topic name, and array index
+                const uniqueKey = `${lt.topic.source.id}_${lt.topic.topic}_${lt.name}_${index}`;
 
-                    return (
-                        <VisualizerComponent
-                            key={uniqueKey}
-                            {...lt}
-                        />
-                    );
-                })}
-            </LocalDataSourcesProvider>
-        </TransformSourcesProvider>
+                return (
+                    <VisualizerComponent
+                        key={uniqueKey}
+                        {...lt}
+                    />
+                );
+            })}
+        </LocalDataSourcesProvider>
     );
 }

@@ -151,6 +151,8 @@ const parseRaw = (telloMsg: any): TelloState => {
     const parsed = telloMsg.parsed;
 
     // Convert IMU data
+    // Tello uses its own convention: pitch/roll/yaw in degrees
+    // We convert to NED convention (North-East-Down) which is common in aviation
     const imu: IMU = {
         linear_acceleration: {
             x: parsed.agx || 0,
@@ -162,7 +164,9 @@ const parseRaw = (telloMsg: any): TelloState => {
             x: parsed.pitch ? parsed.pitch * (Math.PI / 180) : 0,
             y: parsed.roll ? parsed.roll * (Math.PI / 180) : 0,
             z: parsed.yaw ? parsed.yaw * (Math.PI / 180) : 0
-        })
+        }),
+        // Tello IMU data uses NED-like convention (pitch/roll/yaw in aviation terms)
+        convention: 'NED',
     };
 
     // Convert speed data
@@ -172,7 +176,9 @@ const parseRaw = (telloMsg: any): TelloState => {
             y: parsed.vgy || 0,
             z: parsed.vgz || 0,
         },
-        angular: { x: 0, y: 0, z: 0 }
+        angular: { x: 0, y: 0, z: 0 },
+        // Tello velocity uses NED-like convention
+        convention: 'NED',
     };
 
     return {
