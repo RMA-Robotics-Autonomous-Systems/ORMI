@@ -1,11 +1,11 @@
 ---
 title: Transforms System
-description: Comprehensive guide to the V1 coordinate frame transforms and TF tree system
+description: Comprehensive guide to the coordinate frame transforms and TF tree system using Jotai atoms
 ---
 
 # Transforms System
 
-The transforms system in ORMI-CORE V1 provides coordinate frame transformation capabilities similar to ROS TF, enabling conversion between different coordinate reference frames in robotics and spatial data visualization.
+The transforms system in ORMI-CORE provides coordinate frame transformation capabilities similar to ROS TF, enabling conversion between different coordinate reference frames in robotics and spatial data visualization.
 
 ## Overview
 
@@ -27,22 +27,30 @@ graph TB
         BASE --> LIDAR[lidar]
     end
 
-    subgraph "Transform Provider"
-        TP[TransformSourcesProvider] -->|Polls 10Hz| PH[PluginsHooks.TRANSFORM_TREE]
-        PH -->|Returns| TM[Map<string, TransformTree>]
+    subgraph "Event-Driven Updates"
+        DS[Datasource] -->|TF Message| TTM[TransformTreeManager]
+        TTM -->|processTFMessage| ATOM[transformTreesAtom]
+        ATOM -->|Jotai subscription| HOOK[useTransformSource]
     end
 
     subgraph "Usage"
-        TM --> HOOK[useTransformSource]
         HOOK --> CHAIN[findTransformChain]
         CHAIN --> APPLY[applyTransformChain]
         APPLY --> GPS[localToGPS]
     end
 
-    style TP fill:#e1f5ff
+    style ATOM fill:#e1f5ff
     style HOOK fill:#fff4e1
     style GPS fill:#e8f5e9
 ```
+
+### Architecture
+
+The transforms system uses **Jotai atoms** for event-driven updates:
+
+- **No polling** - Transforms update instantly when received from datasources
+- **No provider wrapper** - Widgets use `useTransformSource()` directly
+- **Automatic subscriptions** - Jotai handles React re-renders efficiently
 
 ### Use Cases
 
@@ -78,6 +86,7 @@ interface Quaternion {
 interface Transform {
     position: Vector4; // Translation (x, y, z, w=0)
     rotation: Quaternion; // Orientation as quaternion
+    convention: CoordinateConvention; // 'ROS' | 'THREE' | 'UNITY' etc.
 }
 ```
 
@@ -87,6 +96,7 @@ interface Transform {
 const transform: Transform = {
     position: { x: 1.0, y: 2.0, z: 0.5, w: 0 },
     rotation: { x: 0, y: 0, z: 0, w: 1 }, // Identity rotation
+    convention: "ROS",
 };
 ```
 
@@ -99,7 +109,8 @@ interface TransformTree {
     id: string; // Frame identifier (e.g., "base_link")
     parentId: string; // Parent frame ID (empty string for root)
     transform: Transform; // Transform from parent to this frame
-    children: TransformTree[]; // Child frames
+    children: Map<string, TransformTree>; // Child frames
+    convention?: CoordinateConvention; // Coordinate convention
 }
 ```
 
@@ -110,115 +121,92 @@ const mapFrame: TransformTree = {
     id: "map",
     parentId: "", // Root frame
     transform: identityTransform,
-    children: [
-        {
-            id: "odom",
-            parentId: "map",
-            transform: {
-                position: { x: 0, y: 0, z: 0, w: 0 },
-                rotation: { x: 0, y: 0, z: 0, w: 1 },
-            },
-            children: [
-                {
-                    id: "base_link",
-                    parentId: "odom",
-                    transform: {
-                        position: { x: 2.5, y: 1.0, z: 0, w: 0 },
-                        rotation: { x: 0, y: 0, z: 0.707, w: 0.707 }, // 90° yaw
-                    },
-                    children: [
+    children: new Map([
+        [
+            "odom",
+            {
+                id: "odom",
+                parentId: "map",
+                transform: {
+                    position: { x: 0, y: 0, z: 0, w: 0 },
+                    rotation: { x: 0, y: 0, z: 0, w: 1 },
+                    convention: "ROS",
+                },
+                children: new Map([
+                    [
+                        "base_link",
                         {
-                            id: "camera",
-                            parentId: "base_link",
+                            id: "base_link",
+                            parentId: "odom",
                             transform: {
-                                position: { x: 0.1, y: 0, z: 0.5, w: 0 },
-                                rotation: { x: 0, y: 0, z: 0, w: 1 },
+                                position: { x: 2.5, y: 1.0, z: 0, w: 0 },
+                                rotation: { x: 0, y: 0, z: 0.707, w: 0.707 }, // 90° yaw
+                                convention: "ROS",
                             },
-                            children: [],
+                            children: new Map(),
                         },
                     ],
-                },
-            ],
-        },
-    ],
+                ]),
+            },
+        ],
+    ]),
 };
 ```
 
-## TransformSourcesProvider
+## Jotai Atoms
 
-React context provider that polls for transform trees from plugins.
+The transforms system uses Jotai atoms for reactive state management.
 
-### Provider Props
+### transformTreesAtom
+
+Main atom holding all transform trees from all datasources:
 
 ```typescript
-interface TransformSourcesProviderProps {
-    children: ReactNode;
-    updateRate: number; // Polling rate in Hz (e.g., 10)
-}
+import { atom } from "jotai";
+import { TransformTree } from "@workspace/ormi-core/types";
+
+// Key is the root frame_id (e.g., "world", "map", "odom")
+export const transformTreesAtom = atom<Map<string, TransformTree>>(
+    new Map<string, TransformTree>(),
+);
 ```
 
-### Context Interface
+### transformSourcesAtom
+
+Tracks which datasources have contributed transforms:
 
 ```typescript
-interface TransformSources {
-    transformsTrees: Map<string, TransformTree>; // Map of root frame ID -> tree
-}
+export const transformSourcesAtom = atom<Set<string>>(new Set<string>());
 ```
 
-### Provider Setup
+### transformFrameCountAtom
+
+Derived atom for the total number of frames:
 
 ```typescript
-import { TransformSourcesProvider } from '@workspace/ormi-core/transforms';
+export const transformFrameCountAtom = atom((get) => {
+    const trees = get(transformTreesAtom);
+    let count = 0;
 
-function App() {
-    return (
-        <TransformSourcesProvider updateRate={10}>
-            {/* App content */}
-        </TransformSourcesProvider>
-    );
-}
-```
-
-**Behavior:**
-
-- Polls `PluginsHooks.TRANSFORM_TREE` at specified rate
-- Compares new trees with current trees (deep equality)
-- Only updates state if trees have changed
-- Returns `Map<string, TransformTree>` where keys are root frame IDs
-
-### How It Works
-
-```typescript
-// Inside provider
-useEffect(() => {
-    const intervalId = setInterval(async () => {
-        const newTrees = await pluginsManager.applyFilterAsync<
-            Map<string, TransformTree>
-        >(PluginsHooks.TRANSFORM_TREE, new Map<string, TransformTree>());
-
-        if (
-            newTrees &&
-            areTransformTreesDifferent(newTrees, currentTreesRef.current)
-        ) {
-            setTransformsTrees(newTrees);
-            currentTreesRef.current = newTrees;
+    const countFrames = (tree: TransformTree): number => {
+        let c = 1;
+        for (const [, child] of tree.children) {
+            c += countFrames(child);
         }
-    }, 1000 / updateRate);
+        return c;
+    };
 
-    // Cleanup on unmount
-    return () => clearInterval(intervalId);
-}, []);
+    for (const [, tree] of trees) {
+        count += countFrames(tree);
+    }
+
+    return count;
+});
 ```
-
-**Performance:**
-
-- Uses `useRef` to avoid triggering re-renders on every poll
-- Only updates state when trees actually change
-- Deep comparison using JSON.stringify (could be optimized)
 
 ## useTransformSource Hook
 
-Access transform trees from context:
+Access transform trees directly from the Jotai atom - **no provider wrapper needed**:
 
 ```typescript
 import { useTransformSource } from "@workspace/ormi-core/transforms";
@@ -235,6 +223,92 @@ function MyComponent() {
 
 - `transformsTrees` - Map of root frame IDs to TransformTree structures
 
+### useTransformFrameCount
+
+Get the total number of frames across all trees:
+
+```typescript
+import { useTransformFrameCount } from "@workspace/ormi-core/transforms";
+
+function FrameStatus() {
+    const frameCount = useTransformFrameCount();
+    return <div>Total frames: {frameCount}</div>;
+}
+```
+
+## Pushing Transforms (Datasource Side)
+
+Datasources push transforms using the `processTFMessage` function:
+
+```typescript
+import {
+    processTFMessage,
+    clearTransformsFromDatasource,
+} from "@workspace/ormi-core/transforms";
+
+// When TF message is received
+function handleTFMessage(message: TFMessage) {
+    processTFMessage(datasourceId, message);
+}
+
+// When datasource disconnects
+function cleanup() {
+    clearTransformsFromDatasource(datasourceId);
+}
+```
+
+### TFMessage Format
+
+```typescript
+interface TFTransform {
+    header: {
+        frame_id: string;
+        stamp?: { sec: number; nsec: number };
+    };
+    child_frame_id: string;
+    transform: {
+        translation: { x: number; y: number; z: number };
+        rotation: { x: number; y: number; z: number; w: number };
+    };
+}
+
+interface TFMessage {
+    transforms: TFTransform[];
+}
+```
+
+### Example: TransformTreeManager
+
+```typescript
+import { processTFMessage, clearTransformsFromDatasource } from '@workspace/ormi-core/transforms';
+
+const TransformTreeManager: React.FC<Props> = ({ children, settings }) => {
+    const pluginsManager = usePluginsManager();
+    const datasource_id = settings.id;
+
+    useEffect(() => {
+        // Register handler for TF messages
+        const actionId = `${datasource_id}-transform-/tf`;
+
+        pluginsManager.addAction(`${datasource_id}-/tf-published`, {
+            id: actionId,
+            action: (message: any) => {
+                // Push transforms directly to atom
+                processTFMessage(datasource_id, message);
+            },
+            priority: 100,
+        });
+
+        return () => {
+            pluginsManager.removeAction(actionId);
+            clearTransformsFromDatasource(datasource_id);
+        };
+    }, [settings.enable, datasource_id]);
+
+    return <>{children}</>;
+};
+```
+
 ## Transform Chain Computation
 
 ### findTransformChain
@@ -245,7 +319,7 @@ Finds the sequence of transforms needed to convert from one frame to another.
 function findTransformChain(
     treeMap: Map<string, TransformTree>,
     sourceFrameId: string,
-    targetFrameId: string
+    targetFrameId: string,
 ): Transform[] | null;
 ```
 
@@ -267,32 +341,59 @@ function findTransformChain(
 **Example:**
 
 ```typescript
-import { findTransformChain } from "@workspace/ormi-core/transforms";
+import {
+    findTransformChain,
+    useTransformSource,
+} from "@workspace/ormi-core/transforms";
 
-const { transformsTrees } = useTransformSource();
+function MyWidget() {
+    const { transformsTrees } = useTransformSource();
 
-// Find transform from camera to map
-const chain = findTransformChain(transformsTrees, "camera", "map");
+    // Find transform from camera to map
+    const chain = findTransformChain(transformsTrees, "camera", "map");
 
-if (chain === null) {
-    console.log("No transform chain found");
-} else if (chain.length === 0) {
-    console.log("Frames are identical");
-} else {
-    console.log(`Found chain with ${chain.length} transforms`);
+    if (chain === null) {
+        console.log("No transform chain found");
+    } else if (chain.length === 0) {
+        console.log("Frames are identical");
+    } else {
+        console.log(`Found chain with ${chain.length} transforms`);
+    }
 }
 ```
 
-**Chain Structure:**
+### applyTransformChain
 
-For `camera → map` (assuming tree: map → odom → base_link → camera):
+Apply a sequence of transforms to a point:
 
 ```typescript
-[
-    invertTransform(camera_to_base_link), // Up to base_link
-    invertTransform(base_link_to_odom), // Up to odom
-    invertTransform(odom_to_map), // Up to map
-];
+function applyTransformChain(point: Vector3, transforms: Transform[]): Vector3;
+```
+
+**Example:**
+
+```typescript
+import {
+    applyTransformChain,
+    findTransformChain,
+    useTransformSource,
+} from "@workspace/ormi-core/transforms";
+
+function TransformPoint() {
+    const { transformsTrees } = useTransformSource();
+
+    // Point in camera frame
+    const pointInCamera = { x: 0, y: 0, z: 1 };
+
+    // Get transform chain
+    const chain = findTransformChain(transformsTrees, "camera", "map");
+
+    if (chain) {
+        // Transform to map frame
+        const pointInMap = applyTransformChain(pointInCamera, chain);
+        console.log("Point in map frame:", pointInMap);
+    }
+}
 ```
 
 ### applyTransform
@@ -317,41 +418,11 @@ const point = { x: 1, y: 0, z: 0 };
 const transform = {
     position: { x: 5, y: 0, z: 0, w: 0 },
     rotation: { x: 0, y: 0, z: 0, w: 1 }, // No rotation
+    convention: "ROS",
 };
 
 const transformed = applyTransform(point, transform);
 // Result: { x: 6, y: 0, z: 0 }
-```
-
-### applyTransformChain
-
-Apply a sequence of transforms to a point:
-
-```typescript
-function applyTransformChain(point: Vector3, transforms: Transform[]): Vector3;
-```
-
-**Example:**
-
-```typescript
-import {
-    applyTransformChain,
-    findTransformChain,
-} from "@workspace/ormi-core/transforms";
-
-const { transformsTrees } = useTransformSource();
-
-// Point in camera frame
-const pointInCamera = { x: 0, y: 0, z: 1 };
-
-// Get transform chain
-const chain = findTransformChain(transformsTrees, "camera", "map");
-
-if (chain) {
-    // Transform to map frame
-    const pointInMap = applyTransformChain(pointInCamera, chain);
-    console.log("Point in map frame:", pointInMap);
-}
 ```
 
 ## GPS Coordinate Conversion
@@ -374,12 +445,6 @@ function localToGPS(localPoint: Vector3, originGPS: GPSCoords): GPSCoords;
 
 - `localPoint` - Point in local frame (meters)
 - `originGPS` - GPS coordinates of local frame origin
-
-**Algorithm:**
-
-- Uses Earth radius (6,371,000 meters)
-- Converts meters to degrees
-- Accounts for latitude when converting East/West
 
 **Example:**
 
@@ -435,7 +500,7 @@ Convenience hook for transforming data to GPS coordinates:
 function useTransformToGPS(
     sourceFrameId: string,
     gpsFrameId: string,
-    gpsOriginData: GeolocationPosition | null
+    gpsOriginData: GeolocationPosition | null,
 ): {
     transformPointToGPS: (localPoint: Vector3) => GPSCoords | null;
     transformPointsToGPS: (localPoints: Vector3[]) => (GPSCoords | null)[];
@@ -490,40 +555,10 @@ function MapWidget(settings: {
         return <div>Transform error: {transformError}</div>;
     }
 
-    if (!robotGPS) {
-        return <div>No robot position</div>;
-    }
-
     return (
         <div>
-            Robot GPS: {robotGPS.latitude}, {robotGPS.longitude}
+            Robot GPS: {robotGPS?.latitude}, {robotGPS?.longitude}
         </div>
-    );
-}
-```
-
-## useGPSOrigin Hook
-
-Helper to get GPS origin from a topic:
-
-```typescript
-function useGPSOrigin(
-    gpsTopic: SelectedTopic | null,
-    getSource: (topic: SelectedTopic) => any
-): GeolocationPosition | null;
-```
-
-**Example:**
-
-```typescript
-const { getSource } = useLocalDataSource();
-const gpsOriginData = useGPSOrigin(settings.gpsOriginTopic, getSource);
-
-if (gpsOriginData) {
-    console.log(
-        "GPS Origin:",
-        gpsOriginData.coords.latitude,
-        gpsOriginData.coords.longitude
     );
 }
 ```
@@ -537,18 +572,18 @@ Find a specific frame node in a tree:
 ```typescript
 function getTransformTreeFromTreeId(
     tree: TransformTree,
-    id: string
+    id: string,
 ): TransformTree | null;
 ```
 
-### getTransfromTreeFromTreeIdInMaps
+### getTransformTreeFromTreeIdInMaps
 
 Find a frame node across multiple trees:
 
 ```typescript
-function getTransfromTreeFromTreeIdInMaps(
+function getTransformTreeFromTreeIdInMaps(
     treeMap: Map<string, TransformTree>,
-    id: string
+    id: string,
 ): TransformTree | null;
 ```
 
@@ -572,348 +607,177 @@ const parentToChild = {
 const childToParent = invertTransform(parentToChild);
 ```
 
-## Plugin Integration
+### rotateVectorByQuaternion
 
-Plugins provide transform trees via `PluginsHooks.TRANSFORM_TREE`:
+Rotate a vector by a quaternion:
 
 ```typescript
-import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
-import { TransformTree } from "@workspace/ormi-core";
-
-class ROS2TFPlugin extends Plugin {
-    private transformTrees: Map<string, TransformTree> = new Map();
-
-    constructor() {
-        super({ name: "ROS2 TF", version: "1.0.0" });
-
-        // Register filter to provide transforms
-        this.addFilter(PluginsHooks.TRANSFORM_TREE, {
-            id: "ros2-tf",
-            priority: 10,
-            filter: (trees: Map<string, TransformTree>) => {
-                // Merge our trees with existing
-                this.transformTrees.forEach((tree, rootId) => {
-                    trees.set(rootId, tree);
-                });
-                return trees;
-            },
-        });
-
-        // Subscribe to /tf topic and build trees
-        this.subscribeTF();
-    }
-
-    private subscribeTF() {
-        // Subscribe to ROS2 /tf topic
-        // Build TransformTree from TF messages
-        // Update this.transformTrees
-    }
-}
+function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3;
 ```
 
-## Common Patterns
+## Coordinate System Conventions
 
-### Pattern 1: Robot Position to GPS
+The transform system supports multiple coordinate conventions:
 
 ```typescript
-function RobotGPSTracker(settings: {
-    robotFrame: string,
-    gpsFrame: string,
-    gpsOriginTopic: SelectedTopic
-}) {
+type CoordinateConvention = "ROS" | "THREE" | "UNITY" | "UNREAL" | "CUSTOM";
+```
+
+### createPositionConverter
+
+Create a converter between coordinate systems:
+
+```typescript
+function createPositionConverter(
+    sourceConvention: CoordinateConvention,
+    targetConvention: CoordinateConvention,
+): (position: Vector3) => Vector3;
+```
+
+**Example:**
+
+```typescript
+import { createPositionConverter } from "@workspace/ormi-core/transforms";
+
+// ROS: X forward, Y left, Z up
+// THREE: X right, Y up, Z out (towards viewer)
+
+const rosToThree = createPositionConverter("ROS", "THREE");
+
+const rosPoint = { x: 1, y: 2, z: 3 }; // 1m forward, 2m left, 3m up
+const threePoint = rosToThree(rosPoint); // Converted to THREE.js coordinates
+```
+
+## Complete Widget Example
+
+```typescript
+import React, { useMemo } from 'react';
+import { useTransformSource, findTransformChain, applyTransformChain } from '@workspace/ormi-core/transforms';
+import { useLocalDataSource } from '@workspace/ormi-core/datasources';
+
+function PointCloudWidget({ topics, targetFrame }) {
     const { transformsTrees } = useTransformSource();
-    const { getSource } = useLocalDataSource();
+    const { sources } = useLocalDataSource();
 
-    // Get GPS origin
-    const gpsOriginData = useGPSOrigin(settings.gpsOriginTopic, getSource);
-    const gpsOrigin: GPSCoords | null = gpsOriginData ? {
-        latitude: gpsOriginData.coords.latitude,
-        longitude: gpsOriginData.coords.longitude,
-        altitude: gpsOriginData.coords.altitude || 0
-    } : null;
+    const transformedPoints = useMemo(() => {
+        const allPoints = [];
 
-    // Robot position in robot frame (always at origin)
-    const robotLocalPos = { x: 0, y: 0, z: 0 };
+        for (const [sourceId, source] of sources) {
+            const refFrame = source.referenceFrameId;
 
-    // Get transform chain
-    const chain = findTransformChain(
-        transformsTrees,
-        settings.robotFrame,
-        settings.gpsFrame
-    );
+            // Skip if same frame or no target
+            if (!targetFrame || refFrame === targetFrame) {
+                allPoints.push(...source.data);
+                continue;
+            }
 
-    if (!chain || !gpsOrigin) {
-        return <div>Waiting for transform or GPS origin...</div>;
-    }
+            // Find transform chain
+            const chain = findTransformChain(transformsTrees, refFrame, targetFrame);
 
-    // Transform to GPS frame
-    const posInGPSFrame = applyTransformChain(robotLocalPos, chain);
+            if (!chain) {
+                console.warn(`No transform from ${refFrame} to ${targetFrame}`);
+                continue;
+            }
 
-    // Convert to GPS coordinates
-    const robotGPS = localToGPS(posInGPSFrame, gpsOrigin);
+            // Transform each point
+            for (const point of source.data) {
+                const transformed = applyTransformChain(point, chain);
+                allPoints.push(transformed);
+            }
+        }
 
-    return (
-        <div>
-            Robot GPS: {robotGPS.latitude.toFixed(6)}, {robotGPS.longitude.toFixed(6)}
-        </div>
-    );
+        return allPoints;
+    }, [sources, transformsTrees, targetFrame]);
+
+    return <PointCloudRenderer points={transformedPoints} />;
 }
-```
-
-### Pattern 2: Sensor Data Alignment
-
-```typescript
-function MultiSensorVisualization(settings: {
-    lidarTopic: SelectedTopic,
-    cameraTopic: SelectedTopic,
-    targetFrame: string
-}) {
-    const { transformsTrees } = useTransformSource();
-    const { getSource } = useLocalDataSource();
-
-    // Get sensor data
-    const lidarSource = getSource(settings.lidarTopic);
-    const cameraSource = getSource(settings.cameraTopic);
-
-    // Get frame IDs from topic metadata
-    const lidarFrameId = lidarSource?.frame_id || 'lidar';
-    const cameraFrameId = cameraSource?.frame_id || 'camera';
-
-    // Get transform chains
-    const lidarChain = findTransformChain(transformsTrees, lidarFrameId, settings.targetFrame);
-    const cameraChain = findTransformChain(transformsTrees, cameraFrameId, settings.targetFrame);
-
-    if (!lidarChain || !cameraChain) {
-        return <div>Waiting for transforms...</div>;
-    }
-
-    // Transform lidar points
-    const lidarPoints: Vector3[] = lidarSource?.data[lidarSource.data.length - 1] || [];
-    const lidarInTarget = lidarPoints.map(p => applyTransformChain(p, lidarChain));
-
-    // Transform camera points
-    const cameraPoints: Vector3[] = cameraSource?.data[cameraSource.data.length - 1] || [];
-    const cameraInTarget = cameraPoints.map(p => applyTransformChain(p, cameraChain));
-
-    return (
-        <Canvas>
-            <RenderPoints points={lidarInTarget} color="blue" />
-            <RenderPoints points={cameraInTarget} color="red" />
-        </Canvas>
-    );
-}
-```
-
-### Pattern 3: Path Visualization
-
-```typescript
-function PathVisualization(settings: {
-    pathTopic: SelectedTopic,
-    pathFrameId: string,
-    displayFrame: string
-}) {
-    const { transformsTrees } = useTransformSource();
-    const { getSource } = useLocalDataSource();
-
-    // Get path data
-    const pathSource = getSource(settings.pathTopic);
-    const pathPoints: Vector3[] = pathSource?.data || [];
-
-    // Get transform chain
-    const chain = findTransformChain(
-        transformsTrees,
-        settings.pathFrameId,
-        settings.displayFrame
-    );
-
-    if (!chain) {
-        return <div>No transform available</div>;
-    }
-
-    // Transform all path points
-    const transformedPath = pathPoints.map(point =>
-        applyTransformChain(point, chain)
-    );
-
-    return (
-        <Canvas>
-            <Line points={transformedPath} color="green" />
-        </Canvas>
-    );
-}
-```
-
-## Best Practices
-
-### 1. Check for Transform Availability
-
-Always handle null returns:
-
-```typescript
-const chain = findTransformChain(transformsTrees, source, target);
-
-if (chain === null) {
-    return <div>No transform available from {source} to {target}</div>;
-}
-
-if (chain.length === 0) {
-    // Identity transform, no computation needed
-    return point;
-}
-
-// Apply chain
-const transformed = applyTransformChain(point, chain);
-```
-
-### 2. Use Appropriate Update Rate
-
-Match transform polling rate to data rate:
-
-```typescript
-// For fast-moving robots
-<TransformSourcesProvider updateRate={30}>  // 30 Hz
-
-// For slow-moving systems
-<TransformSourcesProvider updateRate={5}>   // 5 Hz
-```
-
-### 3. Cache Transform Chains
-
-Avoid recomputing chains every render:
-
-```typescript
-const chain = useMemo(() => {
-    return findTransformChain(transformsTrees, sourceFrame, targetFrame);
-}, [transformsTrees, sourceFrame, targetFrame]);
-```
-
-### 4. Handle Multiple Trees
-
-Check if frames are in the same tree:
-
-```typescript
-const chain = findTransformChain(transformsTrees, "camera", "gps");
-
-if (chain === null) {
-    // Frames might be in different disconnected trees
-    console.log("Frames not connected");
-}
-```
-
-### 5. Validate GPS Conversion
-
-Check for valid GPS origin before converting:
-
-```typescript
-if (!gpsOrigin) {
-    return <div>Waiting for GPS origin...</div>;
-}
-
-if (!gpsOrigin.altitude) {
-    console.warn('GPS origin missing altitude, defaulting to 0');
-}
-
-const gps = localToGPS(point, gpsOrigin);
 ```
 
 ## Troubleshooting
 
-### No Transform Chain Found
+### Transform Chain Not Found
 
-**Cause:** Frames in different trees or not connected
+**Cause:** Frames not connected in tree or not yet received
 
 **Solution:**
 
 ```typescript
-// Check if frames exist
-const sourceNode = getTransfromTreeFromTreeIdInMaps(
-    transformsTrees,
-    sourceFrameId
-);
-const targetNode = getTransfromTreeFromTreeIdInMaps(
-    transformsTrees,
-    targetFrameId
-);
+const { transformsTrees } = useTransformSource();
 
-if (!sourceNode) {
-    console.error(`Source frame "${sourceFrameId}" not found`);
-}
+// Debug: List all available frames
+const listFrames = (tree: TransformTree, depth = 0) => {
+    console.log("  ".repeat(depth) + tree.id);
+    for (const [, child] of tree.children) {
+        listFrames(child, depth + 1);
+    }
+};
 
-if (!targetNode) {
-    console.error(`Target frame "${targetFrameId}" not found`);
-}
-
-// Check available frames
-const allFrames: string[] = [];
-transformsTrees.forEach((tree) => {
-    const collectFrames = (node: TransformTree) => {
-        allFrames.push(node.id);
-        node.children.forEach(collectFrames);
-    };
-    collectFrames(tree);
+transformsTrees.forEach((tree, rootId) => {
+    console.log(`Tree rooted at: ${rootId}`);
+    listFrames(tree);
 });
-
-console.log("Available frames:", allFrames);
-```
-
-### Incorrect GPS Coordinates
-
-**Cause:** Wrong origin, wrong frame, or wrong coordinate system
-
-**Solution:**
-
-```typescript
-// Verify GPS origin
-console.log("GPS Origin:", gpsOrigin);
-
-// Verify local point before conversion
-console.log("Local point:", localPoint);
-
-// Verify transform chain is correct
-console.log("Transform chain length:", chain?.length);
-
-// Test with known point
-const testPoint = { x: 0, y: 0, z: 0 }; // Origin
-const testGPS = localToGPS(testPoint, gpsOrigin);
-console.log("Origin should match:", testGPS, gpsOrigin);
 ```
 
 ### Transforms Not Updating
 
-**Cause:** Plugin not publishing, polling too slow, or deep equality issue
+**Cause:** Datasource not pushing to atom
 
-**Solution:**
+**Solution:** Verify datasource is calling `processTFMessage`:
 
 ```typescript
-// Check if transform trees are being updated
-const { transformsTrees } = useTransformSource();
+import { processTFMessage } from "@workspace/ormi-core/transforms";
 
-useEffect(() => {
-    console.log('Transform trees updated:', transformsTrees.size);
-    transformsTrees.forEach((tree, rootId) => {
-        console.log(`Root: ${rootId}`, tree);
-    });
-}, [transformsTrees]);
+// In your TF message handler
+function onTFMessage(message) {
+    console.log(
+        "Processing TF message:",
+        message.transforms.length,
+        "transforms",
+    );
+    processTFMessage(datasourceId, message);
+}
+```
 
-// Increase polling rate
-<TransformSourcesProvider updateRate={30}>  // Higher rate
+### Using Outside React Components
+
+For non-React code, use the store directly:
+
+```typescript
+import {
+    getTransformTrees,
+    subscribeToTransforms,
+} from "@workspace/ormi-core/transforms";
+
+// Get current trees
+const trees = getTransformTrees();
+
+// Subscribe to changes
+const unsubscribe = subscribeToTransforms(() => {
+    const updatedTrees = getTransformTrees();
+    console.log("Transforms updated:", updatedTrees.size);
+});
+
+// Later: cleanup
+unsubscribe();
 ```
 
 ## Summary
 
-The V1 transforms system provides:
+The transforms system provides:
 
+- **Event-driven updates** - Jotai atoms for instant propagation
+- **No provider needed** - Use `useTransformSource()` anywhere
 - **TF-like functionality** - Hierarchical coordinate frame transforms
 - **Transform chains** - Automatic path finding between frames
 - **GPS conversion** - Local to GPS coordinate conversion
 - **Multiple trees** - Support for disconnected transform trees
-- **Plugin integration** - Plugins provide transforms via hooks
-- **React hooks** - Easy integration with components
+- **Coordinate conventions** - ROS, THREE.js, Unity support
 
 **Key Components:**
 
-- `TransformSourcesProvider` - Context provider with polling
-- `useTransformSource` - Access transform trees
+- `transformTreesAtom` - Main Jotai atom holding all transforms
+- `useTransformSource` - Access transform trees in React
+- `processTFMessage` - Push transforms from datasources
 - `findTransformChain` - Compute transform sequence
 - `applyTransformChain` - Apply transforms to points
 - `localToGPS` / `gpsToLocal` - GPS coordinate conversion
