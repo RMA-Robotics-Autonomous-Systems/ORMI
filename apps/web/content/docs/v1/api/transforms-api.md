@@ -15,513 +15,503 @@ The Transforms API provides coordinate transformation capabilities for robotics 
 - Access robot coordinate transformations
 - Convert between reference frames
 - Query TF tree structure
-- Subscribe to transform updates
+- Subscribe to transform updates (event-driven via Jotai atoms)
 
 For architectural details on TF tree storage and update mechanisms, see **[Core - Transforms System](../core/transforms)**.
 
+## Jotai Atoms
+
+The transforms system uses Jotai atoms for reactive state management. No provider wrapper is needed.
+
+### transformTreesAtom
+
+Main atom holding all transform trees:
+
+```typescript
+import { transformTreesAtom } from "@workspace/ormi-core/transforms";
+import { useAtomValue } from "jotai";
+
+// In a React component
+const transformsTrees = useAtomValue(transformTreesAtom);
+```
+
+### transformFrameCountAtom
+
+Derived atom for total frame count:
+
+```typescript
+import { transformFrameCountAtom } from "@workspace/ormi-core/transforms";
+import { useAtomValue } from "jotai";
+
+const frameCount = useAtomValue(transformFrameCountAtom);
+```
+
 ## useTransformSource Hook
 
-Main hook for accessing transform data and TF tree operations.
+Main hook for accessing transform data. **No provider wrapper needed** - works anywhere in your app.
 
 ### Signature
 
 ```typescript
 function useTransformSource(): {
-    getTransform: (from: string, to: string, time?: number) => Transform | null;
-    getFrameTree: () => FrameNode[];
-    getAllFrames: () => string[];
-    lookupTransform: (
-        targetFrame: string,
-        sourceFrame: string
-    ) => TransformStamped | null;
-    canTransform: (from: string, to: string) => boolean;
-    isLoading: boolean;
+    transformsTrees: Map<string, TransformTree>;
 };
 ```
 
-### Transform Types
+### Basic Usage
 
 ```typescript
+import { useTransformSource } from '@workspace/ormi-core/transforms';
+
+function MyComponent() {
+    const { transformsTrees } = useTransformSource();
+
+    // List all root frames
+    const rootFrames = Array.from(transformsTrees.keys());
+
+    return (
+        <ul>
+            {rootFrames.map(frame => (
+                <li key={frame}>{frame}</li>
+            ))}
+        </ul>
+    );
+}
+```
+
+## useTransformFrameCount Hook
+
+Get the total number of frames across all transform trees:
+
+```typescript
+import { useTransformFrameCount } from '@workspace/ormi-core/transforms';
+
+function FrameStatus() {
+    const frameCount = useTransformFrameCount();
+
+    return <div>Total frames in TF tree: {frameCount}</div>;
+}
+```
+
+## Transform Types
+
+```typescript
+interface Vector3 {
+    x: number;
+    y: number;
+    z: number;
+}
+
+interface Vector4 extends Vector3 {
+    w: number;
+}
+
+interface Quaternion {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+}
+
 interface Transform {
-    translation: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number; w: number }; // Quaternion
+    position: Vector4;
+    rotation: Quaternion;
+    convention: CoordinateConvention;
 }
 
-interface TransformStamped extends Transform {
-    header: {
-        frameId: string;
-        stamp: number;
-    };
-    childFrameId: string;
+interface TransformTree {
+    id: string;
+    parentId: string;
+    transform: Transform;
+    children: Map<string, TransformTree>;
+    convention?: CoordinateConvention;
 }
 
-interface FrameNode {
-    name: string;
-    parent: string | null;
-    children: FrameNode[];
+type CoordinateConvention = "ROS" | "THREE" | "UNITY" | "UNREAL" | "CUSTOM";
+```
+
+## Transform Chain Functions
+
+### findTransformChain
+
+Find the transform chain between two frames:
+
+```typescript
+import { findTransformChain, useTransformSource } from '@workspace/ormi-core/transforms';
+
+function TransformChecker() {
+    const { transformsTrees } = useTransformSource();
+
+    const chain = findTransformChain(transformsTrees, 'camera', 'map');
+
+    if (chain === null) {
+        return <div>No transform path found</div>;
+    }
+
+    return <div>Transform chain has {chain.length} steps</div>;
 }
 ```
 
-## Basic Usage
+### applyTransformChain
 
-### Get Transform Between Frames
+Apply a transform chain to a point:
 
 ```typescript
-import { useTransformSource } from '@workspace/ui'
+import {
+    findTransformChain,
+    applyTransformChain,
+    useTransformSource
+} from '@workspace/ormi-core/transforms';
 
-function RobotVisualizer() {
-  const { getTransform } = useTransformSource()
+function PointTransformer() {
+    const { transformsTrees } = useTransformSource();
 
-  const mapToBaseLinkTransform = getTransform('map', 'base_link')
+    const pointInCamera = { x: 0, y: 0, z: 1 };
+    const chain = findTransformChain(transformsTrees, 'camera', 'map');
 
-  if (!mapToBaseLinkTransform) {
-    return <div>Transform not available</div>
-  }
+    if (!chain) {
+        return <div>Transform unavailable</div>;
+    }
 
-  return (
-    <div>
-      <p>Position: {mapToBaseLinkTransform.translation.x},
-         {mapToBaseLinkTransform.translation.y},
-         {mapToBaseLinkTransform.translation.z}</p>
-    </div>
-  )
+    const pointInMap = applyTransformChain(pointInCamera, chain);
+
+    return (
+        <div>
+            Point in map: ({pointInMap.x.toFixed(2)}, {pointInMap.y.toFixed(2)}, {pointInMap.z.toFixed(2)})
+        </div>
+    );
 }
 ```
 
-### Check Transform Availability
+### applyTransform
+
+Apply a single transform to a point:
 
 ```typescript
-function TransformStatus() {
-  const { canTransform } = useTransformSource()
+import { applyTransform } from "@workspace/ormi-core/transforms";
 
-  const hasMapToOdom = canTransform('map', 'odom')
+const point = { x: 1, y: 0, z: 0 };
+const transform = {
+    position: { x: 5, y: 0, z: 0, w: 0 },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    convention: "ROS" as const,
+};
 
-  return (
-    <div>
-      {hasMapToOdom ? (
-        <span className="text-green-600">Map → Odom available</span>
-      ) : (
-        <span className="text-red-600">Map → Odom unavailable</span>
-      )}
-    </div>
-  )
+const transformed = applyTransform(point, transform);
+// Result: { x: 6, y: 0, z: 0 }
+```
+
+## Pushing Transforms (Datasource Side)
+
+### processTFMessage
+
+Push TF messages to the transform atom:
+
+```typescript
+import { processTFMessage } from "@workspace/ormi-core/transforms";
+
+// When receiving a TF message from ROS/Foxglove
+function onTFMessage(message: TFMessage) {
+    processTFMessage(datasourceId, message);
 }
 ```
 
-### List All Frames
+### clearTransformsFromDatasource
+
+Clear transforms when a datasource disconnects:
 
 ```typescript
-function FrameList() {
-  const { getAllFrames } = useTransformSource()
+import { clearTransformsFromDatasource } from "@workspace/ormi-core/transforms";
 
-  const frames = getAllFrames()
+// On cleanup
+clearTransformsFromDatasource(datasourceId);
+```
 
-  return (
-    <ul>
-      {frames.map(frame => (
-        <li key={frame}>{frame}</li>
-      ))}
-    </ul>
-  )
+### clearAllTransforms
+
+Clear all transforms:
+
+```typescript
+import { clearAllTransforms } from "@workspace/ormi-core/transforms";
+
+clearAllTransforms();
+```
+
+## Non-React Usage
+
+For use outside React components:
+
+### getTransformTrees
+
+```typescript
+import { getTransformTrees } from "@workspace/ormi-core/transforms";
+
+const trees = getTransformTrees();
+console.log("Current trees:", trees.size);
+```
+
+### subscribeToTransforms
+
+```typescript
+import {
+    subscribeToTransforms,
+    getTransformTrees,
+} from "@workspace/ormi-core/transforms";
+
+const unsubscribe = subscribeToTransforms(() => {
+    const trees = getTransformTrees();
+    console.log("Transforms updated!", trees.size, "trees");
+});
+
+// Later: cleanup
+unsubscribe();
+```
+
+## GPS Conversion
+
+### localToGPS
+
+Convert local ENU coordinates to GPS:
+
+```typescript
+import { localToGPS } from "@workspace/ormi-core/transforms";
+
+const origin = { latitude: 37.7749, longitude: -122.4194, altitude: 10 };
+const localPoint = { x: 100, y: 50, z: 5 };
+
+const gps = localToGPS(localPoint, origin);
+```
+
+### gpsToLocal
+
+Convert GPS to local ENU coordinates:
+
+```typescript
+import { gpsToLocal } from "@workspace/ormi-core/transforms";
+
+const origin = { latitude: 37.7749, longitude: -122.4194, altitude: 10 };
+const target = { latitude: 37.775, longitude: -122.4193, altitude: 15 };
+
+const local = gpsToLocal(target, origin);
+```
+
+### useTransformToGPS Hook
+
+Convenience hook for GPS transformations:
+
+```typescript
+import { useTransformToGPS } from '@workspace/ormi-core/transforms';
+
+function GPSWidget({ sourceFrame, gpsFrame, gpsOriginData }) {
+    const {
+        transformPointToGPS,
+        hasTransform,
+        transformError
+    } = useTransformToGPS(sourceFrame, gpsFrame, gpsOriginData);
+
+    if (!hasTransform) {
+        return <div>Error: {transformError}</div>;
+    }
+
+    const point = { x: 10, y: 20, z: 0 };
+    const gps = transformPointToGPS(point);
+
+    return <div>GPS: {gps?.latitude}, {gps?.longitude}</div>;
 }
+```
+
+## Coordinate System Conversion
+
+### createPositionConverter
+
+Create a converter between coordinate systems:
+
+```typescript
+import { createPositionConverter } from "@workspace/ormi-core/transforms";
+
+// ROS: X forward, Y left, Z up
+// THREE: X right, Y up, Z out
+
+const rosToThree = createPositionConverter("ROS", "THREE");
+const threeToRos = createPositionConverter("THREE", "ROS");
+
+const rosPoint = { x: 1, y: 2, z: 3 };
+const threePoint = rosToThree(rosPoint);
 ```
 
 ## Common Patterns
 
-### Frame Selector
-
-```typescript
-function FrameSelector({ value, onChange }: Props) {
-  const { getAllFrames, isLoading } = useTransformSource()
-
-  const frames = getAllFrames()
-
-  if (isLoading) {
-    return <div>Loading frames...</div>
-  }
-
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
-        <SelectValue placeholder="Select frame" />
-      </SelectTrigger>
-      <SelectContent>
-        {frames.map(frame => (
-          <SelectItem key={frame} value={frame}>
-            {frame}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-```
-
 ### TF Tree Visualizer
 
 ```typescript
+import { useTransformSource } from '@workspace/ormi-core/transforms';
+import { TransformTree } from '@workspace/ormi-core/types';
+
 function TFTreeVisualizer() {
-  const { getFrameTree } = useTransformSource()
+    const { transformsTrees } = useTransformSource();
 
-  const tree = getFrameTree()
+    const renderNode = (node: TransformTree, depth = 0) => (
+        <div key={node.id} style={{ marginLeft: depth * 20 }}>
+            <span className="font-mono">{node.id}</span>
+            {Array.from(node.children.values()).map(child =>
+                renderNode(child, depth + 1)
+            )}
+        </div>
+    );
 
-  const renderNode = (node: FrameNode, depth = 0) => (
-    <div key={node.name} style={{ marginLeft: depth * 20 }}>
-      <div className="flex items-center gap-2">
-        <span className="font-mono">{node.name}</span>
-        {node.parent && (
-          <span className="text-xs text-muted-foreground">
-            ← {node.parent}
-          </span>
-        )}
-      </div>
-      {node.children.map(child => renderNode(child, depth + 1))}
-    </div>
-  )
-
-  return (
-    <div className="p-4 border rounded">
-      <h3 className="font-semibold mb-2">TF Tree</h3>
-      {tree.map(rootNode => renderNode(rootNode))}
-    </div>
-  )
-}
-```
-
-### Transform Monitor
-
-```typescript
-function TransformMonitor({ sourceFrame, targetFrame }: Props) {
-  const { lookupTransform, canTransform } = useTransformSource()
-  const [transform, setTransform] = useState<TransformStamped | null>(null)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const tf = lookupTransform(targetFrame, sourceFrame)
-      setTransform(tf)
-    }, 100) // Update at 10Hz
-
-    return () => clearInterval(interval)
-  }, [sourceFrame, targetFrame, lookupTransform])
-
-  if (!canTransform(sourceFrame, targetFrame)) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Transform Unavailable</AlertTitle>
-        <AlertDescription>
-          No transform from {sourceFrame} to {targetFrame}
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (!transform) {
-    return <div>Waiting for transform...</div>
-  }
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <h4 className="font-semibold">Translation</h4>
-        <p>X: {transform.translation.x.toFixed(3)}</p>
-        <p>Y: {transform.translation.y.toFixed(3)}</p>
-        <p>Z: {transform.translation.z.toFixed(3)}</p>
-      </div>
-      <div>
-        <h4 className="font-semibold">Rotation (Quaternion)</h4>
-        <p>X: {transform.rotation.x.toFixed(3)}</p>
-        <p>Y: {transform.rotation.y.toFixed(3)}</p>
-        <p>Z: {transform.rotation.z.toFixed(3)}</p>
-        <p>W: {transform.rotation.w.toFixed(3)}</p>
-      </div>
-    </div>
-  )
+        <div className="p-4 border rounded">
+            <h3 className="font-semibold mb-2">TF Tree</h3>
+            {Array.from(transformsTrees.values()).map(tree =>
+                renderNode(tree)
+            )}
+        </div>
+    );
 }
 ```
 
-### Point Transformer
+### Frame Selector
 
 ```typescript
-function PointTransformer() {
-  const { getTransform } = useTransformSource()
-  const [sourceFrame, setSourceFrame] = useState('base_link')
-  const [targetFrame, setTargetFrame] = useState('map')
-  const [point, setPoint] = useState({ x: 1, y: 0, z: 0 })
+import { useTransformSource } from '@workspace/ormi-core/transforms';
+import { TransformTree } from '@workspace/ormi-core/types';
 
-  const transformPoint = (
-    point: { x: number; y: number; z: number },
-    transform: Transform
-  ) => {
-    // Simplified transform (rotation not applied)
-    return {
-      x: point.x + transform.translation.x,
-      y: point.y + transform.translation.y,
-      z: point.z + transform.translation.z,
+function FrameSelector({ value, onChange }) {
+    const { transformsTrees } = useTransformSource();
+
+    // Collect all frame IDs
+    const frames: string[] = [];
+    const collectFrames = (node: TransformTree) => {
+        frames.push(node.id);
+        for (const child of node.children.values()) {
+            collectFrames(child);
+        }
+    };
+
+    for (const tree of transformsTrees.values()) {
+        collectFrames(tree);
     }
-  }
 
-  const tf = getTransform(sourceFrame, targetFrame)
-  const transformedPoint = tf ? transformPoint(point, tf) : null
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Source Frame</Label>
-          <Input value={sourceFrame} onChange={e => setSourceFrame(e.target.value)} />
-        </div>
-        <div>
-          <Label>Target Frame</Label>
-          <Input value={targetFrame} onChange={e => setTargetFrame(e.target.value)} />
-        </div>
-      </div>
-
-      <div>
-        <Label>Input Point</Label>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            value={point.x}
-            onChange={e => setPoint({ ...point, x: parseFloat(e.target.value) })}
-          />
-          <Input
-            type="number"
-            value={point.y}
-            onChange={e => setPoint({ ...point, y: parseFloat(e.target.value) })}
-          />
-          <Input
-            type="number"
-            value={point.z}
-            onChange={e => setPoint({ ...point, z: parseFloat(e.target.value) })}
-          />
-        </div>
-      </div>
-
-      {transformedPoint && (
-        <div>
-          <Label>Transformed Point</Label>
-          <p>X: {transformedPoint.x.toFixed(3)}</p>
-          <p>Y: {transformedPoint.y.toFixed(3)}</p>
-          <p>Z: {transformedPoint.z.toFixed(3)}</p>
-        </div>
-      )}
-    </div>
-  )
+    return (
+        <select value={value} onChange={e => onChange(e.target.value)}>
+            <option value="">Select frame</option>
+            {frames.map(frame => (
+                <option key={frame} value={frame}>{frame}</option>
+            ))}
+        </select>
+    );
 }
 ```
 
-### Frame Hierarchy Breadcrumb
+### Transform Status Indicator
 
 ```typescript
-function FrameBreadcrumb({ frame }: { frame: string }) {
-  const { getFrameTree } = useTransformSource()
+import { useTransformSource, findTransformChain } from '@workspace/ormi-core/transforms';
 
-  const findPath = (nodes: FrameNode[], target: string): string[] => {
-    for (const node of nodes) {
-      if (node.name === target) {
-        return [target]
-      }
-      const childPath = findPath(node.children, target)
-      if (childPath.length > 0) {
-        return [node.name, ...childPath]
-      }
-    }
-    return []
-  }
+function TransformStatus({ sourceFrame, targetFrame }) {
+    const { transformsTrees } = useTransformSource();
 
-  const tree = getFrameTree()
-  const path = findPath(tree, frame)
+    const chain = findTransformChain(transformsTrees, sourceFrame, targetFrame);
+    const available = chain !== null;
 
-  return (
-    <div className="flex items-center gap-2">
-      {path.map((frameName, i) => (
-        <React.Fragment key={frameName}>
-          {i > 0 && <ChevronRight className="h-4 w-4" />}
-          <span className="font-mono">{frameName}</span>
-        </React.Fragment>
-      ))}
-    </div>
-  )
-}
-```
-
-### Transform Validity Checker
-
-```typescript
-function TransformValidityDashboard() {
-  const { canTransform } = useTransformSource()
-
-  const criticalTransforms = [
-    { from: 'map', to: 'odom', label: 'Localization' },
-    { from: 'odom', to: 'base_link', label: 'Odometry' },
-    { from: 'base_link', to: 'camera_link', label: 'Camera' },
-    { from: 'base_link', to: 'lidar_link', label: 'LiDAR' },
-  ]
-
-  return (
-    <div className="space-y-2">
-      <h3 className="font-semibold">Transform Status</h3>
-      {criticalTransforms.map(({ from, to, label }) => {
-        const available = canTransform(from, to)
-        return (
-          <div key={`${from}-${to}`} className="flex items-center gap-2">
+    return (
+        <div className="flex items-center gap-2">
             <div className={`h-3 w-3 rounded-full ${available ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-sm">{label}</span>
+            <span>{sourceFrame} → {targetFrame}</span>
             <span className="text-xs text-muted-foreground">
-              ({from} → {to})
+                {available ? `${chain.length} steps` : 'unavailable'}
             </span>
-          </div>
-        )
-      })}
-    </div>
-  )
+        </div>
+    );
 }
 ```
-
-## TransformSourcesProvider
-
-Context provider that manages TF tree state and transform updates.
-
-### Usage
-
-```typescript
-import { TransformSourcesProvider } from '@workspace/ui'
-
-function App() {
-  return (
-    <TransformSourcesProvider>
-      <Dashboard />
-    </TransformSourcesProvider>
-  )
-}
-```
-
-**Note:** The dashboard automatically includes TransformSourcesProvider when working with ROS systems.
 
 ## Best Practices
 
 ### 1. Check Transform Availability
 
 ```typescript
-// Always check before using
-const tf = getTransform("map", "base_link");
-if (!tf) {
+const chain = findTransformChain(transformsTrees, source, target);
+if (!chain) {
     // Handle missing transform
     return;
 }
 ```
 
-### 2. Use canTransform for Validation
+### 2. Memoize Transform Chains
 
 ```typescript
-// Validate before expensive operations
-if (!canTransform(sourceFrame, targetFrame)) {
-    toast.error(`Transform ${sourceFrame} → ${targetFrame} not available`);
-    return;
-}
+const chain = useMemo(
+    () => findTransformChain(transformsTrees, source, target),
+    [transformsTrees, source, target],
+);
 ```
 
-### 3. Handle Missing Transforms
+### 3. Handle Frame Updates
 
 ```typescript
-function SafeTransformComponent() {
-  const { getTransform, canTransform } = useTransformSource()
-
-  if (!canTransform('map', 'base_link')) {
-    return <Alert>Waiting for transforms...</Alert>
-  }
-
-  const tf = getTransform('map', 'base_link')
-  // Safe to use tf
-}
-```
-
-### 4. Cache Frame Lists
-
-```typescript
-// Don't call getAllFrames() on every render
-const frames = useMemo(() => getAllFrames(), [getAllFrames]);
-```
-
-### 5. Throttle Updates
-
-```typescript
-// Throttle high-frequency updates
-const [transform, setTransform] = useState<Transform | null>(null);
+// Transforms update automatically via Jotai
+// Your component re-renders when transforms change
+const { transformsTrees } = useTransformSource();
 
 useEffect(() => {
-    const interval = setInterval(() => {
-        setTransform(getTransform("map", "base_link"));
-    }, 100); // 10Hz instead of every render
+    console.log("Transforms updated:", transformsTrees.size);
+}, [transformsTrees]);
+```
 
-    return () => clearInterval(interval);
-}, []);
+### 4. Debug Transform Issues
+
+```typescript
+const { transformsTrees } = useTransformSource();
+
+// Log all available frames
+const logFrames = (tree: TransformTree, path = "") => {
+    console.log(path + tree.id);
+    for (const child of tree.children.values()) {
+        logFrames(child, path + "  ");
+    }
+};
+
+transformsTrees.forEach((tree, rootId) => {
+    console.log(`=== Tree: ${rootId} ===`);
+    logFrames(tree);
+});
 ```
 
 ## Common Issues
 
 ### Transform Not Found
 
-**Problem:** `getTransform()` returns `null`
+**Problem:** `findTransformChain()` returns `null`
 
 **Causes:**
 
 - Transform not yet published
 - Frame names misspelled
-- TF tree not connected
+- Frames in different trees
 
 **Solutions:**
 
-- Use `canTransform()` to check availability
-- Verify frame names with `getAllFrames()`
-- Check TF publisher is running
+- Log available frames to verify names
+- Check if datasource is connected
+- Verify TF publisher is running
 
 ### Stale Transforms
 
-**Problem:** Transforms don't update
+**Problem:** Transforms don't seem to update
 
 **Causes:**
 
+- Datasource not calling `processTFMessage`
 - TF publisher stopped
-- Network connection lost
-- Transform source not subscribed
 
 **Solutions:**
 
-- Check `isLoading` status
-- Verify datasource connection
-- Monitor TF topic activity
-
-### Frame Name Typos
-
-**Problem:** Wrong frame name
-
-**Solution:** Use frame selector:
-
-```typescript
-// Instead of hardcoding
-const tf = getTransform('base_link', 'map')
-
-// Use dynamic selector
-<FrameSelector value={targetFrame} onChange={setTargetFrame} />
-```
-
-### Quaternion Math
-
-**Problem:** Need to convert quaternion to Euler angles
-
-**Solution:** Use helper library:
-
-```typescript
-import { quaternionToEuler } from "@workspace/utils";
-
-const { rotation } = transform;
-const euler = quaternionToEuler(rotation);
-console.log(`Roll: ${euler.roll}, Pitch: ${euler.pitch}, Yaw: ${euler.yaw}`);
-```
+- Add logging in datasource TF handler
+- Check datasource connection status
 
 ## See Also
 
-- **[Core - Transforms System](../core/transforms)** - TF tree architecture and update mechanisms
+- **[Core - Transforms System](../core/transforms)** - Architecture and implementation details
 - **[Datasource API](./datasource-api)** - Subscribing to TF topics
 - **[Widget API](./widget-api)** - Using transforms in widgets

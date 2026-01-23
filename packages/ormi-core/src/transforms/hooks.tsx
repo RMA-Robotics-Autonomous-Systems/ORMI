@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react";
-import { useTransformSource } from "./transforms-provider";
+import { useTransformSource } from "./transform-hooks";
 import { SelectedTopic } from "../datasources/datasource-interface";
 import { findTransformChain, applyTransformChain, localToGPS, GPSCoords } from "./utils";
 import { Vector3 } from "../types";

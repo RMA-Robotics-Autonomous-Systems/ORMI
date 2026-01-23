@@ -24,6 +24,26 @@ const serwist = new Serwist({
     clientsClaim: true,
     navigationPreload: true,
     runtimeCaching: [
+        // Cross-origin passthrough (avoid Serwist no-response on external APIs)
+        {
+            matcher: ({ url }) => url.origin !== self.location.origin,
+            handler: async ({ request, url }) => {
+                try {
+                    return await fetch(request);
+                } catch (error) {
+                    console.error(
+                        "❌ Cross-origin fetch failed:",
+                        url.href,
+                        error,
+                    );
+                    return new Response(null, {
+                        status: 502,
+                        statusText: "Bad Gateway",
+                    });
+                }
+            },
+        },
+
         // Offline Database API Interceptor (HIGHEST PRIORITY)
         {
             matcher: ({ url }) => {
@@ -154,8 +174,8 @@ const serwist = new Serwist({
                                 }
                             }
 
-                            // Return null to let the default error handling take over
-                            return null;
+                            // Return undefined to let the default error handling take over
+                            return undefined;
                         },
                     },
                 ],

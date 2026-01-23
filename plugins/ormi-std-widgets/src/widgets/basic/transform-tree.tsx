@@ -4,7 +4,7 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import * as d3 from 'd3';
 import { useTheme } from 'next-themes';
 import { TransformTree } from '@workspace/ormi-core/types';
-import { TransformSourcesProvider, useTransformSource } from '@workspace/ormi-core/transforms';
+import { useTransformSource } from '@workspace/ormi-core/transforms';
 import { WidgetDefinition } from '@workspace/ormi-core/widgets';
 
 interface TransformTreeViewerProps {
@@ -222,8 +222,6 @@ export function TransformTreeWidgetDefinition(): WidgetDefinition {
             title: 'Transform Tree Viewer',
             showCoordinates: true
         },
-        Component: (data: TransformTreeViewerProps) => <TransformSourcesProvider updateRate={0.5}>
-            <TransformTreeViewer {...data} />
-        </TransformSourcesProvider>
+        Component: (data: TransformTreeViewerProps) => <TransformTreeViewer {...data} />
     }
 }

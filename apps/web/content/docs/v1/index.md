@@ -22,12 +22,13 @@ ORMI-CORE is a **modular, plugin-based framework** for building real-time data v
 
 For detailed architecture diagrams and provider chain explanation, see **[Plugin System](core/plugin-system)** and **[Data Flow](core/data-flow)**.
 
-**V1 uses a nested provider pattern with pub/sub:**
+**V1 uses a hybrid architecture:**
 
 1. **Application Level**: PluginsProvider wraps entire app, provides PluginManager
 2. **Dashboard Level**: GlobalDataSourceProvider nests all datasource providers using `reduceRight()`
 3. **Widget Level**: Each widget wrapped in LocalDataSourceProvider for independent subscriptions
 4. **Data Flow**: Pub/sub pattern via PluginManager routes data from datasources to widgets
+5. **Transforms**: Event-driven via Jotai atoms - no provider needed, instant updates
 
 ## Extension Points
 
@@ -80,13 +81,14 @@ JSON Forms renderers for specialized input controls.
 
 ### 5. **Transforms**
 
-Coordinate system transformations for robotics applications.
+Coordinate system transformations for robotics applications using Jotai atoms.
 
 **Implement transforms for:**
 
-- TF tree management
+- TF tree management (event-driven via atoms)
 - Coordinate frame conversions
-- Sensor fusion
+- GPS coordinate mapping
+- Multi-sensor fusion
 
 ## Quick Start
 

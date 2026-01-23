@@ -2,16 +2,13 @@ import { CloudIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { PointsCloudProps } from './types/points-cloud-drei-types';
 import { PointsCloudComp } from './components/points-cloud-drei-comp';
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
-import { DatasourceTopic, DatasourceTopicFilter, LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import { LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
+import { FrameSelectElement } from "@workspace/ormi-core/widgets";
 
 /**
  * Definition for the PointsCloudDrei widget with schema configuration
  */
 export function PointsCloudDreiDefinition() {
-    const pluginsManager = usePluginsManager();
-
     return {
         id: 'std-points-cloud-drei',
         name: 'Points Cloud Drei',
@@ -22,69 +19,95 @@ export function PointsCloudDreiDefinition() {
             type: 'object',
             properties: {
                 title: { type: 'string', title: 'Title' },
-                topic: { type: 'object', title: 'Topic' },
-                maxPoints: { type: 'number', title: 'Max Points', minimum: 0 },
-                updateRate: { type: 'number', title: 'Update Rate (ms)', minimum: 10 },
-                pointSize: { type: 'number', title: 'Point Size', minimum: 0.01 },
-                rollingBuffer: { type: 'boolean', title: 'Use Rolling Buffer' },
-                decayTime: { type: 'number', title: 'Decay Time (ms)', minimum: 0 },
+                topics: {
+                    type: 'array',
+                    title: 'Topics',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            topic: { type: 'object', title: 'Topic' }
+                        },
+                        required: ['topic']
+                    }
+                },
+                pointSize: { type: 'number', title: 'Point Size', minimum: 0.001, default: 0.05 },
+                rollingBuffer: {
+                    type: 'boolean',
+                    title: 'Rolling Buffer',
+                    description: 'Accumulate points over time instead of replacing'
+                },
+                decayTime: {
+                    type: 'number',
+                    title: 'Decay Time (ms)',
+                    minimum: 0,
+                    description: 'Remove points older than this (only with rolling buffer)'
+                },
                 theme: {
                     type: 'string',
-                    title: 'Theme',
+                    title: 'Color Theme',
                     enum: ['Default', 'Neon', 'Plasma', 'Thermal', 'Solid', 'Distance'],
                     default: 'Default'
                 },
+                colorMode: {
+                    type: 'string',
+                    title: 'Color Mode',
+                    enum: ['source', 'reflectivity'],
+                    default: 'source',
+                    description: 'Use source colors or map reflectivity to theme'
+                },
                 useTransparency: {
                     type: 'boolean',
-                    title: 'Use Transparency',
+                    title: 'Transparency',
                     description: 'Enable transparency for smoother point edges',
                     default: false
                 },
                 customColor: {
                     type: 'string',
                     title: 'Custom Color',
-                    description: 'Custom color for Solid theme (hex format)',
+                    description: 'Color for Solid theme (hex format)',
                     default: '#ffffff'
                 },
-                rotation: {
-                    type: 'object',
-                    title: 'Rotation (degrees)',
-                    properties: {
-                        x: { type: 'number', title: 'X-Axis', description: 'Rotation around X axis in degrees' },
-                        y: { type: 'number', title: 'Y-Axis', description: 'Rotation around Y axis in degrees' },
-                        z: { type: 'number', title: 'Z-Axis', description: 'Rotation around Z axis in degrees' }
-                    }
+                targetFrame: {
+                    type: 'string',
+                    title: 'Target Frame',
+                    description: 'Transform points into this coordinate frame'
                 },
-                translation: {
-                    type: 'object',
-                    title: 'Translation',
-                    properties: {
-                        x: { type: 'number', title: 'X-Axis', description: 'Offset along X axis' },
-                        y: { type: 'number', title: 'Y-Axis', description: 'Offset along Y axis' },
-                        z: { type: 'number', title: 'Z-Axis', description: 'Offset along Z axis' }
-                    }
+                sourceConvention: {
+                    type: 'string',
+                    title: 'Source Coordinate System',
+                    enum: ['ROS', 'THREE', 'ENU', 'NED', 'NWU'],
+                    default: 'ROS',
+                    description: 'Coordinate convention of the incoming data (ROS, ENU, NED, NWU, or Three.js)'
                 }
             },
-            required: ['title', 'topic']
+            required: ['title']
         },
         uischema: {
             type: "VerticalLayout",
             elements: [
                 { type: "Control", scope: "#/properties/title" } as ControlElement,
                 {
-                    type: "TopicSelect",
-                    scope: "#/properties/topic",
+                    type: "Control",
+                    scope: "#/properties/topics",
                     options: {
-                        dataRequirements: {
-                            accepts: ["PointsCloud"]
+                        detail: {
+                            type: "VerticalLayout",
+                            elements: [
+                                {
+                                    type: "TopicSelect",
+                                    scope: "#/properties/topic",
+                                    options: {
+                                        dataRequirements: {
+                                            accepts: ["PointsCloud"]
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
-                } as TopicSelectElement,
-                { type: "Control", scope: "#/properties/maxPoints" } as ControlElement,
-                { type: "Control", scope: "#/properties/updateRate" } as ControlElement,
+                } as ControlElement,
                 { type: "Control", scope: "#/properties/pointSize" } as ControlElement,
-                { type: "Control", scope: "#/properties/rollingBuffer" } as ControlElement,
-                { type: "Control", scope: "#/properties/decayTime" } as ControlElement,
+                { type: "Control", scope: "#/properties/colorMode" } as ControlElement,
                 { type: "Control", scope: "#/properties/theme" } as ControlElement,
                 {
                     type: "Control",
@@ -97,106 +120,51 @@ export function PointsCloudDreiDefinition() {
                         }
                     }
                 } as ControlElement,
+                { type: "Control", scope: "#/properties/useTransparency" } as ControlElement,
+                { type: "Control", scope: "#/properties/rollingBuffer" } as ControlElement,
                 {
-                    type: "Group",
-                    label: "Rotation (degrees)",
-                    elements: [
-                        {
-                            type: "HorizontalLayout",
-                            elements: [
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/rotation/properties/x",
-                                    options: {
-                                        slider: true,
-                                        min: -180,
-                                        max: 180,
-                                        step: 1
-                                    }
-                                },
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/rotation/properties/y",
-                                    options: {
-                                        slider: true,
-                                        min: -180,
-                                        max: 180,
-                                        step: 1
-                                    }
-                                },
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/rotation/properties/z",
-                                    options: {
-                                        slider: true,
-                                        min: -180,
-                                        max: 180,
-                                        step: 1
-                                    }
-                                }
-                            ]
+                    type: "Control",
+                    scope: "#/properties/decayTime",
+                    rule: {
+                        effect: "SHOW",
+                        condition: {
+                            scope: "#/properties/rollingBuffer",
+                            schema: { const: true }
                         }
-                    ]
-                },
+                    }
+                } as ControlElement,
                 {
-                    type: "Group",
-                    label: "Translation",
-                    elements: [
-                        {
-                            type: "HorizontalLayout",
-                            elements: [
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/translation/properties/x",
-                                    options: {
-                                        slider: true,
-                                        min: -10,
-                                        max: 10,
-                                        step: 0.1
-                                    }
-                                },
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/translation/properties/y",
-                                    options: {
-                                        slider: true,
-                                        min: -10,
-                                        max: 10,
-                                        step: 0.1
-                                    }
-                                },
-                                {
-                                    type: "Control",
-                                    scope: "#/properties/translation/properties/z",
-                                    options: {
-                                        slider: true,
-                                        min: -10,
-                                        max: 10,
-                                        step: 0.1
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
+                    type: "FrameSelect",
+                    scope: "#/properties/targetFrame",
+                    options: {
+                        placeholder: "Select target frame"
+                    }
+                } as FrameSelectElement,
+                { type: "Control", scope: "#/properties/sourceConvention" } as ControlElement,
             ]
         } as VerticalLayout,
         data: {
             title: 'Points Cloud',
-            use3D: false,
-            maxPoints: 1000,
-            updateRate: 50,
             pointSize: 0.05,
             rollingBuffer: false,
-            decayTime: 0,
+            decayTime: 1000,
             theme: 'Default',
+            colorMode: 'source',
             useTransparency: false,
             customColor: '#ffffff',
-            rotation: { x: 0, y: 0, z: 0 },
-            translation: { x: 0, y: 0, z: 0 }
+            targetFrame: '',
+            sourceConvention: 'ROS',
+            topics: []
         },
         Component: (data: PointsCloudProps) => (
-            <LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+            <LocalDataSourcesProvider
+                SelectedTopics={
+                    data.topics && data.topics.length > 0
+                        ? data.topics.map(entry => entry.topic)
+                        : []
+                }
+                buffersSize={1}
+            >
                 <PointsCloudComp {...data} />
             </LocalDataSourcesProvider>
         )

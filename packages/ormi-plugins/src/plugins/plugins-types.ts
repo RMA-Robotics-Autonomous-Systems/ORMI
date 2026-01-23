@@ -19,6 +19,23 @@ enum PluginsHooks {
     TRANSFORM_TREE = "CORE-TRANSFORM-TREE", // hooks that take a map of transform tree and return a map transform tree
 
     MAP_LOCAL_VISUALIZERS = "map-local-visualizers", // hooks that take a map of local topic visualizers and return an extended map
+
+    // ========================================================================
+    // Remote Call Hooks (Services/Actions unified API)
+    // ========================================================================
+
+    /**
+     * Filter that returns all available remote calls from all datasources.
+     * Similar to AVAILABLE_TOPICS but for services/actions.
+     * params: [ calls: RemoteCallDefinition[], filter?: RemoteCallFilter ]
+     */
+    AVAILABLE_REMOTE_CALLS = "plugins-remote-calls-list",
+
+    /**
+     * Filter to get the schema/definition for a specific remote call.
+     * params: [ definition: RemoteCallDefinition | null, datasource_id: string, callName: string ]
+     */
+    REMOTE_CALL_DEFINITION = "plugins-remote-call-definition",
 }
 
 interface PluginAction {
@@ -115,7 +132,7 @@ export class Plugin {
                 actionName,
                 new Map<string, PluginAction>([
                     [action.id || this.name, action],
-                ])
+                ]),
             );
         }
     }
@@ -128,7 +145,7 @@ export class Plugin {
                 filterName,
                 new Map<string, PluginFilter>([
                     [filter.id || this.name, filter],
-                ])
+                ]),
             );
         }
     }

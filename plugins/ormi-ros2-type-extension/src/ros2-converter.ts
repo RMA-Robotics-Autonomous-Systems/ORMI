@@ -47,7 +47,7 @@ class Converters {
                         function eulerToQuaternion(
                             x: number,
                             y: number,
-                            z: number
+                            z: number,
                         ): { x: number; y: number; z: number; w: number } {
                             const cy = Math.cos(z * 0.5);
                             const sy = Math.sin(z * 0.5);
@@ -138,7 +138,7 @@ class Converters {
                                 stamp: {
                                     sec: Math.floor(pose.timestamp),
                                     nanosec: Math.floor(
-                                        (pose.timestamp % 1) * 1e9
+                                        (pose.timestamp % 1) * 1e9,
                                     ),
                                 },
                                 frame_id: "",
@@ -193,12 +193,14 @@ class Converters {
                                     },
                                     timestamp: poseTimestamp,
                                 };
-                            }
+                            },
                         );
 
                         return {
                             poses,
                             timestamp,
+                            // ROS Path uses ROS REP-103 coordinate convention
+                            convention: "ROS" as const,
                         };
                     },
                 },
@@ -314,7 +316,7 @@ export const ConverterFilterFunction = (converters: {
             if (converter && converter.conversions) {
                 Object.assign(
                     converterEntries[webType].conversions,
-                    converter.conversions
+                    converter.conversions,
                 );
             }
         }

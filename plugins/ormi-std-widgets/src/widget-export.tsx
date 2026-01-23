@@ -2,6 +2,7 @@
 
 
 import { PluginsViewerDefinition } from './widgets/misc/plugins-viewer';
+import { RemoteCallExplorerDefinition } from './widgets/misc/remote-call-explorer';
 import { JsonViewerDefinition } from './widgets/basic/json-viewer';
 import { TreeViewerDefinition } from './widgets/basic/tree-viewer';
 import { KeyboardControlDefinition } from './widgets/keyboard/cmd-vel-keyboard';
@@ -35,6 +36,7 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
     widgets.push(NotAPongDefinition());
     widgets.push(IframeDefinition());
     widgets.push(PluginsViewerDefinition());
+    widgets.push(RemoteCallExplorerDefinition());
     widgets.push(TreeViewerDefinition());
     widgets.push(JsonViewerDefinition());
     widgets.push(JsonListDefinition());
