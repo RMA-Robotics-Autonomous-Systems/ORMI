@@ -303,6 +303,14 @@ const PanelDashboard = () => {
         previousWidgets.current = currentWidgetIds;
     }, [widgets, addWidgetToLayout]);
 
+    const onLockToggleRef = useRef(lockUnLockDashboard);
+    const onSaveRef = useRef(savesDashboard);
+
+    useEffect(() => {
+        onLockToggleRef.current = lockUnLockDashboard;
+        onSaveRef.current = savesDashboard;
+    }, [lockUnLockDashboard, savesDashboard]);
+
     // Navbar items: Template drawer (right), lock/unlock and save (center)
     useEffect(() => {
         setNavbarItem("right", "template_drawer",
@@ -318,7 +326,7 @@ const PanelDashboard = () => {
         return () => {
             removeNavbarItem("right", "template_drawer");
         }
-    }, [templates]);
+    }, [templates, addWidget, addDatasource, removeTemplate, updateTemplate, setNavbarItem, removeNavbarItem]);
 
 
     const handleValidate = useCallback((widget: WidgetDefinition, settings: object) => {
@@ -330,7 +338,7 @@ const PanelDashboard = () => {
         setNavbarItem("center", "widgets_combo", <WidgetsCombo onValidate={handleValidate} />);
 
         setNavbarItem("center", "lock_unlock",
-            <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>
+            <Button variant={"ghost"} onClick={() => { onLockToggleRef.current(); }}>
                 {!locked ? <LockIcon /> : <LockOpenIcon />}
             </Button>
         );
@@ -342,7 +350,7 @@ const PanelDashboard = () => {
                     animation: "pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
                     boxShadow: "0 0 0 0 hsl(var(--primary))"
                 } : {}}
-                onClick={() => { savesDashboard(); }}
+                onClick={() => { onSaveRef.current(); }}
             >
                 {hasChanged ? <Save /> : <Check />}
             </Button>
@@ -353,7 +361,7 @@ const PanelDashboard = () => {
             removeNavbarItem("center", "lock_unlock");
             removeNavbarItem("center", "save");
         }
-    }, [locked, hasChanged, layouts, widgets]);
+    }, [locked, hasChanged, handleValidate, setNavbarItem, removeNavbarItem]);
 
     return (
         <div className="w-full h-[96dvh] flex flex-col p-1.5">

@@ -30,6 +30,7 @@
     },
     "dependencies": {
         "@jsonforms/core": "^3.7.0",
+        "@jsonforms/react": "^3.7.0",
         "@react-three/drei": "^10.7.0",
         "@react-three/fiber": "^9.4.0",
         "@types/d3": "^7.4.3",

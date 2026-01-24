@@ -56,7 +56,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
         setDataSourcesTypes(dataSourcesTypes_map);
         setDataLoaded(true);
 
-    }, []);
+    }, [pluginsManager]);
 
     useEffect(() => {
         setInitialized(dataLoaded === true);
@@ -157,7 +157,18 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             pluginsManager.removeFilter("available_datasources");
         };
 
-    }, [initialized, addDatasource, dataSourcesTypes, datasources, pluginsManager, removeDatasource, updateDatasource]);
+    }, [
+        initialized,
+        addDatasource,
+        removeDatasource,
+        updateDatasource,
+        dataSourcesTypes,
+        datasources,
+        pluginsManager,
+        addTemplate,
+        setNavbarItem,
+        removeNavbarItem
+    ]);
 
     useEffect(() => {
         if (!initialized) return;
@@ -187,7 +198,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
             pluginsManager.removeFilter("filter_widgets_list_based_on_datasources");
         }
 
-    }, [datasources, initialized]);
+    }, [datasources, initialized, pluginsManager]);
 
     // Memoize the provider chain to prevent unnecessary rerenders
     const providerChain = React.useMemo(() => {

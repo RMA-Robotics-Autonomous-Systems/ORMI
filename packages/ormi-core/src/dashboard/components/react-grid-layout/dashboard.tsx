@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // Replace with your actual toast import if needed
 // Use alert as fallback for toast
 const showToast = (msg: string) => alert(msg);
@@ -21,14 +21,22 @@ import { useTemplates } from "../../../templates/templates-provider";
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
 import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
-import { useDashboardManager } from "../dashboard-provider";
+import { useDashboardActions } from "../dashboard-provider";
+import { useAtomValue } from "jotai";
+import { widgetsAtom, layoutsAtom, lockedAtom, hasChangedAtom, forceReloadAtom, widgetAtomFamily } from "../../atoms";
 
 
 
 
 const Dashboard = () => {
 
-    const { widgets, updateWidget, removeWidget, addWidget, layouts, dispatch, getComponents, getDefinition, locked, lockUnLockDashboard, savesDashboard, hasChanged, forceReload, datasources, addDatasource } = useDashboardManager();
+    const widgets = useAtomValue(widgetsAtom);
+    const layouts = useAtomValue(layoutsAtom);
+    const locked = useAtomValue(lockedAtom);
+    const hasChanged = useAtomValue(hasChangedAtom);
+    const forceReload = useAtomValue(forceReloadAtom);
+
+    const { updateWidget, removeWidget, addWidget, getDefinition, lockUnLockDashboard, savesDashboard, addDatasource, updateLayouts } = useDashboardActions();
 
     // Cast generic layouts to react-grid-layout format
     const gridLayouts = layouts as Layouts;
@@ -37,26 +45,26 @@ const Dashboard = () => {
     const [compactType, setCompactType] = useState<"vertical" | "horizontal" | null>(null);
 
     // Type-specific layout functions
-    const layoutsChanged = (newLayouts: Layouts) => {
-        dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
-    };
+    const layoutsChanged = useCallback((newLayouts: Layouts) => {
+        updateLayouts(newLayouts);
+    }, [updateLayouts]);
 
-    const moveToVertical = () => {
+    const moveToVertical = useCallback(() => {
         setCompactType("vertical");
         setTimeout(() => setCompactType(null), 500);
-    };
+    }, []);
 
-    const moveToHorizontal = () => {
+    const moveToHorizontal = useCallback(() => {
         setCompactType("horizontal");
         setTimeout(() => setCompactType(null), 500);
-    };
+    }, []);
 
     // Improved exploseLayout supporting multiple types
     type Breakpoint = "lg" | "md" | "sm" | "xs" | "xxs";
     type LayoutMatrix = { cols: number; rows: number };
     // Use forceReload and setForceReload from dashboard manager context
 
-    const exploseLayout = (type: "custom" | "rows" | "columns" | "masonry" | "single" = "custom") => {
+    const exploseLayout = useCallback((type: "custom" | "rows" | "columns" | "masonry" | "single" = "custom") => {
         if (locked) {
             showToast("Dashboard is locked. Unlock the dashboard to explode the layout");
             return;
@@ -209,7 +217,7 @@ const Dashboard = () => {
         }
         new_layouts[breakpoint] = updated;
         layoutsChanged(new_layouts);
-    };
+    }, [gridLayouts, layoutsChanged, locked, widgets.size]);
 
     const { templates, removeTemplate, updateTemplate } = useTemplates();
 
@@ -217,31 +225,31 @@ const Dashboard = () => {
 
     const ResponsiveGridLayout = useMemo(() => WidthProvider(Responsive) as unknown as React.FC<any>, [forceReload]);  // (improve performance from 'doc', also, juste make it works)
 
-    const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
+    const handleLayoutChange = useCallback((currentLayout: Layout[], allLayouts: Layouts) => {
         if (JSON.stringify(gridLayouts) !== JSON.stringify(allLayouts)) {
             layoutsChanged({ ...allLayouts });
         }
-    }
+    }, [gridLayouts, layoutsChanged]);
 
-    const handleRemoveBoxClick = (boxId: string) => {
+    const handleRemoveBoxClick = useCallback((boxId: string) => {
         removeWidget(boxId);
-    }
+    }, [removeWidget]);
 
-    const handleValidate = (widget: WidgetDefinition, settings: object) => {
+    const handleValidate = useCallback((widget: WidgetDefinition, settings: object) => {
         addWidget(widget, settings);
-    }
+    }, [addWidget]);
 
-    const handleSaveWidget = (box_id: string, widget: WidgetDefinition, settings: object) => {
+    const handleSaveWidget = useCallback((box_id: string, widget: WidgetDefinition, settings: object) => {
         updateWidget(box_id, settings);
-    }
-    // Navbar setup
-    useEffect(() => {
-        console.log("mounting dashboard");
+    }, [updateWidget]);
 
-        return () => {
-            console.log("unmounting dashboard");
-        };
-    }, [])
+    const onLockToggleRef = useRef(lockUnLockDashboard);
+    const onSaveRef = useRef(savesDashboard);
+
+    useEffect(() => {
+        onLockToggleRef.current = lockUnLockDashboard;
+        onSaveRef.current = savesDashboard;
+    }, [lockUnLockDashboard, savesDashboard]);
 
     useEffect(() => {
         setNavbarItem("right", "template_drawer",
@@ -257,14 +265,14 @@ const Dashboard = () => {
         return () => {
             removeNavbarItem("right", "template_drawer");
         }
-    }, [templates, addWidget, addDatasource]);
+    }, [templates, addWidget, addDatasource, removeTemplate, updateTemplate, setNavbarItem, removeNavbarItem]);
 
     useEffect(() => {
 
         setNavbarItem("center", "widgets_combo", <WidgetsCombo onValidate={handleValidate} />);
 
         setNavbarItem("center", "lock_unlock",
-            <Button variant={"ghost"} onClick={() => { lockUnLockDashboard(); }}>
+            <Button variant={"ghost"} onClick={() => { onLockToggleRef.current(); }}>
                 {!locked ? <LockIcon /> : <LockOpenIcon />}
             </Button>
         );
@@ -322,7 +330,7 @@ const Dashboard = () => {
                     animation: "pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
                     boxShadow: "0 0 0 0 hsl(var(--primary))"
                 } : {}}
-                onClick={() => { savesDashboard(); }}
+                onClick={() => { onSaveRef.current(); }}
             >
                 {hasChanged ? <Save /> : <Check />}
             </Button>
@@ -336,7 +344,7 @@ const Dashboard = () => {
             removeNavbarItem("center", "exploseLayout");
             removeNavbarItem("center", "save");
         }
-    }, [locked, hasChanged, gridLayouts, widgets]);
+    }, [locked, hasChanged, moveToHorizontal, moveToVertical, exploseLayout, handleValidate, setNavbarItem, removeNavbarItem]);
 
 
     const widgets_elements = useMemo(() => {
@@ -359,7 +367,7 @@ const Dashboard = () => {
                                     </Button>)}
                                 </div>
                                 <div className="flex-grow overflow-hidden">
-                                    {getComponents(widget.box_id)}
+                                    <GridWidgetContent widgetId={widget.box_id} getDefinition={getDefinition} />
                                 </div>
                             </ButtonHolderProvider>
                         </div>
@@ -368,7 +376,7 @@ const Dashboard = () => {
             )
         );
 
-    }, [widgets, datasources, locked]);
+    }, [widgets, locked, getDefinition, handleSaveWidget, handleRemoveBoxClick]);
 
     return (
         <ResponsiveGridLayout
@@ -393,3 +401,14 @@ const Dashboard = () => {
 };
 
 export { Dashboard };
+
+const GridWidgetContent = React.memo(({ widgetId, getDefinition }: { widgetId: string; getDefinition: (widget_id: string) => WidgetDefinition; }) => {
+    const widget = useAtomValue(widgetAtomFamily(widgetId));
+
+    if (!widget) {
+        return null;
+    }
+
+    const definition = getDefinition(widget.widget_id);
+    return definition.Component(widget.settings);
+}, (prev, next) => prev.widgetId === next.widgetId && prev.getDefinition === next.getDefinition);

@@ -41,11 +41,19 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
         onLockToggleRef.current = onLockToggle;
     }, [onSave, onLockToggle]);
 
+    const onAddWidgetRef = React.useRef(onAddWidget);
+    const onAddDatasourceRef = React.useRef(onAddDatasource);
+
+    React.useEffect(() => {
+        onAddWidgetRef.current = onAddWidget;
+        onAddDatasourceRef.current = onAddDatasource;
+    }, [onAddWidget, onAddDatasource]);
+
     const handleAddWidget = useCallback(
         (widget: WidgetDefinition, settings: object) => {
-            onAddWidget(widget, settings);
+            onAddWidgetRef.current(widget, settings);
         },
-        [onAddWidget]
+        []
     );
 
     // Setup navbar items
@@ -56,8 +64,8 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
             "template_drawer",
             <WidgetTemplateDrawer
                 templates={templates}
-                addWidget={onAddWidget}
-                addDatasource={onAddDatasource}
+                addWidget={(widget, settings) => onAddWidgetRef.current(widget, settings)}
+                addDatasource={(datasourceId, settings) => onAddDatasourceRef.current(datasourceId, settings)}
                 removeTemplate={removeTemplate}
                 updateTemplate={updateTemplate}
             />
@@ -114,8 +122,10 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
         templates,
         locked,
         hasChanged,
-        // Note: We're intentionally NOT including the callback props to avoid infinite loops
-        // The save button uses a ref to always get the latest onSave function
+        removeTemplate,
+        updateTemplate,
+        setNavbarItem,
+        removeNavbarItem
     ]);
 
     return null; // This component only manages navbar items

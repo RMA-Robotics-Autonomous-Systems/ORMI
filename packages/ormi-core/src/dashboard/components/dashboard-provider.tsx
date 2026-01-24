@@ -1,6 +1,8 @@
 "use client"
 
-import React, { createContext, useContext, ReactNode, useEffect, useReducer, JSX } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useReducer, JSX, useCallback, useMemo, useRef } from 'react';
+import { useAtom } from 'jotai';
+import { widgetsAtom, layoutsAtom, lockedAtom, hasChangedAtom, forceReloadAtom, datasourcesAtom } from '../atoms';
 import { DashboardInterface } from '../dashboard-interface';
 import { Widget, WidgetDefinition } from '../../widgets/widget-interface';
 import { PluginsManager, usePluginsManager, PluginsHooks } from '@workspace/ormi-plugins';
@@ -74,6 +76,20 @@ interface DashboardContextInterface {
     dispatch: React.Dispatch<any>;
 }
 
+interface DashboardActionsInterface {
+    getDefinition: (widget_id: string) => WidgetDefinition;
+    addWidget: (widget: WidgetDefinition, settings: any) => void;
+    removeWidget: (box_id: string) => void;
+    updateWidget: (box_id: string, settings: any) => void;
+    updateLayouts: (newLayouts: Record<string, any>) => void;
+    lockUnLockDashboard(): void;
+    savesDashboard: () => void;
+    addDatasource: (datasource_id: string, settings?: DatasourceProviderSettings) => void;
+    removeDatasource: (datasource_id: string) => void;
+    updateDatasource: (datasource_id: string, settings: DatasourceProviderSettings) => void;
+    dispatch: React.Dispatch<any>;
+}
+
 // Create the context with a default value
 const DashboardContext = createContext<DashboardContextInterface>({
     layouts: {},
@@ -98,6 +114,20 @@ const DashboardContext = createContext<DashboardContextInterface>({
     updateDatasource: () => { },
     addDatasource: () => { },
     removeDatasource: () => { },
+    dispatch: () => { throw new Error("Dispatch not implemented."); }
+});
+
+const DashboardActionsContext = createContext<DashboardActionsInterface>({
+    getDefinition: () => { throw new Error("Method not implemented."); },
+    addWidget: () => { },
+    removeWidget: () => { },
+    updateWidget: () => { },
+    updateLayouts: () => { },
+    lockUnLockDashboard: () => { },
+    savesDashboard: () => { },
+    addDatasource: () => { },
+    removeDatasource: () => { },
+    updateDatasource: () => { },
     dispatch: () => { throw new Error("Dispatch not implemented."); }
 });
 
@@ -147,9 +177,27 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     const availableDatasources: DatasourceDefinition[] = pluginsManager.applyFilter<DatasourceDefinition[]>(PluginsHooks.DATASOURCES_LIST, []);
 
     const [state, dispatch] = useReducer(dashboardReducer, initialStateFromDefinition(dashboardDefinition));
+    const [, setWidgetsAtom] = useAtom(widgetsAtom);
+    const [, setLayoutsAtom] = useAtom(layoutsAtom);
+    const [, setLockedAtom] = useAtom(lockedAtom);
+    const [, setHasChangedAtom] = useAtom(hasChangedAtom);
+    const [, setForceReloadAtom] = useAtom(forceReloadAtom);
+    const [, setDatasourcesAtom] = useAtom(datasourcesAtom);
     const [hasChanged, setHasChanged] = React.useState<boolean>(false);
     const [initialized, setInitialized] = React.useState(false);
     const [initialHash, setInitialHash] = React.useState<string>("");
+
+    useEffect(() => {
+        setWidgetsAtom(state.widgets);
+        setLayoutsAtom(state.layouts);
+        setLockedAtom(state.locked);
+        setForceReloadAtom(state.forceReload);
+        setDatasourcesAtom(state.datasources);
+    }, [state.widgets, state.layouts, state.locked, state.forceReload, state.datasources, setWidgetsAtom, setLayoutsAtom, setLockedAtom, setForceReloadAtom, setDatasourcesAtom]);
+
+    useEffect(() => {
+        setHasChangedAtom(hasChanged);
+    }, [hasChanged, setHasChangedAtom]);
 
     // PluginsManager topic filter (restored from old provider)
     useEffect(() => {
@@ -192,30 +240,53 @@ const DashboardProvider = (props: DashboardProviderProps) => {
     }, [state, initialized, initialHash]);
 
     // Helper: getComponents
-    const getComponents = (boxId: string) => {
+    const getComponents = useCallback((boxId: string) => {
         const widget = state.widgets.get(boxId);
         if (widget) {
             const widgetDefinition = availableWidgets.find((widget_def) => widget_def.id === widget.widget_id);
             if (widgetDefinition) {
-                return widgetDefinition.Component(widget.settings);
+                return <WidgetHost component={widgetDefinition.Component} settings={widget.settings} />;
             }
         }
         console.error("Widget not found for boxId:", boxId);
-        return widgetNotFound.Component([<p>Widget not found</p>, boxId]);
-    };
+        return <WidgetHost component={widgetNotFound.Component} settings={[<p>Widget not found</p>, boxId]} />;
+    }, [state.widgets, availableWidgets]);
 
-    // Helper: getDefinition
-    const getDefinition = (widget_id: string) => {
-        const widget = availableWidgets.find((widget_def) => widget_def.id === widget_id);
+    const stateRef = useRef(state);
+    const availableWidgetsRef = useRef(availableWidgets);
+    const availableDatasourcesRef = useRef(availableDatasources);
+    const hasChangedRef = useRef(hasChanged);
+    const initialHashRef = useRef(initialHash);
+    const onSaveRef = useRef(OnSave);
+
+    useEffect(() => {
+        stateRef.current = state;
+        availableWidgetsRef.current = availableWidgets;
+        availableDatasourcesRef.current = availableDatasources;
+    }, [state, availableWidgets, availableDatasources]);
+
+    useEffect(() => {
+        hasChangedRef.current = hasChanged;
+        initialHashRef.current = initialHash;
+    }, [hasChanged, initialHash]);
+
+    useEffect(() => {
+        onSaveRef.current = OnSave;
+    }, [OnSave]);
+
+    // Helper: getDefinition (stable)
+    const getDefinition = useCallback((widget_id: string) => {
+        const widget = availableWidgetsRef.current.find((widget_def) => widget_def.id === widget_id);
         if (widget) {
             return widget;
         }
         return widgetNotFound;
-    };
+    }, []);
 
     // Generic widget CRUD helpers
-    const addWidget = (widget: WidgetDefinition, settings: any) => {
-        const box_id = `component_${state.widgets.size}_${Date.now()}`;
+    const addWidget = useCallback((widget: WidgetDefinition, settings: any) => {
+        const currentState = stateRef.current;
+        const box_id = `component_${currentState.widgets.size}_${Date.now()}`;
         let widget_title = widget.name;
         if (widget.titleProp) {
             widget_title = settings[widget.titleProp];
@@ -224,43 +295,47 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             box_id,
             widget_id: widget.id,
             title: widget_title,
-            settings,
+            settings: settings ? { ...settings } : settings,
         };
-        const newWidgets = new Map(state.widgets);
+        const newWidgets = new Map(currentState.widgets);
         newWidgets.set(box_id, newWidget);
         dispatch({ type: "SET_WIDGETS", payload: newWidgets });
         // Layout manipulation is type-specific, handled in dashboard type component
-    };
+    }, [dispatch]);
 
-    const removeWidget = (box_id: string) => {
-        const newWidgets = new Map(state.widgets);
+    const removeWidget = useCallback((box_id: string) => {
+        const newWidgets = new Map(stateRef.current.widgets);
         newWidgets.delete(box_id);
         dispatch({ type: "SET_WIDGETS", payload: newWidgets });
         // Layout manipulation is type-specific, handled in dashboard type component
-    };
+    }, [dispatch]);
 
-    const updateWidget = (box_id: string, settings: any) => {
-        const newWidgets = new Map(state.widgets);
+    const updateWidget = useCallback((box_id: string, settings: any) => {
+        const newWidgets = new Map(stateRef.current.widgets);
         const widget = newWidgets.get(box_id) as Widget | undefined;
         if (widget) {
-            widget.settings = settings;
             const widgetDef = getDefinition(widget.widget_id);
-            if (widgetDef.titleProp) {
-                widget.title = settings[widgetDef.titleProp];
-            }
-            newWidgets.set(box_id, widget);
+            const nextSettings = settings ? { ...settings } : settings;
+            const nextTitle = widgetDef.titleProp ? nextSettings?.[widgetDef.titleProp] : widget.title;
+            const nextWidget: Widget = {
+                ...widget,
+                settings: nextSettings,
+                title: nextTitle ?? widget.title,
+            };
+            newWidgets.set(box_id, nextWidget);
             dispatch({ type: "SET_WIDGETS", payload: newWidgets });
         }
-    };
+    }, [dispatch, getDefinition]);
 
-    const updateLayouts = (newLayouts: Record<string, any>) => {
+    const updateLayouts = useCallback((newLayouts: Record<string, any>) => {
         dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
-    };
+    }, [dispatch]);
 
     // Datasource CRUD helpers (restored logic)
-    const addDatasource = (datasource_id: string, settings?: DatasourceProviderSettings) => {
-        const newDatasources = new Map(state.datasources);
-        const datasourceDef = availableDatasources.find((datasource) => datasource.id === datasource_id);
+    const addDatasource = useCallback((datasource_id: string, settings?: DatasourceProviderSettings) => {
+        const currentState = stateRef.current;
+        const newDatasources = new Map(currentState.datasources);
+        const datasourceDef = availableDatasourcesRef.current.find((datasource) => datasource.id === datasource_id);
         if (!datasourceDef) {
             throw new Error(`Datasource ${datasource_id} not found`);
         }
@@ -279,16 +354,16 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         } as Datasource;
         newDatasources.set(id, datasource);
         dispatch({ type: "SET_DATASOURCES", payload: newDatasources });
-    };
+    }, [dispatch]);
 
-    const removeDatasource = (source_id: string) => {
-        const newDatasources = new Map(state.datasources);
+    const removeDatasource = useCallback((source_id: string) => {
+        const newDatasources = new Map(stateRef.current.datasources);
         newDatasources.delete(source_id);
         dispatch({ type: "SET_DATASOURCES", payload: newDatasources });
-    };
+    }, [dispatch]);
 
-    const updateDatasource = (datasource_id: string, settings: DatasourceProviderSettings) => {
-        const newDatasources = new Map(state.datasources);
+    const updateDatasource = useCallback((datasource_id: string, settings: DatasourceProviderSettings) => {
+        const newDatasources = new Map(stateRef.current.datasources);
         const datasource = newDatasources.get(settings.id) as Datasource | undefined;
         if (datasource) {
             datasource.settings = settings;
@@ -296,18 +371,18 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             newDatasources.set(settings.id, datasource);
             dispatch({ type: "SET_DATASOURCES", payload: newDatasources });
         }
-    };
+    }, [dispatch]);
 
     // Save dashboard state
-    const savesDashboard = async () => {
-        if (!hasChanged) {
+    const savesDashboard = useCallback(async () => {
+        if (!hasChangedRef.current) {
             toast("No changes to save");
             return;
         }
 
         // Force React to give us the most current state by using a functional update
         // This ensures all batched SET_LAYOUTS updates are processed
-        let latestState = state;
+        let latestState = stateRef.current;
         dispatch((currentState: any) => {
             latestState = currentState;
             return currentState; // No actual change, just capture the latest state
@@ -321,9 +396,9 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         };
 
         try {
-            const success = await OnSave(newDashboard);
+            const success = await onSaveRef.current(newDashboard);
             if (success) {
-                const currentHash = hashDashboardState(state.layouts, state.widgets, state.datasources, state.locked);
+                const currentHash = hashDashboardState(latestState.layouts, latestState.widgets, latestState.datasources, latestState.locked);
                 setInitialHash((prev) => currentHash);
                 setHasChanged(false);
             } else {
@@ -333,14 +408,14 @@ const DashboardProvider = (props: DashboardProviderProps) => {
             console.error("Save error:", error);
             toast("Failed to save dashboard");
         }
-    };
+    }, [dispatch]);
 
     // Lock/unlock dashboard
-    const lockUnLockDashboard = () => {
-        dispatch({ type: "SET_LOCKED", payload: !state.locked });
-    };
+    const lockUnLockDashboard = useCallback(() => {
+        dispatch({ type: "SET_LOCKED", payload: !stateRef.current.locked });
+    }, [dispatch]);
 
-    const contextValue = {
+    const contextValue = useMemo(() => ({
         ...state,
         dispatch,
         dashboardType,
@@ -357,12 +432,56 @@ const DashboardProvider = (props: DashboardProviderProps) => {
         updateDatasource,
         savesDashboard,
         // Layout manipulation is type-specific, handled in dashboard type component
-    };
+    }), [
+        state,
+        dispatch,
+        dashboardType,
+        hasChanged,
+        getComponents,
+        getDefinition,
+        lockUnLockDashboard,
+        addWidget,
+        removeWidget,
+        updateWidget,
+        updateLayouts,
+        addDatasource,
+        removeDatasource,
+        updateDatasource,
+        savesDashboard
+    ]);
+
+    const actionsValue = useMemo(() => ({
+        getDefinition,
+        addWidget,
+        removeWidget,
+        updateWidget,
+        updateLayouts,
+        lockUnLockDashboard,
+        savesDashboard,
+        addDatasource,
+        removeDatasource,
+        updateDatasource,
+        dispatch,
+    }), [
+        getDefinition,
+        addWidget,
+        removeWidget,
+        updateWidget,
+        updateLayouts,
+        lockUnLockDashboard,
+        savesDashboard,
+        addDatasource,
+        removeDatasource,
+        updateDatasource,
+        dispatch
+    ]);
 
     return (
-        <DashboardContext.Provider value={contextValue}>
-            {initialized ? children : <Spinner />}
-        </DashboardContext.Provider>
+        <DashboardActionsContext.Provider value={actionsValue}>
+            <DashboardContext.Provider value={contextValue}>
+                {initialized ? children : <Spinner />}
+            </DashboardContext.Provider>
+        </DashboardActionsContext.Provider>
     );
 };
 
@@ -376,3 +495,23 @@ const useDashboardManager = () => {
 };
 
 export { DashboardProvider, useDashboardManager };
+
+const useDashboardActions = () => {
+    const context = useContext(DashboardActionsContext);
+    if (context === undefined) {
+        throw new Error('useDashboardActions must be used within a DashboardProvider');
+    }
+    return context;
+};
+
+export { useDashboardActions };
+
+const WidgetHost = React.memo(
+    ({ component, settings }: { component: React.ElementType | React.ReactElement; settings: any }) => {
+        if (React.isValidElement(component)) {
+            return component;
+        }
+        return React.createElement(component as React.ElementType, settings);
+    },
+    (prev, next) => prev.component === next.component && prev.settings === next.settings
+);
