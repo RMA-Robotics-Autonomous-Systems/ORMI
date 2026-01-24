@@ -11,9 +11,12 @@ The ORMI-CORE dashboard system provides a flexible architecture for displaying a
 
 ```mermaid
 graph TD
-    DP[DashboardProvider<br/>State Management] --> RGL[React-Grid-Layout<br/>Grid Dashboard]
-    DP --> RCD[RC-Dock<br/>Panel Dashboard]
-    DP --> FL[FlexLayout<br/>Flex Dashboard]
+    DP[DashboardProvider<br/>Reducer + Persistence] --> AT[Dashboard Atoms<br/>Jotai State]
+    DP --> ACT[DashboardActions<br/>Mutations]
+
+    AT --> RGL[React-Grid-Layout<br/>Grid Dashboard]
+    AT --> RCD[RC-Dock<br/>Panel Dashboard]
+    AT --> FL[FlexLayout<br/>Flex Dashboard]
 
     RGL --> W1[Widget 1]
     RGL --> W2[Widget 2]
@@ -23,6 +26,8 @@ graph TD
     FL --> W2
 
     style DP fill:#e3f2fd
+    style AT fill:#e8f5e9
+    style ACT fill:#e8f5e9
     style RGL fill:#fff3e0
     style RCD fill:#fff3e0
     style FL fill:#fff3e0
@@ -53,7 +58,7 @@ interface DashboardInterface {
 
 ```typescript
 const {
-    // State
+    // State (legacy, full context)
     widgets,
     datasources,
     layouts,
@@ -84,9 +89,55 @@ const {
 } = useDashboardManager();
 ```
 
+### Actions API (preferred for mutations)
+
+Use `useDashboardActions()` for stable mutation callbacks without subscribing to full state.
+
+```typescript
+const {
+    getDefinition,
+    addWidget,
+    removeWidget,
+    updateWidget,
+    updateLayouts,
+    lockUnLockDashboard,
+    savesDashboard,
+    addDatasource,
+    removeDatasource,
+    updateDatasource,
+    dispatch,
+} = useDashboardActions();
+```
+
+### State Atoms (preferred for rendering)
+
+Use Jotai atoms to subscribe only to the state you need. This prevents layout changes from re-rendering widgets.
+
+```typescript
+import { useAtomValue } from "jotai";
+import {
+    widgetsAtom,
+    layoutsAtom,
+    lockedAtom,
+    hasChangedAtom,
+    forceReloadAtom,
+    datasourcesAtom,
+    widgetAtomFamily,
+} from "@workspace/ormi-core/dashboard/atoms";
+
+const widgets = useAtomValue(widgetsAtom);
+const layouts = useAtomValue(layoutsAtom);
+const locked = useAtomValue(lockedAtom);
+const hasChanged = useAtomValue(hasChangedAtom);
+const datasources = useAtomValue(datasourcesAtom);
+
+// Per-widget subscription (only re-renders when this widget changes)
+const widget = useAtomValue(widgetAtomFamily(boxId));
+```
+
 ### State Management
 
-The DashboardProvider uses `useReducer` for state management:
+The DashboardProvider uses `useReducer` for state management and mirrors state into atoms:
 
 ```typescript
 function dashboardReducer(state, action) {
@@ -214,6 +265,14 @@ exploseLayout("single"); // All widgets in one column
 - Custom tab rendering
 
 **Component:** `PanelDashboard` from `rc-dock/panel-dashboard.tsx`
+
+### 3. Flex Layout (FlexLayout)
+
+**Best for:** Complex, IDE-like dashboards with advanced docking and tab control
+
+**Component:** `FlexLayoutDashboard` from `flex-layout/flex-layout-dashboard.tsx`
+
+**State strategy:** FlexLayout reads layout state from atoms and widget content subscribes via `widgetAtomFamily`, so layout operations do not force widget re-renders.
 
 **Layout Structure:**
 
