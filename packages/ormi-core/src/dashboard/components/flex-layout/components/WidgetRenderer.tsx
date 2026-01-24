@@ -3,10 +3,12 @@ import ReactDOM from "react-dom";
 import { ButtonHolder, ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
 import { Widget, WidgetDefinition } from "../../../../widgets/widget-interface";
 import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
+import { useAtomValue } from "jotai";
+import { widgetAtomFamily } from "../../../atoms";
+
 
 interface WidgetRendererProps {
     widgetId: string;
-    widget: Widget | undefined;
     definition: WidgetDefinition | null;
 }
 
@@ -34,11 +36,12 @@ const ButtonHolderPortal: React.FC<{ widgetId: string }> = ({ widgetId }) => {
  * Simple widget renderer with ButtonHolder integration
  * Replaces the complex OptimizedWidget system
  */
-export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
+const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
     widgetId,
-    widget,
     definition,
 }) => {
+    const widget = useAtomValue(widgetAtomFamily(widgetId));
+
     if (!widget || !definition) {
         return (
             <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -53,8 +56,21 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
                 {/* Portal ButtonHolder to tab title */}
                 <ButtonHolderPortal widgetId={widgetId} />
 
-                {definition.Component(widget.settings)}
+                <WidgetHost component={definition.Component} settings={widget.settings} />
             </div>
         </ButtonHolderProvider>
     );
 };
+
+export const WidgetRenderer = React.memo(WidgetRendererComponent);
+WidgetRenderer.displayName = "WidgetRenderer";
+
+const WidgetHost = React.memo(
+    ({ component, settings }: { component: React.ElementType | React.ReactElement; settings: any }) => {
+        if (React.isValidElement(component)) {
+            return component;
+        }
+        return React.createElement(component as React.ElementType, settings);
+    },
+    (prev, next) => prev.component === next.component && prev.settings === next.settings
+);

@@ -3,7 +3,9 @@
 import React, { useRef } from "react";
 import { Layout, TabNode, ITabRenderValues } from "flexlayout-react";
 
-import { useDashboardManager } from "../dashboard-provider";
+import { useDashboardActions } from "../dashboard-provider";
+import { useAtomValue } from "jotai";
+import { widgetsAtom, lockedAtom, hasChangedAtom, layoutsAtom } from "../../atoms";
 import { useFlexLayoutModel } from "./hooks/useFlexLayoutModel";
 import { useWidgetFactory } from "./hooks/useWidgetFactory";
 import { renderTab } from "./components/TabRenderer";
@@ -21,11 +23,12 @@ import { Spinner } from "@workspace/ui/components/spinner";
  * Uses custom hooks for model management and widget rendering.
  */
 const FlexLayoutDashboard = () => {
-    const dashboardState = useDashboardManager();
+    const widgets = useAtomValue(widgetsAtom);
+    const locked = useAtomValue(lockedAtom);
+    const hasChanged = useAtomValue(hasChangedAtom);
+    const layouts = useAtomValue(layoutsAtom);
+
     const {
-        widgets,
-        locked,
-        hasChanged,
         addWidget,
         removeWidget,
         updateWidget,
@@ -34,13 +37,18 @@ const FlexLayoutDashboard = () => {
         getDefinition,
         lockUnLockDashboard,
         savesDashboard,
-    } = dashboardState;
+        dispatch,
+    } = useDashboardActions();
 
     const layoutRef = useRef<Layout>(null);
 
     // Core FlexLayout integration - hook handles all model management
     const { model, onModelChange, onAction } = useFlexLayoutModel({
-        ...dashboardState,
+        widgets,
+        layouts,
+        locked,
+        getDefinition,
+        dispatch,
         removeWidget,
         updateLayouts,
     });

@@ -155,6 +155,23 @@ export const GaugeWidgetDefinition: WidgetDefinition = {
 };
 ```
 
+## Runtime Rendering
+
+Widgets are rendered via a memoized host and subscribe to their own settings through per-widget atoms. Layout changes do not trigger widget re-renders unless the widget settings change.
+
+**Key points:**
+
+- Widget instances are isolated by `box_id`
+- Updates are immutable (new settings object per update)
+- Use `widgetAtomFamily(boxId)` to subscribe to a single widget
+
+```typescript
+import { useAtomValue } from "jotai";
+import { widgetAtomFamily } from "@workspace/ormi-core/dashboard/atoms";
+
+const widget = useAtomValue(widgetAtomFamily(boxId));
+```
+
 ### Widget
 
 Runtime instance of a widget with user-configured settings.
@@ -585,7 +602,7 @@ pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
     filter: (widgets) => {
         const datasources = pluginsManager.applyFilter(
             PluginsHooks.AVAILABLE_DATASOURCES,
-            []
+            [],
         );
 
         if (datasources.length === 0) {
@@ -595,7 +612,7 @@ pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
         return pluginsManager.applyFilter(
             PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
             widgets,
-            datasources
+            datasources,
         );
     },
 });
@@ -745,7 +762,7 @@ pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
     filter: (widgets: WidgetDefinition[]) => {
         const datasources = pluginsManager.applyFilter<Datasource[]>(
             PluginsHooks.AVAILABLE_DATASOURCES,
-            []
+            [],
         );
 
         // No datasources = no widgets
@@ -757,7 +774,7 @@ pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
         return pluginsManager.applyFilter<WidgetDefinition[]>(
             PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
             widgets,
-            datasources
+            datasources,
         );
     },
 });
@@ -775,7 +792,7 @@ pluginsManager.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
     filter: (widgets, datasources) => {
         // Only show ROS-specific widgets if ROS datasource connected
         const hasROS = datasources.some((ds) =>
-            ds.datasource_id.includes("ros")
+            ds.datasource_id.includes("ros"),
         );
 
         if (!hasROS) {
@@ -1235,13 +1252,13 @@ uischema: {
 const widgets = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 console.log(
     "Available widgets:",
-    widgets.map((w) => w.id)
+    widgets.map((w) => w.id),
 );
 
 // Check if datasources are connected
 const datasources = pluginsManager.applyFilter(
     PluginsHooks.AVAILABLE_DATASOURCES,
-    []
+    [],
 );
 console.log("Connected datasources:", datasources);
 ```

@@ -20,14 +20,14 @@ The Dashboard API provides centralized state management for widgets, datasources
 
 For architectural details on dashboard state management and layout integration, see **[Core - Dashboard System](../core/dashboard-system)**.
 
-## useDashboard Hook
+## useDashboardManager Hook
 
-Main hook for accessing dashboard state and operations.
+Legacy hook for accessing the full dashboard state and operations.
 
 ### Signature
 
 ```typescript
-function useDashboard(): {
+function useDashboardManager(): {
     // State
     widgets: Map<string, Widget>;
     datasources: Map<string, Datasource>;
@@ -51,7 +51,7 @@ function useDashboard(): {
     removeDatasource: (datasourceId: string) => void;
     updateDatasource: (
         datasourceId: string,
-        updates: Partial<Datasource>
+        updates: Partial<Datasource>,
     ) => void;
 
     // Persistence
@@ -86,15 +86,68 @@ interface Datasource {
 }
 ```
 
+## useDashboardActions Hook
+
+Preferred hook for mutations without subscribing to full state.
+
+### Signature
+
+```typescript
+function useDashboardActions(): {
+    getDefinition: (widgetTypeId: string) => WidgetDefinition;
+    addWidget: (widget: WidgetDefinition, settings: any) => void;
+    removeWidget: (widgetId: string) => void;
+    updateWidget: (widgetId: string, settings: any) => void;
+    updateLayouts: (layouts: Record<string, any>) => void;
+    lockUnLockDashboard: () => void;
+    savesDashboard: () => Promise<void>;
+    addDatasource: (
+        datasourceId: string,
+        settings?: DatasourceProviderSettings,
+    ) => void;
+    removeDatasource: (datasourceId: string) => void;
+    updateDatasource: (
+        datasourceId: string,
+        settings: DatasourceProviderSettings,
+    ) => void;
+    dispatch: React.Dispatch<any>;
+};
+```
+
+## Dashboard State Atoms
+
+Preferred for rendering to avoid layout-driven rerenders.
+
+```typescript
+import { useAtomValue } from "jotai";
+import {
+    widgetsAtom,
+    layoutsAtom,
+    lockedAtom,
+    hasChangedAtom,
+    forceReloadAtom,
+    datasourcesAtom,
+    widgetAtomFamily,
+} from "@workspace/ormi-core/dashboard/atoms";
+
+const widgets = useAtomValue(widgetsAtom);
+const layouts = useAtomValue(layoutsAtom);
+const locked = useAtomValue(lockedAtom);
+const hasChanged = useAtomValue(hasChangedAtom);
+const datasources = useAtomValue(datasourcesAtom);
+
+const widget = useAtomValue(widgetAtomFamily(widgetId));
+```
+
 ## Basic Usage
 
 ### Add Widget
 
 ```typescript
-import { useDashboard } from '@workspace/ui'
+import { useDashboardActions } from '@workspace/ormi-core/dashboard'
 
 function AddWidgetButton() {
-  const { addWidget } = useDashboard()
+  const { addWidget } = useDashboardActions()
 
   const handleAdd = () => {
     addWidget({
@@ -121,7 +174,7 @@ function AddWidgetButton() {
 
 ```typescript
 function RemoveWidgetButton({ widgetId }: { widgetId: string }) {
-  const { removeWidget } = useDashboard()
+  const { removeWidget } = useDashboardActions()
 
   const handleRemove = () => {
     if (confirm('Remove this widget?')) {
@@ -141,8 +194,8 @@ function RemoveWidgetButton({ widgetId }: { widgetId: string }) {
 
 ```typescript
 function WidgetSettings({ widgetId }: { widgetId: string }) {
-  const { widgets, updateWidget } = useDashboard()
-  const widget = widgets.get(widgetId)
+  const { updateWidget } = useDashboardActions()
+  const widget = useAtomValue(widgetAtomFamily(widgetId))
 
   if (!widget) return null
 
@@ -173,8 +226,8 @@ function WidgetSettings({ widgetId }: { widgetId: string }) {
 
 ```typescript
 function WidgetGallery() {
-  const { getComponents, addWidget } = useDashboard()
-  const availableWidgets = getComponents()
+  const { addWidget, getDefinition } = useDashboardActions()
+  const availableWidgets = useAtomValue(widgetsAtom)
 
   const handleAddWidget = (widgetType: string) => {
     addWidget({
@@ -209,7 +262,8 @@ function WidgetGallery() {
 
 ```typescript
 function DashboardLockToggle() {
-  const { locked, lockUnLockDashboard } = useDashboard()
+  const locked = useAtomValue(lockedAtom)
+  const { lockUnLockDashboard } = useDashboardActions()
 
   return (
     <Button
@@ -236,13 +290,14 @@ function DashboardLockToggle() {
 
 ```typescript
 function SaveDashboardButton() {
-  const { hasChanged, saveDashboard } = useDashboard()
+  const hasChanged = useAtomValue(hasChangedAtom)
+  const { savesDashboard } = useDashboardActions()
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await saveDashboard()
+      await savesDashboard()
       toast.success('Dashboard saved')
     } catch (error) {
       toast.error('Failed to save dashboard')

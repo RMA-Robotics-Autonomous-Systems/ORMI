@@ -76,7 +76,7 @@
         "@workspace/ui": "workspace:*",
         "date-fns": "^4.1.0",
         "flexlayout-react": "^0.8.17",
-        "jotai": "^2.15.2",
+        "jotai": "^2.16.2",
         "json-schema": "^0.4.0",
         "lucide-react": "^0.523.0",
         "rc-dock": "^4.0.0-alpha.2",
