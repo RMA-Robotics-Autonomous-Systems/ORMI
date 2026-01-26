@@ -1,1225 +1,785 @@
 ---
 title: Datasources System
-description: Comprehensive guide to the V1 datasources architecture, providers, subscription system, and data flow
+description: Worker-based datasources architecture with RPC protocol and zero-copy transfers
 ---
 
 # Datasources System
 
-The datasources system in ORMI-CORE V1 provides a flexible architecture for connecting to various data sources (ROS2, WebSocket, REST APIs, etc.) and distributing data to widgets through a provider-based pattern.
+ORMI-CORE V1 uses a **worker-based datasources architecture** where heavy I/O operations run in Web Workers, keeping the main thread responsive and enabling zero-copy data transfers.
 
 ## Overview
 
-### Core Concepts
-
-The datasources system consists of three main layers:
-
-1. **DatasourceDefinition** - Plugin-registered definitions of available datasource types
-2. **Datasource Providers** - React components that manage connections and data streaming
-3. **Subscription System** - Hook-based mechanism for widgets to subscribe to specific topics
+### Core Architecture
 
 ```mermaid
 graph TB
     subgraph "Dashboard Layer"
         DM[DashboardProvider<br/>stores datasources Map]
+        GDS[GlobalDataSourceProvider<br/>orchestrates hosts]
     end
 
-    subgraph "Provider Layer"
-        GDS[GlobalDataSourceProvider<br/>builds nested chain]
-        FP[FoxgloveProvider]
-        RP[ROSBridgeProvider]
-        RDP[RandomProvider]
+    subgraph "Main Thread"
+        HOST1[WorkerDatasourceHost<br/>Foxglove]
+        HOST2[WorkerDatasourceHost<br/>Random]
+        PM[PluginManager<br/>Hooks System]
+    end
+
+    subgraph "Web Workers"
+        W1[Foxglove Worker<br/>WebSocket Client]
+        W2[Random Worker<br/>Data Generator]
     end
 
     subgraph "Widget Layer"
-        LDS[LocalDataSourceProvider<br/>per-widget wrapper]
-        W[Widget Component]
+        LDS[LocalDataSourceProvider<br/>per-widget buffer]
+        WID[Widget Component]
     end
 
-    DM -->|datasources config| GDS
-    GDS -->|nests| FP
-    FP -->|nests| RP
-    RP -->|nests| RDP
-    RDP -->|wraps| LDS
-    LDS -->|provides data| W
+    DM -->|config| GDS
+    GDS -->|spawn| HOST1
+    GDS -->|spawn| HOST2
+    HOST1 <-->|"RPC + Transferable"| W1
+    HOST2 <-->|"RPC + Transferable"| W2
+    HOST1 -->|hooks| PM
+    HOST2 -->|hooks| PM
+    PM -->|pub/sub| LDS
+    LDS -->|data| WID
 
     style DM fill:#fff3e0
-    style GDS fill:#f3e5f5
+    style GDS fill:#e3f2fd
+    style HOST1 fill:#e3f2fd
+    style HOST2 fill:#e3f2fd
+    style PM fill:#fff3e0
+    style W1 fill:#f3e5f5
+    style W2 fill:#f3e5f5
     style LDS fill:#e8f5e9
-    style W fill:#fff9c4
+    style WID fill:#c8e6c9
 ```
 
-## Core Interfaces
+### Key Concepts
 
-### DatasourceDefinition
+1. **DatasourceDefinition** - Plugin-registered datasource types
+2. **Worker Implementation** - Logic runs in dedicated Web Worker
+3. **WorkerDatasourceHost** - Main thread coordinator with RPC client
+4. **RPC Protocol** - Type-safe bidirectional communication
+5. **Transferable Objects** - Zero-copy data transfers
 
-Defines a datasource type that can be registered via plugins.
+## Worker Implementation
 
-```typescript
-interface DatasourceDefinition<T = DatasourceProviderSettings> {
-    id: string; // Unique identifier (e.g., 'rosbridge-suite')
-    name: string; // Display name
-    description: string; // Human-readable description
-
-    titleProp?: string; // Property to use for instance title
-
-    schema: JsonSchema; // JSON Schema for configuration
-    uischema?: UISchemaElement; // UI Schema for form rendering
-    data: T; // Default settings
-
-    Provider: FC<{
-        // React Provider component
-        children: ReactNode;
-        props: T;
-    }>;
-}
-```
-
-**Example Definition:**
+### Creating a Datasource Worker
 
 ```typescript
-export const RosBridgeDefinition: DatasourceDefinition<RosBridgeSettings> = {
-    id: "rosbridge-suite",
-    name: "ROSBridge Suite",
-    description: "ROS2 connection using ROSBridge suite",
-    titleProp: "title",
+// my-datasource.worker.ts
+import { createDatasourceWorker } from "@workspace/ormi-core/datasources/worker";
+import type { MyDatasourceSettings } from "./types";
 
-    schema: {
-        type: "object",
-        properties: {
-            title: { type: "string", title: "Title" },
-            enable: { type: "boolean", title: "Enable", default: true },
-            url: { type: "string", title: "WebSocket URL" },
-            reconnect: { type: "boolean", title: "Auto Reconnect" },
-        },
-        required: ["url"],
-    },
+createDatasourceWorker<MyDatasourceSettings>((ctx) => {
+    let connection: WebSocket | null = null;
+    const subscriptions = new Map<string, number>(); // ref counting
 
-    data: {
-        id: "",
-        title: "ROS2 Connection",
-        enable: true,
-        url: "ws://localhost:9090",
-        reconnect: true,
-    },
+    return {
+        async init(settings) {
+            // Initialize connection
+            connection = new WebSocket(settings.url);
 
-    Provider: RosBridgeProvider,
-};
-```
+            connection.onmessage = (event) => {
+                const { topic, data } = JSON.parse(event.data);
 
-### Datasource
-
-Runtime instance of a datasource with user-configured settings.
-
-```typescript
-interface Datasource {
-    datasource_id: string; // References DatasourceDefinition.id
-    title: string; // User-assigned title
-    settings: DatasourceProviderSettings; // Configuration for this instance
-}
-```
-
-### DatasourceProviderSettings
-
-Base settings interface that all datasource configurations must extend.
-
-```typescript
-interface DatasourceProviderSettings {
-    id: string; // Unique instance ID
-    title: string; // Instance title
-    enable: boolean; // Whether datasource is active
-}
-```
-
-**Custom Settings Example:**
-
-```typescript
-interface WebSocketDatasourceSettings extends DatasourceProviderSettings {
-    url: string;
-    reconnect: boolean;
-    topics: Array<{
-        topic: string;
-        type: string;
-    }>;
-}
-```
-
-### DatasourceTopic
-
-Describes an available topic from a datasource.
-
-```typescript
-interface DatasourceTopic {
-    topic: string; // Topic name (e.g., '/imu/data')
-    datasource_id: string; // Owning datasource instance ID
-    source: DatasourceProviderSettings; // Source configuration
-    type: string; // Data type in webapp (e.g., 'IMU')
-    rawType: string; // Data type in datasource (e.g., 'sensor_msgs/Imu')
-    bufferSize?: number; // Optional buffer size hint
-}
-```
-
-### SelectedTopic
-
-Extends DatasourceTopic with property extraction support.
-
-```typescript
-interface SelectedTopic extends DatasourceTopic {
-    property: string; // Dot-notation path (e.g., 'linear.x')
-}
-```
-
-**Property Extraction Example:**
-
-```typescript
-const imuTopic: SelectedTopic = {
-    topic: "/imu/data",
-    datasource_id: "ros-1",
-    source: rosDatasource,
-    type: "IMU",
-    rawType: "sensor_msgs/Imu",
-    property: "linear_acceleration.x", // Extract only X acceleration
-};
-
-// Widget receives only the extracted value
-const { data } = useLocalDataSource();
-const xAccel = data; // Already extracted value, not full IMU message
-```
-
-## GlobalDataSourceProvider
-
-The `GlobalDataSourceProvider` orchestrates all datasource providers by building a nested provider chain.
-
-### Responsibilities
-
-1. **Load Datasource Definitions** - Queries plugins for available datasource types
-2. **Build Provider Chain** - Nests datasource providers using `reduceRight()`
-3. **Manage UI** - Provides navbar button for datasource configuration
-4. **Filter Widgets** - Shows only widgets compatible with active datasources
-
-### Provider Nesting
-
-The provider chain is built from inside-out using `reduceRight()`:
-
-```typescript
-const providerChain = Array.from(datasources.values()).reduceRight(
-    (children_stack, datasource) => {
-        const Provider = getProvider(datasource.datasource_id);
-        return (
-            <Provider key={datasource.settings.id} props={datasource.settings}>
-                {children_stack}
-            </Provider>
-        );
-    },
-    children // Dashboard and widgets
-);
-
-// Result:
-// <FoxgloveProvider>
-//   <ROSBridgeProvider>
-//     <RandomProvider>
-//       <Dashboard>
-//         <Widgets />
-//       </Dashboard>
-//     </RandomProvider>
-//   </ROSBridgeProvider>
-// </FoxgloveProvider>
-```
-
-**Why nested?** Each provider can intercept and modify the plugin hooks, creating a chain of responsibility pattern.
-
-### Usage
-
-```typescript
-import { GlobalDataSourcesProvider } from '@workspace/ormi-core/datasources';
-
-function DashboardPage() {
-    return (
-        <DashboardProvider /* ... */>
-            <GlobalDataSourcesProvider>
-                <Dashboard />
-            </GlobalDataSourcesProvider>
-        </DashboardProvider>
-    );
-}
-```
-
-### Datasource Management UI
-
-GlobalDataSourceProvider automatically adds a "Datasources" button to the navbar:
-
-```typescript
-// In GlobalDataSourceProvider
-setNavbarItem("center", "datasources_combo",
-    <Dialog>
-        <DialogTrigger>
-            <Button>Datasources <CloudCogIcon /></Button>
-        </DialogTrigger>
-        <DialogContent>
-            {/* List of configured datasources */}
-            {/* Add new datasource button */}
-        </DialogContent>
-    </Dialog>
-);
-```
-
-**Features:**
-
-- Add new datasource instances
-- Configure datasource settings
-- Enable/disable datasources
-- Remove datasources
-- Save datasource as template
-
-### Widget Filtering
-
-Automatically filters the widget list to show only widgets compatible with active datasources:
-
-```typescript
-pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "filter_widgets_list_based_on_datasources",
-    priority: Number.MAX_SAFE_INTEGER, // Runs last
-    filter: (widgets: WidgetDefinition[]) => {
-        const datasourceArray = pluginsManager.applyFilter(
-            PluginsHooks.AVAILABLE_DATASOURCES,
-            []
-        );
-
-        // No datasources = no widgets
-        if (datasourceArray.length === 0) {
-            return [];
-        }
-
-        return pluginsManager.applyFilter(
-            PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
-            widgets,
-            datasourceArray
-        );
-    },
-});
-```
-
-## Datasource Provider Implementation
-
-Datasource providers are React components that implement the connection logic and expose data through plugin hooks.
-
-### Provider Structure
-
-```typescript
-function MyDatasourceProvider(
-    children: ReactNode,
-    props: MyDatasourceSettings
-) {
-    const pluginManager = usePluginsManager();
-    const datasource_id = props.id;
-
-    // Hook names
-    const available_topics_hook = `${datasource_id}-available-topics`;
-    const subscribe_hook = `${datasource_id}-subscribe`;
-    const unsubscribe_hook = `${datasource_id}-unsubscribe`;
-    const definition_hook = `${datasource_id}-definition`;
-
-    // State
-    const [initialized, setInitialized] = useState(false);
-    const subscribersRef = useRef(new Map<string, Set<Function>>());
-
-    // 1. Register available topics
-    useEffect(() => {
-        pluginManager.addFilter(available_topics_hook, {
-            id: datasource_id,
-            priority: 10,
-            filter: (topics: DatasourceTopic[]) => {
-                // Add your topics
-                topics.push({
-                    topic: '/sensor/data',
-                    datasource_id,
-                    source: props,
-                    type: 'SensorData',
-                    rawType: 'custom.SensorData',
-                    bufferSize: 100
-                });
-                return topics;
-            }
-        });
-
-        return () => pluginManager.removeFilter(available_topics_hook);
-    }, [props.topics]);
-
-    // 2. Handle subscription requests
-    useEffect(() => {
-        pluginManager.addAction(subscribe_hook, {
-            id: datasource_id,
-            priority: 10,
-            action: (topic: SelectedTopic) => {
-                const topicKey = topic.topic;
-
-                // Track subscribers
-                if (!subscribersRef.current.has(topicKey)) {
-                    subscribersRef.current.set(topicKey, new Set());
+                // Publish to main thread with zero-copy
+                if (data.points instanceof Float32Array) {
+                    ctx.publish(
+                        topic,
+                        { points: data.points },
+                        Date.now(),
+                        "sensor_frame",
+                        [data.points.buffer], // Transferable!
+                    );
+                } else {
+                    ctx.publish(topic, data, Date.now());
                 }
+            };
 
-                const subscribers = subscribersRef.current.get(topicKey)!;
-
-                // First subscriber - start streaming
-                if (subscribers.size === 0) {
-                    startStreaming(topicKey);
-                }
-
-                subscribers.add(topic);
-                return true;
-            }
-        });
-
-        return () => pluginManager.removeAction(subscribe_hook);
-    }, []);
-
-    // 3. Handle unsubscription requests
-    useEffect(() => {
-        pluginManager.addAction(unsubscribe_hook, {
-            id: datasource_id,
-            priority: 10,
-            action: (topic: SelectedTopic) => {
-                const topicKey = topic.topic;
-                const subscribers = subscribersRef.current.get(topicKey);
-
-                if (subscribers) {
-                    subscribers.delete(topic);
-
-                    // Last subscriber - stop streaming
-                    if (subscribers.size === 0) {
-                        stopStreaming(topicKey);
-                        subscribersRef.current.delete(topicKey);
-                    }
-                }
-            }
-        });
-
-        return () => pluginManager.removeAction(unsubscribe_hook);
-    }, []);
-
-    // 4. Expose settings via definition hook
-    useEffect(() => {
-        pluginManager.addFilter(definition_hook, {
-            id: datasource_id,
-            priority: 10,
-            filter: () => props
-        });
-
-        return () => pluginManager.removeFilter(definition_hook);
-    }, [props]);
-
-    // Connection logic
-    useEffect(() => {
-        if (!props.enable) {
-            setInitialized(false);
-            return;
-        }
-
-        // Connect to data source
-        const connection = connectToDatasource(props);
-
-        connection.on('data', (topic, data, timestamp) => {
-            // Publish to subscribers via plugin hook
-            pluginManager.doAction(
-                `${datasource_id}-${topic}-published`,
-                data,
-                timestamp,
-                'base_link' // referenceFrameId
-            );
-        });
-
-        setInitialized(true);
-
-        return () => connection.disconnect();
-    }, [props.enable, props.url]);
-
-    return <>{initialized && children}</>;
-}
-```
-
-### Required Hooks
-
-Every datasource provider must implement these four hooks:
-
-#### 1. Available Topics Hook
-
-**Pattern:** `${datasource_id}-available-topics`
-
-**Purpose:** Register topics this datasource provides
-
-```typescript
-pluginManager.addFilter(available_topics_hook, {
-    id: datasource_id,
-    priority: 10,
-    filter: (topics: DatasourceTopic[]) => {
-        props.topics.forEach((topicDef) => {
-            topics.push({
-                topic: topicDef.topic,
-                datasource_id,
-                source: props,
-                type: topicDef.type,
-                rawType: topicDef.rawType,
-                bufferSize: 50,
+            await new Promise((resolve, reject) => {
+                connection.onopen = resolve;
+                connection.onerror = reject;
             });
-        });
-        return topics;
-    },
-});
-```
+        },
 
-#### 2. Subscribe Hook
+        async listTopics() {
+            // Return available topics
+            return [
+                {
+                    topic: "/sensor/data",
+                    datasource_id: "", // Set by host
+                    source: {}, // Set by host
+                    type: "SensorData",
+                    rawType: "sensor_msgs/SensorData",
+                },
+            ];
+        },
 
-**Pattern:** `${datasource_id}-subscribe`
+        async subscribe(topic) {
+            const count = subscriptions.get(topic.topic) || 0;
+            subscriptions.set(topic.topic, count + 1);
 
-**Purpose:** Handle subscription requests from widgets
-
-```typescript
-pluginManager.addAction(subscribe_hook, {
-    id: datasource_id,
-    priority: 10,
-    action: (topic: SelectedTopic) => {
-        const subscribers =
-            subscribersRef.current.get(topic.topic) || new Set();
-
-        if (subscribers.size === 0) {
-            // First subscriber - start data flow
-            startStreamingTopic(topic.topic);
-        }
-
-        subscribers.add(topic);
-        subscribersRef.current.set(topic.topic, subscribers);
-
-        return true; // Subscription successful
-    },
-});
-```
-
-#### 3. Unsubscribe Hook
-
-**Pattern:** `${datasource_id}-unsubscribe`
-
-**Purpose:** Handle unsubscription requests
-
-```typescript
-pluginManager.addAction(unsubscribe_hook, {
-    id: datasource_id,
-    priority: 10,
-    action: (topic: SelectedTopic) => {
-        const subscribers = subscribersRef.current.get(topic.topic);
-
-        if (subscribers) {
-            subscribers.delete(topic);
-
-            if (subscribers.size === 0) {
-                // Last subscriber - stop data flow
-                stopStreamingTopic(topic.topic);
-                subscribersRef.current.delete(topic.topic);
+            if (count === 0) {
+                // First subscriber - start streaming
+                connection?.send(
+                    JSON.stringify({
+                        op: "subscribe",
+                        topic: topic.topic,
+                    }),
+                );
             }
-        }
-    },
+        },
+
+        async unsubscribe(topic, ignoreCount = false) {
+            if (ignoreCount) {
+                subscriptions.delete(topic.topic);
+                return;
+            }
+
+            const count = subscriptions.get(topic.topic) || 0;
+            if (count <= 1) {
+                subscriptions.delete(topic.topic);
+                // Last subscriber - stop streaming
+                connection?.send(
+                    JSON.stringify({
+                        op: "unsubscribe",
+                        topic: topic.topic,
+                    }),
+                );
+            } else {
+                subscriptions.set(topic.topic, count - 1);
+            }
+        },
+
+        async executeRemoteCall(definition, request, options) {
+            // Handle service calls
+            return { callId: "" };
+        },
+
+        async cancelRemoteCall(callId) {
+            return true;
+        },
+
+        async shutdown() {
+            // Clean up
+            connection?.close();
+            subscriptions.clear();
+        },
+    };
 });
 ```
 
-#### 4. Definition Hook
-
-**Pattern:** `${datasource_id}-definition`
-
-**Purpose:** Return current settings (used for persistence)
+### Worker Context API
 
 ```typescript
-pluginManager.addFilter(definition_hook, {
-    id: datasource_id,
-    priority: 10,
-    filter: () => props,
-});
+interface DatasourceWorkerContext {
+    // Publish data to main thread
+    publish(
+        topic: string,
+        data: unknown,
+        time?: number,
+        referenceFrameId?: string,
+        transfer?: Transferable[],
+    ): void;
+
+    // Register remote call definitions
+    setRemoteCalls(calls: RemoteCallDefinition[]): void;
+
+    // Emit remote call events
+    emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
+    emitRemoteCallFeedback(callId: string, feedback: unknown): void;
+    emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
+}
 ```
 
-### Publishing Data
+## WorkerDatasourceHost
 
-When data arrives, publish it using the topic-specific hook:
+### Creating a Host
 
 ```typescript
-// Data arrives from source
-connection.on("message", (topic, data, timestamp) => {
-    // Publish to all subscribers
-    pluginManager.doAction(
-        `${datasource_id}-${topic}-published`,
-        data,
-        timestamp,
-        referenceFrameId
+// my-datasource-host.tsx
+import React from 'react';
+import { WorkerDatasourceHost } from '@workspace/ormi-core/datasources/worker';
+import type { MyDatasourceSettings } from './types';
+
+export function MyDatasourceProvider({ children, props }: {
+  children: React.ReactNode;
+  props: MyDatasourceSettings;
+}) {
+  const pluginsManager = usePluginsManager();
+  const hostRef = useRef<WorkerDatasourceHost<MyDatasourceSettings>>();
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    const worker = new Worker(
+      new URL('./my-datasource.worker.js', import.meta.url),
+      { type: 'module', name: `datasource:${props.id}` }
     );
-});
-```
 
-**Hook Pattern:** `${datasource_id}-${topic}-published`
-
-**Parameters:**
-
-1. `data: any` - The message data
-2. `timestamp: number` - Unix timestamp in milliseconds
-3. `referenceFrameId: string` - Reference frame (e.g., 'base_link', 'map')
-
-## LocalDataSourceProvider
-
-The `LocalDataSourceProvider` wraps individual widgets to provide them with subscribed topic data.
-
-### Purpose
-
-- Subscribe to specific topics on behalf of a widget
-- Buffer incoming data
-- Throttle updates to a configurable frequency
-- Extract nested properties from messages
-- Provide clean API via `useLocalDataSource()` hook
-
-### Architecture
-
-```mermaid
-sequenceDiagram
-    participant W as Widget
-    participant LDS as LocalDataSourceProvider
-    participant PM as PluginManager
-    participant DP as Datasource Provider
-
-    Note over W,DP: Subscription Phase
-    W->>LDS: Mount with SelectedTopics
-    LDS->>PM: doAction(datasource-subscribe, topic)
-    PM->>DP: Trigger subscribe action
-    DP->>DP: Start streaming topic
-
-    Note over W,DP: Data Flow Phase
-    DP->>PM: doAction(datasource-topic-published, data)
-    PM->>LDS: Trigger data callback
-    LDS->>LDS: Buffer data
-    LDS->>LDS: Throttle updates (30Hz)
-    LDS->>W: Re-render with new data
-
-    Note over W,DP: Cleanup Phase
-    W->>LDS: Unmount
-    LDS->>PM: doAction(datasource-unsubscribe, topic)
-    PM->>DP: Trigger unsubscribe action
-    DP->>DP: Stop streaming topic
-```
-
-### Usage
-
-```typescript
-import { LocalDataSourcesProvider, useLocalDataSource } from '@workspace/ormi-core/datasources';
-
-function MyWidget({ settings }) {
-    const topics: SelectedTopic[] = [
-        {
-            topic: '/imu/data',
-            datasource_id: settings.datasource,
-            source: datasourceSettings,
-            type: 'IMU',
-            rawType: 'sensor_msgs/Imu',
-            property: 'linear_acceleration.x'
-        }
-    ];
-
-    return (
-        <LocalDataSourcesProvider
-            SelectedTopics={topics}
-            buffersSize={100}
-            updateFrequency={30}
-        >
-            <MyWidgetContent />
-        </LocalDataSourcesProvider>
-    );
-}
-
-function MyWidgetContent() {
-    const { getSource, getSourceId } = useLocalDataSource();
-
-    const topic = /* ... */;
-    const source = getSource(topic);
-
-    if (!source) return <div>No data</div>;
-
-    const latestValue = source.data[source.data.length - 1];
-
-    return <div>X Acceleration: {latestValue}</div>;
-}
-```
-
-### Props
-
-```typescript
-interface LocalDataSourcesProviderProps {
-    children: ReactNode;
-    SelectedTopics: SelectedTopic[]; // Topics to subscribe to
-    buffersSize: number; // Buffer size per topic
-    updateFrequency?: number; // Update rate in Hz (default: 30)
-}
-```
-
-### Context API
-
-```typescript
-interface LocalDataSources {
-    sources: Map<string, Source>; // Topic data map
-    version: number; // Increment triggers re-renders
-    getSource: (topic: SelectedTopic) => Source | undefined;
-    getSourceId: (topic: SelectedTopic) => string;
-}
-
-interface Source {
-    data: unknown[]; // Buffer of data values
-    times: number[]; // Corresponding timestamps
-    referenceFrameId: string; // Reference frame
-}
-```
-
-### Performance Optimizations
-
-#### 1. useRef for Data Storage
-
-Data is stored in `useRef` to avoid triggering re-renders on every update:
-
-```typescript
-const sourcesRef = useRef<Map<string, Source>>(new Map());
-
-// Updates don't trigger re-renders
-sourcesRef.current.set(topicKey, newData);
-```
-
-#### 2. Throttled Batch Updates
-
-Updates are batched and throttled to a configurable frequency (default 30Hz):
-
-```typescript
-const pendingUpdatesRef = useRef(new Map());
-
-// Data arrives - store in pending
-pendingUpdatesRef.current.set(topicKey, { value, time, frameId });
-
-// Interval processes pending updates
-setInterval(() => {
-    if (pendingUpdates.size === 0) return;
-
-    // Apply all pending updates
-    pendingUpdates.forEach((update, topicKey) => {
-        applyUpdate(topicKey, update);
+    const host = new WorkerDatasourceHost({
+      worker,
+      datasourceId: props.id,
+      settings: props,
+      pluginsManager
     });
 
-    pendingUpdates.clear();
+    hostRef.current = host;
+    host.registerHooks();
 
-    // Trigger re-render
-    setVersion((v) => v + 1);
-}, 1000 / updateFrequency);
-```
-
-**Benefits:**
-
-- Widget re-renders at most `updateFrequency` times per second
-- Multiple topic updates batched into single re-render
-- Reduces render overhead for high-frequency data (e.g., IMU at 100Hz)
-
-#### 3. Stable Functions
-
-`getSource` and `getSourceId` are wrapped in `useCallback` with no dependencies:
-
-```typescript
-const getSource = useCallback((topic: SelectedTopic) => {
-    return sourcesRef.current.get(createTopicKey(topic));
-}, []); // Stable - no dependencies
-```
-
-**Benefits:**
-
-- Widget memoization works correctly
-- No unnecessary re-renders from function reference changes
-
-### Property Extraction
-
-LocalDataSourceProvider supports extracting nested properties using dot notation:
-
-```typescript
-const topic: SelectedTopic = {
-    topic: "/imu/data",
-    // ...
-    property: "linear_acceleration.x",
-};
-
-// Original data:
-// { linear_acceleration: { x: 1.2, y: 0.5, z: 9.8 }, ... }
-
-// Widget receives:
-// 1.2
-```
-
-**Implementation:**
-
-```typescript
-const propertiesGetter = (data: any, property: string) => {
-    if (!property || property === "") {
-        return data;
-    }
-
-    const properties = property.split(".");
-    let value = data;
-
-    for (const prop of properties) {
-        value = value[prop];
-    }
-
-    return value;
-};
-
-// Applied when data arrives
-const processedValue = topic.property
-    ? propertiesGetter(value, topic.property)
-    : value;
-```
-
-### Subscription Lifecycle
-
-```typescript
-useEffect(() => {
-    Topics.forEach(async (topic) => {
-        const sourceId = createTopicKey(topic);
-
-        // 1. Subscribe to topic
-        const result = await pluginManager.WaitAndDoAction(
-            `${topic.source.id}-subscribe`,
-            1,
-            topic
-        );
-
-        if (result === false) {
-            // Subscription failed
-            return;
-        }
-
-        // 2. Listen for published data
-        pluginManager.addAction(`${topic.source.id}-${topic.topic}-published`, {
-            id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
-            priority: 10,
-            action: (value, time, referenceFrameId) => {
-                // Extract property if specified
-                const processedValue = topic.property
-                    ? propertiesGetter(value, topic.property)
-                    : value;
-
-                // Store in pending updates
-                pendingUpdates.set(sourceId, {
-                    value: processedValue,
-                    time,
-                    referenceFrameId,
-                });
-            },
-        });
-    });
+    host.init()
+      .then(() => setInitialized(true))
+      .catch(console.error);
 
     return () => {
-        Topics.forEach(async (topic) => {
-            // 3. Unsubscribe on unmount
-            await pluginManager.WaitAndDoAction(
-                `${topic.source.id}-unsubscribe`,
-                1,
-                topic
-            );
-
-            // Remove data listener
-            pluginManager.removeAction(
-                `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`
-            );
-        });
+      host.shutdown().then(() => worker.terminate());
     };
-}, [SelectedTopics, buffersSize, updateFrequency]);
+  }, [props.id, props.enable]);
+
+  return <>{initialized && children}</>;
+}
 ```
 
-## Topic Filtering
+### Host Responsibilities
 
-The `DatasourceTopicFilter` class provides regex-based filtering of topics:
+**WorkerDatasourceHost automatically:**
+
+1. **Registers PluginManager hooks:**
+    - `{datasource_id}-available-topics` - Lists topics
+    - `{datasource_id}-subscribe` - Forwards to worker
+    - `{datasource_id}-unsubscribe` - Forwards to worker
+    - `{datasource_id}-definition` - Returns settings
+
+2. **Manages RPC communication:**
+    - Type-safe method calls to worker
+    - Event handling from worker
+    - Error propagation
+
+3. **Forwards published data:**
+    - Receives from worker
+    - Publishes via PluginManager
+    - Handles Transferable objects
+
+4. **Lifecycle management:**
+    - Worker initialization
+    - Graceful shutdown (5s timeout)
+    - Error recovery
+
+## DatasourceDefinition
+
+### Complete Example
 
 ```typescript
-class DatasourceTopicFilter {
-    name?: RegExp; // Filter by topic name
-    type?: RegExp; // Filter by type
-    source_id?: RegExp; // Filter by datasource ID
-    rawType?: RegExp; // Filter by raw type
-    strict?: boolean; // Require all filters to match
+// index.ts
+import type { DatasourceDefinition } from '@workspace/ormi-core/datasources';
+import { MyDatasourceProvider } from './my-datasource-host';
+import type { MyDatasourceSettings } from './types';
 
-    constructor(props: DatasourceTopicFilterProps) {
-        this.name = props.name;
-        this.type = props.type;
-        this.source_id = props.source_id;
-        this.rawType = props.rawType;
-        this.strict = props.strict || false;
-    }
+export const MyDatasourceDefinition: DatasourceDefinition<MyDatasourceSettings> = {
+  id: 'my-datasource',
+  name: 'My Data Source',
+  description: 'Custom WebSocket datasource',
+  titleProp: 'title',
 
-    filter(topic: DatasourceTopic): boolean {
-        const matches = [];
+  schema: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        title: 'Title',
+        default: 'My Datasource'
+      },
+      enable: {
+        type: 'boolean',
+        title: 'Enable',
+        default: true
+      },
+      url: {
+        type: 'string',
+        title: 'WebSocket URL',
+        format: 'uri',
+        default: 'ws://localhost:9090'
+      }
+    },
+    required: ['title', 'url']
+  },
 
-        if (this.name && !this.name.test(topic.topic)) {
-            matches.push(false);
-        }
+  data: {
+    id: '',
+    title: 'My Datasource',
+    enable: true,
+    url: 'ws://localhost:9090'
+  },
 
-        if (this.type && !this.type.test(topic.type)) {
-            matches.push(false);
-        }
+  Provider: ({ children, props }) => (
+    <MyDatasourceProvider props={props}>
+      {children}
+    </MyDatasourceProvider>
+  )
+};
+```
 
-        if (this.source_id && !this.source_id.test(topic.datasource_id)) {
-            matches.push(false);
-        }
+### Registering via Plugin
 
-        if (this.rawType && !this.rawType.test(topic.rawType)) {
-            matches.push(false);
-        }
+```typescript
+class MyPlugin extends Plugin {
+    constructor() {
+        super();
+        this.name = "My Plugin";
 
-        if (this.strict && matches.length > 0) {
-            return false; // All filters must match
-        }
-
-        return true; // At least one filter matched (or no filters)
+        this.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
+            id: "my-datasource-registration",
+            filter: (datasources) => {
+                datasources.push(MyDatasourceDefinition);
+                return datasources;
+            },
+        });
     }
 }
 ```
 
-**Usage Example:**
+## Zero-Copy Transfers
+
+### Using Transferable Objects
 
 ```typescript
-// Filter for IMU topics from any ROS datasource
-const filter = new DatasourceTopicFilter({
-    name: /imu/i,
-    source_id: /ros/i,
-    strict: true,
-});
+// Worker: Create large data
+const points = new Float32Array(300000); // 300k points
+// ... fill array
 
-const availableTopics = pluginManager.applyFilter(
-    PluginsHooks.AVAILABLE_TOPICS,
-    []
+// Transfer ownership (zero-copy)
+ctx.publish(
+    "/scan/points",
+    { points },
+    Date.now(),
+    "lidar_frame",
+    [points.buffer], // Transferable array
 );
 
-const imuTopics = availableTopics.filter((topic) => filter.filter(topic));
+// After transfer, points.buffer is neutered in worker
+// Main thread now owns the memory
+```
+
+### Performance Benefits
+
+- **~2-3x faster** for 100k+ point clouds
+- **No memory duplication** - instant transfer
+- **Reduced GC pressure** - less garbage to collect
+- **Main thread stays responsive** - no copying overhead
+
+### Supported Types
+
+- `ArrayBuffer`
+- `MessagePort`
+- `ImageBitmap`
+- `OffscreenCanvas`
+
+## RPC Protocol
+
+### Type-Safe Methods
+
+```typescript
+interface DatasourceWorkerMethods {
+    init(settings): Promise<void>;
+    listTopics(): Promise<DatasourceTopic[]>;
+    subscribe(topic): Promise<void>;
+    unsubscribe(topic, ignoreCount?): Promise<void>;
+    executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
+    cancelRemoteCall(callId): Promise<boolean>;
+    shutdown(): Promise<void>;
+}
+```
+
+### Calling from Host
+
+```typescript
+// In WorkerDatasourceHost
+const topics = await this.rpc.call("listTopics");
+await this.rpc.call("subscribe", topic);
+await this.rpc.call("unsubscribe", topic);
+await this.rpc.call("shutdown");
+```
+
+### Event Handling
+
+```typescript
+// Worker emits events
+ctx.publish(topic, data, time, frameId, transfer);
+
+// Host receives events
+this.rpc.on("topic-published", (event) => {
+    pluginManager.doAction(
+        `${datasourceId}-${event.topic}-published`,
+        event.data,
+        event.time,
+        event.referenceFrameId,
+    );
+});
+```
+
+## Error Handling
+
+### Worker Errors
+
+```typescript
+// Worker global error handler
+createDatasourceWorker((ctx) => {
+    self.addEventListener("error", (e) => {
+        console.error("[Worker Error]", e.error);
+    });
+
+    self.addEventListener("unhandledrejection", (e) => {
+        console.error("[Worker Unhandled Rejection]", e.reason);
+    });
+
+    return {
+        async subscribe(topic) {
+            try {
+                // Operation that might fail
+            } catch (error) {
+                console.error(`Subscribe failed for ${topic.topic}:`, error);
+                throw error; // Propagates to host
+            }
+        },
+    };
+});
+```
+
+### Host Error Handling
+
+```typescript
+// In provider component
+host.init()
+    .then(() => setInitialized(true))
+    .catch((error) => {
+        console.error("Worker initialization failed:", error);
+        toast.error(`Failed to initialize datasource: ${error.message}`);
+    });
+
+// Worker crash detection
+worker.addEventListener("error", (e) => {
+    console.error("Worker crashed:", e);
+    // Can restart worker if needed
+    restartWorker();
+});
+```
+
+## Graceful Shutdown
+
+### Worker Cleanup
+
+```typescript
+createDatasourceWorker((ctx) => ({
+    async shutdown() {
+        console.log("[Worker] Shutting down...");
+
+        // Close connections
+        websocket?.close();
+
+        // Clear timers
+        if (publishTimer) {
+            clearInterval(publishTimer);
+        }
+
+        // Clear subscriptions
+        subscriptions.clear();
+
+        console.log("[Worker] Shutdown complete");
+    },
+}));
+```
+
+### Host Shutdown
+
+```typescript
+// In provider cleanup
+return () => {
+    if (hostRef.current) {
+        // Graceful shutdown with 5s timeout
+        hostRef.current
+            .shutdown()
+            .then(() => {
+                console.log("Datasource shutdown gracefully");
+                worker.terminate();
+            })
+            .catch(() => {
+                console.warn("Shutdown timeout, forcing termination");
+                worker.terminate();
+            });
+    }
+};
 ```
 
 ## Best Practices
 
-### 1. Use Unique Hook IDs
-
-Always use datasource_id in hook names to avoid conflicts:
+### 1. Use Workers for I/O
 
 ```typescript
-// ✅ GOOD
-const subscribe_hook = `${datasource_id}-subscribe`;
+// ✅ Good: Network I/O in worker
+createDatasourceWorker((ctx) => ({
+    async init(settings) {
+        const ws = new WebSocket(settings.url);
+        // WebSocket runs in worker - doesn't block UI
+    },
+}));
 
-// ❌ BAD
-const subscribe_hook = "subscribe";
+// ❌ Bad: Network I/O in main thread
+// Blocks rendering and user interactions
 ```
 
-### 2. Track Subscriber Counts
-
-Only stream data when there are active subscribers:
+### 2. Transfer Large Data
 
 ```typescript
-const subscribersRef = useRef(new Map<string, Set<any>>());
+// ✅ Good: Zero-copy transfer
+const buffer = new Float32Array(largeData);
+ctx.publish(topic, { buffer }, time, frame, [buffer.buffer]);
 
-// Subscribe
-const subscribers = subscribersRef.current.get(topic) || new Set();
-if (subscribers.size === 0) {
-    startStreaming(topic); // First subscriber
+// ❌ Bad: Structured clone (copies data)
+ctx.publish(topic, { buffer }, time, frame);
+```
+
+### 3. Reference Count Subscriptions
+
+```typescript
+// ✅ Good: Track subscriber count
+const subscriptions = new Map<string, number>();
+
+async subscribe(topic) {
+  const count = (subscriptions.get(topic.topic) || 0) + 1;
+  subscriptions.set(topic.topic, count);
+
+  if (count === 1) {
+    // First subscriber - start streaming
+  }
 }
-subscribers.add(widgetId);
 
-// Unsubscribe
-subscribers.delete(widgetId);
-if (subscribers.size === 0) {
-    stopStreaming(topic); // Last subscriber
-}
-```
-
-### 3. Handle Connection Lifecycle
-
-Properly manage connections based on enable flag:
-
-```typescript
-useEffect(() => {
-    if (!props.enable) {
-        setInitialized(false);
-        return; // Don't connect if disabled
-    }
-
-    const connection = connect(props.url);
-    setInitialized(true);
-
-    return () => connection.disconnect();
-}, [props.enable, props.url]);
-```
-
-### 4. Validate Subscription Results
-
-Check if subscription succeeded:
-
-```typescript
-const result = await pluginManager.WaitAndDoAction(
-    `${datasource_id}-subscribe`,
-    1,
-    topic
-);
-
-if (result === false) {
-    toast.error(`Failed to subscribe to ${topic.topic}`);
-    return;
+// ❌ Bad: Always start streaming
+async subscribe(topic) {
+  startStreaming(topic); // Wastes resources
 }
 ```
 
-### 5. Use Appropriate Buffer Sizes
-
-Choose buffer sizes based on data characteristics:
+### 4. Clean Up Resources
 
 ```typescript
-// High-frequency, small messages (e.g., IMU at 100Hz)
-bufferSize: 100;
+// ✅ Good: Proper cleanup
+async shutdown() {
+  ws?.close();
+  intervals.forEach(clearInterval);
+  subscriptions.clear();
+}
 
-// Low-frequency, large messages (e.g., images at 10Hz)
-bufferSize: 10;
-
-// Time-series data for charts
-bufferSize: 1000;
+// ❌ Bad: Memory leaks
+async shutdown() {
+  // Forgot to clean up
+}
 ```
 
-### 6. Optimize Update Frequency
-
-Match update frequency to widget needs:
+### 5. Handle Connection Failures
 
 ```typescript
-// Real-time display (e.g., IMU visualization)
-updateFrequency: 30; // 30Hz
+// ✅ Good: Reconnection logic
+createDatasourceWorker((ctx) => ({
+    async init(settings) {
+        let attempts = 0;
+        const connect = () => {
+            const ws = new WebSocket(settings.url);
 
-// Charts and graphs
-updateFrequency: 10; // 10Hz
-
-// Status displays
-updateFrequency: 1; // 1Hz
+            ws.onerror = () => {
+                if (settings.reconnect && attempts < 10) {
+                    attempts++;
+                    setTimeout(connect, 1000 * attempts);
+                }
+            };
+        };
+        connect();
+    },
+}));
 ```
 
 ## Common Patterns
 
-### Pattern 1: ROS2 Topic Discovery
+### Pattern 1: WebSocket Datasource
 
 ```typescript
-// Fetch available topics from ROS
-useEffect(() => {
-    if (!connected) return;
+createDatasourceWorker<WebSocketSettings>((ctx) => {
+    let ws: WebSocket | null = null;
+    const subscriptions = new Map<string, number>();
 
-    rosClient.getTopics((topics) => {
-        // Update available topics filter
-        pluginManager.addFilter(available_topics_hook, {
-            id: datasource_id,
-            priority: 10,
-            filter: (existingTopics) => {
-                topics.forEach((topic) => {
-                    existingTopics.push({
-                        topic: topic.name,
-                        datasource_id,
-                        source: props,
-                        type: mapRosTypeToWebType(topic.type),
-                        rawType: topic.type,
-                        bufferSize: 50,
-                    });
-                });
-                return existingTopics;
-            },
-        });
-    });
-}, [connected]);
-```
+    return {
+        async init(settings) {
+            ws = new WebSocket(settings.url);
 
-### Pattern 2: WebSocket with Reconnection
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                ctx.publish(msg.topic, msg.data, msg.timestamp);
+            };
 
-```typescript
-const wsRef = useRef<WebSocket | null>(null);
-const [reconnectAttempt, setReconnectAttempt] = useState(0);
+            await new Promise((resolve, reject) => {
+                ws.onopen = resolve;
+                ws.onerror = reject;
+            });
+        },
 
-useEffect(() => {
-    if (!props.enable) return;
+        async listTopics() {
+            // Fetch from server
+            return [];
+        },
 
-    const connect = () => {
-        wsRef.current = new WebSocket(props.url);
+        async subscribe(topic) {
+            const count = (subscriptions.get(topic.topic) || 0) + 1;
+            subscriptions.set(topic.topic, count);
 
-        wsRef.current.onopen = () => {
-            setReconnectAttempt(0);
-            setInitialized(true);
-        };
-
-        wsRef.current.onmessage = (event) => {
-            const { topic, data, timestamp } = JSON.parse(event.data);
-            pluginManager.doAction(
-                `${datasource_id}-${topic}-published`,
-                data,
-                timestamp,
-                "world"
-            );
-        };
-
-        wsRef.current.onclose = () => {
-            if (props.reconnect) {
-                setTimeout(
-                    () => {
-                        setReconnectAttempt((prev) => prev + 1);
-                        connect();
-                    },
-                    1000 * Math.min(reconnectAttempt, 10)
+            if (count === 1) {
+                ws?.send(
+                    JSON.stringify({
+                        op: "subscribe",
+                        topic: topic.topic,
+                    }),
                 );
             }
-        };
-    };
+        },
 
-    connect();
-
-    return () => {
-        wsRef.current?.close();
-        wsRef.current = null;
-    };
-}, [props.enable, props.url, props.reconnect, reconnectAttempt]);
-```
-
-### Pattern 3: REST API Polling
-
-```typescript
-useEffect(() => {
-    if (!props.enable) return;
-
-    const pollTopic = (topic: string) => {
-        const interval = setInterval(async () => {
-            try {
-                const response = await fetch(`${props.apiUrl}${topic}`);
-                const data = await response.json();
-
-                pluginManager.doAction(
-                    `${datasource_id}-${topic}-published`,
-                    data,
-                    Date.now(),
-                    "sensor"
+        async unsubscribe(topic) {
+            const count = subscriptions.get(topic.topic) || 0;
+            if (count <= 1) {
+                subscriptions.delete(topic.topic);
+                ws?.send(
+                    JSON.stringify({
+                        op: "unsubscribe",
+                        topic: topic.topic,
+                    }),
                 );
-            } catch (error) {
-                console.error(`Failed to poll ${topic}:`, error);
+            } else {
+                subscriptions.set(topic.topic, count - 1);
             }
-        }, 1000 / props.pollRate); // Convert Hz to ms
+        },
 
-        return interval;
+        async shutdown() {
+            ws?.close();
+            subscriptions.clear();
+        },
     };
-
-    const intervals = props.topics.map((topic) => pollTopic(topic));
-
-    return () => {
-        intervals.forEach((interval) => clearInterval(interval));
-    };
-}, [props.enable, props.topics, props.apiUrl, props.pollRate]);
-```
-
-## Troubleshooting
-
-### Data Not Appearing in Widget
-
-**Check:**
-
-1. Is datasource enabled? (`enable: true`)
-2. Did subscription succeed? (Check console for errors)
-3. Is provider publishing data? (Add console.log in data callback)
-4. Is LocalDataSourceProvider configured correctly?
-5. Is topic name exact match?
-
-```typescript
-// Debug subscription
-const result = await pluginManager.WaitAndDoAction(
-    `${datasource_id}-subscribe`,
-    1,
-    topic
-);
-console.log("Subscription result:", result);
-
-// Debug data flow
-pluginManager.addAction(`${datasource_id}-${topic}-published`, {
-    id: "debug-listener",
-    priority: 1,
-    action: (data) => {
-        console.log("Data received:", data);
-    },
 });
 ```
 
-### High CPU Usage
-
-**Causes:**
-
-- Update frequency too high
-- Buffer size too large
-- Too many subscribed topics
-
-**Solutions:**
+### Pattern 2: REST API Polling
 
 ```typescript
-// Reduce update frequency
-<LocalDataSourcesProvider updateFrequency={10}> {/* was 60 */}
+createDatasourceWorker<RestApiSettings>((ctx) => {
+    const intervals = new Map<string, ReturnType<typeof setInterval>>();
 
-// Reduce buffer size
-<LocalDataSourcesProvider buffersSize={50}> {/* was 500 */}
+    return {
+        async init(settings) {
+            // No initialization needed
+        },
 
-// Subscribe only to needed properties
-property: 'pose.position.x' // Instead of full pose
-```
+        async listTopics() {
+            const response = await fetch(`${settings.apiUrl}/topics`);
+            return response.json();
+        },
 
-### Memory Leaks
+        async subscribe(topic) {
+            if (!intervals.has(topic.topic)) {
+                const interval = setInterval(async () => {
+                    try {
+                        const response = await fetch(
+                            `${settings.apiUrl}${topic.topic}`,
+                        );
+                        const data = await response.json();
+                        ctx.publish(topic.topic, data, Date.now());
+                    } catch (error) {
+                        console.error(`Poll failed for ${topic.topic}:`, error);
+                    }
+                }, 1000 / settings.pollRate);
 
-**Symptoms:** Memory usage grows over time
+                intervals.set(topic.topic, interval);
+            }
+        },
 
-**Causes:**
+        async unsubscribe(topic) {
+            const interval = intervals.get(topic.topic);
+            if (interval) {
+                clearInterval(interval);
+                intervals.delete(topic.topic);
+            }
+        },
 
-- Forgot to unsubscribe
-- Intervals not cleared
-- WebSocket not closed
-
-**Solution:**
-
-```typescript
-useEffect(() => {
-    // Setup
-    const interval = setInterval(/* ... */, 1000);
-    const ws = new WebSocket(url);
-
-    // ALWAYS return cleanup
-    return () => {
-        clearInterval(interval);
-        ws.close();
-        pluginManager.removeAction(hookId);
+        async shutdown() {
+            intervals.forEach(clearInterval);
+            intervals.clear();
+        },
     };
-}, [deps]);
+});
 ```
 
-### Stale Data in Widget
-
-**Cause:** Widget not re-rendering on data updates
-
-**Solution:** Use `version` from context:
+### Pattern 3: Data Generator
 
 ```typescript
-const { getSource, version } = useLocalDataSource();
+createDatasourceWorker<GeneratorSettings>((ctx) => {
+    const intervals = new Map<string, ReturnType<typeof setInterval>>();
 
-useEffect(() => {
-    const source = getSource(topic);
-    // Do something with source
-}, [topic, version]); // Include version in deps
+    return {
+        async init(settings) {
+            // Seed RNG if needed
+        },
+
+        async listTopics() {
+            return [
+                { topic: "/random/number", type: "Number", rawType: "float64" },
+                {
+                    topic: "/random/vector",
+                    type: "Vector3",
+                    rawType: "Vector3",
+                },
+            ];
+        },
+
+        async subscribe(topic) {
+            if (!intervals.has(topic.topic)) {
+                const interval = setInterval(() => {
+                    let data;
+                    if (topic.topic === "/random/number") {
+                        data = Math.random();
+                    } else if (topic.topic === "/random/vector") {
+                        data = {
+                            x: Math.random(),
+                            y: Math.random(),
+                            z: Math.random(),
+                        };
+                    }
+                    ctx.publish(topic.topic, data, Date.now());
+                }, 100);
+
+                intervals.set(topic.topic, interval);
+            }
+        },
+
+        async unsubscribe(topic) {
+            const interval = intervals.get(topic.topic);
+            if (interval) {
+                clearInterval(interval);
+                intervals.delete(topic.topic);
+            }
+        },
+
+        async shutdown() {
+            intervals.forEach(clearInterval);
+            intervals.clear();
+        },
+    };
+});
 ```
 
 ## Summary
 
-The V1 datasources system provides:
+The V1 worker-based datasources system provides:
 
-- **Flexible Provider Architecture** - Any data source can be integrated
-- **Plugin-Based Registration** - Datasources registered via plugins
-- **Subscription Management** - Automatic start/stop based on widget needs
-- **Performance Optimizations** - Throttling, batching, ref-based storage
-- **Property Extraction** - Access nested data without parsing
-- **Type Safety** - Full TypeScript interfaces
-
-**Key Components:**
-
-- `DatasourceDefinition` - Type definition
-- `Datasource` - Instance configuration
-- `GlobalDataSourceProvider` - Provider orchestration
-- `LocalDataSourceProvider` - Widget-level subscriptions
-- Plugin Hooks - Data flow coordination
-
-This architecture enables the circular dependency issue (GlobalDataSourceProvider ↔ DashboardProvider) but provides rich functionality for V1. V2 will address the architectural limitations while maintaining feature parity.
+- **Non-blocking I/O** - Network operations in dedicated workers
+- **Zero-copy transfers** - Transferable objects for performance
+- **Type-safe RPC** - Structured communication protocol
+- **Automatic management** - WorkerDatasourceHost handles complexity
+- **Error isolation** - Worker crashes don't affect main thread
+- **Graceful shutdown** - Clean resource cleanup
+- **Flexible architecture** - Any data source can be integrated
