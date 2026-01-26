@@ -606,9 +606,11 @@ export class UnifiedConverter {
                                 // Add valid points (could add filtering here if needed)
                                 if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
                                     const idx = validPointCount * 3;
-                                    packedPoints[idx] = x;
-                                    packedPoints[idx + 1] = y;
-                                    packedPoints[idx + 2] = z;
+                                    // Convert ROS -> THREE
+                                    // THREE_X = -ROS_Y, THREE_Y = ROS_Z, THREE_Z = -ROS_X
+                                    packedPoints[idx] = -y;
+                                    packedPoints[idx + 1] = z;
+                                    packedPoints[idx + 2] = -x;
 
                                     if (
                                         rgbOffset !== undefined &&
@@ -669,8 +671,8 @@ export class UnifiedConverter {
                             points: finalPoints,
                             colors: finalColors,
                             intensities: finalIntensities,
-                            // ROS PointCloud2 uses ROS REP-103 coordinate convention
-                            convention: "ROS" as const,
+                            // Converted to Three.js coordinates
+                            convention: "THREE" as const,
                         };
                     },
                 },
@@ -709,9 +711,10 @@ export class UnifiedConverter {
                                     !isNaN(point.z)
                                 ) {
                                     const idx = validPointCount * 3;
-                                    packedPoints[idx] = point.x;
-                                    packedPoints[idx + 1] = point.y;
-                                    packedPoints[idx + 2] = point.z;
+                                    // Convert ROS -> THREE
+                                    packedPoints[idx] = -point.y;
+                                    packedPoints[idx + 1] = point.z;
+                                    packedPoints[idx + 2] = -point.x;
 
                                     // Convert reflectivity to color if needed
                                     if (point.reflectivity !== undefined) {
@@ -757,8 +760,8 @@ export class UnifiedConverter {
                             points: finalPoints,
                             colors: finalColors,
                             intensities: finalIntensities,
-                            // Livox uses ROS coordinate convention
-                            convention: "ROS" as const,
+                            // Converted to Three.js coordinates
+                            convention: "THREE" as const,
                         };
                     },
                 },

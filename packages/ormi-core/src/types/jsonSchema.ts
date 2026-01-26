@@ -102,11 +102,11 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                 properties: {
                     points: {
                         type: "array",
-                        items: getSchemaFromStringName("Vector3"),
+                        items: { type: "number" },
                     },
                     colors: {
                         type: "array",
-                        items: getSchemaFromStringName("Color"),
+                        items: { type: "number" },
                     },
                     intensities: {
                         type: "array",
