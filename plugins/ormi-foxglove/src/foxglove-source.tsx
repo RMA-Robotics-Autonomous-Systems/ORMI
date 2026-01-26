@@ -14,99 +14,110 @@
         },
 */
 
-import React, { ReactNode, useEffect, useState } from 'react';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
-
-import { Channel, FoxgloveClient } from '@foxglove/ws-protocol';
+import React, { ReactNode, useEffect, useState, useRef, useCallback } from 'react';
+import { ReadyState } from 'react-use-websocket';
 
 import { Spinner } from '@workspace/ui/components/spinner';
 import { WebSocketStatusOverlay } from '@workspace/utils';
 import { toast } from 'sonner';
 
-import { FoxgloveDataHandler, useFoxgloveData } from './foxglove-data-handler';
-import { SubscriptionManager } from './subscription-manager';
-import { PublisherManager } from './publisher-manager';
 import { TransformTreeManager } from './transform-tree-manager';
-import { TypeSystemManager } from './type-system-manager';
-import { ServiceManager } from './service-manager';
-import { FoxgloveDataSourceSettings, Subscriber, PendingSubscription, Publisher } from './types';
+import { FoxgloveWorkerHost } from './foxglove-worker-host';
+import { FoxgloveDataSourceSettings } from './types';
+import { usePluginsManager } from '@workspace/ormi-plugins';
 
 
 const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSettings) => {
-    const [clientConnected, setClientConnected] = React.useState(false);
-    const [reconnectAttempt, setReconnectAttempt] = React.useState(0);
-    const [connectionError, setConnectionError] = React.useState<string | null>(null);
-    const [showOverlay, setShowOverlay] = React.useState(false);
-    const [isMounted, setIsMounted] = useState(false);
+    const pluginsManager = usePluginsManager();
+    const hostRef = useRef<FoxgloveWorkerHost<FoxgloveDataSourceSettings> | null>(null);
+    const [initialized, setInitialized] = useState(false);
+    const [readyState, setReadyState] = useState(ReadyState.CONNECTING);
+    const [reconnectAttempt, setReconnectAttempt] = useState(0);
+    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [showOverlay, setShowOverlay] = useState(true);
 
-    // Prevent hydration issues by only showing content after mount
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    const { lastMessage, sendMessage, readyState, getWebSocket } = useWebSocket(
-        props.url,
-        {
-            protocols: [FoxgloveClient.SUPPORTED_SUBPROTOCOL, "foxglove.sdk.v1"],
-            shouldReconnect: () => true,
-            reconnectAttempts: 10,
-            reconnectInterval: props.reconnectTimeout * 1000 || 3000,
-            onOpen: () => {
-                if (props.toasts) {
-                    toast('Connected to Foxglove server');
-                }
-                setClientConnected(true);
-                setReconnectAttempt(0);
-                setConnectionError(null);
-                setShowOverlay(false);
-            },
-            onClose: (event) => {
-                if (props.toasts && !event.wasClean) {
-                    toast('Disconnected from Foxglove server');
-                }
-                setClientConnected(false);
-                setShowOverlay(true);
-
-                // If it's not a clean close, we'll be reconnecting
-                if (!event.wasClean) {
-                    setReconnectAttempt(prev => prev + 1);
-                }
-            },
-            onError: (event) => {
-                const errorMessage = `Foxglove connection error: ${event.type}`;
-                if (props.toasts) {
-                    toast(errorMessage);
-                }
-                console.error('Foxglove WebSocket error:', event);
-                setConnectionError(errorMessage);
-                setShowOverlay(true);
-            },
-            onReconnectStop: (numAttempts) => {
-                const errorMessage = `Failed to reconnect after ${numAttempts} attempts`;
-                setConnectionError(errorMessage);
-                setShowOverlay(true);
-                if (props.toasts) {
-                    toast(errorMessage);
-                }
-            },
-        }
-    );
-
-    React.useEffect(() => {
-        setClientConnected(readyState === ReadyState.OPEN);
-
-        // Show overlay when not connected, except when cleanly closed without reconnection
-        if (readyState === ReadyState.OPEN) {
+    // Memoize connection status handler to prevent recreating on every render
+    const handleConnectionStatus = useCallback((status: { connected: boolean; error?: string; reconnectAttempt?: number }) => {
+        if (status.connected) {
+            setReadyState(ReadyState.OPEN);
             setShowOverlay(false);
-        } else {
+            setConnectionError(null);
+            if (props.toasts) {
+                toast.success('Connected to Foxglove server');
+            }
+        } else if (status.reconnectAttempt && status.reconnectAttempt > 0) {
+            setReadyState(ReadyState.CONNECTING);
             setShowOverlay(true);
+            setConnectionError(status.error ?? null);
+        } else {
+            setReadyState(ReadyState.CLOSED);
+            setShowOverlay(true);
+            setConnectionError(status.error ?? null);
+            if (status.error && props.toasts) {
+                toast.error(status.error);
+            }
         }
-    }, [readyState]);
+        setReconnectAttempt(status.reconnectAttempt ?? 0);
+    }, [props.toasts]);
 
-    // Don't render anything until mounted to prevent hydration mismatch
-    if (!isMounted) {
-        return null;
-    }
+    useEffect(() => {
+        let disposed = false;
+        let host: FoxgloveWorkerHost<FoxgloveDataSourceSettings> | null = null;
+        let unsubscribe: (() => void) | null = null;
+
+        const worker = new Worker(
+            new URL("./foxglove-source.worker.js", import.meta.url),
+            {
+                type: "module",
+                name: `datasource:${props.id}`,
+            },
+        );
+
+        host = new FoxgloveWorkerHost({
+            worker,
+            datasourceId: props.id,
+            settings: props,
+            pluginsManager,
+        });
+
+        hostRef.current = host;
+        host.registerHooks();
+
+        unsubscribe = host.onConnectionStatus((status) => {
+            if (disposed) return;
+            handleConnectionStatus(status);
+        });
+
+        // Initialize worker asynchronously
+        host.init()
+            .then(() => {
+                if (!disposed) {
+                    setInitialized(true);
+                }
+            })
+            .catch((error) => {
+                if (!disposed) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error('[Foxglove] Failed to initialize worker:', errorMessage);
+
+                    // Batch state updates for better performance
+                    setConnectionError(errorMessage);
+                    setShowOverlay(true);
+                    setInitialized(false);
+
+                    if (props.toasts) {
+                        toast.error('Failed to initialize Foxglove datasource');
+                    }
+                }
+            });
+
+        return () => {
+            disposed = true;
+            if (unsubscribe) unsubscribe();
+            if (host) host.dispose();
+            hostRef.current = null;
+        };
+    }, [pluginsManager, props.id, props.url, props.reconnectTimeout, props.toasts, props.enable, props.title, props.transformTreeTopics, handleConnectionStatus]);
 
     return (
         <>
@@ -118,20 +129,11 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
                 isVisible={showOverlay}
             />
 
-            {clientConnected &&
-                <FoxgloveDataHandler settings={props} webSocket={getWebSocket()}>
-                    <TypeSystemManager settings={props}>
-                        <SubscriptionManager settings={props}>
-                            <PublisherManager settings={props}>
-                                <ServiceManager settings={props}>
-                                    <TransformTreeManager settings={props}>
-                                        {children}
-                                    </TransformTreeManager>
-                                </ServiceManager>
-                            </PublisherManager>
-                        </SubscriptionManager>
-                    </TypeSystemManager>
-                </FoxgloveDataHandler>}
+            {initialized && (
+                <TransformTreeManager settings={props}>
+                    {children}
+                </TransformTreeManager>
+            )}
         </>
     );
 };
@@ -140,7 +142,7 @@ const FoxgloveSourceProvider = (children: ReactNode, props: FoxgloveDataSourceSe
 export { FoxgloveSourceProvider };
 export type { FoxgloveDataSourceSettings };
 
-// Hook to use the Foxglove context
+// Hook to use the Foxglove context (deprecated)
 export const useFoxgloveSource = () => {
-    return useFoxgloveData();
+    throw new Error("useFoxgloveSource is deprecated after worker migration");
 };

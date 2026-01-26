@@ -204,6 +204,13 @@ const PointsRenderer = ({
             const cloud = source.data[source.data.length - 1] as PointsCloud | undefined;
             if (!cloud?.points?.length) continue;
 
+            const isPackedPoints =
+                cloud.points instanceof Float32Array ||
+                (Array.isArray(cloud.points) && typeof cloud.points[0] === 'number');
+            const isPackedColors =
+                cloud.colors instanceof Float32Array ||
+                (Array.isArray(cloud.colors) && typeof cloud.colors[0] === 'number');
+
             const transformChain = transformChains.get(sourceId);
             if (settings.targetFrame && transformChain === null) continue;
 
@@ -218,13 +225,28 @@ const PointsRenderer = ({
             // Create converter from source convention to Three.js
             const toThreeCoords = createPositionConverter(dataConvention, 'THREE');
 
-            for (let i = 0; i < cloud.points.length; i++) {
-                const p = cloud.points[i];
-                if (!p) continue;
+            const pointCount = isPackedPoints
+                ? Math.floor(cloud.points.length / 3)
+                : cloud.points.length;
 
-                let x = p.x || 0;
-                let y = p.y || 0;
-                let z = p.z || 0;
+            for (let i = 0; i < pointCount; i++) {
+                let x = 0;
+                let y = 0;
+                let z = 0;
+
+                if (isPackedPoints) {
+                    const idx = i * 3;
+                    const packed = cloud.points as Float32Array | number[];
+                    x = packed[idx] || 0;
+                    y = packed[idx + 1] || 0;
+                    z = packed[idx + 2] || 0;
+                } else {
+                    const p = cloud.points[i];
+                    if (!p) continue;
+                    x = p.x || 0;
+                    y = p.y || 0;
+                    z = p.z || 0;
+                }
 
                 // Apply transform chain in source coordinate space
                 if (hasTransform) {
@@ -244,12 +266,20 @@ const PointsRenderer = ({
                 if (settings.colorMode === 'reflectivity' && intensity !== undefined && Number.isFinite(intensity)) {
                     const col = colorFromTheme(intensity, settings.theme, settings.customColor);
                     r = col.r; g = col.g; b = col.b;
-                } else if (cloud.colors?.[i]) {
-                    const color = cloud.colors[i];
-                    if (color) {
-                        r = color.r;
-                        g = color.g;
-                        b = color.b;
+                } else if (cloud.colors) {
+                    if (isPackedColors) {
+                        const idx = i * 3;
+                        const packedColors = cloud.colors as Float32Array | number[];
+                        r = packedColors[idx] ?? r;
+                        g = packedColors[idx + 1] ?? g;
+                        b = packedColors[idx + 2] ?? b;
+                    } else {
+                        const color = cloud.colors[i];
+                        if (color) {
+                            r = color.r;
+                            g = color.g;
+                            b = color.b;
+                        }
                     }
                 }
 

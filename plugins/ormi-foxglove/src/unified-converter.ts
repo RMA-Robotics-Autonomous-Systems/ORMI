@@ -9,6 +9,8 @@ import {
     Vector3,
     Color,
     Image,
+    PoseStamped,
+    Path,
 } from "@workspace/ormi-core/types";
 import { PluginsManager } from "@workspace/ormi-plugins";
 
@@ -25,6 +27,21 @@ interface ConverterEntry {
 
 export class UnifiedConverter {
     static pluginManager: PluginsManager | null = null;
+    static externalConverters: { [webType: string]: ConverterEntry } | null =
+        null;
+
+    private static getConverters(): { [webType: string]: ConverterEntry } {
+        if (this.pluginManager) {
+            return (
+                this.pluginManager.applyFilter<
+                    typeof UnifiedConverter.converters
+                >("ros2-converters", UnifiedConverter.converters) ||
+                UnifiedConverter.converters
+            );
+        }
+
+        return this.externalConverters ?? UnifiedConverter.converters;
+    }
 
     // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
     static converters: { [webType: string]: ConverterEntry } = {
@@ -89,42 +106,84 @@ export class UnifiedConverter {
                             0,
                             data.coords.speed,
                         ],
-                        header: { stamp: { sec: data.timestamp } },
-                    }),
-                    fromRos2: (data: any) => ({
-                        coords: {
-                            latitude: data.latitude,
-                            longitude: data.longitude,
-                            altitude: data.altitude,
-                            accuracy: data.position_covariance[0],
-                            altitudeAccuracy: data.position_covariance[2],
-                            heading: data.position_covariance[4],
-                            speed: data.position_covariance[8],
-                            toJSON: function () {
-                                return {
-                                    latitude: this.latitude,
-                                    longitude: this.longitude,
-                                    altitude: this.altitude,
-                                    accuracy: this.accuracy,
-                                    altitudeAccuracy: this.altitudeAccuracy,
-                                    heading: this.heading,
-                                    speed: this.speed,
-                                };
+                        header: {
+                            stamp: {
+                                sec: Math.floor(data.timestamp / 1000),
+                                nanosec: Math.floor(
+                                    (data.timestamp % 1000) * 1e6,
+                                ),
                             },
                         },
-                        timestamp: data.header.stamp.sec,
-                        toJSON: function () {
-                            return {
-                                coords: this.coords.toJSON(),
-                                timestamp: this.timestamp,
-                            };
-                        },
                     }),
+                    fromRos2: (data: any) => {
+                        const covariance = Array.isArray(
+                            data.position_covariance,
+                        )
+                            ? data.position_covariance
+                            : [];
+                        const stamp = data.header?.stamp;
+                        const timestamp = stamp
+                            ? stamp.sec * 1000 + stamp.nanosec / 1e6
+                            : Date.now();
+
+                        return {
+                            coords: {
+                                latitude: Number(data.latitude ?? 0),
+                                longitude: Number(data.longitude ?? 0),
+                                altitude: Number(data.altitude ?? 0),
+                                accuracy: Number(covariance[0] ?? 0),
+                                altitudeAccuracy: Number(covariance[2] ?? 0),
+                                heading: Number(covariance[4] ?? 0),
+                                speed: Number(covariance[8] ?? 0),
+                            },
+                            timestamp,
+                        };
+                    },
                 },
             },
         },
         IMU: {
             conversions: {
+                "sensor_msgs/msg/MagneticField": {
+                    toRos2: (data: IMU) => ({
+                        magnetic_field: data.linear_acceleration,
+                    }),
+                    fromRos2: (data: any) => {
+                        function eulerToQuaternion(
+                            x: number,
+                            y: number,
+                            z: number,
+                        ): { x: number; y: number; z: number; w: number } {
+                            const cy = Math.cos(z * 0.5);
+                            const sy = Math.sin(z * 0.5);
+                            const cp = Math.cos(y * 0.5);
+                            const sp = Math.sin(y * 0.5);
+                            const cr = Math.cos(x * 0.5);
+                            const sr = Math.sin(x * 0.5);
+
+                            return {
+                                w: cr * cp * cy + sr * sp * sy,
+                                x: sr * cp * cy - cr * sp * sy,
+                                y: cr * sp * cy + sr * cp * sy,
+                                z: cr * cp * sy - sr * sp * cy,
+                            };
+                        }
+
+                        const mag = data.magnetic_field;
+                        const heading = Math.atan2(mag.y, mag.x);
+                        const orientation = eulerToQuaternion(0, 0, heading);
+
+                        return {
+                            linear_acceleration: data.magnetic_field || {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                            },
+                            angular_velocity: { x: 0, y: 0, z: 0 },
+                            orientation,
+                        };
+                    },
+                },
                 "sensor_msgs/msg/Imu": {
                     toRos2: (data: IMU) => ({
                         linear_acceleration: {
@@ -178,6 +237,14 @@ export class UnifiedConverter {
         },
         number: {
             conversions: {
+                "sensor_msgs/msg/Temperature": {
+                    toRos2: (data) => ({ temperature: data, variance: 0 }),
+                    fromRos2: (data) => data.temperature || 0,
+                },
+                "sensor_msgs/msg/FluidPressure": {
+                    toRos2: (data) => ({ fluid_pressure: data, variance: 0 }),
+                    fromRos2: (data) => data.fluid_pressure || 0,
+                },
                 "std_msgs/msg/Int8": {
                     toRos2: (data) => ({ data }),
                     fromRos2: (data) => data.data,
@@ -221,6 +288,121 @@ export class UnifiedConverter {
                 },
             },
             isPrimitive: true,
+        },
+        Vector3: {
+            conversions: {
+                "geometry_msgs/msg/Vector3Stamped": {
+                    toRos2: (data: Vector3) => ({
+                        vector: {
+                            x: data.x,
+                            y: data.y,
+                            z: data.z,
+                        },
+                    }),
+                    fromRos2: (data: any) => ({
+                        x: data.vector?.x || 0,
+                        y: data.vector?.y || 0,
+                        z: data.vector?.z || 0,
+                    }),
+                },
+                "geometry_msgs/msg/Vector3": {
+                    toRos2: (data: Vector3) => ({
+                        vector: {
+                            x: data.x,
+                            y: data.y,
+                            z: data.z,
+                        },
+                    }),
+                    fromRos2: (data: any) => ({
+                        x: data.vector?.x || 0,
+                        y: data.vector?.y || 0,
+                        z: data.vector?.z || 0,
+                    }),
+                },
+            },
+        },
+        Path: {
+            conversions: {
+                "nav_msgs/msg/Path": {
+                    toRos2: (data: Path) => ({
+                        header: {
+                            stamp: {
+                                sec: Math.floor(data.timestamp),
+                                nanosec: Math.floor((data.timestamp % 1) * 1e9),
+                            },
+                            frame_id: "",
+                        },
+                        poses: data.poses.map((pose: PoseStamped) => ({
+                            header: {
+                                stamp: {
+                                    sec: Math.floor(pose.timestamp),
+                                    nanosec: Math.floor(
+                                        (pose.timestamp % 1) * 1e9,
+                                    ),
+                                },
+                                frame_id: "",
+                            },
+                            pose: {
+                                position: {
+                                    x: pose.position.x,
+                                    y: pose.position.y,
+                                    z: pose.position.z,
+                                },
+                                orientation: {
+                                    x: pose.orientation.x,
+                                    y: pose.orientation.y,
+                                    z: pose.orientation.z,
+                                    w: pose.orientation.w,
+                                },
+                            },
+                        })),
+                    }),
+                    fromRos2: (data: any) => {
+                        const timestamp = data.header?.stamp
+                            ? data.header.stamp.sec +
+                              data.header.stamp.nanosec / 1e9
+                            : Date.now() / 1000;
+
+                        const poses: PoseStamped[] = (data.poses || []).map(
+                            (poseStamped: any) => {
+                                const poseTimestamp = poseStamped.header?.stamp
+                                    ? poseStamped.header.stamp.sec +
+                                      poseStamped.header.stamp.nanosec / 1e9
+                                    : timestamp;
+
+                                return {
+                                    position: {
+                                        x: poseStamped.pose?.position?.x || 0,
+                                        y: poseStamped.pose?.position?.y || 0,
+                                        z: poseStamped.pose?.position?.z || 0,
+                                    },
+                                    orientation: {
+                                        x:
+                                            poseStamped.pose?.orientation?.x ||
+                                            0,
+                                        y:
+                                            poseStamped.pose?.orientation?.y ||
+                                            0,
+                                        z:
+                                            poseStamped.pose?.orientation?.z ||
+                                            0,
+                                        w:
+                                            poseStamped.pose?.orientation?.w ||
+                                            1,
+                                    },
+                                    timestamp: poseTimestamp,
+                                };
+                            },
+                        );
+
+                        return {
+                            poses,
+                            timestamp,
+                            convention: "ROS" as const,
+                        };
+                    },
+                },
+            },
         },
         PointsCloud: {
             conversions: {
@@ -636,11 +818,7 @@ export class UnifiedConverter {
 
     // Updated: loops through each ConverterEntry's conversion mapping.
     static getWebappTypeFromROSType(ros2Type: string): string | undefined {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         for (const webType in allConverters) {
             if (
@@ -656,11 +834,7 @@ export class UnifiedConverter {
 
     // Returns the primary ros2 type (first key) for a given webapp type.
     static getROSTypeFromWebappType(webappType: string): string | undefined {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const conv = allConverters[webappType];
         return conv ? Object.keys(conv.conversions)[0] : undefined;
@@ -672,11 +846,7 @@ export class UnifiedConverter {
         targetWebappType: string,
         originalRos2Type: string,
     ): any {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const entry = allConverters[targetWebappType];
         if (!entry || !entry.conversions[originalRos2Type]) {
@@ -692,11 +862,7 @@ export class UnifiedConverter {
         webappType: string,
         desiredRos2Type: string,
     ): any {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const entry = allConverters[webappType];
         if (!entry || !entry.conversions[desiredRos2Type]) {
