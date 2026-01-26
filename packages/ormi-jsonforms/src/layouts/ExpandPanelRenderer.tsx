@@ -339,7 +339,8 @@ export const withContextToExpandPanelProps = (
         const childPath = composePaths(path, `${index}`);
 
         const childLabel = useMemo(() => {
-            return computeChildLabel(
+            // Try to get the standard computed label
+            let label = computeChildLabel(
                 ctx.core!.data,
                 childPath,
                 childLabelProp!,
@@ -348,6 +349,38 @@ export const withContextToExpandPanelProps = (
                 ctx.i18n!.translate!,
                 uischema
             );
+
+            // If no label found and we have data, check for special object types
+            if (!label && ctx.core?.data) {
+                // Navigate to the child data
+                const pathSegments = childPath.split('.');
+                let childData = ctx.core.data;
+                for (const segment of pathSegments) {
+                    if (childData && typeof childData === 'object') {
+                        childData = (childData as any)[segment];
+                    } else {
+                        childData = undefined;
+                        break;
+                    }
+                }
+
+                // Check if it's a SelectedTopic object (has topic property with a string value)
+                if (childData && typeof childData === 'object' && 'topic' in childData) {
+                    const topicData = (childData as any).topic;
+                    if (typeof topicData === 'object' && 'topic' in topicData && typeof topicData.topic === 'string') {
+                        // It's a SelectedTopic - use topic.topic as the label
+                        label = topicData.topic;
+                        if (topicData.property) {
+                            label += ` → ${topicData.property}`;
+                        }
+                    } else if (typeof topicData === 'string') {
+                        // Direct topic string
+                        label = topicData;
+                    }
+                }
+            }
+
+            return label;
         }, [
             ctx.core!.data,
             childPath,
