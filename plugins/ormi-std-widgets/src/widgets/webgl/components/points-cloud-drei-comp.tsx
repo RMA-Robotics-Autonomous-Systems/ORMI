@@ -4,7 +4,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Grid, OrbitControls, PerspectiveCamera, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { PointsCloudProps } from '../types/points-cloud-drei-types';
 import { useLocalDataSource } from '@workspace/ormi-core/datasources';
-import { PointsCloud, Transform, CoordinateConvention } from '@workspace/ormi-core/types';
+import { PointsCloud, Transform, CoordinateConvention, Vector3, Color } from '@workspace/ormi-core/types';
 import {
     findTransformChain,
     useTransformSource,
@@ -204,6 +204,14 @@ const PointsRenderer = ({
             const cloud = source.data[source.data.length - 1] as PointsCloud | undefined;
             if (!cloud?.points?.length) continue;
 
+            // Hoist type checks outside the loop for performance
+            const isPackedPoints =
+                cloud.points instanceof Float32Array ||
+                (Array.isArray(cloud.points) && typeof cloud.points[0] === 'number');
+            const isPackedColors =
+                cloud.colors instanceof Float32Array ||
+                (Array.isArray(cloud.colors) && typeof cloud.colors[0] === 'number');
+
             const transformChain = transformChains.get(sourceId);
             if (settings.targetFrame && transformChain === null) continue;
 
@@ -218,46 +226,110 @@ const PointsRenderer = ({
             // Create converter from source convention to Three.js
             const toThreeCoords = createPositionConverter(dataConvention, 'THREE');
 
-            for (let i = 0; i < cloud.points.length; i++) {
-                const p = cloud.points[i];
-                if (!p) continue;
+            const pointCount = isPackedPoints
+                ? Math.floor(cloud.points.length / 3)
+                : cloud.points.length;
 
-                let x = p.x || 0;
-                let y = p.y || 0;
-                let z = p.z || 0;
+            // Pre-compute color mode flags
+            const useReflectivity = settings.colorMode === 'reflectivity';
+            const hasIntensities = !!cloud.intensities;
+            const hasColors = !!cloud.colors;
 
-                // Apply transform chain in source coordinate space
-                if (hasTransform) {
-                    const transformed = applyTransformChain({ x, y, z }, transformChain!);
-                    x = transformed.x;
-                    y = transformed.y;
-                    z = transformed.z;
-                }
+            // Separate processing paths for packed vs unpacked data
+            // This avoids repeated type checks in the inner loop
+            if (isPackedPoints) {
+                // Fast path for packed Float32Array data
+                const packed = cloud.points as Float32Array | number[];
+                const packedColors = isPackedColors ? (cloud.colors as Float32Array | number[]) : null;
+                const intensities = cloud.intensities;
 
-                // Convert from source convention to Three.js coordinates for rendering
-                const pos = toThreeCoords({ x, y, z });
+                for (let i = 0; i < pointCount; i++) {
+                    const idx = i * 3;
+                    let x = packed[idx] || 0;
+                    let y = packed[idx + 1] || 0;
+                    let z = packed[idx + 2] || 0;
 
-                // Determine color
-                let r = 1, g = 1, b = 1;
-                const intensity = cloud.intensities?.[i];
-
-                if (settings.colorMode === 'reflectivity' && intensity !== undefined && Number.isFinite(intensity)) {
-                    const col = colorFromTheme(intensity, settings.theme, settings.customColor);
-                    r = col.r; g = col.g; b = col.b;
-                } else if (cloud.colors?.[i]) {
-                    const color = cloud.colors[i];
-                    if (color) {
-                        r = color.r;
-                        g = color.g;
-                        b = color.b;
+                    // Apply transform chain in source coordinate space
+                    if (hasTransform) {
+                        const transformed = applyTransformChain({ x, y, z }, transformChain!);
+                        x = transformed.x;
+                        y = transformed.y;
+                        z = transformed.z;
                     }
-                }
 
-                newPoints.push({
-                    x: pos.x, y: pos.y, z: pos.z,
-                    r, g, b,
-                    timestamp: currentTime
-                });
+                    // Convert from source convention to Three.js coordinates for rendering
+                    const pos = toThreeCoords({ x, y, z });
+
+                    // Determine color
+                    let r = 1, g = 1, b = 1;
+
+                    if (useReflectivity && hasIntensities) {
+                        const intensity = intensities![i];
+                        if (intensity !== undefined && Number.isFinite(intensity)) {
+                            const col = colorFromTheme(intensity, settings.theme, settings.customColor);
+                            r = col.r; g = col.g; b = col.b;
+                        }
+                    } else if (packedColors) {
+                        r = packedColors[idx] ?? r;
+                        g = packedColors[idx + 1] ?? g;
+                        b = packedColors[idx + 2] ?? b;
+                    }
+
+                    newPoints.push({
+                        x: pos.x, y: pos.y, z: pos.z,
+                        r, g, b,
+                        timestamp: currentTime
+                    });
+                }
+            } else {
+                // Slower path for unpacked Vector3[] data
+                const points = cloud.points as Vector3[];
+                const colors = hasColors && !isPackedColors ? (cloud.colors as Color[]) : null;
+                const intensities = cloud.intensities;
+
+                for (let i = 0; i < pointCount; i++) {
+                    const p = points[i];
+                    if (!p) continue;
+
+                    let x = p.x || 0;
+                    let y = p.y || 0;
+                    let z = p.z || 0;
+
+                    // Apply transform chain in source coordinate space
+                    if (hasTransform) {
+                        const transformed = applyTransformChain({ x, y, z }, transformChain!);
+                        x = transformed.x;
+                        y = transformed.y;
+                        z = transformed.z;
+                    }
+
+                    // Convert from source convention to Three.js coordinates for rendering
+                    const pos = toThreeCoords({ x, y, z });
+
+                    // Determine color
+                    let r = 1, g = 1, b = 1;
+
+                    if (useReflectivity && hasIntensities) {
+                        const intensity = intensities![i];
+                        if (intensity !== undefined && Number.isFinite(intensity)) {
+                            const col = colorFromTheme(intensity, settings.theme, settings.customColor);
+                            r = col.r; g = col.g; b = col.b;
+                        }
+                    } else if (colors) {
+                        const color = colors[i];
+                        if (color && typeof color === 'object') {
+                            r = color.r;
+                            g = color.g;
+                            b = color.b;
+                        }
+                    }
+
+                    newPoints.push({
+                        x: pos.x, y: pos.y, z: pos.z,
+                        r, g, b,
+                        timestamp: currentTime
+                    });
+                }
             }
         }
 

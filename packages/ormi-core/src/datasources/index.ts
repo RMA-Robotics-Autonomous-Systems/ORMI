@@ -7,3 +7,7 @@ export * from "./components/datasource-card";
 export * from "./components/global-datasource-provider";
 export * from "./components/local-datasource-provider";
 export * from "./components/publisher-datasource-provider";
+export type * from "./worker/protocol";
+export * from "./worker/rpc";
+export * from "./worker/host";
+export * from "./worker/datasource-worker";

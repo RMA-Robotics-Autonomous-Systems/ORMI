@@ -9,6 +9,8 @@ import {
     Vector3,
     Color,
     Image,
+    PoseStamped,
+    Path,
 } from "@workspace/ormi-core/types";
 import { PluginsManager } from "@workspace/ormi-plugins";
 
@@ -25,6 +27,21 @@ interface ConverterEntry {
 
 export class UnifiedConverter {
     static pluginManager: PluginsManager | null = null;
+    static externalConverters: { [webType: string]: ConverterEntry } | null =
+        null;
+
+    private static getConverters(): { [webType: string]: ConverterEntry } {
+        if (this.pluginManager) {
+            return (
+                this.pluginManager.applyFilter<
+                    typeof UnifiedConverter.converters
+                >("ros2-converters", UnifiedConverter.converters) ||
+                UnifiedConverter.converters
+            );
+        }
+
+        return this.externalConverters ?? UnifiedConverter.converters;
+    }
 
     // Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
     static converters: { [webType: string]: ConverterEntry } = {
@@ -89,42 +106,84 @@ export class UnifiedConverter {
                             0,
                             data.coords.speed,
                         ],
-                        header: { stamp: { sec: data.timestamp } },
-                    }),
-                    fromRos2: (data: any) => ({
-                        coords: {
-                            latitude: data.latitude,
-                            longitude: data.longitude,
-                            altitude: data.altitude,
-                            accuracy: data.position_covariance[0],
-                            altitudeAccuracy: data.position_covariance[2],
-                            heading: data.position_covariance[4],
-                            speed: data.position_covariance[8],
-                            toJSON: function () {
-                                return {
-                                    latitude: this.latitude,
-                                    longitude: this.longitude,
-                                    altitude: this.altitude,
-                                    accuracy: this.accuracy,
-                                    altitudeAccuracy: this.altitudeAccuracy,
-                                    heading: this.heading,
-                                    speed: this.speed,
-                                };
+                        header: {
+                            stamp: {
+                                sec: Math.floor(data.timestamp / 1000),
+                                nanosec: Math.floor(
+                                    (data.timestamp % 1000) * 1e6,
+                                ),
                             },
                         },
-                        timestamp: data.header.stamp.sec,
-                        toJSON: function () {
-                            return {
-                                coords: this.coords.toJSON(),
-                                timestamp: this.timestamp,
-                            };
-                        },
                     }),
+                    fromRos2: (data: any) => {
+                        const covariance = Array.isArray(
+                            data.position_covariance,
+                        )
+                            ? data.position_covariance
+                            : [];
+                        const stamp = data.header?.stamp;
+                        const timestamp = stamp
+                            ? stamp.sec * 1000 + stamp.nanosec / 1e6
+                            : Date.now();
+
+                        return {
+                            coords: {
+                                latitude: Number(data.latitude ?? 0),
+                                longitude: Number(data.longitude ?? 0),
+                                altitude: Number(data.altitude ?? 0),
+                                accuracy: Number(covariance[0] ?? 0),
+                                altitudeAccuracy: Number(covariance[2] ?? 0),
+                                heading: Number(covariance[4] ?? 0),
+                                speed: Number(covariance[8] ?? 0),
+                            },
+                            timestamp,
+                        };
+                    },
                 },
             },
         },
         IMU: {
             conversions: {
+                "sensor_msgs/msg/MagneticField": {
+                    toRos2: (data: IMU) => ({
+                        magnetic_field: data.linear_acceleration,
+                    }),
+                    fromRos2: (data: any) => {
+                        function eulerToQuaternion(
+                            x: number,
+                            y: number,
+                            z: number,
+                        ): { x: number; y: number; z: number; w: number } {
+                            const cy = Math.cos(z * 0.5);
+                            const sy = Math.sin(z * 0.5);
+                            const cp = Math.cos(y * 0.5);
+                            const sp = Math.sin(y * 0.5);
+                            const cr = Math.cos(x * 0.5);
+                            const sr = Math.sin(x * 0.5);
+
+                            return {
+                                w: cr * cp * cy + sr * sp * sy,
+                                x: sr * cp * cy - cr * sp * sy,
+                                y: cr * sp * cy + sr * cp * sy,
+                                z: cr * cp * sy - sr * sp * cy,
+                            };
+                        }
+
+                        const mag = data.magnetic_field;
+                        const heading = Math.atan2(mag.y, mag.x);
+                        const orientation = eulerToQuaternion(0, 0, heading);
+
+                        return {
+                            linear_acceleration: data.magnetic_field || {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                            },
+                            angular_velocity: { x: 0, y: 0, z: 0 },
+                            orientation,
+                        };
+                    },
+                },
                 "sensor_msgs/msg/Imu": {
                     toRos2: (data: IMU) => ({
                         linear_acceleration: {
@@ -178,6 +237,14 @@ export class UnifiedConverter {
         },
         number: {
             conversions: {
+                "sensor_msgs/msg/Temperature": {
+                    toRos2: (data) => ({ temperature: data, variance: 0 }),
+                    fromRos2: (data) => data.temperature || 0,
+                },
+                "sensor_msgs/msg/FluidPressure": {
+                    toRos2: (data) => ({ fluid_pressure: data, variance: 0 }),
+                    fromRos2: (data) => data.fluid_pressure || 0,
+                },
                 "std_msgs/msg/Int8": {
                     toRos2: (data) => ({ data }),
                     fromRos2: (data) => data.data,
@@ -222,15 +289,126 @@ export class UnifiedConverter {
             },
             isPrimitive: true,
         },
+        Vector3: {
+            conversions: {
+                "geometry_msgs/msg/Vector3Stamped": {
+                    toRos2: (data: Vector3) => ({
+                        vector: {
+                            x: data.x,
+                            y: data.y,
+                            z: data.z,
+                        },
+                    }),
+                    fromRos2: (data: any) => ({
+                        x: data.vector?.x || 0,
+                        y: data.vector?.y || 0,
+                        z: data.vector?.z || 0,
+                    }),
+                },
+                "geometry_msgs/msg/Vector3": {
+                    toRos2: (data: Vector3) => ({
+                        vector: {
+                            x: data.x,
+                            y: data.y,
+                            z: data.z,
+                        },
+                    }),
+                    fromRos2: (data: any) => ({
+                        x: data.vector?.x || 0,
+                        y: data.vector?.y || 0,
+                        z: data.vector?.z || 0,
+                    }),
+                },
+            },
+        },
+        Path: {
+            conversions: {
+                "nav_msgs/msg/Path": {
+                    toRos2: (data: Path) => ({
+                        header: {
+                            stamp: {
+                                sec: Math.floor(data.timestamp),
+                                nanosec: Math.floor((data.timestamp % 1) * 1e9),
+                            },
+                            frame_id: "",
+                        },
+                        poses: data.poses.map((pose: PoseStamped) => ({
+                            header: {
+                                stamp: {
+                                    sec: Math.floor(pose.timestamp),
+                                    nanosec: Math.floor(
+                                        (pose.timestamp % 1) * 1e9,
+                                    ),
+                                },
+                                frame_id: "",
+                            },
+                            pose: {
+                                position: {
+                                    x: pose.position.x,
+                                    y: pose.position.y,
+                                    z: pose.position.z,
+                                },
+                                orientation: {
+                                    x: pose.orientation.x,
+                                    y: pose.orientation.y,
+                                    z: pose.orientation.z,
+                                    w: pose.orientation.w,
+                                },
+                            },
+                        })),
+                    }),
+                    fromRos2: (data: any) => {
+                        const timestamp = data.header?.stamp
+                            ? data.header.stamp.sec +
+                              data.header.stamp.nanosec / 1e9
+                            : Date.now() / 1000;
+
+                        const poses: PoseStamped[] = (data.poses || []).map(
+                            (poseStamped: any) => {
+                                const poseTimestamp = poseStamped.header?.stamp
+                                    ? poseStamped.header.stamp.sec +
+                                      poseStamped.header.stamp.nanosec / 1e9
+                                    : timestamp;
+
+                                return {
+                                    position: {
+                                        x: poseStamped.pose?.position?.x || 0,
+                                        y: poseStamped.pose?.position?.y || 0,
+                                        z: poseStamped.pose?.position?.z || 0,
+                                    },
+                                    orientation: {
+                                        x:
+                                            poseStamped.pose?.orientation?.x ||
+                                            0,
+                                        y:
+                                            poseStamped.pose?.orientation?.y ||
+                                            0,
+                                        z:
+                                            poseStamped.pose?.orientation?.z ||
+                                            0,
+                                        w:
+                                            poseStamped.pose?.orientation?.w ||
+                                            1,
+                                    },
+                                    timestamp: poseTimestamp,
+                                };
+                            },
+                        );
+
+                        return {
+                            poses,
+                            timestamp,
+                            convention: "ROS" as const,
+                        };
+                    },
+                },
+            },
+        },
         PointsCloud: {
             conversions: {
                 "sensor_msgs/msg/PointCloud2": {
                     toRos2: (data: PointsCloud) => ({}),
                     fromRos2: (data): PointsCloud => {
-                        const points: Vector3[] = [];
-                        const colors: Color[] = [];
-                        const intensities: number[] = [];
-
                         const fields = data.fields;
                         const point_step = data.point_step;
                         const is_bigendian = data.is_bigendian;
@@ -279,7 +457,7 @@ export class UnifiedConverter {
                             console.error(
                                 "Point cloud missing x, y, or z fields",
                             );
-                            return { points: [] };
+                            return { points: new Float32Array(0) };
                         }
 
                         // Handle the binary data properly
@@ -291,6 +469,12 @@ export class UnifiedConverter {
                             width * height,
                             Math.floor(buffer.byteLength / point_step),
                         );
+
+                        // Pre-allocate packed arrays for optimal performance
+                        const packedPoints = new Float32Array(totalPoints * 3);
+                        const packedColors = new Float32Array(totalPoints * 3);
+                        const intensities = new Float32Array(totalPoints);
+                        let validPointCount = 0;
 
                         // Create a data view for efficient access - use the buffer property correctly
                         const dataView = new DataView(
@@ -421,7 +605,10 @@ export class UnifiedConverter {
 
                                 // Add valid points (could add filtering here if needed)
                                 if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                                    points.push({ x, y, z });
+                                    const idx = validPointCount * 3;
+                                    packedPoints[idx] = x;
+                                    packedPoints[idx + 1] = y;
+                                    packedPoints[idx + 2] = z;
 
                                     if (
                                         rgbOffset !== undefined &&
@@ -433,12 +620,9 @@ export class UnifiedConverter {
                                             rgbDatatype,
                                         );
                                         if (color) {
-                                            if (hasRgba && color) {
-                                                // alpha stored in rgba is ignored for now
-                                                colors.push(color);
-                                            } else {
-                                                colors.push(color);
-                                            }
+                                            packedColors[idx] = color.r;
+                                            packedColors[idx + 1] = color.g;
+                                            packedColors[idx + 2] = color.b;
                                         }
                                     }
 
@@ -455,8 +639,11 @@ export class UnifiedConverter {
                                             rawIntensity,
                                             intensityDatatype,
                                         );
-                                        intensities.push(normalized);
+                                        intensities[validPointCount] =
+                                            normalized;
                                     }
+
+                                    validPointCount++;
                                 }
                             } catch (e) {
                                 // Skip points that can't be properly read
@@ -464,13 +651,24 @@ export class UnifiedConverter {
                             }
                         }
 
+                        // Trim arrays to actual size (important for memory efficiency)
+                        const finalPoints = packedPoints.subarray(
+                            0,
+                            validPointCount * 3,
+                        );
+                        const finalColors =
+                            validPointCount > 0 && rgbOffset !== undefined
+                                ? packedColors.subarray(0, validPointCount * 3)
+                                : undefined;
+                        const finalIntensities =
+                            validPointCount > 0 && intensityOffset !== undefined
+                                ? intensities.subarray(0, validPointCount)
+                                : undefined;
+
                         return {
-                            points,
-                            colors: colors.length > 0 ? colors : undefined,
-                            intensities:
-                                intensities.length > 0
-                                    ? intensities
-                                    : undefined,
+                            points: finalPoints,
+                            colors: finalColors,
+                            intensities: finalIntensities,
                             // ROS PointCloud2 uses ROS REP-103 coordinate convention
                             convention: "ROS" as const,
                         };
@@ -479,17 +677,22 @@ export class UnifiedConverter {
                 "livox_ros_driver2/msg/CustomMsg": {
                     toRos2: (data: PointsCloud) => ({}),
                     fromRos2: (data): PointsCloud => {
-                        const points: Vector3[] = [];
-                        const colors: Color[] = [];
-                        const intensities: number[] = [];
-
                         // Make sure we have points data
                         if (!data.points || !Array.isArray(data.points)) {
                             console.error(
                                 "Livox point cloud data missing or invalid",
                             );
-                            return { points: [], convention: "ROS" };
+                            return {
+                                points: new Float32Array(0),
+                                convention: "ROS",
+                            };
                         }
+
+                        const numPoints = data.points.length;
+                        const packedPoints = new Float32Array(numPoints * 3);
+                        const packedColors = new Float32Array(numPoints * 3);
+                        const intensities = new Float32Array(numPoints);
+                        let validPointCount = 0;
 
                         // Process each custom point
                         for (const point of data.points) {
@@ -505,11 +708,10 @@ export class UnifiedConverter {
                                     !isNaN(point.y) &&
                                     !isNaN(point.z)
                                 ) {
-                                    points.push({
-                                        x: point.x,
-                                        y: point.y,
-                                        z: point.z,
-                                    });
+                                    const idx = validPointCount * 3;
+                                    packedPoints[idx] = point.x;
+                                    packedPoints[idx + 1] = point.y;
+                                    packedPoints[idx + 2] = point.z;
 
                                     // Convert reflectivity to color if needed
                                     if (point.reflectivity !== undefined) {
@@ -522,27 +724,39 @@ export class UnifiedConverter {
                                             1.0,
                                         );
 
-                                        intensities.push(intensity);
-
-                                        colors.push({
-                                            r: intensity,
-                                            g: intensity,
-                                            b: intensity,
-                                            a: 1.0,
-                                        });
+                                        intensities[validPointCount] =
+                                            intensity;
+                                        packedColors[idx] = intensity;
+                                        packedColors[idx + 1] = intensity;
+                                        packedColors[idx + 2] = intensity;
                                     }
+
+                                    validPointCount++;
                                 }
                             }
                         }
 
+                        // Trim arrays to actual size
+                        const finalPoints = packedPoints.subarray(
+                            0,
+                            validPointCount * 3,
+                        );
+                        const finalColors =
+                            validPointCount > 0 &&
+                            data.points[0]?.reflectivity !== undefined
+                                ? packedColors.subarray(0, validPointCount * 3)
+                                : undefined;
+                        const finalIntensities =
+                            validPointCount > 0 &&
+                            data.points[0]?.reflectivity !== undefined
+                                ? intensities.subarray(0, validPointCount)
+                                : undefined;
+
                         // Return point cloud with additional metadata if available
                         return {
-                            points,
-                            colors: colors.length > 0 ? colors : undefined,
-                            intensities:
-                                intensities.length > 0
-                                    ? intensities
-                                    : undefined,
+                            points: finalPoints,
+                            colors: finalColors,
+                            intensities: finalIntensities,
                             // Livox uses ROS coordinate convention
                             convention: "ROS" as const,
                         };
@@ -636,11 +850,7 @@ export class UnifiedConverter {
 
     // Updated: loops through each ConverterEntry's conversion mapping.
     static getWebappTypeFromROSType(ros2Type: string): string | undefined {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         for (const webType in allConverters) {
             if (
@@ -656,11 +866,7 @@ export class UnifiedConverter {
 
     // Returns the primary ros2 type (first key) for a given webapp type.
     static getROSTypeFromWebappType(webappType: string): string | undefined {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const conv = allConverters[webappType];
         return conv ? Object.keys(conv.conversions)[0] : undefined;
@@ -672,11 +878,7 @@ export class UnifiedConverter {
         targetWebappType: string,
         originalRos2Type: string,
     ): any {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const entry = allConverters[targetWebappType];
         if (!entry || !entry.conversions[originalRos2Type]) {
@@ -692,11 +894,7 @@ export class UnifiedConverter {
         webappType: string,
         desiredRos2Type: string,
     ): any {
-        let allConverters =
-            this.pluginManager?.applyFilter<typeof UnifiedConverter.converters>(
-                "ros2-converters",
-                UnifiedConverter.converters,
-            ) || UnifiedConverter.converters;
+        const allConverters = this.getConverters();
 
         const entry = allConverters[webappType];
         if (!entry || !entry.conversions[desiredRos2Type]) {

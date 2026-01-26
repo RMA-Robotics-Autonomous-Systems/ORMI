@@ -17,6 +17,10 @@
             "types": "./dist/datasources/index.d.ts",
             "import": "./dist/datasources/index.js"
         },
+        "./datasources/worker": {
+            "types": "./dist/datasources/worker/index.d.ts",
+            "import": "./dist/datasources/worker/index.js"
+        },
         "./widgets": {
             "types": "./dist/widgets/index.d.ts",
             "import": "./dist/widgets/index.js"

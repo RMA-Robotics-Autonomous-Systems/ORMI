@@ -5,123 +5,254 @@ order: 2
 
 # Data Flow
 
-Understanding how data moves through ORMI-CORE is essential for building effective widgets and datasources. This guide explains the complete data flow from data sources to widget visualization.
+ORMI-CORE uses a **worker-based architecture** where datasources run in Web Workers, communicating with the main thread via RPC protocol. This ensures non-blocking I/O and responsive UI.
 
-## Overview
-
-Data in ORMI-CORE follows a **publish-subscribe pattern** facilitated by the PluginManager.
-
-### Step 1: Subscription Request (Widget Mount)
+## Architecture Overview
 
 ```mermaid
-graph LR
-    W["Widget Mounts<br/>(LocalDataSourceProvider)"]
-    W -->|"1. addAction()<br/>{datasource}-{topic}-published<br/>(register callback)"| PM["PluginManager"]
-    W -->|"2. WaitAndDoAction()<br/>{datasource}-subscribe<br/>(request subscription)"| PM
-    PM -->|"Subscribe action"| DS["Datasource Provider<br/>receives request"]
-    DS -->|"Starts data<br/>generation/streaming"| DS
+graph TB
+    subgraph "Main Thread"
+        W[Widget + LocalDataSourceProvider]
+        PM[PluginManager<br/>Hooks & Pub/Sub]
+        HOST[WorkerDatasourceHost<br/>RPC Client]
+    end
+
+    subgraph "Web Worker"
+        WORKER[Datasource Worker<br/>RPC Server]
+        CLIENT[WebSocket/HTTP Client]
+    end
+
+    W -->|"subscribe"| PM
+    PM -->|"hooks"| HOST
+    HOST <-->|"RPC + Transferable"| WORKER
+    WORKER <-->|"network I/O"| CLIENT
+    WORKER -->|"publish"| HOST
+    HOST -->|"doAction"| PM
+    PM -->|"dispatch"| W
 
     style W fill:#e8f5e9
-    style PM fill:#ffecb3
-    style DS fill:#f3e5f5
+    style PM fill:#fff3e0
+    style HOST fill:#e3f2fd
+    style WORKER fill:#f3e5f5
+    style CLIENT fill:#fce4ec
 ```
 
-**What happens:**
+## Data Flow Steps
 
-- Widget wraps component in `LocalDataSourceProvider`
-- LocalDS registers a callback for receiving data
-- LocalDS requests subscription from datasource
-- Datasource starts generating/streaming data for that topic
-
-### Step 2: Data Flow (Runtime)
+### Step 1: Widget Subscription
 
 ```mermaid
-graph LR
-    DS["Datasource<br/>publishes data"]
-    DS -->|"doAction()<br/>{datasource}-{topic}-published<br/>+ timestamp + frameId"| PM["PluginManager<br/>(broadcast hub)"]
-    PM -->|"Execute all<br/>registered callbacks"| L["LocalDataSourceProvider<br/>(callback)"]
-    L -->|"Buffer data<br/>(useRef)"| L
-    L -->|"Update state<br/>(React)"| W["Widget re-renders<br/>useLocalDataSource()<br/>getSource(topic)"]
+sequenceDiagram
+    participant W as Widget
+    participant LDS as LocalDataSourceProvider
+    participant PM as PluginManager
+    participant HOST as WorkerHost
+    participant WORKER as Worker
 
-    style DS fill:#f3e5f5
-    style PM fill:#ffecb3
-    style L fill:#e8f5e9
-    style W fill:#c8e6c9
+    W->>LDS: Mount with topics
+    LDS->>PM: addAction({ds}-{topic}-published)
+    Note over LDS,PM: Register data callback
+    LDS->>PM: WaitAndDoAction({ds}-subscribe)
+    PM->>HOST: Execute subscribe hook
+    HOST->>WORKER: RPC: subscribe(topic)
+    WORKER->>WORKER: Start streaming data
+    WORKER-->>HOST: RPC response
+    HOST-->>PM: Action complete
+    PM-->>LDS: Subscribe confirmed
+    LDS->>W: Render children
 ```
 
-**What happens:**
+**Main thread actions:**
 
-- Datasource publishes data via `doAction()`
-- PluginManager calls all registered callbacks
-- LocalDS callback buffers data
-- State update triggers widget re-render
-- Widget retrieves buffered data with `getSource()`
+1. LocalDataSourceProvider registers callback for published data
+2. Requests subscription via PluginManager hook
+3. WorkerHost receives hook and forwards to worker via RPC
+4. Worker starts data generation/connection
 
-### Step 3: Unsubscription (Widget Unmount)
+### Step 2: Data Publishing (Runtime)
 
 ```mermaid
-graph LR
-    W["Widget Unmounts"]
-    W -->|"WaitAndDoAction()<br/>{datasource}-unsubscribe<br/>(cleanup)"| PM["PluginManager"]
-    PM -->|"Unsubscribe action"| DS["Datasource Provider"]
-    DS -->|"Decrement counter<br/>stop if no subscribers"| DS
-    W -->|"removeAction()<br/>cleanup callbacks"| PM
+sequenceDiagram
+    participant CLIENT as External Source
+    participant WORKER as Worker
+    participant HOST as WorkerHost
+    participant PM as PluginManager
+    participant LDS as LocalDataSourceProvider
+    participant W as Widget
 
-    style W fill:#ffcdd2
-    style PM fill:#ffecb3
-    style DS fill:#f3e5f5
+    CLIENT->>WORKER: WebSocket message
+    WORKER->>WORKER: Convert to internal type
+    WORKER->>HOST: publish(topic, data, time, frameId)<br/>[Transferable]
+    Note over WORKER,HOST: Zero-copy for Float32Array
+    HOST->>PM: doAction({ds}-{topic}-published)
+    PM->>LDS: Execute callback
+    LDS->>LDS: Buffer in pendingUpdates
+    Note over LDS: 30Hz update interval
+    LDS->>LDS: Batch process updates
+    LDS->>LDS: Update React state
+    LDS->>W: Context update
+    W->>W: Re-render with new data
 ```
 
-**What happens:**
+**Runtime flow:**
 
-- Widget unmounts, LocalDS cleanup runs
-- Unsubscribe request sent to datasource
-- Datasource stops if no other subscribers
-- Callbacks are removed from PluginManager
+1. Data arrives in worker (WebSocket, HTTP, etc.)
+2. Worker converts to internal type
+3. Worker publishes via `ctx.publish()` with Transferable objects
+4. WorkerHost receives and forwards to PluginManager
+5. LocalDataSourceProvider callback buffers data
+6. Batched state update triggers widget re-render (30Hz)
+
+### Step 3: Unsubscription
+
+```mermaid
+sequenceDiagram
+    participant W as Widget
+    participant LDS as LocalDataSourceProvider
+    participant PM as PluginManager
+    participant HOST as WorkerHost
+    participant WORKER as Worker
+
+    W->>LDS: Unmount
+    LDS->>PM: WaitAndDoAction({ds}-unsubscribe)
+    PM->>HOST: Execute unsubscribe hook
+    HOST->>WORKER: RPC: unsubscribe(topic)
+    WORKER->>WORKER: Decrement subscriber count
+    alt No more subscribers
+        WORKER->>WORKER: Stop streaming
+    end
+    WORKER-->>HOST: RPC response
+    LDS->>PM: removeAction({ds}-{topic}-published)
+    Note over LDS,PM: Clean up callback
+```
+
+**Cleanup flow:**
+
+1. Widget unmounts, LocalDataSourceProvider cleanup
+2. Unsubscribe request sent via PluginManager
+3. WorkerHost forwards to worker via RPC
+4. Worker stops data generation if last subscriber
+5. Callbacks removed from PluginManager
 
 ## Data Flow Layers
 
-### Layer 1: Datasource Provider
+### Layer 1: Datasource Worker
 
-The **Datasource Provider** is a React Provider component that:
-
-1. Connects to external data sources
-2. Converts raw data to internal types
-3. **Listens for subscription requests** via `{datasource_id}-subscribe` action
-4. Manages subscriber counts (start/stop data flow)
-5. Publishes data via the Plugin Manager when active
-
-**Important:** Datasources wait for subscription requests before starting data generation!
+The **Datasource Worker** runs in a separate Web Worker thread:
 
 **Key Responsibilities:**
 
-- Listen for subscription requests via action hooks
-- Track subscriber counts (reference counting)
-- Start/stop data generation based on demand
-- Publish data through Plugin Manager using action hooks
-- Convert external formats to internal types
+- Connect to external data sources (WebSocket, HTTP, hardware)
+- Convert raw data to internal types
+- Listen for subscription requests via RPC
+- Track subscriber counts (start/stop data flow)
+- Publish data with Transferable objects for zero-copy transfers
+- Handle graceful shutdown and cleanup
 
-**Subscription Workflow:**
+**RPC Methods:**
 
-1. Receives `{datasource_id}-subscribe` action with topic
-2. Tracks number of subscribers per topic
-3. On first subscriber: starts data generation/streaming
-4. On additional subscribers: reuses existing stream
-5. On last unsubscribe: stops data generation to save resources
+```typescript
+interface DatasourceWorkerImplementation {
+    init(settings): Promise<void>; // Initialize connection
+    listTopics(): Promise<DatasourceTopic[]>; // List available topics
+    subscribe(topic): Promise<void>; // Start streaming
+    unsubscribe(topic): Promise<void>; // Stop streaming
+    shutdown(): Promise<void>; // Clean up resources
+}
+```
 
-### Layer 2: Plugin Manager (Pub/Sub Hub)
+**Publishing Data:**
 
-The **Plugin Manager** acts as a central message broker:
+```typescript
+// In worker
+createDatasourceWorker((ctx) => ({
+    async subscribe(topic) {
+        // Start streaming
+        setInterval(() => {
+            const data = getSensorData();
 
-- Receives published data from datasources
-- Maintains subscriber lists
-- Dispatches data to all subscribers
+            // Zero-copy transfer for Float32Array
+            const buffer = data.points; // Float32Array
+            ctx.publish(
+                topic.topic,
+                { points: buffer },
+                Date.now(),
+                "sensor_frame",
+                [buffer.buffer], // Transferable
+            );
+        }, 100);
+    },
+}));
+```
+
+**Benefits:**
+
+- **Non-blocking I/O**: WebSocket operations don't freeze UI
+- **CPU Isolation**: Heavy processing doesn't impact rendering
+- **Zero-copy**: Transferable objects for large data (point clouds)
+- **Error Isolation**: Worker crash doesn't affect main thread
+
+### Layer 2: WorkerDatasourceHost
+
+The **WorkerDatasourceHost** lives in the main thread and manages worker communication:
+
+**Responsibilities:**
+
+- Spawn and manage Web Worker lifecycle
+- Provide RPC client for type-safe communication
+- Register hooks with PluginManager
+- Forward subscription requests to worker
+- Receive published data and forward to PluginManager
+- Handle worker errors and reconnection
+
+**Hook Registration:**
+
+```typescript
+class WorkerDatasourceHost {
+    registerHooks() {
+        // Available topics
+        pluginManager.addFilter("available-topics", async (topics) => {
+            const workerTopics = await this.rpc.call("listTopics");
+            return [...topics, ...workerTopics];
+        });
+
+        // Subscribe requests
+        pluginManager.addAction("{ds}-subscribe", async (topic) => {
+            await this.rpc.call("subscribe", topic);
+        });
+
+        // Unsubscribe requests
+        pluginManager.addAction("{ds}-unsubscribe", async (topic) => {
+            await this.rpc.call("unsubscribe", topic);
+        });
+    }
+
+    // Receive published data from worker
+    private handlePublish(event) {
+        pluginManager.doAction(
+            "{ds}-{topic}-published",
+            event.data,
+            event.time,
+            event.referenceFrameId,
+        );
+    }
+}
+```
+
+### Layer 3: Plugin Manager (Pub/Sub Hub)
+
+The **Plugin Manager** acts as a central message broker in the main thread:
+
+- Maintains hook/action registry
+- Dispatches subscription requests to WorkerHosts
+- Broadcasts published data to subscribers
+- Manages filter chains for topic lists
 - No data transformation or storage
 
 **Execution flow:**
 
 ```typescript
-// Datasource publishes
+// WorkerHost publishes
 pluginManager.doAction("foxglove-/robot/pose-published", poseData, timestamp);
 
 // Plugin Manager finds all registered actions for this hook
@@ -131,29 +262,18 @@ action2.action(poseData, timestamp);
 // ...
 ```
 
-### Layer 3: LocalDataSourceProvider
+### Layer 4: LocalDataSourceProvider
 
-The **LocalDataSourceProvider** wraps individual widgets and:
+The **LocalDataSourceProvider** wraps individual widgets:
 
-1. **Requests subscription** via `pluginsManager.WaitAndDoAction('{datasource_id}-subscribe', topic)`
-2. **Registers action callbacks** on the PluginManager for data updates
-3. Maintains data buffers in memory
-4. Provides React context to child widgets
-5. Manages subscription lifecycle (subscribe on mount, unsubscribe on unmount)
+**Responsibilities:**
 
-**Key features:**
-
-- **Active subscription request**: LocalDS explicitly asks datasources for data
-- **Callback registration**: Separate from subscription request
-- **Buffer management**: Keep last N messages per topic
-- **Subscription coordination**: Uses PluginManager actions to communicate with datasources
-- **Throttled updates**: Batches state updates at specified frequency (default 30Hz)
-- **Automatic lifecycle**: Subscribe on mount, unsubscribe on unmount
-
-- **Buffer management**: Keep last N messages per topic
-- **Subscription coordination**: Uses PluginManager actions to communicate with datasources
-- **Throttled updates**: Batches state updates at specified frequency (default 30Hz)
-- **Automatic lifecycle**: Subscribe on mount, unsubscribe on unmount
+1. **Request subscription** via `pluginsManager.WaitAndDoAction('{datasource_id}-subscribe', topic)`
+2. **Register action callbacks** on PluginManager for data updates
+3. **Buffer data** in memory with circular buffer
+4. **Throttle updates** at configured frequency (default 30Hz)
+5. **Provide React context** to child widgets
+6. **Manage lifecycle** (subscribe on mount, unsubscribe on unmount)
 
 **Usage:**
 
@@ -161,21 +281,21 @@ The **LocalDataSourceProvider** wraps individual widgets and:
 <LocalDataSourcesProvider
   SelectedTopics={[topicSelection]}
   buffersSize={10}
-  updateFrequency={30}  // Optional: Hz, default 30
+  updateFrequency={30}  // Hz, default 30
 >
   <MyWidget />
 </LocalDataSourcesProvider>
 ```
 
-**Responsibilities:**
+**Key features:**
 
-1. **Subscribe on mount**: Registers for topic data and requests datasource subscription
-2. **Buffer data**: Maintains circular buffer of recent messages per topic
-3. **Throttle updates**: Batches React state updates at configured frequency (default 30Hz)
-4. **Provide context**: Exposes data through React context to child widgets
-5. **Cleanup on unmount**: Unsubscribes and removes registered callbacks
+- **Active subscription**: Explicitly requests data from datasources
+- **Callback registration**: Separate from subscription request
+- **Batched updates**: Collects data in 33ms intervals (30Hz default)
+- **Buffer management**: Keeps last N messages per topic
+- **Automatic lifecycle**: Subscribe/unsubscribe on mount/unmount
 
-### Layer 4: Widget Component
+### Layer 5: Widget Component
 
 The **Widget** consumes data via React hooks:
 
@@ -216,13 +336,11 @@ interface Source {
 
 ## Subscription Mechanism
 
-### How LocalDataSourceProvider Requests Subscription
-
-**Key Concept:** LocalDataSourceProvider **actively requests** subscription from datasources. Data doesn't flow until subscription is requested.
+### How Subscription Works
 
 **Two-step process:**
 
-1. **Register data callback:**
+1. **Register data callback** (main thread):
 
     ```typescript
     pluginsManager.addAction(`${datasource_id}-${topic}-published`, {
@@ -234,96 +352,240 @@ interface Source {
     });
     ```
 
-2. **Request subscription:**
+2. **Request subscription** (RPC to worker):
     ```typescript
     await pluginsManager.WaitAndDoAction(
         `${datasource_id}-subscribe`,
         1, // timeout in seconds
-        topic
+        topic,
     );
+    // WorkerHost forwards to worker via RPC
+    // Worker starts data generation/streaming
     ```
 
 **Why this pattern?**
 
-- Datasources only generate/stream data when needed (performance)
+- Workers only generate/stream data when needed (performance)
 - Multiple widgets can subscribe to same topic (reference counting)
 - Clean lifecycle management (subscribe on mount, unsubscribe on unmount)
+- Main thread doesn't block on I/O operations
 
-### Widget-Initiated Subscription
-
-When a widget needs data:
+### Complete Subscription Flow
 
 ```mermaid
 sequenceDiagram
     participant W as Widget
     participant L as LocalDataSourceProvider
     participant PM as PluginManager
-    participant DS as DatasourceProvider
+    participant HOST as WorkerHost
+    participant WORKER as Worker
+    participant EXT as External Source
 
     W->>L: Mount with SelectedTopics
     L->>L: Initialize empty buffers
 
     loop For each topic
-        Note over L: STEP 1: Subscribe to topic
-        L->>PM: addAction({datasource}-{topic}-published, callback)
-        Note over L,PM: Register callback for data updates
-        L->>PM: WaitAndDoAction({datasource}-subscribe, topic)
-        Note over L,PM: Request subscription (async, waits for action)
-        PM->>DS: Execute subscribe action
-        Note over DS: STEP 2: Handle subscription request
-        DS->>DS: Increment subscriber count
+        Note over L: STEP 1: Register callback
+        L->>PM: addAction({ds}-{topic}-published, callback)
+
+        Note over L: STEP 2: Request subscription
+        L->>PM: WaitAndDoAction({ds}-subscribe, topic)
+        PM->>HOST: Execute subscribe hook
+        HOST->>WORKER: RPC: subscribe(topic)
+
+        Note over WORKER: STEP 3: Start streaming
+        WORKER->>EXT: Connect/Subscribe
         alt First subscriber
-            DS->>DS: Start data generation/connection
+            WORKER->>WORKER: Initialize connection
         end
+
+        WORKER-->>HOST: RPC response
+        HOST-->>PM: Subscribe complete
+        PM-->>L: Action complete
     end
 
     L->>L: setInitialized(true)
     L->>W: Render children
 
-    Note over DS: STEP 3: Data arrives from source
-    DS->>PM: doAction({datasource}-{topic}-published, data, time, frameId)
-    Note over PM: STEP 4: Broadcast to callbacks
+    Note over EXT: STEP 4: Data arrives
+    EXT->>WORKER: WebSocket message
+    WORKER->>WORKER: Convert to internal type
+    WORKER->>HOST: publish(topic, data, time, frameId)<br/>[Transferable]
+
+    Note over HOST: STEP 5: Forward to PluginManager
+    HOST->>PM: doAction({ds}-{topic}-published, data)
     PM->>L: Execute registered callback
     L->>L: Store in pendingUpdates buffer
 
-    Note over L: Update interval fires (e.g., every 33ms for 30Hz)
-    L->>L: Process pendingUpdates batch
-    L->>L: Update buffers with new data
-    L->>L: Apply buffer size limit
+    Note over L: STEP 6: Batch update (30Hz)
+    L->>L: Process pendingUpdates
+    L->>L: Update buffers
     L->>L: Trigger React state update
-    Note over L,W: STEP 5: Widget re-renders
-    L->>W: Context update → Widget re-renders
+    L->>W: Context update → re-render
     W->>L: getSource(topic)
     L->>W: Return buffered data
 ```
 
-**Important Notes:**
+### Important Notes
 
 - **LocalDataSourceProvider actively requests subscription** via `WaitAndDoAction()`
-- The datasource doesn't push data until a subscription is requested
-- Multiple widgets can subscribe to the same topic (subscriber count tracking)
+- Worker doesn't push data until subscription is requested
+- Multiple widgets can subscribe to same topic (worker ref-counts)
 - Unsubscribe happens automatically when widget unmounts
+- Data transfers use Transferable objects for zero-copy (Float32Array)
 
 ### Subscription Lifecycle
 
 **On Mount:**
 
-1. For each topic, register a callback to receive published data
-2. Request subscription from datasource using action hook
-3. Datasource starts streaming data if this is the first subscriber
+1. For each topic, register callback to receive published data (main thread)
+2. Request subscription from datasource via PluginManager hook
+3. WorkerHost forwards subscription request to worker via RPC
+4. Worker starts streaming data if this is the first subscriber
 
 **During Operation:**
 
-1. Datasource publishes new data via action hook
-2. LocalDataSourceProvider callback receives and buffers the data
-3. Updates are batched and applied at configured frequency
-4. Widget context updates trigger re-renders
+1. Worker receives data from external source (WebSocket, HTTP, etc.)
+2. Worker converts to internal type and publishes via `ctx.publish()`
+3. WorkerHost receives and forwards to PluginManager
+4. LocalDataSourceProvider callback receives and buffers data
+5. Updates batched and applied at configured frequency (30Hz)
+6. Widget context updates trigger re-renders
 
 **On Unmount:**
 
-1. Send unsubscribe request to datasource
-2. Remove action callback from Plugin Manager
-3. Datasource stops streaming if this was the last subscriber
+1. Send unsubscribe request via PluginManager hook
+2. WorkerHost forwards to worker via RPC
+3. Worker decrements ref count, stops streaming if last subscriber
+4. Remove action callback from Plugin Manager
+
+## Worker Architecture
+
+### RPC Protocol
+
+Type-safe bidirectional communication between main thread and worker:
+
+```typescript
+// Main thread (WorkerHost)
+const rpc = createRpcClient<Methods, Events>(worker);
+
+// Call worker method
+await rpc.call("subscribe", topic);
+const topics = await rpc.call("listTopics");
+
+// Listen to worker events
+rpc.on("topic-published", (event) => {
+    // Forward to PluginManager
+});
+
+// Worker thread
+createDatasourceWorker((ctx) => ({
+    async subscribe(topic) {
+        // Implementation
+    },
+
+    async listTopics() {
+        return topics;
+    },
+}));
+
+// Publish from worker
+ctx.publish(topic, data, time, frameId, [transferables]);
+```
+
+### Transferable Objects
+
+Zero-copy data transfer for performance:
+
+```typescript
+// Worker: Create transferable data
+const points = new Float32Array(300000); // 300k points
+// ... fill points array
+
+// Transfer ownership to main thread (zero-copy)
+ctx.publish(
+    "/scan/points",
+    { points },
+    Date.now(),
+    "lidar_frame",
+    [points.buffer], // Transferable - no copy!
+);
+
+// Main thread: Receives transferred buffer
+// points.buffer is now owned by main thread
+// Worker's original buffer is neutered (can't be accessed)
+```
+
+**Benefits:**
+
+- **Zero-copy**: No memory duplication for large arrays
+- **Performance**: ~2-3x faster for 100k+ point clouds
+- **Memory**: Reduced memory usage and GC pressure
+
+**Supported Transferables:**
+
+- `ArrayBuffer`
+- `MessagePort`
+- `ImageBitmap`
+- `OffscreenCanvas`
+
+### Error Handling
+
+Workers isolate errors from main thread:
+
+```typescript
+// Worker error handler
+createDatasourceWorker((ctx) => {
+    // Global error handler
+    self.addEventListener("error", (e) => {
+        console.error("Worker error:", e);
+        // Worker crash doesn't affect main thread
+    });
+
+    return {
+        async subscribe(topic) {
+            try {
+                // Connection logic
+            } catch (error) {
+                // Log and handle gracefully
+                errorHandler.handle(error);
+            }
+        },
+    };
+});
+
+// Main thread handles worker termination
+workerHost.worker.addEventListener("error", (e) => {
+    console.error("Worker crashed:", e);
+    // Can restart worker if needed
+});
+```
+
+### Graceful Shutdown
+
+Workers clean up resources on termination:
+
+```typescript
+// Worker shutdown
+createDatasourceWorker((ctx) => ({
+    async shutdown() {
+        // Close connections
+        websocket?.close();
+
+        // Clear timers
+        clearInterval(publishTimer);
+
+        // Clean up resources
+        subscriptions.clear();
+
+        // Worker will terminate after this
+    },
+}));
+
+// Main thread triggers shutdown
+await workerHost.shutdown(); // 5-second timeout
+worker.terminate(); // Force terminate if needed
+```
 
 ## Type System
 
@@ -460,7 +722,7 @@ const filter = new DatasourceTopicFilter({
 const topics = pluginManager.applyFilter<DatasourceTopic[]>(
     PluginsHooks.AVAILABLE_TOPICS,
     [],
-    filter
+    filter,
 );
 
 // Filter by name pattern
@@ -476,25 +738,48 @@ const foxgloveTopics = new DatasourceTopicFilter({
 
 ## Publishing Data
 
-### From Datasources
+### From Datasource Workers
 
-Datasources publish data when it arrives by broadcasting through the Plugin Manager:
+Workers publish data using the context API:
 
 ```typescript
-// Publish to all subscribers
-pluginManager.doAction(
-    `${datasource_id}-${topic}-published`,
-    data, // Converted to internal type
-    Date.now(), // Timestamp
-    "sensor_frame" // Reference frame
+createDatasourceWorker((ctx) => ({
+    async subscribe(topic) {
+        const interval = setInterval(() => {
+            const data = getSensorData();
+
+            // Simple publish
+            ctx.publish(topic.topic, data, Date.now(), "sensor_frame");
+
+            // With Transferable for large data
+            const pointCloud = new Float32Array(100000);
+            ctx.publish(
+                "/scan/points",
+                { points: pointCloud },
+                Date.now(),
+                "lidar_frame",
+                [pointCloud.buffer], // Zero-copy transfer
+            );
+        }, 100);
+    },
+}));
+```
+
+**Publishing signature:**
+
+```typescript
+ctx.publish(
+  topic: string,
+  data: unknown,                    // Converted to internal type
+  time: number,                     // Timestamp in milliseconds
+  referenceFrameId?: string,        // Coordinate frame
+  transfer?: Transferable[]         // Optional zero-copy transfer
 );
 ```
 
-All LocalDataSourceProviders subscribed to this topic will receive the data.
-
 ### From Widgets (Control Widgets)
 
-Widgets can also publish data (e.g., joystick control):
+Widgets can publish commands:
 
 ```typescript
 function JoystickWidget({ publishTopic }: { publishTopic: SelectedTopic }) {
@@ -574,9 +859,32 @@ graph TD
 
 ## Performance Considerations
 
-### 1. Minimize Re-renders
+### 1. Worker Benefits
 
-Use buffer size wisely:
+Workers provide automatic performance improvements:
+
+```typescript
+// ✅ Good: Heavy I/O in worker
+// WebSocket operations don't block UI
+// No explicit optimization needed
+```
+
+### 2. Transferable Objects
+
+Use typed arrays for large data:
+
+```typescript
+// ❌ Bad: Structured clone (copies data)
+ctx.publish(topic, { points: regularArray });
+
+// ✅ Good: Transferable (zero-copy)
+const buffer = new Float32Array(points);
+ctx.publish(topic, { points: buffer }, time, frame, [buffer.buffer]);
+```
+
+### 3. Buffer Size
+
+Use appropriate buffer size for your use case:
 
 ```typescript
 // ❌ Bad: Large buffer causes frequent re-renders
@@ -586,7 +894,7 @@ Use buffer size wisely:
 <LocalDataSourcesProvider buffersSize={10}>
 ```
 
-### 2. Selective Subscriptions
+### 4. Selective Subscriptions
 
 Only subscribe to topics you need:
 
@@ -595,41 +903,82 @@ Only subscribe to topics you need:
 <LocalDataSourcesProvider SelectedTopics={[velocityTopic]}>
 ```
 
-### 3. Throttle High-Frequency Data
+### 5. Update Frequency
 
-Configure appropriate update frequency:
+Throttle high-frequency data:
 
 ```typescript
-// For high-frequency data (100+ Hz), throttle updates
+// For high-frequency data (100+ Hz), throttle UI updates
 <LocalDataSourcesProvider
   SelectedTopics={[lidarTopic]}
   updateFrequency={10}  // Only 10 UI updates per second
 />
 ```
 
+### 6. Worker Pooling
+
+For multiple datasources, workers automatically isolate:
+
+```typescript
+// Each datasource runs in separate worker
+// No manual pooling needed
+const foxglove = new WorkerHost({ worker: new Worker("./foxglove.worker.js") });
+const random = new WorkerHost({ worker: new Worker("./random.worker.js") });
+```
+
 ## Debugging Data Flow
 
-### 1. Check Plugin Manager
+### 1. Check Worker Status
 
-Enable logging to see all hook executions:
+Monitor worker health:
+
+```typescript
+// In WorkerHost
+workerHost.worker.addEventListener("message", (e) => {
+    console.log("Worker message:", e.data);
+});
+
+workerHost.worker.addEventListener("error", (e) => {
+    console.error("Worker error:", e);
+});
+```
+
+### 2. Enable Plugin Manager Logging
 
 ```typescript
 // In browser console
 localStorage.setItem("DEBUG", "plugins:*");
+// Shows all hook executions and data flow
 ```
 
-### 2. Inspect Topics
+### 3. Inspect Topics
 
-Use the Topics List widget to see all available topics:
+Use the Topics List widget:
 
 ```typescript
 // Built into ormi-std-widgets
 <TopicsListWidget />
 ```
 
-### 3. Monitor Subscriptions
+### 4. RPC Call Tracing
 
-Check subscription status in the Plugin Manager or use debugging widgets to track active subscriptions.
+Add logging to RPC calls:
+
+```typescript
+// In worker
+console.log("[Worker] RPC call:", method, args);
+
+// In main thread
+console.log("[Host] RPC response:", result);
+```
+
+### 5. Performance Profiling
+
+Use Chrome DevTools:
+
+- **Performance tab**: Record worker activity
+- **Memory tab**: Check for leaks in workers
+- **Network tab**: Monitor WebSocket traffic (worker context)
 
 ## Common Patterns
 

@@ -20,15 +20,45 @@ ORMI-CORE is a **modular, plugin-based framework** for building real-time data v
 
 ## Architecture Overview
 
-For detailed architecture diagrams and provider chain explanation, see **[Plugin System](core/plugin-system)** and **[Data Flow](core/data-flow)**.
+```mermaid
+graph TB
+    subgraph "Main Thread"
+        UI[React UI Layer]
+        PM[PluginManager<br/>Hooks & Pub/Sub]
+        HOST[WorkerDatasourceHost<br/>RPC Client]
+        LDS[LocalDataSourceProvider<br/>Per-Widget Buffers]
+    end
 
-**V1 uses a hybrid architecture:**
+    subgraph "Web Worker Thread"
+        WORKER[Datasource Worker<br/>RPC Server]
+        CLIENT[External Client<br/>WebSocket/REST]
+    end
 
-1. **Application Level**: PluginsProvider wraps entire app, provides PluginManager
-2. **Dashboard Level**: GlobalDataSourceProvider nests all datasource providers using `reduceRight()`
-3. **Widget Level**: Each widget wrapped in LocalDataSourceProvider for independent subscriptions
-4. **Data Flow**: Pub/sub pattern via PluginManager routes data from datasources to widgets
-5. **Transforms**: Event-driven via Jotai atoms - no provider needed, instant updates
+    UI -->|subscribe| LDS
+    LDS -->|register callback| PM
+    PM -->|manage hooks| HOST
+    HOST <-->|RPC Protocol| WORKER
+    WORKER <-->|network I/O| CLIENT
+    WORKER -->|publish + transfer| HOST
+    HOST -->|doAction| PM
+    PM -->|dispatch| LDS
+    LDS -->|buffer| UI
+
+    style UI fill:#e8f5e9
+    style PM fill:#fff3e0
+    style HOST fill:#e3f2fd
+    style WORKER fill:#f3e5f5
+    style CLIENT fill:#fce4ec
+    style LDS fill:#e8f5e9
+```
+
+**V1 Architecture:**
+
+1. **Worker-Based Datasources**: Heavy I/O operations run in Web Workers via RPC protocol
+2. **PluginManager Hub**: Type-safe hooks system for datasource registration and pub/sub
+3. **LocalDataSourceProvider**: Per-widget subscription management with buffering (30Hz updates)
+4. **Zero-Copy Transfers**: Transferable objects for large data (Float32Array for point clouds)
+5. **Transform System**: Jotai atoms for coordinate system transformations
 
 ## Extension Points
 
@@ -59,15 +89,15 @@ React components that visualize or interact with data.
 
 ### 3. **Datasources**
 
-React Providers that connect to data sources and publish to topics.
+Web Worker implementations that connect to data sources via RPC protocol.
 
 **Build datasources for:**
 
-- WebSocket connections (ROS2, Foxglove)
-- REST APIs
-- Hardware interfaces
-- Data generators
-- File playback systems
+- WebSocket connections (ROS2, Foxglove) - runs in dedicated worker
+- REST APIs - non-blocking network I/O
+- Hardware interfaces - isolated from main thread
+- Data generators - CPU-intensive operations offloaded
+- File playback systems - streaming without blocking UI
 
 ### 4. **Custom Renderers**
 
@@ -81,7 +111,7 @@ JSON Forms renderers for specialized input controls.
 
 ### 5. **Transforms**
 
-Coordinate system transformations for robotics applications using Jotai atoms.
+Coordinate system transformations using Jotai atoms.
 
 **Implement transforms for:**
 
@@ -89,6 +119,24 @@ Coordinate system transformations for robotics applications using Jotai atoms.
 - Coordinate frame conversions
 - GPS coordinate mapping
 - Multi-sensor fusion
+
+## Performance Features
+
+### Worker Architecture
+
+Datasources run in dedicated Web Workers:
+
+- **Non-blocking I/O**: Network operations don't freeze the UI
+- **Transferable Objects**: Zero-copy transfers for large data (Float32Array)
+- **CPU Isolation**: Heavy processing doesn't impact rendering
+- **Better Responsiveness**: Main thread remains available for user interactions
+
+### Optimized Data Flow
+
+- **Buffered Updates**: LocalDataSourceProvider batches at 30Hz (configurable)
+- **Typed RPC**: Type-safe communication between main thread and workers
+- **Graceful Shutdown**: Workers clean up resources with 5s timeout
+- **Error Isolation**: Worker crashes don't bring down the main app
 
 ## Quick Start
 
@@ -106,17 +154,44 @@ export function MyWidgetDefinition(): WidgetDefinition {
 }
 ```
 
-### Datasource Example
+### Worker-Based Datasource Example
 
 ```typescript
-export const MyDatasourceDefinition: DatasourceDefinition = {
+// worker.ts
+import { createDatasourceWorker } from '@workspace/ormi-core/datasources/worker';
+
+createDatasourceWorker<MySettings>((ctx) => ({
+  async init(settings) {
+    // Initialize connection
+  },
+
+  async listTopics() {
+    return [{ topic: '/data', type: 'MyType', ... }];
+  },
+
+  async subscribe(topic) {
+    // Start streaming, use ctx.publish() to emit data
+    ctx.publish(topic.topic, data, Date.now(), frameId, [arrayBuffer]);
+  },
+
+  async unsubscribe(topic) {
+    // Stop streaming
+  },
+
+  async shutdown() {
+    // Clean up resources
+  }
+}));
+
+// provider.tsx
+const MyDatasourceDefinition: DatasourceDefinition = {
   id: 'my-datasource',
   name: 'My Data Source',
   schema: { /* config schema */ },
   Provider: ({ children, props }) => (
-    <MyDatasourceProvider {...props}>
+    <MyWorkerHost datasourceId={props.id} settings={props}>
       {children}
-    </MyDatasourceProvider>
+    </MyWorkerHost>
   )
 }
 ```
