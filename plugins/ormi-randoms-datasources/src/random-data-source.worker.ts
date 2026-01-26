@@ -1,4 +1,9 @@
-import { createDatasourceWorker } from "@workspace/ormi-core/datasources/worker";
+import {
+    createDatasourceWorker,
+    DatasourceErrorHandler,
+    ErrorCategory,
+    ErrorSeverity,
+} from "@workspace/ormi-core/datasources/worker";
 import type {
     DatasourceTopic,
     SelectedTopic,
@@ -21,6 +26,7 @@ createDatasourceWorker<RandomDataSourceSettings>((context) => {
     const subscribersCount = new Map<string, number>();
     let settings: RandomDataSourceSettings;
     let callCounter = 0;
+    let errorHandler: DatasourceErrorHandler | null = null;
 
     const getTopicDefinition = (topicName: string) =>
         settings.topics.find((topic) => topic.topic === topicName);
@@ -232,6 +238,7 @@ createDatasourceWorker<RandomDataSourceSettings>((context) => {
     return {
         init: async (newSettings) => {
             settings = newSettings;
+            errorHandler = new DatasourceErrorHandler(newSettings.id);
             context.setRemoteCalls([]);
         },
         listTopics,

@@ -21,6 +21,14 @@ import type {
     RemoteCallStatus,
 } from "@workspace/ormi-core/datasources";
 import { createRpcServer } from "@workspace/ormi-core/datasources/worker";
+import {
+    DatasourceErrorHandler,
+    ErrorCategory,
+    ErrorSeverity,
+    createConnectionError,
+    createConversionError,
+    createSerializationError,
+} from "@workspace/ormi-core/datasources/worker";
 
 import { UnifiedConverter } from "./unified-converter";
 import { foxgloveIdlToJsonSchema } from "./foxglove-idl-to-jsonschema";
@@ -73,6 +81,7 @@ let connected = false;
 let reconnectAttempt = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let lastError: string | undefined;
+let errorHandler: DatasourceErrorHandler | null = null;
 
 const channels = new Map<number, Channel>();
 const subscribersById = new Map<number, SubscriberEntry>();
@@ -180,6 +189,15 @@ const connect = (
 
     ws.addEventListener("close", (event) => {
         connected = false;
+        if (!event.wasClean && errorHandler) {
+            errorHandler.handle(
+                createConnectionError(
+                    "WebSocket connection closed unexpectedly",
+                    settings?.id,
+                    { code: event.code, reason: event.reason },
+                ),
+            );
+        }
         emitStatus(emit);
         if (!event.wasClean) {
             scheduleReconnect(emit);
@@ -189,6 +207,15 @@ const connect = (
     ws.addEventListener("error", () => {
         connected = false;
         lastError = "Foxglove WebSocket error";
+        if (errorHandler) {
+            errorHandler.handle(
+                createConnectionError(
+                    "Foxglove WebSocket error",
+                    settings?.id,
+                    { url: settings?.url },
+                ),
+            );
+        }
         emitStatus(emit);
         scheduleReconnect(emit);
     });
@@ -287,11 +314,19 @@ const handleMessage = (messageData: MessageData) => {
                 subscriber.schemaName,
             );
         } catch (error) {
-            console.warn(
-                `[Foxglove Worker] Failed to convert message for topic ${subscriber.topic} ` +
-                    `(${subscriber.schemaName} -> ${subscriber.webtype}):`,
-                error instanceof Error ? error.message : error,
-            );
+            if (errorHandler) {
+                errorHandler.handleRaw(error, {
+                    severity: ErrorSeverity.WARNING,
+                    category: ErrorCategory.CONVERSION,
+                    context: {
+                        topic: subscriber.topic,
+                        schemaName: subscriber.schemaName,
+                        webtype: subscriber.webtype,
+                    },
+                    message: `Failed to convert message for topic ${subscriber.topic}`,
+                });
+            }
+            // Fall back to raw parsed data
             converted = parsed;
         }
 
@@ -536,6 +571,7 @@ const server = createRpcServer<
     {
         init: async (newSettings) => {
             settings = newSettings;
+            errorHandler = new DatasourceErrorHandler(newSettings.id);
             connect(server.emit);
             server.emit("remote-calls", { calls: [] });
         },

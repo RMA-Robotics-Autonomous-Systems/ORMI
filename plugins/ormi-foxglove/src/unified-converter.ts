@@ -409,10 +409,6 @@ export class UnifiedConverter {
                 "sensor_msgs/msg/PointCloud2": {
                     toRos2: (data: PointsCloud) => ({}),
                     fromRos2: (data): PointsCloud => {
-                        const points: Vector3[] = [];
-                        const colors: Color[] = [];
-                        const intensities: number[] = [];
-
                         const fields = data.fields;
                         const point_step = data.point_step;
                         const is_bigendian = data.is_bigendian;
@@ -461,7 +457,7 @@ export class UnifiedConverter {
                             console.error(
                                 "Point cloud missing x, y, or z fields",
                             );
-                            return { points: [] };
+                            return { points: new Float32Array(0) };
                         }
 
                         // Handle the binary data properly
@@ -473,6 +469,12 @@ export class UnifiedConverter {
                             width * height,
                             Math.floor(buffer.byteLength / point_step),
                         );
+
+                        // Pre-allocate packed arrays for optimal performance
+                        const packedPoints = new Float32Array(totalPoints * 3);
+                        const packedColors = new Float32Array(totalPoints * 3);
+                        const intensities = new Float32Array(totalPoints);
+                        let validPointCount = 0;
 
                         // Create a data view for efficient access - use the buffer property correctly
                         const dataView = new DataView(
@@ -603,7 +605,10 @@ export class UnifiedConverter {
 
                                 // Add valid points (could add filtering here if needed)
                                 if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                                    points.push({ x, y, z });
+                                    const idx = validPointCount * 3;
+                                    packedPoints[idx] = x;
+                                    packedPoints[idx + 1] = y;
+                                    packedPoints[idx + 2] = z;
 
                                     if (
                                         rgbOffset !== undefined &&
@@ -615,12 +620,9 @@ export class UnifiedConverter {
                                             rgbDatatype,
                                         );
                                         if (color) {
-                                            if (hasRgba && color) {
-                                                // alpha stored in rgba is ignored for now
-                                                colors.push(color);
-                                            } else {
-                                                colors.push(color);
-                                            }
+                                            packedColors[idx] = color.r;
+                                            packedColors[idx + 1] = color.g;
+                                            packedColors[idx + 2] = color.b;
                                         }
                                     }
 
@@ -637,8 +639,11 @@ export class UnifiedConverter {
                                             rawIntensity,
                                             intensityDatatype,
                                         );
-                                        intensities.push(normalized);
+                                        intensities[validPointCount] =
+                                            normalized;
                                     }
+
+                                    validPointCount++;
                                 }
                             } catch (e) {
                                 // Skip points that can't be properly read
@@ -646,13 +651,24 @@ export class UnifiedConverter {
                             }
                         }
 
+                        // Trim arrays to actual size (important for memory efficiency)
+                        const finalPoints = packedPoints.subarray(
+                            0,
+                            validPointCount * 3,
+                        );
+                        const finalColors =
+                            validPointCount > 0 && rgbOffset !== undefined
+                                ? packedColors.subarray(0, validPointCount * 3)
+                                : undefined;
+                        const finalIntensities =
+                            validPointCount > 0 && intensityOffset !== undefined
+                                ? intensities.subarray(0, validPointCount)
+                                : undefined;
+
                         return {
-                            points,
-                            colors: colors.length > 0 ? colors : undefined,
-                            intensities:
-                                intensities.length > 0
-                                    ? intensities
-                                    : undefined,
+                            points: finalPoints,
+                            colors: finalColors,
+                            intensities: finalIntensities,
                             // ROS PointCloud2 uses ROS REP-103 coordinate convention
                             convention: "ROS" as const,
                         };
@@ -661,17 +677,22 @@ export class UnifiedConverter {
                 "livox_ros_driver2/msg/CustomMsg": {
                     toRos2: (data: PointsCloud) => ({}),
                     fromRos2: (data): PointsCloud => {
-                        const points: Vector3[] = [];
-                        const colors: Color[] = [];
-                        const intensities: number[] = [];
-
                         // Make sure we have points data
                         if (!data.points || !Array.isArray(data.points)) {
                             console.error(
                                 "Livox point cloud data missing or invalid",
                             );
-                            return { points: [], convention: "ROS" };
+                            return {
+                                points: new Float32Array(0),
+                                convention: "ROS",
+                            };
                         }
+
+                        const numPoints = data.points.length;
+                        const packedPoints = new Float32Array(numPoints * 3);
+                        const packedColors = new Float32Array(numPoints * 3);
+                        const intensities = new Float32Array(numPoints);
+                        let validPointCount = 0;
 
                         // Process each custom point
                         for (const point of data.points) {
@@ -687,11 +708,10 @@ export class UnifiedConverter {
                                     !isNaN(point.y) &&
                                     !isNaN(point.z)
                                 ) {
-                                    points.push({
-                                        x: point.x,
-                                        y: point.y,
-                                        z: point.z,
-                                    });
+                                    const idx = validPointCount * 3;
+                                    packedPoints[idx] = point.x;
+                                    packedPoints[idx + 1] = point.y;
+                                    packedPoints[idx + 2] = point.z;
 
                                     // Convert reflectivity to color if needed
                                     if (point.reflectivity !== undefined) {
@@ -704,27 +724,39 @@ export class UnifiedConverter {
                                             1.0,
                                         );
 
-                                        intensities.push(intensity);
-
-                                        colors.push({
-                                            r: intensity,
-                                            g: intensity,
-                                            b: intensity,
-                                            a: 1.0,
-                                        });
+                                        intensities[validPointCount] =
+                                            intensity;
+                                        packedColors[idx] = intensity;
+                                        packedColors[idx + 1] = intensity;
+                                        packedColors[idx + 2] = intensity;
                                     }
+
+                                    validPointCount++;
                                 }
                             }
                         }
 
+                        // Trim arrays to actual size
+                        const finalPoints = packedPoints.subarray(
+                            0,
+                            validPointCount * 3,
+                        );
+                        const finalColors =
+                            validPointCount > 0 &&
+                            data.points[0]?.reflectivity !== undefined
+                                ? packedColors.subarray(0, validPointCount * 3)
+                                : undefined;
+                        const finalIntensities =
+                            validPointCount > 0 &&
+                            data.points[0]?.reflectivity !== undefined
+                                ? intensities.subarray(0, validPointCount)
+                                : undefined;
+
                         // Return point cloud with additional metadata if available
                         return {
-                            points,
-                            colors: colors.length > 0 ? colors : undefined,
-                            intensities:
-                                intensities.length > 0
-                                    ? intensities
-                                    : undefined,
+                            points: finalPoints,
+                            colors: finalColors,
+                            intensities: finalIntensities,
                             // Livox uses ROS coordinate convention
                             convention: "ROS" as const,
                         };
