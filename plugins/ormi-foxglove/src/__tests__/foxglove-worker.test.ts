@@ -404,13 +404,11 @@ describe("Foxglove Worker - Error Handling", () => {
         const connected = false;
         const client = null;
 
-        if (!client || !connected) {
-            errors.push({
-                message: "Cannot publish on /test: not connected",
-                context: { topic: "/test" },
-            });
-            return; // Early return as per implementation
-        }
+        // Simulate publish attempt when not connected
+        errors.push({
+            message: "Cannot publish on /test: not connected",
+            context: { topic: "/test" },
+        });
 
         expect(errors.length).toBe(1);
         expect(errors[0].message).toContain("not connected");
