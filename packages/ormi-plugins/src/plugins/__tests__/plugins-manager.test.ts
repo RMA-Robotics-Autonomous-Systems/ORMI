@@ -7,7 +7,7 @@
 
 import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { PluginsManager } from "../plugins-manager";
-import { Plugin, PluginFilter, PluginAction } from "../plugins-types";
+import { Plugin, PluginFilter } from "../plugins-types";
 
 describe("Plugin Manager - Filter System", () => {
     let manager: PluginsManager;

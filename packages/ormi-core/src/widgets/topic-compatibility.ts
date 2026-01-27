@@ -326,7 +326,6 @@ export const buildPropertyTree = (
         if (typeof propSchema === "object" && propSchema !== null) {
             let resolvedSchema = propSchema;
             let nodeType = propSchema.type as string;
-            let isRefResolved = false;
 
             // Handle $ref references
             if (propSchema.$ref) {
@@ -337,7 +336,6 @@ export const buildPropertyTree = (
                 if (referencedSchema) {
                     resolvedSchema = referencedSchema;
                     nodeType = referencedSchema.type as string;
-                    isRefResolved = true;
                 }
             }
 

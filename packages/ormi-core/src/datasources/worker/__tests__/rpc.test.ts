@@ -304,7 +304,7 @@ describe("RPC Server", () => {
             },
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
 
         const request: RpcRequest<TestMethods> = {
             type: "rpc/request",
@@ -333,7 +333,7 @@ describe("RPC Server", () => {
             knownMethod: () => {},
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
 
         const request: RpcRequest = {
             type: "rpc/request",
@@ -381,7 +381,7 @@ describe("RPC Server", () => {
             },
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
 
         const request: RpcRequest<TestMethods> = {
             type: "rpc/request",
@@ -423,7 +423,7 @@ describe("RPC Client-Server Integration", () => {
         const methods: TestMethods = {
             echo: (message: string) => `Echo: ${message}`,
         };
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
 
         // Create client
         const client = createRpcClient<TestMethods, {}>(clientTarget);
@@ -527,7 +527,7 @@ describe("RPC Edge Cases & Production Scenarios", () => {
 
     test("should handle malformed RPC messages without crashing", () => {
         const clientTarget = new MockRpcTarget();
-        const client = createRpcClient<{}, {}>(clientTarget);
+        createRpcClient<{}, {}>(clientTarget);
 
         // These should not crash
         expect(() => clientTarget.simulateMessage(null)).not.toThrow();
@@ -552,7 +552,7 @@ describe("RPC Edge Cases & Production Scenarios", () => {
             returnsUndefined: () => undefined,
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
         const client = createRpcClient<TestMethods, {}>(clientTarget);
 
         clientTarget.postMessage = (msg) => serverTarget.simulateMessage(msg);
@@ -584,7 +584,7 @@ describe("RPC Edge Cases & Production Scenarios", () => {
             },
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
         const client = createRpcClient<TestMethods, {}>(clientTarget);
 
         clientTarget.postMessage = (msg) => serverTarget.simulateMessage(msg);
@@ -618,7 +618,7 @@ describe("RPC Edge Cases & Production Scenarios", () => {
             },
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
         const client = createRpcClient<TestMethods, {}>(clientTarget);
 
         clientTarget.postMessage = (msg) => serverTarget.simulateMessage(msg);
@@ -653,14 +653,14 @@ describe("RPC Edge Cases & Production Scenarios", () => {
             },
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
         const client = createRpcClient<TestMethods, {}>(clientTarget);
 
         clientTarget.postMessage = (msg) => serverTarget.simulateMessage(msg);
         serverTarget.postMessage = (msg) => clientTarget.simulateMessage(msg);
 
         // Fire 5 concurrent calls
-        const results = await Promise.all([
+        await Promise.all([
             client.call("concurrent"),
             client.call("concurrent"),
             client.call("concurrent"),

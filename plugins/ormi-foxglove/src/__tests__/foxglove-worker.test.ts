@@ -2,7 +2,7 @@
  * Tests for Foxglove worker reconnection safety and state management
  */
 
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import type { DatasourceTopic } from "@workspace/ormi-core/datasources";
 
 // Mock FoxgloveClient
@@ -156,7 +156,6 @@ class MockWebSocket {
 
 describe("Foxglove Worker - Reconnection Safety", () => {
     let originalWebSocket: any;
-    let originalFoxgloveClient: any;
 
     beforeEach(() => {
         // Save originals
@@ -170,9 +169,6 @@ describe("Foxglove Worker - Reconnection Safety", () => {
     afterEach(() => {
         // Restore originals
         (globalThis as any).WebSocket = originalWebSocket;
-        if (originalFoxgloveClient) {
-            (globalThis as any).FoxgloveClient = originalFoxgloveClient;
-        }
     });
 
     test("should wait for connection before resolving init", async () => {
@@ -206,7 +202,6 @@ describe("Foxglove Worker - Reconnection Safety", () => {
             { topic: any; resolve: (success: boolean) => void }
         >();
         const MAX_PENDING_OPS = 100;
-        const connected = false;
 
         const topic: DatasourceTopic = {
             topic: "/cmd_vel",
@@ -217,14 +212,14 @@ describe("Foxglove Worker - Reconnection Safety", () => {
         };
 
         let resolveValue: boolean | undefined;
-        const promise = new Promise<boolean>((resolve) => {
-            if (pendingOps.size < MAX_PENDING_OPS) {
-                pendingOps.set(topic.topic, { topic, resolve });
-                resolveValue = undefined;
-            } else {
-                resolve(false);
-            }
-        });
+        if (pendingOps.size < MAX_PENDING_OPS) {
+            pendingOps.set(topic.topic, {
+                topic,
+                resolve: (_success: boolean) => {
+                    // no-op in this test; resolve callback exists to mirror real API
+                },
+            });
+        }
 
         expect(pendingOps.has("/cmd_vel")).toBe(true);
         expect(pendingOps.size).toBe(1);

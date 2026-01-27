@@ -2,11 +2,10 @@
  * Tests for TransformTreeManager - subscription and cleanup race conditions
  */
 
-import { describe, test, expect, mock, beforeEach } from "bun:test";
+import { describe, test, expect, mock } from "bun:test";
 
 describe("TransformTreeManager - Subscription Races", () => {
     test("should wait for all subscriptions before initializing", async () => {
-        const subscribePromises: Array<Promise<void>> = [];
         let subscribeCount = 0;
 
         const mockPluginsManager = {
