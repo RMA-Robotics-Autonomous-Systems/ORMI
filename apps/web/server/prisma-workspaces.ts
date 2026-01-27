@@ -9,7 +9,7 @@ interface Workspace {
 
 const handleCreate = async (
   title: string,
-  userId: string
+  userId: string,
 ): Promise<Workspace | null> => {
   try {
     const response = await fetch(`/api/workspaces`, {
@@ -67,7 +67,7 @@ const handleLoad = async (): Promise<Workspace[]> => {
 
 const handleUpdate = async (
   workspaceId: number,
-  name: string
+  name: string,
 ): Promise<boolean> => {
   try {
     const response = await fetch(`/api/workspaces/${workspaceId}`, {

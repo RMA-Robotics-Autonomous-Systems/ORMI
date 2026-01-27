@@ -45,7 +45,7 @@ export class SyncManager {
     console.log(
       "📤 Queuing operation for sync:",
       operation.method,
-      operation.url
+      operation.url,
     );
     await this.db.addToSyncQueue(operation);
 
@@ -120,7 +120,7 @@ export class SyncManager {
         await this.syncSingleOperation(operation);
         await this.db.removeFromSyncQueue(operation.id);
         console.log(
-          `✅ Synced operation: ${operation.method} ${operation.url}`
+          `✅ Synced operation: ${operation.method} ${operation.url}`,
         );
       } catch (error) {
         console.error(`❌ Failed to sync operation ${operation.id}:`, error);
@@ -131,7 +131,7 @@ export class SyncManager {
           await this.db.addToSyncQueue(operation);
         } else {
           console.error(
-            `❌ Max retries reached for operation ${operation.id}, removing from queue`
+            `❌ Max retries reached for operation ${operation.id}, removing from queue`,
           );
           await this.db.removeFromSyncQueue(operation.id);
         }
@@ -180,7 +180,7 @@ export class SyncManager {
    */
   private async handleCreateResponse(
     operation: SyncOperation,
-    responseData: unknown
+    responseData: unknown,
   ): Promise<void> {
     if (
       operation.url === "/api/workspaces" &&
@@ -189,14 +189,14 @@ export class SyncManager {
     ) {
       const serverWorkspace = responseData as { id: number };
       const bodyData = operation.body as { title?: string; userId?: string };
-      
+
       if (serverWorkspace.id && bodyData?.title) {
         // Update local workspace with server ID
         const localWorkspaces = await this.db.getWorkspaces(
-          bodyData.userId || ""
+          bodyData.userId || "",
         );
         const localWorkspace = localWorkspaces.find(
-          (ws) => ws.name === bodyData.title
+          (ws) => ws.name === bodyData.title,
         );
 
         if (localWorkspace) {
@@ -217,14 +217,14 @@ export class SyncManager {
     ) {
       const serverId = parseInt(responseData);
       const bodyData = operation.body as { content?: { name?: string } };
-      
+
       if (serverId && bodyData?.content?.name) {
         // Update local template with server ID
         const auth = await this.db.getAuth();
         if (auth?.userId) {
           const localTemplates = await this.db.getTemplates(auth.userId);
           const localTemplate = localTemplates.find(
-            (t) => t.name === bodyData.content?.name
+            (t) => t.name === bodyData.content?.name,
           );
 
           if (localTemplate) {

@@ -128,7 +128,7 @@ function cleanLayout(node: any): any {
  * Validates and fills in missing required properties with defaults
  */
 export function deserializeFlexLayoutModel(
-  serializedModel: Record<string, any>
+  serializedModel: Record<string, any>,
 ): Model {
   // Validate that we have the minimum required structure
   if (
@@ -200,7 +200,7 @@ export function extractTabIdsFromModel(model: Model): string[] {
 export function createTabConfig(
   id: string,
   name: string,
-  component?: string
+  component?: string,
 ): IJsonTabNode {
   return {
     type: "tab",

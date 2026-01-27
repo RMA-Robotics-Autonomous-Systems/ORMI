@@ -78,7 +78,7 @@ export class OfflineDatabase {
 
   private async getStore(
     storeName: string,
-    mode: IDBTransactionMode = "readonly"
+    mode: IDBTransactionMode = "readonly",
   ): Promise<IDBObjectStore> {
     if (!this.db) await this.init();
     const transaction = this.db!.transaction([storeName], mode);
@@ -127,7 +127,7 @@ export class OfflineDatabase {
 
   async getWorkspace(
     id: number,
-    userId: string
+    userId: string,
   ): Promise<WorkspaceData | null> {
     const store = await this.getStore("workspaces");
     const workspace = await this.promisifyRequest(store.get(id));
@@ -154,7 +154,7 @@ export class OfflineDatabase {
     // Filter templates (public or owned by user)
     return allTemplates.filter(
       (template: TemplateData) =>
-        template.public || template.createdById === userId
+        template.public || template.createdById === userId,
     );
   }
 
@@ -266,7 +266,7 @@ export class OfflineDatabase {
     const store = await this.getStore("workspaces");
     const allWorkspaces = (await this.promisifyRequest(store.getAll())) || [];
     return allWorkspaces.filter(
-      (ws: WorkspaceData) => ws.createdById === userId && !ws._synced
+      (ws: WorkspaceData) => ws.createdById === userId && !ws._synced,
     );
   }
 
@@ -275,7 +275,7 @@ export class OfflineDatabase {
     const allTemplates = (await this.promisifyRequest(store.getAll())) || [];
     return allTemplates.filter(
       (template: TemplateData) =>
-        template.createdById === userId && !template._synced
+        template.createdById === userId && !template._synced,
     );
   }
 

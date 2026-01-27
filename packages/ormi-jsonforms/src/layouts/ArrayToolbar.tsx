@@ -1,71 +1,71 @@
-'use client';
-import React from 'react';
-import { ArrayTranslations } from '@jsonforms/core';
-import { Button } from '@workspace/ui/components/button';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@workspace/ui/components/tooltip';
-import { PlusIcon } from 'lucide-react';
-
-
+"use client";
+import React from "react";
+import { ArrayTranslations } from "@jsonforms/core";
+import { Button } from "@workspace/ui/components/button";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@workspace/ui/components/tooltip";
+import { PlusIcon } from "lucide-react";
 
 export interface ArrayLayoutToolbarProps {
-    label: string;
-    description: string;
-    errors: string;
-    path: string;
-    enabled: boolean;
-    addItem(path: string, data: any): () => void;
-    createDefault(): any;
-    translations: ArrayTranslations;
-    disableAdd?: boolean;
+  label: string;
+  description: string;
+  errors: string;
+  path: string;
+  enabled: boolean;
+  addItem(path: string, data: any): () => void;
+  createDefault(): any;
+  translations: ArrayTranslations;
+  disableAdd?: boolean;
 }
 export const ArrayLayoutToolbar = React.memo(function ArrayLayoutToolbar({
-    label,
-    description,
-    errors,
-    addItem,
-    path,
-    enabled,
-    createDefault,
-    translations,
-    disableAdd,
+  label,
+  description,
+  errors,
+  addItem,
+  path,
+  enabled,
+  createDefault,
+  translations,
+  disableAdd,
 }: ArrayLayoutToolbarProps) {
-
-    return (
-        <div>
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-semibold">{label}</h2>
-                        {errors.length > 0 && (
-                            <span className="text-destructive">{errors}</span>
-                        )}
-                    </div>
-                    {enabled && !disableAdd && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="default"
-                                        size="icon"
-                                        onClick={addItem(path, createDefault())}
-                                        aria-label={translations.addTooltip}
-                                    >
-                                        <PlusIcon />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {translations.addTooltip}
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                </div>
-                {description && (
-                    <p className="text-sm text-muted-foreground">{description}</p>
-                )}
-            </div>
+  return (
+    <div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold">{label}</h2>
+            {errors.length > 0 && (
+              <span className="text-destructive">{errors}</span>
+            )}
+          </div>
+          {enabled && !disableAdd && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="icon"
+                    onClick={addItem(path, createDefault())}
+                    aria-label={translations.addTooltip}
+                  >
+                    <PlusIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{translations.addTooltip}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
-    );
+        {description && (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        )}
+      </div>
+    </div>
+  );
 });
 
 /*

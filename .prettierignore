@@ -1,0 +1,6 @@
+# Generated or restricted directories
+postgres/
+node_modules/
+**/node_modules/
+.turbo/
+**/.turbo/

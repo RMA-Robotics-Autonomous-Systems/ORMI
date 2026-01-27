@@ -23,36 +23,36 @@ import { RemoteCallDefinition } from "./remote-call-interface";
  * Key is the datasource_id
  */
 export const remoteCallsAtom = atom<Map<string, RemoteCallDefinition[]>>(
-    new Map<string, RemoteCallDefinition[]>(),
+  new Map<string, RemoteCallDefinition[]>(),
 );
 
 /**
  * Derived atom that returns a flat array of all remote calls
  */
 export const allRemoteCallsAtom = atom((get) => {
-    const callsByDatasource = get(remoteCallsAtom);
-    const allCalls: RemoteCallDefinition[] = [];
+  const callsByDatasource = get(remoteCallsAtom);
+  const allCalls: RemoteCallDefinition[] = [];
 
-    for (const [, calls] of callsByDatasource) {
-        allCalls.push(...calls);
-    }
+  for (const [, calls] of callsByDatasource) {
+    allCalls.push(...calls);
+  }
 
-    return allCalls;
+  return allCalls;
 });
 
 /**
  * Derived atom that returns the total count of remote calls
  */
 export const remoteCallCountAtom = atom((get) => {
-    const allCalls = get(allRemoteCallsAtom);
-    return allCalls.length;
+  const allCalls = get(allRemoteCallsAtom);
+  return allCalls.length;
 });
 
 /**
  * Derived atom that returns remote calls grouped by datasource
  */
 export const remoteCallsByDatasourceAtom = atom((get) => {
-    return get(remoteCallsAtom);
+  return get(remoteCallsAtom);
 });
 
 /**
@@ -68,21 +68,21 @@ export const remoteCallSourcesAtom = atom<Set<string>>(new Set<string>());
  * Get the current remote calls (for use outside React)
  */
 export function getRemoteCalls(): Map<string, RemoteCallDefinition[]> {
-    return getDefaultStore().get(remoteCallsAtom);
+  return getDefaultStore().get(remoteCallsAtom);
 }
 
 /**
  * Get all remote calls as a flat array (for use outside React)
  */
 export function getAllRemoteCalls(): RemoteCallDefinition[] {
-    return getDefaultStore().get(allRemoteCallsAtom);
+  return getDefaultStore().get(allRemoteCallsAtom);
 }
 
 /**
  * Subscribe to remote call changes (for use outside React)
  */
 export function subscribeToRemoteCalls(callback: () => void): () => void {
-    return getDefaultStore().sub(remoteCallsAtom, callback);
+  return getDefaultStore().sub(remoteCallsAtom, callback);
 }
 
 // ============================================================================
@@ -97,24 +97,24 @@ export function subscribeToRemoteCalls(callback: () => void): () => void {
  * @param calls - Array of remote call definitions
  */
 export function setRemoteCalls(
-    datasourceId: string,
-    calls: RemoteCallDefinition[],
+  datasourceId: string,
+  calls: RemoteCallDefinition[],
 ): void {
-    const store = getDefaultStore();
-    const currentCalls = store.get(remoteCallsAtom);
-    const newCalls = new Map(currentCalls);
+  const store = getDefaultStore();
+  const currentCalls = store.get(remoteCallsAtom);
+  const newCalls = new Map(currentCalls);
 
-    // Replace calls for this datasource
-    newCalls.set(datasourceId, calls);
-    store.set(remoteCallsAtom, newCalls);
+  // Replace calls for this datasource
+  newCalls.set(datasourceId, calls);
+  store.set(remoteCallsAtom, newCalls);
 
-    // Track datasource
-    const sources = store.get(remoteCallSourcesAtom);
-    if (!sources.has(datasourceId)) {
-        const newSources = new Set(sources);
-        newSources.add(datasourceId);
-        store.set(remoteCallSourcesAtom, newSources);
-    }
+  // Track datasource
+  const sources = store.get(remoteCallSourcesAtom);
+  if (!sources.has(datasourceId)) {
+    const newSources = new Set(sources);
+    newSources.add(datasourceId);
+    store.set(remoteCallSourcesAtom, newSources);
+  }
 }
 
 /**
@@ -125,37 +125,35 @@ export function setRemoteCalls(
  * @param call - Remote call definition to add
  */
 export function addRemoteCall(
-    datasourceId: string,
-    call: RemoteCallDefinition,
+  datasourceId: string,
+  call: RemoteCallDefinition,
 ): void {
-    const store = getDefaultStore();
-    const currentCalls = store.get(remoteCallsAtom);
-    const newCalls = new Map(currentCalls);
+  const store = getDefaultStore();
+  const currentCalls = store.get(remoteCallsAtom);
+  const newCalls = new Map(currentCalls);
 
-    const datasourceCalls = newCalls.get(datasourceId) || [];
-    const existingIndex = datasourceCalls.findIndex(
-        (c) => c.name === call.name,
-    );
+  const datasourceCalls = newCalls.get(datasourceId) || [];
+  const existingIndex = datasourceCalls.findIndex((c) => c.name === call.name);
 
-    if (existingIndex >= 0) {
-        // Update existing call
-        const updatedCalls = [...datasourceCalls];
-        updatedCalls[existingIndex] = call;
-        newCalls.set(datasourceId, updatedCalls);
-    } else {
-        // Add new call
-        newCalls.set(datasourceId, [...datasourceCalls, call]);
-    }
+  if (existingIndex >= 0) {
+    // Update existing call
+    const updatedCalls = [...datasourceCalls];
+    updatedCalls[existingIndex] = call;
+    newCalls.set(datasourceId, updatedCalls);
+  } else {
+    // Add new call
+    newCalls.set(datasourceId, [...datasourceCalls, call]);
+  }
 
-    store.set(remoteCallsAtom, newCalls);
+  store.set(remoteCallsAtom, newCalls);
 
-    // Track datasource
-    const sources = store.get(remoteCallSourcesAtom);
-    if (!sources.has(datasourceId)) {
-        const newSources = new Set(sources);
-        newSources.add(datasourceId);
-        store.set(remoteCallSourcesAtom, newSources);
-    }
+  // Track datasource
+  const sources = store.get(remoteCallSourcesAtom);
+  if (!sources.has(datasourceId)) {
+    const newSources = new Set(sources);
+    newSources.add(datasourceId);
+    store.set(remoteCallSourcesAtom, newSources);
+  }
 }
 
 /**
@@ -165,28 +163,28 @@ export function addRemoteCall(
  * @param callName - Name of the call to remove
  */
 export function removeRemoteCall(datasourceId: string, callName: string): void {
-    const store = getDefaultStore();
-    const currentCalls = store.get(remoteCallsAtom);
-    const datasourceCalls = currentCalls.get(datasourceId);
+  const store = getDefaultStore();
+  const currentCalls = store.get(remoteCallsAtom);
+  const datasourceCalls = currentCalls.get(datasourceId);
 
-    if (!datasourceCalls) return;
+  if (!datasourceCalls) return;
 
-    const newCalls = new Map(currentCalls);
-    const updatedCalls = datasourceCalls.filter((c) => c.name !== callName);
+  const newCalls = new Map(currentCalls);
+  const updatedCalls = datasourceCalls.filter((c) => c.name !== callName);
 
-    if (updatedCalls.length === 0) {
-        newCalls.delete(datasourceId);
+  if (updatedCalls.length === 0) {
+    newCalls.delete(datasourceId);
 
-        // Remove from sources tracking
-        const sources = store.get(remoteCallSourcesAtom);
-        const newSources = new Set(sources);
-        newSources.delete(datasourceId);
-        store.set(remoteCallSourcesAtom, newSources);
-    } else {
-        newCalls.set(datasourceId, updatedCalls);
-    }
+    // Remove from sources tracking
+    const sources = store.get(remoteCallSourcesAtom);
+    const newSources = new Set(sources);
+    newSources.delete(datasourceId);
+    store.set(remoteCallSourcesAtom, newSources);
+  } else {
+    newCalls.set(datasourceId, updatedCalls);
+  }
 
-    store.set(remoteCallsAtom, newCalls);
+  store.set(remoteCallsAtom, newCalls);
 }
 
 /**
@@ -196,31 +194,31 @@ export function removeRemoteCall(datasourceId: string, callName: string): void {
  * @param datasourceId - Unique ID of the datasource
  */
 export function clearRemoteCallsFromDatasource(datasourceId: string): void {
-    const store = getDefaultStore();
-    const currentCalls = store.get(remoteCallsAtom);
+  const store = getDefaultStore();
+  const currentCalls = store.get(remoteCallsAtom);
 
-    if (!currentCalls.has(datasourceId)) return;
+  if (!currentCalls.has(datasourceId)) return;
 
-    const newCalls = new Map(currentCalls);
-    newCalls.delete(datasourceId);
-    store.set(remoteCallsAtom, newCalls);
+  const newCalls = new Map(currentCalls);
+  newCalls.delete(datasourceId);
+  store.set(remoteCallsAtom, newCalls);
 
-    // Update sources tracking
-    const sources = store.get(remoteCallSourcesAtom);
-    if (sources.has(datasourceId)) {
-        const newSources = new Set(sources);
-        newSources.delete(datasourceId);
-        store.set(remoteCallSourcesAtom, newSources);
-    }
+  // Update sources tracking
+  const sources = store.get(remoteCallSourcesAtom);
+  if (sources.has(datasourceId)) {
+    const newSources = new Set(sources);
+    newSources.delete(datasourceId);
+    store.set(remoteCallSourcesAtom, newSources);
+  }
 }
 
 /**
  * Completely clear all remote calls
  */
 export function clearAllRemoteCalls(): void {
-    const store = getDefaultStore();
-    store.set(remoteCallsAtom, new Map());
-    store.set(remoteCallSourcesAtom, new Set());
+  const store = getDefaultStore();
+  store.set(remoteCallsAtom, new Map());
+  store.set(remoteCallSourcesAtom, new Set());
 }
 
 /**
@@ -230,21 +228,21 @@ export function clearAllRemoteCalls(): void {
  * @param datasourceId - Optional datasource to search in
  */
 export function findRemoteCall(
-    callName: string,
-    datasourceId?: string,
+  callName: string,
+  datasourceId?: string,
 ): RemoteCallDefinition | null {
-    const allCalls = getDefaultStore().get(remoteCallsAtom);
+  const allCalls = getDefaultStore().get(remoteCallsAtom);
 
-    if (datasourceId) {
-        const datasourceCalls = allCalls.get(datasourceId);
-        return datasourceCalls?.find((c) => c.name === callName) || null;
-    }
+  if (datasourceId) {
+    const datasourceCalls = allCalls.get(datasourceId);
+    return datasourceCalls?.find((c) => c.name === callName) || null;
+  }
 
-    // Search all datasources
-    for (const [, calls] of allCalls) {
-        const found = calls.find((c) => c.name === callName);
-        if (found) return found;
-    }
+  // Search all datasources
+  for (const [, calls] of allCalls) {
+    const found = calls.find((c) => c.name === callName);
+    if (found) return found;
+  }
 
-    return null;
+  return null;
 }

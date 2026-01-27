@@ -1,43 +1,43 @@
 import { Transform, TransformTree, Vector3, Quaternion } from "../types";
 
 export function getTransformTreeFromTreeId(
-    tree: TransformTree,
-    id: string,
+  tree: TransformTree,
+  id: string,
 ): TransformTree | null {
-    if (tree.id === id) {
-        return tree;
+  if (tree.id === id) {
+    return tree;
+  }
+
+  let result: TransformTree | null = null;
+  tree.children.forEach((child) => {
+    if (!result) {
+      const found = getTransformTreeFromTreeId(child, id);
+      if (found) {
+        result = found;
+      }
     }
+  });
 
-    let result: TransformTree | null = null;
-    tree.children.forEach((child) => {
-        if (!result) {
-            const found = getTransformTreeFromTreeId(child, id);
-            if (found) {
-                result = found;
-            }
-        }
-    });
-
-    return result;
+  return result;
 }
 
 export function getTransformTreeFromTreeIdInMaps(
-    treeMap: Map<string, TransformTree>,
-    id: string,
+  treeMap: Map<string, TransformTree>,
+  id: string,
 ): TransformTree | null {
-    let result: TransformTree | null = null;
+  let result: TransformTree | null = null;
 
-    treeMap.forEach((tree, key) => {
-        if (!result) {
-            // Only continue searching if we haven't found a result yet
-            const found = getTransformTreeFromTreeId(tree, id);
-            if (found) {
-                result = found;
-            }
-        }
-    });
+  treeMap.forEach((tree, key) => {
+    if (!result) {
+      // Only continue searching if we haven't found a result yet
+      const found = getTransformTreeFromTreeId(tree, id);
+      if (found) {
+        result = found;
+      }
+    }
+  });
 
-    return result;
+  return result;
 }
 
 /**
@@ -49,150 +49,150 @@ export function getTransformTreeFromTreeIdInMaps(
  * returns null.
  */
 export function findTransformChain(
-    treeMap: Map<string, TransformTree>,
-    sourceFrameId: string,
-    targetFrameId: string,
+  treeMap: Map<string, TransformTree>,
+  sourceFrameId: string,
+  targetFrameId: string,
 ): Transform[] | null {
-    // If source and target are the same, return identity transform
-    if (sourceFrameId === targetFrameId) {
-        return [];
+  // If source and target are the same, return identity transform
+  if (sourceFrameId === targetFrameId) {
+    return [];
+  }
+
+  // Find both nodes in the tree
+  const sourceNode = getTransformTreeFromTreeIdInMaps(treeMap, sourceFrameId);
+  const targetNode = getTransformTreeFromTreeIdInMaps(treeMap, targetFrameId);
+
+  if (!sourceNode || !targetNode) {
+    return null; // One or both frames not found
+  }
+
+  // Build path from source to root
+  const sourceToRoot: TransformTree[] = [];
+  let current: TransformTree | null = sourceNode;
+
+  while (current) {
+    sourceToRoot.push(current);
+    if (current.parentId === "") {
+      break; // Reached root
     }
+    current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+  }
 
-    // Find both nodes in the tree
-    const sourceNode = getTransformTreeFromTreeIdInMaps(treeMap, sourceFrameId);
-    const targetNode = getTransformTreeFromTreeIdInMaps(treeMap, targetFrameId);
+  // Build path from target to root
+  const targetToRoot: TransformTree[] = [];
+  current = targetNode;
 
-    if (!sourceNode || !targetNode) {
-        return null; // One or both frames not found
+  while (current) {
+    targetToRoot.push(current);
+    if (current.parentId === "") {
+      break; // Reached root
     }
+    current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+  }
 
-    // Build path from source to root
-    const sourceToRoot: TransformTree[] = [];
-    let current: TransformTree | null = sourceNode;
+  // Check if both frames are in the same tree (have the same root)
+  const sourceRoot = sourceToRoot[sourceToRoot.length - 1];
+  const targetRoot = targetToRoot[targetToRoot.length - 1];
 
-    while (current) {
-        sourceToRoot.push(current);
-        if (current.parentId === "") {
-            break; // Reached root
-        }
-        current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+  if (sourceRoot && targetRoot && sourceRoot.id !== targetRoot.id) {
+    // Frames are in different trees - no transform chain possible
+    return null;
+  }
+
+  // Find common ancestor
+  let commonAncestorIndex = -1;
+  for (let i = sourceToRoot.length - 1; i >= 0; i--) {
+    const sourceNode = sourceToRoot[i];
+    if (!sourceNode) continue;
+
+    for (let j = targetToRoot.length - 1; j >= 0; j--) {
+      const targetNode = targetToRoot[j];
+      if (!targetNode) continue;
+
+      if (sourceNode.id === targetNode.id) {
+        commonAncestorIndex = i;
+        break;
+      }
     }
+    if (commonAncestorIndex !== -1) break;
+  }
 
-    // Build path from target to root
-    const targetToRoot: TransformTree[] = [];
-    current = targetNode;
+  if (commonAncestorIndex === -1) {
+    return null; // No common ancestor, disconnected trees
+  }
 
-    while (current) {
-        targetToRoot.push(current);
-        if (current.parentId === "") {
-            break; // Reached root
-        }
-        current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+  // Build transform chain: source -> common ancestor -> target
+  const transforms: Transform[] = [];
+
+  // In ROS TF, the transform stored at a node describes:
+  // "The position and orientation of THIS frame (child) expressed in the PARENT frame"
+  //
+  // This means the stored transform IS the child-to-parent transform.
+  // To transform a point from child to parent: P_parent = R * P_child + T
+  //
+  // So when going UP the tree (child -> parent), we use the transform DIRECTLY.
+  // When going DOWN the tree (parent -> child), we need to INVERT it.
+
+  // Transforms from source up to common ancestor (use directly - child to parent)
+  for (let i = 0; i < commonAncestorIndex; i++) {
+    const node = sourceToRoot[i];
+    if (node) {
+      // The node's transform is child-to-parent, which is what we need
+      transforms.push(node.transform);
     }
+  }
 
-    // Check if both frames are in the same tree (have the same root)
-    const sourceRoot = sourceToRoot[sourceToRoot.length - 1];
-    const targetRoot = targetToRoot[targetToRoot.length - 1];
+  // Transforms from common ancestor down to target (inverted - parent to child)
+  const commonNode = sourceToRoot[commonAncestorIndex];
+  if (!commonNode) {
+    return null;
+  }
 
-    if (sourceRoot && targetRoot && sourceRoot.id !== targetRoot.id) {
-        // Frames are in different trees - no transform chain possible
-        return null;
+  const commonId = commonNode.id;
+  const targetAncestorIndex = targetToRoot.findIndex(
+    (node) => node.id === commonId,
+  );
+
+  for (let i = targetAncestorIndex - 1; i >= 0; i--) {
+    const node = targetToRoot[i];
+    if (node) {
+      // Going down the tree: need to invert (parent to child)
+      transforms.push(invertTransform(node.transform));
     }
+  }
 
-    // Find common ancestor
-    let commonAncestorIndex = -1;
-    for (let i = sourceToRoot.length - 1; i >= 0; i--) {
-        const sourceNode = sourceToRoot[i];
-        if (!sourceNode) continue;
-
-        for (let j = targetToRoot.length - 1; j >= 0; j--) {
-            const targetNode = targetToRoot[j];
-            if (!targetNode) continue;
-
-            if (sourceNode.id === targetNode.id) {
-                commonAncestorIndex = i;
-                break;
-            }
-        }
-        if (commonAncestorIndex !== -1) break;
-    }
-
-    if (commonAncestorIndex === -1) {
-        return null; // No common ancestor, disconnected trees
-    }
-
-    // Build transform chain: source -> common ancestor -> target
-    const transforms: Transform[] = [];
-
-    // In ROS TF, the transform stored at a node describes:
-    // "The position and orientation of THIS frame (child) expressed in the PARENT frame"
-    //
-    // This means the stored transform IS the child-to-parent transform.
-    // To transform a point from child to parent: P_parent = R * P_child + T
-    //
-    // So when going UP the tree (child -> parent), we use the transform DIRECTLY.
-    // When going DOWN the tree (parent -> child), we need to INVERT it.
-
-    // Transforms from source up to common ancestor (use directly - child to parent)
-    for (let i = 0; i < commonAncestorIndex; i++) {
-        const node = sourceToRoot[i];
-        if (node) {
-            // The node's transform is child-to-parent, which is what we need
-            transforms.push(node.transform);
-        }
-    }
-
-    // Transforms from common ancestor down to target (inverted - parent to child)
-    const commonNode = sourceToRoot[commonAncestorIndex];
-    if (!commonNode) {
-        return null;
-    }
-
-    const commonId = commonNode.id;
-    const targetAncestorIndex = targetToRoot.findIndex(
-        (node) => node.id === commonId,
-    );
-
-    for (let i = targetAncestorIndex - 1; i >= 0; i--) {
-        const node = targetToRoot[i];
-        if (node) {
-            // Going down the tree: need to invert (parent to child)
-            transforms.push(invertTransform(node.transform));
-        }
-    }
-
-    return transforms;
+  return transforms;
 }
 
 /**
  * Apply a single transform to a 3D point
  */
 export function applyTransform(point: Vector3, transform: Transform): Vector3 {
-    // First apply rotation using quaternion
-    const rotated = rotateVectorByQuaternion(point, transform.rotation);
+  // First apply rotation using quaternion
+  const rotated = rotateVectorByQuaternion(point, transform.rotation);
 
-    // Then apply translation
-    return {
-        x: rotated.x + transform.position.x,
-        y: rotated.y + transform.position.y,
-        z: rotated.z + transform.position.z,
-    };
+  // Then apply translation
+  return {
+    x: rotated.x + transform.position.x,
+    y: rotated.y + transform.position.y,
+    z: rotated.z + transform.position.z,
+  };
 }
 
 /**
  * Apply a chain of transforms to a point
  */
 export function applyTransformChain(
-    point: Vector3,
-    transforms: Transform[],
+  point: Vector3,
+  transforms: Transform[],
 ): Vector3 {
-    let result = { ...point };
+  let result = { ...point };
 
-    for (const transform of transforms) {
-        result = applyTransform(result, transform);
-    }
+  for (const transform of transforms) {
+    result = applyTransform(result, transform);
+  }
 
-    return result;
+  return result;
 }
 
 /**
@@ -203,27 +203,27 @@ export function applyTransformChain(
  * @returns The rotated vector
  */
 export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
-    // Convert to quaternion multiplication: q * v * q^-1
-    const qx = q.x,
-        qy = q.y,
-        qz = q.z,
-        qw = q.w;
-    const vx = v.x,
-        vy = v.y,
-        vz = v.z;
+  // Convert to quaternion multiplication: q * v * q^-1
+  const qx = q.x,
+    qy = q.y,
+    qz = q.z,
+    qw = q.w;
+  const vx = v.x,
+    vy = v.y,
+    vz = v.z;
 
-    // q * v
-    const ix = qw * vx + qy * vz - qz * vy;
-    const iy = qw * vy + qz * vx - qx * vz;
-    const iz = qw * vz + qx * vy - qy * vx;
-    const iw = -qx * vx - qy * vy - qz * vz;
+  // q * v
+  const ix = qw * vx + qy * vz - qz * vy;
+  const iy = qw * vy + qz * vx - qx * vz;
+  const iz = qw * vz + qx * vy - qy * vx;
+  const iw = -qx * vx - qy * vy - qz * vz;
 
-    // (q * v) * q^-1
-    return {
-        x: ix * qw + iw * -qx + iy * -qz - iz * -qy,
-        y: iy * qw + iw * -qy + iz * -qx - ix * -qz,
-        z: iz * qw + iw * -qz + ix * -qy - iy * -qx,
-    };
+  // (q * v) * q^-1
+  return {
+    x: ix * qw + iw * -qx + iy * -qz - iz * -qy,
+    y: iy * qw + iw * -qy + iz * -qx - ix * -qz,
+    z: iz * qw + iw * -qz + ix * -qy - iy * -qx,
+  };
 }
 
 /**
@@ -236,44 +236,41 @@ export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
  * @returns The inverted transform
  */
 export function invertTransform(transform: Transform): Transform {
-    // Invert quaternion (conjugate for unit quaternions)
-    const invRotation: Quaternion = {
-        x: -transform.rotation.x,
-        y: -transform.rotation.y,
-        z: -transform.rotation.z,
-        w: transform.rotation.w,
-    };
+  // Invert quaternion (conjugate for unit quaternions)
+  const invRotation: Quaternion = {
+    x: -transform.rotation.x,
+    y: -transform.rotation.y,
+    z: -transform.rotation.z,
+    w: transform.rotation.w,
+  };
 
-    // Rotate negative translation by inverted rotation
-    const negTranslation = {
-        x: -transform.position.x,
-        y: -transform.position.y,
-        z: -transform.position.z,
-    };
+  // Rotate negative translation by inverted rotation
+  const negTranslation = {
+    x: -transform.position.x,
+    y: -transform.position.y,
+    z: -transform.position.z,
+  };
 
-    const invTranslation = rotateVectorByQuaternion(
-        negTranslation,
-        invRotation,
-    );
+  const invTranslation = rotateVectorByQuaternion(negTranslation, invRotation);
 
-    return {
-        position: {
-            x: invTranslation.x,
-            y: invTranslation.y,
-            z: invTranslation.z,
-            w: 0,
-        },
-        rotation: invRotation,
-    };
+  return {
+    position: {
+      x: invTranslation.x,
+      y: invTranslation.y,
+      z: invTranslation.z,
+      w: 0,
+    },
+    rotation: invRotation,
+  };
 }
 
 /**
  * GPS Coordinates interface
  */
 export interface GPSCoords {
-    latitude: number;
-    longitude: number;
-    altitude?: number;
+  latitude: number;
+  longitude: number;
+  altitude?: number;
 }
 
 /**
@@ -285,26 +282,26 @@ export interface GPSCoords {
  * @returns GPS coordinates
  */
 export function localToGPS(
-    localPoint: Vector3,
-    originGPS: GPSCoords,
+  localPoint: Vector3,
+  originGPS: GPSCoords,
 ): GPSCoords {
-    // Earth's radius in meters
-    const EARTH_RADIUS = 6371000;
+  // Earth's radius in meters
+  const EARTH_RADIUS = 6371000;
 
-    // Convert local meters to degrees
-    // East/West: x direction
-    const deltaLongitude =
-        ((localPoint.x / EARTH_RADIUS) * (180 / Math.PI)) /
-        Math.cos((originGPS.latitude * Math.PI) / 180);
+  // Convert local meters to degrees
+  // East/West: x direction
+  const deltaLongitude =
+    ((localPoint.x / EARTH_RADIUS) * (180 / Math.PI)) /
+    Math.cos((originGPS.latitude * Math.PI) / 180);
 
-    // North/South: y direction
-    const deltaLatitude = (localPoint.y / EARTH_RADIUS) * (180 / Math.PI);
+  // North/South: y direction
+  const deltaLatitude = (localPoint.y / EARTH_RADIUS) * (180 / Math.PI);
 
-    return {
-        latitude: originGPS.latitude + deltaLatitude,
-        longitude: originGPS.longitude + deltaLongitude,
-        altitude: (originGPS.altitude || 0) + localPoint.z,
-    };
+  return {
+    latitude: originGPS.latitude + deltaLatitude,
+    longitude: originGPS.longitude + deltaLongitude,
+    altitude: (originGPS.altitude || 0) + localPoint.z,
+  };
 }
 
 /**
@@ -316,25 +313,25 @@ export function localToGPS(
  * @returns Point in local ENU frame (meters)
  */
 export function gpsToLocal(gps: GPSCoords, originGPS: GPSCoords): Vector3 {
-    // Earth's radius in meters
-    const EARTH_RADIUS = 6371000;
+  // Earth's radius in meters
+  const EARTH_RADIUS = 6371000;
 
-    const latDelta = gps.latitude - originGPS.latitude;
-    const lonDelta = gps.longitude - originGPS.longitude;
+  const latDelta = gps.latitude - originGPS.latitude;
+  const lonDelta = gps.longitude - originGPS.longitude;
 
-    // Convert degrees to meters
-    // North/South: y direction
-    const y = latDelta * (Math.PI / 180) * EARTH_RADIUS;
+  // Convert degrees to meters
+  // North/South: y direction
+  const y = latDelta * (Math.PI / 180) * EARTH_RADIUS;
 
-    // East/West: x direction (account for latitude)
-    const x =
-        lonDelta *
-        (Math.PI / 180) *
-        EARTH_RADIUS *
-        Math.cos((originGPS.latitude * Math.PI) / 180);
+  // East/West: x direction (account for latitude)
+  const x =
+    lonDelta *
+    (Math.PI / 180) *
+    EARTH_RADIUS *
+    Math.cos((originGPS.latitude * Math.PI) / 180);
 
-    // Up: z direction
-    const z = (gps.altitude || 0) - (originGPS.altitude || 0);
+  // Up: z direction
+  const z = (gps.altitude || 0) - (originGPS.altitude || 0);
 
-    return { x, y, z };
+  return { x, y, z };
 }

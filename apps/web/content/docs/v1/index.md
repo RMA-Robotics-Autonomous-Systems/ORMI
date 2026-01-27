@@ -200,18 +200,18 @@ const MyDatasourceDefinition: DatasourceDefinition = {
 
 ```typescript
 class MyPlugin extends Plugin {
-    constructor() {
-        super();
-        this.name = "My Plugin";
+  constructor() {
+    super();
+    this.name = "My Plugin";
 
-        this.addFilter(PluginsHooks.WIDGETS_LIST, {
-            id: "my-widgets",
-            filter: (widgets) => {
-                widgets.push(MyWidgetDefinition());
-                return widgets;
-            },
-        });
-    }
+    this.addFilter(PluginsHooks.WIDGETS_LIST, {
+      id: "my-widgets",
+      filter: (widgets) => {
+        widgets.push(MyWidgetDefinition());
+        return widgets;
+      },
+    });
+  }
 }
 ```
 

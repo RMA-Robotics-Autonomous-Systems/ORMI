@@ -22,44 +22,44 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 import {
-    CellProps,
-    isNumberControl,
-    RankedTester,
-    rankWith,
-    WithClassname,
-} from '@jsonforms/core';
-import { withJsonFormsCellProps } from '@jsonforms/react';
-import { Input } from '@workspace/ui/components/input';
+  CellProps,
+  isNumberControl,
+  RankedTester,
+  rankWith,
+  WithClassname,
+} from "@jsonforms/core";
+import { withJsonFormsCellProps } from "@jsonforms/react";
+import { Input } from "@workspace/ui/components/input";
 
 export const ShadcnNumberCell = (props: CellProps & WithClassname) => {
-    const { data, id, enabled, handleChange, path } = props;
+  const { data, id, enabled, handleChange, path } = props;
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        const number = value === '' ? undefined : Number(value);
-        handleChange(path, number);
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const number = value === "" ? undefined : Number(value);
+    handleChange(path, number);
+  };
 
-    return (
-        <Input
-            type="number"
-            id={id}
-            value={data !== undefined && data !== null ? data : ''}
-            onChange={handleInputChange}
-            disabled={!enabled}
-            className="w-full"
-            step="any"
-        />
-    );
+  return (
+    <Input
+      type="number"
+      id={id}
+      value={data !== undefined && data !== null ? data : ""}
+      onChange={handleInputChange}
+      disabled={!enabled}
+      className="w-full"
+      step="any"
+    />
+  );
 };
 
 export const shadcnNumberCellTester: RankedTester = rankWith(
-    3,
-    isNumberControl
+  3,
+  isNumberControl,
 );
 
 export default withJsonFormsCellProps(ShadcnNumberCell);

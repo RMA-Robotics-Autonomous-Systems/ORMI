@@ -22,78 +22,76 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 import {
-    isBooleanControl,
-    RankedTester,
-    rankWith,
-    ControlProps,
-    isDescriptionHidden,
-} from '@jsonforms/core';
-import { withJsonFormsControlProps } from '@jsonforms/react';
-import merge from 'lodash/merge';
-import React from 'react';
+  isBooleanControl,
+  RankedTester,
+  rankWith,
+  ControlProps,
+  isDescriptionHidden,
+} from "@jsonforms/core";
+import { withJsonFormsControlProps } from "@jsonforms/react";
+import merge from "lodash/merge";
+import React from "react";
 
-import { Switch } from '@workspace/ui/components/switch';
+import { Switch } from "@workspace/ui/components/switch";
 
 export const ShadcnBooleanControl = ({
-    data,
-    visible,
-    label,
-    id,
-    enabled,
-    uischema,
-    handleChange,
-    errors,
-    path,
-    config,
-    description,
+  data,
+  visible,
+  label,
+  id,
+  enabled,
+  uischema,
+  handleChange,
+  errors,
+  path,
+  config,
+  description,
 }: ControlProps) => {
-    const isValid = errors.length === 0;
-    const appliedUiSchemaOptions = merge({}, config, uischema.options);
+  const isValid = errors.length === 0;
+  const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-    const showDescription = !isDescriptionHidden(
-        visible,
-        description,
-        false,
-        appliedUiSchemaOptions.showUnfocusedDescription
-    );
+  const showDescription = !isDescriptionHidden(
+    visible,
+    description,
+    false,
+    appliedUiSchemaOptions.showUnfocusedDescription,
+  );
 
-    if (!visible) {
-        return null;
-    }
+  if (!visible) {
+    return null;
+  }
 
-    return (
-        <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-            <Switch
-                id={id}
-                checked={data || false}
-                disabled={!enabled}
-                onCheckedChange={(checked) => handleChange(path, checked)}
-            />
-            <div className="grid gap-1.5 leading-none">
-                <label
-                    htmlFor={id}
-                    className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${!isValid ? 'text-destructive' : ''
-                        }`}
-                >
-                    {label}
-                </label>
-                {showDescription && (
-                    <p className="text-sm text-muted-foreground">
-                        {description}
-                    </p>
-                )}
-                {!isValid && (
-                    <p className="text-sm text-destructive">
-                        {errors}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
+  return (
+    <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+      <Switch
+        id={id}
+        checked={data || false}
+        disabled={!enabled}
+        onCheckedChange={(checked) => handleChange(path, checked)}
+      />
+      <div className="grid gap-1.5 leading-none">
+        <label
+          htmlFor={id}
+          className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
+            !isValid ? "text-destructive" : ""
+          }`}
+        >
+          {label}
+        </label>
+        {showDescription && (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        )}
+        {!isValid && <p className="text-sm text-destructive">{errors}</p>}
+      </div>
+    </div>
+  );
 };
 
-export const shadcnBooleanControlTester: RankedTester = rankWith(4, isBooleanControl);
+export const shadcnBooleanControlTester: RankedTester = rankWith(
+  4,
+  isBooleanControl,
+);
 
 export default withJsonFormsControlProps(ShadcnBooleanControl);

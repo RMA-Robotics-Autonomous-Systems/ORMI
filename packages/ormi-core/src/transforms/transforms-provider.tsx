@@ -1,22 +1,24 @@
-"use client"
+"use client";
 /**
  * Transform Hooks
- * 
+ *
  * Event-driven transform system using Jotai atoms.
  * Widgets subscribe directly to atoms - no provider needed.
  */
 
-import { useAtomValue } from 'jotai';
-import { TransformTree } from '../types';
-import { transformTreesAtom, transformFrameCountAtom } from './transform-atoms';
+import { useAtomValue } from "jotai";
+import { TransformTree } from "../types";
+import { transformTreesAtom, transformFrameCountAtom } from "./transform-atoms";
 
 /**
  * Hook to access transform trees directly from the Jotai atom
  * No provider needed - works anywhere in the app
  */
-export function useTransformSource(): { transformsTrees: Map<string, TransformTree> } {
-    const transformsTrees = useAtomValue(transformTreesAtom);
-    return { transformsTrees };
+export function useTransformSource(): {
+  transformsTrees: Map<string, TransformTree>;
+} {
+  const transformsTrees = useAtomValue(transformTreesAtom);
+  return { transformsTrees };
 }
 
 /**
@@ -24,5 +26,5 @@ export function useTransformSource(): { transformsTrees: Map<string, TransformTr
  * Useful for debugging/status displays
  */
 export function useTransformFrameCount(): number {
-    return useAtomValue(transformFrameCountAtom);
+  return useAtomValue(transformFrameCountAtom);
 }

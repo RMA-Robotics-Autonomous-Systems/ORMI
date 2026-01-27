@@ -22,99 +22,88 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import merge from 'lodash/merge';
+"use client";
+import merge from "lodash/merge";
 import {
-    ControlProps,
-    isDescriptionHidden,
-    OwnPropsOfEnum,
-} from '@jsonforms/core';
-import { useFocus } from '../../utils';
-import { Label } from '@workspace/ui/components/label';
-import { RadioGroup, RadioGroupItem } from '@workspace/ui/components/radio-group';
-import { cn } from '@workspace/ui/lib/utils';
+  ControlProps,
+  isDescriptionHidden,
+  OwnPropsOfEnum,
+} from "@jsonforms/core";
+import { useFocus } from "../../utils";
+import { Label } from "@workspace/ui/components/label";
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@workspace/ui/components/radio-group";
+import { cn } from "@workspace/ui/lib/utils";
 
 export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
-    const [focused, onFocus, onBlur] = useFocus();
-    const {
-        config,
-        label,
-        required,
-        description,
-        errors,
-        data,
-        visible,
-        options,
-        handleChange,
-        path,
-        enabled,
-        id
-    } = props;
+  const [focused, onFocus, onBlur] = useFocus();
+  const {
+    config,
+    label,
+    required,
+    description,
+    errors,
+    data,
+    visible,
+    options,
+    handleChange,
+    path,
+    enabled,
+    id,
+  } = props;
 
-    const isValid = errors.length === 0;
-    const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
-    const showDescription = !isDescriptionHidden(
-        visible,
-        description,
-        focused,
-        appliedUiSchemaOptions.showUnfocusedDescription
-    );
+  const isValid = errors.length === 0;
+  const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
+  const showDescription = !isDescriptionHidden(
+    visible,
+    description,
+    focused,
+    appliedUiSchemaOptions.showUnfocusedDescription,
+  );
 
-    if (!visible) {
-        return null;
-    }
+  if (!visible) {
+    return null;
+  }
 
-    return (
-        <div
-            className={cn(
-                "space-y-2",
-                !appliedUiSchemaOptions.trim && "w-full"
-            )}
-            onFocus={onFocus}
-            onBlur={onBlur}
-        >
-            <Label
-                className={cn(
-                    "text-sm font-medium leading-none",
-                    required && "after:text-red-500 after:content-['*']",
-                    !isValid && "text-destructive"
-                )}
-            >
-                {label}
-            </Label>
+  return (
+    <div
+      className={cn("space-y-2", !appliedUiSchemaOptions.trim && "w-full")}
+      onFocus={onFocus}
+      onBlur={onBlur}
+    >
+      <Label
+        className={cn(
+          "text-sm font-medium leading-none",
+          required && "after:text-red-500 after:content-['*']",
+          !isValid && "text-destructive",
+        )}
+      >
+        {label}
+      </Label>
 
-            <RadioGroup
-                defaultValue={data}
-                onValueChange={(value) => handleChange(path, value)}
-                disabled={!enabled}
-                className="space-y-1"
-            >
-                {options!.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
-                        <RadioGroupItem
-                            value={option.value}
-                            id={`${id}-${option.value}`}
-                        />
-                        <Label htmlFor={`${id}-${option.value}`}>
-                            {option.label}
-                        </Label>
-                    </div>
-                ))}
-            </RadioGroup>
+      <RadioGroup
+        defaultValue={data}
+        onValueChange={(value) => handleChange(path, value)}
+        disabled={!enabled}
+        className="space-y-1"
+      >
+        {options!.map((option) => (
+          <div key={option.value} className="flex items-center space-x-2">
+            <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
+            <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
+          </div>
+        ))}
+      </RadioGroup>
 
-            {showDescription && (
-                <p className="text-sm text-muted-foreground">
-                    {description}
-                </p>
-            )}
+      {showDescription && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
 
-            {!isValid && (
-                <p className="text-sm text-destructive">
-                    {errors}
-                </p>
-            )}
-        </div>
-    );
+      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
+    </div>
+  );
 };
 
 export default ShadcnRadioGroup;

@@ -10,8 +10,8 @@ export interface UtilsConfig {
 export function createUtils(config: UtilsConfig) {
   return {
     ...config,
-    version: config.version || '1.0.0',
-    created: new Date().toISOString()
+    version: config.version || "1.0.0",
+    created: new Date().toISOString(),
   };
 }
 

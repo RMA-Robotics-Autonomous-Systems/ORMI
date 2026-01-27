@@ -22,44 +22,44 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 import {
-    ControlProps,
-    isIntegerControl,
-    RankedTester,
-    rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsControlProps } from '@jsonforms/react';
-import { ShadcnInputControl } from './ShadcnInputControl';
-import { Input } from '@workspace/ui/components/input';
+  ControlProps,
+  isIntegerControl,
+  RankedTester,
+  rankWith,
+} from "@jsonforms/core";
+import { withJsonFormsControlProps } from "@jsonforms/react";
+import { ShadcnInputControl } from "./ShadcnInputControl";
+import { Input } from "@workspace/ui/components/input";
 
 const ShadcnInputInteger = (props: ControlProps) => {
-    const { id, enabled, path, handleChange, data } = props;
+  const { id, enabled, path, handleChange, data } = props;
 
-    return (
-        <Input
-            type="number"
-            value={data !== undefined && data !== null ? data : ''}
-            onChange={(ev) => {
-                const value = ev.target.value;
-                handleChange(path, value === '' ? undefined : parseInt(value, 10));
-            }}
-            step={1}
-            disabled={!enabled}
-            id={id}
-        />
-    );
+  return (
+    <Input
+      type="number"
+      value={data !== undefined && data !== null ? data : ""}
+      onChange={(ev) => {
+        const value = ev.target.value;
+        handleChange(path, value === "" ? undefined : parseInt(value, 10));
+      }}
+      step={1}
+      disabled={!enabled}
+      id={id}
+    />
+  );
 };
 
 export const ShadcnIntegerControl = (props: ControlProps) => (
-    <ShadcnInputControl {...props} input={ShadcnInputInteger} />
+  <ShadcnInputControl {...props} input={ShadcnInputInteger} />
 );
 
 export const shadcnIntegerControlTester: RankedTester = rankWith(
-    3,
-    isIntegerControl
+  3,
+  isIntegerControl,
 );
 
 export default withJsonFormsControlProps(ShadcnIntegerControl);

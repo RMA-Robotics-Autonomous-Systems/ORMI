@@ -26,7 +26,7 @@ export function serializeRCDockLayout(layout: LayoutBase): Record<string, any> {
       }
 
       return value;
-    })
+    }),
   );
 }
 
@@ -35,7 +35,7 @@ export function serializeRCDockLayout(layout: LayoutBase): Record<string, any> {
  * This creates a clean LayoutBase that can be used with RC-Dock's loadLayout
  */
 export function deserializeRCDockLayout(
-  serializedLayout: Record<string, any>
+  serializedLayout: Record<string, any>,
 ): LayoutBase {
   // Ensure required structure exists
   const layout: LayoutBase = {
@@ -56,7 +56,7 @@ export function deserializeRCDockLayout(
  * Creates minimal layout structure for RC-Dock with given widget IDs
  */
 export function createMinimalRCDockLayout(
-  widgetIds: string[] = []
+  widgetIds: string[] = [],
 ): LayoutBase {
   const tabs = widgetIds.map((id) => ({ id }));
 

@@ -22,9 +22,9 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-"use client"
-import debounce from 'lodash/debounce';
-import { useState, useCallback, useEffect } from 'react';
+"use client";
+import debounce from "lodash/debounce";
+import { useState, useCallback, useEffect } from "react";
 
 const eventToValue = (ev: any) => ev.target.value;
 export const useDebouncedChange = (
@@ -33,7 +33,7 @@ export const useDebouncedChange = (
   data: any,
   path: string,
   eventToValueFunction: (ev: any) => any = eventToValue,
-  timeout = 300
+  timeout = 300,
 ): [any, React.ChangeEventHandler, () => void] => {
   const [input, setInput] = useState(data ?? defaultValue);
   useEffect(() => {
@@ -41,7 +41,7 @@ export const useDebouncedChange = (
   }, [data]);
   const debouncedUpdate = useCallback(
     debounce((newValue: string) => handleChange(path, newValue), timeout),
-    [handleChange, path, timeout]
+    [handleChange, path, timeout],
   );
   const onChange = useCallback(
     (ev: any) => {
@@ -49,7 +49,7 @@ export const useDebouncedChange = (
       setInput(newValue ?? defaultValue);
       debouncedUpdate(newValue);
     },
-    [debouncedUpdate, eventToValueFunction]
+    [debouncedUpdate, eventToValueFunction],
   );
   const onClear = useCallback(() => {
     setInput(defaultValue);

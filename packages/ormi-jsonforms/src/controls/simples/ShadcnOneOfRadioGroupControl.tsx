@@ -22,85 +22,87 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 import {
-    and,
-    ControlProps,
-    isOneOfEnumControl,
-    optionIs,
-    OwnPropsOfEnum,
-    RankedTester,
-    rankWith,
-    isDescriptionHidden,
-} from '@jsonforms/core';
-import { withJsonFormsOneOfEnumProps } from '@jsonforms/react';
-import { Label } from '@workspace/ui/components/label';
-import { RadioGroup, RadioGroupItem } from '@workspace/ui/components/radio-group';
-import { cn } from '@workspace/ui/lib/utils';
-import merge from 'lodash/merge';
+  and,
+  ControlProps,
+  isOneOfEnumControl,
+  optionIs,
+  OwnPropsOfEnum,
+  RankedTester,
+  rankWith,
+  isDescriptionHidden,
+} from "@jsonforms/core";
+import { withJsonFormsOneOfEnumProps } from "@jsonforms/react";
+import { Label } from "@workspace/ui/components/label";
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@workspace/ui/components/radio-group";
+import { cn } from "@workspace/ui/lib/utils";
+import merge from "lodash/merge";
 
 export const ShadcnRadioGroup = ({
-    data,
-    enabled,
-    id,
-    label,
-    options,
-    path,
-    handleChange,
-    errors,
-    description,
-    config,
-    uischema,
+  data,
+  enabled,
+  id,
+  label,
+  options,
+  path,
+  handleChange,
+  errors,
+  description,
+  config,
+  uischema,
 }: ControlProps & OwnPropsOfEnum) => {
-    const isValid = errors.length === 0;
-    const appliedUiSchemaOptions = merge({}, config, uischema.options);
-    const showDescription = !isDescriptionHidden(
-        true,
-        description,
-        false,
-        appliedUiSchemaOptions.showUnfocusedDescription
-    );
+  const isValid = errors.length === 0;
+  const appliedUiSchemaOptions = merge({}, config, uischema.options);
+  const showDescription = !isDescriptionHidden(
+    true,
+    description,
+    false,
+    appliedUiSchemaOptions.showUnfocusedDescription,
+  );
 
-    return (
-        <div className="space-y-2">
-            <Label className={cn(
-                "text-sm font-medium",
-                !isValid && "text-destructive"
-            )}>
-                {label}
-            </Label>
-            <RadioGroup
-                defaultValue={data}
-                onValueChange={(value) => handleChange(path, value)}
-                disabled={!enabled}
-                className="space-y-1"
-            >
-                {options!.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
-                        <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
-                        <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
-                    </div>
-                ))}
-            </RadioGroup>
+  return (
+    <div className="space-y-2">
+      <Label
+        className={cn("text-sm font-medium", !isValid && "text-destructive")}
+      >
+        {label}
+      </Label>
+      <RadioGroup
+        defaultValue={data}
+        onValueChange={(value) => handleChange(path, value)}
+        disabled={!enabled}
+        className="space-y-1"
+      >
+        {options!.map((option) => (
+          <div key={option.value} className="flex items-center space-x-2">
+            <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
+            <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
+          </div>
+        ))}
+      </RadioGroup>
 
-            {showDescription && (
-                <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+      {showDescription && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
 
-            {!isValid && (
-                <p className="text-sm text-destructive">{errors}</p>
-            )}
-        </div>
-    );
+      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
+    </div>
+  );
 };
 
-export const ShadcnOneOfRadioGroupControl = (props: ControlProps & OwnPropsOfEnum) => {
-    return <ShadcnRadioGroup {...props} />;
+export const ShadcnOneOfRadioGroupControl = (
+  props: ControlProps & OwnPropsOfEnum,
+) => {
+  return <ShadcnRadioGroup {...props} />;
 };
 
 export const shadcnOneOfRadioGroupControlTester: RankedTester = rankWith(
-    21,
-    and(isOneOfEnumControl, optionIs('format', 'radio'))
+  21,
+  and(isOneOfEnumControl, optionIs("format", "radio")),
 );
 
 export default withJsonFormsOneOfEnumProps(ShadcnOneOfRadioGroupControl);

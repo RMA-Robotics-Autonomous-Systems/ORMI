@@ -13,34 +13,34 @@ Fast lookup for common patterns and code snippets.
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 
 class MyPlugin extends Plugin {
-    constructor() {
-        super({
-            name: "My Plugin",
-            version: "1.0.0",
-        });
-    }
+  constructor() {
+    super({
+      name: "My Plugin",
+      version: "1.0.0",
+    });
+  }
 
-    protected initialize(): void {
-        // Register widgets
-        this.addFilter(PluginsHooks.WIDGETS_LIST, {
-            id: "my-widgets",
-            priority: 10,
-            filter: (widgets) => {
-                widgets.push(MyWidget());
-                return widgets;
-            },
-        });
+  protected initialize(): void {
+    // Register widgets
+    this.addFilter(PluginsHooks.WIDGETS_LIST, {
+      id: "my-widgets",
+      priority: 10,
+      filter: (widgets) => {
+        widgets.push(MyWidget());
+        return widgets;
+      },
+    });
 
-        // Register datasources
-        this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-            id: "my-datasources",
-            priority: 10,
-            filter: (datasources) => {
-                datasources.push(MyDatasource);
-                return datasources;
-            },
-        });
-    }
+    // Register datasources
+    this.addFilter(PluginsHooks.DATASOURCES_LIST, {
+      id: "my-datasources",
+      priority: 10,
+      filter: (datasources) => {
+        datasources.push(MyDatasource);
+        return datasources;
+      },
+    });
+  }
 }
 
 export default MyPlugin;
@@ -317,24 +317,24 @@ import { DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 
 // Filter by type
 const filter = new DatasourceTopicFilter({
-    type: /number|boolean/,
+  type: /number|boolean/,
 });
 
 // Filter by name pattern
 const robotTopics = new DatasourceTopicFilter({
-    name: /^\/robot\//,
+  name: /^\/robot\//,
 });
 
 // Filter by datasource
 const foxgloveTopics = new DatasourceTopicFilter({
-    source_id: /foxglove/,
+  source_id: /foxglove/,
 });
 
 // Use filter
 const topics = pluginManager.applyFilter(
-    PluginsHooks.AVAILABLE_TOPICS,
-    [],
-    filter
+  PluginsHooks.AVAILABLE_TOPICS,
+  [],
+  filter,
 );
 ```
 
@@ -365,18 +365,18 @@ PluginsHooks.MAP_LOCAL_VISUALIZERS;
 ```typescript
 // Import types
 import type {
-    Vector3,
-    Movement,
-    IMU,
-    Path,
-    PointsCloud,
-    GeolocationPosition,
+  Vector3,
+  Movement,
+  IMU,
+  Path,
+  PointsCloud,
+  GeolocationPosition,
 } from "@workspace/ormi-core/types";
 
 // Use in code
 const velocity: Movement = {
-    linear: { x: 1, y: 0, z: 0 },
-    angular: { x: 0, y: 0, z: 0.5 },
+  linear: { x: 1, y: 0, z: 0 },
+  angular: { x: 0, y: 0, z: 0.5 },
 };
 ```
 
@@ -442,7 +442,7 @@ if (!data || data.length === 0) {
 
 ```typescript
 const speeds = velocities.map((v) =>
-    Math.sqrt(v.linear.x ** 2 + v.linear.y ** 2)
+  Math.sqrt(v.linear.x ** 2 + v.linear.y ** 2),
 );
 const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
 ```

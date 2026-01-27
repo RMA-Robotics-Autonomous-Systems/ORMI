@@ -22,44 +22,42 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    CellProps,
-    isNumberFormatControl,
-    RankedTester,
-    rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsCellProps } from '@jsonforms/react';
-import { Input } from '@workspace/ui/components/input';
+  CellProps,
+  isNumberFormatControl,
+  RankedTester,
+  rankWith,
+} from "@jsonforms/core";
+import { withJsonFormsCellProps } from "@jsonforms/react";
+import { Input } from "@workspace/ui/components/input";
 
-export const ShadcnNumberFormatCell = (
-    props: CellProps
-) => {
-    const { data, id, enabled, handleChange, path } = props;
+export const ShadcnNumberFormatCell = (props: CellProps) => {
+  const { data, id, enabled, handleChange, path } = props;
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        const number = value === '' ? undefined : Number(value);
-        handleChange(path, number);
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const number = value === "" ? undefined : Number(value);
+    handleChange(path, number);
+  };
 
-    return (
-        <Input
-            type="number"
-            id={id}
-            value={data !== undefined && data !== null ? data : ''}
-            onChange={handleInputChange}
-            disabled={!enabled}
-            className="w-full"
-            step="any"
-        />
-    );
+  return (
+    <Input
+      type="number"
+      id={id}
+      value={data !== undefined && data !== null ? data : ""}
+      onChange={handleInputChange}
+      disabled={!enabled}
+      className="w-full"
+      step="any"
+    />
+  );
 };
 
 export const shadcnNumberFormatCellTester: RankedTester = rankWith(
-    5,
-    isNumberFormatControl
+  5,
+  isNumberFormatControl,
 );
 
 export default withJsonFormsCellProps(ShadcnNumberFormatCell);

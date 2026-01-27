@@ -22,79 +22,79 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import isEmpty from 'lodash/isEmpty';
-import React from 'react';
+"use client";
+import isEmpty from "lodash/isEmpty";
+import React from "react";
 import {
-    GroupLayout,
-    LayoutProps,
-    RankedTester,
-    rankWith,
-    uiTypeIs,
-    withIncreasedRank,
-} from '@jsonforms/core';
+  GroupLayout,
+  LayoutProps,
+  RankedTester,
+  rankWith,
+  uiTypeIs,
+  withIncreasedRank,
+} from "@jsonforms/core";
 import {
-    shadcnLabelableLayoutRendererProps,
-    ShadcnLayoutRenderer,
-} from '../utils/layouts';
-import { withJsonFormsLayoutProps } from '@jsonforms/react';
+  shadcnLabelableLayoutRendererProps,
+  ShadcnLayoutRenderer,
+} from "../utils/layouts";
+import { withJsonFormsLayoutProps } from "@jsonforms/react";
 
-export const groupTester: RankedTester = rankWith(1, uiTypeIs('Group'));
+export const groupTester: RankedTester = rankWith(1, uiTypeIs("Group"));
 
 const GroupComponent = React.memo(function GroupComponent({
-    visible,
-    enabled,
-    uischema,
-    label,
-    ...props
+  visible,
+  enabled,
+  uischema,
+  label,
+  ...props
 }: shadcnLabelableLayoutRendererProps) {
-    const groupLayout = uischema as GroupLayout;
+  const groupLayout = uischema as GroupLayout;
 
-    return (
-        <div>
-            {!isEmpty(label) && <h2>{label}</h2>}
-            <ShadcnLayoutRenderer
-                {...props}
-                visible={visible}
-                enabled={enabled}
-                elements={groupLayout.elements}
-            />
-        </div>
-    );
+  return (
+    <div>
+      {!isEmpty(label) && <h2>{label}</h2>}
+      <ShadcnLayoutRenderer
+        {...props}
+        visible={visible}
+        enabled={enabled}
+        elements={groupLayout.elements}
+      />
+    </div>
+  );
 });
 
 export const ShadcnGroupLayoutRenderer = ({
-    uischema,
-    schema,
-    path,
-    visible,
-    enabled,
-    renderers,
-    cells,
-    direction,
-    label,
+  uischema,
+  schema,
+  path,
+  visible,
+  enabled,
+  renderers,
+  cells,
+  direction,
+  label,
 }: LayoutProps) => {
-    const groupLayout = uischema as GroupLayout;
+  const groupLayout = uischema as GroupLayout;
 
-    return (
-        <GroupComponent
-            elements={groupLayout.elements}
-            schema={schema}
-            path={path}
-            direction={"column"}
-            visible={visible}
-            enabled={enabled}
-            uischema={uischema}
-            renderers={renderers}
-            cells={cells}
-            label={label}
-        />
-    );
+  return (
+    <GroupComponent
+      elements={groupLayout.elements}
+      schema={schema}
+      path={path}
+      direction={"column"}
+      visible={visible}
+      enabled={enabled}
+      uischema={uischema}
+      renderers={renderers}
+      cells={cells}
+      label={label}
+    />
+  );
 };
 
 export default withJsonFormsLayoutProps(ShadcnGroupLayoutRenderer);
 
 export const shadcnGroupTester: RankedTester = withIncreasedRank(
-    2,
-    groupTester
+  2,
+  groupTester,
 );

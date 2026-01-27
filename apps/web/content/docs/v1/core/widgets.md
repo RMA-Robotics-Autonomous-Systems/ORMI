@@ -49,18 +49,18 @@ Defines a widget type that can be registered via plugins.
 
 ```typescript
 interface WidgetDefinition {
-    id: string; // Unique identifier (e.g., 'imu-visualizer')
-    name: string; // Display name in widget list
-    description: string; // Description shown in UI
-    icon?: JSX.Element; // Icon for widget (lucide-react)
+  id: string; // Unique identifier (e.g., 'imu-visualizer')
+  name: string; // Display name in widget list
+  description: string; // Description shown in UI
+  icon?: JSX.Element; // Icon for widget (lucide-react)
 
-    titleProp?: string; // Property to use for instance title
+  titleProp?: string; // Property to use for instance title
 
-    schema: JsonSchema; // JSON Schema for configuration
-    uischema: UISchemaElement; // JSON Forms UI Schema
-    data: any; // Default settings
+  schema: JsonSchema; // JSON Schema for configuration
+  uischema: UISchemaElement; // JSON Forms UI Schema
+  data: any; // Default settings
 
-    Component: (data: any) => JSX.Element; // Render function
+  Component: (data: any) => JSX.Element; // Render function
 }
 ```
 
@@ -178,10 +178,10 @@ Runtime instance of a widget with user-configured settings.
 
 ```typescript
 interface Widget {
-    widget_id: string; // References WidgetDefinition.id
-    box_id: string; // Unique instance ID (e.g., 'widget_0_1234567890')
-    title: string; // User-assigned title
-    settings: any; // Configuration data
+  widget_id: string; // References WidgetDefinition.id
+  box_id: string; // Unique instance ID (e.g., 'widget_0_1234567890')
+  title: string; // User-assigned title
+  settings: any; // Configuration data
 }
 ```
 
@@ -189,21 +189,21 @@ interface Widget {
 
 ```typescript
 const widgetInstance: Widget = {
-    widget_id: "gauge-widget",
-    box_id: "widget_0_1703001234",
+  widget_id: "gauge-widget",
+  box_id: "widget_0_1703001234",
+  title: "Motor Temperature",
+  settings: {
     title: "Motor Temperature",
-    settings: {
-        title: "Motor Temperature",
-        datasource: {
-            topic: "/motor/temp",
-            datasource_id: "ros-1",
-            type: "number",
-            property: "temperature",
-        },
-        min: 0,
-        max: 150,
-        unit: "°C",
+    datasource: {
+      topic: "/motor/temp",
+      datasource_id: "ros-1",
+      type: "number",
+      property: "temperature",
     },
+    min: 0,
+    max: 150,
+    unit: "°C",
+  },
 };
 ```
 
@@ -213,7 +213,7 @@ Specifies what data types a widget can accept.
 
 ```typescript
 interface DataRequirements {
-    accepts: string[]; // Webapp types: ['number', 'Vector3', 'IMU', etc.]
+  accepts: string[]; // Webapp types: ['number', 'Vector3', 'IMU', etc.]
 }
 ```
 
@@ -237,10 +237,10 @@ Custom UI Schema element for topic selection.
 
 ```typescript
 interface TopicSelectElement extends Omit<ControlElement, "type"> {
-    type: "TopicSelect";
-    options?: {
-        dataRequirements?: DataRequirements;
-    };
+  type: "TopicSelect";
+  options?: {
+    dataRequirements?: DataRequirements;
+  };
 }
 ```
 
@@ -263,22 +263,22 @@ import { GaugeWidgetDefinition } from "./widgets/gauge";
 import { ChartWidgetDefinition } from "./widgets/chart";
 
 class MyWidgetsPlugin extends Plugin {
-    constructor() {
-        super({
-            name: "My Widgets",
-            version: "1.0.0",
-        });
+  constructor() {
+    super({
+      name: "My Widgets",
+      version: "1.0.0",
+    });
 
-        this.addFilter(PluginsHooks.WIDGETS_LIST, {
-            id: "my-widgets-registration",
-            priority: 10,
-            filter: (widgets) => {
-                widgets.push(GaugeWidgetDefinition);
-                widgets.push(ChartWidgetDefinition);
-                return widgets;
-            },
-        });
-    }
+    this.addFilter(PluginsHooks.WIDGETS_LIST, {
+      id: "my-widgets-registration",
+      priority: 10,
+      filter: (widgets) => {
+        widgets.push(GaugeWidgetDefinition);
+        widgets.push(ChartWidgetDefinition);
+        return widgets;
+      },
+    });
+  }
 }
 
 export default MyWidgetsPlugin;
@@ -289,11 +289,11 @@ export default MyWidgetsPlugin;
 ```typescript
 // src/widget-export.tsx
 export const widgetExport = (widgets: WidgetDefinition[]) => {
-    widgets.push(GaugeWidgetDefinition);
-    widgets.push(ChartWidgetDefinition);
-    widgets.push(MapWidgetDefinition);
+  widgets.push(GaugeWidgetDefinition);
+  widgets.push(ChartWidgetDefinition);
+  widgets.push(MapWidgetDefinition);
 
-    return widgets;
+  return widgets;
 };
 ```
 
@@ -309,13 +309,13 @@ export const widgetExport = (widgets: WidgetDefinition[]) => {
 
 ```typescript
 interface WidgetCardProps {
-    displayType?: "card" | "list" | "gear"; // Visual style
-    definition: WidgetDefinition; // Widget definition
-    data?: any; // Initial settings
-    onValidate: (widget: WidgetDefinition, settings: object) => void;
-    fromLoaded?: boolean; // Show "Save as Template" button
-    isDialogOpen?: boolean; // Controlled dialog state
-    onDialogClose?: () => void; // Dialog close callback
+  displayType?: "card" | "list" | "gear"; // Visual style
+  definition: WidgetDefinition; // Widget definition
+  data?: any; // Initial settings
+  onValidate: (widget: WidgetDefinition, settings: object) => void;
+  fromLoaded?: boolean; // Show "Save as Template" button
+  isDialogOpen?: boolean; // Controlled dialog state
+  onDialogClose?: () => void; // Dialog close callback
 }
 ```
 
@@ -402,14 +402,14 @@ WidgetCard validates settings before calling `onValidate`:
 
 ```typescript
 const handleAdd = () => {
-    if (errors && errors.length > 0) {
-        for (const error of errors) {
-            toast("Error: " + error.message);
-        }
-        return;
+  if (errors && errors.length > 0) {
+    for (const error of errors) {
+      toast("Error: " + error.message);
     }
+    return;
+  }
 
-    props.onValidate(props.definition, data);
+  props.onValidate(props.definition, data);
 };
 ```
 
@@ -570,10 +570,10 @@ Widget is defined in a plugin:
 
 ```typescript
 const MyWidgetDefinition: WidgetDefinition = {
-    id: "my-widget",
-    name: "My Widget",
-    // ... configuration
-    Component: MyWidget,
+  id: "my-widget",
+  name: "My Widget",
+  // ... configuration
+  Component: MyWidget,
 };
 ```
 
@@ -583,11 +583,11 @@ Plugin registers widget via `WIDGETS_LIST` hook:
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "my-widget-registration",
-    filter: (widgets) => {
-        widgets.push(MyWidgetDefinition);
-        return widgets;
-    },
+  id: "my-widget-registration",
+  filter: (widgets) => {
+    widgets.push(MyWidgetDefinition);
+    return widgets;
+  },
 });
 ```
 
@@ -597,24 +597,24 @@ GlobalDataSourceProvider filters widgets based on connected datasources:
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "filter_widgets_list_based_on_datasources",
-    priority: Number.MAX_SAFE_INTEGER, // Runs last
-    filter: (widgets) => {
-        const datasources = pluginsManager.applyFilter(
-            PluginsHooks.AVAILABLE_DATASOURCES,
-            [],
-        );
+  id: "filter_widgets_list_based_on_datasources",
+  priority: Number.MAX_SAFE_INTEGER, // Runs last
+  filter: (widgets) => {
+    const datasources = pluginsManager.applyFilter(
+      PluginsHooks.AVAILABLE_DATASOURCES,
+      [],
+    );
 
-        if (datasources.length === 0) {
-            return []; // No datasources = no widgets
-        }
+    if (datasources.length === 0) {
+      return []; // No datasources = no widgets
+    }
 
-        return pluginsManager.applyFilter(
-            PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
-            widgets,
-            datasources,
-        );
-    },
+    return pluginsManager.applyFilter(
+      PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
+      widgets,
+      datasources,
+    );
+  },
 });
 ```
 
@@ -639,18 +639,18 @@ Dashboard creates widget instance:
 
 ```typescript
 const addWidget = (widget: WidgetDefinition, settings: any) => {
-    const newWidgets = new Map(widgets);
-    const box_id = `widget_${newWidgets.size}_${Date.now()}`;
+  const newWidgets = new Map(widgets);
+  const box_id = `widget_${newWidgets.size}_${Date.now()}`;
 
-    const widgetInstance = {
-        widget_id: widget.id,
-        box_id: box_id,
-        title: settings[widget.titleProp] || widget.name,
-        settings: settings,
-    };
+  const widgetInstance = {
+    widget_id: widget.id,
+    box_id: box_id,
+    title: settings[widget.titleProp] || widget.name,
+    settings: settings,
+  };
 
-    newWidgets.set(box_id, widgetInstance);
-    dispatch({ type: "SET_WIDGETS", payload: newWidgets });
+  newWidgets.set(box_id, widgetInstance);
+  dispatch({ type: "SET_WIDGETS", payload: newWidgets });
 };
 ```
 
@@ -732,9 +732,9 @@ Widget is removed from dashboard:
 
 ```typescript
 const removeWidget = (box_id: string) => {
-    const newWidgets = new Map(widgets);
-    newWidgets.delete(box_id);
-    dispatch({ type: "SET_WIDGETS", payload: newWidgets });
+  const newWidgets = new Map(widgets);
+  newWidgets.delete(box_id);
+  dispatch({ type: "SET_WIDGETS", payload: newWidgets });
 };
 
 // LocalDataSourceProvider unmounts
@@ -757,26 +757,26 @@ Widgets are automatically filtered based on connected datasources to prevent con
 ```typescript
 // In GlobalDataSourceProvider
 pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "filter_widgets_list_based_on_datasources",
-    priority: Number.MAX_SAFE_INTEGER, // Last filter
-    filter: (widgets: WidgetDefinition[]) => {
-        const datasources = pluginsManager.applyFilter<Datasource[]>(
-            PluginsHooks.AVAILABLE_DATASOURCES,
-            [],
-        );
+  id: "filter_widgets_list_based_on_datasources",
+  priority: Number.MAX_SAFE_INTEGER, // Last filter
+  filter: (widgets: WidgetDefinition[]) => {
+    const datasources = pluginsManager.applyFilter<Datasource[]>(
+      PluginsHooks.AVAILABLE_DATASOURCES,
+      [],
+    );
 
-        // No datasources = no widgets
-        if (datasources.length === 0) {
-            return [];
-        }
+    // No datasources = no widgets
+    if (datasources.length === 0) {
+      return [];
+    }
 
-        // Apply secondary filter
-        return pluginsManager.applyFilter<WidgetDefinition[]>(
-            PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
-            widgets,
-            datasources,
-        );
-    },
+    // Apply secondary filter
+    return pluginsManager.applyFilter<WidgetDefinition[]>(
+      PluginsHooks.WIDGET_LIST_WITH_DATASOURCE,
+      widgets,
+      datasources,
+    );
+  },
 });
 ```
 
@@ -787,21 +787,19 @@ Plugins can implement custom filtering logic:
 ```typescript
 // In widget plugin
 pluginsManager.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
-    id: "my-widget-datasource-filter",
-    priority: 10,
-    filter: (widgets, datasources) => {
-        // Only show ROS-specific widgets if ROS datasource connected
-        const hasROS = datasources.some((ds) =>
-            ds.datasource_id.includes("ros"),
-        );
+  id: "my-widget-datasource-filter",
+  priority: 10,
+  filter: (widgets, datasources) => {
+    // Only show ROS-specific widgets if ROS datasource connected
+    const hasROS = datasources.some((ds) => ds.datasource_id.includes("ros"));
 
-        if (!hasROS) {
-            // Filter out ROS-specific widgets
-            return widgets.filter((w) => !w.id.startsWith("ros-"));
-        }
+    if (!hasROS) {
+      // Filter out ROS-specific widgets
+      return widgets.filter((w) => !w.id.startsWith("ros-"));
+    }
 
-        return widgets;
-    },
+    return widgets;
+  },
 });
 ```
 
@@ -984,13 +982,13 @@ Specify which property contains the widget title:
 
 ```typescript
 const widgetDef: WidgetDefinition = {
-    // ...
-    titleProp: "title", // or 'name', 'label', etc.
-    schema: {
-        properties: {
-            title: { type: "string", default: "My Widget" },
-        },
+  // ...
+  titleProp: "title", // or 'name', 'label', etc.
+  schema: {
+    properties: {
+      title: { type: "string", default: "My Widget" },
     },
+  },
 };
 ```
 
@@ -1251,14 +1249,14 @@ uischema: {
 // Check if widget is registered
 const widgets = pluginsManager.applyFilter(PluginsHooks.WIDGETS_LIST, []);
 console.log(
-    "Available widgets:",
-    widgets.map((w) => w.id),
+  "Available widgets:",
+  widgets.map((w) => w.id),
 );
 
 // Check if datasources are connected
 const datasources = pluginsManager.applyFilter(
-    PluginsHooks.AVAILABLE_DATASOURCES,
-    [],
+  PluginsHooks.AVAILABLE_DATASOURCES,
+  [],
 );
 console.log("Connected datasources:", datasources);
 ```
@@ -1307,12 +1305,12 @@ if (uischema has TopicSelect) {
 
 ```typescript
 const widgetDef: WidgetDefinition = {
-    titleProp: "title", // Property name in settings
-    schema: {
-        properties: {
-            title: { type: "string", default: "My Widget" },
-        },
+  titleProp: "title", // Property name in settings
+  schema: {
+    properties: {
+      title: { type: "string", default: "My Widget" },
     },
+  },
 };
 ```
 

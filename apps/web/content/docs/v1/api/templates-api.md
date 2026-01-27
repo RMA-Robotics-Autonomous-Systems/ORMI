@@ -27,12 +27,12 @@ Main hook for accessing template management functionality.
 
 ```typescript
 function useTemplates(): {
-    templates: Template[];
-    saveTemplate: (name: string, description?: string) => void;
-    loadTemplate: (templateId: string) => void;
-    deleteTemplate: (templateId: string) => void;
-    updateTemplate: (templateId: string, updates: Partial<Template>) => void;
-    isLoading: boolean;
+  templates: Template[];
+  saveTemplate: (name: string, description?: string) => void;
+  loadTemplate: (templateId: string) => void;
+  deleteTemplate: (templateId: string) => void;
+  updateTemplate: (templateId: string, updates: Partial<Template>) => void;
+  isLoading: boolean;
 };
 ```
 
@@ -40,12 +40,12 @@ function useTemplates(): {
 
 ```typescript
 interface Template {
-    id: string;
-    name: string;
-    description?: string;
-    timestamp: number;
-    workspaceConfig: WorkspaceConfig;
-    widgetInstances: WidgetInstance[];
+  id: string;
+  name: string;
+  description?: string;
+  timestamp: number;
+  workspaceConfig: WorkspaceConfig;
+  widgetInstances: WidgetInstance[];
 }
 ```
 
@@ -470,8 +470,8 @@ saveTemplate("test");
 
 ```typescript
 saveTemplate(
-    "Autonomous Flight",
-    "Dashboard for monitoring autonomous UAV missions with telemetry and camera feeds"
+  "Autonomous Flight",
+  "Dashboard for monitoring autonomous UAV missions with telemetry and camera feeds",
 );
 ```
 
@@ -479,13 +479,13 @@ saveTemplate(
 
 ```typescript
 const handleLoad = (templateId: string) => {
-    try {
-        loadTemplate(templateId);
-        toast.success("Template loaded");
-    } catch (error) {
-        toast.error("Failed to load template");
-        console.error(error);
-    }
+  try {
+    loadTemplate(templateId);
+    toast.success("Template loaded");
+  } catch (error) {
+    toast.error("Failed to load template");
+    console.error(error);
+  }
 };
 ```
 
@@ -493,9 +493,9 @@ const handleLoad = (templateId: string) => {
 
 ```typescript
 const handleDelete = (templateId: string, name: string) => {
-    if (confirm(`Delete template "${name}"?`)) {
-        deleteTemplate(templateId);
-    }
+  if (confirm(`Delete template "${name}"?`)) {
+    deleteTemplate(templateId);
+  }
 };
 ```
 
@@ -539,11 +539,11 @@ function TemplateList() {
 
 ```typescript
 try {
-    loadTemplate(id);
+  loadTemplate(id);
 } catch (error) {
-    console.error("Failed to load template:", error);
-    // Optionally delete corrupted template
-    deleteTemplate(id);
+  console.error("Failed to load template:", error);
+  // Optionally delete corrupted template
+  deleteTemplate(id);
 }
 ```
 
@@ -557,8 +557,8 @@ try {
 // Check template size before saving
 const estimatedSize = JSON.stringify(workspaceConfig).length;
 if (estimatedSize > 1000000) {
-    // 1MB
-    console.warn("Template is very large");
+  // 1MB
+  console.warn("Template is very large");
 }
 ```
 

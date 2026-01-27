@@ -63,13 +63,13 @@ const handleLoad = async (setState: (state: any) => void) => {
     // check that the types are correct
     if (!(dashboardDefinition.widgets instanceof Map)) {
       dashboardDefinition.widgets = new Map(
-        Object.entries(dashboardDefinition.widgets)
+        Object.entries(dashboardDefinition.widgets),
       );
     }
     if (!(dashboardDefinition.datasources instanceof Map)) {
       if (dashboardDefinition.datasources) {
         dashboardDefinition.datasources = new Map(
-          Object.entries(dashboardDefinition.datasources)
+          Object.entries(dashboardDefinition.datasources),
         );
       } else {
         dashboardDefinition.datasources = new Map();

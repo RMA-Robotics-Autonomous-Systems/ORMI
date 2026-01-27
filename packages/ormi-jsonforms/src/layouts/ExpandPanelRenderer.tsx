@@ -1,227 +1,225 @@
-'use client';
+"use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/rules-of-hooks */
-import merge from 'lodash/merge';
+import merge from "lodash/merge";
 import React, {
-    ComponentType,
-    Dispatch,
-    Fragment,
-    useMemo,
-    useState,
-    useEffect,
-    useCallback,
-} from 'react';
+  ComponentType,
+  Dispatch,
+  Fragment,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import {
-    JsonFormsDispatch,
-    JsonFormsStateContext,
-    withJsonFormsContext,
-} from '@jsonforms/react';
+  JsonFormsDispatch,
+  JsonFormsStateContext,
+  withJsonFormsContext,
+} from "@jsonforms/react";
 import {
-    composePaths,
-    ControlElement,
-    findUISchema,
-    JsonFormsRendererRegistryEntry,
-    JsonSchema,
-    moveDown,
-    moveUp,
-    update,
-    JsonFormsCellRendererRegistryEntry,
-    JsonFormsUISchemaRegistryEntry,
-    createId,
-    removeId,
-    ArrayTranslations,
-    computeChildLabel,
-    UpdateArrayContext,
-} from '@jsonforms/core';
-import { MoveDownIcon, MoveUpIcon, TrashIcon } from 'lucide-react';
-import { AccordionItem, AccordionTrigger, AccordionContent } from '@workspace/ui/components/accordion';
-import { Button } from '@workspace/ui/components/button';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@workspace/ui/components/tooltip';
+  composePaths,
+  ControlElement,
+  findUISchema,
+  JsonFormsRendererRegistryEntry,
+  JsonSchema,
+  moveDown,
+  moveUp,
+  update,
+  JsonFormsCellRendererRegistryEntry,
+  JsonFormsUISchemaRegistryEntry,
+  createId,
+  removeId,
+  ArrayTranslations,
+  computeChildLabel,
+  UpdateArrayContext,
+} from "@jsonforms/core";
+import { MoveDownIcon, MoveUpIcon, TrashIcon } from "lucide-react";
+import {
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@workspace/ui/components/accordion";
+import { Button } from "@workspace/ui/components/button";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@workspace/ui/components/tooltip";
 
 interface OwnPropsOfExpandPanel {
-    enabled: boolean;
-    index: number;
-    path: string;
-    uischema: ControlElement;
-    schema: JsonSchema;
-    expanded: boolean;
-    renderers?: JsonFormsRendererRegistryEntry[];
-    cells?: JsonFormsCellRendererRegistryEntry[];
-    uischemas?: JsonFormsUISchemaRegistryEntry[];
-    rootSchema: JsonSchema;
-    enableMoveUp: boolean;
-    enableMoveDown: boolean;
-    config: any;
-    childLabelProp?: string;
-    handleExpansion(panel: string): (event: any, expanded: boolean) => void;
-    translations: ArrayTranslations;
-    disableRemove?: boolean;
+  enabled: boolean;
+  index: number;
+  path: string;
+  uischema: ControlElement;
+  schema: JsonSchema;
+  expanded: boolean;
+  renderers?: JsonFormsRendererRegistryEntry[];
+  cells?: JsonFormsCellRendererRegistryEntry[];
+  uischemas?: JsonFormsUISchemaRegistryEntry[];
+  rootSchema: JsonSchema;
+  enableMoveUp: boolean;
+  enableMoveDown: boolean;
+  config: any;
+  childLabelProp?: string;
+  handleExpansion(panel: string): (event: any, expanded: boolean) => void;
+  translations: ArrayTranslations;
+  disableRemove?: boolean;
 }
 
 interface StatePropsOfExpandPanel extends OwnPropsOfExpandPanel {
-    childLabel: string;
-    childPath: string;
-    enableMoveUp: boolean;
-    enableMoveDown: boolean;
+  childLabel: string;
+  childPath: string;
+  enableMoveUp: boolean;
+  enableMoveDown: boolean;
 }
 
 /**
  * Dispatch props of a table control
  */
 export interface DispatchPropsOfExpandPanel {
-    removeItems(path: string, toDelete: number[]): (event: any) => void;
-    moveUp(path: string, toMove: number): (event: any) => void;
-    moveDown(path: string, toMove: number): (event: any) => void;
+  removeItems(path: string, toDelete: number[]): (event: any) => void;
+  moveUp(path: string, toMove: number): (event: any) => void;
+  moveDown(path: string, toMove: number): (event: any) => void;
 }
 
 export interface ExpandPanelProps
-    extends StatePropsOfExpandPanel,
-    DispatchPropsOfExpandPanel { }
+  extends StatePropsOfExpandPanel, DispatchPropsOfExpandPanel {}
 
 const ExpandPanelRendererComponent = (props: ExpandPanelProps) => {
-    const [labelHtmlId] = useState<string>(createId('expand-panel'));
+  const [labelHtmlId] = useState<string>(createId("expand-panel"));
 
-    useEffect(() => {
-        return () => {
-            removeId(labelHtmlId);
-        };
-    }, [labelHtmlId]);
+  useEffect(() => {
+    return () => {
+      removeId(labelHtmlId);
+    };
+  }, [labelHtmlId]);
 
-    const {
-        enabled,
-        childLabel,
-        childPath,
-        index,
-        moveDown,
-        moveUp,
-        removeItems,
-        path,
-        rootSchema,
+  const {
+    enabled,
+    childLabel,
+    childPath,
+    index,
+    moveDown,
+    moveUp,
+    removeItems,
+    path,
+    rootSchema,
+    schema,
+    uischema,
+    uischemas,
+    renderers,
+    cells,
+    config,
+    translations,
+    disableRemove,
+  } = props;
+
+  const foundUISchema = useMemo(
+    () =>
+      findUISchema(
+        uischemas!,
         schema,
+        uischema.scope,
+        path,
+        undefined,
         uischema,
-        uischemas,
-        renderers,
-        cells,
-        config,
-        translations,
-        disableRemove,
-    } = props;
+        rootSchema,
+      ),
+    [uischemas, schema, uischema.scope, path, uischema, rootSchema],
+  );
 
-    const foundUISchema = useMemo(
-        () =>
-            findUISchema(
-                uischemas!,
-                schema,
-                uischema.scope,
-                path,
-                undefined,
-                uischema,
-                rootSchema
-            ),
-        [uischemas, schema, uischema.scope, path, uischema, rootSchema]
-    );
+  const appliedUiSchemaOptions = merge({}, config, uischema.options);
+  const showSortButtons =
+    appliedUiSchemaOptions.showSortButtons ||
+    appliedUiSchemaOptions.showArrayLayoutSortButtons;
 
-    const appliedUiSchemaOptions = merge({}, config, uischema.options);
-    const showSortButtons =
-        appliedUiSchemaOptions.showSortButtons ||
-        appliedUiSchemaOptions.showArrayLayoutSortButtons;
+  return (
+    <AccordionItem value={childPath}>
+      <TooltipProvider>
+        <div className="flex flex-row items-center">
+          {/* Control buttons */}
+          <div className="flex flex-row gap-3 items-center">
+            {enabled && !disableRemove && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation();
+                      removeItems(path, [index])(e);
+                    }}
+                    variant={"destructive"}
+                    size="sm"
+                    className="mr-2"
+                  >
+                    <TrashIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{translations.removeTooltip}</TooltipContent>
+              </Tooltip>
+            )}
 
-    return (
-        <AccordionItem value={childPath} >
-            <TooltipProvider>
+            {showSortButtons && enabled && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.stopPropagation();
+                        moveUp(path, index)(e);
+                      }}
+                      variant={"ghost"}
+                    >
+                      <MoveUpIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{translations.up}</TooltipContent>
+                </Tooltip>
 
-                <div className='flex flex-row items-center'>
-                    {/* Control buttons */}
-                    <div className='flex flex-row gap-3 items-center'>
-                        {enabled && !disableRemove && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                            e.stopPropagation();
-                                            removeItems(path, [index])(e);
-                                        }}
-                                        variant={'destructive'}
-                                        size="sm"
-                                        className="mr-2"
-                                    >
-                                        <TrashIcon />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {translations.removeTooltip}
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.stopPropagation();
+                        moveDown(path, index)(e);
+                      }}
+                      variant={"ghost"}
+                    >
+                      <MoveDownIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{translations.down}</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+          </div>
 
-                        {showSortButtons && enabled && (
-                            <>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                                e.stopPropagation();
-                                                moveUp(path, index)(e);
-                                            }}
-                                            variant={'ghost'}
-                                        >
-                                            <MoveUpIcon />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {translations.up}
-                                    </TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                                e.stopPropagation();
-                                                moveDown(path, index)(e);
-                                            }}
-                                            variant={'ghost'}
-                                        >
-                                            <MoveDownIcon />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {translations.down}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </>
-                        )}
-                    </div>
-
-                    {/* Accordion trigger */}
-                    <div className='w-full'>
-                        <AccordionTrigger>
-                            {childLabel ? (
-                                <span id={labelHtmlId}>{childLabel}</span>
-                            ) : (
-                                <span id={labelHtmlId}>No title found</span>
-                            )}
-                        </AccordionTrigger>
-                    </div>
-                </div>
-                <AccordionContent>
-                    <JsonFormsDispatch
-                        enabled={enabled}
-                        schema={schema}
-                        uischema={foundUISchema}
-                        path={childPath}
-                        key={childPath}
-                        renderers={renderers}
-                        cells={cells}
-                    />
-                </AccordionContent>
-            </TooltipProvider>
-
-        </AccordionItem>
-    );
+          {/* Accordion trigger */}
+          <div className="w-full">
+            <AccordionTrigger>
+              {childLabel ? (
+                <span id={labelHtmlId}>{childLabel}</span>
+              ) : (
+                <span id={labelHtmlId}>No title found</span>
+              )}
+            </AccordionTrigger>
+          </div>
+        </div>
+        <AccordionContent>
+          <JsonFormsDispatch
+            enabled={enabled}
+            schema={schema}
+            uischema={foundUISchema}
+            path={childPath}
+            key={childPath}
+            renderers={renderers}
+            cells={cells}
+          />
+        </AccordionContent>
+      </TooltipProvider>
+    </AccordionItem>
+  );
 };
-
-
 
 export const ExpandPanelRenderer = React.memo(ExpandPanelRendererComponent);
 
@@ -232,68 +230,68 @@ export const ExpandPanelRenderer = React.memo(ExpandPanelRendererComponent);
  * @returns {DispatchPropsOfArrayControl} dispatch props of an expand panel control
  */
 export const ctxDispatchToExpandPanelProps: (
-    dispatch: Dispatch<any>
+  dispatch: Dispatch<any>,
 ) => DispatchPropsOfExpandPanel = (dispatch) => ({
-    removeItems: useCallback(
-        (path: string, toDelete: number[]) =>
-            (event: any): void => {
-                event.stopPropagation();
-                dispatch(
-                    update(
-                        path,
-                        (array) => {
-                            toDelete
-                                .sort()
-                                .reverse()
-                                .forEach((s) => array.splice(s, 1));
-                            return array;
-                        },
-                        { type: 'REMOVE', indices: toDelete } as UpdateArrayContext
-                    )
-                );
+  removeItems: useCallback(
+    (path: string, toDelete: number[]) =>
+      (event: any): void => {
+        event.stopPropagation();
+        dispatch(
+          update(
+            path,
+            (array) => {
+              toDelete
+                .sort()
+                .reverse()
+                .forEach((s) => array.splice(s, 1));
+              return array;
             },
-        [dispatch]
-    ),
-    moveUp: useCallback(
-        (path: string, toMove: number) =>
-            (event: any): void => {
-                event.stopPropagation();
-                dispatch(
-                    update(
-                        path,
-                        (array) => {
-                            moveUp(array, toMove);
-                            return array;
-                        },
-                        {
-                            type: 'MOVE',
-                            moves: [{ from: toMove, to: toMove - 1 }],
-                        } as UpdateArrayContext
-                    )
-                );
+            { type: "REMOVE", indices: toDelete } as UpdateArrayContext,
+          ),
+        );
+      },
+    [dispatch],
+  ),
+  moveUp: useCallback(
+    (path: string, toMove: number) =>
+      (event: any): void => {
+        event.stopPropagation();
+        dispatch(
+          update(
+            path,
+            (array) => {
+              moveUp(array, toMove);
+              return array;
             },
-        [dispatch]
-    ),
-    moveDown: useCallback(
-        (path: string, toMove: number) =>
-            (event: any): void => {
-                event.stopPropagation();
-                dispatch(
-                    update(
-                        path,
-                        (array) => {
-                            moveDown(array, toMove);
-                            return array;
-                        },
-                        {
-                            type: 'MOVE',
-                            moves: [{ from: toMove, to: toMove + 1 }],
-                        } as UpdateArrayContext
-                    )
-                );
+            {
+              type: "MOVE",
+              moves: [{ from: toMove, to: toMove - 1 }],
+            } as UpdateArrayContext,
+          ),
+        );
+      },
+    [dispatch],
+  ),
+  moveDown: useCallback(
+    (path: string, toMove: number) =>
+      (event: any): void => {
+        event.stopPropagation();
+        dispatch(
+          update(
+            path,
+            (array) => {
+              moveDown(array, toMove);
+              return array;
             },
-        [dispatch]
-    ),
+            {
+              type: "MOVE",
+              moves: [{ from: toMove, to: toMove + 1 }],
+            } as UpdateArrayContext,
+          ),
+        );
+      },
+    [dispatch],
+  ),
 });
 
 /**
@@ -303,109 +301,119 @@ export const ctxDispatchToExpandPanelProps: (
  * @returns {StatePropsOfControl} state props for a control
  */
 export const withContextToExpandPanelProps = (
-    Component: ComponentType<ExpandPanelProps>
+  Component: ComponentType<ExpandPanelProps>,
 ): ComponentType<{
+  ctx: JsonFormsStateContext;
+  props: OwnPropsOfExpandPanel;
+}> => {
+  return function WithContextToExpandPanelProps({
+    ctx,
+    props,
+  }: {
     ctx: JsonFormsStateContext;
     props: OwnPropsOfExpandPanel;
-}> => {
-    return function WithContextToExpandPanelProps({
-        ctx,
-        props,
-    }: {
-        ctx: JsonFormsStateContext;
-        props: OwnPropsOfExpandPanel;
-    }) {
-        if (!ctx.dispatch) {
-            throw new Error('dispatch is undefined');
+  }) {
+    if (!ctx.dispatch) {
+      throw new Error("dispatch is undefined");
+    }
+    const dispatchProps = ctxDispatchToExpandPanelProps(
+      ctx.dispatch as Dispatch<any>,
+    );
+    const {
+      // eslint is unable to detect that these props are "checked" via Typescript already
+      // eslint-disable-next-line react/prop-types
+      childLabelProp,
+      // eslint-disable-next-line react/prop-types
+      schema,
+      // eslint-disable-next-line react/prop-types
+      uischema,
+      // eslint-disable-next-line react/prop-types
+      rootSchema,
+      // eslint-disable-next-line react/prop-types
+      path,
+      // eslint-disable-next-line react/prop-types
+      index,
+      // eslint-disable-next-line react/prop-types
+      uischemas,
+    } = props;
+    const childPath = composePaths(path, `${index}`);
+
+    const childLabel = useMemo(() => {
+      // Try to get the standard computed label
+      let label = computeChildLabel(
+        ctx.core!.data,
+        childPath,
+        childLabelProp!,
+        schema,
+        rootSchema,
+        ctx.i18n!.translate!,
+        uischema,
+      );
+
+      // If no label found and we have data, check for special object types
+      if (!label && ctx.core?.data) {
+        // Navigate to the child data
+        const pathSegments = childPath.split(".");
+        let childData = ctx.core.data;
+        for (const segment of pathSegments) {
+          if (childData && typeof childData === "object") {
+            childData = (childData as any)[segment];
+          } else {
+            childData = undefined;
+            break;
+          }
         }
-        const dispatchProps = ctxDispatchToExpandPanelProps(ctx.dispatch as Dispatch<any>);
-        const {
-            // eslint is unable to detect that these props are "checked" via Typescript already
-            // eslint-disable-next-line react/prop-types
-            childLabelProp,
-            // eslint-disable-next-line react/prop-types
-            schema,
-            // eslint-disable-next-line react/prop-types
-            uischema,
-            // eslint-disable-next-line react/prop-types
-            rootSchema,
-            // eslint-disable-next-line react/prop-types
-            path,
-            // eslint-disable-next-line react/prop-types
-            index,
-            // eslint-disable-next-line react/prop-types
-            uischemas,
-        } = props;
-        const childPath = composePaths(path, `${index}`);
 
-        const childLabel = useMemo(() => {
-            // Try to get the standard computed label
-            let label = computeChildLabel(
-                ctx.core!.data,
-                childPath,
-                childLabelProp!,
-                schema,
-                rootSchema,
-                ctx.i18n!.translate!,
-                uischema
-            );
-
-            // If no label found and we have data, check for special object types
-            if (!label && ctx.core?.data) {
-                // Navigate to the child data
-                const pathSegments = childPath.split('.');
-                let childData = ctx.core.data;
-                for (const segment of pathSegments) {
-                    if (childData && typeof childData === 'object') {
-                        childData = (childData as any)[segment];
-                    } else {
-                        childData = undefined;
-                        break;
-                    }
-                }
-
-                // Check if it's a SelectedTopic object (has topic property with a string value)
-                if (childData && typeof childData === 'object' && 'topic' in childData) {
-                    const topicData = (childData as any).topic;
-                    if (typeof topicData === 'object' && 'topic' in topicData && typeof topicData.topic === 'string') {
-                        // It's a SelectedTopic - use topic.topic as the label
-                        label = topicData.topic;
-                        if (topicData.property) {
-                            label += ` → ${topicData.property}`;
-                        }
-                    } else if (typeof topicData === 'string') {
-                        // Direct topic string
-                        label = topicData;
-                    }
-                }
+        // Check if it's a SelectedTopic object (has topic property with a string value)
+        if (
+          childData &&
+          typeof childData === "object" &&
+          "topic" in childData
+        ) {
+          const topicData = (childData as any).topic;
+          if (
+            typeof topicData === "object" &&
+            "topic" in topicData &&
+            typeof topicData.topic === "string"
+          ) {
+            // It's a SelectedTopic - use topic.topic as the label
+            label = topicData.topic;
+            if (topicData.property) {
+              label += ` → ${topicData.property}`;
             }
+          } else if (typeof topicData === "string") {
+            // Direct topic string
+            label = topicData;
+          }
+        }
+      }
 
-            return label;
-        }, [
-            ctx.core!.data,
-            childPath,
-            childLabelProp,
-            schema,
-            rootSchema,
-            ctx.i18n!.translate,
-            uischema,
-        ]);
+      return label;
+    }, [
+      ctx.core!.data,
+      childPath,
+      childLabelProp,
+      schema,
+      rootSchema,
+      ctx.i18n!.translate,
+      uischema,
+    ]);
 
-        return (
-            <Component
-                {...props}
-                {...dispatchProps}
-                childLabel={childLabel}
-                childPath={childPath}
-                uischemas={uischemas}
-            />
-        );
-    };
+    return (
+      <Component
+        {...props}
+        {...dispatchProps}
+        childLabel={childLabel}
+        childPath={childPath}
+        uischemas={uischemas}
+      />
+    );
+  };
 };
 
 export const withJsonFormsExpandPanelProps = (
-    Component: ComponentType<ExpandPanelProps>
+  Component: ComponentType<ExpandPanelProps>,
 ): ComponentType<OwnPropsOfExpandPanel> =>
-    withJsonFormsContext(withContextToExpandPanelProps(Component));
+  withJsonFormsContext(withContextToExpandPanelProps(Component));
 
 export default withJsonFormsExpandPanelProps(ExpandPanelRenderer);

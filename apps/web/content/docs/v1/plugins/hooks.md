@@ -20,12 +20,12 @@ Complete reference for all plugin hooks in the ORMI-CORE system.
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.DATASOURCES_LIST, {
-    id: "my-datasource-registration",
-    priority: 10,
-    filter: (datasources) => {
-        datasources.push(MyDatasourceDefinition);
-        return datasources;
-    },
+  id: "my-datasource-registration",
+  priority: 10,
+  filter: (datasources) => {
+    datasources.push(MyDatasourceDefinition);
+    return datasources;
+  },
 });
 ```
 
@@ -41,26 +41,26 @@ pluginsManager.addFilter(PluginsHooks.DATASOURCES_LIST, {
 
 ```typescript
 async (topics: DatasourceTopic[], filter?: DatasourceTopicFilter) =>
-    Promise<DatasourceTopic[]>;
+  Promise<DatasourceTopic[]>;
 ```
 
 #### Example
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-    id: `${datasource_id}-topics`,
-    priority: 10,
-    filter: async (topics, filter) => {
-        const myTopics = getMyTopics();
+  id: `${datasource_id}-topics`,
+  priority: 10,
+  filter: async (topics, filter) => {
+    const myTopics = getMyTopics();
 
-        if (filter) {
-            topics.push(...myTopics.filter((t) => filter.filter(t)));
-        } else {
-            topics.push(...myTopics);
-        }
+    if (filter) {
+      topics.push(...myTopics.filter((t) => filter.filter(t)));
+    } else {
+      topics.push(...myTopics);
+    }
 
-        return topics;
-    },
+    return topics;
+  },
 });
 ```
 
@@ -82,12 +82,12 @@ pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "my-widgets-registration",
-    priority: 10,
-    filter: (widgets) => {
-        widgets.push(MyWidgetDefinition);
-        return widgets;
-    },
+  id: "my-widgets-registration",
+  priority: 10,
+  filter: (widgets) => {
+    widgets.push(MyWidgetDefinition);
+    return widgets;
+  },
 });
 ```
 
@@ -112,19 +112,19 @@ pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
 
 ```typescript
 pluginsManager.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
-    id: "datasource-dependent-widgets",
-    priority: 10,
-    filter: (widgets, datasources) => {
-        const hasMyDatasource = datasources.some(
-            (ds) => ds.datasource_id === "my-datasource"
-        );
+  id: "datasource-dependent-widgets",
+  priority: 10,
+  filter: (widgets, datasources) => {
+    const hasMyDatasource = datasources.some(
+      (ds) => ds.datasource_id === "my-datasource",
+    );
 
-        if (!hasMyDatasource) {
-            return widgets.filter((w) => w.id !== "my-widget");
-        }
+    if (!hasMyDatasource) {
+      return widgets.filter((w) => w.id !== "my-widget");
+    }
 
-        return widgets;
-    },
+    return widgets;
+  },
 });
 ```
 
@@ -148,18 +148,18 @@ async (topic: SelectedTopic) => Promise<void>;
 
 ```typescript
 pluginsManager.addAction(`${datasource_id}-subscribe`, {
-    id: `${datasource_id}-subscribe-handler`,
-    priority: 10,
-    action: async (topic: SelectedTopic) => {
-        console.log(`Subscribe to ${topic.topic}`);
+  id: `${datasource_id}-subscribe-handler`,
+  priority: 10,
+  action: async (topic: SelectedTopic) => {
+    console.log(`Subscribe to ${topic.topic}`);
 
-        const count = subscriberCount.get(topic.topic) || 0;
-        subscriberCount.set(topic.topic, count + 1);
+    const count = subscriberCount.get(topic.topic) || 0;
+    subscriberCount.set(topic.topic, count + 1);
 
-        if (count === 0) {
-            startPublishing(topic);
-        }
-    },
+    if (count === 0) {
+      startPublishing(topic);
+    }
+  },
 });
 ```
 
@@ -181,20 +181,20 @@ async (topic: SelectedTopic) => Promise<void>;
 
 ```typescript
 pluginsManager.addAction(`${datasource_id}-unsubscribe`, {
-    id: `${datasource_id}-unsubscribe-handler`,
-    priority: 10,
-    action: async (topic: SelectedTopic) => {
-        console.log(`Unsubscribe from ${topic.topic}`);
+  id: `${datasource_id}-unsubscribe-handler`,
+  priority: 10,
+  action: async (topic: SelectedTopic) => {
+    console.log(`Unsubscribe from ${topic.topic}`);
 
-        const count = subscriberCount.get(topic.topic) || 0;
-        if (count > 0) {
-            subscriberCount.set(topic.topic, count - 1);
+    const count = subscriberCount.get(topic.topic) || 0;
+    if (count > 0) {
+      subscriberCount.set(topic.topic, count - 1);
 
-            if (count === 1) {
-                stopPublishing(topic);
-            }
-        }
-    },
+      if (count === 1) {
+        stopPublishing(topic);
+      }
+    }
+  },
 });
 ```
 
@@ -217,9 +217,9 @@ pluginsManager.addAction(`${datasource_id}-unsubscribe`, {
 ```typescript
 // From provider when data arrives
 pluginsManager.doAction(
-    `${datasource_id}-${topic.topic}-published`,
-    data,
-    Date.now()
+  `${datasource_id}-${topic.topic}-published`,
+  data,
+  Date.now(),
 );
 ```
 
@@ -228,20 +228,20 @@ pluginsManager.doAction(
 ```typescript
 // In widget component
 useEffect(() => {
-    const hookName = `${datasource_id}-${topic.topic}-published`;
+  const hookName = `${datasource_id}-${topic.topic}-published`;
 
-    pluginsManager.addAction(hookName, {
-        id: `${widget_id}-subscriber`,
-        priority: 10,
-        action: (data, timestamp) => {
-            console.log("Received data:", data, "at", timestamp);
-            setWidgetData(data);
-        },
-    });
+  pluginsManager.addAction(hookName, {
+    id: `${widget_id}-subscriber`,
+    priority: 10,
+    action: (data, timestamp) => {
+      console.log("Received data:", data, "at", timestamp);
+      setWidgetData(data);
+    },
+  });
 
-    return () => {
-        pluginsManager.removeAction(hookName, `${widget_id}-subscriber`);
-    };
+  return () => {
+    pluginsManager.removeAction(hookName, `${widget_id}-subscriber`);
+  };
 }, [topic]);
 ```
 
@@ -263,15 +263,15 @@ useEffect(() => {
 
 ```typescript
 pluginsManager.addFilter(`${datasource_id}-definition`, {
-    id: `${datasource_id}-def`,
-    priority: 10,
-    filter: (def) => {
-        return {
-            ...def,
-            getConnectionStatus: () => connectionStatus,
-            getTopicList: () => availableTopics,
-        };
-    },
+  id: `${datasource_id}-def`,
+  priority: 10,
+  filter: (def) => {
+    return {
+      ...def,
+      getConnectionStatus: () => connectionStatus,
+      getTopicList: () => availableTopics,
+    };
+  },
 });
 ```
 
@@ -286,9 +286,9 @@ You can create custom hooks for specific functionality.
 ```typescript
 // Provider registers
 pluginsManager.addFilter(`${datasource_id}-api-url`, {
-    id: `${datasource_id}-url-provider`,
-    priority: 10,
-    filter: () => apiUrl,
+  id: `${datasource_id}-url-provider`,
+  priority: 10,
+  filter: () => apiUrl,
 });
 
 // Widget queries
@@ -300,20 +300,20 @@ const apiUrl = pluginsManager.applyFilter(`${datasource_id}-api-url`, null);
 ```typescript
 // Provider registers
 pluginsManager.addFilter(`${datasource_id}-status`, {
-    id: `${datasource_id}-status-provider`,
-    priority: 10,
-    filter: () => ({
-        connected: isConnected,
-        error: lastError,
-        reconnectAttempt: reconnectCount,
-    }),
+  id: `${datasource_id}-status-provider`,
+  priority: 10,
+  filter: () => ({
+    connected: isConnected,
+    error: lastError,
+    reconnectAttempt: reconnectCount,
+  }),
 });
 
 // Widget queries
 const status = pluginsManager.applyFilter(`${datasource_id}-status`, {
-    connected: false,
-    error: null,
-    reconnectAttempt: 0,
+  connected: false,
+  error: null,
+  reconnectAttempt: 0,
 });
 ```
 
@@ -439,12 +439,12 @@ window.pluginsManager._actions; // All registered actions
 ```typescript
 // Add logging filter/action
 pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-    id: "debug-logger",
-    priority: Infinity, // Run last
-    filter: (topics) => {
-        console.log("Available topics:", topics);
-        return topics;
-    },
+  id: "debug-logger",
+  priority: Infinity, // Run last
+  filter: (topics) => {
+    console.log("Available topics:", topics);
+    return topics;
+  },
 });
 ```
 
@@ -464,11 +464,11 @@ console.log("Registered datasources:", result);
 
 ```typescript
 filter: (datasources) => {
-    // Only register in development
-    if (process.env.NODE_ENV === "development") {
-        datasources.push(DebugDatasource);
-    }
-    return datasources;
+  // Only register in development
+  if (process.env.NODE_ENV === "development") {
+    datasources.push(DebugDatasource);
+  }
+  return datasources;
 };
 ```
 
@@ -476,15 +476,15 @@ filter: (datasources) => {
 
 ```typescript
 filter: (widgets, datasources) => {
-    const hasFoxglove = datasources.some((ds) =>
-        ds.datasource_id.includes("foxglove")
-    );
+  const hasFoxglove = datasources.some((ds) =>
+    ds.datasource_id.includes("foxglove"),
+  );
 
-    if (!hasFoxglove) {
-        return widgets.filter((w) => !w.id.includes("foxglove"));
-    }
+  if (!hasFoxglove) {
+    return widgets.filter((w) => !w.id.includes("foxglove"));
+  }
 
-    return widgets;
+  return widgets;
 };
 ```
 
@@ -493,22 +493,22 @@ filter: (widgets, datasources) => {
 ```typescript
 // High priority: Add datasource
 this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-    id: "my-datasource",
-    priority: 10,
-    filter: (ds) => {
-        ds.push(MyDS);
-        return ds;
-    },
+  id: "my-datasource",
+  priority: 10,
+  filter: (ds) => {
+    ds.push(MyDS);
+    return ds;
+  },
 });
 
 // Low priority: Log all datasources
 this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-    id: "my-logger",
-    priority: 100,
-    filter: (ds) => {
-        console.log(ds);
-        return ds;
-    },
+  id: "my-logger",
+  priority: 100,
+  filter: (ds) => {
+    console.log(ds);
+    return ds;
+  },
 });
 ```
 

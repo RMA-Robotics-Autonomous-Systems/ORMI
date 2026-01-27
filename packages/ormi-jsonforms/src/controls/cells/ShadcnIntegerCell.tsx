@@ -22,43 +22,43 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    CellProps,
-    isIntegerControl,
-    RankedTester,
-    rankWith,
-    WithClassname,
-} from '@jsonforms/core';
-import { withJsonFormsCellProps } from '@jsonforms/react';
-import { Input } from '@workspace/ui/components/input';
+  CellProps,
+  isIntegerControl,
+  RankedTester,
+  rankWith,
+  WithClassname,
+} from "@jsonforms/core";
+import { withJsonFormsCellProps } from "@jsonforms/react";
+import { Input } from "@workspace/ui/components/input";
 
 export const ShadcnIntegerCell = (props: CellProps & WithClassname) => {
-    const { data, id, enabled, handleChange, path } = props;
+  const { data, id, enabled, handleChange, path } = props;
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        const number = value === '' ? undefined : parseInt(value, 10);
-        handleChange(path, number);
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const number = value === "" ? undefined : parseInt(value, 10);
+    handleChange(path, number);
+  };
 
-    return (
-        <Input
-            type="number"
-            id={id}
-            value={data !== undefined && data !== null ? data : ''}
-            onChange={handleInputChange}
-            disabled={!enabled}
-            className="w-full"
-            step={1}
-        />
-    );
+  return (
+    <Input
+      type="number"
+      id={id}
+      value={data !== undefined && data !== null ? data : ""}
+      onChange={handleInputChange}
+      disabled={!enabled}
+      className="w-full"
+      step={1}
+    />
+  );
 };
 
 export const shadcnIntegerCellTester: RankedTester = rankWith(
-    3,
-    isIntegerControl
+  3,
+  isIntegerControl,
 );
 
 export default withJsonFormsCellProps(ShadcnIntegerCell);

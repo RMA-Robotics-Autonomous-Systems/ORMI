@@ -74,7 +74,7 @@ export class ConflictResolver {
       // For templates from the API, we need to convert format
       const serverTemplateData = this.convertApiTemplateToLocal(
         serverTemplate,
-        localTemplate.createdById
+        localTemplate.createdById,
       );
 
       // Compare timestamps - last write wins
@@ -98,7 +98,7 @@ export class ConflictResolver {
    * Create workspace on server
    */
   private async createWorkspaceOnServer(
-    workspace: WorkspaceData
+    workspace: WorkspaceData,
   ): Promise<void> {
     console.log("📤 Creating workspace on server");
 
@@ -115,7 +115,7 @@ export class ConflictResolver {
 
     if (!response.ok) {
       throw new Error(
-        `Failed to create workspace on server: ${response.status}`
+        `Failed to create workspace on server: ${response.status}`,
       );
     }
 
@@ -149,7 +149,7 @@ export class ConflictResolver {
 
     if (!response.ok) {
       throw new Error(
-        `Failed to update workspace on server: ${response.status}`
+        `Failed to update workspace on server: ${response.status}`,
       );
     }
 
@@ -162,7 +162,7 @@ export class ConflictResolver {
    * Pull workspace from server
    */
   private async pullWorkspaceFromServer(
-    serverWorkspace: WorkspaceData
+    serverWorkspace: WorkspaceData,
   ): Promise<void> {
     console.log("📥 Pulling workspace from server");
 
@@ -205,7 +205,7 @@ export class ConflictResolver {
 
     if (!response.ok) {
       throw new Error(
-        `Failed to create template on server: ${response.status}`
+        `Failed to create template on server: ${response.status}`,
       );
     }
 
@@ -248,7 +248,7 @@ export class ConflictResolver {
 
     if (!response.ok) {
       throw new Error(
-        `Failed to update template on server: ${response.status}`
+        `Failed to update template on server: ${response.status}`,
       );
     }
 
@@ -261,7 +261,7 @@ export class ConflictResolver {
    * Pull template from server
    */
   private async pullTemplateFromServer(
-    serverTemplate: TemplateData
+    serverTemplate: TemplateData,
   ): Promise<void> {
     console.log("📥 Pulling template from server");
 
@@ -279,7 +279,7 @@ export class ConflictResolver {
    */
   private convertApiTemplateToLocal(
     apiTemplate: Record<string, unknown>,
-    createdById: string
+    createdById: string,
   ): TemplateData {
     return {
       id: parseInt(apiTemplate.id as string) || 0,
@@ -302,7 +302,7 @@ export class ConflictResolver {
    * Batch resolve conflicts for multiple items
    */
   async batchResolveWorkspaceConflicts(
-    workspaces: WorkspaceData[]
+    workspaces: WorkspaceData[],
   ): Promise<void> {
     console.log(`🔄 Batch resolving ${workspaces.length} workspace conflicts`);
 
@@ -310,7 +310,7 @@ export class ConflictResolver {
       this.resolveWorkspaceConflict(workspace).catch((error) => {
         console.error(`Failed to resolve workspace ${workspace.id}:`, error);
         return null; // Continue with other workspaces
-      })
+      }),
     );
 
     await Promise.allSettled(promises);
@@ -320,7 +320,7 @@ export class ConflictResolver {
    * Batch resolve conflicts for multiple templates
    */
   async batchResolveTemplateConflicts(
-    templates: TemplateData[]
+    templates: TemplateData[],
   ): Promise<void> {
     console.log(`🔄 Batch resolving ${templates.length} template conflicts`);
 
@@ -328,7 +328,7 @@ export class ConflictResolver {
       this.resolveTemplateConflict(template).catch((error) => {
         console.error(`Failed to resolve template ${template.id}:`, error);
         return null; // Continue with other templates
-      })
+      }),
     );
 
     await Promise.allSettled(promises);

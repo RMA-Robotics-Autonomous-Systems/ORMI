@@ -22,36 +22,36 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    and,
-    CellProps,
-    isBooleanControl,
-    optionIs,
-    RankedTester,
-    rankWith,
-    WithClassname,
-} from '@jsonforms/core';
-import { withJsonFormsCellProps } from '@jsonforms/react';
-import { Switch } from '@workspace/ui/components/switch';
+  and,
+  CellProps,
+  isBooleanControl,
+  optionIs,
+  RankedTester,
+  rankWith,
+  WithClassname,
+} from "@jsonforms/core";
+import { withJsonFormsCellProps } from "@jsonforms/react";
+import { Switch } from "@workspace/ui/components/switch";
 
 export const ShadcnBooleanToggleCell = (props: CellProps & WithClassname) => {
-    const { data, id, enabled, handleChange } = props;
+  const { data, id, enabled, handleChange } = props;
 
-    return (
-        <Switch
-            id={id}
-            checked={data ?? false}
-            disabled={!enabled}
-            onCheckedChange={(checked) => handleChange(id, checked)}
-        />
-    );
+  return (
+    <Switch
+      id={id}
+      checked={data ?? false}
+      disabled={!enabled}
+      onCheckedChange={(checked) => handleChange(id, checked)}
+    />
+  );
 };
 
 export const shadcnBooleanToggleCellTester: RankedTester = rankWith(
-    4,
-    and(isBooleanControl, optionIs('toggle', true))
+  4,
+  and(isBooleanControl, optionIs("toggle", true)),
 );
 
 export default withJsonFormsCellProps(ShadcnBooleanToggleCell);

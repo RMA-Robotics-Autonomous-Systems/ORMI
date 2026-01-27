@@ -24,26 +24,24 @@
 */
 import ShadcnBooleanCell, {
   shadcnBooleanCellTester,
-} from './ShadcnBooleanCell';
+} from "./ShadcnBooleanCell";
 import ShadcnBooleanToggleCell, {
   shadcnBooleanToggleCellTester,
-} from './ShadcnBooleanToggleCell';
-import ShadcnDateCell, { shadcnDateCellTester } from './ShadcnDateCell';
-import ShadcnEnumCell, { shadcnEnumCellTester } from './ShadcnEnumCell';
+} from "./ShadcnBooleanToggleCell";
+import ShadcnDateCell, { shadcnDateCellTester } from "./ShadcnDateCell";
+import ShadcnEnumCell, { shadcnEnumCellTester } from "./ShadcnEnumCell";
 import ShadcnIntegerCell, {
   shadcnIntegerCellTester,
-} from './ShadcnIntegerCell';
-import ShadcnNumberCell, {
-  shadcnNumberCellTester,
-} from './ShadcnNumberCell';
+} from "./ShadcnIntegerCell";
+import ShadcnNumberCell, { shadcnNumberCellTester } from "./ShadcnNumberCell";
 import ShadcnNumberFormatCell, {
   shadcnNumberFormatCellTester,
-} from './ShadcnNumberFormatCell';
+} from "./ShadcnNumberFormatCell";
 import ShadcnOneOfEnumCell, {
   shadcnOneOfEnumCellTester,
-} from './ShadcnOneOfEnumCell';
-import ShadcnTextCell, { shadcnTextCellTester } from './ShadcnTextCell';
-import ShadcnTimeCell, { shadcnTimeCellTester } from './ShadcnTimeCell';
+} from "./ShadcnOneOfEnumCell";
+import ShadcnTextCell, { shadcnTextCellTester } from "./ShadcnTextCell";
+import ShadcnTimeCell, { shadcnTimeCellTester } from "./ShadcnTimeCell";
 
 export {
   ShadcnBooleanCell,
@@ -67,5 +65,5 @@ export {
   ShadcnTimeCell,
   shadcnTimeCellTester,
 };
-import * as Customizable from './CustomizableCells';
+import * as Customizable from "./CustomizableCells";
 export { Customizable };

@@ -27,17 +27,18 @@ graph LR
 
 ```typescript
 interface DatasourceDefinition<T = DatasourceProviderSettings> {
-    id: string;                  // Unique identifier
-    name: string;                // Display name
-    description: string;         // Human-readable description
-    titleProp?: string;          // Property for instance title
-    schema: JsonSchema;          // Configuration schema
-    uischema?: UISchemaElement;  // UI Schema for forms
-    data: T;                     // Default settings
-    Provider: FC<{               // React Provider component
-        children: ReactNode;
-        props: T;
-    }>;
+  id: string; // Unique identifier
+  name: string; // Display name
+  description: string; // Human-readable description
+  titleProp?: string; // Property for instance title
+  schema: JsonSchema; // Configuration schema
+  uischema?: UISchemaElement; // UI Schema for forms
+  data: T; // Default settings
+  Provider: FC<{
+    // React Provider component
+    children: ReactNode;
+    props: T;
+  }>;
 }
 ```
 
@@ -53,7 +54,7 @@ export const MyDatasourceDefinition: DatasourceDefinition<MySettings> = {
   name: 'My Data Source',
   description: 'WebSocket datasource with zero-copy transfers',
   titleProp: 'title',
-  
+
   schema: {
     type: 'object',
     properties: {
@@ -63,14 +64,14 @@ export const MyDatasourceDefinition: DatasourceDefinition<MySettings> = {
     },
     required: ['title', 'url']
   },
-  
+
   data: {
     id: '',
     title: 'My Datasource',
     enable: true,
     url: 'ws://localhost:9090'
   },
-  
+
   Provider: ({ children, props }) => (
     <MyWorkerHost datasourceId={props.id} settings={props}>
       {children}
@@ -84,31 +85,36 @@ export const MyDatasourceDefinition: DatasourceDefinition<MySettings> = {
 ### DatasourceWorkerImplementation Interface
 
 ```typescript
-interface DatasourceWorkerImplementation<Settings = DatasourceProviderSettings> {
-    // Initialize connection
-    init(settings: Settings): void | Promise<void>;
-    
-    // List available topics
-    listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
-    
-    // Start streaming topic
-    subscribe(topic: SelectedTopic): void | Promise<void>;
-    
-    // Stop streaming topic
-    unsubscribe(topic: SelectedTopic, ignoreCount?: boolean): void | Promise<void>;
-    
-    // Execute remote call (optional)
-    executeRemoteCall(
-        definition: RemoteCallDefinition,
-        request: unknown,
-        options?: RemoteCallOptions
-    ): Promise<RemoteCallHandleWire> | RemoteCallHandleWire;
-    
-    // Cancel remote call (optional)
-    cancelRemoteCall(callId: string): Promise<boolean> | boolean;
-    
-    // Clean up resources
-    shutdown(): void | Promise<void>;
+interface DatasourceWorkerImplementation<
+  Settings = DatasourceProviderSettings,
+> {
+  // Initialize connection
+  init(settings: Settings): void | Promise<void>;
+
+  // List available topics
+  listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
+
+  // Start streaming topic
+  subscribe(topic: SelectedTopic): void | Promise<void>;
+
+  // Stop streaming topic
+  unsubscribe(
+    topic: SelectedTopic,
+    ignoreCount?: boolean,
+  ): void | Promise<void>;
+
+  // Execute remote call (optional)
+  executeRemoteCall(
+    definition: RemoteCallDefinition,
+    request: unknown,
+    options?: RemoteCallOptions,
+  ): Promise<RemoteCallHandleWire> | RemoteCallHandleWire;
+
+  // Cancel remote call (optional)
+  cancelRemoteCall(callId: string): Promise<boolean> | boolean;
+
+  // Clean up resources
+  shutdown(): void | Promise<void>;
 }
 ```
 
@@ -116,8 +122,8 @@ interface DatasourceWorkerImplementation<Settings = DatasourceProviderSettings> 
 
 ```typescript
 // my-datasource.worker.ts
-import { createDatasourceWorker } from '@workspace/ormi-core/datasources/worker';
-import type { MySettings } from './types';
+import { createDatasourceWorker } from "@workspace/ormi-core/datasources/worker";
+import type { MySettings } from "./types";
 
 createDatasourceWorker<MySettings>((ctx) => {
   let ws: WebSocket | null = null;
@@ -125,21 +131,21 @@ createDatasourceWorker<MySettings>((ctx) => {
 
   return {
     async init(settings) {
-      console.log('[Worker] Initializing with', settings);
-      
+      console.log("[Worker] Initializing with", settings);
+
       ws = new WebSocket(settings.url);
-      
+
       ws.onmessage = (event) => {
         const { topic, data, timestamp } = JSON.parse(event.data);
-        
+
         // Publish to main thread
         ctx.publish(topic, data, timestamp || Date.now());
       };
-      
+
       // Wait for connection
       await new Promise<void>((resolve, reject) => {
         ws!.onopen = () => resolve();
-        ws!.onerror = (e) => reject(new Error('Connection failed'));
+        ws!.onerror = (e) => reject(new Error("Connection failed"));
       });
     },
 
@@ -147,46 +153,52 @@ createDatasourceWorker<MySettings>((ctx) => {
       // Return available topics
       return [
         {
-          topic: '/sensor/data',
-          datasource_id: '', // Set by host
+          topic: "/sensor/data",
+          datasource_id: "", // Set by host
           source: {} as any,
-          type: 'SensorData',
-          rawType: 'sensor_msgs/SensorData',
-          bufferSize: 50
-        }
+          type: "SensorData",
+          rawType: "sensor_msgs/SensorData",
+          bufferSize: 50,
+        },
       ];
     },
 
     async subscribe(topic) {
       const count = subscriptions.get(topic.topic) || 0;
       subscriptions.set(topic.topic, count + 1);
-      
+
       if (count === 0) {
         // First subscriber
-        ws?.send(JSON.stringify({
-          op: 'subscribe',
-          topic: topic.topic
-        }));
+        ws?.send(
+          JSON.stringify({
+            op: "subscribe",
+            topic: topic.topic,
+          }),
+        );
       }
     },
 
     async unsubscribe(topic, ignoreCount = false) {
       if (ignoreCount) {
         subscriptions.delete(topic.topic);
-        ws?.send(JSON.stringify({
-          op: 'unsubscribe',
-          topic: topic.topic
-        }));
+        ws?.send(
+          JSON.stringify({
+            op: "unsubscribe",
+            topic: topic.topic,
+          }),
+        );
         return;
       }
-      
+
       const count = subscriptions.get(topic.topic) || 0;
       if (count <= 1) {
         subscriptions.delete(topic.topic);
-        ws?.send(JSON.stringify({
-          op: 'unsubscribe',
-          topic: topic.topic
-        }));
+        ws?.send(
+          JSON.stringify({
+            op: "unsubscribe",
+            topic: topic.topic,
+          }),
+        );
       } else {
         subscriptions.set(topic.topic, count - 1);
       }
@@ -194,7 +206,7 @@ createDatasourceWorker<MySettings>((ctx) => {
 
     async executeRemoteCall(definition, request, options) {
       // Handle service calls if needed
-      return { callId: '' };
+      return { callId: "" };
     },
 
     async cancelRemoteCall(callId) {
@@ -202,10 +214,10 @@ createDatasourceWorker<MySettings>((ctx) => {
     },
 
     async shutdown() {
-      console.log('[Worker] Shutting down');
+      console.log("[Worker] Shutting down");
       ws?.close();
       subscriptions.clear();
-    }
+    },
   };
 });
 ```
@@ -214,26 +226,26 @@ createDatasourceWorker<MySettings>((ctx) => {
 
 ```typescript
 interface DatasourceWorkerContext {
-    // Publish data to main thread
-    publish(
-        topic: string,
-        data: unknown,
-        time?: number,
-        referenceFrameId?: string,
-        transfer?: Transferable[]
-    ): void;
-    
-    // Register remote call definitions
-    setRemoteCalls(calls: RemoteCallDefinition[]): void;
-    
-    // Emit remote call status
-    emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
-    
-    // Emit remote call feedback
-    emitRemoteCallFeedback(callId: string, feedback: unknown): void;
-    
-    // Emit remote call result
-    emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
+  // Publish data to main thread
+  publish(
+    topic: string,
+    data: unknown,
+    time?: number,
+    referenceFrameId?: string,
+    transfer?: Transferable[],
+  ): void;
+
+  // Register remote call definitions
+  setRemoteCalls(calls: RemoteCallDefinition[]): void;
+
+  // Emit remote call status
+  emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
+
+  // Emit remote call feedback
+  emitRemoteCallFeedback(callId: string, feedback: unknown): void;
+
+  // Emit remote call result
+  emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
 }
 ```
 
@@ -243,23 +255,18 @@ Publish data to the main thread:
 
 ```typescript
 // Simple publish
-ctx.publish(
-  '/sensor/temperature',
-  { value: 25.5 },
-  Date.now(),
-  'sensor_frame'
-);
+ctx.publish("/sensor/temperature", { value: 25.5 }, Date.now(), "sensor_frame");
 
 // With Transferable for zero-copy
 const points = new Float32Array(100000);
 // ... fill points
 
 ctx.publish(
-  '/scan/points',
+  "/scan/points",
   { points },
   Date.now(),
-  'lidar_frame',
-  [points.buffer] // Transferred, not copied
+  "lidar_frame",
+  [points.buffer], // Transferred, not copied
 );
 ```
 
@@ -284,10 +291,10 @@ import { usePluginsManager } from '@workspace/ormi-plugins';
 import { WorkerDatasourceHost } from '@workspace/ormi-core/datasources/worker';
 import type { MySettings } from './types';
 
-export function MyWorkerHost({ 
-  children, 
-  datasourceId, 
-  settings 
+export function MyWorkerHost({
+  children,
+  datasourceId,
+  settings
 }: {
   children: React.ReactNode;
   datasourceId: string;
@@ -306,7 +313,7 @@ export function MyWorkerHost({
     // Create worker
     const worker = new Worker(
       new URL('./my-datasource.worker.js', import.meta.url),
-      { 
+      {
         type: 'module',
         name: `datasource:${datasourceId}`
       }
@@ -321,7 +328,7 @@ export function MyWorkerHost({
     });
 
     hostRef.current = host;
-    
+
     // Register PluginManager hooks
     host.registerHooks();
 
@@ -349,24 +356,24 @@ export function MyWorkerHost({
 
 ```typescript
 class WorkerDatasourceHost<Settings> {
-    constructor(options: {
-        worker: Worker;
-        datasourceId: string;
-        settings: Settings;
-        pluginsManager: PluginsManager;
-    });
+  constructor(options: {
+    worker: Worker;
+    datasourceId: string;
+    settings: Settings;
+    pluginsManager: PluginsManager;
+  });
 
-    // Initialize worker
-    init(): Promise<void>;
+  // Initialize worker
+  init(): Promise<void>;
 
-    // Register PluginManager hooks
-    registerHooks(): void;
+  // Register PluginManager hooks
+  registerHooks(): void;
 
-    // Shutdown worker gracefully
-    shutdown(): Promise<void>;
+  // Shutdown worker gracefully
+  shutdown(): Promise<void>;
 
-    // RPC client for calling worker methods
-    readonly rpc: RpcClient<DatasourceWorkerMethods, DatasourceWorkerEvents>;
+  // RPC client for calling worker methods
+  readonly rpc: RpcClient<DatasourceWorkerMethods, DatasourceWorkerEvents>;
 }
 ```
 
@@ -391,11 +398,11 @@ const points = new Float32Array(300000);
 
 // Transfer ownership to main thread (zero-copy)
 ctx.publish(
-  '/scan/points',
+  "/scan/points",
   { points },
   Date.now(),
-  'lidar_frame',
-  [points.buffer] // Transferable
+  "lidar_frame",
+  [points.buffer], // Transferable
 );
 
 // After transfer:
@@ -429,12 +436,12 @@ The RPC protocol provides type-safe method calls and event handling:
 const rpc = createRpcClient<Methods, Events>(worker);
 
 // Call worker method
-await rpc.call('subscribe', topic);
-const topics = await rpc.call('listTopics');
-await rpc.call('shutdown');
+await rpc.call("subscribe", topic);
+const topics = await rpc.call("listTopics");
+await rpc.call("shutdown");
 
 // Listen to worker events
-rpc.on('topic-published', (event) => {
+rpc.on("topic-published", (event) => {
   // Handle published data
 });
 
@@ -442,7 +449,7 @@ rpc.on('topic-published', (event) => {
 createDatasourceWorker((ctx) => ({
   async subscribe(topic) {
     // Implementation
-  }
+  },
 }));
 ```
 
@@ -450,13 +457,16 @@ createDatasourceWorker((ctx) => ({
 
 ```typescript
 interface DatasourceWorkerMethods<Settings> {
-    init(settings: Settings): void | Promise<void>;
-    listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
-    subscribe(topic: SelectedTopic): void | Promise<void>;
-    unsubscribe(topic: SelectedTopic, ignoreCount?: boolean): void | Promise<void>;
-    executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
-    cancelRemoteCall(callId: string): Promise<boolean>;
-    shutdown(): void | Promise<void>;
+  init(settings: Settings): void | Promise<void>;
+  listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
+  subscribe(topic: SelectedTopic): void | Promise<void>;
+  unsubscribe(
+    topic: SelectedTopic,
+    ignoreCount?: boolean,
+  ): void | Promise<void>;
+  executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
+  cancelRemoteCall(callId: string): Promise<boolean>;
+  shutdown(): void | Promise<void>;
 }
 ```
 
@@ -464,27 +474,27 @@ interface DatasourceWorkerMethods<Settings> {
 
 ```typescript
 interface DatasourceWorkerEvents {
-    'topic-published': {
-        topic: string;
-        data: unknown;
-        time: number;
-        referenceFrameId?: string;
-    };
-    'remote-calls': {
-        calls: RemoteCallDefinition[];
-    };
-    'remote-call-status': {
-        callId: string;
-        status: RemoteCallStatus;
-    };
-    'remote-call-feedback': {
-        callId: string;
-        feedback: unknown;
-    };
-    'remote-call-result': {
-        callId: string;
-        result: RemoteCallResult;
-    };
+  "topic-published": {
+    topic: string;
+    data: unknown;
+    time: number;
+    referenceFrameId?: string;
+  };
+  "remote-calls": {
+    calls: RemoteCallDefinition[];
+  };
+  "remote-call-status": {
+    callId: string;
+    status: RemoteCallStatus;
+  };
+  "remote-call-feedback": {
+    callId: string;
+    feedback: unknown;
+  };
+  "remote-call-result": {
+    callId: string;
+    result: RemoteCallResult;
+  };
 }
 ```
 
@@ -495,14 +505,14 @@ interface DatasourceWorkerEvents {
 ```typescript
 createDatasourceWorker((ctx) => {
   // Global error handlers
-  self.addEventListener('error', (e) => {
-    console.error('[Worker Error]', e.error);
+  self.addEventListener("error", (e) => {
+    console.error("[Worker Error]", e.error);
   });
-  
-  self.addEventListener('unhandledrejection', (e) => {
-    console.error('[Worker Unhandled Rejection]', e.reason);
+
+  self.addEventListener("unhandledrejection", (e) => {
+    console.error("[Worker Unhandled Rejection]", e.reason);
   });
-  
+
   return {
     async subscribe(topic) {
       try {
@@ -511,7 +521,7 @@ createDatasourceWorker((ctx) => {
         console.error(`Subscribe failed:`, error);
         throw error; // Propagates to main thread
       }
-    }
+    },
   };
 });
 ```
@@ -520,16 +530,17 @@ createDatasourceWorker((ctx) => {
 
 ```typescript
 // In provider component
-host.init()
+host
+  .init()
   .then(() => setInitialized(true))
   .catch((error) => {
-    console.error('Initialization failed:', error);
+    console.error("Initialization failed:", error);
     toast.error(`Failed to initialize: ${error.message}`);
   });
 
 // Worker crash detection
-worker.addEventListener('error', (e) => {
-  console.error('Worker crashed:', e);
+worker.addEventListener("error", (e) => {
+  console.error("Worker crashed:", e);
   // Restart if needed
   restartWorker();
 });
@@ -544,7 +555,7 @@ worker.addEventListener('error', (e) => {
 async init(settings) {
   // Connect to external source
   ws = new WebSocket(settings.url);
-  
+
   // Wait for ready
   await new Promise((resolve, reject) => {
     ws.onopen = resolve;
@@ -566,7 +577,7 @@ const subscriptions = new Map<string, number>();
 async subscribe(topic) {
   const count = (subscriptions.get(topic.topic) || 0) + 1;
   subscriptions.set(topic.topic, count);
-  
+
   if (count === 1) {
     // First subscriber - start streaming
     startStreaming(topic.topic);
@@ -579,7 +590,7 @@ async unsubscribe(topic, ignoreCount = false) {
     stopStreaming(topic.topic);
     return;
   }
-  
+
   const count = subscriptions.get(topic.topic) || 0;
   if (count <= 1) {
     subscriptions.delete(topic.topic);
@@ -596,17 +607,17 @@ async unsubscribe(topic, ignoreCount = false) {
 // Worker cleanup
 async shutdown() {
   console.log('[Worker] Shutting down');
-  
+
   // Close connections
   ws?.close();
-  
+
   // Clear timers
   intervals.forEach(clearInterval);
   intervals.clear();
-  
+
   // Clear subscriptions
   subscriptions.clear();
-  
+
   console.log('[Worker] Shutdown complete');
 }
 
@@ -624,7 +635,7 @@ worker.terminate(); // Force if timeout
 createDatasourceWorker((ctx) => ({
   async init(settings) {
     ws = new WebSocket(settings.url); // Non-blocking
-  }
+  },
 }));
 
 // ❌ Bad: I/O in main thread
@@ -691,18 +702,18 @@ const connect = () => {
 Workers should convert raw data to internal types:
 
 ```typescript
-import { unifiedConverter } from './converter';
+import { unifiedConverter } from "./converter";
 
 ws.onmessage = (event) => {
   const { topic, data, type } = JSON.parse(event.data);
-  
+
   // Convert to internal type
   const converted = unifiedConverter.convert(
     data,
     type, // rawType: 'sensor_msgs/Imu'
-    'IMU' // internal type
+    "IMU", // internal type
   );
-  
+
   ctx.publish(topic, converted, Date.now());
 };
 ```

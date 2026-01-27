@@ -27,12 +27,12 @@ Main hook for registering controls from within a widget.
 
 ```typescript
 function useButtonHolder(): {
-    setButtonItem: (
-        key: string,
-        component: JSX.Element,
-        priority?: number
-    ) => void;
-    removeButtonItem: (key: string) => void;
+  setButtonItem: (
+    key: string,
+    component: JSX.Element,
+    priority?: number,
+  ) => void;
+  removeButtonItem: (key: string) => void;
 };
 ```
 
