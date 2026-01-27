@@ -156,10 +156,12 @@ class MockWebSocket {
 
 describe("Foxglove Worker - Reconnection Safety", () => {
     let originalWebSocket: any;
+    let originalFoxgloveClient: any;
 
     beforeEach(() => {
         // Save originals
         originalWebSocket = (globalThis as any).WebSocket;
+        originalFoxgloveClient = (globalThis as any).FoxgloveClient;
 
         // Install mocks
         (globalThis as any).WebSocket = MockWebSocket;
@@ -169,6 +171,7 @@ describe("Foxglove Worker - Reconnection Safety", () => {
     afterEach(() => {
         // Restore originals
         (globalThis as any).WebSocket = originalWebSocket;
+        (globalThis as any).FoxgloveClient = originalFoxgloveClient;
     });
 
     test("should wait for connection before resolving init", async () => {
