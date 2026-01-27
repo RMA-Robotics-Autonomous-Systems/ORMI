@@ -98,6 +98,11 @@ const schemaResolvers = new Map<
     }
 >();
 
+// Pending operations queue for operations attempted while disconnected
+const pendingAdvertiseOps = new Map<string, { topic: DatasourceTopic; resolve: (success: boolean) => void }>();
+const pendingPublishOps: Array<{ topic: DatasourceTopic; message: unknown; webtype: string }> = [];
+const MAX_PENDING_OPS = 100;
+
 const services = new Map<number, Service>();
 const writersByServiceId = new Map<number, MessageWriter>();
 const readersByServiceId = new Map<number, MessageReader>();
@@ -163,6 +168,15 @@ const teardownClient = () => {
     services.clear();
     writersByServiceId.clear();
     readersByServiceId.clear();
+    
+    // Clean up schema resolvers to prevent memory leaks
+    schemaResolvers.forEach((resolver) => {
+        clearTimeout(resolver.timeout);
+        resolver.reject(new Error("Connection teardown"));
+    });
+    schemaResolvers.clear();
+    
+    // Note: We intentionally keep subscribers/publishers to re-establish on reconnect
 };
 
 const connect = (
@@ -185,6 +199,9 @@ const connect = (
         lastError = undefined;
         reconnectAttempt = 0;
         emitStatus(emit);
+        
+        // Process pending operations after connection is established
+        processPendingOperations();
     });
 
     ws.addEventListener("close", (event) => {
@@ -253,7 +270,7 @@ const handleUnadvertise = (removedChannelIds: number[]) => {
 
 const processPendingSubscriptions = () => {
     const currentClient = client;
-    if (!currentClient) return;
+    if (!currentClient || !connected) return;
 
     pendingSubscriptions.forEach((pending, topic) => {
         const channel = Array.from(channels.values()).find(
@@ -283,6 +300,72 @@ const processPendingSubscriptions = () => {
         subscribersByTopic.set(channel.topic, subscriber);
         pendingSubscriptions.delete(topic);
     });
+};
+
+const processPendingOperations = () => {
+    if (!client || !connected) return;
+    
+    // Re-subscribe existing subscribers
+    const existingSubscribers = Array.from(subscribersByTopic.values());
+    subscribersById.clear();
+    subscribersByTopic.clear();
+    
+    existingSubscribers.forEach((sub) => {
+        const channel = Array.from(channels.values()).find(
+            (ch) => ch.topic === sub.topic,
+        );
+        if (channel) {
+            const subscriptionId = client!.subscribe(channel.id);
+            if (subscriptionId !== undefined && subscriptionId !== null) {
+                const newSub: SubscriberEntry = {
+                    ...sub,
+                    subscriptionId,
+                    channelId: channel.id,
+                };
+                subscribersById.set(subscriptionId, newSub);
+                subscribersByTopic.set(sub.topic, newSub);
+            }
+        }
+    });
+    
+    // Process pending subscriptions
+    processPendingSubscriptions();
+    
+    // Re-advertise existing publishers
+    const existingPublishers = Array.from(publishersByTopic.entries());
+    publishersByTopic.clear();
+    
+    existingPublishers.forEach(async ([topic, pub]) => {
+        try {
+            const channelId = client!.advertise({
+                topic: pub.topic,
+                encoding: "cdr",
+                schemaName: pub.schemaName,
+            });
+            
+            if (channelId !== undefined && channelId !== null) {
+                const schema = await resolveSchema(pub.schemaName, channelId);
+                if (schema) {
+                    const parsed = parse(schema, { ros2: true });
+                    const writer = new MessageWriter(parsed);
+                    publishersByTopic.set(topic, {
+                        ...pub,
+                        channelId,
+                        writer,
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to re-advertise ${topic} on reconnect:`, error);
+        }
+    });
+    
+    // Process pending advertise operations
+    pendingAdvertiseOps.forEach((op, topic) => {
+        // Will be handled by the advertise method when called again
+        op.resolve(false); // Signal retry needed
+    });
+    pendingAdvertiseOps.clear();
 };
 
 const handleMessage = (messageData: MessageData) => {
@@ -572,8 +655,30 @@ const server = createRpcServer<
         init: async (newSettings) => {
             settings = newSettings;
             errorHandler = new DatasourceErrorHandler(newSettings.id);
-            connect(server.emit);
-            server.emit("remote-calls", { calls: [] });
+            
+            // Wait for connection to be established before resolving
+            return new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error(`Connection timeout to ${newSettings.url}`));
+                }, 10000);
+                
+                const checkConnection = () => {
+                    if (connected) {
+                        clearTimeout(timeout);
+                        server.emit("remote-calls", { calls: [] });
+                        resolve();
+                    } else if (lastError) {
+                        clearTimeout(timeout);
+                        reject(new Error(lastError));
+                    } else {
+                        // Check again in 100ms
+                        setTimeout(checkConnection, 100);
+                    }
+                };
+                
+                connect(server.emit);
+                setTimeout(checkConnection, 100);
+            });
         },
         listTopics: async () => {
             if (!settings) return [];
@@ -590,7 +695,7 @@ const server = createRpcServer<
             }));
         },
         subscribe: async (topic: SelectedTopic) => {
-            if (!client) {
+            if (!client || !connected) {
                 pendingSubscriptions.set(topic.topic, {
                     topic: topic.topic,
                     count:
@@ -786,8 +891,14 @@ const server = createRpcServer<
             subscribersByTopic.clear();
             pendingSubscriptions.clear();
             publishersByTopic.clear();
-            schemaResolvers.clear();
             pendingCalls.clear();
+            
+            // Clear pending operations
+            pendingAdvertiseOps.forEach((op) => op.resolve(false));
+            pendingAdvertiseOps.clear();
+            pendingPublishOps.length = 0;
+            
+            connected = false;
             emitStatus(server.emit);
         },
         listTypes: async (webtypes?: string[]) => {
@@ -840,39 +951,80 @@ const server = createRpcServer<
             }
         },
         advertise: async (topic: DatasourceTopic) => {
-            if (!client) return false;
+            if (!client || !connected) {
+                // Queue operation for when connection is established
+                if (pendingAdvertiseOps.size < MAX_PENDING_OPS) {
+                    return new Promise<boolean>((resolve) => {
+                        pendingAdvertiseOps.set(topic.topic, { topic, resolve });
+                    });
+                }
+                return false;
+            }
+            
             const existing = publishersByTopic.get(topic.topic);
             if (existing) {
                 existing.count += 1;
                 return true;
             }
 
-            const channelId = client.advertise({
-                topic: topic.topic,
-                encoding: "cdr",
-                schemaName: topic.rawType,
-            });
+            try {
+                const channelId = client.advertise({
+                    topic: topic.topic,
+                    encoding: "cdr",
+                    schemaName: topic.rawType,
+                });
 
-            if (channelId === undefined || channelId === null) {
+                if (channelId === undefined || channelId === null) {
+                    if (errorHandler) {
+                        errorHandler.handle(
+                            createConnectionError(
+                                `Failed to advertise topic ${topic.topic}`,
+                                settings?.id,
+                                { topic: topic.topic, schemaName: topic.rawType },
+                            ),
+                        );
+                    }
+                    return false;
+                }
+
+                const schema = await resolveSchema(topic.rawType, channelId);
+                if (!schema) {
+                    if (errorHandler) {
+                        errorHandler.handle(
+                            createSerializationError(
+                                `Schema resolution failed for ${topic.rawType}`,
+                                settings?.id,
+                                { topic: topic.topic, schemaName: topic.rawType },
+                            ),
+                        );
+                    }
+                    return false;
+                }
+
+                const parsed = parse(schema, { ros2: true });
+                const writer = new MessageWriter(parsed);
+
+                publishersByTopic.set(topic.topic, {
+                    channelId,
+                    topic: topic.topic,
+                    schemaName: topic.rawType,
+                    webtype: topic.type,
+                    count: 1,
+                    writer,
+                });
+
+                return true;
+            } catch (error) {
+                if (errorHandler) {
+                    errorHandler.handleRaw(error, {
+                        severity: ErrorSeverity.ERROR,
+                        category: ErrorCategory.CONNECTION,
+                        context: { topic: topic.topic, schemaName: topic.rawType },
+                        message: `Failed to advertise ${topic.topic}`,
+                    });
+                }
                 return false;
             }
-
-            const schema = await resolveSchema(topic.rawType, channelId);
-            if (!schema) return false;
-
-            const parsed = parse(schema, { ros2: true });
-            const writer = new MessageWriter(parsed);
-
-            publishersByTopic.set(topic.topic, {
-                channelId,
-                topic: topic.topic,
-                schemaName: topic.rawType,
-                webtype: topic.type,
-                count: 1,
-                writer,
-            });
-
-            return true;
         },
         unadvertise: async (topic: DatasourceTopic, ignoreCount = false) => {
             const publisher = publishersByTopic.get(topic.topic);
@@ -894,18 +1046,65 @@ const server = createRpcServer<
             message: unknown,
             webtype: string,
         ) => {
+            if (!client || !connected) {
+                // Drop if not connected - publishing old data after reconnect rarely makes sense
+                if (errorHandler) {
+                    errorHandler.handle(
+                        createConnectionError(
+                            `Cannot publish on ${topic.topic}: not connected`,
+                            settings?.id,
+                            { topic: topic.topic },
+                        ),
+                    );
+                }
+                return;
+            }
+            
             const publisher = publishersByTopic.get(topic.topic);
-            if (!publisher || !client) return;
+            if (!publisher) {
+                if (errorHandler) {
+                    errorHandler.handle(
+                        createConnectionError(
+                            `Publisher not found for ${topic.topic}`,
+                            settings?.id,
+                            { topic: topic.topic },
+                        ),
+                    );
+                }
+                return;
+            }
 
-            const converted = UnifiedConverter.convertToROS2(
-                message,
-                webtype,
-                topic.rawType,
-            );
-            const serialized = publisher.writer.writeMessage(converted);
-            if (!serialized || serialized.byteLength === 0) return;
+            try {
+                const converted = UnifiedConverter.convertToROS2(
+                    message,
+                    webtype,
+                    topic.rawType,
+                );
+                const serialized = publisher.writer.writeMessage(converted);
+                if (!serialized || serialized.byteLength === 0) {
+                    if (errorHandler) {
+                        errorHandler.handle(
+                            createSerializationError(
+                                `Serialization failed for ${topic.topic}`,
+                                settings?.id,
+                                { topic: topic.topic },
+                            ),
+                        );
+                    }
+                    return;
+                }
 
-            client.sendMessage(publisher.channelId, serialized);
+                client.sendMessage(publisher.channelId, serialized);
+            } catch (error) {
+                if (errorHandler) {
+                    errorHandler.handleRaw(error, {
+                        severity: ErrorSeverity.ERROR,
+                        category: ErrorCategory.SERIALIZATION,
+                        context: { topic: topic.topic },
+                        message: `Failed to publish on ${topic.topic}`,
+                    });
+                }
+            }
         },
         getConnectionStatus: () => ({
             connected,
