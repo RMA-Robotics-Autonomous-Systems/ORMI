@@ -211,7 +211,6 @@ describe("Foxglove Worker - Reconnection Safety", () => {
             source: {} as any,
         };
 
-        let resolveValue: boolean | undefined;
         if (pendingOps.size < MAX_PENDING_OPS) {
             pendingOps.set(topic.topic, {
                 topic,
