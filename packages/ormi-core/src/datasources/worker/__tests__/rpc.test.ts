@@ -269,7 +269,7 @@ describe("RPC Server", () => {
             add: (a: number, b: number) => a + b,
         };
 
-        const server = createRpcServer<TestMethods, {}>(serverTarget, methods);
+        createRpcServer<TestMethods, {}>(serverTarget, methods);
 
         // Simulate request from client
         const request: RpcRequest<TestMethods> = {
