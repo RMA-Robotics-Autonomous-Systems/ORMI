@@ -242,7 +242,7 @@ describe("RPC Client", () => {
             test: () => void;
         }
 
-        const client = createRpcClient<TestMethods, {}>(clientTarget);
+        createRpcClient<TestMethods, {}>(clientTarget);
 
         // These should not throw
         clientTarget.simulateMessage(null);
