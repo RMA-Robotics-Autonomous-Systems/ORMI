@@ -82,9 +82,12 @@ export type Color = {
 };
 
 export type PointsCloud = {
-    points: Vector3[] | Float32Array | number[];
-    colors?: Color[] | Float32Array | number[];
-    intensities?: number[] | Float32Array;
+    /** Packed positions: [x0, y0, z0, x1, y1, z1, ...] */
+    points: Float32Array;
+    /** Packed colors: [r0, g0, b0, r1, g1, b1, ...] */
+    colors?: Float32Array;
+    /** Per-point intensity values (0..1) */
+    intensities?: Float32Array;
     /** Coordinate convention the points are expressed in */
     convention?: CoordinateConvention;
 };

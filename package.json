@@ -8,7 +8,7 @@
         "plugins/*"
     ],
     "scripts": {
-        "build": "turbo build",
+        "build": "bun test && turbo build",
         "start": "cd apps/web && bun run start",
         "dev": "bunx turbo dev",
         "lint": "turbo lint",

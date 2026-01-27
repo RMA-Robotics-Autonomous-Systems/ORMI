@@ -24,6 +24,7 @@ export const WebTypes: string[] = [
     "string",
     "boolean",
     "Image",
+    "Pose",
 ];
 
 export const getSchemaFromStringName = (name: string): JSONSchema7 => {
@@ -102,11 +103,11 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                 properties: {
                     points: {
                         type: "array",
-                        items: getSchemaFromStringName("Vector3"),
+                        items: { type: "number" },
                     },
                     colors: {
                         type: "array",
-                        items: getSchemaFromStringName("Color"),
+                        items: { type: "number" },
                     },
                     intensities: {
                         type: "array",
@@ -137,6 +138,16 @@ export const getSchemaFromStringName = (name: string): JSONSchema7 => {
                     linear_acceleration: getSchemaFromStringName("Vector3"),
                     angular_velocity: getSchemaFromStringName("Vector3"),
                     orientation: getSchemaFromStringName("Vector4"),
+                },
+            };
+
+        case "Pose":
+            return {
+                type: "object",
+                required: ["position", "orientation"],
+                properties: {
+                    position: getSchemaFromStringName("Vector3"),
+                    orientation: getSchemaFromStringName("Quaternion"),
                 },
             };
 

@@ -4,84 +4,73 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Grid, OrbitControls, PerspectiveCamera, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { PointsCloudProps } from '../types/points-cloud-drei-types';
 import { useLocalDataSource } from '@workspace/ormi-core/datasources';
-import { PointsCloud, Transform, CoordinateConvention, Vector3, Color } from '@workspace/ormi-core/types';
+import { PointsCloud, Transform, CoordinateConvention } from '@workspace/ormi-core/types';
 import {
     findTransformChain,
     useTransformSource,
-    createPositionConverter,
-    applyTransformChain  // Use the pure math version from utils
+    convertPosition,
+    convertQuaternion
 } from '@workspace/ormi-core/transforms';
 import { themeShaders } from '../utils/theme-shaders';
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+const MAX_ROLLING_POINTS = 600000;
 
-/**
- * Get color from theme based on intensity value (0-1)
- */
-/**
- * Turbo colormap - matches Foxglove's reflectivity visualization
- * Blue -> Cyan -> Green -> Yellow -> Orange -> Red
- * Provides high contrast for reflectivity values
- */
-function turboColormap(t: number): { r: number; g: number; b: number } {
-    // Attempt to closely replicate the "Turbo" colormap used in Foxglove
-    // t should be in [0, 1]
-    const t2 = t * t;
-    const t3 = t2 * t;
-    const t4 = t3 * t;
-    const t5 = t4 * t;
-    const t6 = t5 * t;
+class RingPointBuffer {
+    private positions: Float32Array;
+    private colors: Float32Array;
+    private intensities: Float32Array;
+    private timestamps: Float32Array;
+    private capacity: number;
+    private writeIndex: number = 0;
 
-    const r = clamp01(0.13572138 + 4.61539260 * t - 42.66032258 * t2 + 132.13108234 * t3 - 152.94239396 * t4 + 59.28637943 * t5);
-    const g = clamp01(0.09140261 + 2.19418839 * t + 4.84296658 * t2 - 14.18503333 * t3 + 4.27729857 * t4 + 2.82798289 * t5);
-    const b = clamp01(0.10667330 + 12.64194608 * t - 60.58204836 * t2 + 110.36276771 * t3 - 89.90310912 * t4 + 27.34824973 * t5);
-
-    return { r, g, b };
-}
-
-function colorFromTheme(value: number, theme: string, customColor: string): { r: number; g: number; b: number } {
-    const v = clamp01(value);
-
-    switch (theme) {
-        case 'Neon':
-            if (v < 0.25) return { r: mix(0.3, 0.1, v * 4), g: mix(0.0, 0.2, v * 4), b: mix(0.8, 1.0, v * 4) };
-            if (v < 0.5) return { r: mix(0.1, 0.0, (v - 0.25) * 4), g: mix(0.2, 1.0, (v - 0.25) * 4), b: 1.0 };
-            if (v < 0.75) return { r: mix(0.0, 1.0, (v - 0.5) * 4), g: mix(1.0, 0.0, (v - 0.5) * 4), b: 1.0 };
-            return { r: 1.0, g: 0.0, b: mix(1.0, 0.5, (v - 0.75) * 4) };
-        case 'Plasma':
-            if (v < 0.25) return { r: mix(0.0, 0.5, v * 4), g: 0.0, b: mix(0.5, 0.8, v * 4) };
-            if (v < 0.5) return { r: mix(0.5, 0.9, (v - 0.25) * 4), g: 0.0, b: mix(0.8, 0.9, (v - 0.25) * 4) };
-            if (v < 0.75) return { r: mix(0.9, 1.0, (v - 0.5) * 4), g: mix(0.0, 0.5, (v - 0.5) * 4), b: mix(0.9, 0.0, (v - 0.5) * 4) };
-            return { r: 1.0, g: mix(0.5, 1.0, (v - 0.75) * 4), b: 0.0 };
-        case 'Thermal':
-            if (v < 0.25) return { r: 0.0, g: 0.0, b: mix(0.5, 1.0, v * 4) };
-            if (v < 0.5) return { r: 0.0, g: mix(0.0, 1.0, (v - 0.25) * 4), b: 1.0 };
-            if (v < 0.75) return { r: mix(0.0, 1.0, (v - 0.5) * 4), g: 1.0, b: 0.0 };
-            return { r: 1.0, g: mix(1.0, 0.0, (v - 0.75) * 4), b: 0.0 };
-        case 'Distance':
-            if (v < 0.25) return { r: 0.0, g: mix(0.2, 0.5, v * 4), b: mix(0.8, 0.9, v * 4) };
-            if (v < 0.5) return { r: 0.0, g: mix(0.5, 0.8, (v - 0.25) * 4), b: mix(0.9, 0.2, (v - 0.25) * 4) };
-            if (v < 0.75) return { r: mix(0.0, 0.9, (v - 0.5) * 4), g: mix(0.8, 0.9, (v - 0.5) * 4), b: mix(0.2, 0.0, (v - 0.5) * 4) };
-            return { r: mix(0.9, 1.0, (v - 0.75) * 4), g: mix(0.9, 0.0, (v - 0.75) * 4), b: 0.0 };
-        case 'Solid': {
-            const base = new THREE.Color(customColor);
-            return { r: base.r, g: base.g, b: base.b };
-        }
-        default:
-            // Default theme uses Turbo colormap for high-contrast reflectivity
-            return turboColormap(v);
+    constructor(capacity: number) {
+        this.capacity = capacity;
+        this.positions = new Float32Array(capacity * 3);
+        this.colors = new Float32Array(capacity * 3);
+        this.intensities = new Float32Array(capacity);
+        this.timestamps = new Float32Array(capacity);
+        // Initialize all timestamps to 0 (will be invisible until written)
+        this.timestamps.fill(0);
     }
-}
 
-interface PointEntry {
-    x: number;
-    y: number;
-    z: number;
-    r: number;
-    g: number;
-    b: number;
-    timestamp: number;
+    push(
+        positions: Float32Array,
+        colors: Float32Array,
+        intensities: Float32Array,
+        count: number,
+        currentTime: number,
+    ): void {
+        // Write points at current position, wrapping around
+        for (let i = 0; i < count; i++) {
+            const srcIdx3 = i * 3;
+            const dstIdx = this.writeIndex;
+            const dstIdx3 = dstIdx * 3;
+
+            this.positions[dstIdx3] = positions[srcIdx3]!;
+            this.positions[dstIdx3 + 1] = positions[srcIdx3 + 1]!;
+            this.positions[dstIdx3 + 2] = positions[srcIdx3 + 2]!;
+            this.colors[dstIdx3] = colors[srcIdx3]!;
+            this.colors[dstIdx3 + 1] = colors[srcIdx3 + 1]!;
+            this.colors[dstIdx3 + 2] = colors[srcIdx3 + 2]!;
+            this.intensities[dstIdx] = intensities[i]!;
+            this.timestamps[dstIdx] = currentTime;
+
+            this.writeIndex = (this.writeIndex + 1) % this.capacity;
+        }
+    }
+
+    getData(): { positions: Float32Array; colors: Float32Array; intensities: Float32Array; timestamps: Float32Array } {
+        return {
+            positions: this.positions,
+            colors: this.colors,
+            intensities: this.intensities,
+            timestamps: this.timestamps,
+        };
+    }
+
+    getCapacity(): number {
+        return this.capacity;
+    }
 }
 
 interface PointsRendererProps {
@@ -96,83 +85,90 @@ interface PointsRendererProps {
     sourceConvention: CoordinateConvention;
 }
 
-/**
- * Inner renderer component - handles all Three.js operations
- * Uses dynamic buffer resizing - no maxPoints limit needed
- */
-const PointsRenderer = ({
-    pointSize,
-    theme,
-    useTransparency,
-    customColor,
-    decayTime,
-    rollingBuffer,
-    colorMode,
-    targetFrame,
-    sourceConvention
-}: PointsRendererProps) => {
-    const { sources } = useLocalDataSource();
-    const { transformsTrees } = useTransformSource();
+const buildTransformMatrix = (
+    transformChain: Transform[] | undefined,
+    fallbackConvention: CoordinateConvention,
+): THREE.Matrix4 => {
+    const matrix = new THREE.Matrix4();
+    matrix.identity();
+
+    if (!transformChain || transformChain.length === 0) {
+        return matrix;
+    }
+
+    for (const transform of transformChain) {
+        const convention = transform.convention ?? fallbackConvention ?? "ROS";
+        const position = convertPosition(
+            { x: transform.position.x, y: transform.position.y, z: transform.position.z },
+            convention,
+            "THREE",
+        );
+        const rotation = convertQuaternion(transform.rotation, convention, "THREE");
+
+        const transformMatrix = new THREE.Matrix4();
+        transformMatrix.compose(
+            new THREE.Vector3(position.x, position.y, position.z),
+            new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+            new THREE.Vector3(1, 1, 1),
+        );
+
+        // Apply in chain order: Tn * ... * T1
+        matrix.premultiply(transformMatrix);
+    }
+
+    return matrix;
+};
+
+type PointsSourceRendererProps = {
+    sourceId: string;
+    source: any;
+    transformsTrees: any;
+    settings: PointsRendererProps;
+    frameTimeRef: React.MutableRefObject<number>;
+};
+
+const PointsSourceRenderer = ({ sourceId, source, transformsTrees, settings, frameTimeRef }: PointsSourceRendererProps) => {
     const { invalidate } = useThree();
 
-    // Settings refs - updated instantly without re-render
-    const settingsRef = useRef({
-        pointSize,
-        theme,
-        useTransparency,
-        customColor,
-        decayTime,
-        rollingBuffer,
-        colorMode,
-        targetFrame,
-        sourceConvention
-    });
-
-    // Update settings ref immediately when props change
-    settingsRef.current = {
-        pointSize,
-        theme,
-        useTransparency,
-        customColor,
-        decayTime,
-        rollingBuffer,
-        colorMode,
-        targetFrame,
-        sourceConvention
-    };
-
-    // Three.js objects refs - stable across renders
     const pointsRef = useRef<THREE.Points | null>(null);
     const geometryRef = useRef<THREE.BufferGeometry | null>(null);
     const materialRef = useRef<THREE.ShaderMaterial | null>(null);
 
-    // Point data storage - dynamic array
-    const pointsDataRef = useRef<PointEntry[]>([]);
-
-    // Tracking refs
+    const dataRef = useRef<{ positions: Float32Array | null; colors: Float32Array | null; intensities: Float32Array | null; timestamps: Float32Array | null; capacity: number }>(
+        { positions: null, colors: null, intensities: null, timestamps: null, capacity: 0 },
+    );
     const needsUpdateRef = useRef(false);
-    const dataVersionRef = useRef(0);  // Increment on each data update to track freshness
+    const transformRef = useRef(new THREE.Matrix4());
+    const rollingBufferRef = useRef<RingPointBuffer | null>(null);
+    const lastProcessedIndexRef = useRef(0);
+    const lastProcessedTimeRef = useRef(0);
+    const startTimeRef = useRef<number>(Date.now()); // Reference point for relative time
 
-    // Initialize Three.js objects once
     useEffect(() => {
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute([], 3));
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute([], 3));
+        geometry.setAttribute("color", new THREE.Float32BufferAttribute([], 3));
+        geometry.setAttribute("intensity", new THREE.Float32BufferAttribute([], 1));
+        geometry.setAttribute("timestamp", new THREE.Float32BufferAttribute([], 1));
         geometryRef.current = geometry;
 
-        const shaders = themeShaders[settingsRef.current.theme as keyof typeof themeShaders] || themeShaders.Default;
+        const shaders = themeShaders[settings.theme as keyof typeof themeShaders] || themeShaders.Default;
         const material = new THREE.ShaderMaterial({
             uniforms: {
-                pointSize: { value: settingsRef.current.pointSize },
-                useTransparency: { value: settingsRef.current.useTransparency },
-                customColor: { value: new THREE.Vector3(1, 1, 1) }
+                pointSize: { value: settings.pointSize },
+                useTransparency: { value: settings.useTransparency },
+                customColor: { value: new THREE.Vector3(1, 1, 1) },
+                useIntensity: { value: settings.colorMode === "reflectivity" },
+                pointTransform: { value: new THREE.Matrix4() },
+                nowTime: { value: Date.now() },
+                decayTime: { value: settings.decayTime || 0 },
             },
             vertexShader: shaders.vertexShader,
             fragmentShader: shaders.fragmentShader,
-            transparent: settingsRef.current.useTransparency,
-            depthWrite: !settingsRef.current.useTransparency,
+            transparent: settings.useTransparency,
+            depthWrite: !settings.useTransparency,
             depthTest: true,
-            vertexColors: true
+            vertexColors: true,
         });
         materialRef.current = material;
 
@@ -182,259 +178,233 @@ const PointsRenderer = ({
         };
     }, []);
 
-    // Process new data from sources
-    const processData = useCallback(() => {
-        const settings = settingsRef.current;
-        const currentTime = Date.now();
-        const newPoints: PointEntry[] = [];
-
-        // Compute transform chains
-        const transformChains = new Map<string, ReturnType<typeof findTransformChain>>();
-        for (const [sourceId, source] of sources.entries()) {
-            const refFrame = source.referenceFrameId;
-            if (!settings.targetFrame || settings.targetFrame === '' || refFrame === settings.targetFrame) {
-                transformChains.set(sourceId, []);
-            } else {
-                transformChains.set(sourceId, findTransformChain(transformsTrees, refFrame, settings.targetFrame));
-            }
-        }
-
-        // Process each source
-        for (const [sourceId, source] of sources.entries()) {
-            const cloud = source.data[source.data.length - 1] as PointsCloud | undefined;
-            if (!cloud?.points?.length) continue;
-
-            // Hoist type checks outside the loop for performance
-            const isPackedPoints =
-                cloud.points instanceof Float32Array ||
-                (Array.isArray(cloud.points) && typeof cloud.points[0] === 'number');
-            const isPackedColors =
-                cloud.colors instanceof Float32Array ||
-                (Array.isArray(cloud.colors) && typeof cloud.colors[0] === 'number');
-
-            const transformChain = transformChains.get(sourceId);
-            if (settings.targetFrame && transformChain === null) continue;
-
-            const hasTransform = transformChain && transformChain.length > 0;
-
-            // Determine the source convention:
-            // 1. Use the convention from the data if available
-            // 2. Fall back to the widget's configured sourceConvention
-            // 3. Default to 'ROS' for backwards compatibility
-            const dataConvention = cloud.convention ?? settings.sourceConvention ?? 'ROS';
-
-            // Create converter from source convention to Three.js
-            const toThreeCoords = createPositionConverter(dataConvention, 'THREE');
-
-            const pointCount = isPackedPoints
-                ? Math.floor(cloud.points.length / 3)
-                : cloud.points.length;
-
-            // Pre-compute color mode flags
-            const useReflectivity = settings.colorMode === 'reflectivity';
-            const hasIntensities = !!cloud.intensities;
-            const hasColors = !!cloud.colors;
-
-            // Separate processing paths for packed vs unpacked data
-            // This avoids repeated type checks in the inner loop
-            if (isPackedPoints) {
-                // Fast path for packed Float32Array data
-                const packed = cloud.points as Float32Array | number[];
-                const packedColors = isPackedColors ? (cloud.colors as Float32Array | number[]) : null;
-                const intensities = cloud.intensities;
-
-                for (let i = 0; i < pointCount; i++) {
-                    const idx = i * 3;
-                    let x = packed[idx] || 0;
-                    let y = packed[idx + 1] || 0;
-                    let z = packed[idx + 2] || 0;
-
-                    // Apply transform chain in source coordinate space
-                    if (hasTransform) {
-                        const transformed = applyTransformChain({ x, y, z }, transformChain!);
-                        x = transformed.x;
-                        y = transformed.y;
-                        z = transformed.z;
-                    }
-
-                    // Convert from source convention to Three.js coordinates for rendering
-                    const pos = toThreeCoords({ x, y, z });
-
-                    // Determine color
-                    let r = 1, g = 1, b = 1;
-
-                    if (useReflectivity && hasIntensities) {
-                        const intensity = intensities![i];
-                        if (intensity !== undefined && Number.isFinite(intensity)) {
-                            const col = colorFromTheme(intensity, settings.theme, settings.customColor);
-                            r = col.r; g = col.g; b = col.b;
-                        }
-                    } else if (packedColors) {
-                        r = packedColors[idx] ?? r;
-                        g = packedColors[idx + 1] ?? g;
-                        b = packedColors[idx + 2] ?? b;
-                    }
-
-                    newPoints.push({
-                        x: pos.x, y: pos.y, z: pos.z,
-                        r, g, b,
-                        timestamp: currentTime
-                    });
-                }
-            } else {
-                // Slower path for unpacked Vector3[] data
-                const points = cloud.points as Vector3[];
-                const colors = hasColors && !isPackedColors ? (cloud.colors as Color[]) : null;
-                const intensities = cloud.intensities;
-
-                for (let i = 0; i < pointCount; i++) {
-                    const p = points[i];
-                    if (!p) continue;
-
-                    let x = p.x || 0;
-                    let y = p.y || 0;
-                    let z = p.z || 0;
-
-                    // Apply transform chain in source coordinate space
-                    if (hasTransform) {
-                        const transformed = applyTransformChain({ x, y, z }, transformChain!);
-                        x = transformed.x;
-                        y = transformed.y;
-                        z = transformed.z;
-                    }
-
-                    // Convert from source convention to Three.js coordinates for rendering
-                    const pos = toThreeCoords({ x, y, z });
-
-                    // Determine color
-                    let r = 1, g = 1, b = 1;
-
-                    if (useReflectivity && hasIntensities) {
-                        const intensity = intensities![i];
-                        if (intensity !== undefined && Number.isFinite(intensity)) {
-                            const col = colorFromTheme(intensity, settings.theme, settings.customColor);
-                            r = col.r; g = col.g; b = col.b;
-                        }
-                    } else if (colors) {
-                        const color = colors[i];
-                        if (color && typeof color === 'object') {
-                            r = color.r;
-                            g = color.g;
-                            b = color.b;
-                        }
-                    }
-
-                    newPoints.push({
-                        x: pos.x, y: pos.y, z: pos.z,
-                        r, g, b,
-                        timestamp: currentTime
-                    });
-                }
-            }
-        }
-
-        if (newPoints.length === 0) return;
-
-        // Update point storage
+    useEffect(() => {
         if (settings.rollingBuffer) {
-            // Append new points
-            pointsDataRef.current.push(...newPoints);
+            rollingBufferRef.current = new RingPointBuffer(MAX_ROLLING_POINTS);
+            lastProcessedIndexRef.current = 0;
+            lastProcessedTimeRef.current = 0;
         } else {
-            // Replace all points
-            pointsDataRef.current = newPoints;
+            rollingBufferRef.current = null;
+        }
+    }, [settings.rollingBuffer, sourceId]);
+
+    const processData = useCallback(() => {
+        const dataArray = source?.data ?? [];
+        const timesArray = source?.times ?? [];
+        if (dataArray.length === 0) return;
+
+        // Compute transform chain -> single matrix (once per batch)
+        let transformChain: ReturnType<typeof findTransformChain> | undefined = [];
+        const refFrame = source.referenceFrameId;
+        if (!settings.targetFrame || settings.targetFrame === "" || refFrame === settings.targetFrame) {
+            transformChain = [];
+        } else {
+            transformChain = findTransformChain(transformsTrees, refFrame, settings.targetFrame) ?? null;
         }
 
-        dataVersionRef.current++;
-        needsUpdateRef.current = true;
-    }, [sources, transformsTrees]);
-
-    // Handle decay - remove old points (only for rolling buffer mode)
-    const handleDecay = useCallback(() => {
-        const settings = settingsRef.current;
-        // Double-check settings - decay only applies to rolling buffer with decayTime > 0
-        if (!settings.rollingBuffer || settings.decayTime <= 0) {
+        if (settings.targetFrame && transformChain === null) {
             return;
         }
 
-        const currentTime = Date.now();
-        const cutoff = currentTime - settings.decayTime;
-        const before = pointsDataRef.current.length;
+        transformRef.current = buildTransformMatrix(transformChain as Transform[], settings.sourceConvention ?? "ROS");
 
-        pointsDataRef.current = pointsDataRef.current.filter(p => p.timestamp > cutoff);
+        const getReceiveTimestamp = () => frameTimeRef.current;
 
-        if (pointsDataRef.current.length !== before) {
-            needsUpdateRef.current = true;
-            invalidate();
+        if (settings.rollingBuffer) {
+            if (!rollingBufferRef.current) {
+                rollingBufferRef.current = new RingPointBuffer(MAX_ROLLING_POINTS);
+            }
+
+            const startIndex = 0;
+            let latestRawTime = lastProcessedTimeRef.current;
+            let pushedCount = 0;
+
+            for (let i = startIndex; i < dataArray.length; i++) {
+                const cloud = dataArray[i] as PointsCloud | undefined;
+                if (!cloud?.points?.length) continue;
+
+                if (!(cloud.points instanceof Float32Array)) {
+                    console.warn("PointsCloud expects packed Float32Array points. Skipping source", sourceId);
+                    continue;
+                }
+
+                const pointCount = Math.floor(cloud.points.length / 3);
+                if (pointCount === 0) continue;
+
+                if (cloud.convention && cloud.convention !== "THREE") {
+                    console.warn("PointsCloud convention is not THREE. Converter should output THREE coordinates.");
+                    continue;
+                }
+
+                const hasColors = cloud.colors instanceof Float32Array && cloud.colors.length >= pointCount * 3;
+                const hasIntensities = cloud.intensities instanceof Float32Array && cloud.intensities.length >= pointCount;
+
+                const positions = cloud.points;
+                let colors = hasColors ? cloud.colors! : null;
+                let intensities = hasIntensities ? cloud.intensities! : null;
+
+                if (!colors) {
+                    colors = new Float32Array(pointCount * 3);
+                    colors.fill(1);
+                }
+
+                if (!intensities) {
+                    intensities = new Float32Array(pointCount);
+                    intensities.fill(0);
+                }
+
+                const rawTime = Number.isFinite(timesArray[i]) ? (timesArray[i] as number) : i;
+                if (rawTime === lastProcessedTimeRef.current) {
+                    continue;
+                }
+
+                // Convert to relative time in seconds for float32 precision
+                const receiveTime = getReceiveTimestamp();
+                const messageTime = receiveTime;
+                const messageTimeSeconds = (messageTime - startTimeRef.current) / 1000.0;
+
+                rollingBufferRef.current.push(
+                    positions,
+                    colors,
+                    intensities,
+                    pointCount,
+                    messageTimeSeconds, // Use seconds for float32 precision
+                );
+
+                pushedCount++;
+                latestRawTime = rawTime;
+            }
+
+            lastProcessedIndexRef.current = dataArray.length;
+            if (pushedCount > 0) {
+                lastProcessedTimeRef.current = latestRawTime;
+            }
+
+            const data = rollingBufferRef.current.getData();
+            dataRef.current = {
+                positions: data.positions,
+                colors: data.colors,
+                intensities: data.intensities,
+                timestamps: data.timestamps,
+                capacity: rollingBufferRef.current.getCapacity(),
+            };
+        } else {
+            const latestIndex = dataArray.length - 1;
+            const cloud = dataArray[latestIndex] as PointsCloud | undefined;
+            if (!cloud?.points?.length) return;
+
+            if (!(cloud.points instanceof Float32Array)) {
+                console.warn("PointsCloud expects packed Float32Array points. Skipping source", sourceId);
+                return;
+            }
+
+            const pointCount = Math.floor(cloud.points.length / 3);
+            if (pointCount === 0) return;
+
+            if (cloud.convention && cloud.convention !== "THREE") {
+                console.warn("PointsCloud convention is not THREE. Converter should output THREE coordinates.");
+                return;
+            }
+
+            const hasColors = cloud.colors instanceof Float32Array && cloud.colors.length >= pointCount * 3;
+            const hasIntensities = cloud.intensities instanceof Float32Array && cloud.intensities.length >= pointCount;
+
+            const positions = cloud.points;
+            let colors = hasColors ? cloud.colors! : null;
+            let intensities = hasIntensities ? cloud.intensities! : null;
+
+            if (!colors) {
+                colors = new Float32Array(pointCount * 3);
+                colors.fill(1);
+            }
+
+            if (!intensities) {
+                intensities = new Float32Array(pointCount);
+                intensities.fill(0);
+            }
+
+            dataRef.current = {
+                positions,
+                colors,
+                intensities,
+                timestamps: null,
+                capacity: pointCount,
+            };
         }
-    }, [invalidate]);
 
-    // Update geometry buffers
+        needsUpdateRef.current = true;
+        invalidate();
+    }, [source, sourceId, settings, transformsTrees, invalidate]);
+
     const updateGeometry = useCallback(() => {
         if (!geometryRef.current || !needsUpdateRef.current) return;
 
-        const points = pointsDataRef.current;
-        const count = points.length;
-
-        if (count === 0) {
+        const data = dataRef.current;
+        if (!data.positions || !data.colors || !data.intensities || data.capacity === 0) {
             geometryRef.current.setDrawRange(0, 0);
+            needsUpdateRef.current = false;
             return;
         }
 
-        // Create new typed arrays
-        const positions = new Float32Array(count * 3);
-        const colors = new Float32Array(count * 3);
+        const count = data.capacity;
+        const positionsView = data.positions.subarray(0, count * 3);
+        const colorsView = data.colors.subarray(0, count * 3);
+        const intensitiesView = data.intensities.subarray(0, count);
+        const timestampsView = data.timestamps
+            ? data.timestamps.subarray(0, count)
+            : new Float32Array(count).fill(Date.now());
 
-        for (let i = 0; i < count; i++) {
-            const p = points[i];
-            if (!p) continue;
-            const idx = i * 3;
-            positions[idx] = p.x;
-            positions[idx + 1] = p.y;
-            positions[idx + 2] = p.z;
-            colors[idx] = p.r;
-            colors[idx + 1] = p.g;
-            colors[idx + 2] = p.b;
-        }
+        const posAttr = geometryRef.current.getAttribute("position");
 
-        // Update or replace attributes
-        const posAttr = geometryRef.current.getAttribute('position');
-        const colAttr = geometryRef.current.getAttribute('color');
+        // Recreate attributes only if capacity changed
+        if (!posAttr || posAttr.count !== count) {
+            geometryRef.current.setAttribute("position", new THREE.Float32BufferAttribute(positionsView, 3));
+            geometryRef.current.setAttribute("color", new THREE.Float32BufferAttribute(colorsView, 3));
+            geometryRef.current.setAttribute("intensity", new THREE.Float32BufferAttribute(intensitiesView, 1));
+            geometryRef.current.setAttribute("timestamp", new THREE.Float32BufferAttribute(timestampsView, 1));
+        } else {
+            // Update in-place
+            const colAttr = geometryRef.current.getAttribute("color");
+            const intAttr = geometryRef.current.getAttribute("intensity");
+            const tsAttr = geometryRef.current.getAttribute("timestamp");
 
-        if (posAttr && posAttr.count === count) {
-            // Same size - just update data
-            (posAttr.array as Float32Array).set(positions);
-            (colAttr.array as Float32Array).set(colors);
+            (posAttr.array as Float32Array).set(positionsView);
+            (colAttr.array as Float32Array).set(colorsView);
+            (intAttr.array as Float32Array).set(intensitiesView);
+            (tsAttr.array as Float32Array).set(timestampsView);
             posAttr.needsUpdate = true;
             colAttr.needsUpdate = true;
-        } else {
-            // Different size - replace attributes
-            geometryRef.current.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometryRef.current.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            intAttr.needsUpdate = true;
+            tsAttr.needsUpdate = true;
         }
 
         geometryRef.current.setDrawRange(0, count);
         geometryRef.current.computeBoundingSphere();
 
         needsUpdateRef.current = false;
-        invalidate();
-    }, [invalidate]);
+    }, []);
 
-    // Update material settings
     const updateMaterial = useCallback(() => {
         if (!materialRef.current) return;
 
-        const settings = settingsRef.current;
         const mat = materialRef.current;
         if (!mat.uniforms) return;
 
-        // Update uniforms
         if (mat.uniforms.pointSize) mat.uniforms.pointSize.value = settings.pointSize;
         if (mat.uniforms.useTransparency) mat.uniforms.useTransparency.value = settings.useTransparency;
+        if (mat.uniforms.useIntensity) mat.uniforms.useIntensity.value = settings.colorMode === "reflectivity";
+
+        if (mat.uniforms.pointTransform) mat.uniforms.pointTransform.value.copy(transformRef.current);
+        // Convert to relative time in seconds for float32 precision
+        const now = frameTimeRef.current;
+        const nowSeconds = (now - startTimeRef.current) / 1000.0;
+        const decaySeconds = settings.decayTime / 1000.0;
+        if (mat.uniforms.nowTime) mat.uniforms.nowTime.value = nowSeconds;
+        if (mat.uniforms.decayTime) mat.uniforms.decayTime.value = decaySeconds;
 
         const customCol = new THREE.Color(settings.customColor);
         if (mat.uniforms.customColor) mat.uniforms.customColor.value.set(customCol.r, customCol.g, customCol.b);
 
-        // Update shaders if theme changed
         const shaders = themeShaders[settings.theme as keyof typeof themeShaders] || themeShaders.Default;
         if (mat.vertexShader !== shaders.vertexShader) {
             mat.vertexShader = shaders.vertexShader;
@@ -442,26 +412,16 @@ const PointsRenderer = ({
             mat.needsUpdate = true;
         }
 
-        mat.transparent = settings.useTransparency;
-        mat.depthWrite = !settings.useTransparency;
-    }, []);
+        mat.transparent = settings.useTransparency || (settings.rollingBuffer && settings.decayTime > 0);
+        mat.depthWrite = !(settings.useTransparency || (settings.rollingBuffer && settings.decayTime > 0));
 
-    // Process data when sources change
+        invalidate();
+    }, [settings, invalidate]);
+
     useEffect(() => {
         processData();
-    }, [sources, processData]);
+    }, [processData]);
 
-    // Decay timer - runs continuously but only acts when rolling buffer is enabled
-    useEffect(() => {
-        // Always set up interval, but handleDecay checks settings internally
-        const interval = setInterval(() => {
-            handleDecay();
-        }, 100); // Check every 100ms
-
-        return () => clearInterval(interval);
-    }, [handleDecay]);
-
-    // Animation frame - update geometry and material
     useFrame(() => {
         updateMaterial();
         updateGeometry();
@@ -469,18 +429,36 @@ const PointsRenderer = ({
 
     if (!geometryRef.current || !materialRef.current) return null;
 
-    // Use type assertions to work around Three.js/R3F type compatibility issues
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const geometry = geometryRef.current as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const material = materialRef.current as any;
+    return <points ref={pointsRef} geometry={geometryRef.current as any} material={materialRef.current as any} />;
+};
+
+/**
+ * Inner renderer component - handles all Three.js operations
+ * Uses packed-only point cloud data and shader transforms
+ */
+const PointsRenderer = (props: PointsRendererProps) => {
+    const { sources } = useLocalDataSource();
+    const { transformsTrees } = useTransformSource();
+    const sharedFrameTimeRef = useRef<number>(Date.now());
+
+    // Update shared frame time once per frame for all sources
+    useFrame(() => {
+        sharedFrameTimeRef.current = Date.now();
+    });
 
     return (
-        <points
-            ref={pointsRef}
-            geometry={geometry}
-            material={material}
-        />
+        <>
+            {Array.from(sources.entries()).map(([sourceId, source]) => (
+                <PointsSourceRenderer
+                    key={sourceId}
+                    sourceId={sourceId}
+                    source={source}
+                    transformsTrees={transformsTrees}
+                    settings={props}
+                    frameTimeRef={sharedFrameTimeRef}
+                />
+            ))}
+        </>
     );
 };
 
@@ -498,10 +476,11 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
     const targetFrame = props.targetFrame ?? '';
     // Default to ROS for backwards compatibility with existing configurations
     const sourceConvention = props.sourceConvention ?? 'ROS';
+    const enableContinuousRender = rollingBuffer && decayTime > 0;
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
-            <Canvas frameloop="demand">
+            <Canvas frameloop={enableContinuousRender ? "always" : "demand"}>
                 <PerspectiveCamera makeDefault position={[0, 5, 10]} />
                 <ambientLight intensity={1} />
 

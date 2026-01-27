@@ -6,20 +6,15 @@ import localFont from "next/font/local"
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
-import { ThemeProvider } from "@/components/theme-provider";
-
 import { siteConfig } from "@/config/site"
-import { AuthProvider } from "@/components/session-provider";
 import { Button } from "@workspace/ui/components/button";
 import { ModeToggle } from "@workspace/ui/combined/themes/darkmode-toggle";
 import { ThemeConfigurator } from "@workspace/ui/combined/themes/theme-configurator";
 import { Toaster } from "@workspace/ui/components/sonner";
-import { NavbarItem, NavbarProvider } from "@workspace/ui/combined/navbar/navbar-provider";
+import { NavbarItem } from "@workspace/ui/combined/navbar/navbar-provider";
 import { NavBar } from "@workspace/ui/combined/navbar/navbar";
 import { cn } from "@workspace/ui/lib/utils";
-
-import { PluginsProvider } from "@workspace/ormi-plugins";
-import registry from "../ormi-plugins";
+import { ClientProviders } from "@/components/client-providers";
 
 const fontSans = FontSans({
     subsets: ["latin"],
@@ -144,19 +139,11 @@ export default function RootLayout({
                     fontHeading.variable
                 )}
             >
-                <ThemeProvider>
-                    <AuthProvider>
-                        <PluginsProvider PluginsInfo={registry}>
-                            <NavbarProvider left={default_left} right={default_right}>
-                                <>
-                                    <NavBar />
-                                    {children}
-                                    <Toaster />
-                                </>
-                            </NavbarProvider>
-                        </PluginsProvider>
-                    </AuthProvider>
-                </ThemeProvider>
+                <ClientProviders navbarLeft={default_left} navbarRight={default_right}>
+                    <NavBar />
+                    {children}
+                    <Toaster />
+                </ClientProviders>
             </body>
         </html >
     )

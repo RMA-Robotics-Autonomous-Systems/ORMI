@@ -11,16 +11,23 @@
  * - removeTransformTree: Function to remove transforms when datasource disconnects
  */
 
-import { atom, getDefaultStore } from "jotai";
+import { atom, createStore } from "jotai";
 import { TransformTree } from "../types";
 
+// Create a single shared store instance for transforms
+// This ensures processTFMessage() and useTransformSource() use the same store
+export const transformStore = createStore();
+
 // ============================================================================
-// Core Atoms
+// Core Atoms - These atoms hold state accessed by both setter functions and React hooks
 // ============================================================================
 
 /**
  * Main atom holding all transform trees from all datasources
  * Key is the root frame_id (e.g., "world", "map", "odom")
+ *
+ * IMPORTANT: This is a writable atom that can be updated imperatively
+ * from outside React (e.g., from web workers or callbacks)
  */
 export const transformTreesAtom = atom<Map<string, TransformTree>>(
     new Map<string, TransformTree>(),
@@ -58,20 +65,18 @@ export const transformFrameCountAtom = atom((get) => {
 // Store Access (for use outside React components)
 // ============================================================================
 
-const store = getDefaultStore();
-
 /**
  * Get the current transform trees (for use outside React)
  */
 export function getTransformTrees(): Map<string, TransformTree> {
-    return store.get(transformTreesAtom);
+    return transformStore.get(transformTreesAtom);
 }
 
 /**
  * Subscribe to transform tree changes (for use outside React)
  */
 export function subscribeToTransforms(callback: () => void): () => void {
-    return store.sub(transformTreesAtom, callback);
+    return transformStore.sub(transformTreesAtom, callback);
 }
 
 // ============================================================================
@@ -145,6 +150,25 @@ function cloneTrees(
     return newTrees;
 }
 
+/**
+ * Compare two transforms to see if they're effectively equal
+ */
+function transformsEqual(
+    a: TransformTree["transform"],
+    b: TransformTree["transform"],
+): boolean {
+    const EPSILON = 0.0001;
+    return (
+        Math.abs(a.position.x - b.position.x) < EPSILON &&
+        Math.abs(a.position.y - b.position.y) < EPSILON &&
+        Math.abs(a.position.z - b.position.z) < EPSILON &&
+        Math.abs(a.rotation.x - b.rotation.x) < EPSILON &&
+        Math.abs(a.rotation.y - b.rotation.y) < EPSILON &&
+        Math.abs(a.rotation.z - b.rotation.z) < EPSILON &&
+        Math.abs(a.rotation.w - b.rotation.w) < EPSILON
+    );
+}
+
 // ============================================================================
 // Transform Update Functions
 // ============================================================================
@@ -180,29 +204,58 @@ export function processTFMessage(
         return;
     }
 
-    const currentTrees = store.get(transformTreesAtom);
+    // Always track datasource, even if no changes are made
+    const sources = transformStore.get(transformSourcesAtom);
+    if (!sources.has(datasourceId)) {
+        const newSources = new Set(sources);
+        newSources.add(datasourceId);
+        transformStore.set(transformSourcesAtom, newSources);
+    }
+
+    const currentTrees = transformStore.get(transformTreesAtom);
     const newTrees = cloneTrees(currentTrees);
     let hasChanges = false;
 
     for (const tf of message.transforms) {
+        // Validate transform data to prevent crashes on malformed messages
+        if (!tf?.child_frame_id || !tf?.header?.frame_id) {
+            continue; // Skip malformed transform
+        }
+        if (!tf?.transform?.translation || !tf?.transform?.rotation) {
+            continue; // Skip transform without translation/rotation data
+        }
+
         const childId = tf.child_frame_id;
         const parentId = tf.header.frame_id;
+
+        // Detect circular references: if child already has parentId as its child, skip
+        const existingChild = findTreeById(newTrees, childId);
+        if (existingChild) {
+            const wouldCreateCycle = findTreeById(
+                new Map([[childId, existingChild]]),
+                parentId,
+            );
+            if (wouldCreateCycle) {
+                // Skip this transform to avoid circular reference
+                continue;
+            }
+        }
 
         const transformTree: TransformTree = {
             id: childId,
             parentId: parentId,
             transform: {
                 position: {
-                    x: tf.transform.translation.x,
-                    y: tf.transform.translation.y,
-                    z: tf.transform.translation.z,
+                    x: tf.transform.translation.x ?? 0,
+                    y: tf.transform.translation.y ?? 0,
+                    z: tf.transform.translation.z ?? 0,
                     w: 1,
                 },
                 rotation: {
-                    x: tf.transform.rotation.x,
-                    y: tf.transform.rotation.y,
-                    z: tf.transform.rotation.z,
-                    w: tf.transform.rotation.w,
+                    x: tf.transform.rotation.x ?? 0,
+                    y: tf.transform.rotation.y ?? 0,
+                    z: tf.transform.rotation.z ?? 0,
+                    w: tf.transform.rotation.w ?? 1,
                 },
                 convention: "ROS",
             },
@@ -233,9 +286,16 @@ export function processTFMessage(
             newTrees.set(parentId, newRoot);
             hasChanges = true;
         } else {
-            // Child exists - update its transform
-            existingTree.transform = transformTree.transform;
-            hasChanges = true;
+            // Child exists - only update if transform changed
+            if (
+                !transformsEqual(
+                    existingTree.transform,
+                    transformTree.transform,
+                )
+            ) {
+                existingTree.transform = transformTree.transform;
+                hasChanges = true;
+            }
 
             // If existing tree has no parent, link it
             if (existingTree.parentId === "") {
@@ -273,15 +333,7 @@ export function processTFMessage(
     }
 
     if (hasChanges) {
-        store.set(transformTreesAtom, newTrees);
-
-        // Track datasource
-        const sources = store.get(transformSourcesAtom);
-        if (!sources.has(datasourceId)) {
-            const newSources = new Set(sources);
-            newSources.add(datasourceId);
-            store.set(transformSourcesAtom, newSources);
-        }
+        transformStore.set(transformTreesAtom, newTrees);
     }
 }
 
@@ -293,16 +345,16 @@ export function processTFMessage(
  * For a more sophisticated implementation, we could tag each transform with its source.
  */
 export function clearTransformsFromDatasource(datasourceId: string): void {
-    const sources = store.get(transformSourcesAtom);
+    const sources = transformStore.get(transformSourcesAtom);
 
     if (sources.has(datasourceId)) {
         const newSources = new Set(sources);
         newSources.delete(datasourceId);
-        store.set(transformSourcesAtom, newSources);
+        transformStore.set(transformSourcesAtom, newSources);
 
         // If no more sources, clear all transforms
         if (newSources.size === 0) {
-            store.set(transformTreesAtom, new Map());
+            transformStore.set(transformTreesAtom, new Map());
         }
     }
 }
@@ -311,6 +363,6 @@ export function clearTransformsFromDatasource(datasourceId: string): void {
  * Completely clear all transforms
  */
 export function clearAllTransforms(): void {
-    store.set(transformTreesAtom, new Map());
-    store.set(transformSourcesAtom, new Set());
+    transformStore.set(transformTreesAtom, new Map());
+    transformStore.set(transformSourcesAtom, new Set());
 }

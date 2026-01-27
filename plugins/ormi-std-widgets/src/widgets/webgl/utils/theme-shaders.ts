@@ -10,19 +10,50 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
     Default: {
         vertexShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform float pointSize;
             uniform bool useTransparency;
+            uniform bool useIntensity;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float intensity;
+            attribute float timestamp;
+
+            vec3 turboColormap(float t) {
+                float t2 = t * t;
+                float t3 = t2 * t;
+                float t4 = t3 * t;
+                float t5 = t4 * t;
+                float r = clamp(0.13572138 + 4.61539260 * t - 42.66032258 * t2 + 132.13108234 * t3 - 152.94239396 * t4 + 59.28637943 * t5, 0.0, 1.0);
+                float g = clamp(0.09140261 + 2.19418839 * t + 4.84296658 * t2 - 14.18503333 * t3 + 4.27729857 * t4 + 2.82798289 * t5, 0.0, 1.0);
+                float b = clamp(0.10667330 + 12.64194608 * t - 60.58204836 * t2 + 110.36276771 * t3 - 89.90310912 * t4 + 27.34824973 * t5, 0.0, 1.0);
+                return vec3(r, g, b);
+            }
 
             void main() {
-                vColor = color;
-                
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vec3 baseColor = color;
+                if (useIntensity) {
+                    baseColor = turboColormap(clamp(intensity, 0.0, 1.0));
+                }
+                vColor = baseColor;
+
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
+
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform bool useTransparency;
 
             void main() {
@@ -33,7 +64,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 }
                 
                 // Apply smooth edges or solid points based on transparency setting
-                float opacity = useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0;
+                float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 // Use vertex color directly - colors are computed on CPU based on colorMode
                 gl_FragColor = vec4(vColor, opacity);
             }
@@ -43,19 +74,47 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
     Neon: {
         vertexShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform float pointSize;
             uniform bool useTransparency;
+            uniform bool useIntensity;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float intensity;
+            attribute float timestamp;
+
+            vec3 themeColor(float v) {
+                v = clamp(v, 0.0, 1.0);
+                if (v < 0.25) return vec3(mix(0.3, 0.1, v * 4.0), mix(0.0, 0.2, v * 4.0), mix(0.8, 1.0, v * 4.0));
+                if (v < 0.5) return vec3(mix(0.1, 0.0, (v - 0.25) * 4.0), mix(0.2, 1.0, (v - 0.25) * 4.0), 1.0);
+                if (v < 0.75) return vec3(mix(0.0, 1.0, (v - 0.5) * 4.0), mix(1.0, 0.0, (v - 0.5) * 4.0), 1.0);
+                return vec3(1.0, 0.0, mix(1.0, 0.5, (v - 0.75) * 4.0));
+            }
 
             void main() {
-                vColor = color;
-                
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vec3 baseColor = color;
+                if (useIntensity) {
+                    baseColor = themeColor(intensity);
+                }
+                vColor = baseColor;
+
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
+
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform bool useTransparency;
 
             void main() {
@@ -72,7 +131,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 vec3 finalColor = neonColor * (0.8 + 0.4 * edgeGlow);
                 
                 // Apply simple opacity based on transparency setting
-                float opacity = useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0;
+                float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 
                 gl_FragColor = vec4(finalColor, opacity);
             }
@@ -82,16 +141,43 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
     Plasma: {
         vertexShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform float pointSize;
             uniform bool useTransparency;
+            uniform bool useIntensity;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float intensity;
+            attribute float timestamp;
             
+            vec3 themeColor(float v) {
+                v = clamp(v, 0.0, 1.0);
+                if (v < 0.25) return vec3(mix(0.0, 0.5, v * 4.0), 0.0, mix(0.5, 0.8, v * 4.0));
+                if (v < 0.5) return vec3(mix(0.5, 0.9, (v - 0.25) * 4.0), 0.0, mix(0.8, 0.9, (v - 0.25) * 4.0));
+                if (v < 0.75) return vec3(mix(0.9, 1.0, (v - 0.5) * 4.0), mix(0.0, 0.5, (v - 0.5) * 4.0), mix(0.9, 0.0, (v - 0.5) * 4.0));
+                return vec3(1.0, mix(0.5, 1.0, (v - 0.75) * 4.0), 0.0);
+            }
+
             void main() {
-                vColor = color;
+                vec3 baseColor = color;
+                if (useIntensity) {
+                    baseColor = themeColor(intensity);
+                }
+                vColor = baseColor;
+
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
                 
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 
                 // Enhanced point size calculation with subtle variation
-                float sizeVariation = 1.0 + 0.1 * sin(position.x * 5.0 + position.y * 3.0 + position.z * 4.0);
+                float sizeVariation = 1.0 + 0.1 * sin(worldPos.x * 5.0 + worldPos.y * 3.0 + worldPos.z * 4.0);
                 gl_PointSize = pointSize * sizeVariation * (300.0 / -mvPosition.z);
                 
                 gl_Position = projectionMatrix * mvPosition;
@@ -99,6 +185,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform bool useTransparency;
 
             void main() {
@@ -114,7 +201,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 vec3 plasmaColor = vColor * (0.9 + 0.3 * edgeFactor);
                 
                 // Apply simple opacity based on transparency setting
-                float opacity = useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0;
+                float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 
                 gl_FragColor = vec4(plasmaColor, opacity);
             }
@@ -124,19 +211,47 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
     Thermal: {
         vertexShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform float pointSize;
             uniform bool useTransparency;
+            uniform bool useIntensity;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float intensity;
+            attribute float timestamp;
+
+            vec3 themeColor(float v) {
+                v = clamp(v, 0.0, 1.0);
+                if (v < 0.25) return vec3(0.0, 0.0, mix(0.5, 1.0, v * 4.0));
+                if (v < 0.5) return vec3(0.0, mix(0.0, 1.0, (v - 0.25) * 4.0), 1.0);
+                if (v < 0.75) return vec3(mix(0.0, 1.0, (v - 0.5) * 4.0), 1.0, 0.0);
+                return vec3(1.0, mix(1.0, 0.0, (v - 0.75) * 4.0), 0.0);
+            }
 
             void main() {
-                vColor = color;
+                vec3 baseColor = color;
+                if (useIntensity) {
+                    baseColor = themeColor(intensity);
+                }
+                vColor = baseColor;
+
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
                 
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
         fragmentShader: `
             varying vec3 vColor;
+            varying float vFade;
             uniform bool useTransparency;
 
             void main() {
@@ -151,7 +266,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 vec3 thermalColor = vColor;
                 
                 // Apply smooth edges or solid points based on transparency setting
-                float opacity = useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0;
+                float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 
                 gl_FragColor = vec4(thermalColor, opacity);
             }
@@ -162,15 +277,28 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
         vertexShader: `
             uniform float pointSize;
             uniform vec3 customColor;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float timestamp;
+            varying float vFade;
 
             void main() {
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
         fragmentShader: `
             uniform vec3 customColor;
+            varying float vFade;
 
             void main() {
                 // Create solid points (no transparency gradient)
@@ -180,7 +308,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 }
                 
                 // Use custom color - ignores vertex colors and colorMode
-                gl_FragColor = vec4(customColor, 1.0);
+                gl_FragColor = vec4(customColor, vFade);
             }
         `,
     },
@@ -189,13 +317,25 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
         vertexShader: `
             uniform float pointSize;
             uniform bool useTransparency;
+            uniform mat4 pointTransform;
+            uniform float nowTime;
+            uniform float decayTime;
+            attribute float timestamp;
             varying float vDistance;
+            varying float vFade;
             
             void main() {
-                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                if (decayTime > 0.0) {
+                    float age = (nowTime - timestamp) / decayTime;
+                    vFade = clamp(1.0 - age, 0.0, 1.0);
+                } else {
+                    vFade = 1.0;
+                }
+                vec4 worldPos = pointTransform * vec4(position, 1.0);
+                vec4 mvPosition = modelViewMatrix * worldPos;
                 
                 // Calculate distance from origin (0,0,0) for distance-based coloring
-                vDistance = length(position);
+                vDistance = length(worldPos.xyz);
                 
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
@@ -203,6 +343,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
         `,
         fragmentShader: `
             varying float vDistance;
+            varying float vFade;
             uniform bool useTransparency;
 
             // Helper function to map distance to color
@@ -256,7 +397,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 vec3 distanceColor = getDistanceColor(vDistance);
                 
                 // Apply smooth edges or solid points based on transparency setting
-                float opacity = useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0;
+                float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 
                 gl_FragColor = vec4(distanceColor, opacity);
             }
