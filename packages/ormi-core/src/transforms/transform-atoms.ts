@@ -204,29 +204,58 @@ export function processTFMessage(
         return;
     }
 
+    // Always track datasource, even if no changes are made
+    const sources = transformStore.get(transformSourcesAtom);
+    if (!sources.has(datasourceId)) {
+        const newSources = new Set(sources);
+        newSources.add(datasourceId);
+        transformStore.set(transformSourcesAtom, newSources);
+    }
+
     const currentTrees = transformStore.get(transformTreesAtom);
     const newTrees = cloneTrees(currentTrees);
     let hasChanges = false;
 
     for (const tf of message.transforms) {
+        // Validate transform data to prevent crashes on malformed messages
+        if (!tf?.child_frame_id || !tf?.header?.frame_id) {
+            continue; // Skip malformed transform
+        }
+        if (!tf?.transform?.translation || !tf?.transform?.rotation) {
+            continue; // Skip transform without translation/rotation data
+        }
+
         const childId = tf.child_frame_id;
         const parentId = tf.header.frame_id;
+
+        // Detect circular references: if child already has parentId as its child, skip
+        const existingChild = findTreeById(newTrees, childId);
+        if (existingChild) {
+            const wouldCreateCycle = findTreeById(
+                new Map([[childId, existingChild]]),
+                parentId,
+            );
+            if (wouldCreateCycle) {
+                // Skip this transform to avoid circular reference
+                continue;
+            }
+        }
 
         const transformTree: TransformTree = {
             id: childId,
             parentId: parentId,
             transform: {
                 position: {
-                    x: tf.transform.translation.x,
-                    y: tf.transform.translation.y,
-                    z: tf.transform.translation.z,
+                    x: tf.transform.translation.x ?? 0,
+                    y: tf.transform.translation.y ?? 0,
+                    z: tf.transform.translation.z ?? 0,
                     w: 1,
                 },
                 rotation: {
-                    x: tf.transform.rotation.x,
-                    y: tf.transform.rotation.y,
-                    z: tf.transform.rotation.z,
-                    w: tf.transform.rotation.w,
+                    x: tf.transform.rotation.x ?? 0,
+                    y: tf.transform.rotation.y ?? 0,
+                    z: tf.transform.rotation.z ?? 0,
+                    w: tf.transform.rotation.w ?? 1,
                 },
                 convention: "ROS",
             },
@@ -305,14 +334,6 @@ export function processTFMessage(
 
     if (hasChanges) {
         transformStore.set(transformTreesAtom, newTrees);
-
-        // Track datasource
-        const sources = transformStore.get(transformSourcesAtom);
-        if (!sources.has(datasourceId)) {
-            const newSources = new Set(sources);
-            newSources.add(datasourceId);
-            transformStore.set(transformSourcesAtom, newSources);
-        }
     }
 }
 
