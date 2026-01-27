@@ -22,134 +22,149 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    ControlProps,
-    isEnumControl,
-    OwnPropsOfEnum,
-    RankedTester,
-    rankWith,
-} from '@jsonforms/core';
+  ControlProps,
+  isEnumControl,
+  OwnPropsOfEnum,
+  RankedTester,
+  rankWith,
+} from "@jsonforms/core";
 import {
-    TranslateProps,
-    withJsonFormsEnumProps,
-    withTranslateProps,
-} from '@jsonforms/react';
-import merge from 'lodash/merge';
+  TranslateProps,
+  withJsonFormsEnumProps,
+  withTranslateProps,
+} from "@jsonforms/react";
+import merge from "lodash/merge";
 
-
-
-import { Check, ChevronsUpDown } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select';
-import { Button } from '@workspace/ui/components/button';
-import { CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, Command } from '@workspace/ui/components/command';
-import { Popover, PopoverTrigger, PopoverContent } from '@workspace/ui/components/popover';
-import { cn } from '@workspace/ui/lib/utils';
+import { Check, ChevronsUpDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select";
+import { Button } from "@workspace/ui/components/button";
+import {
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  Command,
+} from "@workspace/ui/components/command";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@workspace/ui/components/popover";
+import { cn } from "@workspace/ui/lib/utils";
 
 const ShadcnSelect = ({
-    data,
-    enabled,
-    path,
-    options,
-    handleChange,
-    label,
+  data,
+  enabled,
+  path,
+  options,
+  handleChange,
+  label,
 }: ControlProps & OwnPropsOfEnum) => (
-    <Select
-        value={data || ''}
-        onValueChange={(value) => handleChange(path, value)}
-        disabled={!enabled}
-    >
-        <SelectTrigger>
-            <SelectValue placeholder={label} />
-        </SelectTrigger>
-        <SelectContent>
-            {options!.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                </SelectItem>
-            ))}
-        </SelectContent>
-    </Select>
+  <Select
+    value={data || ""}
+    onValueChange={(value) => handleChange(path, value)}
+    disabled={!enabled}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder={label} />
+    </SelectTrigger>
+    <SelectContent>
+      {options!.map((option) => (
+        <SelectItem key={option.value} value={option.value}>
+          {option.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
 );
 
 const ShadcnCombobox = ({
-    data,
-    enabled,
-    path,
-    options,
-    handleChange,
-    errors,
-    label,
+  data,
+  enabled,
+  path,
+  options,
+  handleChange,
+  errors,
+  label,
 }: ControlProps & OwnPropsOfEnum) => {
-    const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
 
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className={cn(
-                        "w-full justify-between",
-                        errors.length > 0 && "border-red-500"
-                    )}
-                    disabled={!enabled}
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "w-full justify-between",
+            errors.length > 0 && "border-red-500",
+          )}
+          disabled={!enabled}
+        >
+          {data
+            ? options!.find((option) => option.value === data)?.label
+            : label}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0">
+        <Command>
+          <CommandInput placeholder={`Search ${label}...`} />
+          <CommandList>
+            <CommandEmpty>No option found.</CommandEmpty>
+            <CommandGroup>
+              {options!.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  onSelect={() => {
+                    handleChange(path, option.value);
+                    setOpen(false);
+                  }}
                 >
-                    {data
-                        ? options!.find((option) => option.value === data)?.label
-                        : label}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
-                <Command>
-                    <CommandInput placeholder={`Search ${label}...`} />
-                    <CommandList>
-                        <CommandEmpty>No option found.</CommandEmpty>
-                        <CommandGroup>
-                            {options!.map((option) => (
-                                <CommandItem
-                                    key={option.value}
-                                    onSelect={() => {
-                                        handleChange(path, option.value);
-                                        setOpen(false);
-                                    }}
-                                >
-                                    <Check
-                                        className={cn(
-                                            "mr-2 h-4 w-4",
-                                            data === option.value ? "opacity-100" : "opacity-0"
-                                        )}
-                                    />
-                                    {option.label}
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
-    );
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      data === option.value ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 export const ShadcnEnumControl = (
-    props: ControlProps & OwnPropsOfEnum & TranslateProps
+  props: ControlProps & OwnPropsOfEnum & TranslateProps,
 ) => {
-    const { config, uischema } = props;
-    const appliedUiSchemaOptions = merge({}, config, uischema.options);
+  const { config, uischema } = props;
+  const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-    return appliedUiSchemaOptions.autocomplete === false ? (
-        <ShadcnSelect {...props} />
-    ) : (
-        <ShadcnCombobox {...props} />
-    );
+  return appliedUiSchemaOptions.autocomplete === false ? (
+    <ShadcnSelect {...props} />
+  ) : (
+    <ShadcnCombobox {...props} />
+  );
 };
 
 export const shadcnEnumControlTester: RankedTester = rankWith(3, isEnumControl);
 
 export default withJsonFormsEnumProps(
-    withTranslateProps(React.memo(ShadcnEnumControl)),
-    false
+  withTranslateProps(React.memo(ShadcnEnumControl)),
+  false,
 );

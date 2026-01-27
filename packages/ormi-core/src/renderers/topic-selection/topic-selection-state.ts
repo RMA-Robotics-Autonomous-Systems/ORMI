@@ -64,7 +64,7 @@ const filterTopics = (
   topics: DatasourceTopic[],
   searchTerm: string,
   showOnlyCompatible: boolean,
-  compatibilityAnalysis: Map<string, TopicCompatibilityResult>
+  compatibilityAnalysis: Map<string, TopicCompatibilityResult>,
 ): DatasourceTopic[] => {
   let filtered = topics;
 
@@ -76,7 +76,7 @@ const filterTopics = (
         topic.topic.toLowerCase().includes(searchLower) ||
         topic.type.toLowerCase().includes(searchLower) ||
         topic.rawType?.toLowerCase().includes(searchLower) ||
-        topic.source.title.toLowerCase().includes(searchLower)
+        topic.source.title.toLowerCase().includes(searchLower),
     );
   }
 
@@ -94,7 +94,7 @@ const filterTopics = (
 
 export const topicSelectionReducer = (
   state: TopicSelectionState,
-  action: TopicSelectionAction
+  action: TopicSelectionAction,
 ): TopicSelectionState => {
   switch (action.type) {
     case "SET_TOPICS":
@@ -102,7 +102,7 @@ export const topicSelectionReducer = (
         action.topics,
         state.searchTerm,
         state.showOnlyCompatible,
-        state.compatibilityAnalysis
+        state.compatibilityAnalysis,
       );
       return {
         ...state,
@@ -121,7 +121,7 @@ export const topicSelectionReducer = (
         state.topics,
         action.term,
         state.showOnlyCompatible,
-        state.compatibilityAnalysis
+        state.compatibilityAnalysis,
       );
       return {
         ...state,
@@ -155,7 +155,7 @@ export const topicSelectionReducer = (
         state.topics,
         state.searchTerm,
         !state.showOnlyCompatible,
-        state.compatibilityAnalysis
+        state.compatibilityAnalysis,
       );
       return {
         ...state,
@@ -174,7 +174,7 @@ export const topicSelectionReducer = (
         state.topics,
         state.searchTerm,
         state.showOnlyCompatible,
-        action.analysis
+        action.analysis,
       );
       return {
         ...state,

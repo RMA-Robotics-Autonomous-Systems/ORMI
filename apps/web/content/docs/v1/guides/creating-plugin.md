@@ -38,29 +38,29 @@ cd my-awesome-plugin
 
 ```json
 {
-    "name": "my-awesome-plugin",
-    "version": "1.0.0",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch"
-    },
-    "dependencies": {
-        "@workspace/ormi-core": "workspace:*",
-        "@workspace/ormi-plugins": "workspace:*",
-        "@workspace/ui": "workspace:*"
-    },
-    "devDependencies": {
-        "@workspace/typescript-config": "workspace:*",
-        "typescript": "^5.7.3"
+  "name": "my-awesome-plugin",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@workspace/ormi-core": "workspace:*",
+    "@workspace/ormi-plugins": "workspace:*",
+    "@workspace/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@workspace/typescript-config": "workspace:*",
+    "typescript": "^5.7.3"
+  }
 }
 ```
 
@@ -68,13 +68,13 @@ cd my-awesome-plugin
 
 ```json
 {
-    "extends": "@workspace/typescript-config/react-library.json",
-    "compilerOptions": {
-        "outDir": "./dist",
-        "rootDir": "./src"
-    },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist"]
+  "extends": "@workspace/typescript-config/react-library.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
 ```
 
@@ -92,19 +92,19 @@ Create `src/index.ts`:
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 
 class MyAwesomePlugin extends Plugin {
-    constructor() {
-        super({
-            name: "My Awesome Plugin",
-            description: "Adds custom widgets and datasources",
-            version: "1.0.0",
-            author: "Your Name",
-            email: "your@email.com",
-        });
-    }
+  constructor() {
+    super({
+      name: "My Awesome Plugin",
+      description: "Adds custom widgets and datasources",
+      version: "1.0.0",
+      author: "Your Name",
+      email: "your@email.com",
+    });
+  }
 
-    protected initialize(): void {
-        // Will add filters here
-    }
+  protected initialize(): void {
+    // Will add filters here
+  }
 }
 
 export default MyAwesomePlugin;
@@ -336,9 +336,9 @@ import { HelloWorldDefinition } from "./hello-world";
 import { NumberDisplayDefinition } from "./number-display";
 
 export function widgetExport(widgets: WidgetDefinition[]): WidgetDefinition[] {
-    widgets.push(HelloWorldDefinition());
-    widgets.push(NumberDisplayDefinition());
-    return widgets;
+  widgets.push(HelloWorldDefinition());
+  widgets.push(NumberDisplayDefinition());
+  return widgets;
 }
 ```
 
@@ -351,24 +351,24 @@ import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 import { widgetExport } from "./widgets";
 
 class MyAwesomePlugin extends Plugin {
-    constructor() {
-        super({
-            name: "My Awesome Plugin",
-            description: "Adds custom widgets and datasources",
-            version: "1.0.0",
-            author: "Your Name",
-            email: "your@email.com",
-        });
-    }
+  constructor() {
+    super({
+      name: "My Awesome Plugin",
+      description: "Adds custom widgets and datasources",
+      version: "1.0.0",
+      author: "Your Name",
+      email: "your@email.com",
+    });
+  }
 
-    protected initialize(): void {
-        // Register widgets
-        this.addFilter(PluginsHooks.WIDGETS_LIST, {
-            id: `${this.name}-widgets`,
-            priority: 10,
-            filter: widgetExport,
-        });
-    }
+  protected initialize(): void {
+    // Register widgets
+    this.addFilter(PluginsHooks.WIDGETS_LIST, {
+      id: `${this.name}-widgets`,
+      priority: 10,
+      filter: widgetExport,
+    });
+  }
 }
 
 export default MyAwesomePlugin;
@@ -390,8 +390,8 @@ Edit `apps/web/ormi-plugins.ts`:
 import { PluginRegistry } from "@workspace/ormi-plugins";
 
 const registry: PluginRegistry = {
-    // ... existing plugins
-    "my-awesome-plugin": import("my-awesome-plugin"),
+  // ... existing plugins
+  "my-awesome-plugin": import("my-awesome-plugin"),
 };
 
 export default registry;
@@ -403,7 +403,7 @@ Add to root `package.json` if not auto-detected:
 
 ```json
 {
-    "workspaces": ["apps/*", "packages/*", "plugins/*"]
+  "workspaces": ["apps/*", "packages/*", "plugins/*"]
 }
 ```
 
@@ -615,12 +615,12 @@ import { CounterDatasourceDefinition } from "./datasources/counter-datasource";
 
 // In initialize():
 this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-    id: `${this.name}-datasources`,
-    priority: 10,
-    filter: (datasources) => {
-        datasources.push(CounterDatasourceDefinition);
-        return datasources;
-    },
+  id: `${this.name}-datasources`,
+  priority: 10,
+  filter: (datasources) => {
+    datasources.push(CounterDatasourceDefinition);
+    return datasources;
+  },
 });
 ```
 
@@ -628,26 +628,26 @@ this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 
 1. **Rebuild:**
 
-    ```bash
-    bun run build
-    ```
+   ```bash
+   bun run build
+   ```
 
 2. **Start app:**
 
-    ```bash
-    cd apps/web
-    bun run dev
-    ```
+   ```bash
+   cd apps/web
+   bun run dev
+   ```
 
 3. **Add datasource:**
-    - Open dashboard
-    - Add Counter datasource
-    - Configure frequency and max count
+   - Open dashboard
+   - Add Counter datasource
+   - Configure frequency and max count
 
 4. **Add widget:**
-    - Add Number Display widget
-    - Select `/counter` topic
-    - Watch the counter increment
+   - Add Number Display widget
+   - Select `/counter` topic
+   - Watch the counter increment
 
 ## Next Steps
 

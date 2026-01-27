@@ -1,4 +1,4 @@
-"use client"
+"use client";
 /*
   The MIT License
 
@@ -23,148 +23,155 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React, { useState, useMemo } from 'react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@workspace/ui/components/tabs';
+import React, { useState, useMemo } from "react";
 import {
-    and,
-    Categorization,
-    Category,
-    deriveLabelForUISchemaElement,
-    isVisible,
-    RankedTester,
-    rankWith,
-    StatePropsOfLayout,
-    Tester,
-    UISchemaElement,
-    uiTypeIs,
-} from '@jsonforms/core';
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@workspace/ui/components/tabs";
 import {
-    TranslateProps,
-    withJsonFormsLayoutProps,
-    withTranslateProps,
-} from '@jsonforms/react';
+  and,
+  Categorization,
+  Category,
+  deriveLabelForUISchemaElement,
+  isVisible,
+  RankedTester,
+  rankWith,
+  StatePropsOfLayout,
+  Tester,
+  UISchemaElement,
+  uiTypeIs,
+} from "@jsonforms/core";
 import {
-    AjvProps,
-    ShadcnLayoutRenderer,
-    shadcnLayoutRendererProps,
-    withAjvProps,
-} from '../utils/layouts';
+  TranslateProps,
+  withJsonFormsLayoutProps,
+  withTranslateProps,
+} from "@jsonforms/react";
+import {
+  AjvProps,
+  ShadcnLayoutRenderer,
+  shadcnLayoutRendererProps,
+  withAjvProps,
+} from "../utils/layouts";
 
 export const isSingleLevelCategorization: Tester = and(
-    uiTypeIs('Categorization'),
-    (uischema: UISchemaElement): boolean => {
-        const categorization = uischema as Categorization;
+  uiTypeIs("Categorization"),
+  (uischema: UISchemaElement): boolean => {
+    const categorization = uischema as Categorization;
 
-        return (
-            categorization.elements &&
-            categorization.elements.reduce(
-                (acc, e) => acc && e.type === 'Category',
-                true
-            )
-        );
-    }
+    return (
+      categorization.elements &&
+      categorization.elements.reduce(
+        (acc, e) => acc && e.type === "Category",
+        true,
+      )
+    );
+  },
 );
 
 export const shadcnCategorizationTester: RankedTester = rankWith(
-    2,
-    isSingleLevelCategorization
+  2,
+  isSingleLevelCategorization,
 );
 export interface CategorizationState {
-    activeCategory: number;
+  activeCategory: number;
 }
 
 export interface ShadcnCategorizationLayoutRendererProps
-    extends StatePropsOfLayout,
-    AjvProps,
-    TranslateProps {
-    selected?: number;
-    ownState?: boolean;
-    data?: any;
-    onChange?(selected: number, prevSelected: number): void;
+  extends StatePropsOfLayout, AjvProps, TranslateProps {
+  selected?: number;
+  ownState?: boolean;
+  data?: any;
+  onChange?(selected: number, prevSelected: number): void;
 }
 
 export const ShadcnCategorizationLayoutRenderer = (
-    props: ShadcnCategorizationLayoutRendererProps
+  props: ShadcnCategorizationLayoutRendererProps,
 ) => {
-    const {
-        data,
-        path,
-        renderers,
-        cells,
-        schema,
-        uischema,
-        visible,
-        enabled,
-        selected,
-        onChange,
-        ajv,
-        t,
-        config,
-    } = props;
-    const categorization = uischema as Categorization;
-    const [previousCategorization, setPreviousCategorization] =
-        useState<Categorization>(uischema as Categorization);
-    const [activeCategory, setActiveCategory] = useState<number>(selected ?? 0);
-    const categories = useMemo(
-        () =>
-            categorization.elements.filter((category: Categorization | Category) =>
-                isVisible(category, data, '', ajv, config)
-            ),
-        [categorization, data, ajv]
-    );
+  const {
+    data,
+    path,
+    renderers,
+    cells,
+    schema,
+    uischema,
+    visible,
+    enabled,
+    selected,
+    onChange,
+    ajv,
+    t,
+    config,
+  } = props;
+  const categorization = uischema as Categorization;
+  const [previousCategorization, setPreviousCategorization] =
+    useState<Categorization>(uischema as Categorization);
+  const [activeCategory, setActiveCategory] = useState<number>(selected ?? 0);
+  const categories = useMemo(
+    () =>
+      categorization.elements.filter((category: Categorization | Category) =>
+        isVisible(category, data, "", ajv, config),
+      ),
+    [categorization, data, ajv],
+  );
 
-    if (categorization !== previousCategorization) {
-        setActiveCategory(0);
-        setPreviousCategorization(categorization);
+  if (categorization !== previousCategorization) {
+    setActiveCategory(0);
+    setPreviousCategorization(categorization);
+  }
+
+  const safeCategory =
+    activeCategory >= categorization.elements.length ? 0 : activeCategory;
+
+  const childProps: shadcnLayoutRendererProps = {
+    elements: categories[safeCategory] ? categories[safeCategory].elements : [],
+    schema,
+    path,
+    direction: "column",
+    enabled,
+    visible,
+    renderers,
+    cells,
+  };
+  const onTabChange = (value: string) => {
+    const numericValue = parseInt(value, 10);
+    if (onChange) {
+      onChange(numericValue, safeCategory);
     }
+    setActiveCategory(numericValue);
+  };
 
-    const safeCategory =
-        activeCategory >= categorization.elements.length ? 0 : activeCategory;
-
-    const childProps: shadcnLayoutRendererProps = {
-        elements: categories[safeCategory] ? categories[safeCategory].elements : [],
-        schema,
-        path,
-        direction: 'column',
-        enabled,
-        visible,
-        renderers,
-        cells,
-    };
-    const onTabChange = (value: string) => {
-        const numericValue = parseInt(value, 10);
-        if (onChange) {
-            onChange(numericValue, safeCategory);
-        }
-        setActiveCategory(numericValue);
-    };
-
-    const tabLabels = useMemo(() => {
-        return categories.map((e) => e.type === 'Category' ? deriveLabelForUISchemaElement(e as Category, t) : undefined);
-    }, [categories, t]);
-
-    if (!visible) {
-        return null;
-    }
-
-    return (
-        <Tabs value={safeCategory.toString()} onValueChange={onTabChange}>
-            <TabsList className="w-full">
-                {categories.map((_, idx: number) => (
-                    <TabsTrigger key={idx} value={idx.toString()}>
-                        {tabLabels[idx]}
-                    </TabsTrigger>
-                ))}
-            </TabsList>
-            <TabsContent value={safeCategory.toString()} className="mt-2">
-                <ShadcnLayoutRenderer {...childProps} key={safeCategory} />
-            </TabsContent>
-        </Tabs>
+  const tabLabels = useMemo(() => {
+    return categories.map((e) =>
+      e.type === "Category"
+        ? deriveLabelForUISchemaElement(e as Category, t)
+        : undefined,
     );
+  }, [categories, t]);
+
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <Tabs value={safeCategory.toString()} onValueChange={onTabChange}>
+      <TabsList className="w-full">
+        {categories.map((_, idx: number) => (
+          <TabsTrigger key={idx} value={idx.toString()}>
+            {tabLabels[idx]}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsContent value={safeCategory.toString()} className="mt-2">
+        <ShadcnLayoutRenderer {...childProps} key={safeCategory} />
+      </TabsContent>
+    </Tabs>
+  );
 };
 
 export default withAjvProps(
-    withTranslateProps(
-        withJsonFormsLayoutProps(ShadcnCategorizationLayoutRenderer)
-    )
+  withTranslateProps(
+    withJsonFormsLayoutProps(ShadcnCategorizationLayoutRenderer),
+  ),
 );

@@ -18,8 +18,8 @@ export interface RecordingStatus {
   name: string;
   topics: Topic[];
   status: string;
-  recording_time: number;  // recording time in seconds
-  message_counts: Record<string, number>;  // number of messages saved by topic
+  recording_time: number; // recording time in seconds
+  message_counts: Record<string, number>; // number of messages saved by topic
 }
 
 export interface RecordingResponse {
@@ -31,5 +31,5 @@ export interface StopRecordingResponse {
 }
 
 export interface RecordingError {
-    error: string;
+  error: string;
 }

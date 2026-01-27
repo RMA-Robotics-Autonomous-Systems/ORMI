@@ -22,98 +22,93 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    ControlElement,
-    createDefaultValue,
-    JsonSchema,
-    ArrayTranslations,
-} from '@jsonforms/core';
-
-
+  ControlElement,
+  createDefaultValue,
+  JsonSchema,
+  ArrayTranslations,
+} from "@jsonforms/core";
 
 import { AlertCircle, PlusIcon } from "lucide-react";
-import { Button } from '@workspace/ui/components/button';
-import { TableRow, TableCell } from '@workspace/ui/components/table';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@workspace/ui/components/tooltip';
-
-
+import { Button } from "@workspace/ui/components/button";
+import { TableRow, TableCell } from "@workspace/ui/components/table";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@workspace/ui/components/tooltip";
 
 export interface ShadcnTableToolbarProps {
-    numColumns: number;
-    errors: string;
-    label: string;
-    description: string;
-    path: string;
-    uischema: ControlElement;
-    schema: JsonSchema;
-    rootSchema: JsonSchema;
-    enabled: boolean;
-    translations: ArrayTranslations;
-    addItem(path: string, value: any): () => void;
-    disableAdd?: boolean;
+  numColumns: number;
+  errors: string;
+  label: string;
+  description: string;
+  path: string;
+  uischema: ControlElement;
+  schema: JsonSchema;
+  rootSchema: JsonSchema;
+  enabled: boolean;
+  translations: ArrayTranslations;
+  addItem(path: string, value: any): () => void;
+  disableAdd?: boolean;
 }
 
 export const TableToolbar = React.memo(function TableToolbar({
-    numColumns,
-    errors,
-    label,
-    path,
-    addItem,
-    schema,
-    enabled,
-    translations,
-    rootSchema,
-    disableAdd,
+  numColumns,
+  errors,
+  label,
+  path,
+  addItem,
+  schema,
+  enabled,
+  translations,
+  rootSchema,
+  disableAdd,
 }: ShadcnTableToolbarProps) {
-    const handleAddClick = React.useCallback(() => {
-        const newValue = createDefaultValue(schema, rootSchema);
-        addItem(path, newValue)();
-    }, [addItem, path, schema]);
+  const handleAddClick = React.useCallback(() => {
+    const newValue = createDefaultValue(schema, rootSchema);
+    addItem(path, newValue)();
+  }, [addItem, path, schema]);
 
-    return (
-        <TableRow>
-            <TableCell colSpan={numColumns + 1}>
-                <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">{label}</h3>
-                        {errors && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger>
-                                        <AlertCircle className="h-4 w-4 text-destructive" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>{errors}</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        )}
-                    </div>
-                    {enabled && !disableAdd && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        onClick={handleAddClick}
-                                        size="sm"
-                                        variant="default"
-                                    >
-                                        <PlusIcon className="h-4 w-4 mr-2" />
-                                        {translations.addTooltip}
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {translations.addTooltip}
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                </div>
-            </TableCell>
-        </TableRow>
-    );
+  return (
+    <TableRow>
+      <TableCell colSpan={numColumns + 1}>
+        <div className="flex items-center justify-between py-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">{label}</h3>
+            {errors && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{errors}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          {enabled && !disableAdd && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleAddClick} size="sm" variant="default">
+                    <PlusIcon className="h-4 w-4 mr-2" />
+                    {translations.addTooltip}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{translations.addTooltip}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
 });
 
 export default TableToolbar;

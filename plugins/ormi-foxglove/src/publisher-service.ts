@@ -33,7 +33,7 @@ export class PublisherService {
   constructor(
     pluginsManager: PluginsManager,
     settings: FoxgloveDataSourceSettings,
-    client: any
+    client: any,
   ) {
     this.pluginsManager = pluginsManager;
     this.settings = settings;
@@ -88,7 +88,7 @@ export class PublisherService {
    */
   private async resolveSchema(
     schemaName: string,
-    channelId?: number
+    channelId?: number,
   ): Promise<string> {
     // 1a. If channelId provided, check that specific channel first
     if (channelId !== undefined) {
@@ -104,7 +104,7 @@ export class PublisherService {
 
     // 1b. Check if schema is available in any channel by schema name
     const existingChannel = Array.from(this.channels.values()).find(
-      (ch) => ch.schemaName === schemaName && ch.schema
+      (ch) => ch.schemaName === schemaName && ch.schema,
     );
 
     if (existingChannel?.schema) {
@@ -130,7 +130,7 @@ export class PublisherService {
       const resolver = this.schemaResolvers.get(schemaName);
       if (resolver) {
         resolver.reject(
-          new Error(`Schema resolution timeout for ${schemaName}`)
+          new Error(`Schema resolution timeout for ${schemaName}`),
         );
         this.schemaResolvers.delete(schemaName);
       }
@@ -158,7 +158,7 @@ export class PublisherService {
 
       // Check for existing publisher
       const existingPublisher = Array.from(this.publishers.values()).find(
-        (p) => p.topic === topicName
+        (p) => p.topic === topicName,
       );
 
       if (existingPublisher) {
@@ -254,7 +254,7 @@ export class PublisherService {
           const converted = UnifiedConverter.convertToROS2(
             message,
             webtype,
-            selectedTopic.rawType
+            selectedTopic.rawType,
           );
 
           // Validate converted message structure for geometry_msgs/msg/Twist
@@ -268,7 +268,7 @@ export class PublisherService {
           // Validate serialized data
           if (!serialized || serialized.byteLength === 0) {
             console.error(
-              `Serialization failed for ${publisher.topic}: empty buffer`
+              `Serialization failed for ${publisher.topic}: empty buffer`,
             );
             return;
           }
@@ -277,13 +277,13 @@ export class PublisherService {
         } catch (error) {
           console.error(
             `Failed to publish message on ${publisher.topic}:`,
-            error
+            error,
           );
 
           // Optional: Show toast for critical errors
           if (this.settings.toasts && error instanceof Error) {
             console.warn(
-              `Publishing error on ${publisher.topic}: ${error.message}`
+              `Publishing error on ${publisher.topic}: ${error.message}`,
             );
           }
         }
@@ -304,21 +304,21 @@ export class PublisherService {
     for (const [key, fields] of Object.entries(requiredStructure)) {
       if (!message[key]) {
         throw new Error(
-          `Twist message missing required field '${key}' for topic ${topicName}`
+          `Twist message missing required field '${key}' for topic ${topicName}`,
         );
       }
 
       for (const field of fields) {
         if (typeof message[key][field] !== "number") {
           throw new Error(
-            `Twist message field '${key}.${field}' must be a number, got ${typeof message[key][field]} for topic ${topicName}`
+            `Twist message field '${key}.${field}' must be a number, got ${typeof message[key][field]} for topic ${topicName}`,
           );
         }
 
         // Check for NaN or Infinity
         if (!isFinite(message[key][field])) {
           console.warn(
-            `Twist message field '${key}.${field}' contains invalid value ${message[key][field]} for topic ${topicName}, setting to 0`
+            `Twist message field '${key}.${field}' contains invalid value ${message[key][field]} for topic ${topicName}, setting to 0`,
           );
           message[key][field] = 0;
         }
@@ -328,7 +328,7 @@ export class PublisherService {
 
   async unadvertise(
     topic: DatasourceTopic,
-    ignoreCount = false
+    ignoreCount = false,
   ): Promise<void> {
     try {
       if (!this.client) {
@@ -337,7 +337,7 @@ export class PublisherService {
       }
 
       const publisherEntry = Array.from(this.publishers.entries()).find(
-        ([_, pub]) => pub.topic === topic.topic
+        ([_, pub]) => pub.topic === topic.topic,
       );
 
       if (!publisherEntry) {
@@ -389,7 +389,7 @@ export class PublisherService {
         } catch (error) {
           console.error(
             `Error unadvertising channel ${publisher.channelId} during cleanup:`,
-            error
+            error,
           );
         }
       }

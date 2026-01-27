@@ -28,34 +28,34 @@ Legacy hook for accessing the full dashboard state and operations.
 
 ```typescript
 function useDashboardManager(): {
-    // State
-    widgets: Map<string, Widget>;
-    datasources: Map<string, Datasource>;
-    layouts: Record<string, any>;
-    locked: boolean;
-    hasChanged: boolean;
+  // State
+  widgets: Map<string, Widget>;
+  datasources: Map<string, Datasource>;
+  layouts: Record<string, any>;
+  locked: boolean;
+  hasChanged: boolean;
 
-    // Widget operations
-    addWidget: (widget: Widget) => void;
-    removeWidget: (widgetId: string) => void;
-    updateWidget: (widgetId: string, updates: Partial<Widget>) => void;
-    getComponents: () => WidgetComponent[];
-    getDefinition: (widgetTypeId: string) => WidgetDefinition | undefined;
+  // Widget operations
+  addWidget: (widget: Widget) => void;
+  removeWidget: (widgetId: string) => void;
+  updateWidget: (widgetId: string, updates: Partial<Widget>) => void;
+  getComponents: () => WidgetComponent[];
+  getDefinition: (widgetTypeId: string) => WidgetDefinition | undefined;
 
-    // Layout operations
-    updateLayouts: (layoutType: string, layout: any) => void;
-    lockUnLockDashboard: () => void;
+  // Layout operations
+  updateLayouts: (layoutType: string, layout: any) => void;
+  lockUnLockDashboard: () => void;
 
-    // Datasource operations
-    addDatasource: (datasource: Datasource) => void;
-    removeDatasource: (datasourceId: string) => void;
-    updateDatasource: (
-        datasourceId: string,
-        updates: Partial<Datasource>,
-    ) => void;
+  // Datasource operations
+  addDatasource: (datasource: Datasource) => void;
+  removeDatasource: (datasourceId: string) => void;
+  updateDatasource: (
+    datasourceId: string,
+    updates: Partial<Datasource>,
+  ) => void;
 
-    // Persistence
-    saveDashboard: () => Promise<void>;
+  // Persistence
+  saveDashboard: () => Promise<void>;
 };
 ```
 
@@ -63,15 +63,15 @@ function useDashboardManager(): {
 
 ```typescript
 interface Widget {
-    id: string;
-    type: string;
-    settings: Record<string, any>;
-    layout?: {
-        x: number;
-        y: number;
-        w: number;
-        h: number;
-    };
+  id: string;
+  type: string;
+  settings: Record<string, any>;
+  layout?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
 }
 ```
 
@@ -79,10 +79,10 @@ interface Widget {
 
 ```typescript
 interface Datasource {
-    id: string;
-    type: string;
-    config: Record<string, any>;
-    connected: boolean;
+  id: string;
+  type: string;
+  config: Record<string, any>;
+  connected: boolean;
 }
 ```
 
@@ -94,23 +94,23 @@ Preferred hook for mutations without subscribing to full state.
 
 ```typescript
 function useDashboardActions(): {
-    getDefinition: (widgetTypeId: string) => WidgetDefinition;
-    addWidget: (widget: WidgetDefinition, settings: any) => void;
-    removeWidget: (widgetId: string) => void;
-    updateWidget: (widgetId: string, settings: any) => void;
-    updateLayouts: (layouts: Record<string, any>) => void;
-    lockUnLockDashboard: () => void;
-    savesDashboard: () => Promise<void>;
-    addDatasource: (
-        datasourceId: string,
-        settings?: DatasourceProviderSettings,
-    ) => void;
-    removeDatasource: (datasourceId: string) => void;
-    updateDatasource: (
-        datasourceId: string,
-        settings: DatasourceProviderSettings,
-    ) => void;
-    dispatch: React.Dispatch<any>;
+  getDefinition: (widgetTypeId: string) => WidgetDefinition;
+  addWidget: (widget: WidgetDefinition, settings: any) => void;
+  removeWidget: (widgetId: string) => void;
+  updateWidget: (widgetId: string, settings: any) => void;
+  updateLayouts: (layouts: Record<string, any>) => void;
+  lockUnLockDashboard: () => void;
+  savesDashboard: () => Promise<void>;
+  addDatasource: (
+    datasourceId: string,
+    settings?: DatasourceProviderSettings,
+  ) => void;
+  removeDatasource: (datasourceId: string) => void;
+  updateDatasource: (
+    datasourceId: string,
+    settings: DatasourceProviderSettings,
+  ) => void;
+  dispatch: React.Dispatch<any>;
 };
 ```
 
@@ -121,13 +121,13 @@ Preferred for rendering to avoid layout-driven rerenders.
 ```typescript
 import { useAtomValue } from "jotai";
 import {
-    widgetsAtom,
-    layoutsAtom,
-    lockedAtom,
-    hasChangedAtom,
-    forceReloadAtom,
-    datasourcesAtom,
-    widgetAtomFamily,
+  widgetsAtom,
+  layoutsAtom,
+  lockedAtom,
+  hasChangedAtom,
+  forceReloadAtom,
+  datasourcesAtom,
+  widgetAtomFamily,
 } from "@workspace/ormi-core/dashboard/atoms";
 
 const widgets = useAtomValue(widgetsAtom);
@@ -538,17 +538,17 @@ const widgetId = `widget-${widgets.size + 1}`;
 
 ```typescript
 const handleAddWidget = (widgetType: string) => {
-    const definition = getDefinition(widgetType);
-    if (!definition) {
-        toast.error("Widget type not found");
-        return;
-    }
+  const definition = getDefinition(widgetType);
+  if (!definition) {
+    toast.error("Widget type not found");
+    return;
+  }
 
-    addWidget({
-        id: generateId(),
-        type: widgetType,
-        settings: definition.defaultSettings || {},
-    });
+  addWidget({
+    id: generateId(),
+    type: widgetType,
+    settings: definition.defaultSettings || {},
+  });
 };
 ```
 
@@ -556,9 +556,9 @@ const handleAddWidget = (widgetType: string) => {
 
 ```typescript
 const handleRemove = (widgetId: string) => {
-    if (confirm("Remove this widget? This action cannot be undone.")) {
-        removeWidget(widgetId);
-    }
+  if (confirm("Remove this widget? This action cannot be undone.")) {
+    removeWidget(widgetId);
+  }
 };
 ```
 
@@ -566,13 +566,13 @@ const handleRemove = (widgetId: string) => {
 
 ```typescript
 const handleSave = async () => {
-    try {
-        await saveDashboard();
-        toast.success("Dashboard saved");
-    } catch (error) {
-        toast.error("Failed to save dashboard");
-        console.error(error);
-    }
+  try {
+    await saveDashboard();
+    toast.success("Dashboard saved");
+  } catch (error) {
+    toast.error("Failed to save dashboard");
+    console.error(error);
+  }
 };
 ```
 
@@ -581,10 +581,10 @@ const handleSave = async () => {
 ```typescript
 // Good: Create new settings object
 updateWidget(widgetId, {
-    settings: {
-        ...widget.settings,
-        topic: newTopic,
-    },
+  settings: {
+    ...widget.settings,
+    topic: newTopic,
+  },
 });
 
 // Bad: Mutate existing object
@@ -635,10 +635,10 @@ widget.settings.topic = newTopic;
 
 ```typescript
 updateWidget(widgetId, {
-    settings: {
-        ...currentSettings,
-        newField: newValue,
-    },
+  settings: {
+    ...currentSettings,
+    newField: newValue,
+  },
 });
 ```
 

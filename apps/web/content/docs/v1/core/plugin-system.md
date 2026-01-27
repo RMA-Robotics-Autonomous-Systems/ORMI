@@ -77,12 +77,12 @@ Transform or accumulate data passed through them. Always return a value.
 
 ```typescript
 this.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "my-widgets",
-    priority: 10,
-    filter: (widgets: WidgetDefinition[]) => {
-        widgets.push(MyWidgetDefinition());
-        return widgets; // Always return the modified value
-    },
+  id: "my-widgets",
+  priority: 10,
+  filter: (widgets: WidgetDefinition[]) => {
+    widgets.push(MyWidgetDefinition());
+    return widgets; // Always return the modified value
+  },
 });
 ```
 
@@ -112,20 +112,20 @@ Both filters and actions have a **priority** property that determines execution 
 ```typescript
 // Executes first (priority 5)
 this.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "core-widgets",
-    priority: 5,
-    filter: (widgets) => {
-        /* ... */
-    },
+  id: "core-widgets",
+  priority: 5,
+  filter: (widgets) => {
+    /* ... */
+  },
 });
 
 // Executes second (priority 10)
 this.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "user-widgets",
-    priority: 10,
-    filter: (widgets) => {
-        /* ... */
-    },
+  id: "user-widgets",
+  priority: 10,
+  filter: (widgets) => {
+    /* ... */
+  },
 });
 ```
 
@@ -171,13 +171,13 @@ PluginsHooks.WIDGETS_LIST;
 
 ```typescript
 this.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: "my-plugin-widgets",
-    priority: 10,
-    filter: (widgets) => {
-        widgets.push(MyChartWidget());
-        widgets.push(MyMapWidget());
-        return widgets;
-    },
+  id: "my-plugin-widgets",
+  priority: 10,
+  filter: (widgets) => {
+    widgets.push(MyChartWidget());
+    widgets.push(MyMapWidget());
+    return widgets;
+  },
 });
 ```
 
@@ -218,12 +218,12 @@ PluginsHooks.DATASOURCES_LIST;
 
 ```typescript
 this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-    id: "my-datasource",
-    priority: 10,
-    filter: (datasources) => {
-        datasources.push(MyDatasourceDefinition);
-        return datasources;
-    },
+  id: "my-datasource",
+  priority: 10,
+  filter: (datasources) => {
+    datasources.push(MyDatasourceDefinition);
+    return datasources;
+  },
 });
 ```
 
@@ -262,11 +262,11 @@ PluginsHooks.AVAILABLE_TOPICS;
 
 ```typescript
 const topics = pluginManager.applyFilter<DatasourceTopic[]>(
-    PluginsHooks.AVAILABLE_TOPICS,
-    [],
-    new DatasourceTopicFilter({
-        type: /Vector3|Movement/,
-    })
+  PluginsHooks.AVAILABLE_TOPICS,
+  [],
+  new DatasourceTopicFilter({
+    type: /Vector3|Movement/,
+  }),
 );
 ```
 
@@ -292,15 +292,15 @@ PluginsHooks.JSON_FORMS_RENDERER;
 
 ```typescript
 this.addFilter(PluginsHooks.JSON_FORMS_RENDERER, {
-    id: "my-renderers",
-    priority: 10,
-    filter: (renderers) => {
-        renderers.push({
-            tester: myCustomTester,
-            renderer: MyCustomRenderer,
-        });
-        return renderers;
-    },
+  id: "my-renderers",
+  priority: 10,
+  filter: (renderers) => {
+    renderers.push({
+      tester: myCustomTester,
+      renderer: MyCustomRenderer,
+    });
+    return renderers;
+  },
 });
 ```
 
@@ -334,24 +334,24 @@ PluginsHooks.MAP_LOCAL_VISUALIZERS;
 
 ```typescript
 (visualizers: Map<string, LocalTopicVisualizer>) =>
-    Map<string, LocalTopicVisualizer>;
+  Map<string, LocalTopicVisualizer>;
 ```
 
 **Example:**
 
 ```typescript
 this.addFilter(PluginsHooks.MAP_LOCAL_VISUALIZERS, {
-    id: "my-visualizers",
-    priority: 100,
-    filter: (visualizers) => {
-        visualizers.set("path", {
-            component: PathVisualizer,
-            accepts: ["Path"],
-            name: "Path Visualization",
-            description: "Displays nav_msgs/Path",
-        });
-        return visualizers;
-    },
+  id: "my-visualizers",
+  priority: 100,
+  filter: (visualizers) => {
+    visualizers.set("path", {
+      component: PathVisualizer,
+      accepts: ["Path"],
+      name: "Path Visualization",
+      description: "Displays nav_msgs/Path",
+    });
+    return visualizers;
+  },
 });
 ```
 
@@ -401,18 +401,18 @@ When a datasource is instantiated, it creates dynamic hooks:
 
 ```typescript
 pluginManager.addAction(`${datasourceId}-subscribe`, {
-    id: `${datasourceId}-subscribe`,
-    priority: 10,
-    action: (topic: SelectedTopic) => {
-        // Track subscriber count
-        const count = subscribersCount.get(topic.topic) || 0;
-        subscribersCount.set(topic.topic, count + 1);
+  id: `${datasourceId}-subscribe`,
+  priority: 10,
+  action: (topic: SelectedTopic) => {
+    // Track subscriber count
+    const count = subscribersCount.get(topic.topic) || 0;
+    subscribersCount.set(topic.topic, count + 1);
 
-        // Start data flow on first subscriber
-        if (count === 0) {
-            startTopicDataGeneration(topic.topic);
-        }
-    },
+    // Start data flow on first subscriber
+    if (count === 0) {
+      startTopicDataGeneration(topic.topic);
+    }
+  },
 });
 ```
 
@@ -421,11 +421,11 @@ pluginManager.addAction(`${datasourceId}-subscribe`, {
 ```typescript
 // 1. Register callback for data updates
 pluginManager.addAction(`${datasourceId}-${topicName}-published`, {
-    id: `local-${uuid}-callback`,
-    priority: 10,
-    action: (data, timestamp, frameId) => {
-        // Handle incoming data
-    },
+  id: `local-${uuid}-callback`,
+  priority: 10,
+  action: (data, timestamp, frameId) => {
+    // Handle incoming data
+  },
 });
 
 // 2. Subscribe to topic
@@ -455,25 +455,25 @@ await pluginManager.WaitAndDoAction(`${datasourceId}-subscribe`, 1, topic);
 
 ```typescript
 pluginManager.addAction(`${datasourceId}-unsubscribe`, {
-    id: `${datasourceId}-unsubscribe`,
-    priority: 10,
-    action: (topic: SelectedTopic, ignoreCount = false) => {
-        if (ignoreCount) {
-            stopTopicDataGeneration(topic.topic);
-            subscribersCount.delete(topic.topic);
-            return;
-        }
+  id: `${datasourceId}-unsubscribe`,
+  priority: 10,
+  action: (topic: SelectedTopic, ignoreCount = false) => {
+    if (ignoreCount) {
+      stopTopicDataGeneration(topic.topic);
+      subscribersCount.delete(topic.topic);
+      return;
+    }
 
-        // Decrement subscriber count
-        const count = subscribersCount.get(topic.topic) || 0;
-        const newCount = Math.max(0, count - 1);
-        subscribersCount.set(topic.topic, newCount);
+    // Decrement subscriber count
+    const count = subscribersCount.get(topic.topic) || 0;
+    const newCount = Math.max(0, count - 1);
+    subscribersCount.set(topic.topic, newCount);
 
-        // Stop data flow when no subscribers
-        if (newCount === 0) {
-            stopTopicDataGeneration(topic.topic);
-        }
-    },
+    // Stop data flow when no subscribers
+    if (newCount === 0) {
+      stopTopicDataGeneration(topic.topic);
+    }
+  },
 });
 ```
 
@@ -496,16 +496,16 @@ pluginManager.addAction(`${datasourceId}-unsubscribe`, {
 ```typescript
 // When data arrives from your source
 const handleData = (topicName: string, rawData: any) => {
-    // Convert to internal type if needed
-    const data = convertToInternalType(rawData);
+  // Convert to internal type if needed
+  const data = convertToInternalType(rawData);
 
-    // Publish to all registered callbacks via PluginManager
-    pluginManager.doAction(
-        `${datasourceId}-${topicName}-published`,
-        data, // The data
-        Date.now(), // Timestamp in milliseconds
-        "base_link" // Optional: coordinate frame reference
-    );
+  // Publish to all registered callbacks via PluginManager
+  pluginManager.doAction(
+    `${datasourceId}-${topicName}-published`,
+    data, // The data
+    Date.now(), // Timestamp in milliseconds
+    "base_link", // Optional: coordinate frame reference
+  );
 };
 ```
 
@@ -567,8 +567,8 @@ For asynchronous operations:
 
 ```typescript
 const result = await pluginManager.applyFilterAsync<TransformTree>(
-    PluginsHooks.TRANSFORM_TREE,
-    new Map()
+  PluginsHooks.TRANSFORM_TREE,
+  new Map(),
 );
 ```
 
@@ -578,10 +578,10 @@ Wait for an action to be registered before executing:
 
 ```typescript
 const success = await pluginManager.WaitAndDoAction(
-    "my-action",
-    5, // timeout in seconds
-    arg1,
-    arg2
+  "my-action",
+  5, // timeout in seconds
+  arg1,
+  arg2,
 );
 ```
 
@@ -593,11 +593,11 @@ Always provide unique IDs for filters and actions:
 
 ```typescript
 this.addFilter(PluginsHooks.WIDGETS_LIST, {
-    id: `${this.name}-widgets`, // Use plugin name as prefix
-    priority: 10,
-    filter: (widgets) => {
-        /* ... */
-    },
+  id: `${this.name}-widgets`, // Use plugin name as prefix
+  priority: 10,
+  filter: (widgets) => {
+    /* ... */
+  },
 });
 ```
 
@@ -615,14 +615,14 @@ Filters must return the modified value:
 ```typescript
 // ✅ Correct
 filter: (items) => {
-    items.push(newItem);
-    return items; // Always return
+  items.push(newItem);
+  return items; // Always return
 };
 
 // ❌ Wrong
 filter: (items) => {
-    items.push(newItem);
-    // Missing return
+  items.push(newItem);
+  // Missing return
 };
 ```
 
@@ -632,17 +632,17 @@ Remove dynamically added hooks when unmounting:
 
 ```typescript
 useEffect(() => {
-    const filterId = "my-dynamic-filter";
+  const filterId = "my-dynamic-filter";
 
-    pluginManager.addFilter("my-hook", {
-        id: filterId,
-        priority: 10,
-        filter: (value) => value,
-    });
+  pluginManager.addFilter("my-hook", {
+    id: filterId,
+    priority: 10,
+    filter: (value) => value,
+  });
 
-    return () => {
-        pluginManager.removeFilter(filterId);
-    };
+  return () => {
+    pluginManager.removeFilter(filterId);
+  };
 }, []);
 ```
 
@@ -652,12 +652,12 @@ The system logs warnings for missing hooks, but ensure your code handles empty r
 
 ```typescript
 const topics = pluginManager.applyFilter<DatasourceTopic[]>(
-    PluginsHooks.AVAILABLE_TOPICS,
-    [] // Provide sensible default
+  PluginsHooks.AVAILABLE_TOPICS,
+  [], // Provide sensible default
 );
 
 if (topics.length === 0) {
-    console.warn("No topics available");
+  console.warn("No topics available");
 }
 ```
 
@@ -673,9 +673,9 @@ const MY_CUSTOM_HOOK = "my-plugin-custom-hook";
 
 // Add filters in other plugins
 pluginManager.addFilter(MY_CUSTOM_HOOK, {
-    id: "handler",
-    priority: 10,
-    filter: (value) => value,
+  id: "handler",
+  priority: 10,
+  filter: (value) => value,
 });
 
 // Execute in your code
@@ -688,12 +688,12 @@ Plugins can declare dependencies (though enforcement is not automatic):
 
 ```typescript
 class MyPlugin extends Plugin {
-    constructor() {
-        super({
-            name: "My Plugin",
-            dependencies: ["ormi-rosbridge-suite", "ormi-std-widgets"],
-        });
-    }
+  constructor() {
+    super({
+      name: "My Plugin",
+      dependencies: ["ormi-rosbridge-suite", "ormi-std-widgets"],
+    });
+  }
 }
 ```
 

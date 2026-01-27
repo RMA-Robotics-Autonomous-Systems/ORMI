@@ -19,7 +19,7 @@ export class PluginsManager {
         name: "basic",
         description: "Basic plugin",
         version: "1.0.0",
-      })
+      }),
     );
   }
 
@@ -211,7 +211,7 @@ export class PluginsManager {
     */
   WaitForActionToExist(
     actionName: string | PluginsHooks,
-    timeoutSecond: number = 5
+    timeoutSecond: number = 5,
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const interval = setInterval(() => {

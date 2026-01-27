@@ -22,99 +22,90 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 import {
-    ControlProps,
-    isDescriptionHidden,
-    isRangeControl,
-    RankedTester,
-    rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsControlProps } from '@jsonforms/react';
-import merge from 'lodash/merge';
-import { useFocus } from '../../utils';
-import { Label } from '@workspace/ui/components/label';
-import { Slider } from '@workspace/ui/components/slider';
-import { cn } from '@workspace/ui/lib/utils';
+  ControlProps,
+  isDescriptionHidden,
+  isRangeControl,
+  RankedTester,
+  rankWith,
+} from "@jsonforms/core";
+import { withJsonFormsControlProps } from "@jsonforms/react";
+import merge from "lodash/merge";
+import { useFocus } from "../../utils";
+import { Label } from "@workspace/ui/components/label";
+import { Slider } from "@workspace/ui/components/slider";
+import { cn } from "@workspace/ui/lib/utils";
 
 export const ShadcnSliderControl = (props: ControlProps) => {
-    const [focused] = useFocus();
-    const {
-        id,
-        data,
-        description,
-        enabled,
-        errors,
-        label,
-        schema,
-        handleChange,
-        visible,
-        path,
-        required,
-        config,
-    } = props;
+  const [focused] = useFocus();
+  const {
+    id,
+    data,
+    description,
+    enabled,
+    errors,
+    label,
+    schema,
+    handleChange,
+    visible,
+    path,
+    required,
+    config,
+  } = props;
 
-    const isValid = errors.length === 0;
-    const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
-    const showDescription = !isDescriptionHidden(
-        visible,
-        description,
-        focused,
-        appliedUiSchemaOptions.showUnfocusedDescription
-    );
+  const isValid = errors.length === 0;
+  const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
+  const showDescription = !isDescriptionHidden(
+    visible,
+    description,
+    focused,
+    appliedUiSchemaOptions.showUnfocusedDescription,
+  );
 
-    if (!visible) {
-        return null;
-    }
+  if (!visible) {
+    return null;
+  }
 
-    return (
-        <div className="space-y-2">
-            <Label
-                htmlFor={id}
-                className={cn(
-                    "text-sm font-medium leading-none",
-                    required && "after:text-red-500 after:content-['*']"
-                )}
-            >
-                {label}
-            </Label>
+  return (
+    <div className="space-y-2">
+      <Label
+        htmlFor={id}
+        className={cn(
+          "text-sm font-medium leading-none",
+          required && "after:text-red-500 after:content-['*']",
+        )}
+      >
+        {label}
+      </Label>
 
-            <div className="flex items-center space-x-4">
-                <span className="text-sm">{schema.minimum || 0}</span>
-                <Slider
-                    id={id}
-                    defaultValue={[data || schema.minimum || 0]}
-                    min={schema.minimum || 0}
-                    max={schema.maximum || 100}
-                    step={schema.multipleOf || 1}
-                    disabled={!enabled}
-                    onValueChange={([value]) => handleChange(path, value)}
-                    className={cn(
-                        "flex-1",
-                        !isValid && "border-red-500"
-                    )}
-                />
-                <span className="text-sm">{schema.maximum || 100}</span>
-            </div>
+      <div className="flex items-center space-x-4">
+        <span className="text-sm">{schema.minimum || 0}</span>
+        <Slider
+          id={id}
+          defaultValue={[data || schema.minimum || 0]}
+          min={schema.minimum || 0}
+          max={schema.maximum || 100}
+          step={schema.multipleOf || 1}
+          disabled={!enabled}
+          onValueChange={([value]) => handleChange(path, value)}
+          className={cn("flex-1", !isValid && "border-red-500")}
+        />
+        <span className="text-sm">{schema.maximum || 100}</span>
+      </div>
 
-            {showDescription && (
-                <p className="text-sm text-muted-foreground">
-                    {description}
-                </p>
-            )}
+      {showDescription && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
 
-            {!isValid && (
-                <p className="text-sm text-destructive">
-                    {errors}
-                </p>
-            )}
-        </div>
-    );
+      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
+    </div>
+  );
 };
 
 export const shadcnSliderControlTester: RankedTester = rankWith(
-    5,
-    isRangeControl
+  5,
+  isRangeControl,
 );
 
 export default withJsonFormsControlProps(ShadcnSliderControl);

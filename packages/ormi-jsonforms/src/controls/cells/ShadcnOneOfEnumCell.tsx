@@ -22,54 +22,59 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
 import {
-    EnumCellProps,
-    isOneOfEnumControl,
-    RankedTester,
-    rankWith,
-    WithClassname,
-} from '@jsonforms/core';
+  EnumCellProps,
+  isOneOfEnumControl,
+  RankedTester,
+  rankWith,
+  WithClassname,
+} from "@jsonforms/core";
 import {
-    TranslateProps,
-    withJsonFormsOneOfEnumCellProps,
-    withTranslateProps,
-} from '@jsonforms/react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select';
-
+  TranslateProps,
+  withJsonFormsOneOfEnumCellProps,
+  withTranslateProps,
+} from "@jsonforms/react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select";
 
 export const ShadcnOneOfEnumCell = (
-    props: EnumCellProps & WithClassname & TranslateProps
+  props: EnumCellProps & WithClassname & TranslateProps,
 ) => {
-    const { data, className, enabled, handleChange, options, path } = props;
+  const { data, className, enabled, handleChange, options, path } = props;
 
-    return (
-        <Select
-            value={data || ''}
-            onValueChange={(value) => handleChange(path, value)}
-            disabled={!enabled}
-        >
-            <SelectTrigger className={className}>
-                <SelectValue placeholder="Select option" />
-            </SelectTrigger>
-            <SelectContent>
-                {options!.map((option: any) => (
-                    <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-    );
+  return (
+    <Select
+      value={data || ""}
+      onValueChange={(value) => handleChange(path, value)}
+      disabled={!enabled}
+    >
+      <SelectTrigger className={className}>
+        <SelectValue placeholder="Select option" />
+      </SelectTrigger>
+      <SelectContent>
+        {options!.map((option: any) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 };
 
 export const shadcnOneOfEnumCellTester: RankedTester = rankWith(
-    3,
-    isOneOfEnumControl
+  3,
+  isOneOfEnumControl,
 );
 
 export default withJsonFormsOneOfEnumCellProps(
-    withTranslateProps(React.memo(ShadcnOneOfEnumCell)),
-    false
+  withTranslateProps(React.memo(ShadcnOneOfEnumCell)),
+  false,
 );

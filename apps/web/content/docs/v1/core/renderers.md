@@ -39,11 +39,11 @@ Located in `/packages/ormi-core/src/renderers/`, these provide ORMI-specific fun
 ```typescript
 import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 import TopicSelectRenderer, {
-    topicSelectTester,
+  topicSelectTester,
 } from "./topic-select-renderer";
 
 export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
-    { tester: topicSelectTester, renderer: TopicSelectRenderer },
+  { tester: topicSelectTester, renderer: TopicSelectRenderer },
 ];
 ```
 
@@ -96,28 +96,28 @@ Returns a `SelectedTopic` object:
 
 ```typescript
 const widgetSchema = {
-    type: "object",
-    properties: {
-        datasource: {
-            type: "object",
-            title: "Data Source",
-        },
+  type: "object",
+  properties: {
+    datasource: {
+      type: "object",
+      title: "Data Source",
     },
+  },
 };
 
 const widgetUISchema = {
-    type: "VerticalLayout",
-    elements: [
-        {
-            type: "TopicSelect",
-            scope: "#/properties/datasource",
-            options: {
-                dataRequirements: {
-                    accepts: ["number", "float", "int"],
-                },
-            },
+  type: "VerticalLayout",
+  elements: [
+    {
+      type: "TopicSelect",
+      scope: "#/properties/datasource",
+      options: {
+        dataRequirements: {
+          accepts: ["number", "float", "int"],
         },
-    ],
+      },
+    },
+  ],
 };
 ```
 
@@ -406,9 +406,9 @@ Always include `coreRenderer` for TopicSelect:
 
 ```typescript
 const renderers = [
-    ...materialRenderers,
-    ...shadcnRenderer,
-    ...coreRenderer, // Required for TopicSelect
+  ...materialRenderers,
+  ...shadcnRenderer,
+  ...coreRenderer, // Required for TopicSelect
 ];
 ```
 
@@ -469,8 +469,8 @@ console.log("UI type:", uischema.type);
 
 // Increase priority
 const myTester = rankWith(
-    15, // Higher than default (10)
-    and(isControl, schemaTypeIs("string"))
+  15, // Higher than default (10)
+  and(isControl, schemaTypeIs("string")),
 );
 ```
 
@@ -484,9 +484,9 @@ const myTester = rankWith(
 import { coreRenderer } from "@workspace/ormi-core/renderers";
 
 const renderers = [
-    ...coreRenderer, // Add this
-    ...shadcnRenderer,
-    ...materialRenderers,
+  ...coreRenderer, // Add this
+  ...shadcnRenderer,
+  ...materialRenderers,
 ];
 ```
 

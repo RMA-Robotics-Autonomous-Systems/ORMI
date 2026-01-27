@@ -6,65 +6,60 @@ import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-types";
 
 class PluginA extends Plugin {
-    constructor() {
-        super();
+  constructor() {
+    super();
 
-        this.name = "STD Widgets";
-        this.description = "Standart widgets collection.";
-        this.version = "1.0.0";
-        this.author = "Lbcqu Florian";
-        this.email = "florian.lebecque@mil.be";
+    this.name = "STD Widgets";
+    this.description = "Standart widgets collection.";
+    this.version = "1.0.0";
+    this.author = "Lbcqu Florian";
+    this.email = "florian.lebecque@mil.be";
 
-        const widgetFilter = {
-            id: this.name + "-widget-export",
-            priority: 10,
-            filter: WidgetExport,
-        };
+    const widgetFilter = {
+      id: this.name + "-widget-export",
+      priority: 10,
+      filter: WidgetExport,
+    };
 
-        this.addFilter(PluginsHooks.WIDGETS_LIST, widgetFilter);
-        // this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgetFilter);
+    this.addFilter(PluginsHooks.WIDGETS_LIST, widgetFilter);
+    // this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, widgetFilter);
 
-        // Register local topic visualizers for map widget
-        const localVisualizersFilter = {
-            id: this.name + "-map-local-visualizers",
-            priority: 100,
-            filter: (visualizers: Map<string, LocalTopicVisualizer>) => {
-                // Register Path visualizer
-                visualizers.set("path", {
-                    component: PathLocalMarker,
-                    accepts: ["Path"],
-                    name: "Path Visualization",
-                    description:
-                        "Visualizes ROS2 nav_msgs/Path in local coordinates",
-                });
+    // Register local topic visualizers for map widget
+    const localVisualizersFilter = {
+      id: this.name + "-map-local-visualizers",
+      priority: 100,
+      filter: (visualizers: Map<string, LocalTopicVisualizer>) => {
+        // Register Path visualizer
+        visualizers.set("path", {
+          component: PathLocalMarker,
+          accepts: ["Path"],
+          name: "Path Visualization",
+          description: "Visualizes ROS2 nav_msgs/Path in local coordinates",
+        });
 
-                // Register IMU visualizer
-                visualizers.set("imu", {
-                    component: IMULocalMarker,
-                    accepts: ["IMU"],
-                    name: "IMU Visualization",
-                    description:
-                        "Visualizes IMU orientation as arrows on GPS positions",
-                });
+        // Register IMU visualizer
+        visualizers.set("imu", {
+          component: IMULocalMarker,
+          accepts: ["IMU"],
+          name: "IMU Visualization",
+          description: "Visualizes IMU orientation as arrows on GPS positions",
+        });
 
-                // Register PointCloud visualizer
-                // visualizers.set("pointcloud", {
-                //   component: PointCloudLocalMarker,
-                //   accepts: ["PointsCloud"],
-                //   name: "Point Cloud Visualization",
-                //   description:
-                //     "Visualizes ROS2 sensor_msgs/PointCloud2 in local coordinates using Three.js",
-                // });
+        // Register PointCloud visualizer
+        // visualizers.set("pointcloud", {
+        //   component: PointCloudLocalMarker,
+        //   accepts: ["PointsCloud"],
+        //   name: "Point Cloud Visualization",
+        //   description:
+        //     "Visualizes ROS2 sensor_msgs/PointCloud2 in local coordinates using Three.js",
+        // });
 
-                return visualizers;
-            },
-        };
+        return visualizers;
+      },
+    };
 
-        this.addFilter(
-            PluginsHooks.MAP_LOCAL_VISUALIZERS,
-            localVisualizersFilter
-        );
-    }
+    this.addFilter(PluginsHooks.MAP_LOCAL_VISUALIZERS, localVisualizersFilter);
+  }
 }
 
 export default PluginA;

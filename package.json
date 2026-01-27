@@ -12,7 +12,7 @@
         "start": "cd apps/web && bun run start",
         "dev": "bunx turbo dev",
         "lint": "turbo lint",
-        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "format": "prettier --write \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
         "create": "bun scripts/create-package.js",
         "clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules"
     },

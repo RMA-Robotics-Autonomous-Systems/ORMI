@@ -1,86 +1,90 @@
-"use client"
+"use client";
 
-import React, { createContext, useContext, ReactNode, useRef, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  ReactNode,
+  useRef,
+  useEffect,
+} from "react";
 // import PluginsLoader from './plugins-loader';
-import { PluginsManager } from '../plugins-manager';
-import { PluginsHooks, Plugin, PluginRegistry } from '../plugins-types';
+import { PluginsManager } from "../plugins-manager";
+import { PluginsHooks, Plugin, PluginRegistry } from "../plugins-types";
 
 // Create the context with a default value
 const PluginsContext = createContext<PluginsManager | undefined>(undefined);
 
 interface PluginsProviderProps {
-    children: ReactNode;
-    PluginsInfo: PluginRegistry;
+  children: ReactNode;
+  PluginsInfo: PluginRegistry;
 }
 
 // Create a provider component
 const PluginsProvider = (props: PluginsProviderProps) => {
+  const { children, PluginsInfo } = props;
 
-    const { children, PluginsInfo } = props;
+  const pluginsManagerRef = useRef<PluginsManager | null>(null);
 
-    const pluginsManagerRef = useRef<PluginsManager | null>(null);
+  const [initialized, setInitialized] = React.useState(false);
 
-    const [initialized, setInitialized] = React.useState(false);
+  // Initialize plugins map
+  useEffect(() => {
+    const loadPlugins = async () => {
+      const pluginsMap = new Map<string | PluginsHooks, Plugin>();
 
-    // Initialize plugins map
-    useEffect(() => {
+      // Load all plugins
+      for (const pluginPromise of Object.values(PluginsInfo)) {
+        const plugin = ((await pluginPromise) as any).default;
 
-        const loadPlugins = async () => {
-            const pluginsMap = new Map<string | PluginsHooks, Plugin>();
+        if (!plugin) {
+          console.error("Plugin not found", plugin);
+          continue;
+        }
 
-            // Load all plugins
-            for (const pluginPromise of Object.values(PluginsInfo)) {
+        if (!(plugin.prototype instanceof Plugin)) {
+          console.error("Invalid plugin", plugin);
+          continue;
+        }
 
-                const plugin = (await pluginPromise as any).default;
+        const pluginInstance = new plugin();
 
-                if (!plugin) {
-                    console.error("Plugin not found", plugin);
-                    continue;
-                }
+        if (pluginsMap.has(pluginInstance.name)) {
+          console.error("Plugin already loaded", pluginInstance.name);
+          continue;
+        }
 
-                if (!(plugin.prototype instanceof Plugin)) {
-                    console.error("Invalid plugin", plugin);
-                    continue;
-                }
+        pluginsMap.set(pluginInstance.name, pluginInstance);
+      }
 
-                const pluginInstance = new plugin();
+      // Update the plugins manager with the loaded plugins
+      pluginsManagerRef.current = new PluginsManager(pluginsMap);
+      setInitialized(true);
+    };
 
-                if (pluginsMap.has(pluginInstance.name)) {
-                    console.error("Plugin already loaded", pluginInstance.name);
-                    continue;
-                }
+    loadPlugins();
+  }, [PluginsInfo]);
 
-                pluginsMap.set(pluginInstance.name, pluginInstance);
-            }
+  // const elements_before_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
+  // const elements_after_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
 
-
-            // Update the plugins manager with the loaded plugins
-            pluginsManagerRef.current = new PluginsManager(pluginsMap);
-            setInitialized(true);
-        };
-
-        loadPlugins();
-    }, [PluginsInfo]);
-
-    // const elements_before_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
-    // const elements_after_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
-
-    return (
-        pluginsManagerRef.current && <PluginsContext.Provider value={pluginsManagerRef.current}>
-            {/* {elements_before_children} */}
-            {initialized && children}
-            {/* {elements_after_children} */}
-        </PluginsContext.Provider>
-    );
+  return (
+    pluginsManagerRef.current && (
+      <PluginsContext.Provider value={pluginsManagerRef.current}>
+        {/* {elements_before_children} */}
+        {initialized && children}
+        {/* {elements_after_children} */}
+      </PluginsContext.Provider>
+    )
+  );
 };
 
 // Create a custom hook to use the context
 const usePluginsManager = () => {
-    const context = useContext(PluginsContext);
-    if (context === undefined) {
-        throw new Error('usePlugins must be used within a PluginsProvider');
-    }
-    return context;
+  const context = useContext(PluginsContext);
+  if (context === undefined) {
+    throw new Error("usePlugins must be used within a PluginsProvider");
+  }
+  return context;
 };
 
 export { PluginsProvider, usePluginsManager };

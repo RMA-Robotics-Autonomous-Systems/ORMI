@@ -22,128 +22,133 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import merge from 'lodash/merge';
+import React, { useState } from "react";
+import merge from "lodash/merge";
 import {
-    ControlProps,
-    isDateTimeControl,
-    isDescriptionHidden,
-    RankedTester,
-    rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsControlProps } from '@jsonforms/react';
-import { format } from "date-fns"
-import { Popover, PopoverContent, PopoverTrigger } from '@workspace/ui/components/popover';
-import { Button } from '@workspace/ui/components/button';
-import { cn } from '@workspace/ui/lib/utils';
-import { CalendarIcon } from 'lucide-react';
-import { Calendar } from '@workspace/ui/components/calendar';
-import { Input } from '@workspace/ui/components/input';
+  ControlProps,
+  isDateTimeControl,
+  isDescriptionHidden,
+  RankedTester,
+  rankWith,
+} from "@jsonforms/core";
+import { withJsonFormsControlProps } from "@jsonforms/react";
+import { format } from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover";
+import { Button } from "@workspace/ui/components/button";
+import { cn } from "@workspace/ui/lib/utils";
+import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@workspace/ui/components/calendar";
+import { Input } from "@workspace/ui/components/input";
 
 const ShadcnDateTimeControl = ({
-    description,
-    errors,
-    uischema,
-    visible,
-    enabled,
-    path,
-    handleChange,
-    data,
-    config,
+  description,
+  errors,
+  uischema,
+  visible,
+  enabled,
+  path,
+  handleChange,
+  data,
+  config,
 }: ControlProps) => {
-    const [date, setDate] = useState<Date | undefined>(
-        data ? new Date(data) : undefined
-    );
+  const [date, setDate] = useState<Date | undefined>(
+    data ? new Date(data) : undefined,
+  );
 
-    const isValid = errors.length === 0;
-    const appliedUiSchemaOptions = merge({}, config, uischema.options);
+  const isValid = errors.length === 0;
+  const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-    const showDescription = !isDescriptionHidden(
-        visible,
-        description,
-        false,
-        appliedUiSchemaOptions.showUnfocusedDescription
-    );
+  const showDescription = !isDescriptionHidden(
+    visible,
+    description,
+    false,
+    appliedUiSchemaOptions.showUnfocusedDescription,
+  );
 
-    const handleDateChange = (newDate: Date | undefined) => {
-        if (!newDate) return;
+  const handleDateChange = (newDate: Date | undefined) => {
+    if (!newDate) return;
 
-        if (date) {
-            // Preserve time from existing date
-            newDate.setHours(date.getHours());
-            newDate.setMinutes(date.getMinutes());
-        }
-
-        setDate(newDate);
-        handleChange(path, newDate.toISOString());
-    };
-
-    const handleTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!date) return;
-
-        const [hours, minutes] = event.target.value.split(':');
-        const newDate = new Date(date);
-        newDate.setHours(parseInt(hours!), parseInt(minutes!));
-
-        setDate(newDate);
-        handleChange(path, newDate.toISOString());
-    };
-
-    if (!visible) {
-        return null;
+    if (date) {
+      // Preserve time from existing date
+      newDate.setHours(date.getHours());
+      newDate.setMinutes(date.getMinutes());
     }
 
-    return (
-        <div className="space-y-2">
-            <div className="flex space-x-2">
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={"outline"}
-                            className={cn(
-                                "w-[260px] justify-start text-left font-normal",
-                                !date && "text-muted-foreground",
-                                !isValid && "border-red-500"
-                            )}
-                            disabled={!enabled}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date ? format(date, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                        <Calendar
-                            mode="single"
-                            selected={date}
-                            onSelect={handleDateChange}
-                            disabled={!enabled}
-                            autoFocus
-                        />
-                    </PopoverContent>
-                </Popover>
+    setDate(newDate);
+    handleChange(path, newDate.toISOString());
+  };
 
-                <Input
-                    type="time"
-                    className={cn("w-[140px]", !isValid && "border-red-500")}
-                    value={date ? format(date, "HH:mm") : ""}
-                    onChange={handleTimeChange}
-                    disabled={!enabled || !date}
-                />
-            </div>
+  const handleTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!date) return;
 
-            {showDescription && (
-                <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+    const [hours, minutes] = event.target.value.split(":");
+    const newDate = new Date(date);
+    newDate.setHours(parseInt(hours!), parseInt(minutes!));
 
-            {!isValid && (
-                <p className="text-sm text-destructive">{errors}</p>
-            )}
-        </div>
-    );
+    setDate(newDate);
+    handleChange(path, newDate.toISOString());
+  };
+
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex space-x-2">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-[260px] justify-start text-left font-normal",
+                !date && "text-muted-foreground",
+                !isValid && "border-red-500",
+              )}
+              disabled={!enabled}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {date ? format(date, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={handleDateChange}
+              disabled={!enabled}
+              autoFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Input
+          type="time"
+          className={cn("w-[140px]", !isValid && "border-red-500")}
+          value={date ? format(date, "HH:mm") : ""}
+          onChange={handleTimeChange}
+          disabled={!enabled || !date}
+        />
+      </div>
+
+      {showDescription && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
+
+      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
+    </div>
+  );
 };
 
-export const shadcnDateTimeControlTester: RankedTester = rankWith(5, isDateTimeControl);
+export const shadcnDateTimeControlTester: RankedTester = rankWith(
+  5,
+  isDateTimeControl,
+);
 
 export default withJsonFormsControlProps(ShadcnDateTimeControl);
