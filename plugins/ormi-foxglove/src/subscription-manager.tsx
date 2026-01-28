@@ -427,6 +427,48 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					subscriber.schemaName,
 				);
 
+				// Handle Image type: convert to ImageBitmap asynchronously
+				if (
+					subscriber.webtype === "Image" &&
+					convertedMessage &&
+					typeof convertedMessage === "object"
+				) {
+					if ("__imageData" in convertedMessage) {
+						// Raw image: convert ImageData to ImageBitmap
+						createImageBitmap(convertedMessage.__imageData).then(
+							(bitmap) => {
+								pluginsManager.doAction(
+									subscriber.hook,
+									bitmap,
+									timestamp,
+									frameId,
+								);
+							},
+						);
+						return;
+					} else if ("__compressedData" in convertedMessage) {
+						// Compressed image: decode via Blob to ImageBitmap
+						const format = convertedMessage.__format || "jpeg";
+						let mimeType = "image/jpeg";
+						if (format.includes("png")) mimeType = "image/png";
+						else if (format.includes("webp")) mimeType = "image/webp";
+
+						const blob = new Blob(
+							[convertedMessage.__compressedData],
+							{ type: mimeType },
+						);
+						createImageBitmap(blob).then((bitmap) => {
+							pluginsManager.doAction(
+								subscriber.hook,
+								bitmap,
+								timestamp,
+								frameId,
+							);
+						});
+						return;
+					}
+				}
+
 				pluginsManager.doAction(
 					subscriber.hook,
 					convertedMessage,
@@ -544,7 +586,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					if (settings.toasts) {
 						toast(
 							"Error: Failed to subscribe to topic " +
-								topic.topic,
+							topic.topic,
 						);
 					}
 				});
@@ -594,7 +636,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 							if (settings.toasts) {
 								toast(
 									"Pending Subscription Canceled: " +
-										topic.topic,
+									topic.topic,
 								);
 							}
 						}
@@ -658,7 +700,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					if (settings.toasts) {
 						toast(
 							"Error: Failed to unsubscribe from topic " +
-								topic.topic,
+							topic.topic,
 						);
 					}
 				});

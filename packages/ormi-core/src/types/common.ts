@@ -92,11 +92,7 @@ export type PointsCloud = {
 	convention?: CoordinateConvention;
 };
 
-export type Image = {
-	width: number;
-	height: number;
-	data: ImageData;
-};
+export type Image = ImageBitmap;
 
 export type Pose = {
 	position: Vector3;

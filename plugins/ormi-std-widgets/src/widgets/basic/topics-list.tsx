@@ -1,8 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import {
-	SelectedTopic,
-	DatasourceTopic,
-} from "@workspace/ormi-core/datasources";
+import { DatasourceTopic } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
@@ -13,13 +10,99 @@ import {
 	TableCell,
 	Table,
 } from "@workspace/ui/components/table";
-import { ListIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@workspace/ui/components/hover-card";
+import { Badge } from "@workspace/ui/components/badge";
+import { ListIcon, Info } from "lucide-react";
+import { useState, useEffect, useCallback, memo } from "react";
+import { topicPreviewRegistry } from "./topic-preview-registry";
 
-interface TopicsListProps {
-	title: string;
-	topic: SelectedTopic;
+/**
+ * Lazy preview component - only renders when HoverCard is open
+ */
+function LazyTopicPreview({ topic }: { topic: DatasourceTopic }) {
+	const previewConfig = topicPreviewRegistry.get(topic.type);
+	const fallbackPreview = topicPreviewRegistry.get("__fallback__");
+
+	return previewConfig
+		? previewConfig.component(topic)
+		: fallbackPreview?.component(topic) ?? null;
 }
+
+/**
+ * Individual topic row - memoized for performance
+ * HoverCard is only rendered when user starts hovering (via mouse enter)
+ */
+const TopicRow = memo(function TopicRow({ topic }: { topic: DatasourceTopic }) {
+	const [showHoverCard, setShowHoverCard] = useState(false);
+	const [isHovering, setIsHovering] = useState(false);
+
+	// Only mount the HoverCard when user hovers over the trigger area
+	const handleMouseEnter = useCallback(() => {
+		setIsHovering(true);
+		// Small delay before showing to avoid flash on quick mouse movements
+		const timer = setTimeout(() => setShowHoverCard(true), 100);
+		return () => clearTimeout(timer);
+	}, []);
+
+	const handleMouseLeave = useCallback(() => {
+		setIsHovering(false);
+		// Keep HoverCard mounted briefly in case user hovers back
+		setTimeout(() => {
+			setShowHoverCard((prev) => prev && false);
+		}, 500);
+	}, []);
+
+	return (
+		<TableRow>
+			<TableCell className="font-medium">
+				{topic.source.title}
+			</TableCell>
+			<TableCell className="font-medium">
+				<div
+					className="flex items-center gap-2 cursor-pointer w-fit"
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={handleMouseLeave}
+				>
+					{showHoverCard ? (
+						<HoverCard open={isHovering} openDelay={200}>
+							<HoverCardTrigger asChild>
+								<div className="flex items-center gap-2">
+									{topic.topic}
+									<Info className="w-3 h-3 text-muted-foreground" />
+								</div>
+							</HoverCardTrigger>
+							<HoverCardContent style={{ width: "min(400px, 90vw)" }} side="right">
+								<LazyTopicPreview topic={topic} />
+							</HoverCardContent>
+						</HoverCard>
+					) : (
+						<>
+							{topic.topic}
+							<Info className="w-3 h-3 text-muted-foreground" />
+						</>
+					)}
+				</div>
+			</TableCell>
+			<TableCell>
+				<Badge variant="secondary" className="text-xs">
+					{topic.type}
+				</Badge>
+			</TableCell>
+			<TableCell className="text-muted-foreground text-xs">
+				{topic.rawType}
+			</TableCell>
+		</TableRow>
+	);
+}, (prevProps, nextProps) => {
+	// Custom comparison - only re-render if topic identity changed
+	return prevProps.topic.topic === nextProps.topic.topic &&
+		prevProps.topic.datasource_id === nextProps.topic.datasource_id &&
+		prevProps.topic.type === nextProps.topic.type;
+});
 
 function TopicsList() {
 	const pluginsManager = usePluginsManager();
@@ -32,8 +115,24 @@ function TopicsList() {
 				DatasourceTopic[]
 			>(PluginsHooks.AVAILABLE_TOPICS, []);
 
-			setTopics(current_topics);
-		}, 1000);
+			// Only update if topics actually changed to prevent flickering
+			setTopics((prevTopics) => {
+				if (prevTopics.length !== current_topics.length) {
+					return current_topics;
+				}
+
+				// Check if any topic changed
+				const hasChanges = current_topics.some((newTopic, index) => {
+					const prevTopic = prevTopics[index];
+					return !prevTopic ||
+						prevTopic.topic !== newTopic.topic ||
+						prevTopic.type !== newTopic.type ||
+						prevTopic.datasource_id !== newTopic.datasource_id;
+				});
+
+				return hasChanges ? current_topics : prevTopics;
+			});
+		}, 2000); // Poll every 2s instead of 1s
 
 		return () => {
 			clearInterval(interval);
@@ -52,17 +151,8 @@ function TopicsList() {
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{topics.map((topic, i) => (
-						<TableRow key={i}>
-							<TableCell className="font-medium">
-								{topic.source.title}
-							</TableCell>
-							<TableCell className="font-medium">
-								{topic.topic}
-							</TableCell>
-							<TableCell>{topic.type}</TableCell>
-							<TableCell>{topic.rawType}</TableCell>
-						</TableRow>
+					{topics.map((topic) => (
+						<TopicRow key={`${topic.datasource_id}-${topic.topic}`} topic={topic} />
 					))}
 				</TableBody>
 			</Table>
@@ -101,6 +191,6 @@ export function TopicsListDefinition(): WidgetDefinition {
 		data: {
 			title: "Topics List",
 		},
-		Component: (data: TopicsListProps) => <TopicsList />,
+		Component: () => <TopicsList />,
 	} as WidgetDefinition;
 }

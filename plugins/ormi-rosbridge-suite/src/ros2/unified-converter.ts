@@ -424,24 +424,142 @@ export class UnifiedConverter {
 						step: data.step,
 						data: data.data,
 					}),
-					fromRos2: (data: any) => ({
-						height: data.height,
-						width: data.width,
-						encoding: data.encoding,
-						is_bigendian: data.is_bigendian,
-						step: data.step,
-						data: data.data,
-					}),
+					fromRos2: (data: any): { __imageData: ImageData } => {
+						// Return ImageData for async conversion to ImageBitmap
+						const imageData = new ImageData(
+							data.width,
+							data.height,
+						);
+
+						// Decode base64 if data is a string (rosbridge sends as base64)
+						let rawData: Uint8Array;
+						if (typeof data.data === "string") {
+							const binaryString = atob(data.data);
+							rawData = new Uint8Array(binaryString.length);
+							for (let i = 0; i < binaryString.length; i++) {
+								rawData[i] = binaryString.charCodeAt(i);
+							}
+						} else if (data.data instanceof Uint8Array) {
+							rawData = data.data;
+						} else if (Array.isArray(data.data)) {
+							rawData = new Uint8Array(data.data);
+						} else {
+							rawData = new Uint8Array(data.data);
+						}
+
+						const encoding = data.encoding?.toLowerCase() || "";
+
+						if (encoding === "rgb8") {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 3;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] = rawData[srcIndex]!;
+								imageData.data[dstIndex + 1] =
+									rawData[srcIndex + 1]!;
+								imageData.data[dstIndex + 2] =
+									rawData[srcIndex + 2]!;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else if (encoding === "bgr8") {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 3;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] =
+									rawData[srcIndex + 2]!;
+								imageData.data[dstIndex + 1] =
+									rawData[srcIndex + 1]!;
+								imageData.data[dstIndex + 2] =
+									rawData[srcIndex]!;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else if (encoding === "rgba8") {
+							imageData.data.set(
+								rawData.subarray(0, imageData.data.length),
+							);
+						} else if (encoding === "bgra8") {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 4;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] =
+									rawData[srcIndex + 2]!;
+								imageData.data[dstIndex + 1] =
+									rawData[srcIndex + 1]!;
+								imageData.data[dstIndex + 2] =
+									rawData[srcIndex]!;
+								imageData.data[dstIndex + 3] =
+									rawData[srcIndex + 3]!;
+							}
+						} else if (
+							encoding === "mono8" ||
+							encoding === "8uc1"
+						) {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const gray = rawData[i]!;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] = gray;
+								imageData.data[dstIndex + 1] = gray;
+								imageData.data[dstIndex + 2] = gray;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else if (
+							encoding === "mono16" ||
+							encoding === "16uc1"
+						) {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 2;
+								const gray = Math.floor(
+									((rawData[srcIndex]! |
+										(rawData[srcIndex + 1]! << 8)) /
+										65535) *
+										255,
+								);
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] = gray;
+								imageData.data[dstIndex + 1] = gray;
+								imageData.data[dstIndex + 2] = gray;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else {
+							console.warn(
+								`Unknown image encoding: ${data.encoding}, attempting raw copy`,
+							);
+							imageData.data.set(
+								rawData.subarray(0, imageData.data.length),
+							);
+						}
+
+						return { __imageData: imageData };
+					},
 				},
 				"sensor_msgs/msg/CompressedImage": {
 					toRos2: (data: any) => ({
 						format: data.format,
 						data: data.data,
 					}),
-					fromRos2: (data: any) => ({
-						format: data.format,
-						data: data.data,
-					}),
+					fromRos2: (
+						data: any,
+					): { __compressedData: Uint8Array; __format: string } => {
+						// Return compressed data for async conversion to ImageBitmap
+						let rawData: Uint8Array;
+						if (typeof data.data === "string") {
+							const binaryString = atob(data.data);
+							rawData = new Uint8Array(binaryString.length);
+							for (let i = 0; i < binaryString.length; i++) {
+								rawData[i] = binaryString.charCodeAt(i);
+							}
+						} else if (data.data instanceof Uint8Array) {
+							rawData = data.data;
+						} else if (Array.isArray(data.data)) {
+							rawData = new Uint8Array(data.data);
+						} else {
+							rawData = new Uint8Array(data.data);
+						}
+
+						return {
+							__compressedData: rawData,
+							__format: data.format?.toLowerCase() || "jpeg",
+						};
+					},
 				},
 			},
 		},

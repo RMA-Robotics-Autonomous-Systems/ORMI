@@ -8,7 +8,6 @@ import {
 	PointsCloud,
 	Vector3,
 	Color,
-	Image,
 	PoseStamped,
 	Path,
 } from "@workspace/ormi-core/types";
@@ -778,63 +777,100 @@ export class UnifiedConverter {
 						step: data.step,
 						data: data.data,
 					}),
-					fromRos2: (data: any): Image => {
-						// Create ImageData from ROS2 image data
-						const canvas = document.createElement("canvas");
-						const ctx = canvas.getContext("2d");
-
-						if (!ctx) {
-							throw new Error(
-								"Could not create canvas context for image conversion",
-							);
-						}
-
-						canvas.width = data.width;
-						canvas.height = data.height;
-
-						// Create ImageData object
-						const imageData = ctx.createImageData(
+					fromRos2: (data: any): { __imageData: ImageData } => {
+						// Return ImageData for async conversion to ImageBitmap
+						const imageData = new ImageData(
 							data.width,
 							data.height,
 						);
 
-						// Convert ROS2 image data based on encoding
-						if (data.encoding === "rgb8") {
-							// RGB8 format: 3 bytes per pixel
+						const rawData =
+							data.data instanceof Uint8Array
+								? data.data
+								: new Uint8Array(data.data);
+
+						const encoding = data.encoding?.toLowerCase() || "";
+
+						if (encoding === "rgb8") {
 							for (let i = 0; i < data.width * data.height; i++) {
 								const srcIndex = i * 3;
 								const dstIndex = i * 4;
-								imageData.data[dstIndex] = data.data[srcIndex]; // R
+								imageData.data[dstIndex] = rawData[srcIndex]!;
 								imageData.data[dstIndex + 1] =
-									data.data[srcIndex + 1]; // G
+									rawData[srcIndex + 1]!;
 								imageData.data[dstIndex + 2] =
-									data.data[srcIndex + 2]; // B
-								imageData.data[dstIndex + 3] = 255; // A (full opacity)
+									rawData[srcIndex + 2]!;
+								imageData.data[dstIndex + 3] = 255;
 							}
-						} else if (data.encoding === "bgr8") {
-							// BGR8 format: 3 bytes per pixel, BGR order
+						} else if (encoding === "bgr8") {
 							for (let i = 0; i < data.width * data.height; i++) {
 								const srcIndex = i * 3;
 								const dstIndex = i * 4;
 								imageData.data[dstIndex] =
-									data.data[srcIndex + 2]; // R (from B)
+									rawData[srcIndex + 2]!;
 								imageData.data[dstIndex + 1] =
-									data.data[srcIndex + 1]; // G
+									rawData[srcIndex + 1]!;
 								imageData.data[dstIndex + 2] =
-									data.data[srcIndex]; // B (from R)
-								imageData.data[dstIndex + 3] = 255; // A (full opacity)
+									rawData[srcIndex]!;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else if (encoding === "rgba8") {
+							imageData.data.set(
+								rawData.subarray(0, imageData.data.length),
+							);
+						} else if (encoding === "bgra8") {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 4;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] =
+									rawData[srcIndex + 2]!;
+								imageData.data[dstIndex + 1] =
+									rawData[srcIndex + 1]!;
+								imageData.data[dstIndex + 2] =
+									rawData[srcIndex]!;
+								imageData.data[dstIndex + 3] =
+									rawData[srcIndex + 3]!;
+							}
+						} else if (
+							encoding === "mono8" ||
+							encoding === "8uc1"
+						) {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const gray = rawData[i]!;
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] = gray;
+								imageData.data[dstIndex + 1] = gray;
+								imageData.data[dstIndex + 2] = gray;
+								imageData.data[dstIndex + 3] = 255;
+							}
+						} else if (
+							encoding === "mono16" ||
+							encoding === "16uc1"
+						) {
+							for (let i = 0; i < data.width * data.height; i++) {
+								const srcIndex = i * 2;
+								const gray = Math.floor(
+									((rawData[srcIndex]! |
+										(rawData[srcIndex + 1]! << 8)) /
+										65535) *
+										255,
+								);
+								const dstIndex = i * 4;
+								imageData.data[dstIndex] = gray;
+								imageData.data[dstIndex + 1] = gray;
+								imageData.data[dstIndex + 2] = gray;
+								imageData.data[dstIndex + 3] = 255;
 							}
 						} else {
-							// For other encodings, copy data as-is or handle specifically
+							console.warn(
+								`Unknown image encoding: ${data.encoding}, attempting raw copy`,
+							);
 							imageData.data.set(
-								data.data.slice(0, imageData.data.length),
+								rawData.subarray(0, imageData.data.length),
 							);
 						}
-						return {
-							width: data.width,
-							height: data.height,
-							data: imageData,
-						};
+
+						return { __imageData: imageData };
 					},
 				},
 				"sensor_msgs/msg/CompressedImage": {
@@ -842,10 +878,20 @@ export class UnifiedConverter {
 						format: data.format,
 						data: data.data,
 					}),
-					fromRos2: (data: any) => ({
-						format: data.format,
-						data: data.data,
-					}),
+					fromRos2: (
+						data: any,
+					): { __compressedData: Uint8Array; __format: string } => {
+						// Return compressed data for async conversion to ImageBitmap
+						const rawData =
+							data.data instanceof Uint8Array
+								? data.data
+								: new Uint8Array(data.data);
+
+						return {
+							__compressedData: rawData,
+							__format: data.format?.toLowerCase() || "jpeg",
+						};
+					},
 				},
 			},
 		},

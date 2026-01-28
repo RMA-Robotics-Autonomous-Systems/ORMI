@@ -2,42 +2,42 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import {
 	useLocalDataSource,
 	SelectedTopic,
-	DatasourceTopic,
-	DatasourceTopicFilter,
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { Image } from "@workspace/ormi-core/types";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { CameraIcon, FileIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 function ImageViewer() {
 	const { sources } = useLocalDataSource();
 	const firstKey = Array.from(sources.keys())[0];
-	const image: Image | undefined = firstKey
+	const imageBitmap: Image | undefined = firstKey
 		? (sources.get(firstKey)?.data[0] as Image)
 		: undefined;
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
 	useEffect(() => {
-		if (image && canvasRef.current) {
-			const canvas = canvasRef.current;
-			const ctx = canvas.getContext("2d");
-
-			if (ctx) {
-				// Set canvas dimensions to match image
-				canvas.width = image.width;
-				canvas.height = image.height;
-
-				// Draw the ImageData to the canvas
-				ctx.putImageData(image.data, 0, 0);
-			}
+		if (!imageBitmap || !canvasRef.current) {
+			return;
 		}
-	}, [image]);
 
-	if (!image) {
+		// ImageBitmap: just draw it directly to canvas
+		const canvas = canvasRef.current;
+		const ctx = canvas.getContext("2d");
+
+		if (ctx && imageBitmap instanceof ImageBitmap) {
+			// Set canvas dimensions to match image
+			canvas.width = imageBitmap.width;
+			canvas.height = imageBitmap.height;
+
+			// Draw ImageBitmap directly - very efficient
+			ctx.drawImage(imageBitmap, 0, 0);
+		}
+	}, [imageBitmap]);
+
+	if (!imageBitmap) {
 		return (
 			<div
 				style={{
@@ -81,9 +81,7 @@ function ImageViewer() {
 }
 
 export function ImageViewerDefinition(): WidgetDefinition {
-	const pluginsManager = usePluginsManager();
-
-	interface JsonViewerProps {
+	interface ImageViewerProps {
 		title: string;
 		topic: SelectedTopic;
 	}
@@ -121,10 +119,7 @@ export function ImageViewerDefinition(): WidgetDefinition {
 					scope: "#/properties/topic",
 					options: {
 						dataRequirements: {
-							accepts: [
-								"sensor_msgs/Image",
-								"sensor_msgs/CompressedImage",
-							], // Accept various image types
+							accepts: ["Image"], // Accept Image webtype
 						},
 					},
 				} as TopicSelectElement,
@@ -134,7 +129,7 @@ export function ImageViewerDefinition(): WidgetDefinition {
 		data: {
 			title: "Image viewer",
 		},
-		Component: (data: JsonViewerProps) => (
+		Component: (data: ImageViewerProps) => (
 			<LocalDataSourcesProvider
 				SelectedTopics={[data.topic]}
 				buffersSize={1}

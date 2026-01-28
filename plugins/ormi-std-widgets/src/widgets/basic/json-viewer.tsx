@@ -2,16 +2,47 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import {
 	useLocalDataSource,
 	SelectedTopic,
-	DatasourceTopic,
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { FileIcon } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+
+// Maximum characters to display to prevent memory issues with large data
+const MAX_JSON_LENGTH = 10000;
 
 function JsonViewer() {
 	const { sources } = useLocalDataSource();
+	const [displayData, setDisplayData] = useState<string>("");
+	const lastUpdateRef = useRef<number>(0);
+
+	// Throttle updates to prevent excessive re-renders and string allocations
+	useEffect(() => {
+		const now = Date.now();
+		// Only update every 100ms (10Hz) to reduce memory pressure
+		if (now - lastUpdateRef.current < 100) {
+			return;
+		}
+		lastUpdateRef.current = now;
+
+		// Extract only the latest value from each source, not the entire buffer
+		const latestValues: Record<string, unknown> = {};
+		sources.forEach((source, key) => {
+			if (source.data.length > 0) {
+				latestValues[key] = source.data[source.data.length - 1];
+			}
+		});
+
+		let jsonStr = JSON.stringify(latestValues, null, 2);
+
+		// Truncate if too long to prevent memory issues
+		if (jsonStr.length > MAX_JSON_LENGTH) {
+			jsonStr = jsonStr.substring(0, MAX_JSON_LENGTH) + "\n... (truncated)";
+		}
+
+		setDisplayData(jsonStr);
+	}, [sources]);
 
 	return (
 		<div style={{ height: "100%", overflow: "auto", display: "grid" }}>
@@ -23,15 +54,13 @@ function JsonViewer() {
 					color: "white",
 				}}
 			>
-				{JSON.stringify(Array.from(sources.values()), null, 2)}
+				{displayData}
 			</pre>
 		</div>
 	);
 }
 
 export function JsonViewerDefinition(): WidgetDefinition {
-	const pluginsManager = usePluginsManager();
-
 	interface JsonViewerProps {
 		title: string;
 		topic: SelectedTopic;

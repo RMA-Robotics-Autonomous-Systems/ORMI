@@ -4,6 +4,7 @@ import PathLocalMarker from "./widgets/maps/local-components/marker-path-local";
 import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 // import PointCloudLocalMarker from "./widgets/maps/marker-pointcloud-local";
 import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-types";
+import { registerDefaultTopicPreviews } from "./widgets/basic/topic-previews";
 
 class PluginA extends Plugin {
 	constructor() {
@@ -14,6 +15,9 @@ class PluginA extends Plugin {
 		this.version = "1.0.0";
 		this.author = "Lbcqu Florian";
 		this.email = "florian.lebecque@mil.be";
+
+		// Register topic preview components
+		registerDefaultTopicPreviews();
 
 		const widgetFilter = {
 			id: this.name + "-widget-export",
