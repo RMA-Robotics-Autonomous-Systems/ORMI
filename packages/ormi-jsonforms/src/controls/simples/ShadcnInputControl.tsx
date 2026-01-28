@@ -32,60 +32,60 @@ import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
 
 export interface WithInput {
-  input: any;
+	input: any;
 }
 
 export const ShadcnInputControl = (props: ControlProps & WithInput) => {
-  const {
-    id,
-    description,
-    errors,
-    label,
-    uischema,
-    visible,
-    required,
-    config,
-    input: InnerComponent,
-  } = props;
+	const {
+		id,
+		description,
+		errors,
+		label,
+		uischema,
+		visible,
+		required,
+		config,
+		input: InnerComponent,
+	} = props;
 
-  const isValid = errors.length === 0;
-  const appliedUiSchemaOptions = merge({}, config, uischema.options);
+	const isValid = errors.length === 0;
+	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-  const showDescription = !isDescriptionHidden(
-    visible,
-    description,
-    true,
-    appliedUiSchemaOptions.showUnfocusedDescription,
-  );
+	const showDescription = !isDescriptionHidden(
+		visible,
+		description,
+		true,
+		appliedUiSchemaOptions.showUnfocusedDescription,
+	);
 
-  if (!visible) {
-    return null;
-  }
+	if (!visible) {
+		return null;
+	}
 
-  return (
-    <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-      <Label
-        htmlFor={id}
-        className={cn(
-          "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-          required && "after:text-red-500 after:content-['*']",
-        )}
-      >
-        {label}
-      </Label>
+	return (
+		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			<Label
+				htmlFor={id}
+				className={cn(
+					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+					required && "after:text-red-500 after:content-['*']",
+				)}
+			>
+				{label}
+			</Label>
 
-      <InnerComponent
-        className={cn("w-full", !isValid && "border-red-500")}
-        {...props}
-      />
+			<InnerComponent
+				className={cn("w-full", !isValid && "border-red-500")}
+				{...props}
+			/>
 
-      {showDescription && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
+			{showDescription && (
+				<p className="text-sm text-muted-foreground">{description}</p>
+			)}
 
-      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
-    </div>
-  );
+			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+		</div>
+	);
 };
 
 export default ShadcnInputControl;

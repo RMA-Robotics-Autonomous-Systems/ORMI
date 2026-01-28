@@ -15,10 +15,10 @@ import { transformTreesAtom, transformFrameCountAtom } from "./transform-atoms";
  * No provider needed - works anywhere in the app
  */
 export function useTransformSource(): {
-  transformsTrees: Map<string, TransformTree>;
+	transformsTrees: Map<string, TransformTree>;
 } {
-  const transformsTrees = useAtomValue(transformTreesAtom);
-  return { transformsTrees };
+	const transformsTrees = useAtomValue(transformTreesAtom);
+	return { transformsTrees };
 }
 
 /**
@@ -26,5 +26,5 @@ export function useTransformSource(): {
  * Useful for debugging/status displays
  */
 export function useTransformFrameCount(): number {
-  return useAtomValue(transformFrameCountAtom);
+	return useAtomValue(transformFrameCountAtom);
 }

@@ -9,9 +9,9 @@
 import { useAtomValue } from "jotai";
 import { TransformTree } from "../types";
 import {
-  transformTreesAtom,
-  transformFrameCountAtom,
-  transformStore,
+	transformTreesAtom,
+	transformFrameCountAtom,
+	transformStore,
 } from "./transform-atoms";
 
 /**
@@ -19,12 +19,12 @@ import {
  * Uses the shared transformStore to ensure consistency with processTFMessage
  */
 export function useTransformSource(): {
-  transformsTrees: Map<string, TransformTree>;
+	transformsTrees: Map<string, TransformTree>;
 } {
-  const transformsTrees = useAtomValue(transformTreesAtom, {
-    store: transformStore,
-  });
-  return { transformsTrees };
+	const transformsTrees = useAtomValue(transformTreesAtom, {
+		store: transformStore,
+	});
+	return { transformsTrees };
 }
 
 /**
@@ -32,5 +32,5 @@ export function useTransformSource(): {
  * Useful for debugging/status displays
  */
 export function useTransformFrameCount(): number {
-  return useAtomValue(transformFrameCountAtom, { store: transformStore });
+	return useAtomValue(transformFrameCountAtom, { store: transformStore });
 }

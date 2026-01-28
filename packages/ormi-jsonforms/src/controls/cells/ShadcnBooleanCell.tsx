@@ -25,31 +25,31 @@
 "use client";
 import React from "react";
 import {
-  CellProps,
-  isBooleanControl,
-  RankedTester,
-  rankWith,
-  WithClassname,
+	CellProps,
+	isBooleanControl,
+	RankedTester,
+	rankWith,
+	WithClassname,
 } from "@jsonforms/core";
 import { withJsonFormsCellProps } from "@jsonforms/react";
 import { Switch } from "@workspace/ui/components/switch";
 
 export const ShadcnBooleanCell = (props: CellProps & WithClassname) => {
-  const { data, id, enabled, handleChange } = props;
+	const { data, id, enabled, handleChange } = props;
 
-  return (
-    <Switch
-      id={id}
-      checked={data ?? false}
-      disabled={!enabled}
-      onCheckedChange={(checked) => handleChange(id, checked)}
-    />
-  );
+	return (
+		<Switch
+			id={id}
+			checked={data ?? false}
+			disabled={!enabled}
+			onCheckedChange={(checked) => handleChange(id, checked)}
+		/>
+	);
 };
 
 export const shadcnBooleanCellTester: RankedTester = rankWith(
-  3,
-  isBooleanControl,
+	3,
+	isBooleanControl,
 );
 
 export default withJsonFormsCellProps(ShadcnBooleanCell);

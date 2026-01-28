@@ -65,11 +65,11 @@ Common properties for all templates:
 
 ```typescript
 interface BaseTemplate {
-  name: string; // User-assigned name
-  public: boolean; // Visibility (future: sharing)
-  tags: string[]; // Organization/search tags
-  yours: boolean; // Ownership flag
-  type: TemplateType; // Discriminator
+	name: string; // User-assigned name
+	public: boolean; // Visibility (future: sharing)
+	tags: string[]; // Organization/search tags
+	yours: boolean; // Ownership flag
+	type: TemplateType; // Discriminator
 }
 ```
 
@@ -79,8 +79,8 @@ Saves a configured widget:
 
 ```typescript
 interface WidgetTemplate extends BaseTemplate {
-  type: "widget";
-  widget: Widget; // Complete widget instance
+	type: "widget";
+	widget: Widget; // Complete widget instance
 }
 ```
 
@@ -88,28 +88,28 @@ interface WidgetTemplate extends BaseTemplate {
 
 ```typescript
 const widgetTemplate: WidgetTemplate = {
-  name: "Motor Temperature Gauge",
-  type: "widget",
-  public: false,
-  tags: ["motor", "temperature", "monitoring"],
-  yours: true,
-  widget: {
-    widget_id: "gauge-widget",
-    box_id: "", // Empty for templates
-    title: "Motor Temperature",
-    settings: {
-      title: "Motor Temperature",
-      datasource: {
-        topic: "/motor/temp",
-        datasource_id: "ros-1",
-        type: "number",
-        property: "temperature",
-      },
-      min: 0,
-      max: 150,
-      unit: "°C",
-    },
-  },
+	name: "Motor Temperature Gauge",
+	type: "widget",
+	public: false,
+	tags: ["motor", "temperature", "monitoring"],
+	yours: true,
+	widget: {
+		widget_id: "gauge-widget",
+		box_id: "", // Empty for templates
+		title: "Motor Temperature",
+		settings: {
+			title: "Motor Temperature",
+			datasource: {
+				topic: "/motor/temp",
+				datasource_id: "ros-1",
+				type: "number",
+				property: "temperature",
+			},
+			min: 0,
+			max: 150,
+			unit: "°C",
+		},
+	},
 };
 ```
 
@@ -119,8 +119,8 @@ Saves a configured datasource:
 
 ```typescript
 interface DatasourceTemplate extends BaseTemplate {
-  type: "datasource";
-  datasource: Datasource; // Complete datasource instance
+	type: "datasource";
+	datasource: Datasource; // Complete datasource instance
 }
 ```
 
@@ -128,21 +128,21 @@ interface DatasourceTemplate extends BaseTemplate {
 
 ```typescript
 const datasourceTemplate: DatasourceTemplate = {
-  name: "Local ROS2 Bridge",
-  type: "datasource",
-  public: false,
-  tags: ["ros2", "local", "development"],
-  yours: true,
-  datasource: {
-    datasource_id: "rosbridge-suite",
-    title: "Local ROS2",
-    settings: {
-      id: "local-ros2",
-      title: "Local ROS2",
-      enable: true,
-      url: "ws://localhost:9090",
-    },
-  },
+	name: "Local ROS2 Bridge",
+	type: "datasource",
+	public: false,
+	tags: ["ros2", "local", "development"],
+	yours: true,
+	datasource: {
+		datasource_id: "rosbridge-suite",
+		title: "Local ROS2",
+		settings: {
+			id: "local-ros2",
+			title: "Local ROS2",
+			enable: true,
+			url: "ws://localhost:9090",
+		},
+	},
 };
 ```
 
@@ -162,16 +162,16 @@ React context provider that manages template lifecycle.
 
 ```typescript
 interface TemplatesProviderProps {
-  children: React.ReactNode;
+	children: React.ReactNode;
 
-  // Persistence callbacks
-  addTemplate: (template: Template) => Promise<string>;
-  removeTemplate: (template_id: string) => Promise<boolean>;
-  updateTemplate: (
-    template_id: string,
-    updatedTemplate: Template,
-  ) => Promise<boolean>;
-  onLoad: () => Promise<Map<string, Template>>;
+	// Persistence callbacks
+	addTemplate: (template: Template) => Promise<string>;
+	removeTemplate: (template_id: string) => Promise<boolean>;
+	updateTemplate: (
+		template_id: string,
+		updatedTemplate: Template,
+	) => Promise<boolean>;
+	onLoad: () => Promise<Map<string, Template>>;
 }
 ```
 
@@ -179,17 +179,17 @@ interface TemplatesProviderProps {
 
 ```typescript
 interface TemplatesProviderContextInterface {
-  templates: Map<string, Template>;
+	templates: Map<string, Template>;
 
-  // Template management
-  addTemplate: (template: Template, key?: string) => void;
-  removeTemplate: (id: string) => void;
-  updateTemplate: (id: string, updatedTemplate: Template) => void;
+	// Template management
+	addTemplate: (template: Template, key?: string) => void;
+	removeTemplate: (id: string) => void;
+	updateTemplate: (id: string, updatedTemplate: Template) => void;
 
-  // Filtering utilities
-  getTemplatesByType: (type: TemplateType) => Map<string, Template>;
-  getWidgetTemplates: () => Map<string, WidgetTemplate>;
-  getDatasourceTemplates: () => Map<string, DatasourceTemplate>;
+	// Filtering utilities
+	getTemplatesByType: (type: TemplateType) => Map<string, Template>;
+	getWidgetTemplates: () => Map<string, WidgetTemplate>;
+	getDatasourceTemplates: () => Map<string, DatasourceTemplate>;
 }
 ```
 
@@ -244,16 +244,16 @@ Access templates context:
 import { useTemplates } from "@workspace/ormi-core/templates";
 
 function MyComponent() {
-  const {
-    templates,
-    addTemplate,
-    removeTemplate,
-    updateTemplate,
-    getWidgetTemplates,
-    getDatasourceTemplates,
-  } = useTemplates();
+	const {
+		templates,
+		addTemplate,
+		removeTemplate,
+		updateTemplate,
+		getWidgetTemplates,
+		getDatasourceTemplates,
+	} = useTemplates();
 
-  // Use templates...
+	// Use templates...
 }
 ```
 
@@ -266,20 +266,20 @@ Default persistence uses browser localStorage:
 ```typescript
 // templates-localstorage.tsx
 export const temphandleLoad = (): Map<string, Template> => {
-  const templates = localStorage.getItem("ormi_templates");
+	const templates = localStorage.getItem("ormi_templates");
 
-  if (!templates) {
-    return new Map<string, Template>();
-  }
+	if (!templates) {
+		return new Map<string, Template>();
+	}
 
-  // Parse JSON object and convert to Map
-  return new Map(Object.entries(JSON.parse(templates)));
+	// Parse JSON object and convert to Map
+	return new Map(Object.entries(JSON.parse(templates)));
 };
 
 export const temphandleSave = (templates: Map<string, Template>) => {
-  // Convert Map to object for JSON serialization
-  const obj = Object.fromEntries(templates);
-  localStorage.setItem("ormi_templates", JSON.stringify(obj));
+	// Convert Map to object for JSON serialization
+	const obj = Object.fromEntries(templates);
+	localStorage.setItem("ormi_templates", JSON.stringify(obj));
 };
 ```
 
@@ -320,36 +320,36 @@ For server persistence, implement the same interface:
 
 ```typescript
 const handleAddTemplate = async (template: Template): Promise<string> => {
-  const response = await fetch("/api/templates", {
-    method: "POST",
-    body: JSON.stringify(template),
-  });
-  const { id } = await response.json();
-  return id;
+	const response = await fetch("/api/templates", {
+		method: "POST",
+		body: JSON.stringify(template),
+	});
+	const { id } = await response.json();
+	return id;
 };
 
 const handleRemoveTemplate = async (template_id: string): Promise<boolean> => {
-  const response = await fetch(`/api/templates/${template_id}`, {
-    method: "DELETE",
-  });
-  return response.ok;
+	const response = await fetch(`/api/templates/${template_id}`, {
+		method: "DELETE",
+	});
+	return response.ok;
 };
 
 const handleUpdateTemplate = async (
-  template_id: string,
-  updatedTemplate: Template,
+	template_id: string,
+	updatedTemplate: Template,
 ): Promise<boolean> => {
-  const response = await fetch(`/api/templates/${template_id}`, {
-    method: "PUT",
-    body: JSON.stringify(updatedTemplate),
-  });
-  return response.ok;
+	const response = await fetch(`/api/templates/${template_id}`, {
+		method: "PUT",
+		body: JSON.stringify(updatedTemplate),
+	});
+	return response.ok;
 };
 
 const handleLoad = async (): Promise<Map<string, Template>> => {
-  const response = await fetch("/api/templates");
-  const templates = await response.json();
-  return new Map(Object.entries(templates));
+	const response = await fetch("/api/templates");
+	const templates = await response.json();
+	return new Map(Object.entries(templates));
 };
 ```
 
@@ -440,31 +440,31 @@ import { AddDatasourceToTemplatesBtn } from '@workspace/ormi-core/templates';
 
 ```typescript
 export function AddDatasourceToTemplatesBtn(props: {
-  datasource: DatasourceDefinition;
-  settings: DatasourceProviderSettings;
+	datasource: DatasourceDefinition;
+	settings: DatasourceProviderSettings;
 }) {
-  const { addTemplate } = useTemplates();
+	const { addTemplate } = useTemplates();
 
-  const handleSave = () => {
-    const datasource: Datasource = {
-      datasource_id: props.datasource.id,
-      title: props.settings.title,
-      settings: props.settings,
-    };
+	const handleSave = () => {
+		const datasource: Datasource = {
+			datasource_id: props.datasource.id,
+			title: props.settings.title,
+			settings: props.settings,
+		};
 
-    const template: DatasourceTemplate = {
-      name: props.settings.title,
-      type: "datasource",
-      datasource: datasource,
-      public: false,
-      tags: [],
-      yours: true,
-    };
+		const template: DatasourceTemplate = {
+			name: props.settings.title,
+			type: "datasource",
+			datasource: datasource,
+			public: false,
+			tags: [],
+			yours: true,
+		};
 
-    addTemplate(template);
-  };
+		addTemplate(template);
+	};
 
-  // Similar UI to AddToTemplatesBtn
+	// Similar UI to AddToTemplatesBtn
 }
 ```
 
@@ -476,14 +476,14 @@ Main UI for browsing and managing templates.
 
 ```typescript
 interface WidgetTemplateDrawerProps {
-  templates: Map<string, Template>;
-  removeTemplate: (id: string) => void;
-  addWidget: (widget: WidgetDefinition, settings: object) => void;
-  addDatasource?: (
-    datasource_id: string,
-    settings: DatasourceProviderSettings,
-  ) => void;
-  updateTemplate?: (id: string, updatedTemplate: Template) => void;
+	templates: Map<string, Template>;
+	removeTemplate: (id: string) => void;
+	addWidget: (widget: WidgetDefinition, settings: object) => void;
+	addDatasource?: (
+		datasource_id: string,
+		settings: DatasourceProviderSettings,
+	) => void;
+	updateTemplate?: (id: string, updatedTemplate: Template) => void;
 }
 ```
 
@@ -529,28 +529,28 @@ const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
 // Get all unique tags
 const allTags = useMemo(() => {
-  const tags = new Set<string>();
-  Array.from(templates.values()).forEach((template) => {
-    template.tags?.forEach((tag) => tags.add(tag));
-  });
-  return Array.from(tags).sort();
+	const tags = new Set<string>();
+	Array.from(templates.values()).forEach((template) => {
+		template.tags?.forEach((tag) => tags.add(tag));
+	});
+	return Array.from(tags).sort();
 }, [templates]);
 
 // Filter templates
 const filteredTemplates = useMemo(() => {
-  return Array.from(templates.entries()).filter(([key, template]) => {
-    // Search filter
-    const matchesSearch =
-      searchQuery === "" ||
-      template.name.toLowerCase().includes(searchQuery.toLowerCase());
+	return Array.from(templates.entries()).filter(([key, template]) => {
+		// Search filter
+		const matchesSearch =
+			searchQuery === "" ||
+			template.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Tag filter
-    const matchesTags =
-      selectedTags.length === 0 ||
-      selectedTags.every((tag) => template.tags?.includes(tag));
+		// Tag filter
+		const matchesTags =
+			selectedTags.length === 0 ||
+			selectedTags.every((tag) => template.tags?.includes(tag));
 
-    return matchesSearch && matchesTags;
-  });
+		return matchesSearch && matchesTags;
+	});
 }, [templates, searchQuery, selectedTags]);
 ```
 
@@ -561,19 +561,19 @@ Templates are separated by type and ownership:
 ```typescript
 // Your widget templates
 const yourWidgetTemplates = filteredTemplates
-  .filter(([key, template]) => template.type === "widget" && template.yours)
-  .reduce((acc, [key, template]) => {
-    acc.set(key, template as WidgetTemplate);
-    return acc;
-  }, new Map<string, WidgetTemplate>());
+	.filter(([key, template]) => template.type === "widget" && template.yours)
+	.reduce((acc, [key, template]) => {
+		acc.set(key, template as WidgetTemplate);
+		return acc;
+	}, new Map<string, WidgetTemplate>());
 
 // Public widget templates
 const publicWidgetTemplates = filteredTemplates
-  .filter(([key, template]) => template.type === "widget" && !template.yours)
-  .reduce((acc, [key, template]) => {
-    acc.set(key, template as WidgetTemplate);
-    return acc;
-  }, new Map<string, WidgetTemplate>());
+	.filter(([key, template]) => template.type === "widget" && !template.yours)
+	.reduce((acc, [key, template]) => {
+		acc.set(key, template as WidgetTemplate);
+		return acc;
+	}, new Map<string, WidgetTemplate>());
 
 // Similar for datasources...
 ```
@@ -582,74 +582,77 @@ const publicWidgetTemplates = filteredTemplates
 
 ```tsx
 <Sheet>
-  <SheetTrigger asChild>
-    <Button variant="ghost">Templates</Button>
-  </SheetTrigger>
-  <SheetContent className="w-[50%] min-w-[300px]">
-    <SheetHeader>
-      <SheetTitle>Saved widgets</SheetTitle>
-    </SheetHeader>
+	<SheetTrigger asChild>
+		<Button variant="ghost">Templates</Button>
+	</SheetTrigger>
+	<SheetContent className="w-[50%] min-w-[300px]">
+		<SheetHeader>
+			<SheetTitle>Saved widgets</SheetTitle>
+		</SheetHeader>
 
-    {/* Search Box */}
-    <Input
-      placeholder="Search templates..."
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-    />
+		{/* Search Box */}
+		<Input
+			placeholder="Search templates..."
+			value={searchQuery}
+			onChange={(e) => setSearchQuery(e.target.value)}
+		/>
 
-    {/* Tag Filter */}
-    <div className="flex flex-wrap gap-2">
-      {allTags.map((tag) => (
-        <Badge
-          variant={selectedTags.includes(tag) ? "default" : "outline"}
-          onClick={() => handleTagToggle(tag)}
-        >
-          {tag}
-        </Badge>
-      ))}
-    </div>
+		{/* Tag Filter */}
+		<div className="flex flex-wrap gap-2">
+			{allTags.map((tag) => (
+				<Badge
+					variant={selectedTags.includes(tag) ? "default" : "outline"}
+					onClick={() => handleTagToggle(tag)}
+				>
+					{tag}
+				</Badge>
+			))}
+		</div>
 
-    {/* Tabs */}
-    <Tabs defaultValue="widgets">
-      <TabsList>
-        <TabsTrigger value="widgets">Widgets</TabsTrigger>
-        <TabsTrigger value="datasources">Datasources</TabsTrigger>
-      </TabsList>
+		{/* Tabs */}
+		<Tabs defaultValue="widgets">
+			<TabsList>
+				<TabsTrigger value="widgets">Widgets</TabsTrigger>
+				<TabsTrigger value="datasources">Datasources</TabsTrigger>
+			</TabsList>
 
-      <TabsContent value="widgets">
-        <Accordion type="single" defaultValue="user-widgets">
-          <AccordionItem value="user-widgets">
-            <AccordionTrigger>
-              Your widget templates ({yourWidgetTemplates.size})
-            </AccordionTrigger>
-            <AccordionContent>
-              {Array.from(yourWidgetTemplates.entries()).map(
-                ([key, template]) => (
-                  <TemplateComponent
-                    key={key}
-                    templateId={key}
-                    template={template}
-                    {...actions}
-                  />
-                ),
-              )}
-            </AccordionContent>
-          </AccordionItem>
+			<TabsContent value="widgets">
+				<Accordion type="single" defaultValue="user-widgets">
+					<AccordionItem value="user-widgets">
+						<AccordionTrigger>
+							Your widget templates ({yourWidgetTemplates.size})
+						</AccordionTrigger>
+						<AccordionContent>
+							{Array.from(yourWidgetTemplates.entries()).map(
+								([key, template]) => (
+									<TemplateComponent
+										key={key}
+										templateId={key}
+										template={template}
+										{...actions}
+									/>
+								),
+							)}
+						</AccordionContent>
+					</AccordionItem>
 
-          <AccordionItem value="public-widgets">
-            <AccordionTrigger>
-              Public widget templates ({publicWidgetTemplates.size})
-            </AccordionTrigger>
-            <AccordionContent>{/* Public templates */}</AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </TabsContent>
+					<AccordionItem value="public-widgets">
+						<AccordionTrigger>
+							Public widget templates (
+							{publicWidgetTemplates.size})
+						</AccordionTrigger>
+						<AccordionContent>
+							{/* Public templates */}
+						</AccordionContent>
+					</AccordionItem>
+				</Accordion>
+			</TabsContent>
 
-      <TabsContent value="datasources">
-        {/* Similar structure for datasources */}
-      </TabsContent>
-    </Tabs>
-  </SheetContent>
+			<TabsContent value="datasources">
+				{/* Similar structure for datasources */}
+			</TabsContent>
+		</Tabs>
+	</SheetContent>
 </Sheet>
 ```
 
@@ -744,34 +747,36 @@ Similar to TemplateComponent but for datasources:
 
 ```typescript
 interface DatasourceTemplateProps {
-  template: DatasourceTemplate;
-  templateId: string;
-  removeTemplate: (id: string) => void;
-  addDatasource: (
-    datasource_id: string,
-    settings: DatasourceProviderSettings,
-  ) => void;
-  availableDatasources: DatasourceDefinition[];
-  updateTemplate?: (id: string, updatedTemplate: DatasourceTemplate) => void;
+	template: DatasourceTemplate;
+	templateId: string;
+	removeTemplate: (id: string) => void;
+	addDatasource: (
+		datasource_id: string,
+		settings: DatasourceProviderSettings,
+	) => void;
+	availableDatasources: DatasourceDefinition[];
+	updateTemplate?: (id: string, updatedTemplate: DatasourceTemplate) => void;
 }
 
 export const DatasourceTemplateComponent = (props: DatasourceTemplateProps) => {
-  // Similar structure to TemplateComponent
+	// Similar structure to TemplateComponent
 
-  const handleAdd = () => {
-    const definition = availableDatasources.find(
-      (d) => d.id === template.datasource.datasource_id,
-    );
+	const handleAdd = () => {
+		const definition = availableDatasources.find(
+			(d) => d.id === template.datasource.datasource_id,
+		);
 
-    if (!definition) {
-      toast("Datasource unavailable: " + template.datasource.datasource_id);
-      return;
-    }
+		if (!definition) {
+			toast(
+				"Datasource unavailable: " + template.datasource.datasource_id,
+			);
+			return;
+		}
 
-    props.addDatasource(definition.id, template.datasource.settings);
-  };
+		props.addDatasource(definition.id, template.datasource.settings);
+	};
 
-  // Similar UI...
+	// Similar UI...
 };
 ```
 
@@ -783,33 +788,33 @@ Users can edit template properties:
 
 ```typescript
 const [editedTemplate, setEditedTemplate] = useState<WidgetTemplate>({
-  ...template,
+	...template,
 });
 const [newTag, setNewTag] = useState("");
 
 const handleSaveOptions = () => {
-  if (props.updateTemplate) {
-    props.updateTemplate(templateId, editedTemplate);
-    toast("Template updated successfully");
-  }
-  setOptionsOpen(false);
+	if (props.updateTemplate) {
+		props.updateTemplate(templateId, editedTemplate);
+		toast("Template updated successfully");
+	}
+	setOptionsOpen(false);
 };
 
 const addTag = () => {
-  if (newTag.trim() && !editedTemplate.tags.includes(newTag.trim())) {
-    setEditedTemplate((prev) => ({
-      ...prev,
-      tags: [...prev.tags, newTag.trim()],
-    }));
-    setNewTag("");
-  }
+	if (newTag.trim() && !editedTemplate.tags.includes(newTag.trim())) {
+		setEditedTemplate((prev) => ({
+			...prev,
+			tags: [...prev.tags, newTag.trim()],
+		}));
+		setNewTag("");
+	}
 };
 
 const removeTag = (tagToRemove: string) => {
-  setEditedTemplate((prev) => ({
-    ...prev,
-    tags: prev.tags.filter((tag) => tag !== tagToRemove),
-  }));
+	setEditedTemplate((prev) => ({
+		...prev,
+		tags: prev.tags.filter((tag) => tag !== tagToRemove),
+	}));
 };
 ```
 
@@ -817,76 +822,76 @@ const removeTag = (tagToRemove: string) => {
 
 ```tsx
 <DialogContent className="max-w-md">
-  <DialogHeader>
-    <DialogTitle>Template Options</DialogTitle>
-  </DialogHeader>
+	<DialogHeader>
+		<DialogTitle>Template Options</DialogTitle>
+	</DialogHeader>
 
-  <div className="space-y-4">
-    {/* Name */}
-    <div>
-      <Label htmlFor="template-name">Template Name</Label>
-      <Input
-        id="template-name"
-        value={editedTemplate.name}
-        onChange={(e) =>
-          setEditedTemplate((prev) => ({
-            ...prev,
-            name: e.target.value,
-          }))
-        }
-      />
-    </div>
+	<div className="space-y-4">
+		{/* Name */}
+		<div>
+			<Label htmlFor="template-name">Template Name</Label>
+			<Input
+				id="template-name"
+				value={editedTemplate.name}
+				onChange={(e) =>
+					setEditedTemplate((prev) => ({
+						...prev,
+						name: e.target.value,
+					}))
+				}
+			/>
+		</div>
 
-    {/* Public Toggle */}
-    <div className="flex items-center space-x-2">
-      <Switch
-        id="public-toggle"
-        checked={editedTemplate.public}
-        onCheckedChange={(checked) =>
-          setEditedTemplate((prev) => ({
-            ...prev,
-            public: checked,
-          }))
-        }
-      />
-      <Label htmlFor="public-toggle">Make template public</Label>
-    </div>
+		{/* Public Toggle */}
+		<div className="flex items-center space-x-2">
+			<Switch
+				id="public-toggle"
+				checked={editedTemplate.public}
+				onCheckedChange={(checked) =>
+					setEditedTemplate((prev) => ({
+						...prev,
+						public: checked,
+					}))
+				}
+			/>
+			<Label htmlFor="public-toggle">Make template public</Label>
+		</div>
 
-    {/* Tags */}
-    <div>
-      <Label>Tags</Label>
-      <div className="flex gap-2 mb-2 flex-wrap">
-        {editedTemplate.tags.map((tag) => (
-          <Badge
-            key={tag}
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => removeTag(tag)}
-          >
-            {tag} <XIcon className="h-3 w-3 ml-1" />
-          </Badge>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <Input
-          placeholder="Add tag"
-          value={newTag}
-          onChange={(e) => setNewTag(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && addTag()}
-        />
-        <Button type="button" variant="outline" onClick={addTag}>
-          Add
-        </Button>
-      </div>
-    </div>
-  </div>
+		{/* Tags */}
+		<div>
+			<Label>Tags</Label>
+			<div className="flex gap-2 mb-2 flex-wrap">
+				{editedTemplate.tags.map((tag) => (
+					<Badge
+						key={tag}
+						variant="outline"
+						className="cursor-pointer"
+						onClick={() => removeTag(tag)}
+					>
+						{tag} <XIcon className="h-3 w-3 ml-1" />
+					</Badge>
+				))}
+			</div>
+			<div className="flex gap-2">
+				<Input
+					placeholder="Add tag"
+					value={newTag}
+					onChange={(e) => setNewTag(e.target.value)}
+					onKeyPress={(e) => e.key === "Enter" && addTag()}
+				/>
+				<Button type="button" variant="outline" onClick={addTag}>
+					Add
+				</Button>
+			</div>
+		</div>
+	</div>
 
-  <DialogFooter>
-    <Button variant="outline" onClick={() => setOptionsOpen(false)}>
-      Cancel
-    </Button>
-    <Button onClick={handleSaveOptions}>Save Changes</Button>
-  </DialogFooter>
+	<DialogFooter>
+		<Button variant="outline" onClick={() => setOptionsOpen(false)}>
+			Cancel
+		</Button>
+		<Button onClick={handleSaveOptions}>Save Changes</Button>
+	</DialogFooter>
 </DialogContent>
 ```
 
@@ -921,16 +926,16 @@ Avoid hooks in event handlers by pre-fetching:
 // At component level (not in event handler)
 const pluginsManager = usePluginsManager();
 const availableWidgets = pluginsManager.applyFilter<WidgetDefinition[]>(
-  PluginsHooks.WIDGETS_LIST,
-  [],
+	PluginsHooks.WIDGETS_LIST,
+	[],
 );
 
 // In event handler
 const handleAdd = () => {
-  const definition = availableWidgets.find(
-    (w) => w.id === template.widget.widget_id,
-  );
-  // Use definition...
+	const definition = availableWidgets.find(
+		(w) => w.id === template.widget.widget_id,
+	);
+	// Use definition...
 };
 ```
 
@@ -940,19 +945,19 @@ const handleAdd = () => {
 
 ```typescript
 const template: WidgetTemplate = {
-  name: "IMU Visualization",
-  type: "widget",
-  public: false,
-  tags: ["imu", "sensors", "visualization", "3d"],
-  yours: true,
-  widget: {
-    widget_id: "imu-visualizer",
-    box_id: "",
-    title: "IMU Data",
-    settings: {
-      /* ... */
-    },
-  },
+	name: "IMU Visualization",
+	type: "widget",
+	public: false,
+	tags: ["imu", "sensors", "visualization", "3d"],
+	yours: true,
+	widget: {
+		widget_id: "imu-visualizer",
+		box_id: "",
+		title: "IMU Data",
+		settings: {
+			/* ... */
+		},
+	},
 };
 ```
 
@@ -966,14 +971,14 @@ const template: WidgetTemplate = {
 
 ```typescript
 const template: WidgetTemplate = {
-  name: "Standard Temperature Gauge",
-  type: "widget",
-  public: true, // Shareable
-  tags: ["community", "standard", "temperature"],
-  yours: false, // From another user
-  widget: {
-    /* ... */
-  },
+	name: "Standard Temperature Gauge",
+	type: "widget",
+	public: true, // Shareable
+	tags: ["community", "standard", "temperature"],
+	yours: false, // From another user
+	widget: {
+		/* ... */
+	},
 };
 ```
 
@@ -987,21 +992,21 @@ const template: WidgetTemplate = {
 
 ```typescript
 const motorTemplates: WidgetTemplate[] = [
-  {
-    name: "Motor Speed",
-    tags: ["motor", "speed", "rpm"],
-    // ...
-  },
-  {
-    name: "Motor Temperature",
-    tags: ["motor", "temperature", "monitoring"],
-    // ...
-  },
-  {
-    name: "Motor Current",
-    tags: ["motor", "current", "power"],
-    // ...
-  },
+	{
+		name: "Motor Speed",
+		tags: ["motor", "speed", "rpm"],
+		// ...
+	},
+	{
+		name: "Motor Temperature",
+		tags: ["motor", "temperature", "monitoring"],
+		// ...
+	},
+	{
+		name: "Motor Current",
+		tags: ["motor", "current", "power"],
+		// ...
+	},
 ];
 
 motorTemplates.forEach((template) => addTemplate(template));
@@ -1011,29 +1016,29 @@ motorTemplates.forEach((template) => addTemplate(template));
 
 ```typescript
 function Dashboard() {
-  const { widgets } = useDashboardManager();
-  const { addTemplate } = useTemplates();
+	const { widgets } = useDashboardManager();
+	const { addTemplate } = useTemplates();
 
-  const saveWidgetAsTemplate = (box_id: string, name: string) => {
-    const widget = widgets.get(box_id);
-    if (!widget) return;
+	const saveWidgetAsTemplate = (box_id: string, name: string) => {
+		const widget = widgets.get(box_id);
+		if (!widget) return;
 
-    const template: WidgetTemplate = {
-      name: name,
-      type: "widget",
-      public: false,
-      tags: [],
-      yours: true,
-      widget: {
-        ...widget,
-        box_id: "", // Clear box_id for templates
-      },
-    };
+		const template: WidgetTemplate = {
+			name: name,
+			type: "widget",
+			public: false,
+			tags: [],
+			yours: true,
+			widget: {
+				...widget,
+				box_id: "", // Clear box_id for templates
+			},
+		};
 
-    addTemplate(template);
-  };
+		addTemplate(template);
+	};
 
-  // Usage in dashboard UI
+	// Usage in dashboard UI
 }
 ```
 
@@ -1042,28 +1047,28 @@ function Dashboard() {
 ```typescript
 // Export all templates
 const exportTemplates = () => {
-  const templates = useTemplates().templates;
-  const json = JSON.stringify(Object.fromEntries(templates));
+	const templates = useTemplates().templates;
+	const json = JSON.stringify(Object.fromEntries(templates));
 
-  // Download as file
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ormi-templates.json";
-  a.click();
+	// Download as file
+	const blob = new Blob([json], { type: "application/json" });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = "ormi-templates.json";
+	a.click();
 };
 
 // Import templates
 const importTemplates = async (file: File) => {
-  const text = await file.text();
-  const imported = JSON.parse(text);
+	const text = await file.text();
+	const imported = JSON.parse(text);
 
-  const { addTemplate } = useTemplates();
+	const { addTemplate } = useTemplates();
 
-  for (const [key, template] of Object.entries(imported)) {
-    await addTemplate(template as Template);
-  }
+	for (const [key, template] of Object.entries(imported)) {
+		await addTemplate(template as Template);
+	}
 };
 ```
 
@@ -1189,20 +1194,20 @@ Check for completeness:
 
 ```typescript
 const saveTemplate = (widget: Widget) => {
-  // Validate widget has required fields
-  if (!widget.widget_id || !widget.settings) {
-    toast("Cannot save incomplete widget");
-    return;
-  }
+	// Validate widget has required fields
+	if (!widget.widget_id || !widget.settings) {
+		toast("Cannot save incomplete widget");
+		return;
+	}
 
-  // Check if datasource topic is selected
-  if (widget.settings.datasource && !widget.settings.datasource.topic) {
-    toast("Widget has no data source selected");
-    return;
-  }
+	// Check if datasource topic is selected
+	if (widget.settings.datasource && !widget.settings.datasource.topic) {
+		toast("Widget has no data source selected");
+		return;
+	}
 
-  // Save template
-  addTemplate(/* ... */);
+	// Save template
+	addTemplate(/* ... */);
 };
 ```
 
@@ -1212,11 +1217,11 @@ Templates shouldn't have instance-specific IDs:
 
 ```typescript
 const template: WidgetTemplate = {
-  // ...
-  widget: {
-    ...widget,
-    box_id: "", // Clear for templates
-  },
+	// ...
+	widget: {
+		...widget,
+		box_id: "", // Clear for templates
+	},
 };
 ```
 
@@ -1226,21 +1231,21 @@ Gracefully handle deleted plugins:
 
 ```typescript
 const handleAdd = () => {
-  const definition = availableWidgets.find(
-    (w) => w.id === template.widget.widget_id,
-  );
+	const definition = availableWidgets.find(
+		(w) => w.id === template.widget.widget_id,
+	);
 
-  if (!definition) {
-    toast("Widget type unavailable. The plugin may have been removed.", {
-      action: {
-        label: "Remove Template",
-        onClick: () => removeTemplate(templateId),
-      },
-    });
-    return;
-  }
+	if (!definition) {
+		toast("Widget type unavailable. The plugin may have been removed.", {
+			action: {
+				label: "Remove Template",
+				onClick: () => removeTemplate(templateId),
+			},
+		});
+		return;
+	}
 
-  addWidget(definition, template.widget.settings);
+	addWidget(definition, template.widget.settings);
 };
 ```
 
@@ -1251,21 +1256,21 @@ Keep ownership clear:
 ```typescript
 // Saving your own template
 const template: WidgetTemplate = {
-  name: "My Custom Gauge",
-  public: false,
-  yours: true, // Your template
-  // ...
+	name: "My Custom Gauge",
+	public: false,
+	yours: true, // Your template
+	// ...
 };
 
 // Loading from server (future)
 const loadPublicTemplates = async () => {
-  const response = await fetch("/api/templates/public");
-  const templates = await response.json();
+	const response = await fetch("/api/templates/public");
+	const templates = await response.json();
 
-  templates.forEach((t) => {
-    t.yours = false; // Not your template
-    addTemplate(t);
-  });
+	templates.forEach((t) => {
+		t.yours = false; // Not your template
+		addTemplate(t);
+	});
 };
 ```
 
@@ -1275,12 +1280,12 @@ Group related templates:
 
 ```typescript
 const robotTemplates = {
-  widgets: [
-    { name: "Robot Position", tags: ["robot", "position"] },
-    { name: "Robot Battery", tags: ["robot", "battery"] },
-    { name: "Robot Camera", tags: ["robot", "camera"] },
-  ],
-  datasources: [{ name: "Robot ROS2", tags: ["robot", "ros2"] }],
+	widgets: [
+		{ name: "Robot Position", tags: ["robot", "position"] },
+		{ name: "Robot Battery", tags: ["robot", "battery"] },
+		{ name: "Robot Camera", tags: ["robot", "camera"] },
+	],
+	datasources: [{ name: "Robot ROS2", tags: ["robot", "ros2"] }],
 };
 ```
 
@@ -1326,32 +1331,32 @@ console.log("Datasource templates:", datasourceTemplates.size);
 ```typescript
 // Check available widgets
 const availableWidgets = pluginsManager.applyFilter(
-  PluginsHooks.WIDGETS_LIST,
-  [],
+	PluginsHooks.WIDGETS_LIST,
+	[],
 );
 console.log(
-  "Available widgets:",
-  availableWidgets.map((w) => w.id),
+	"Available widgets:",
+	availableWidgets.map((w) => w.id),
 );
 
 // Check if widget exists
 const widgetExists = availableWidgets.some(
-  (w) => w.id === template.widget.widget_id,
+	(w) => w.id === template.widget.widget_id,
 );
 console.log("Widget available:", widgetExists);
 
 // Validate settings
 try {
-  const definition = availableWidgets.find(
-    (w) => w.id === template.widget.widget_id,
-  );
-  if (definition) {
-    // Test if settings match schema
-    const valid = validate(definition.schema, template.widget.settings);
-    console.log("Settings valid:", valid);
-  }
+	const definition = availableWidgets.find(
+		(w) => w.id === template.widget.widget_id,
+	);
+	if (definition) {
+		// Test if settings match schema
+		const valid = validate(definition.schema, template.widget.settings);
+		console.log("Settings valid:", valid);
+	}
 } catch (error) {
-  console.error("Validation error:", error);
+	console.error("Validation error:", error);
 }
 ```
 
@@ -1368,35 +1373,35 @@ try {
 ```typescript
 // Check if update is called
 const updateTemplate = async (id: string, updated: Template) => {
-  console.log("Updating template:", id, updated);
+	console.log("Updating template:", id, updated);
 
-  try {
-    const success = await props.updateTemplate(id, updated);
-    if (!success) {
-      console.error("Update failed");
-      toast("Failed to save template changes");
-    }
-    return success;
-  } catch (error) {
-    console.error("Update error:", error);
-    toast("Error saving template: " + error.message);
-    return false;
-  }
+	try {
+		const success = await props.updateTemplate(id, updated);
+		if (!success) {
+			console.error("Update failed");
+			toast("Failed to save template changes");
+		}
+		return success;
+	} catch (error) {
+		console.error("Update error:", error);
+		toast("Error saving template: " + error.message);
+		return false;
+	}
 };
 
 // Check localStorage quota
 try {
-  const templates = localStorage.getItem("ormi_templates");
-  console.log("Storage size:", templates?.length || 0, "bytes");
+	const templates = localStorage.getItem("ormi_templates");
+	console.log("Storage size:", templates?.length || 0, "bytes");
 
-  // Test write
-  localStorage.setItem("ormi_test", "test");
-  localStorage.removeItem("ormi_test");
+	// Test write
+	localStorage.setItem("ormi_test", "test");
+	localStorage.removeItem("ormi_test");
 } catch (error) {
-  console.error("Storage error:", error);
-  if (error.name === "QuotaExceededError") {
-    toast("Storage quota exceeded. Clear old templates.");
-  }
+	console.error("Storage error:", error);
+	if (error.name === "QuotaExceededError") {
+		toast("Storage quota exceeded. Clear old templates.");
+	}
 }
 ```
 

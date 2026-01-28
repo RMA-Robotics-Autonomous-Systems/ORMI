@@ -73,101 +73,101 @@ import { createDatasourceWorker } from "@workspace/ormi-core/datasources/worker"
 import type { MyDatasourceSettings } from "./types";
 
 createDatasourceWorker<MyDatasourceSettings>((ctx) => {
-  let connection: WebSocket | null = null;
-  const subscriptions = new Map<string, number>(); // ref counting
+	let connection: WebSocket | null = null;
+	const subscriptions = new Map<string, number>(); // ref counting
 
-  return {
-    async init(settings) {
-      // Initialize connection
-      connection = new WebSocket(settings.url);
+	return {
+		async init(settings) {
+			// Initialize connection
+			connection = new WebSocket(settings.url);
 
-      connection.onmessage = (event) => {
-        const { topic, data } = JSON.parse(event.data);
+			connection.onmessage = (event) => {
+				const { topic, data } = JSON.parse(event.data);
 
-        // Publish to main thread with zero-copy
-        if (data.points instanceof Float32Array) {
-          ctx.publish(
-            topic,
-            { points: data.points },
-            Date.now(),
-            "sensor_frame",
-            [data.points.buffer], // Transferable!
-          );
-        } else {
-          ctx.publish(topic, data, Date.now());
-        }
-      };
+				// Publish to main thread with zero-copy
+				if (data.points instanceof Float32Array) {
+					ctx.publish(
+						topic,
+						{ points: data.points },
+						Date.now(),
+						"sensor_frame",
+						[data.points.buffer], // Transferable!
+					);
+				} else {
+					ctx.publish(topic, data, Date.now());
+				}
+			};
 
-      await new Promise((resolve, reject) => {
-        connection.onopen = resolve;
-        connection.onerror = reject;
-      });
-    },
+			await new Promise((resolve, reject) => {
+				connection.onopen = resolve;
+				connection.onerror = reject;
+			});
+		},
 
-    async listTopics() {
-      // Return available topics
-      return [
-        {
-          topic: "/sensor/data",
-          datasource_id: "", // Set by host
-          source: {}, // Set by host
-          type: "SensorData",
-          rawType: "sensor_msgs/SensorData",
-        },
-      ];
-    },
+		async listTopics() {
+			// Return available topics
+			return [
+				{
+					topic: "/sensor/data",
+					datasource_id: "", // Set by host
+					source: {}, // Set by host
+					type: "SensorData",
+					rawType: "sensor_msgs/SensorData",
+				},
+			];
+		},
 
-    async subscribe(topic) {
-      const count = subscriptions.get(topic.topic) || 0;
-      subscriptions.set(topic.topic, count + 1);
+		async subscribe(topic) {
+			const count = subscriptions.get(topic.topic) || 0;
+			subscriptions.set(topic.topic, count + 1);
 
-      if (count === 0) {
-        // First subscriber - start streaming
-        connection?.send(
-          JSON.stringify({
-            op: "subscribe",
-            topic: topic.topic,
-          }),
-        );
-      }
-    },
+			if (count === 0) {
+				// First subscriber - start streaming
+				connection?.send(
+					JSON.stringify({
+						op: "subscribe",
+						topic: topic.topic,
+					}),
+				);
+			}
+		},
 
-    async unsubscribe(topic, ignoreCount = false) {
-      if (ignoreCount) {
-        subscriptions.delete(topic.topic);
-        return;
-      }
+		async unsubscribe(topic, ignoreCount = false) {
+			if (ignoreCount) {
+				subscriptions.delete(topic.topic);
+				return;
+			}
 
-      const count = subscriptions.get(topic.topic) || 0;
-      if (count <= 1) {
-        subscriptions.delete(topic.topic);
-        // Last subscriber - stop streaming
-        connection?.send(
-          JSON.stringify({
-            op: "unsubscribe",
-            topic: topic.topic,
-          }),
-        );
-      } else {
-        subscriptions.set(topic.topic, count - 1);
-      }
-    },
+			const count = subscriptions.get(topic.topic) || 0;
+			if (count <= 1) {
+				subscriptions.delete(topic.topic);
+				// Last subscriber - stop streaming
+				connection?.send(
+					JSON.stringify({
+						op: "unsubscribe",
+						topic: topic.topic,
+					}),
+				);
+			} else {
+				subscriptions.set(topic.topic, count - 1);
+			}
+		},
 
-    async executeRemoteCall(definition, request, options) {
-      // Handle service calls
-      return { callId: "" };
-    },
+		async executeRemoteCall(definition, request, options) {
+			// Handle service calls
+			return { callId: "" };
+		},
 
-    async cancelRemoteCall(callId) {
-      return true;
-    },
+		async cancelRemoteCall(callId) {
+			return true;
+		},
 
-    async shutdown() {
-      // Clean up
-      connection?.close();
-      subscriptions.clear();
-    },
-  };
+		async shutdown() {
+			// Clean up
+			connection?.close();
+			subscriptions.clear();
+		},
+	};
 });
 ```
 
@@ -175,22 +175,22 @@ createDatasourceWorker<MyDatasourceSettings>((ctx) => {
 
 ```typescript
 interface DatasourceWorkerContext {
-  // Publish data to main thread
-  publish(
-    topic: string,
-    data: unknown,
-    time?: number,
-    referenceFrameId?: string,
-    transfer?: Transferable[],
-  ): void;
+	// Publish data to main thread
+	publish(
+		topic: string,
+		data: unknown,
+		time?: number,
+		referenceFrameId?: string,
+		transfer?: Transferable[],
+	): void;
 
-  // Register remote call definitions
-  setRemoteCalls(calls: RemoteCallDefinition[]): void;
+	// Register remote call definitions
+	setRemoteCalls(calls: RemoteCallDefinition[]): void;
 
-  // Emit remote call events
-  emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
-  emitRemoteCallFeedback(callId: string, feedback: unknown): void;
-  emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
+	// Emit remote call events
+	emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
+	emitRemoteCallFeedback(callId: string, feedback: unknown): void;
+	emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
 }
 ```
 
@@ -246,25 +246,25 @@ export function MyDatasourceProvider({ children, props }: {
 **WorkerDatasourceHost automatically:**
 
 1. **Registers PluginManager hooks:**
-   - `{datasource_id}-available-topics` - Lists topics
-   - `{datasource_id}-subscribe` - Forwards to worker
-   - `{datasource_id}-unsubscribe` - Forwards to worker
-   - `{datasource_id}-definition` - Returns settings
+    - `{datasource_id}-available-topics` - Lists topics
+    - `{datasource_id}-subscribe` - Forwards to worker
+    - `{datasource_id}-unsubscribe` - Forwards to worker
+    - `{datasource_id}-definition` - Returns settings
 
 2. **Manages RPC communication:**
-   - Type-safe method calls to worker
-   - Event handling from worker
-   - Error propagation
+    - Type-safe method calls to worker
+    - Event handling from worker
+    - Error propagation
 
 3. **Forwards published data:**
-   - Receives from worker
-   - Publishes via PluginManager
-   - Handles Transferable objects
+    - Receives from worker
+    - Publishes via PluginManager
+    - Handles Transferable objects
 
 4. **Lifecycle management:**
-   - Worker initialization
-   - Graceful shutdown (5s timeout)
-   - Error recovery
+    - Worker initialization
+    - Graceful shutdown (5s timeout)
+    - Error recovery
 
 ## DatasourceDefinition
 
@@ -324,18 +324,18 @@ export const MyDatasourceDefinition: DatasourceDefinition<MyDatasourceSettings> 
 
 ```typescript
 class MyPlugin extends Plugin {
-  constructor() {
-    super();
-    this.name = "My Plugin";
+	constructor() {
+		super();
+		this.name = "My Plugin";
 
-    this.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
-      id: "my-datasource-registration",
-      filter: (datasources) => {
-        datasources.push(MyDatasourceDefinition);
-        return datasources;
-      },
-    });
-  }
+		this.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
+			id: "my-datasource-registration",
+			filter: (datasources) => {
+				datasources.push(MyDatasourceDefinition);
+				return datasources;
+			},
+		});
+	}
 }
 ```
 
@@ -350,11 +350,11 @@ const points = new Float32Array(300000); // 300k points
 
 // Transfer ownership (zero-copy)
 ctx.publish(
-  "/scan/points",
-  { points },
-  Date.now(),
-  "lidar_frame",
-  [points.buffer], // Transferable array
+	"/scan/points",
+	{ points },
+	Date.now(),
+	"lidar_frame",
+	[points.buffer], // Transferable array
 );
 
 // After transfer, points.buffer is neutered in worker
@@ -381,13 +381,13 @@ ctx.publish(
 
 ```typescript
 interface DatasourceWorkerMethods {
-  init(settings): Promise<void>;
-  listTopics(): Promise<DatasourceTopic[]>;
-  subscribe(topic): Promise<void>;
-  unsubscribe(topic, ignoreCount?): Promise<void>;
-  executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
-  cancelRemoteCall(callId): Promise<boolean>;
-  shutdown(): Promise<void>;
+	init(settings): Promise<void>;
+	listTopics(): Promise<DatasourceTopic[]>;
+	subscribe(topic): Promise<void>;
+	unsubscribe(topic, ignoreCount?): Promise<void>;
+	executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
+	cancelRemoteCall(callId): Promise<boolean>;
+	shutdown(): Promise<void>;
 }
 ```
 
@@ -409,12 +409,12 @@ ctx.publish(topic, data, time, frameId, transfer);
 
 // Host receives events
 this.rpc.on("topic-published", (event) => {
-  pluginManager.doAction(
-    `${datasourceId}-${event.topic}-published`,
-    event.data,
-    event.time,
-    event.referenceFrameId,
-  );
+	pluginManager.doAction(
+		`${datasourceId}-${event.topic}-published`,
+		event.data,
+		event.time,
+		event.referenceFrameId,
+	);
 });
 ```
 
@@ -425,24 +425,24 @@ this.rpc.on("topic-published", (event) => {
 ```typescript
 // Worker global error handler
 createDatasourceWorker((ctx) => {
-  self.addEventListener("error", (e) => {
-    console.error("[Worker Error]", e.error);
-  });
+	self.addEventListener("error", (e) => {
+		console.error("[Worker Error]", e.error);
+	});
 
-  self.addEventListener("unhandledrejection", (e) => {
-    console.error("[Worker Unhandled Rejection]", e.reason);
-  });
+	self.addEventListener("unhandledrejection", (e) => {
+		console.error("[Worker Unhandled Rejection]", e.reason);
+	});
 
-  return {
-    async subscribe(topic) {
-      try {
-        // Operation that might fail
-      } catch (error) {
-        console.error(`Subscribe failed for ${topic.topic}:`, error);
-        throw error; // Propagates to host
-      }
-    },
-  };
+	return {
+		async subscribe(topic) {
+			try {
+				// Operation that might fail
+			} catch (error) {
+				console.error(`Subscribe failed for ${topic.topic}:`, error);
+				throw error; // Propagates to host
+			}
+		},
+	};
 });
 ```
 
@@ -450,19 +450,18 @@ createDatasourceWorker((ctx) => {
 
 ```typescript
 // In provider component
-host
-  .init()
-  .then(() => setInitialized(true))
-  .catch((error) => {
-    console.error("Worker initialization failed:", error);
-    toast.error(`Failed to initialize datasource: ${error.message}`);
-  });
+host.init()
+	.then(() => setInitialized(true))
+	.catch((error) => {
+		console.error("Worker initialization failed:", error);
+		toast.error(`Failed to initialize datasource: ${error.message}`);
+	});
 
 // Worker crash detection
 worker.addEventListener("error", (e) => {
-  console.error("Worker crashed:", e);
-  // Can restart worker if needed
-  restartWorker();
+	console.error("Worker crashed:", e);
+	// Can restart worker if needed
+	restartWorker();
 });
 ```
 
@@ -472,22 +471,22 @@ worker.addEventListener("error", (e) => {
 
 ```typescript
 createDatasourceWorker((ctx) => ({
-  async shutdown() {
-    console.log("[Worker] Shutting down...");
+	async shutdown() {
+		console.log("[Worker] Shutting down...");
 
-    // Close connections
-    websocket?.close();
+		// Close connections
+		websocket?.close();
 
-    // Clear timers
-    if (publishTimer) {
-      clearInterval(publishTimer);
-    }
+		// Clear timers
+		if (publishTimer) {
+			clearInterval(publishTimer);
+		}
 
-    // Clear subscriptions
-    subscriptions.clear();
+		// Clear subscriptions
+		subscriptions.clear();
 
-    console.log("[Worker] Shutdown complete");
-  },
+		console.log("[Worker] Shutdown complete");
+	},
 }));
 ```
 
@@ -496,19 +495,19 @@ createDatasourceWorker((ctx) => ({
 ```typescript
 // In provider cleanup
 return () => {
-  if (hostRef.current) {
-    // Graceful shutdown with 5s timeout
-    hostRef.current
-      .shutdown()
-      .then(() => {
-        console.log("Datasource shutdown gracefully");
-        worker.terminate();
-      })
-      .catch(() => {
-        console.warn("Shutdown timeout, forcing termination");
-        worker.terminate();
-      });
-  }
+	if (hostRef.current) {
+		// Graceful shutdown with 5s timeout
+		hostRef.current
+			.shutdown()
+			.then(() => {
+				console.log("Datasource shutdown gracefully");
+				worker.terminate();
+			})
+			.catch(() => {
+				console.warn("Shutdown timeout, forcing termination");
+				worker.terminate();
+			});
+	}
 };
 ```
 
@@ -519,10 +518,10 @@ return () => {
 ```typescript
 // ✅ Good: Network I/O in worker
 createDatasourceWorker((ctx) => ({
-  async init(settings) {
-    const ws = new WebSocket(settings.url);
-    // WebSocket runs in worker - doesn't block UI
-  },
+	async init(settings) {
+		const ws = new WebSocket(settings.url);
+		// WebSocket runs in worker - doesn't block UI
+	},
 }));
 
 // ❌ Bad: Network I/O in main thread
@@ -582,20 +581,20 @@ async shutdown() {
 ```typescript
 // ✅ Good: Reconnection logic
 createDatasourceWorker((ctx) => ({
-  async init(settings) {
-    let attempts = 0;
-    const connect = () => {
-      const ws = new WebSocket(settings.url);
+	async init(settings) {
+		let attempts = 0;
+		const connect = () => {
+			const ws = new WebSocket(settings.url);
 
-      ws.onerror = () => {
-        if (settings.reconnect && attempts < 10) {
-          attempts++;
-          setTimeout(connect, 1000 * attempts);
-        }
-      };
-    };
-    connect();
-  },
+			ws.onerror = () => {
+				if (settings.reconnect && attempts < 10) {
+					attempts++;
+					setTimeout(connect, 1000 * attempts);
+				}
+			};
+		};
+		connect();
+	},
 }));
 ```
 
@@ -605,63 +604,63 @@ createDatasourceWorker((ctx) => ({
 
 ```typescript
 createDatasourceWorker<WebSocketSettings>((ctx) => {
-  let ws: WebSocket | null = null;
-  const subscriptions = new Map<string, number>();
+	let ws: WebSocket | null = null;
+	const subscriptions = new Map<string, number>();
 
-  return {
-    async init(settings) {
-      ws = new WebSocket(settings.url);
+	return {
+		async init(settings) {
+			ws = new WebSocket(settings.url);
 
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        ctx.publish(msg.topic, msg.data, msg.timestamp);
-      };
+			ws.onmessage = (event) => {
+				const msg = JSON.parse(event.data);
+				ctx.publish(msg.topic, msg.data, msg.timestamp);
+			};
 
-      await new Promise((resolve, reject) => {
-        ws.onopen = resolve;
-        ws.onerror = reject;
-      });
-    },
+			await new Promise((resolve, reject) => {
+				ws.onopen = resolve;
+				ws.onerror = reject;
+			});
+		},
 
-    async listTopics() {
-      // Fetch from server
-      return [];
-    },
+		async listTopics() {
+			// Fetch from server
+			return [];
+		},
 
-    async subscribe(topic) {
-      const count = (subscriptions.get(topic.topic) || 0) + 1;
-      subscriptions.set(topic.topic, count);
+		async subscribe(topic) {
+			const count = (subscriptions.get(topic.topic) || 0) + 1;
+			subscriptions.set(topic.topic, count);
 
-      if (count === 1) {
-        ws?.send(
-          JSON.stringify({
-            op: "subscribe",
-            topic: topic.topic,
-          }),
-        );
-      }
-    },
+			if (count === 1) {
+				ws?.send(
+					JSON.stringify({
+						op: "subscribe",
+						topic: topic.topic,
+					}),
+				);
+			}
+		},
 
-    async unsubscribe(topic) {
-      const count = subscriptions.get(topic.topic) || 0;
-      if (count <= 1) {
-        subscriptions.delete(topic.topic);
-        ws?.send(
-          JSON.stringify({
-            op: "unsubscribe",
-            topic: topic.topic,
-          }),
-        );
-      } else {
-        subscriptions.set(topic.topic, count - 1);
-      }
-    },
+		async unsubscribe(topic) {
+			const count = subscriptions.get(topic.topic) || 0;
+			if (count <= 1) {
+				subscriptions.delete(topic.topic);
+				ws?.send(
+					JSON.stringify({
+						op: "unsubscribe",
+						topic: topic.topic,
+					}),
+				);
+			} else {
+				subscriptions.set(topic.topic, count - 1);
+			}
+		},
 
-    async shutdown() {
-      ws?.close();
-      subscriptions.clear();
-    },
-  };
+		async shutdown() {
+			ws?.close();
+			subscriptions.clear();
+		},
+	};
 });
 ```
 
@@ -669,47 +668,49 @@ createDatasourceWorker<WebSocketSettings>((ctx) => {
 
 ```typescript
 createDatasourceWorker<RestApiSettings>((ctx) => {
-  const intervals = new Map<string, ReturnType<typeof setInterval>>();
+	const intervals = new Map<string, ReturnType<typeof setInterval>>();
 
-  return {
-    async init(settings) {
-      // No initialization needed
-    },
+	return {
+		async init(settings) {
+			// No initialization needed
+		},
 
-    async listTopics() {
-      const response = await fetch(`${settings.apiUrl}/topics`);
-      return response.json();
-    },
+		async listTopics() {
+			const response = await fetch(`${settings.apiUrl}/topics`);
+			return response.json();
+		},
 
-    async subscribe(topic) {
-      if (!intervals.has(topic.topic)) {
-        const interval = setInterval(async () => {
-          try {
-            const response = await fetch(`${settings.apiUrl}${topic.topic}`);
-            const data = await response.json();
-            ctx.publish(topic.topic, data, Date.now());
-          } catch (error) {
-            console.error(`Poll failed for ${topic.topic}:`, error);
-          }
-        }, 1000 / settings.pollRate);
+		async subscribe(topic) {
+			if (!intervals.has(topic.topic)) {
+				const interval = setInterval(async () => {
+					try {
+						const response = await fetch(
+							`${settings.apiUrl}${topic.topic}`,
+						);
+						const data = await response.json();
+						ctx.publish(topic.topic, data, Date.now());
+					} catch (error) {
+						console.error(`Poll failed for ${topic.topic}:`, error);
+					}
+				}, 1000 / settings.pollRate);
 
-        intervals.set(topic.topic, interval);
-      }
-    },
+				intervals.set(topic.topic, interval);
+			}
+		},
 
-    async unsubscribe(topic) {
-      const interval = intervals.get(topic.topic);
-      if (interval) {
-        clearInterval(interval);
-        intervals.delete(topic.topic);
-      }
-    },
+		async unsubscribe(topic) {
+			const interval = intervals.get(topic.topic);
+			if (interval) {
+				clearInterval(interval);
+				intervals.delete(topic.topic);
+			}
+		},
 
-    async shutdown() {
-      intervals.forEach(clearInterval);
-      intervals.clear();
-    },
-  };
+		async shutdown() {
+			intervals.forEach(clearInterval);
+			intervals.clear();
+		},
+	};
 });
 ```
 
@@ -717,57 +718,57 @@ createDatasourceWorker<RestApiSettings>((ctx) => {
 
 ```typescript
 createDatasourceWorker<GeneratorSettings>((ctx) => {
-  const intervals = new Map<string, ReturnType<typeof setInterval>>();
+	const intervals = new Map<string, ReturnType<typeof setInterval>>();
 
-  return {
-    async init(settings) {
-      // Seed RNG if needed
-    },
+	return {
+		async init(settings) {
+			// Seed RNG if needed
+		},
 
-    async listTopics() {
-      return [
-        { topic: "/random/number", type: "Number", rawType: "float64" },
-        {
-          topic: "/random/vector",
-          type: "Vector3",
-          rawType: "Vector3",
-        },
-      ];
-    },
+		async listTopics() {
+			return [
+				{ topic: "/random/number", type: "Number", rawType: "float64" },
+				{
+					topic: "/random/vector",
+					type: "Vector3",
+					rawType: "Vector3",
+				},
+			];
+		},
 
-    async subscribe(topic) {
-      if (!intervals.has(topic.topic)) {
-        const interval = setInterval(() => {
-          let data;
-          if (topic.topic === "/random/number") {
-            data = Math.random();
-          } else if (topic.topic === "/random/vector") {
-            data = {
-              x: Math.random(),
-              y: Math.random(),
-              z: Math.random(),
-            };
-          }
-          ctx.publish(topic.topic, data, Date.now());
-        }, 100);
+		async subscribe(topic) {
+			if (!intervals.has(topic.topic)) {
+				const interval = setInterval(() => {
+					let data;
+					if (topic.topic === "/random/number") {
+						data = Math.random();
+					} else if (topic.topic === "/random/vector") {
+						data = {
+							x: Math.random(),
+							y: Math.random(),
+							z: Math.random(),
+						};
+					}
+					ctx.publish(topic.topic, data, Date.now());
+				}, 100);
 
-        intervals.set(topic.topic, interval);
-      }
-    },
+				intervals.set(topic.topic, interval);
+			}
+		},
 
-    async unsubscribe(topic) {
-      const interval = intervals.get(topic.topic);
-      if (interval) {
-        clearInterval(interval);
-        intervals.delete(topic.topic);
-      }
-    },
+		async unsubscribe(topic) {
+			const interval = intervals.get(topic.topic);
+			if (interval) {
+				clearInterval(interval);
+				intervals.delete(topic.topic);
+			}
+		},
 
-    async shutdown() {
-      intervals.forEach(clearInterval);
-      intervals.clear();
-    },
-  };
+		async shutdown() {
+			intervals.forEach(clearInterval);
+			intervals.clear();
+		},
+	};
 });
 ```
 

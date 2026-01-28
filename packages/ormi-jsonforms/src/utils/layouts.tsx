@@ -26,84 +26,84 @@ import isEmpty from "lodash/isEmpty";
 import React, { ComponentType } from "react";
 import type { UISchemaElement } from "@jsonforms/core";
 import {
-  getAjv,
-  JsonFormsCellRendererRegistryEntry,
-  JsonFormsRendererRegistryEntry,
-  JsonSchema,
-  OwnPropsOfRenderer,
+	getAjv,
+	JsonFormsCellRendererRegistryEntry,
+	JsonFormsRendererRegistryEntry,
+	JsonSchema,
+	OwnPropsOfRenderer,
 } from "@jsonforms/core";
 import { JsonFormsDispatch, useJsonForms } from "@jsonforms/react";
 
 export const renderLayoutElements = (
-  elements: UISchemaElement[],
-  schema: JsonSchema,
-  path: string,
-  enabled: boolean,
-  renderers?: JsonFormsRendererRegistryEntry[],
-  cells?: JsonFormsCellRendererRegistryEntry[],
+	elements: UISchemaElement[],
+	schema: JsonSchema,
+	path: string,
+	enabled: boolean,
+	renderers?: JsonFormsRendererRegistryEntry[],
+	cells?: JsonFormsCellRendererRegistryEntry[],
 ) => {
-  return elements.map((child, index) => (
-    <div key={`${path}-${index}`}>
-      <JsonFormsDispatch
-        uischema={child}
-        schema={schema}
-        path={path}
-        enabled={enabled}
-        renderers={renderers}
-        cells={cells}
-      />
-    </div>
-  ));
+	return elements.map((child, index) => (
+		<div key={`${path}-${index}`}>
+			<JsonFormsDispatch
+				uischema={child}
+				schema={schema}
+				path={path}
+				enabled={enabled}
+				renderers={renderers}
+				cells={cells}
+			/>
+		</div>
+	));
 };
 
 export interface shadcnLayoutRendererProps extends OwnPropsOfRenderer {
-  elements: UISchemaElement[];
-  direction: "row" | "column";
+	elements: UISchemaElement[];
+	direction: "row" | "column";
 }
 const shadcnLayoutRendererComponent = ({
-  elements,
-  schema,
-  path,
-  enabled,
-  direction,
-  renderers,
-  cells,
+	elements,
+	schema,
+	path,
+	enabled,
+	direction,
+	renderers,
+	cells,
 }: shadcnLayoutRendererProps) => {
-  if (isEmpty(elements)) {
-    return null;
-  } else {
-    return (
-      <div
-        className={`flex flex-${direction == "column" ? "col" : "row"} flex-wrap gap-3`}
-      >
-        {renderLayoutElements(
-          elements,
-          schema!,
-          path!,
-          enabled!,
-          renderers,
-          cells,
-        )}
-      </div>
-    );
-  }
+	if (isEmpty(elements)) {
+		return null;
+	} else {
+		return (
+			<div
+				className={`flex flex-${direction == "column" ? "col" : "row"} flex-wrap gap-3`}
+			>
+				{renderLayoutElements(
+					elements,
+					schema!,
+					path!,
+					enabled!,
+					renderers,
+					cells,
+				)}
+			</div>
+		);
+	}
 };
 export const ShadcnLayoutRenderer = React.memo(shadcnLayoutRendererComponent);
 
 export interface AjvProps {
-  ajv: any;
+	ajv: any;
 }
 
 export const withAjvProps = <P extends {}>(
-  Component: ComponentType<AjvProps & P>,
+	Component: ComponentType<AjvProps & P>,
 ) =>
-  function WithAjvProps(props: P) {
-    const ctx = useJsonForms();
-    const ajv = getAjv({ jsonforms: { ...ctx } });
+	function WithAjvProps(props: P) {
+		const ctx = useJsonForms();
+		const ajv = getAjv({ jsonforms: { ...ctx } });
 
-    return <Component {...props} ajv={ajv} />;
-  };
+		return <Component {...props} ajv={ajv} />;
+	};
 
 export interface shadcnLabelableLayoutRendererProps extends shadcnLayoutRendererProps {
-  label?: string;
+	label?: string;
 }

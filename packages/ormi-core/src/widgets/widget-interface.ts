@@ -2,58 +2,58 @@ import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 import { JSX } from "react";
 
 interface DataRequirements {
-  accepts: string[]; // Webapp types this widget can handle: ['number', 'Vector3', 'Movement']
+	accepts: string[]; // Webapp types this widget can handle: ['number', 'Vector3', 'Movement']
 }
 
 // TopicSelect UI Schema Element with DataRequirements
 interface TopicSelectElement extends Omit<
-  import("@jsonforms/core").ControlElement,
-  "type"
+	import("@jsonforms/core").ControlElement,
+	"type"
 > {
-  type: "TopicSelect";
-  options?: {
-    dataRequirements?: DataRequirements;
-  };
+	type: "TopicSelect";
+	options?: {
+		dataRequirements?: DataRequirements;
+	};
 }
 
 interface FrameSelectElement extends Omit<
-  import("@jsonforms/core").ControlElement,
-  "type"
+	import("@jsonforms/core").ControlElement,
+	"type"
 > {
-  type: "FrameSelect";
-  options?: {
-    placeholder?: string;
-  };
+	type: "FrameSelect";
+	options?: {
+		placeholder?: string;
+	};
 }
 
 interface WidgetDefinition {
-  id: string; // Id of the widgets, allow the dashboard to find which widgets is what component
-  name: string; // name of the widget in the widget list
-  description: string; // description of the widget
-  icon?: JSX.Element; // icon of the widget
+	id: string; // Id of the widgets, allow the dashboard to find which widgets is what component
+	name: string; // name of the widget in the widget list
+	description: string; // description of the widget
+	icon?: JSX.Element; // icon of the widget
 
-  titleProp?: string; // A widget has multiple properties that are defined in the "schema" props, this allow the dashboard to find the property with the title
+	titleProp?: string; // A widget has multiple properties that are defined in the "schema" props, this allow the dashboard to find the property with the title
 
-  //https://jsonforms.io/
-  schema: JsonSchema; // a schema that describe the properties of the widget
-  uischema: UISchemaElement; // describe how to display the properties in the settings section of the widgets
-  data: any; // default value of the widgets
+	//https://jsonforms.io/
+	schema: JsonSchema; // a schema that describe the properties of the widget
+	uischema: UISchemaElement; // describe how to display the properties in the settings section of the widgets
+	data: any; // default value of the widgets
 
-  // component that will be put inside of the widget (the widget itself)
-  Component: (data: any) => JSX.Element;
+	// component that will be put inside of the widget (the widget itself)
+	Component: (data: any) => JSX.Element;
 }
 
 interface Widget {
-  widget_id: string; // point to the widget definition
-  box_id: string; // unique id for the widget, used to identify the widget in the layout
-  title: string; // title of the widget
-  settings: any; // settings of the widget
+	widget_id: string; // point to the widget definition
+	box_id: string; // unique id for the widget, used to identify the widget in the layout
+	title: string; // title of the widget
+	settings: any; // settings of the widget
 }
 
 export type {
-  WidgetDefinition,
-  Widget,
-  DataRequirements,
-  TopicSelectElement,
-  FrameSelectElement,
+	WidgetDefinition,
+	Widget,
+	DataRequirements,
+	TopicSelectElement,
+	FrameSelectElement,
 };

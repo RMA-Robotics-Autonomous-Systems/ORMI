@@ -1,14 +1,14 @@
 import {
-  PointCloudTheme,
-  ThemeShaders,
+	PointCloudTheme,
+	ThemeShaders,
 } from "../types/points-cloud-drei-types";
 
 /**
  * Collection of shader themes for point cloud visualization
  */
 export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
-  Default: {
-    vertexShader: `
+	Default: {
+		vertexShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
@@ -51,7 +51,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform bool useTransparency;
@@ -69,10 +69,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(vColor, opacity);
             }
         `,
-  },
+	},
 
-  Neon: {
-    vertexShader: `
+	Neon: {
+		vertexShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
@@ -112,7 +112,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform bool useTransparency;
@@ -136,10 +136,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(finalColor, opacity);
             }
         `,
-  },
+	},
 
-  Plasma: {
-    vertexShader: `
+	Plasma: {
+		vertexShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
@@ -183,7 +183,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform bool useTransparency;
@@ -206,10 +206,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(plasmaColor, opacity);
             }
         `,
-  },
+	},
 
-  Thermal: {
-    vertexShader: `
+	Thermal: {
+		vertexShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
@@ -249,7 +249,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             varying vec3 vColor;
             varying float vFade;
             uniform bool useTransparency;
@@ -271,10 +271,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(thermalColor, opacity);
             }
         `,
-  },
+	},
 
-  Solid: {
-    vertexShader: `
+	Solid: {
+		vertexShader: `
             uniform float pointSize;
             uniform vec3 customColor;
             uniform mat4 pointTransform;
@@ -296,7 +296,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             uniform vec3 customColor;
             varying float vFade;
 
@@ -311,10 +311,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(customColor, vFade);
             }
         `,
-  },
+	},
 
-  Distance: {
-    vertexShader: `
+	Distance: {
+		vertexShader: `
             uniform float pointSize;
             uniform bool useTransparency;
             uniform mat4 pointTransform;
@@ -341,7 +341,7 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
-    fragmentShader: `
+		fragmentShader: `
             varying float vDistance;
             varying float vFade;
             uniform bool useTransparency;
@@ -402,5 +402,5 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 gl_FragColor = vec4(distanceColor, opacity);
             }
         `,
-  },
+	},
 };

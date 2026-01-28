@@ -27,17 +27,17 @@ import React from "react";
 import { cn } from "@workspace/ui/lib/utils";
 
 interface NoBorderTableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
-  children?: React.ReactNode;
+	children?: React.ReactNode;
 }
 
 const NoBorderTableCell = ({
-  children,
-  className,
-  ...otherProps
+	children,
+	className,
+	...otherProps
 }: NoBorderTableCellProps) => (
-  <td className={cn("border-b-0", className)} {...otherProps}>
-    {children}
-  </td>
+	<td className={cn("border-b-0", className)} {...otherProps}>
+		{children}
+	</td>
 );
 
 export default NoBorderTableCell;

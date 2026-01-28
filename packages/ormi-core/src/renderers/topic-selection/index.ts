@@ -1,7 +1,7 @@
 // New Topic Selection System
 export {
-  default as TopicSelectRenderer,
-  topicSelectTester,
+	default as TopicSelectRenderer,
+	topicSelectTester,
 } from "../topic-select-renderer";
 export type { TopicSelectElement } from "../topic-select-renderer";
 
@@ -12,10 +12,10 @@ export { TopicDetails } from "./topic-details";
 
 // State Management
 export {
-  topicSelectionReducer,
-  initialTopicSelectionState,
+	topicSelectionReducer,
+	initialTopicSelectionState,
 } from "./topic-selection-state";
 export type {
-  TopicSelectionState,
-  TopicSelectionAction,
+	TopicSelectionState,
+	TopicSelectionAction,
 } from "./topic-selection-state";

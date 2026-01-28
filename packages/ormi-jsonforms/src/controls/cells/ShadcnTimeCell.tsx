@@ -26,55 +26,55 @@
 
 import React from "react";
 import {
-  CellProps,
-  isTimeControl,
-  RankedTester,
-  rankWith,
-  WithClassname,
+	CellProps,
+	isTimeControl,
+	RankedTester,
+	rankWith,
+	WithClassname,
 } from "@jsonforms/core";
 import { withJsonFormsCellProps } from "@jsonforms/react";
 
 import { format } from "date-fns";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
+	Select,
+	SelectTrigger,
+	SelectValue,
+	SelectContent,
+	SelectItem,
 } from "@workspace/ui/components/select";
 
 export const ShadcnTimeCell = (props: CellProps & WithClassname) => {
-  const { data, id, enabled, handleChange, path } = props;
+	const { data, id, enabled, handleChange, path } = props;
 
-  // Generate time options every 30 minutes
-  const timeOptions = Array.from({ length: 48 }, (_, i) => {
-    const minutes = i * 30;
-    const time = new Date();
-    time.setHours(Math.floor(minutes / 60), minutes % 60, 0);
-    return {
-      value: format(time, "HH:mm"),
-      label: format(time, "hh:mm a"),
-    };
-  });
+	// Generate time options every 30 minutes
+	const timeOptions = Array.from({ length: 48 }, (_, i) => {
+		const minutes = i * 30;
+		const time = new Date();
+		time.setHours(Math.floor(minutes / 60), minutes % 60, 0);
+		return {
+			value: format(time, "HH:mm"),
+			label: format(time, "hh:mm a"),
+		};
+	});
 
-  return (
-    <Select
-      value={data || ""}
-      onValueChange={(value) => handleChange(path, value)}
-      disabled={!enabled}
-    >
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="Select time" />
-      </SelectTrigger>
-      <SelectContent>
-        {timeOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+	return (
+		<Select
+			value={data || ""}
+			onValueChange={(value) => handleChange(path, value)}
+			disabled={!enabled}
+		>
+			<SelectTrigger className="w-full">
+				<SelectValue placeholder="Select time" />
+			</SelectTrigger>
+			<SelectContent>
+				{timeOptions.map((option) => (
+					<SelectItem key={option.value} value={option.value}>
+						{option.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
 };
 
 export const shadcnTimeCellTester: RankedTester = rankWith(2, isTimeControl);

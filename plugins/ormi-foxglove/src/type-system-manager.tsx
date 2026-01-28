@@ -12,180 +12,189 @@ import { interfaceList } from "./interface-list";
 import { foxgloveIdlToJsonSchema } from "./foxglove-idl-to-jsonschema";
 
 interface TypeSystemManagerProps {
-  children: ReactNode;
-  settings: FoxgloveDataSourceSettings;
+	children: ReactNode;
+	settings: FoxgloveDataSourceSettings;
 }
 
 const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
-  children,
-  settings,
+	children,
+	settings,
 }) => {
-  const { client, channels, isConnected } = useFoxgloveData();
-  const pluginsManager = usePluginsManager();
+	const { client, channels, isConnected } = useFoxgloveData();
+	const pluginsManager = usePluginsManager();
 
-  // Initialization state
-  const [isInitialized, setIsInitialized] = useState(false);
+	// Initialization state
+	const [isInitialized, setIsInitialized] = useState(false);
 
-  const datasource_id = settings.id;
-  const definition_hook = `${datasource_id}-definition`;
-  const available_types = `${datasource_id}-available-types`;
+	const datasource_id = settings.id;
+	const definition_hook = `${datasource_id}-definition`;
+	const available_types = `${datasource_id}-available-types`;
 
-  // Register type system hooks (excluding duplicates handled by FoxgloveDataHandler)
-  useEffect(() => {
-    if (!settings.enable || !isConnected) {
-      setIsInitialized(false);
-      return;
-    }
+	// Register type system hooks (excluding duplicates handled by FoxgloveDataHandler)
+	useEffect(() => {
+		if (!settings.enable || !isConnected) {
+			setIsInitialized(false);
+			return;
+		}
 
-    // Store filter IDs for cleanup
-    const filterIds = {
-      definition_hook,
-      available_types,
-    };
+		// Store filter IDs for cleanup
+		const filterIds = {
+			definition_hook,
+			available_types,
+		};
 
-    // NOTE: Available topics and connection client filters are handled by FoxgloveDataHandler
-    // Only register unique type system filters here
+		// NOTE: Available topics and connection client filters are handled by FoxgloveDataHandler
+		// Only register unique type system filters here
 
-    // Register definition filter
-    pluginsManager.addFilter(definition_hook, {
-      id: definition_hook,
-      priority: 10,
-      filter: async (definition: any, topic: DatasourceTopic): Promise<any> => {
-        try {
-          // Find the channel for this topic
-          const channel = Array.from(channels.values()).find((channel) => {
-            return channel.topic === topic.topic;
-          });
+		// Register definition filter
+		pluginsManager.addFilter(definition_hook, {
+			id: definition_hook,
+			priority: 10,
+			filter: async (
+				definition: any,
+				topic: DatasourceTopic,
+			): Promise<any> => {
+				try {
+					// Find the channel for this topic
+					const channel = Array.from(channels.values()).find(
+						(channel) => {
+							return channel.topic === topic.topic;
+						},
+					);
 
-          if (!channel) {
-            throw new Error(`Channel not found for topic ${topic.topic}`);
-          }
+					if (!channel) {
+						throw new Error(
+							`Channel not found for topic ${topic.topic}`,
+						);
+					}
 
-          const channelSchema = channel.schema;
+					const channelSchema = channel.schema;
 
-          if (!channelSchema) {
-            throw new Error(
-              `Channel schema not found for topic ${topic.topic}`,
-            );
-          }
+					if (!channelSchema) {
+						throw new Error(
+							`Channel schema not found for topic ${topic.topic}`,
+						);
+					}
 
-          // Parse the schema using Foxglove's parser
-          const parsedIDL = parse(channelSchema, { ros2: true });
+					// Parse the schema using Foxglove's parser
+					const parsedIDL = parse(channelSchema, { ros2: true });
 
-          // Convert parsed IDL to JsonSchema format
-          const jsonSchema = foxgloveIdlToJsonSchema(parsedIDL);
+					// Convert parsed IDL to JsonSchema format
+					const jsonSchema = foxgloveIdlToJsonSchema(parsedIDL);
 
-          return jsonSchema;
-        } catch (error) {
-          console.error(
-            `TypeSystemManager: Error in definition filter for topic ${topic.topic}:`,
-            error,
-          );
-          return definition;
-        }
-      },
-    });
+					return jsonSchema;
+				} catch (error) {
+					console.error(
+						`TypeSystemManager: Error in definition filter for topic ${topic.topic}:`,
+						error,
+					);
+					return definition;
+				}
+			},
+		});
 
-    // Register available types filter
-    pluginsManager.addFilter(available_types, {
-      id: available_types,
-      filter: async (
-        types: string[],
-        webtypes: string[] = [],
-      ): Promise<string[]> => {
-        try {
-          const channelsArray = Array.from(channels.values());
-          const schemas = channelsArray.map((channel) => {
-            return channel.schemaName;
-          });
-          let uniqueSchemas = Array.from(new Set(schemas));
+		// Register available types filter
+		pluginsManager.addFilter(available_types, {
+			id: available_types,
+			filter: async (
+				types: string[],
+				webtypes: string[] = [],
+			): Promise<string[]> => {
+				try {
+					const channelsArray = Array.from(channels.values());
+					const schemas = channelsArray.map((channel) => {
+						return channel.schemaName;
+					});
+					let uniqueSchemas = Array.from(new Set(schemas));
 
-          // Add interfacesList to the uniqueSchemas
-          uniqueSchemas.push(...interfaceList);
+					// Add interfacesList to the uniqueSchemas
+					uniqueSchemas.push(...interfaceList);
 
-          // Remove duplicates
-          const uniqueSet = new Set(uniqueSchemas);
-          uniqueSchemas = Array.from(uniqueSet);
+					// Remove duplicates
+					const uniqueSet = new Set(uniqueSchemas);
+					uniqueSchemas = Array.from(uniqueSet);
 
-          // Sort the schemas
-          uniqueSchemas.sort((a, b) => {
-            const aParts = a.split("/");
-            const bParts = b.split("/");
-            if (aParts[0]! < bParts[0]!) {
-              return -1;
-            } else if (aParts[0]! > bParts[0]!) {
-              return 1;
-            } else {
-              return a.localeCompare(b);
-            }
-          });
+					// Sort the schemas
+					uniqueSchemas.sort((a, b) => {
+						const aParts = a.split("/");
+						const bParts = b.split("/");
+						if (aParts[0]! < bParts[0]!) {
+							return -1;
+						} else if (aParts[0]! > bParts[0]!) {
+							return 1;
+						} else {
+							return a.localeCompare(b);
+						}
+					});
 
-          // If webtypes are provided, filter to include only compatible types
-          // only the one we can convert to/from
-          // using getWebappTypeFromROSType and getROSTypeFromWebappType
-          if (webtypes.length > 0) {
-            const compatibleTypes = new Set<string>();
-            webtypes.forEach((webtype) => {
-              const rosType =
-                UnifiedConverter.getROSTypeFromWebappType(webtype);
-              if (rosType) {
-                compatibleTypes.add(rosType);
-              }
-              // Also consider direct matches
-              if (uniqueSet.has(webtype)) {
-                compatibleTypes.add(webtype);
-              }
-            });
-            uniqueSchemas = uniqueSchemas.filter((schema) =>
-              compatibleTypes.has(schema),
-            );
-          }
+					// If webtypes are provided, filter to include only compatible types
+					// only the one we can convert to/from
+					// using getWebappTypeFromROSType and getROSTypeFromWebappType
+					if (webtypes.length > 0) {
+						const compatibleTypes = new Set<string>();
+						webtypes.forEach((webtype) => {
+							const rosType =
+								UnifiedConverter.getROSTypeFromWebappType(
+									webtype,
+								);
+							if (rosType) {
+								compatibleTypes.add(rosType);
+							}
+							// Also consider direct matches
+							if (uniqueSet.has(webtype)) {
+								compatibleTypes.add(webtype);
+							}
+						});
+						uniqueSchemas = uniqueSchemas.filter((schema) =>
+							compatibleTypes.has(schema),
+						);
+					}
 
-          return uniqueSchemas;
-        } catch (error) {
-          console.error(
-            `TypeSystemManager: Error in available types filter:`,
-            error,
-          );
-          return types;
-        }
-      },
-      priority: 100,
-    });
+					return uniqueSchemas;
+				} catch (error) {
+					console.error(
+						`TypeSystemManager: Error in available types filter:`,
+						error,
+					);
+					return types;
+				}
+			},
+			priority: 100,
+		});
 
-    // Mark as initialized after successful registration
-    setIsInitialized(true);
+		// Mark as initialized after successful registration
+		setIsInitialized(true);
 
-    // Cleanup function
-    return () => {
-      setIsInitialized(false);
+		// Cleanup function
+		return () => {
+			setIsInitialized(false);
 
-      // Remove only the filters this component registered
-      try {
-        pluginsManager.removeFilter(filterIds.definition_hook);
-        pluginsManager.removeFilter(filterIds.available_types);
-      } catch (error) {
-        console.error(
-          `TypeSystemManager: Error during cleanup for ${settings.id}:`,
-          error,
-        );
-      }
-    };
-  }, [
-    settings.enable,
-    settings.id,
-    pluginsManager,
-    client,
-    channels,
-    isConnected,
-  ]);
+			// Remove only the filters this component registered
+			try {
+				pluginsManager.removeFilter(filterIds.definition_hook);
+				pluginsManager.removeFilter(filterIds.available_types);
+			} catch (error) {
+				console.error(
+					`TypeSystemManager: Error during cleanup for ${settings.id}:`,
+					error,
+				);
+			}
+		};
+	}, [
+		settings.enable,
+		settings.id,
+		pluginsManager,
+		client,
+		channels,
+		isConnected,
+	]);
 
-  // Set up UnifiedConverter plugin manager
-  useEffect(() => {
-    UnifiedConverter.pluginManager = pluginsManager;
-  }, [pluginsManager]);
+	// Set up UnifiedConverter plugin manager
+	useEffect(() => {
+		UnifiedConverter.pluginManager = pluginsManager;
+	}, [pluginsManager]);
 
-  return <>{isInitialized ? children : null}</>;
+	return <>{isInitialized ? children : null}</>;
 };
 
 export { TypeSystemManager };

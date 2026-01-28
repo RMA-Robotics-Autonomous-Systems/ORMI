@@ -47,10 +47,10 @@ The `DashboardProvider` is the central state management component for all dashbo
 
 ```typescript
 interface DashboardInterface {
-  layouts: Record<string, any>; // Generic layout storage
-  widgets: Map<string, Widget>;
-  datasources: Map<string, Datasource>;
-  locked: boolean;
+	layouts: Record<string, any>; // Generic layout storage
+	widgets: Map<string, Widget>;
+	datasources: Map<string, Datasource>;
+	locked: boolean;
 }
 ```
 
@@ -58,34 +58,34 @@ interface DashboardInterface {
 
 ```typescript
 const {
-  // State (legacy, full context)
-  widgets,
-  datasources,
-  layouts,
-  locked,
-  hasChanged,
+	// State (legacy, full context)
+	widgets,
+	datasources,
+	layouts,
+	locked,
+	hasChanged,
 
-  // Widget operations
-  addWidget,
-  removeWidget,
-  updateWidget,
-  getComponents,
-  getDefinition,
+	// Widget operations
+	addWidget,
+	removeWidget,
+	updateWidget,
+	getComponents,
+	getDefinition,
 
-  // Layout operations
-  updateLayouts,
-  lockUnLockDashboard,
+	// Layout operations
+	updateLayouts,
+	lockUnLockDashboard,
 
-  // Datasource operations
-  addDatasource,
-  removeDatasource,
-  updateDatasource,
+	// Datasource operations
+	addDatasource,
+	removeDatasource,
+	updateDatasource,
 
-  // Persistence
-  savesDashboard,
+	// Persistence
+	savesDashboard,
 
-  // Advanced
-  dispatch,
+	// Advanced
+	dispatch,
 } = useDashboardManager();
 ```
 
@@ -95,17 +95,17 @@ Use `useDashboardActions()` for stable mutation callbacks without subscribing to
 
 ```typescript
 const {
-  getDefinition,
-  addWidget,
-  removeWidget,
-  updateWidget,
-  updateLayouts,
-  lockUnLockDashboard,
-  savesDashboard,
-  addDatasource,
-  removeDatasource,
-  updateDatasource,
-  dispatch,
+	getDefinition,
+	addWidget,
+	removeWidget,
+	updateWidget,
+	updateLayouts,
+	lockUnLockDashboard,
+	savesDashboard,
+	addDatasource,
+	removeDatasource,
+	updateDatasource,
+	dispatch,
 } = useDashboardActions();
 ```
 
@@ -116,13 +116,13 @@ Use Jotai atoms to subscribe only to the state you need. This prevents layout ch
 ```typescript
 import { useAtomValue } from "jotai";
 import {
-  widgetsAtom,
-  layoutsAtom,
-  lockedAtom,
-  hasChangedAtom,
-  forceReloadAtom,
-  datasourcesAtom,
-  widgetAtomFamily,
+	widgetsAtom,
+	layoutsAtom,
+	lockedAtom,
+	hasChangedAtom,
+	forceReloadAtom,
+	datasourcesAtom,
+	widgetAtomFamily,
 } from "@workspace/ormi-core/dashboard/atoms";
 
 const widgets = useAtomValue(widgetsAtom);
@@ -141,20 +141,20 @@ The DashboardProvider uses `useReducer` for state management and mirrors state i
 
 ```typescript
 function dashboardReducer(state, action) {
-  switch (action.type) {
-    case "SET_LAYOUTS":
-      return { ...state, layouts: action.payload };
-    case "SET_WIDGETS":
-      return { ...state, widgets: action.payload };
-    case "SET_LOCKED":
-      return { ...state, locked: action.payload };
-    case "SET_DATASOURCES":
-      return { ...state, datasources: action.payload };
-    case "SET_FORCERELOAD":
-      return { ...state, forceReload: action.payload };
-    default:
-      return state;
-  }
+	switch (action.type) {
+		case "SET_LAYOUTS":
+			return { ...state, layouts: action.payload };
+		case "SET_WIDGETS":
+			return { ...state, widgets: action.payload };
+		case "SET_LOCKED":
+			return { ...state, locked: action.payload };
+		case "SET_DATASOURCES":
+			return { ...state, datasources: action.payload };
+		case "SET_FORCERELOAD":
+			return { ...state, forceReload: action.payload };
+		default:
+			return state;
+	}
 }
 ```
 
@@ -198,23 +198,23 @@ ORMI-CORE supports three layout engines, each with unique characteristics:
 
 ```typescript
 type GridLayouts = {
-  lg: Layout[]; // 12 columns
-  md: Layout[]; // 10 columns
-  sm: Layout[]; // 6 columns
-  xs: Layout[]; // 4 columns
-  xxs: Layout[]; // 2 columns
+	lg: Layout[]; // 12 columns
+	md: Layout[]; // 10 columns
+	sm: Layout[]; // 6 columns
+	xs: Layout[]; // 4 columns
+	xxs: Layout[]; // 2 columns
 };
 
 interface Layout {
-  i: string; // Widget box_id
-  x: number; // Column position
-  y: number; // Row position
-  w: number; // Width in columns
-  h: number; // Height in rows
-  minW?: number; // Minimum width
-  minH?: number; // Minimum height
-  maxW?: number; // Maximum width
-  maxH?: number; // Maximum height
+	i: string; // Widget box_id
+	x: number; // Column position
+	y: number; // Row position
+	w: number; // Width in columns
+	h: number; // Height in rows
+	minW?: number; // Minimum width
+	minH?: number; // Minimum height
+	maxW?: number; // Maximum width
+	maxH?: number; // Maximum height
 }
 ```
 
@@ -224,9 +224,9 @@ interface Layout {
 import { Dashboard } from "@workspace/ormi-core/dashboard";
 
 <DashboardProvider {...props}>
-  <GlobalDataSourcesProvider>
-    <Dashboard />
-  </GlobalDataSourcesProvider>
+	<GlobalDataSourcesProvider>
+		<Dashboard />
+	</GlobalDataSourcesProvider>
 </DashboardProvider>;
 ```
 
@@ -278,31 +278,31 @@ exploseLayout("single"); // All widgets in one column
 
 ```typescript
 interface LayoutBase {
-  dockbox: BoxData;
-  floatbox?: BoxData;
-  windowbox?: WindowBox;
-  maxbox?: MaxBox;
+	dockbox: BoxData;
+	floatbox?: BoxData;
+	windowbox?: WindowBox;
+	maxbox?: MaxBox;
 }
 
 interface BoxData {
-  mode: "horizontal" | "vertical";
-  children: (PanelData | BoxData)[];
-  size?: number;
+	mode: "horizontal" | "vertical";
+	children: (PanelData | BoxData)[];
+	size?: number;
 }
 
 interface PanelData {
-  tabs: TabData[];
-  size?: number;
-  activeId?: string;
-  minWidth?: number;
-  minHeight?: number;
+	tabs: TabData[];
+	size?: number;
+	activeId?: string;
+	minWidth?: number;
+	minHeight?: number;
 }
 
 interface TabData {
-  id: string; // Widget box_id
-  title?: string; // Widget title
-  content?: ReactNode; // Widget component
-  closable?: boolean; // Can be closed
+	id: string; // Widget box_id
+	title?: string; // Widget title
+	content?: ReactNode; // Widget component
+	closable?: boolean; // Can be closed
 }
 ```
 
@@ -312,9 +312,9 @@ interface TabData {
 import { PanelDashboard } from "@workspace/ormi-core/dashboard";
 
 <DashboardProvider {...props}>
-  <GlobalDataSourcesProvider>
-    <PanelDashboard />
-  </GlobalDataSourcesProvider>
+	<GlobalDataSourcesProvider>
+		<PanelDashboard />
+	</GlobalDataSourcesProvider>
 </DashboardProvider>;
 ```
 
@@ -350,22 +350,22 @@ const layout = deserializeRCDockLayout(serialized);
 
 ```typescript
 interface IJsonModel {
-  global: {
-    tabEnableClose: boolean;
-    tabEnableDrag: boolean;
-    tabSetEnableDrop: boolean;
-    tabSetEnableMaximize: boolean;
-    // ... more configuration
-  };
-  borders: IBorderSet[];
-  layout: ILayoutNode;
+	global: {
+		tabEnableClose: boolean;
+		tabEnableDrag: boolean;
+		tabSetEnableDrop: boolean;
+		tabSetEnableMaximize: boolean;
+		// ... more configuration
+	};
+	borders: IBorderSet[];
+	layout: ILayoutNode;
 }
 
 interface ILayoutNode {
-  type: "row" | "tabset";
-  weight?: number;
-  children?: ILayoutNode[];
-  id?: string;
+	type: "row" | "tabset";
+	weight?: number;
+	children?: ILayoutNode[];
+	id?: string;
 }
 ```
 
@@ -375,9 +375,9 @@ interface ILayoutNode {
 import { FlexLayoutDashboard } from "@workspace/ormi-core/dashboard";
 
 <DashboardProvider {...props}>
-  <GlobalDataSourcesProvider>
-    <FlexLayoutDashboard />
-  </GlobalDataSourcesProvider>
+	<GlobalDataSourcesProvider>
+		<FlexLayoutDashboard />
+	</GlobalDataSourcesProvider>
 </DashboardProvider>;
 ```
 
@@ -387,13 +387,13 @@ FlexLayout uses a custom hook for model management:
 
 ```typescript
 const { model, onModelChange, onAction } = useFlexLayoutModel({
-  widgets,
-  layouts,
-  locked,
-  getDefinition,
-  dispatch,
-  removeWidget,
-  updateLayouts,
+	widgets,
+	layouts,
+	locked,
+	getDefinition,
+	dispatch,
+	removeWidget,
+	updateLayouts,
 });
 ```
 
@@ -416,13 +416,13 @@ const { widgets, getComponents, getDefinition } = useDashboardManager();
 const [currentLayout, setCurrentLayout] = useState();
 
 useEffect(() => {
-  const storedLayout = layouts["layout-type"];
-  if (storedLayout) {
-    setCurrentLayout(deserialize(storedLayout));
-  } else {
-    // Create default layout with current widgets
-    setCurrentLayout(createDefault(Array.from(widgets.keys())));
-  }
+	const storedLayout = layouts["layout-type"];
+	if (storedLayout) {
+		setCurrentLayout(deserialize(storedLayout));
+	} else {
+		// Create default layout with current widgets
+		setCurrentLayout(createDefault(Array.from(widgets.keys())));
+	}
 }, [widgets, layouts]);
 ```
 
@@ -430,14 +430,14 @@ useEffect(() => {
 
 ```typescript
 const handleLayoutChange = (newLayout) => {
-  if (!locked) {
-    setCurrentLayout(newLayout);
+	if (!locked) {
+		setCurrentLayout(newLayout);
 
-    // Serialize and persist
-    const serialized = serialize(newLayout);
-    const newLayouts = { ...layouts, "layout-type": serialized };
-    dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
-  }
+		// Serialize and persist
+		const serialized = serialize(newLayout);
+		const newLayouts = { ...layouts, "layout-type": serialized };
+		dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
+	}
 };
 ```
 
@@ -514,26 +514,26 @@ Available dashboard types are registered in `dashboard/registry.ts`:
 
 ```typescript
 export const dashboardRegistry = {
-  GRID: ReactGridLayoutDashboard,
-  PANEL: PanelDashboard,
-  FLEX: FlexLayoutDashboard,
+	GRID: ReactGridLayoutDashboard,
+	PANEL: PanelDashboard,
+	FLEX: FlexLayoutDashboard,
 };
 
 export const DASHBOARD_TYPES = [
-  {
-    id: "GRID",
-    name: "Grid Layout",
-    description: "Traditional grid-based dashboard",
-    icon: LayoutGrid,
-    badge: "Classic",
-  },
-  {
-    id: "FLEX",
-    name: "Flex Layout",
-    description: "Modern flexible layout",
-    icon: Layers,
-    badge: "Recommended",
-  },
+	{
+		id: "GRID",
+		name: "Grid Layout",
+		description: "Traditional grid-based dashboard",
+		icon: LayoutGrid,
+		badge: "Classic",
+	},
+	{
+		id: "FLEX",
+		name: "Flex Layout",
+		description: "Modern flexible layout",
+		icon: Layers,
+		badge: "Recommended",
+	},
 ];
 ```
 
@@ -563,17 +563,17 @@ To add a new layout engine:
 // packages/ormi-core/src/dashboard/components/my-layout/my-dashboard.tsx
 
 export const MyDashboard = () => {
-  const { widgets, layouts, locked, dispatch } = useDashboardManager();
+	const { widgets, layouts, locked, dispatch } = useDashboardManager();
 
-  // Your layout logic here
+	// Your layout logic here
 
-  return (
-    <MyLayoutEngine
-      widgets={widgets}
-      onLayoutChange={handleLayoutChange}
-      locked={locked}
-    />
-  );
+	return (
+		<MyLayoutEngine
+			widgets={widgets}
+			onLayoutChange={handleLayoutChange}
+			locked={locked}
+		/>
+	);
 };
 ```
 
@@ -585,19 +585,19 @@ export const MyDashboard = () => {
 import { MyDashboard } from "./components/my-layout/my-dashboard";
 
 export const dashboardRegistry = {
-  // ... existing
-  MY_LAYOUT: MyDashboard,
+	// ... existing
+	MY_LAYOUT: MyDashboard,
 };
 
 export const DASHBOARD_TYPES = [
-  // ... existing
-  {
-    id: "MY_LAYOUT",
-    name: "My Layout",
-    description: "Description of your layout",
-    icon: MyIcon,
-    badge: "New",
-  },
+	// ... existing
+	{
+		id: "MY_LAYOUT",
+		name: "My Layout",
+		description: "Description of your layout",
+		icon: MyIcon,
+		badge: "New",
+	},
 ];
 ```
 

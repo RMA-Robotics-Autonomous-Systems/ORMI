@@ -13,15 +13,15 @@ The core interface that defines a widget:
 
 ```typescript
 interface WidgetDefinition {
-  id: string;
-  name: string;
-  description: string;
-  icon?: JSX.Element;
-  titleProp?: string;
-  schema: JsonSchema;
-  uischema: UISchemaElement;
-  data: any;
-  Component: (data: any) => JSX.Element;
+	id: string;
+	name: string;
+	description: string;
+	icon?: JSX.Element;
+	titleProp?: string;
+	schema: JsonSchema;
+	uischema: UISchemaElement;
+	data: any;
+	Component: (data: any) => JSX.Element;
 }
 ```
 
@@ -201,10 +201,10 @@ When a widget is added to a dashboard, it becomes a **Widget** instance:
 
 ```typescript
 interface Widget {
-  widget_id: string; // Reference to WidgetDefinition.id
-  box_id: string; // Unique instance ID (auto-generated)
-  title: string; // Instance title (from titleProp)
-  settings: any; // Current configuration values
+	widget_id: string; // Reference to WidgetDefinition.id
+	box_id: string; // Unique instance ID (auto-generated)
+	title: string; // Instance title (from titleProp)
+	settings: any; // Current configuration values
 }
 ```
 
@@ -216,10 +216,10 @@ Custom UI element for selecting data topics:
 
 ```typescript
 interface TopicSelectElement extends Omit<ControlElement, "type"> {
-  type: "TopicSelect";
-  options?: {
-    dataRequirements?: DataRequirements;
-  };
+	type: "TopicSelect";
+	options?: {
+		dataRequirements?: DataRequirements;
+	};
 }
 ```
 
@@ -229,7 +229,7 @@ Specify which topic types the widget accepts:
 
 ```typescript
 interface DataRequirements {
-  accepts: string[]; // Array of internal type names
+	accepts: string[]; // Array of internal type names
 }
 ```
 
@@ -253,16 +253,16 @@ When a user selects a topic, it becomes a `SelectedTopic`:
 
 ```typescript
 interface SelectedTopic extends DatasourceTopic {
-  property: string; // Optional sub-property path
+	property: string; // Optional sub-property path
 }
 
 interface DatasourceTopic {
-  topic: string; // Topic name: "/robot/velocity"
-  datasource_id: string; // Source: "foxglove-1"
-  type: string; // Internal type: "Movement"
-  rawType: string; // Raw type: "geometry_msgs/Twist"
-  bufferSize?: number; // Optional buffer size override
-  source: DatasourceProviderSettings;
+	topic: string; // Topic name: "/robot/velocity"
+	datasource_id: string; // Source: "foxglove-1"
+	type: string; // Internal type: "Movement"
+	rawType: string; // Raw type: "geometry_msgs/Twist"
+	bufferSize?: number; // Optional buffer size override
+	source: DatasourceProviderSettings;
 }
 ```
 
@@ -313,7 +313,7 @@ function MyWidgetComponent() {
 
 ```typescript
 interface LocalDataSourceContext {
-  sources: Map<string, any[]>; // Buffered data by topic
+	sources: Map<string, any[]>; // Buffered data by topic
 }
 ```
 
@@ -624,24 +624,24 @@ Register widgets via plugin filter:
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 
 class MyPlugin extends Plugin {
-  constructor() {
-    super({
-      name: "My Widgets Plugin",
-      description: "Custom visualization widgets",
-      version: "1.0.0",
-    });
+	constructor() {
+		super({
+			name: "My Widgets Plugin",
+			description: "Custom visualization widgets",
+			version: "1.0.0",
+		});
 
-    this.addFilter(PluginsHooks.WIDGETS_LIST, {
-      id: "my-widgets",
-      priority: 10,
-      filter: (widgets: WidgetDefinition[]) => {
-        widgets.push(SpeedGaugeDefinition());
-        widgets.push(JoystickDefinition());
-        widgets.push(RobotDashboardDefinition());
-        return widgets;
-      },
-    });
-  }
+		this.addFilter(PluginsHooks.WIDGETS_LIST, {
+			id: "my-widgets",
+			priority: 10,
+			filter: (widgets: WidgetDefinition[]) => {
+				widgets.push(SpeedGaugeDefinition());
+				widgets.push(JoystickDefinition());
+				widgets.push(RobotDashboardDefinition());
+				return widgets;
+			},
+		});
+	}
 }
 
 export default MyPlugin;

@@ -25,20 +25,20 @@
 "use client";
 
 import {
-  ControlProps,
-  isDateControl,
-  isDescriptionHidden,
-  RankedTester,
-  rankWith,
+	ControlProps,
+	isDateControl,
+	isDescriptionHidden,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
 import React from "react";
 
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
 } from "@workspace/ui/components/popover";
 import { Button } from "@workspace/ui/components/button";
 import { CalendarIcon } from "lucide-react";
@@ -46,66 +46,72 @@ import { cn } from "@workspace/ui/lib/utils";
 import { Calendar } from "@workspace/ui/components/calendar";
 
 export const ShadcnDateControl = ({
-  description,
-  errors,
-  uischema,
-  visible,
-  enabled,
-  path,
-  handleChange,
-  data,
-  config,
+	description,
+	errors,
+	uischema,
+	visible,
+	enabled,
+	path,
+	handleChange,
+	data,
+	config,
 }: ControlProps) => {
-  const isValid = errors.length === 0;
-  const appliedUiSchemaOptions = merge({}, config, uischema.options);
-  const format = appliedUiSchemaOptions.dateFormat ?? "yyyy-MM-dd";
+	const isValid = errors.length === 0;
+	const appliedUiSchemaOptions = merge({}, config, uischema.options);
+	const format = appliedUiSchemaOptions.dateFormat ?? "yyyy-MM-dd";
 
-  const showDescription = !isDescriptionHidden(
-    visible,
-    description,
-    false,
-    appliedUiSchemaOptions.showUnfocusedDescription,
-  );
+	const showDescription = !isDescriptionHidden(
+		visible,
+		description,
+		false,
+		appliedUiSchemaOptions.showUnfocusedDescription,
+	);
 
-  if (!visible) {
-    return null;
-  }
+	if (!visible) {
+		return null;
+	}
 
-  return (
-    <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant={"outline"}
-            className={cn(
-              "w-full justify-start text-left font-normal",
-              !data && "text-muted-foreground",
-              !isValid && "border-red-500",
-            )}
-            disabled={!enabled}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {data ? format(new Date(data), format) : <span>Pick a date</span>}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={data ? new Date(data) : undefined}
-            onSelect={(newDate) => handleChange(path, newDate?.toISOString())}
-            disabled={!enabled}
-            autoFocus
-          />
-        </PopoverContent>
-      </Popover>
+	return (
+		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button
+						variant={"outline"}
+						className={cn(
+							"w-full justify-start text-left font-normal",
+							!data && "text-muted-foreground",
+							!isValid && "border-red-500",
+						)}
+						disabled={!enabled}
+					>
+						<CalendarIcon className="mr-2 h-4 w-4" />
+						{data ? (
+							format(new Date(data), format)
+						) : (
+							<span>Pick a date</span>
+						)}
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent className="w-auto p-0" align="start">
+					<Calendar
+						mode="single"
+						selected={data ? new Date(data) : undefined}
+						onSelect={(newDate) =>
+							handleChange(path, newDate?.toISOString())
+						}
+						disabled={!enabled}
+						autoFocus
+					/>
+				</PopoverContent>
+			</Popover>
 
-      {showDescription && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
+			{showDescription && (
+				<p className="text-sm text-muted-foreground">{description}</p>
+			)}
 
-      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
-    </div>
-  );
+			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+		</div>
+	);
 };
 
 export const shadcnDateControlTester: RankedTester = rankWith(5, isDateControl);

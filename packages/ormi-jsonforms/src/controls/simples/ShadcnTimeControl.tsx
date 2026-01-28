@@ -24,11 +24,11 @@
 */
 "use client";
 import {
-  ControlProps,
-  isTimeControl,
-  isDescriptionHidden,
-  RankedTester,
-  rankWith,
+	ControlProps,
+	isTimeControl,
+	isDescriptionHidden,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
@@ -38,66 +38,66 @@ import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
 
 export const ShadcnTimeControl = (props: ControlProps) => {
-  const [focused, onFocus, onBlur] = useFocus();
-  const {
-    id,
-    description,
-    errors,
-    label,
-    uischema,
-    visible,
-    enabled,
-    required,
-    path,
-    handleChange,
-    data,
-    config,
-  } = props;
+	const [focused, onFocus, onBlur] = useFocus();
+	const {
+		id,
+		description,
+		errors,
+		label,
+		uischema,
+		visible,
+		enabled,
+		required,
+		path,
+		handleChange,
+		data,
+		config,
+	} = props;
 
-  const isValid = errors.length === 0;
-  const appliedUiSchemaOptions = merge({}, config, uischema.options);
+	const isValid = errors.length === 0;
+	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-  const showDescription = !isDescriptionHidden(
-    visible,
-    description,
-    focused,
-    appliedUiSchemaOptions.showUnfocusedDescription,
-  );
+	const showDescription = !isDescriptionHidden(
+		visible,
+		description,
+		focused,
+		appliedUiSchemaOptions.showUnfocusedDescription,
+	);
 
-  if (!visible) {
-    return null;
-  }
+	if (!visible) {
+		return null;
+	}
 
-  return (
-    <div className="space-y-2">
-      <Label
-        htmlFor={id}
-        className={cn(
-          "text-sm font-medium leading-none",
-          required && "after:text-red-500 after:content-['*']",
-        )}
-      >
-        {label}
-      </Label>
+	return (
+		<div className="space-y-2">
+			<Label
+				htmlFor={id}
+				className={cn(
+					"text-sm font-medium leading-none",
+					required && "after:text-red-500 after:content-['*']",
+				)}
+			>
+				{label}
+			</Label>
 
-      <Input
-        type="time"
-        id={id}
-        value={data || ""}
-        onChange={(e) => handleChange(path, e.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        disabled={!enabled}
-        className={cn("w-full", !isValid && "border-red-500")}
-      />
+			<Input
+				type="time"
+				id={id}
+				value={data || ""}
+				onChange={(e) => handleChange(path, e.target.value)}
+				onFocus={onFocus}
+				onBlur={onBlur}
+				disabled={!enabled}
+				className={cn("w-full", !isValid && "border-red-500")}
+			/>
 
-      {showDescription && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
+			{showDescription && (
+				<p className="text-sm text-muted-foreground">{description}</p>
+			)}
 
-      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
-    </div>
-  );
+			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+		</div>
+	);
 };
 
 export const shadcnTimeControlTester: RankedTester = rankWith(5, isTimeControl);

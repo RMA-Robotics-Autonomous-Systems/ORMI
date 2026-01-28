@@ -25,35 +25,35 @@
 "use client";
 import React from "react";
 import {
-  and,
-  CellProps,
-  isStringControl,
-  optionIs,
-  RankedTester,
-  rankWith,
-  WithClassname,
+	and,
+	CellProps,
+	isStringControl,
+	optionIs,
+	RankedTester,
+	rankWith,
+	WithClassname,
 } from "@jsonforms/core";
 import { withJsonFormsCellProps } from "@jsonforms/react";
 import { Input } from "@workspace/ui/components/input";
 
 export const ShadcnColorCell = (props: CellProps & WithClassname) => {
-  const { data, className, id, enabled, handleChange, path } = props;
+	const { data, className, id, enabled, handleChange, path } = props;
 
-  return (
-    <Input
-      type="color"
-      value={data || "#000000"}
-      onChange={(ev) => handleChange(path, ev.target.value)}
-      className={className}
-      id={id}
-      disabled={!enabled}
-    />
-  );
+	return (
+		<Input
+			type="color"
+			value={data || "#000000"}
+			onChange={(ev) => handleChange(path, ev.target.value)}
+			className={className}
+			id={id}
+			disabled={!enabled}
+		/>
+	);
 };
 
 export const shadcnColorCellTester: RankedTester = rankWith(
-  5,
-  and(isStringControl, optionIs("color", true)),
+	5,
+	and(isStringControl, optionIs("color", true)),
 );
 
 export default withJsonFormsCellProps(ShadcnColorCell);

@@ -8,64 +8,64 @@ import remarkGfm from "remark-gfm";
 import components from "@/components/docs/mdx-components";
 
 interface PageProps {
-  params: Promise<{
-    version: string;
-    slug?: string[];
-  }>;
+	params: Promise<{
+		version: string;
+		slug?: string[];
+	}>;
 }
 
 export async function generateStaticParams() {
-  const versions = getVersions();
-  const params: { version: string; slug?: string[] }[] = [];
+	const versions = getVersions();
+	const params: { version: string; slug?: string[] }[] = [];
 
-  // Generate params for each version
-  for (const version of versions) {
-    params.push({ version, slug: undefined });
-  }
+	// Generate params for each version
+	for (const version of versions) {
+		params.push({ version, slug: undefined });
+	}
 
-  return params;
+	return params;
 }
 
 export async function generateMetadata({ params }: PageProps) {
-  const { version, slug } = await params;
-  const doc = await getDocBySlug(version, slug || []);
+	const { version, slug } = await params;
+	const doc = await getDocBySlug(version, slug || []);
 
-  if (!doc) {
-    return {
-      title: "Not Found",
-    };
-  }
+	if (!doc) {
+		return {
+			title: "Not Found",
+		};
+	}
 
-  return {
-    title: `${doc.metadata.title} - ORMI Documentation`,
-    description: doc.metadata.description,
-  };
+	return {
+		title: `${doc.metadata.title} - ORMI Documentation`,
+		description: doc.metadata.description,
+	};
 }
 
 export default async function DocPage({ params }: PageProps) {
-  const { version, slug } = await params;
-  const doc = await getDocBySlug(version, slug || ["index"]);
+	const { version, slug } = await params;
+	const doc = await getDocBySlug(version, slug || ["index"]);
 
-  if (!doc) {
-    notFound();
-  }
+	if (!doc) {
+		notFound();
+	}
 
-  return (
-    <article className="max-w-none">
-      <MDXRemote
-        source={doc.content}
-        components={components}
-        options={{
-          mdxOptions: {
-            remarkPlugins: [remarkGfm],
-            rehypePlugins: [
-              rehypeSlug,
-              rehypeHighlight,
-              [rehypeAutolinkHeadings, { behavior: "wrap" }],
-            ],
-          },
-        }}
-      />
-    </article>
-  );
+	return (
+		<article className="max-w-none">
+			<MDXRemote
+				source={doc.content}
+				components={components}
+				options={{
+					mdxOptions: {
+						remarkPlugins: [remarkGfm],
+						rehypePlugins: [
+							rehypeSlug,
+							rehypeHighlight,
+							[rehypeAutolinkHeadings, { behavior: "wrap" }],
+						],
+					},
+				}}
+			/>
+		</article>
+	);
 }

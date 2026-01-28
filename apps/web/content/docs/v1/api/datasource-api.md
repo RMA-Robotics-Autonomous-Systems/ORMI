@@ -27,18 +27,18 @@ graph LR
 
 ```typescript
 interface DatasourceDefinition<T = DatasourceProviderSettings> {
-  id: string; // Unique identifier
-  name: string; // Display name
-  description: string; // Human-readable description
-  titleProp?: string; // Property for instance title
-  schema: JsonSchema; // Configuration schema
-  uischema?: UISchemaElement; // UI Schema for forms
-  data: T; // Default settings
-  Provider: FC<{
-    // React Provider component
-    children: ReactNode;
-    props: T;
-  }>;
+	id: string; // Unique identifier
+	name: string; // Display name
+	description: string; // Human-readable description
+	titleProp?: string; // Property for instance title
+	schema: JsonSchema; // Configuration schema
+	uischema?: UISchemaElement; // UI Schema for forms
+	data: T; // Default settings
+	Provider: FC<{
+		// React Provider component
+		children: ReactNode;
+		props: T;
+	}>;
 }
 ```
 
@@ -86,35 +86,35 @@ export const MyDatasourceDefinition: DatasourceDefinition<MySettings> = {
 
 ```typescript
 interface DatasourceWorkerImplementation<
-  Settings = DatasourceProviderSettings,
+	Settings = DatasourceProviderSettings,
 > {
-  // Initialize connection
-  init(settings: Settings): void | Promise<void>;
+	// Initialize connection
+	init(settings: Settings): void | Promise<void>;
 
-  // List available topics
-  listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
+	// List available topics
+	listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
 
-  // Start streaming topic
-  subscribe(topic: SelectedTopic): void | Promise<void>;
+	// Start streaming topic
+	subscribe(topic: SelectedTopic): void | Promise<void>;
 
-  // Stop streaming topic
-  unsubscribe(
-    topic: SelectedTopic,
-    ignoreCount?: boolean,
-  ): void | Promise<void>;
+	// Stop streaming topic
+	unsubscribe(
+		topic: SelectedTopic,
+		ignoreCount?: boolean,
+	): void | Promise<void>;
 
-  // Execute remote call (optional)
-  executeRemoteCall(
-    definition: RemoteCallDefinition,
-    request: unknown,
-    options?: RemoteCallOptions,
-  ): Promise<RemoteCallHandleWire> | RemoteCallHandleWire;
+	// Execute remote call (optional)
+	executeRemoteCall(
+		definition: RemoteCallDefinition,
+		request: unknown,
+		options?: RemoteCallOptions,
+	): Promise<RemoteCallHandleWire> | RemoteCallHandleWire;
 
-  // Cancel remote call (optional)
-  cancelRemoteCall(callId: string): Promise<boolean> | boolean;
+	// Cancel remote call (optional)
+	cancelRemoteCall(callId: string): Promise<boolean> | boolean;
 
-  // Clean up resources
-  shutdown(): void | Promise<void>;
+	// Clean up resources
+	shutdown(): void | Promise<void>;
 }
 ```
 
@@ -126,99 +126,99 @@ import { createDatasourceWorker } from "@workspace/ormi-core/datasources/worker"
 import type { MySettings } from "./types";
 
 createDatasourceWorker<MySettings>((ctx) => {
-  let ws: WebSocket | null = null;
-  const subscriptions = new Map<string, number>();
+	let ws: WebSocket | null = null;
+	const subscriptions = new Map<string, number>();
 
-  return {
-    async init(settings) {
-      console.log("[Worker] Initializing with", settings);
+	return {
+		async init(settings) {
+			console.log("[Worker] Initializing with", settings);
 
-      ws = new WebSocket(settings.url);
+			ws = new WebSocket(settings.url);
 
-      ws.onmessage = (event) => {
-        const { topic, data, timestamp } = JSON.parse(event.data);
+			ws.onmessage = (event) => {
+				const { topic, data, timestamp } = JSON.parse(event.data);
 
-        // Publish to main thread
-        ctx.publish(topic, data, timestamp || Date.now());
-      };
+				// Publish to main thread
+				ctx.publish(topic, data, timestamp || Date.now());
+			};
 
-      // Wait for connection
-      await new Promise<void>((resolve, reject) => {
-        ws!.onopen = () => resolve();
-        ws!.onerror = (e) => reject(new Error("Connection failed"));
-      });
-    },
+			// Wait for connection
+			await new Promise<void>((resolve, reject) => {
+				ws!.onopen = () => resolve();
+				ws!.onerror = (e) => reject(new Error("Connection failed"));
+			});
+		},
 
-    async listTopics() {
-      // Return available topics
-      return [
-        {
-          topic: "/sensor/data",
-          datasource_id: "", // Set by host
-          source: {} as any,
-          type: "SensorData",
-          rawType: "sensor_msgs/SensorData",
-          bufferSize: 50,
-        },
-      ];
-    },
+		async listTopics() {
+			// Return available topics
+			return [
+				{
+					topic: "/sensor/data",
+					datasource_id: "", // Set by host
+					source: {} as any,
+					type: "SensorData",
+					rawType: "sensor_msgs/SensorData",
+					bufferSize: 50,
+				},
+			];
+		},
 
-    async subscribe(topic) {
-      const count = subscriptions.get(topic.topic) || 0;
-      subscriptions.set(topic.topic, count + 1);
+		async subscribe(topic) {
+			const count = subscriptions.get(topic.topic) || 0;
+			subscriptions.set(topic.topic, count + 1);
 
-      if (count === 0) {
-        // First subscriber
-        ws?.send(
-          JSON.stringify({
-            op: "subscribe",
-            topic: topic.topic,
-          }),
-        );
-      }
-    },
+			if (count === 0) {
+				// First subscriber
+				ws?.send(
+					JSON.stringify({
+						op: "subscribe",
+						topic: topic.topic,
+					}),
+				);
+			}
+		},
 
-    async unsubscribe(topic, ignoreCount = false) {
-      if (ignoreCount) {
-        subscriptions.delete(topic.topic);
-        ws?.send(
-          JSON.stringify({
-            op: "unsubscribe",
-            topic: topic.topic,
-          }),
-        );
-        return;
-      }
+		async unsubscribe(topic, ignoreCount = false) {
+			if (ignoreCount) {
+				subscriptions.delete(topic.topic);
+				ws?.send(
+					JSON.stringify({
+						op: "unsubscribe",
+						topic: topic.topic,
+					}),
+				);
+				return;
+			}
 
-      const count = subscriptions.get(topic.topic) || 0;
-      if (count <= 1) {
-        subscriptions.delete(topic.topic);
-        ws?.send(
-          JSON.stringify({
-            op: "unsubscribe",
-            topic: topic.topic,
-          }),
-        );
-      } else {
-        subscriptions.set(topic.topic, count - 1);
-      }
-    },
+			const count = subscriptions.get(topic.topic) || 0;
+			if (count <= 1) {
+				subscriptions.delete(topic.topic);
+				ws?.send(
+					JSON.stringify({
+						op: "unsubscribe",
+						topic: topic.topic,
+					}),
+				);
+			} else {
+				subscriptions.set(topic.topic, count - 1);
+			}
+		},
 
-    async executeRemoteCall(definition, request, options) {
-      // Handle service calls if needed
-      return { callId: "" };
-    },
+		async executeRemoteCall(definition, request, options) {
+			// Handle service calls if needed
+			return { callId: "" };
+		},
 
-    async cancelRemoteCall(callId) {
-      return true;
-    },
+		async cancelRemoteCall(callId) {
+			return true;
+		},
 
-    async shutdown() {
-      console.log("[Worker] Shutting down");
-      ws?.close();
-      subscriptions.clear();
-    },
-  };
+		async shutdown() {
+			console.log("[Worker] Shutting down");
+			ws?.close();
+			subscriptions.clear();
+		},
+	};
 });
 ```
 
@@ -226,26 +226,26 @@ createDatasourceWorker<MySettings>((ctx) => {
 
 ```typescript
 interface DatasourceWorkerContext {
-  // Publish data to main thread
-  publish(
-    topic: string,
-    data: unknown,
-    time?: number,
-    referenceFrameId?: string,
-    transfer?: Transferable[],
-  ): void;
+	// Publish data to main thread
+	publish(
+		topic: string,
+		data: unknown,
+		time?: number,
+		referenceFrameId?: string,
+		transfer?: Transferable[],
+	): void;
 
-  // Register remote call definitions
-  setRemoteCalls(calls: RemoteCallDefinition[]): void;
+	// Register remote call definitions
+	setRemoteCalls(calls: RemoteCallDefinition[]): void;
 
-  // Emit remote call status
-  emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
+	// Emit remote call status
+	emitRemoteCallStatus(callId: string, status: RemoteCallStatus): void;
 
-  // Emit remote call feedback
-  emitRemoteCallFeedback(callId: string, feedback: unknown): void;
+	// Emit remote call feedback
+	emitRemoteCallFeedback(callId: string, feedback: unknown): void;
 
-  // Emit remote call result
-  emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
+	// Emit remote call result
+	emitRemoteCallResult(callId: string, result: RemoteCallResult): void;
 }
 ```
 
@@ -262,11 +262,11 @@ const points = new Float32Array(100000);
 // ... fill points
 
 ctx.publish(
-  "/scan/points",
-  { points },
-  Date.now(),
-  "lidar_frame",
-  [points.buffer], // Transferred, not copied
+	"/scan/points",
+	{ points },
+	Date.now(),
+	"lidar_frame",
+	[points.buffer], // Transferred, not copied
 );
 ```
 
@@ -356,24 +356,24 @@ export function MyWorkerHost({
 
 ```typescript
 class WorkerDatasourceHost<Settings> {
-  constructor(options: {
-    worker: Worker;
-    datasourceId: string;
-    settings: Settings;
-    pluginsManager: PluginsManager;
-  });
+	constructor(options: {
+		worker: Worker;
+		datasourceId: string;
+		settings: Settings;
+		pluginsManager: PluginsManager;
+	});
 
-  // Initialize worker
-  init(): Promise<void>;
+	// Initialize worker
+	init(): Promise<void>;
 
-  // Register PluginManager hooks
-  registerHooks(): void;
+	// Register PluginManager hooks
+	registerHooks(): void;
 
-  // Shutdown worker gracefully
-  shutdown(): Promise<void>;
+	// Shutdown worker gracefully
+	shutdown(): Promise<void>;
 
-  // RPC client for calling worker methods
-  readonly rpc: RpcClient<DatasourceWorkerMethods, DatasourceWorkerEvents>;
+	// RPC client for calling worker methods
+	readonly rpc: RpcClient<DatasourceWorkerMethods, DatasourceWorkerEvents>;
 }
 ```
 
@@ -398,11 +398,11 @@ const points = new Float32Array(300000);
 
 // Transfer ownership to main thread (zero-copy)
 ctx.publish(
-  "/scan/points",
-  { points },
-  Date.now(),
-  "lidar_frame",
-  [points.buffer], // Transferable
+	"/scan/points",
+	{ points },
+	Date.now(),
+	"lidar_frame",
+	[points.buffer], // Transferable
 );
 
 // After transfer:
@@ -442,14 +442,14 @@ await rpc.call("shutdown");
 
 // Listen to worker events
 rpc.on("topic-published", (event) => {
-  // Handle published data
+	// Handle published data
 });
 
 // Worker thread
 createDatasourceWorker((ctx) => ({
-  async subscribe(topic) {
-    // Implementation
-  },
+	async subscribe(topic) {
+		// Implementation
+	},
 }));
 ```
 
@@ -457,16 +457,16 @@ createDatasourceWorker((ctx) => ({
 
 ```typescript
 interface DatasourceWorkerMethods<Settings> {
-  init(settings: Settings): void | Promise<void>;
-  listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
-  subscribe(topic: SelectedTopic): void | Promise<void>;
-  unsubscribe(
-    topic: SelectedTopic,
-    ignoreCount?: boolean,
-  ): void | Promise<void>;
-  executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
-  cancelRemoteCall(callId: string): Promise<boolean>;
-  shutdown(): void | Promise<void>;
+	init(settings: Settings): void | Promise<void>;
+	listTopics(): DatasourceTopic[] | Promise<DatasourceTopic[]>;
+	subscribe(topic: SelectedTopic): void | Promise<void>;
+	unsubscribe(
+		topic: SelectedTopic,
+		ignoreCount?: boolean,
+	): void | Promise<void>;
+	executeRemoteCall(def, request, options): Promise<RemoteCallHandleWire>;
+	cancelRemoteCall(callId: string): Promise<boolean>;
+	shutdown(): void | Promise<void>;
 }
 ```
 
@@ -474,27 +474,27 @@ interface DatasourceWorkerMethods<Settings> {
 
 ```typescript
 interface DatasourceWorkerEvents {
-  "topic-published": {
-    topic: string;
-    data: unknown;
-    time: number;
-    referenceFrameId?: string;
-  };
-  "remote-calls": {
-    calls: RemoteCallDefinition[];
-  };
-  "remote-call-status": {
-    callId: string;
-    status: RemoteCallStatus;
-  };
-  "remote-call-feedback": {
-    callId: string;
-    feedback: unknown;
-  };
-  "remote-call-result": {
-    callId: string;
-    result: RemoteCallResult;
-  };
+	"topic-published": {
+		topic: string;
+		data: unknown;
+		time: number;
+		referenceFrameId?: string;
+	};
+	"remote-calls": {
+		calls: RemoteCallDefinition[];
+	};
+	"remote-call-status": {
+		callId: string;
+		status: RemoteCallStatus;
+	};
+	"remote-call-feedback": {
+		callId: string;
+		feedback: unknown;
+	};
+	"remote-call-result": {
+		callId: string;
+		result: RemoteCallResult;
+	};
 }
 ```
 
@@ -504,25 +504,25 @@ interface DatasourceWorkerEvents {
 
 ```typescript
 createDatasourceWorker((ctx) => {
-  // Global error handlers
-  self.addEventListener("error", (e) => {
-    console.error("[Worker Error]", e.error);
-  });
+	// Global error handlers
+	self.addEventListener("error", (e) => {
+		console.error("[Worker Error]", e.error);
+	});
 
-  self.addEventListener("unhandledrejection", (e) => {
-    console.error("[Worker Unhandled Rejection]", e.reason);
-  });
+	self.addEventListener("unhandledrejection", (e) => {
+		console.error("[Worker Unhandled Rejection]", e.reason);
+	});
 
-  return {
-    async subscribe(topic) {
-      try {
-        // Operation that might fail
-      } catch (error) {
-        console.error(`Subscribe failed:`, error);
-        throw error; // Propagates to main thread
-      }
-    },
-  };
+	return {
+		async subscribe(topic) {
+			try {
+				// Operation that might fail
+			} catch (error) {
+				console.error(`Subscribe failed:`, error);
+				throw error; // Propagates to main thread
+			}
+		},
+	};
 });
 ```
 
@@ -530,19 +530,18 @@ createDatasourceWorker((ctx) => {
 
 ```typescript
 // In provider component
-host
-  .init()
-  .then(() => setInitialized(true))
-  .catch((error) => {
-    console.error("Initialization failed:", error);
-    toast.error(`Failed to initialize: ${error.message}`);
-  });
+host.init()
+	.then(() => setInitialized(true))
+	.catch((error) => {
+		console.error("Initialization failed:", error);
+		toast.error(`Failed to initialize: ${error.message}`);
+	});
 
 // Worker crash detection
 worker.addEventListener("error", (e) => {
-  console.error("Worker crashed:", e);
-  // Restart if needed
-  restartWorker();
+	console.error("Worker crashed:", e);
+	// Restart if needed
+	restartWorker();
 });
 ```
 
@@ -633,9 +632,9 @@ worker.terminate(); // Force if timeout
 ```typescript
 // ✅ Good: I/O in worker
 createDatasourceWorker((ctx) => ({
-  async init(settings) {
-    ws = new WebSocket(settings.url); // Non-blocking
-  },
+	async init(settings) {
+		ws = new WebSocket(settings.url); // Non-blocking
+	},
 }));
 
 // ❌ Bad: I/O in main thread
@@ -688,12 +687,12 @@ async shutdown() {
 // ✅ Good: Reconnection logic
 let attempts = 0;
 const connect = () => {
-  ws = new WebSocket(url);
-  ws.onerror = () => {
-    if (attempts < 10) {
-      setTimeout(connect, 1000 * ++attempts);
-    }
-  };
+	ws = new WebSocket(url);
+	ws.onerror = () => {
+		if (attempts < 10) {
+			setTimeout(connect, 1000 * ++attempts);
+		}
+	};
 };
 ```
 
@@ -705,16 +704,16 @@ Workers should convert raw data to internal types:
 import { unifiedConverter } from "./converter";
 
 ws.onmessage = (event) => {
-  const { topic, data, type } = JSON.parse(event.data);
+	const { topic, data, type } = JSON.parse(event.data);
 
-  // Convert to internal type
-  const converted = unifiedConverter.convert(
-    data,
-    type, // rawType: 'sensor_msgs/Imu'
-    "IMU", // internal type
-  );
+	// Convert to internal type
+	const converted = unifiedConverter.convert(
+		data,
+		type, // rawType: 'sensor_msgs/Imu'
+		"IMU", // internal type
+	);
 
-  ctx.publish(topic, converted, Date.now());
+	ctx.publish(topic, converted, Date.now());
 };
 ```
 

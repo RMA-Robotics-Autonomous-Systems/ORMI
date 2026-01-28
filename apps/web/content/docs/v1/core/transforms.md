@@ -67,26 +67,26 @@ A 3D transformation with position and rotation:
 
 ```typescript
 interface Vector3 {
-  x: number;
-  y: number;
-  z: number;
+	x: number;
+	y: number;
+	z: number;
 }
 
 interface Vector4 extends Vector3 {
-  w: number;
+	w: number;
 }
 
 interface Quaternion {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
+	x: number;
+	y: number;
+	z: number;
+	w: number;
 }
 
 interface Transform {
-  position: Vector4; // Translation (x, y, z, w=0)
-  rotation: Quaternion; // Orientation as quaternion
-  convention: CoordinateConvention; // 'ROS' | 'THREE' | 'UNITY' etc.
+	position: Vector4; // Translation (x, y, z, w=0)
+	rotation: Quaternion; // Orientation as quaternion
+	convention: CoordinateConvention; // 'ROS' | 'THREE' | 'UNITY' etc.
 }
 ```
 
@@ -94,9 +94,9 @@ interface Transform {
 
 ```typescript
 const transform: Transform = {
-  position: { x: 1.0, y: 2.0, z: 0.5, w: 0 },
-  rotation: { x: 0, y: 0, z: 0, w: 1 }, // Identity rotation
-  convention: "ROS",
+	position: { x: 1.0, y: 2.0, z: 0.5, w: 0 },
+	rotation: { x: 0, y: 0, z: 0, w: 1 }, // Identity rotation
+	convention: "ROS",
 };
 ```
 
@@ -106,11 +106,11 @@ Hierarchical tree node representing a coordinate frame:
 
 ```typescript
 interface TransformTree {
-  id: string; // Frame identifier (e.g., "base_link")
-  parentId: string; // Parent frame ID (empty string for root)
-  transform: Transform; // Transform from parent to this frame
-  children: Map<string, TransformTree>; // Child frames
-  convention?: CoordinateConvention; // Coordinate convention
+	id: string; // Frame identifier (e.g., "base_link")
+	parentId: string; // Parent frame ID (empty string for root)
+	transform: Transform; // Transform from parent to this frame
+	children: Map<string, TransformTree>; // Child frames
+	convention?: CoordinateConvention; // Coordinate convention
 }
 ```
 
@@ -118,38 +118,38 @@ interface TransformTree {
 
 ```typescript
 const mapFrame: TransformTree = {
-  id: "map",
-  parentId: "", // Root frame
-  transform: identityTransform,
-  children: new Map([
-    [
-      "odom",
-      {
-        id: "odom",
-        parentId: "map",
-        transform: {
-          position: { x: 0, y: 0, z: 0, w: 0 },
-          rotation: { x: 0, y: 0, z: 0, w: 1 },
-          convention: "ROS",
-        },
-        children: new Map([
-          [
-            "base_link",
-            {
-              id: "base_link",
-              parentId: "odom",
-              transform: {
-                position: { x: 2.5, y: 1.0, z: 0, w: 0 },
-                rotation: { x: 0, y: 0, z: 0.707, w: 0.707 }, // 90° yaw
-                convention: "ROS",
-              },
-              children: new Map(),
-            },
-          ],
-        ]),
-      },
-    ],
-  ]),
+	id: "map",
+	parentId: "", // Root frame
+	transform: identityTransform,
+	children: new Map([
+		[
+			"odom",
+			{
+				id: "odom",
+				parentId: "map",
+				transform: {
+					position: { x: 0, y: 0, z: 0, w: 0 },
+					rotation: { x: 0, y: 0, z: 0, w: 1 },
+					convention: "ROS",
+				},
+				children: new Map([
+					[
+						"base_link",
+						{
+							id: "base_link",
+							parentId: "odom",
+							transform: {
+								position: { x: 2.5, y: 1.0, z: 0, w: 0 },
+								rotation: { x: 0, y: 0, z: 0.707, w: 0.707 }, // 90° yaw
+								convention: "ROS",
+							},
+							children: new Map(),
+						},
+					],
+				]),
+			},
+		],
+	]),
 };
 ```
 
@@ -167,7 +167,7 @@ import { TransformTree } from "@workspace/ormi-core/types";
 
 // Key is the root frame_id (e.g., "world", "map", "odom")
 export const transformTreesAtom = atom<Map<string, TransformTree>>(
-  new Map<string, TransformTree>(),
+	new Map<string, TransformTree>(),
 );
 ```
 
@@ -185,22 +185,22 @@ Derived atom for the total number of frames:
 
 ```typescript
 export const transformFrameCountAtom = atom((get) => {
-  const trees = get(transformTreesAtom);
-  let count = 0;
+	const trees = get(transformTreesAtom);
+	let count = 0;
 
-  const countFrames = (tree: TransformTree): number => {
-    let c = 1;
-    for (const [, child] of tree.children) {
-      c += countFrames(child);
-    }
-    return c;
-  };
+	const countFrames = (tree: TransformTree): number => {
+		let c = 1;
+		for (const [, child] of tree.children) {
+			c += countFrames(child);
+		}
+		return c;
+	};
 
-  for (const [, tree] of trees) {
-    count += countFrames(tree);
-  }
+	for (const [, tree] of trees) {
+		count += countFrames(tree);
+	}
 
-  return count;
+	return count;
 });
 ```
 
@@ -212,10 +212,10 @@ Access transform trees directly from the Jotai atom - **no provider wrapper need
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 
 function MyComponent() {
-  const { transformsTrees } = useTransformSource();
+	const { transformsTrees } = useTransformSource();
 
-  // transformsTrees: Map<string, TransformTree>
-  console.log("Available root frames:", Array.from(transformsTrees.keys()));
+	// transformsTrees: Map<string, TransformTree>
+	console.log("Available root frames:", Array.from(transformsTrees.keys()));
 }
 ```
 
@@ -242,18 +242,18 @@ Datasources push transforms using the `processTFMessage` function:
 
 ```typescript
 import {
-  processTFMessage,
-  clearTransformsFromDatasource,
+	processTFMessage,
+	clearTransformsFromDatasource,
 } from "@workspace/ormi-core/transforms";
 
 // When TF message is received
 function handleTFMessage(message: TFMessage) {
-  processTFMessage(datasourceId, message);
+	processTFMessage(datasourceId, message);
 }
 
 // When datasource disconnects
 function cleanup() {
-  clearTransformsFromDatasource(datasourceId);
+	clearTransformsFromDatasource(datasourceId);
 }
 ```
 
@@ -261,19 +261,19 @@ function cleanup() {
 
 ```typescript
 interface TFTransform {
-  header: {
-    frame_id: string;
-    stamp?: { sec: number; nsec: number };
-  };
-  child_frame_id: string;
-  transform: {
-    translation: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number; w: number };
-  };
+	header: {
+		frame_id: string;
+		stamp?: { sec: number; nsec: number };
+	};
+	child_frame_id: string;
+	transform: {
+		translation: { x: number; y: number; z: number };
+		rotation: { x: number; y: number; z: number; w: number };
+	};
 }
 
 interface TFMessage {
-  transforms: TFTransform[];
+	transforms: TFTransform[];
 }
 ```
 
@@ -317,9 +317,9 @@ Finds the sequence of transforms needed to convert from one frame to another.
 
 ```typescript
 function findTransformChain(
-  treeMap: Map<string, TransformTree>,
-  sourceFrameId: string,
-  targetFrameId: string,
+	treeMap: Map<string, TransformTree>,
+	sourceFrameId: string,
+	targetFrameId: string,
 ): Transform[] | null;
 ```
 
@@ -342,23 +342,23 @@ function findTransformChain(
 
 ```typescript
 import {
-  findTransformChain,
-  useTransformSource,
+	findTransformChain,
+	useTransformSource,
 } from "@workspace/ormi-core/transforms";
 
 function MyWidget() {
-  const { transformsTrees } = useTransformSource();
+	const { transformsTrees } = useTransformSource();
 
-  // Find transform from camera to map
-  const chain = findTransformChain(transformsTrees, "camera", "map");
+	// Find transform from camera to map
+	const chain = findTransformChain(transformsTrees, "camera", "map");
 
-  if (chain === null) {
-    console.log("No transform chain found");
-  } else if (chain.length === 0) {
-    console.log("Frames are identical");
-  } else {
-    console.log(`Found chain with ${chain.length} transforms`);
-  }
+	if (chain === null) {
+		console.log("No transform chain found");
+	} else if (chain.length === 0) {
+		console.log("Frames are identical");
+	} else {
+		console.log(`Found chain with ${chain.length} transforms`);
+	}
 }
 ```
 
@@ -374,25 +374,25 @@ function applyTransformChain(point: Vector3, transforms: Transform[]): Vector3;
 
 ```typescript
 import {
-  applyTransformChain,
-  findTransformChain,
-  useTransformSource,
+	applyTransformChain,
+	findTransformChain,
+	useTransformSource,
 } from "@workspace/ormi-core/transforms";
 
 function TransformPoint() {
-  const { transformsTrees } = useTransformSource();
+	const { transformsTrees } = useTransformSource();
 
-  // Point in camera frame
-  const pointInCamera = { x: 0, y: 0, z: 1 };
+	// Point in camera frame
+	const pointInCamera = { x: 0, y: 0, z: 1 };
 
-  // Get transform chain
-  const chain = findTransformChain(transformsTrees, "camera", "map");
+	// Get transform chain
+	const chain = findTransformChain(transformsTrees, "camera", "map");
 
-  if (chain) {
-    // Transform to map frame
-    const pointInMap = applyTransformChain(pointInCamera, chain);
-    console.log("Point in map frame:", pointInMap);
-  }
+	if (chain) {
+		// Transform to map frame
+		const pointInMap = applyTransformChain(pointInCamera, chain);
+		console.log("Point in map frame:", pointInMap);
+	}
 }
 ```
 
@@ -416,9 +416,9 @@ import { applyTransform } from "@workspace/ormi-core/transforms";
 
 const point = { x: 1, y: 0, z: 0 };
 const transform = {
-  position: { x: 5, y: 0, z: 0, w: 0 },
-  rotation: { x: 0, y: 0, z: 0, w: 1 }, // No rotation
-  convention: "ROS",
+	position: { x: 5, y: 0, z: 0, w: 0 },
+	rotation: { x: 0, y: 0, z: 0, w: 1 }, // No rotation
+	convention: "ROS",
 };
 
 const transformed = applyTransform(point, transform);
@@ -433,9 +433,9 @@ Convert local ENU (East-North-Up) coordinates to GPS:
 
 ```typescript
 interface GPSCoords {
-  latitude: number;
-  longitude: number;
-  altitude?: number;
+	latitude: number;
+	longitude: number;
+	altitude?: number;
 }
 
 function localToGPS(localPoint: Vector3, originGPS: GPSCoords): GPSCoords;
@@ -452,9 +452,9 @@ function localToGPS(localPoint: Vector3, originGPS: GPSCoords): GPSCoords;
 import { localToGPS } from "@workspace/ormi-core/transforms";
 
 const origin: GPSCoords = {
-  latitude: 37.7749,
-  longitude: -122.4194,
-  altitude: 10,
+	latitude: 37.7749,
+	longitude: -122.4194,
+	altitude: 10,
 };
 
 const localPoint = { x: 100, y: 50, z: 5 }; // 100m east, 50m north, 5m up
@@ -477,15 +477,15 @@ function gpsToLocal(gps: GPSCoords, originGPS: GPSCoords): Vector3;
 import { gpsToLocal } from "@workspace/ormi-core/transforms";
 
 const origin: GPSCoords = {
-  latitude: 37.7749,
-  longitude: -122.4194,
-  altitude: 10,
+	latitude: 37.7749,
+	longitude: -122.4194,
+	altitude: 10,
 };
 
 const target: GPSCoords = {
-  latitude: 37.775,
-  longitude: -122.4193,
-  altitude: 15,
+	latitude: 37.775,
+	longitude: -122.4193,
+	altitude: 15,
 };
 
 const local = gpsToLocal(target, origin);
@@ -498,16 +498,16 @@ Convenience hook for transforming data to GPS coordinates:
 
 ```typescript
 function useTransformToGPS(
-  sourceFrameId: string,
-  gpsFrameId: string,
-  gpsOriginData: GeolocationPosition | null,
+	sourceFrameId: string,
+	gpsFrameId: string,
+	gpsOriginData: GeolocationPosition | null,
 ): {
-  transformPointToGPS: (localPoint: Vector3) => GPSCoords | null;
-  transformPointsToGPS: (localPoints: Vector3[]) => (GPSCoords | null)[];
-  hasTransform: boolean;
-  transformError: string | null;
-  hasGPSOrigin: boolean;
-  gpsOrigin: GPSCoords | null;
+	transformPointToGPS: (localPoint: Vector3) => GPSCoords | null;
+	transformPointsToGPS: (localPoints: Vector3[]) => (GPSCoords | null)[];
+	hasTransform: boolean;
+	transformError: string | null;
+	hasGPSOrigin: boolean;
+	gpsOrigin: GPSCoords | null;
 };
 ```
 
@@ -571,8 +571,8 @@ Find a specific frame node in a tree:
 
 ```typescript
 function getTransformTreeFromTreeId(
-  tree: TransformTree,
-  id: string,
+	tree: TransformTree,
+	id: string,
 ): TransformTree | null;
 ```
 
@@ -582,8 +582,8 @@ Find a frame node across multiple trees:
 
 ```typescript
 function getTransformTreeFromTreeIdInMaps(
-  treeMap: Map<string, TransformTree>,
-  id: string,
+	treeMap: Map<string, TransformTree>,
+	id: string,
 ): TransformTree | null;
 ```
 
@@ -600,7 +600,7 @@ function invertTransform(transform: Transform): Transform;
 ```typescript
 // Transform from parent to child
 const parentToChild = {
-  /* ... */
+	/* ... */
 };
 
 // Transform from child to parent
@@ -629,8 +629,8 @@ Create a converter between coordinate systems:
 
 ```typescript
 function createPositionConverter(
-  sourceConvention: CoordinateConvention,
-  targetConvention: CoordinateConvention,
+	sourceConvention: CoordinateConvention,
+	targetConvention: CoordinateConvention,
 ): (position: Vector3) => Vector3;
 ```
 
@@ -706,15 +706,15 @@ const { transformsTrees } = useTransformSource();
 
 // Debug: List all available frames
 const listFrames = (tree: TransformTree, depth = 0) => {
-  console.log("  ".repeat(depth) + tree.id);
-  for (const [, child] of tree.children) {
-    listFrames(child, depth + 1);
-  }
+	console.log("  ".repeat(depth) + tree.id);
+	for (const [, child] of tree.children) {
+		listFrames(child, depth + 1);
+	}
 };
 
 transformsTrees.forEach((tree, rootId) => {
-  console.log(`Tree rooted at: ${rootId}`);
-  listFrames(tree);
+	console.log(`Tree rooted at: ${rootId}`);
+	listFrames(tree);
 });
 ```
 
@@ -729,12 +729,12 @@ import { processTFMessage } from "@workspace/ormi-core/transforms";
 
 // In your TF message handler
 function onTFMessage(message) {
-  console.log(
-    "Processing TF message:",
-    message.transforms.length,
-    "transforms",
-  );
-  processTFMessage(datasourceId, message);
+	console.log(
+		"Processing TF message:",
+		message.transforms.length,
+		"transforms",
+	);
+	processTFMessage(datasourceId, message);
 }
 ```
 
@@ -744,8 +744,8 @@ For non-React code, use the store directly:
 
 ```typescript
 import {
-  getTransformTrees,
-  subscribeToTransforms,
+	getTransformTrees,
+	subscribeToTransforms,
 } from "@workspace/ormi-core/transforms";
 
 // Get current trees
@@ -753,8 +753,8 @@ const trees = getTransformTrees();
 
 // Subscribe to changes
 const unsubscribe = subscribeToTransforms(() => {
-  const updatedTrees = getTransformTrees();
-  console.log("Transforms updated:", updatedTrees.size);
+	const updatedTrees = getTransformTrees();
+	console.log("Transforms updated:", updatedTrees.size);
 });
 
 // Later: cleanup

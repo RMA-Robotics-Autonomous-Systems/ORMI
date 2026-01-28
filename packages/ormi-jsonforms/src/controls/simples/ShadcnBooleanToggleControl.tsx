@@ -25,13 +25,13 @@
 "use client";
 
 import {
-  isBooleanControl,
-  RankedTester,
-  rankWith,
-  ControlProps,
-  optionIs,
-  and,
-  isDescriptionHidden,
+	isBooleanControl,
+	RankedTester,
+	rankWith,
+	ControlProps,
+	optionIs,
+	and,
+	isDescriptionHidden,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
@@ -39,84 +39,85 @@ import React from "react";
 
 import { Switch } from "@workspace/ui/components/switch";
 import {
-  TooltipProvider,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
+	TooltipProvider,
+	Tooltip,
+	TooltipTrigger,
+	TooltipContent,
 } from "@workspace/ui/components/tooltip";
 
 export const ShadcnBooleanToggleControl = ({
-  data,
-  visible,
-  label,
-  id,
-  enabled,
-  uischema,
-  handleChange,
-  errors,
-  path,
-  config,
-  description,
+	data,
+	visible,
+	label,
+	id,
+	enabled,
+	uischema,
+	handleChange,
+	errors,
+	path,
+	config,
+	description,
 }: ControlProps) => {
-  const isValid = errors.length === 0;
-  const appliedUiSchemaOptions = merge({}, config, uischema.options);
+	const isValid = errors.length === 0;
+	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
-  const showDescription = !isDescriptionHidden(
-    visible,
-    description,
-    false,
-    appliedUiSchemaOptions.showUnfocusedDescription,
-  );
+	const showDescription = !isDescriptionHidden(
+		visible,
+		description,
+		false,
+		appliedUiSchemaOptions.showUnfocusedDescription,
+	);
 
-  const showTooltip =
-    !showDescription && !isDescriptionHidden(visible, description, true, true);
+	const showTooltip =
+		!showDescription &&
+		!isDescriptionHidden(visible, description, true, true);
 
-  if (!visible) {
-    return null;
-  }
+	if (!visible) {
+		return null;
+	}
 
-  const control = (
-    <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-      <Switch
-        id={id}
-        checked={data || false}
-        disabled={!enabled}
-        onCheckedChange={(checked) => handleChange(path, checked)}
-      />
-      <label
-        htmlFor={id}
-        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-      >
-        {label}
-      </label>
-    </div>
-  );
+	const control = (
+		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			<Switch
+				id={id}
+				checked={data || false}
+				disabled={!enabled}
+				onCheckedChange={(checked) => handleChange(path, checked)}
+			/>
+			<label
+				htmlFor={id}
+				className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+			>
+				{label}
+			</label>
+		</div>
+	);
 
-  return (
-    <div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-      {showTooltip ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>{control}</TooltipTrigger>
-            <TooltipContent>{description}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        control
-      )}
+	return (
+		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			{showTooltip ? (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>{control}</TooltipTrigger>
+						<TooltipContent>{description}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			) : (
+				control
+			)}
 
-      {showDescription && (
-        <p className="text-sm text-muted-foreground">{description}</p>
-      )}
+			{showDescription && (
+				<p className="text-sm text-muted-foreground">{description}</p>
+			)}
 
-      {!isValid && <p className="text-sm text-destructive">{errors}</p>}
-    </div>
-  );
+			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+		</div>
+	);
 };
 
 export const shadcnBooleanToggleControlTester: RankedTester = rankWith(
-  5,
-  and(isBooleanControl, optionIs("toggle", true)),
+	5,
+	and(isBooleanControl, optionIs("toggle", true)),
 );
 
 export default withJsonFormsControlProps(ShadcnBooleanToggleControl);

@@ -24,32 +24,32 @@ import { ImageViewerDefinition } from "./widgets/basic/image";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
 const WidgetExport = (widgets: WidgetDefinition[]) => {
-  widgets.push(KeyboardControlDefinition());
-  widgets.push(JoypadControlsDefinition());
-  widgets.push(TimeSeriesChartDefinition());
-  widgets.push(ChartEchartsWidgetDefinition());
-  widgets.push(MapsBoxViewerDefinition());
-  widgets.push(IntStatusIndicatorDefinition());
-  widgets.push(CondStatusIndicatorDefinition());
-  widgets.push(NotAPongDefinition());
-  widgets.push(IframeDefinition());
-  widgets.push(PluginsViewerDefinition());
-  widgets.push(RemoteCallExplorerDefinition());
-  widgets.push(TreeViewerDefinition());
-  widgets.push(JsonViewerDefinition());
-  widgets.push(JsonListDefinition());
-  widgets.push(TopicsListDefinition());
-  widgets.push(ImageViewerDefinition());
+	widgets.push(KeyboardControlDefinition());
+	widgets.push(JoypadControlsDefinition());
+	widgets.push(TimeSeriesChartDefinition());
+	widgets.push(ChartEchartsWidgetDefinition());
+	widgets.push(MapsBoxViewerDefinition());
+	widgets.push(IntStatusIndicatorDefinition());
+	widgets.push(CondStatusIndicatorDefinition());
+	widgets.push(NotAPongDefinition());
+	widgets.push(IframeDefinition());
+	widgets.push(PluginsViewerDefinition());
+	widgets.push(RemoteCallExplorerDefinition());
+	widgets.push(TreeViewerDefinition());
+	widgets.push(JsonViewerDefinition());
+	widgets.push(JsonListDefinition());
+	widgets.push(TopicsListDefinition());
+	widgets.push(ImageViewerDefinition());
 
-  widgets.push(PointsCloudDreiDefinition());
+	widgets.push(PointsCloudDreiDefinition());
 
-  widgets.push(ToggleControlDefinition());
-  widgets.push(BtnControlDefinition());
-  widgets.push(CycleControlDefinition());
+	widgets.push(ToggleControlDefinition());
+	widgets.push(BtnControlDefinition());
+	widgets.push(CycleControlDefinition());
 
-  widgets.push(TransformTreeWidgetDefinition());
+	widgets.push(TransformTreeWidgetDefinition());
 
-  return widgets;
+	return widgets;
 };
 
 export default WidgetExport;

@@ -1,42 +1,42 @@
 "use client";
 
 import React, {
-  createContext,
-  useContext,
-  useRef,
-  ReactNode,
-  useState,
-  useCallback,
+	createContext,
+	useContext,
+	useRef,
+	ReactNode,
+	useState,
+	useCallback,
 } from "react";
 import { WidgetCard } from "../../../../widgets/components/widget-card/widget-card";
 
 interface DialogState {
-  isOpen: boolean;
-  widgetId: string;
-  widget: any;
-  definition: any;
-  onUpdateWidget: (box_id: string, settings: any) => void;
+	isOpen: boolean;
+	widgetId: string;
+	widget: any;
+	definition: any;
+	onUpdateWidget: (box_id: string, settings: any) => void;
 }
 
 interface FlexLayoutPortalContextType {
-  registerPortal: (widgetId: string, container: HTMLElement) => void;
-  unregisterPortal: (widgetId: string) => void;
-  getPortalContainer: (widgetId: string) => HTMLElement | null;
-  openDialog: (
-    widgetId: string,
-    widget: any,
-    definition: any,
-    onUpdateWidget: (box_id: string, settings: any) => void,
-  ) => void;
-  closeDialog: () => void;
-  dialogState: DialogState | null;
+	registerPortal: (widgetId: string, container: HTMLElement) => void;
+	unregisterPortal: (widgetId: string) => void;
+	getPortalContainer: (widgetId: string) => HTMLElement | null;
+	openDialog: (
+		widgetId: string,
+		widget: any,
+		definition: any,
+		onUpdateWidget: (box_id: string, settings: any) => void,
+	) => void;
+	closeDialog: () => void;
+	dialogState: DialogState | null;
 }
 
 const FlexLayoutPortalContext =
-  createContext<FlexLayoutPortalContextType | null>(null);
+	createContext<FlexLayoutPortalContextType | null>(null);
 
 interface FlexLayoutPortalProviderProps {
-  children: ReactNode;
+	children: ReactNode;
 }
 
 /**
@@ -47,86 +47,89 @@ interface FlexLayoutPortalProviderProps {
  * while preserving React context chains.
  */
 export const FlexLayoutPortalProvider: React.FC<
-  FlexLayoutPortalProviderProps
+	FlexLayoutPortalProviderProps
 > = ({ children }) => {
-  const portalContainers = useRef<Map<string, HTMLElement>>(new Map());
-  const [dialogState, setDialogState] = useState<DialogState | null>(null);
+	const portalContainers = useRef<Map<string, HTMLElement>>(new Map());
+	const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
-  const registerPortal = (widgetId: string, container: HTMLElement) => {
-    portalContainers.current.set(widgetId, container);
-  };
+	const registerPortal = (widgetId: string, container: HTMLElement) => {
+		portalContainers.current.set(widgetId, container);
+	};
 
-  const unregisterPortal = (widgetId: string) => {
-    portalContainers.current.delete(widgetId);
-  };
+	const unregisterPortal = (widgetId: string) => {
+		portalContainers.current.delete(widgetId);
+	};
 
-  const getPortalContainer = (widgetId: string): HTMLElement | null => {
-    return portalContainers.current.get(widgetId) || null;
-  };
+	const getPortalContainer = (widgetId: string): HTMLElement | null => {
+		return portalContainers.current.get(widgetId) || null;
+	};
 
-  const openDialog = useCallback(
-    (
-      widgetId: string,
-      widget: any,
-      definition: any,
-      onUpdateWidget: (box_id: string, settings: any) => void,
-    ) => {
-      setDialogState({
-        isOpen: true,
-        widgetId,
-        widget,
-        definition,
-        onUpdateWidget,
-      });
-    },
-    [],
-  );
+	const openDialog = useCallback(
+		(
+			widgetId: string,
+			widget: any,
+			definition: any,
+			onUpdateWidget: (box_id: string, settings: any) => void,
+		) => {
+			setDialogState({
+				isOpen: true,
+				widgetId,
+				widget,
+				definition,
+				onUpdateWidget,
+			});
+		},
+		[],
+	);
 
-  const closeDialog = useCallback(() => {
-    setDialogState(null);
-  }, []);
+	const closeDialog = useCallback(() => {
+		setDialogState(null);
+	}, []);
 
-  const contextValue: FlexLayoutPortalContextType = {
-    registerPortal,
-    unregisterPortal,
-    getPortalContainer,
-    openDialog,
-    closeDialog,
-    dialogState,
-  };
+	const contextValue: FlexLayoutPortalContextType = {
+		registerPortal,
+		unregisterPortal,
+		getPortalContainer,
+		openDialog,
+		closeDialog,
+		dialogState,
+	};
 
-  return (
-    <FlexLayoutPortalContext.Provider value={contextValue}>
-      {children}
-      {/* Render dialog outside of FlexLayout structure */}
-      {dialogState && (
-        <WidgetCard
-          key={`dialog-${dialogState.widgetId}`}
-          fromLoaded={true}
-          data={dialogState.widget.settings}
-          definition={dialogState.definition}
-          displayType="gear"
-          isDialogOpen={dialogState.isOpen}
-          onDialogClose={closeDialog}
-          onValidate={(widget_def, settings) => {
-            dialogState.onUpdateWidget(dialogState.widget.box_id, settings);
-            closeDialog();
-          }}
-        />
-      )}
-    </FlexLayoutPortalContext.Provider>
-  );
+	return (
+		<FlexLayoutPortalContext.Provider value={contextValue}>
+			{children}
+			{/* Render dialog outside of FlexLayout structure */}
+			{dialogState && (
+				<WidgetCard
+					key={`dialog-${dialogState.widgetId}`}
+					fromLoaded={true}
+					data={dialogState.widget.settings}
+					definition={dialogState.definition}
+					displayType="gear"
+					isDialogOpen={dialogState.isOpen}
+					onDialogClose={closeDialog}
+					onValidate={(widget_def, settings) => {
+						dialogState.onUpdateWidget(
+							dialogState.widget.box_id,
+							settings,
+						);
+						closeDialog();
+					}}
+				/>
+			)}
+		</FlexLayoutPortalContext.Provider>
+	);
 };
 
 /**
  * Custom hook to use the FlexLayoutPortal context
  */
 export const useFlexLayoutPortal = (): FlexLayoutPortalContextType => {
-  const context = useContext(FlexLayoutPortalContext);
-  if (!context) {
-    throw new Error(
-      "useFlexLayoutPortal must be used within a FlexLayoutPortalProvider",
-    );
-  }
-  return context;
+	const context = useContext(FlexLayoutPortalContext);
+	if (!context) {
+		throw new Error(
+			"useFlexLayoutPortal must be used within a FlexLayoutPortalProvider",
+		);
+	}
+	return context;
 };

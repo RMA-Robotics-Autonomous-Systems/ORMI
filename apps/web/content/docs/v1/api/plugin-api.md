@@ -29,16 +29,16 @@ constructor(options?: {
 
 ```typescript
 class Plugin {
-  protected name: string;
-  protected author: string;
-  protected email: string;
-  protected url: string;
-  protected description: string;
-  protected version: string;
-  protected dependencies: string[];
+	protected name: string;
+	protected author: string;
+	protected email: string;
+	protected url: string;
+	protected description: string;
+	protected version: string;
+	protected dependencies: string[];
 
-  public actions: Map<string | PluginsHooks, Map<string, PluginAction>>;
-  public filters: Map<string | PluginsHooks, Map<string, PluginFilter>>;
+	public actions: Map<string | PluginsHooks, Map<string, PluginAction>>;
+	public filters: Map<string | PluginsHooks, Map<string, PluginFilter>>;
 }
 ```
 
@@ -109,8 +109,8 @@ applyFilter<T>(
 
 ```typescript
 const widgets = pluginManager.applyFilter<WidgetDefinition[]>(
-  PluginsHooks.WIDGETS_LIST,
-  [],
+	PluginsHooks.WIDGETS_LIST,
+	[],
 );
 ```
 
@@ -190,9 +190,9 @@ async WaitAndDoAction(
 
 ```typescript
 interface PluginFilter {
-  id: string;
-  priority: number;
-  filter: (...args: any) => any;
+	id: string;
+	priority: number;
+	filter: (...args: any) => any;
 }
 ```
 
@@ -200,9 +200,9 @@ interface PluginFilter {
 
 ```typescript
 interface PluginAction {
-  id: string;
-  priority: number;
-  action: (...args: any) => void;
+	id: string;
+	priority: number;
+	action: (...args: any) => void;
 }
 ```
 
@@ -212,16 +212,16 @@ Predefined hook names.
 
 ```typescript
 enum PluginsHooks {
-  PLUGIN_PROVIDER_BEFORE_CHILDREN = "plugins-before-children",
-  PLUGIN_PROVIDER_AFTER_CHILDREN = "plugins-after-children",
-  JSON_FORMS_RENDERER = "plugins-jsonforms-renderer",
-  WIDGETS_LIST = "plugins-widgets-list",
-  DATASOURCES_LIST = "plugins-datasources-list",
-  WIDGET_LIST_WITH_DATASOURCE = "plugins-widgets-list-with-datasource",
-  AVAILABLE_TOPICS = "plugins-topics-list",
-  AVAILABLE_DATASOURCES = "plugins-datasources-availables",
-  TRANSFORM_TREE = "CORE-TRANSFORM-TREE",
-  MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
+	PLUGIN_PROVIDER_BEFORE_CHILDREN = "plugins-before-children",
+	PLUGIN_PROVIDER_AFTER_CHILDREN = "plugins-after-children",
+	JSON_FORMS_RENDERER = "plugins-jsonforms-renderer",
+	WIDGETS_LIST = "plugins-widgets-list",
+	DATASOURCES_LIST = "plugins-datasources-list",
+	WIDGET_LIST_WITH_DATASOURCE = "plugins-widgets-list-with-datasource",
+	AVAILABLE_TOPICS = "plugins-topics-list",
+	AVAILABLE_DATASOURCES = "plugins-datasources-availables",
+	TRANSFORM_TREE = "CORE-TRANSFORM-TREE",
+	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
 }
 ```
 
@@ -235,8 +235,8 @@ Access PluginManager in React components.
 import { usePluginsManager } from "@workspace/ormi-plugins";
 
 function MyComponent() {
-  const pluginManager = usePluginsManager();
-  // ...
+	const pluginManager = usePluginsManager();
+	// ...
 }
 ```
 
@@ -255,8 +255,8 @@ type PluginRegistry = Record<string, Promise<Plugin>>;
 import { PluginRegistry } from "@workspace/ormi-plugins";
 
 const registry: PluginRegistry = {
-  "my-plugin": import("my-plugin"),
-  "another-plugin": import("another-plugin"),
+	"my-plugin": import("my-plugin"),
+	"another-plugin": import("another-plugin"),
 };
 
 export default registry;
@@ -279,51 +279,51 @@ import pluginRegistry from './ormi-plugins';
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 
 class MyPlugin extends Plugin {
-  constructor() {
-    super({
-      name: "My Plugin",
-      description: "Example plugin",
-      version: "1.0.0",
-      author: "Your Name",
-      email: "your@email.com",
-      dependencies: [],
-    });
-  }
+	constructor() {
+		super({
+			name: "My Plugin",
+			description: "Example plugin",
+			version: "1.0.0",
+			author: "Your Name",
+			email: "your@email.com",
+			dependencies: [],
+		});
+	}
 
-  protected initialize(): void {
-    // Register widgets
-    this.addFilter(PluginsHooks.WIDGETS_LIST, {
-      id: `${this.name}-widgets`,
-      priority: 10,
-      filter: (widgets) => {
-        widgets.push(MyWidget());
-        return widgets;
-      },
-    });
+	protected initialize(): void {
+		// Register widgets
+		this.addFilter(PluginsHooks.WIDGETS_LIST, {
+			id: `${this.name}-widgets`,
+			priority: 10,
+			filter: (widgets) => {
+				widgets.push(MyWidget());
+				return widgets;
+			},
+		});
 
-    // Register datasources
-    this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-      id: `${this.name}-datasources`,
-      priority: 10,
-      filter: (datasources) => {
-        datasources.push(MyDatasource);
-        return datasources;
-      },
-    });
+		// Register datasources
+		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
+			id: `${this.name}-datasources`,
+			priority: 10,
+			filter: (datasources) => {
+				datasources.push(MyDatasource);
+				return datasources;
+			},
+		});
 
-    // Register JSON Forms renderers
-    this.addFilter(PluginsHooks.JSON_FORMS_RENDERER, {
-      id: `${this.name}-renderers`,
-      priority: 10,
-      filter: (renderers) => {
-        renderers.push({
-          tester: myTester,
-          renderer: MyRenderer,
-        });
-        return renderers;
-      },
-    });
-  }
+		// Register JSON Forms renderers
+		this.addFilter(PluginsHooks.JSON_FORMS_RENDERER, {
+			id: `${this.name}-renderers`,
+			priority: 10,
+			filter: (renderers) => {
+				renderers.push({
+					tester: myTester,
+					renderer: MyRenderer,
+				});
+				return renderers;
+			},
+		});
+	}
 }
 
 export default MyPlugin;

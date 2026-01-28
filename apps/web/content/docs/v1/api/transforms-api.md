@@ -54,7 +54,7 @@ Main hook for accessing transform data. **No provider wrapper needed** - works a
 
 ```typescript
 function useTransformSource(): {
-  transformsTrees: Map<string, TransformTree>;
+	transformsTrees: Map<string, TransformTree>;
 };
 ```
 
@@ -97,34 +97,34 @@ function FrameStatus() {
 
 ```typescript
 interface Vector3 {
-  x: number;
-  y: number;
-  z: number;
+	x: number;
+	y: number;
+	z: number;
 }
 
 interface Vector4 extends Vector3 {
-  w: number;
+	w: number;
 }
 
 interface Quaternion {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
+	x: number;
+	y: number;
+	z: number;
+	w: number;
 }
 
 interface Transform {
-  position: Vector4;
-  rotation: Quaternion;
-  convention: CoordinateConvention;
+	position: Vector4;
+	rotation: Quaternion;
+	convention: CoordinateConvention;
 }
 
 interface TransformTree {
-  id: string;
-  parentId: string;
-  transform: Transform;
-  children: Map<string, TransformTree>;
-  convention?: CoordinateConvention;
+	id: string;
+	parentId: string;
+	transform: Transform;
+	children: Map<string, TransformTree>;
+	convention?: CoordinateConvention;
 }
 
 type CoordinateConvention = "ROS" | "THREE" | "UNITY" | "UNREAL" | "CUSTOM";
@@ -192,9 +192,9 @@ import { applyTransform } from "@workspace/ormi-core/transforms";
 
 const point = { x: 1, y: 0, z: 0 };
 const transform = {
-  position: { x: 5, y: 0, z: 0, w: 0 },
-  rotation: { x: 0, y: 0, z: 0, w: 1 },
-  convention: "ROS" as const,
+	position: { x: 5, y: 0, z: 0, w: 0 },
+	rotation: { x: 0, y: 0, z: 0, w: 1 },
+	convention: "ROS" as const,
 };
 
 const transformed = applyTransform(point, transform);
@@ -212,7 +212,7 @@ import { processTFMessage } from "@workspace/ormi-core/transforms";
 
 // When receiving a TF message from ROS/Foxglove
 function onTFMessage(message: TFMessage) {
-  processTFMessage(datasourceId, message);
+	processTFMessage(datasourceId, message);
 }
 ```
 
@@ -254,13 +254,13 @@ console.log("Current trees:", trees.size);
 
 ```typescript
 import {
-  subscribeToTransforms,
-  getTransformTrees,
+	subscribeToTransforms,
+	getTransformTrees,
 } from "@workspace/ormi-core/transforms";
 
 const unsubscribe = subscribeToTransforms(() => {
-  const trees = getTransformTrees();
-  console.log("Transforms updated!", trees.size, "trees");
+	const trees = getTransformTrees();
+	console.log("Transforms updated!", trees.size, "trees");
 });
 
 // Later: cleanup
@@ -433,8 +433,8 @@ function TransformStatus({ sourceFrame, targetFrame }) {
 ```typescript
 const chain = findTransformChain(transformsTrees, source, target);
 if (!chain) {
-  // Handle missing transform
-  return;
+	// Handle missing transform
+	return;
 }
 ```
 
@@ -442,8 +442,8 @@ if (!chain) {
 
 ```typescript
 const chain = useMemo(
-  () => findTransformChain(transformsTrees, source, target),
-  [transformsTrees, source, target],
+	() => findTransformChain(transformsTrees, source, target),
+	[transformsTrees, source, target],
 );
 ```
 
@@ -455,7 +455,7 @@ const chain = useMemo(
 const { transformsTrees } = useTransformSource();
 
 useEffect(() => {
-  console.log("Transforms updated:", transformsTrees.size);
+	console.log("Transforms updated:", transformsTrees.size);
 }, [transformsTrees]);
 ```
 
@@ -466,15 +466,15 @@ const { transformsTrees } = useTransformSource();
 
 // Log all available frames
 const logFrames = (tree: TransformTree, path = "") => {
-  console.log(path + tree.id);
-  for (const child of tree.children.values()) {
-    logFrames(child, path + "  ");
-  }
+	console.log(path + tree.id);
+	for (const child of tree.children.values()) {
+		logFrames(child, path + "  ");
+	}
 };
 
 transformsTrees.forEach((tree, rootId) => {
-  console.log(`=== Tree: ${rootId} ===`);
-  logFrames(tree);
+	console.log(`=== Tree: ${rootId} ===`);
+	logFrames(tree);
 });
 ```
 
