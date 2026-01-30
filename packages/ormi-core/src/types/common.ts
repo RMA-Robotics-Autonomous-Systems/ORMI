@@ -1,21 +1,21 @@
 export type Vector2 = {
-  x: number;
-  y: number;
+	x: number;
+	y: number;
 };
 
 export type Vector3 = Vector2 & {
-  z: number;
+	z: number;
 };
 
 export type Vector4 = Vector3 & {
-  w: number;
+	w: number;
 };
 
 export type Quaternion = {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
+	x: number;
+	y: number;
+	z: number;
+	w: number;
 };
 
 /**
@@ -29,12 +29,12 @@ export type Quaternion = {
  * - CUSTOM: User-defined custom convention
  */
 export type CoordinateConvention =
-  | "ROS"
-  | "THREE"
-  | "ENU"
-  | "NED"
-  | "NWU"
-  | "CUSTOM";
+	| "ROS"
+	| "THREE"
+	| "ENU"
+	| "NED"
+	| "NWU"
+	| "CUSTOM";
 
 /**
  * Transform between coordinate frames
@@ -44,13 +44,13 @@ export type CoordinateConvention =
  * @property convention - The coordinate system convention this transform is expressed in (defaults to 'ROS' for backwards compatibility)
  */
 export type Transform = {
-  position: Vector4;
-  rotation: Quaternion;
-  /**
-   * Coordinate convention this transform is expressed in.
-   * Defaults to 'ROS' for backwards compatibility with existing data.
-   */
-  convention?: CoordinateConvention;
+	position: Vector4;
+	rotation: Quaternion;
+	/**
+	 * Coordinate convention this transform is expressed in.
+	 * Defaults to 'ROS' for backwards compatibility with existing data.
+	 */
+	convention?: CoordinateConvention;
 };
 
 /**
@@ -63,55 +63,51 @@ export type Transform = {
  * @property convention - Coordinate convention for the entire tree (inherited by children if not specified)
  */
 export type TransformTree = {
-  id: string;
-  parentId: string;
-  transform: Transform;
-  children: Map<string, TransformTree>;
-  /**
-   * Default coordinate convention for this tree.
-   * Individual transforms can override this with their own convention field.
-   */
-  convention?: CoordinateConvention;
+	id: string;
+	parentId: string;
+	transform: Transform;
+	children: Map<string, TransformTree>;
+	/**
+	 * Default coordinate convention for this tree.
+	 * Individual transforms can override this with their own convention field.
+	 */
+	convention?: CoordinateConvention;
 };
 
 export type Color = {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
+	r: number;
+	g: number;
+	b: number;
+	a: number;
 };
 
 export type PointsCloud = {
-  /** Packed positions: [x0, y0, z0, x1, y1, z1, ...] */
-  points: Float32Array;
-  /** Packed colors: [r0, g0, b0, r1, g1, b1, ...] */
-  colors?: Float32Array;
-  /** Per-point intensity values (0..1) */
-  intensities?: Float32Array;
-  /** Coordinate convention the points are expressed in */
-  convention?: CoordinateConvention;
+	/** Packed positions: [x0, y0, z0, x1, y1, z1, ...] */
+	points: Float32Array;
+	/** Packed colors: [r0, g0, b0, r1, g1, b1, ...] */
+	colors?: Float32Array;
+	/** Per-point intensity values (0..1) */
+	intensities?: Float32Array;
+	/** Coordinate convention the points are expressed in */
+	convention?: CoordinateConvention;
 };
 
-export type Image = {
-  width: number;
-  height: number;
-  data: ImageData;
-};
+export type Image = ImageBitmap;
 
 export type Pose = {
-  position: Vector3;
-  orientation: Quaternion;
-  /** Coordinate convention this pose is expressed in */
-  convention?: CoordinateConvention;
+	position: Vector3;
+	orientation: Quaternion;
+	/** Coordinate convention this pose is expressed in */
+	convention?: CoordinateConvention;
 };
 
 export type PoseStamped = Pose & {
-  timestamp: number; // in seconds
+	timestamp: number; // in seconds
 };
 
 export type Path = {
-  poses: PoseStamped[];
-  timestamp: number; // path timestamp in seconds
-  /** Coordinate convention the path is expressed in */
-  convention?: CoordinateConvention;
+	poses: PoseStamped[];
+	timestamp: number; // path timestamp in seconds
+	/** Coordinate convention the path is expressed in */
+	convention?: CoordinateConvention;
 };

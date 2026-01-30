@@ -16,93 +16,102 @@ import { ConflictResolver } from "./conflict-resolver";
  * Coordinates all offline functionality
  */
 export class OfflineProxy {
-  private database: OfflineDatabase;
-  private apiInterceptor: ApiInterceptor;
-  private syncManager: SyncManager;
-  private conflictResolver: ConflictResolver;
-  private initialized: boolean = false;
+	private database: OfflineDatabase;
+	private apiInterceptor: ApiInterceptor;
+	private syncManager: SyncManager;
+	private conflictResolver: ConflictResolver;
+	private initialized: boolean = false;
 
-  constructor() {
-    this.database = new OfflineDatabase();
-    this.conflictResolver = new ConflictResolver(this.database);
-    this.syncManager = new SyncManager(this.database, this.conflictResolver);
-    this.apiInterceptor = new ApiInterceptor(this.database, this.syncManager);
-  }
+	constructor() {
+		this.database = new OfflineDatabase();
+		this.conflictResolver = new ConflictResolver(this.database);
+		this.syncManager = new SyncManager(
+			this.database,
+			this.conflictResolver,
+		);
+		this.apiInterceptor = new ApiInterceptor(
+			this.database,
+			this.syncManager,
+		);
+	}
 
-  /**
-   * Initialize the offline proxy system
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+	/**
+	 * Initialize the offline proxy system
+	 */
+	async initialize(): Promise<void> {
+		if (this.initialized) return;
 
-    console.log("🔧 Initializing Offline Proxy System...");
+		console.log("🔧 Initializing Offline Proxy System...");
 
-    try {
-      await this.database.init();
-      console.log("✅ Offline database initialized");
+		try {
+			await this.database.init();
+			console.log("✅ Offline database initialized");
 
-      this.initialized = true;
-      console.log("✅ Offline Proxy System ready");
-    } catch (error) {
-      console.error("❌ Failed to initialize Offline Proxy System:", error);
-      throw error;
-    }
-  }
+			this.initialized = true;
+			console.log("✅ Offline Proxy System ready");
+		} catch (error) {
+			console.error(
+				"❌ Failed to initialize Offline Proxy System:",
+				error,
+			);
+			throw error;
+		}
+	}
 
-  /**
-   * Handle incoming requests
-   */
-  async handleRequest(request: Request): Promise<Response | null> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
+	/**
+	 * Handle incoming requests
+	 */
+	async handleRequest(request: Request): Promise<Response | null> {
+		if (!this.initialized) {
+			await this.initialize();
+		}
 
-    return this.apiInterceptor.handleRequest(request);
-  }
+		return this.apiInterceptor.handleRequest(request);
+	}
 
-  /**
-   * Set authentication data
-   */
-  async setAuth(authData: Record<string, unknown>): Promise<void> {
-    await this.database.setAuth({
-      sessionToken: authData.sessionToken as string,
-      userId: authData.userId as string,
-      expires: authData.expires as string,
-      user: authData.user as Record<string, unknown>,
-      _lastModified: Date.now(),
-    });
-  }
+	/**
+	 * Set authentication data
+	 */
+	async setAuth(authData: Record<string, unknown>): Promise<void> {
+		await this.database.setAuth({
+			sessionToken: authData.sessionToken as string,
+			userId: authData.userId as string,
+			expires: authData.expires as string,
+			user: authData.user as Record<string, unknown>,
+			_lastModified: Date.now(),
+		});
+	}
 
-  /**
-   * Clear authentication and all data
-   */
-  async clearAuth(): Promise<void> {
-    await this.database.clearAuth();
-    await this.syncManager.clearSyncData();
-  }
+	/**
+	 * Clear authentication and all data
+	 */
+	async clearAuth(): Promise<void> {
+		await this.database.clearAuth();
+		await this.syncManager.clearSyncData();
+	}
 
-  /**
-   * Force sync now
-   */
-  async forceSync(): Promise<void> {
-    await this.syncManager.forcSync();
-  }
+	/**
+	 * Force sync now
+	 */
+	async forceSync(): Promise<void> {
+		await this.syncManager.forcSync();
+	}
 
-  /**
-   * Get sync status
-   */
-  async getSyncStatus(): Promise<{
-    pendingOperations: number;
-    lastSync: number;
-  }> {
-    return this.syncManager.getSyncStatus();
-  }
+	/**
+	 * Get sync status
+	 */
+	async getSyncStatus(): Promise<{
+		pendingOperations: number;
+		lastSync: number;
+	}> {
+		return this.syncManager.getSyncStatus();
+	}
 
-  /**
-   * Clear all offline data
-   */
-  async clearAllData(): Promise<void> {
-    await this.database.clearAllData();
-    await this.syncManager.clearSyncData();
-  }
+	/**
+	 * Clear all offline data
+	 */
+	async clearAllData(): Promise<void> {
+		await this.database.clearAllData();
+		await this.syncManager.clearSyncData();
+	}
 }

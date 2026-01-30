@@ -26,38 +26,38 @@
 
 import React from "react";
 import {
-  and,
-  ControlProps,
-  isStringControl,
-  optionIs,
-  RankedTester,
-  rankWith,
+	and,
+	ControlProps,
+	isStringControl,
+	optionIs,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
 
 const ShadcnInputColor = (props: ControlProps) => {
-  const { id, enabled, schema, path, handleChange, data } = props;
+	const { id, enabled, schema, path, handleChange, data } = props;
 
-  return (
-    <Input
-      type="color"
-      value={data || schema.default || schema.const || "#000000"}
-      onChange={(ev) => handleChange(path, ev.target.value)}
-      disabled={!enabled}
-      id={id}
-    />
-  );
+	return (
+		<Input
+			type="color"
+			value={data || schema.default || schema.const || "#000000"}
+			onChange={(ev) => handleChange(path, ev.target.value)}
+			disabled={!enabled}
+			id={id}
+		/>
+	);
 };
 
 export const ShadcnColorControl = (props: ControlProps) => (
-  <ShadcnInputControl {...props} input={ShadcnInputColor} />
+	<ShadcnInputControl {...props} input={ShadcnInputColor} />
 );
 
 export const shadcnColorControlTester: RankedTester = rankWith(
-  50,
-  and(isStringControl, optionIs("color", true)),
+	50,
+	and(isStringControl, optionIs("color", true)),
 );
 
 export default withJsonFormsControlProps(ShadcnColorControl);

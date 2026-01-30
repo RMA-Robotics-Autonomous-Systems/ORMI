@@ -25,56 +25,56 @@
 "use client";
 import { Button } from "@workspace/ui/components/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogDescription,
+	DialogFooter,
 } from "@workspace/ui/components/dialog";
 import React from "react";
 
 export interface DeleteDialogProps {
-  open: boolean;
-  onClose(): void;
-  onConfirm(): void;
-  onCancel(): void;
-  title: string;
-  message: string;
-  acceptText: string;
-  declineText: string;
+	open: boolean;
+	onClose(): void;
+	onConfirm(): void;
+	onCancel(): void;
+	title: string;
+	message: string;
+	acceptText: string;
+	declineText: string;
 }
 
 export interface WithDeleteDialogSupport {
-  openDeleteDialog(path: string, data: number): void;
+	openDeleteDialog(path: string, data: number): void;
 }
 
 export const DeleteDialog = React.memo(function DeleteDialog({
-  open,
-  onClose,
-  onConfirm,
-  onCancel,
-  title,
-  message,
-  acceptText,
-  declineText,
+	open,
+	onClose,
+	onConfirm,
+	onCancel,
+	title,
+	message,
+	acceptText,
+	declineText,
 }: DeleteDialogProps) {
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{message}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            {declineText}
-          </Button>
-          <Button variant="default" onClick={onConfirm}>
-            {acceptText}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+	return (
+		<Dialog open={open} onOpenChange={onClose}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					<DialogDescription>{message}</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button variant="outline" onClick={onCancel}>
+						{declineText}
+					</Button>
+					<Button variant="default" onClick={onConfirm}>
+						{acceptText}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
 });

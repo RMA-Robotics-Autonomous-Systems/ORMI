@@ -24,98 +24,101 @@
 */
 "use client";
 import {
-  and,
-  ControlProps,
-  JsonSchema,
-  RankedTester,
-  rankWith,
-  schemaMatches,
-  uiTypeIs,
+	and,
+	ControlProps,
+	JsonSchema,
+	RankedTester,
+	rankWith,
+	schemaMatches,
+	uiTypeIs,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { Input } from "@workspace/ui/components/input";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
+	Select,
+	SelectTrigger,
+	SelectValue,
+	SelectContent,
+	SelectItem,
 } from "@workspace/ui/components/select";
 import React, { useState } from "react";
 
 const ShadcnAutocompleteInputText = (props: ControlProps) => {
-  const { id, label, enabled, path, handleChange, schema, data } = props;
+	const { id, label, enabled, path, handleChange, schema, data } = props;
 
-  const [inputText, setInputText] = useState(data || "");
-  const enumItems = schema.anyOf?.find((s) => s.enum)?.enum || [];
+	const [inputText, setInputText] = useState(data || "");
+	const enumItems = schema.anyOf?.find((s) => s.enum)?.enum || [];
 
-  const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value;
-    setInputText(newValue);
-    handleChange(path, newValue);
-  };
+	const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const newValue = event.target.value;
+		setInputText(newValue);
+		handleChange(path, newValue);
+	};
 
-  const onSelect = (value: string) => {
-    setInputText(value);
-    handleChange(path, value);
-  };
+	const onSelect = (value: string) => {
+		setInputText(value);
+		handleChange(path, value);
+	};
 
-  return enumItems.length > 0 ? (
-    <Select value={inputText} onValueChange={onSelect} disabled={!enabled}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder={label} />
-      </SelectTrigger>
-      <SelectContent>
-        {enumItems.map((item: string) => (
-          <SelectItem key={item} value={item}>
-            {item}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  ) : (
-    <Input
-      type="text"
-      value={inputText}
-      onChange={onChange}
-      id={id}
-      placeholder={label}
-      disabled={!enabled}
-    />
-  );
+	return enumItems.length > 0 ? (
+		<Select value={inputText} onValueChange={onSelect} disabled={!enabled}>
+			<SelectTrigger className="w-full">
+				<SelectValue placeholder={label} />
+			</SelectTrigger>
+			<SelectContent>
+				{enumItems.map((item: string) => (
+					<SelectItem key={item} value={item}>
+						{item}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	) : (
+		<Input
+			type="text"
+			value={inputText}
+			onChange={onChange}
+			id={id}
+			placeholder={label}
+			disabled={!enabled}
+		/>
+	);
 };
 
 const ShadcnAnyOfStringOrEnumControl = (props: ControlProps) => {
-  return <ShadcnAutocompleteInputText {...props} />;
+	return <ShadcnAutocompleteInputText {...props} />;
 };
 
 const hasEnumAndText = (schemas: JsonSchema[]) => {
-  const enumSchema = schemas.find(
-    (s) =>
-      s.enum !== undefined && (s.type === "string" || s.type === undefined),
-  );
-  const stringSchema = schemas.find(
-    (s) => s.type === "string" && s.enum === undefined,
-  );
-  const remainingSchemas = schemas.filter(
-    (s) => s !== enumSchema || s !== stringSchema,
-  );
-  const wrongType = remainingSchemas.find((s) => s.type && s.type !== "string");
-  return enumSchema && stringSchema && !wrongType;
+	const enumSchema = schemas.find(
+		(s) =>
+			s.enum !== undefined &&
+			(s.type === "string" || s.type === undefined),
+	);
+	const stringSchema = schemas.find(
+		(s) => s.type === "string" && s.enum === undefined,
+	);
+	const remainingSchemas = schemas.filter(
+		(s) => s !== enumSchema || s !== stringSchema,
+	);
+	const wrongType = remainingSchemas.find(
+		(s) => s.type && s.type !== "string",
+	);
+	return enumSchema && stringSchema && !wrongType;
 };
 
 const simpleAnyOf = and(
-  uiTypeIs("Control"),
-  schemaMatches(
-    (schema) =>
-      Object.prototype.hasOwnProperty.call(schema, "anyOf") &&
-      hasEnumAndText(schema.anyOf!)!,
-  ),
+	uiTypeIs("Control"),
+	schemaMatches(
+		(schema) =>
+			Object.prototype.hasOwnProperty.call(schema, "anyOf") &&
+			hasEnumAndText(schema.anyOf!)!,
+	),
 );
 
 export const shadcnAnyOfStringOrEnumControlTester: RankedTester = rankWith(
-  6,
-  simpleAnyOf,
+	6,
+	simpleAnyOf,
 );
 
 export default withJsonFormsControlProps(ShadcnAnyOfStringOrEnumControl);

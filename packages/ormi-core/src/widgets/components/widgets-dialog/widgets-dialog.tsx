@@ -13,9 +13,9 @@ import { useState } from "react";
 import { Plus } from "lucide-react"; // Import the plus icon
 
 import {
-  PluginsHooks,
-  PluginsManager,
-  usePluginsManager,
+	PluginsHooks,
+	PluginsManager,
+	usePluginsManager,
 } from "@workspace/ormi-plugins";
 import { WidgetCard } from "../widget-card/widget-card";
 
@@ -24,74 +24,75 @@ import { useDashboardManager } from "./../../../dashboard";
 
 import { Button } from "@workspace/ui/components/button";
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+	Dialog,
+	DialogTrigger,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogDescription,
 } from "@workspace/ui/components/dialog";
 import style from "./widgets-dialog.module.css";
 
 export function WidgetsDialog() {
-  const [isOpen, setIsOpen] = useState(false);
+	const [isOpen, setIsOpen] = useState(false);
 
-  const pluginsManager = usePluginsManager() as PluginsManager;
-  const { addWidget, locked } = useDashboardManager();
+	const pluginsManager = usePluginsManager() as PluginsManager;
+	const { addWidget, locked } = useDashboardManager();
 
-  const widgets: WidgetDefinition[] = pluginsManager.applyFilter<
-    WidgetDefinition[]
-  >(PluginsHooks.WIDGETS_LIST, []);
+	const widgets: WidgetDefinition[] = pluginsManager.applyFilter<
+		WidgetDefinition[]
+	>(PluginsHooks.WIDGETS_LIST, []);
 
-  const handleValidate = (widget: WidgetDefinition, settings: object) => {
-    addWidget(widget, settings);
-    setIsOpen(false); // close the dialog
-  };
+	const handleValidate = (widget: WidgetDefinition, settings: object) => {
+		addWidget(widget, settings);
+		setIsOpen(false); // close the dialog
+	};
 
-  return (
-    !locked && (
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button
-            className={style.floatingButton}
-            onClick={() => setIsOpen(true)}
-          >
-            <Plus size={32} /> {/* Increase the size of the plus icon */}
-          </Button>
-        </DialogTrigger>
-        <DialogContent size="large">
-          <DialogHeader>
-            <DialogTitle>Widgets</DialogTitle>
-            <DialogDescription>
-              Select a widget to add to the dashboard
-            </DialogDescription>
-          </DialogHeader>
-          <div className={style.widget_container}>
-            {widgets.length > 0 ? (
-              widgets.map((widget, index) => (
-                <WidgetCard
-                  key={index}
-                  definition={widget}
-                  onValidate={handleValidate}
-                />
-              ))
-            ) : (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "2rem",
-                  color: "hsl(var(--muted-foreground))",
-                }}
-              >
-                <p>
-                  No widgets available. Please add and connect a datasource
-                  first.
-                </p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    )
-  );
+	return (
+		!locked && (
+			<Dialog open={isOpen} onOpenChange={setIsOpen}>
+				<DialogTrigger asChild>
+					<Button
+						className={style.floatingButton}
+						onClick={() => setIsOpen(true)}
+					>
+						<Plus size={32} />{" "}
+						{/* Increase the size of the plus icon */}
+					</Button>
+				</DialogTrigger>
+				<DialogContent size="large">
+					<DialogHeader>
+						<DialogTitle>Widgets</DialogTitle>
+						<DialogDescription>
+							Select a widget to add to the dashboard
+						</DialogDescription>
+					</DialogHeader>
+					<div className={style.widget_container}>
+						{widgets.length > 0 ? (
+							widgets.map((widget, index) => (
+								<WidgetCard
+									key={index}
+									definition={widget}
+									onValidate={handleValidate}
+								/>
+							))
+						) : (
+							<div
+								style={{
+									textAlign: "center",
+									padding: "2rem",
+									color: "hsl(var(--muted-foreground))",
+								}}
+							>
+								<p>
+									No widgets available. Please add and connect
+									a datasource first.
+								</p>
+							</div>
+						)}
+					</div>
+				</DialogContent>
+			</Dialog>
+		)
+	);
 }

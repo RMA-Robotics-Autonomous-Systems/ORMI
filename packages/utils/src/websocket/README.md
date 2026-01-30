@@ -18,35 +18,35 @@ A comprehensive React WebSocket provider with reconnection, timeout handling, an
 import { WebSocketProvider, useWebSocket } from "@ormi/utils";
 
 function App() {
-  return (
-    <WebSocketProvider
-      url="ws://localhost:8080"
-      timeout={5000}
-      reconnectAttempts={3}
-      reconnectInterval={2000}
-    >
-      <YourComponent />
-    </WebSocketProvider>
-  );
+	return (
+		<WebSocketProvider
+			url="ws://localhost:8080"
+			timeout={5000}
+			reconnectAttempts={3}
+			reconnectInterval={2000}
+		>
+			<YourComponent />
+		</WebSocketProvider>
+	);
 }
 
 function YourComponent() {
-  const { sendMessage, isConnected, status } = useWebSocket();
+	const { sendMessage, isConnected, status } = useWebSocket();
 
-  const handleSendMessage = () => {
-    if (isConnected) {
-      sendMessage("Hello WebSocket!");
-    }
-  };
+	const handleSendMessage = () => {
+		if (isConnected) {
+			sendMessage("Hello WebSocket!");
+		}
+	};
 
-  return (
-    <div>
-      <p>Status: {status}</p>
-      <button onClick={handleSendMessage} disabled={!isConnected}>
-        Send Message
-      </button>
-    </div>
-  );
+	return (
+		<div>
+			<p>Status: {status}</p>
+			<button onClick={handleSendMessage} disabled={!isConnected}>
+				Send Message
+			</button>
+		</div>
+	);
 }
 ```
 
@@ -56,25 +56,26 @@ function YourComponent() {
 import { WebSocketProvider, useWebSocketMessages } from "@ormi/utils";
 
 interface ChatMessage {
-  type: "chat";
-  user: string;
-  message: string;
-  timestamp: number;
+	type: "chat";
+	user: string;
+	message: string;
+	timestamp: number;
 }
 
 function ChatComponent() {
-  const { sendTypedMessage, isConnected } = useWebSocketMessages<ChatMessage>();
+	const { sendTypedMessage, isConnected } =
+		useWebSocketMessages<ChatMessage>();
 
-  const sendChatMessage = (message: string) => {
-    sendTypedMessage({
-      type: "chat",
-      user: "currentUser",
-      message,
-      timestamp: Date.now(),
-    });
-  };
+	const sendChatMessage = (message: string) => {
+		sendTypedMessage({
+			type: "chat",
+			user: "currentUser",
+			message,
+			timestamp: Date.now(),
+		});
+	};
 
-  return <div>{/* Your chat UI */}</div>;
+	return <div>{/* Your chat UI */}</div>;
 }
 ```
 

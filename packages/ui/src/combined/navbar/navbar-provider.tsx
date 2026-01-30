@@ -22,58 +22,58 @@ export type NavbarZone = "left" | "center" | "right";
 
 // each zone iz an array of react components
 export interface NavbarItem {
-  component: JSX.Element;
-  priority: number;
+	component: JSX.Element;
+	priority: number;
 }
 
 interface NavbarContextType {
-  left: Map<string, NavbarItem>;
-  center: Map<string, NavbarItem>;
-  right: Map<string, NavbarItem>;
-  setNavbarItem: (
-    zone: NavbarZone,
-    key: string,
-    component: JSX.Element,
-    priority?: number,
-  ) => void;
-  removeNavbarItem: (zone: NavbarZone, key: string) => void;
+	left: Map<string, NavbarItem>;
+	center: Map<string, NavbarItem>;
+	right: Map<string, NavbarItem>;
+	setNavbarItem: (
+		zone: NavbarZone,
+		key: string,
+		component: JSX.Element,
+		priority?: number,
+	) => void;
+	removeNavbarItem: (zone: NavbarZone, key: string) => void;
 }
 
 const NavbarContext = createContext<NavbarContextType>({
-  left: new Map(),
-  center: new Map(),
-  right: new Map(),
-  setNavbarItem: () => {},
-  removeNavbarItem: () => {},
+	left: new Map(),
+	center: new Map(),
+	right: new Map(),
+	setNavbarItem: () => {},
+	removeNavbarItem: () => {},
 });
 
 interface NavbarProviderProps {
-  children: React.ReactNode;
-  left?: Map<string, NavbarItem>;
-  center?: Map<string, NavbarItem>;
-  right?: Map<string, NavbarItem>;
+	children: React.ReactNode;
+	left?: Map<string, NavbarItem>;
+	center?: Map<string, NavbarItem>;
+	right?: Map<string, NavbarItem>;
 }
 
 export const NavbarProvider = (props: NavbarProviderProps) => {
-  const { children } = props;
+	const { children } = props;
 
-  const [left, setLeft] = useState<Map<string, NavbarItem>>(
-    props.left || new Map(),
-  );
-  const [center, setCenter] = useState<Map<string, NavbarItem>>(
-    props.center || new Map(),
-  );
-  const [right, setRight] = useState<Map<string, NavbarItem>>(
-    props.right || new Map(),
-  );
+	const [left, setLeft] = useState<Map<string, NavbarItem>>(
+		props.left || new Map(),
+	);
+	const [center, setCenter] = useState<Map<string, NavbarItem>>(
+		props.center || new Map(),
+	);
+	const [right, setRight] = useState<Map<string, NavbarItem>>(
+		props.right || new Map(),
+	);
 
-  const setNavbarItem = (
-    zone: NavbarZone,
-    key: string,
-    component: JSX.Element,
-    priority: number = 5,
-  ) => {
-    /*
+	const setNavbarItem = (
+		zone: NavbarZone,
+		key: string,
+		component: JSX.Element,
+		priority: number = 5,
+	) => {
+		/*
             This function is used to register a component in the navbar.
             It takes a zone, a key, and a component.
             The zone is the zone where the component will be displayed.
@@ -86,72 +86,72 @@ export const NavbarProvider = (props: NavbarProviderProps) => {
             lower priority means the component will be displayed first.
         */
 
-    const item: NavbarItem = { component, priority };
+		const item: NavbarItem = { component, priority };
 
-    switch (zone) {
-      case "left":
-        setLeft((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(key, item);
-          return newMap;
-        });
-        break;
-      case "center":
-        setCenter((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(key, item);
-          return newMap;
-        });
-        break;
-      case "right":
-        setRight((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(key, item);
-          return newMap;
-        });
-        break;
-    }
-  };
+		switch (zone) {
+			case "left":
+				setLeft((prev) => {
+					const newMap = new Map(prev);
+					newMap.set(key, item);
+					return newMap;
+				});
+				break;
+			case "center":
+				setCenter((prev) => {
+					const newMap = new Map(prev);
+					newMap.set(key, item);
+					return newMap;
+				});
+				break;
+			case "right":
+				setRight((prev) => {
+					const newMap = new Map(prev);
+					newMap.set(key, item);
+					return newMap;
+				});
+				break;
+		}
+	};
 
-  const removeNavbarItem = (zone: NavbarZone, key: string) => {
-    switch (zone) {
-      case "left":
-        setLeft((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(key);
-          return newMap;
-        });
-        break;
-      case "center":
-        setCenter((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(key);
-          return newMap;
-        });
-        break;
-      case "right":
-        setRight((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(key);
-          return newMap;
-        });
-        break;
-    }
-  };
+	const removeNavbarItem = (zone: NavbarZone, key: string) => {
+		switch (zone) {
+			case "left":
+				setLeft((prev) => {
+					const newMap = new Map(prev);
+					newMap.delete(key);
+					return newMap;
+				});
+				break;
+			case "center":
+				setCenter((prev) => {
+					const newMap = new Map(prev);
+					newMap.delete(key);
+					return newMap;
+				});
+				break;
+			case "right":
+				setRight((prev) => {
+					const newMap = new Map(prev);
+					newMap.delete(key);
+					return newMap;
+				});
+				break;
+		}
+	};
 
-  return (
-    <NavbarContext.Provider
-      value={{ left, center, right, setNavbarItem, removeNavbarItem }}
-    >
-      {children}
-    </NavbarContext.Provider>
-  );
+	return (
+		<NavbarContext.Provider
+			value={{ left, center, right, setNavbarItem, removeNavbarItem }}
+		>
+			{children}
+		</NavbarContext.Provider>
+	);
 };
 
 export const useNavbar = () => {
-  const context = useContext(NavbarContext);
-  if (!context) {
-    throw new Error("useNavbar must be used within a NavbarProvider");
-  }
-  return context;
+	const context = useContext(NavbarContext);
+	if (!context) {
+		throw new Error("useNavbar must be used within a NavbarProvider");
+	}
+	return context;
 };

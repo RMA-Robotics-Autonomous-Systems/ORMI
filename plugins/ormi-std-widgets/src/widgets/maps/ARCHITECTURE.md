@@ -28,10 +28,10 @@ maps-box-viewer.tsx (Main orchestrator - ~150 LOC)
 
 ```tsx
 <MapsBoxViewer {...settings}>
-  <MapToolbar />
-  <GpsTopicsLayer />
-  <LocalTopicsLayer />
-  <CustomLayersOverlay />
+	<MapToolbar />
+	<GpsTopicsLayer />
+	<LocalTopicsLayer />
+	<CustomLayersOverlay />
 </MapsBoxViewer>
 ```
 
@@ -138,7 +138,7 @@ Only modify `GpsTopicsLayer.tsx`:
 ```tsx
 // In GpsTopicsLayer.tsx
 if (t.makerType === "cluster") {
-  return <ClusterMarker key={t.name} {...t} />;
+	return <ClusterMarker key={t.name} {...t} />;
 }
 ```
 
@@ -149,11 +149,11 @@ Only modify `MapToolbar.tsx`:
 ```tsx
 // Add a new button
 setButtonItem(
-  "custom-button",
-  <Button onClick={handleCustomAction}>
-    <CustomIcon />
-  </Button>,
-  1,
+	"custom-button",
+	<Button onClick={handleCustomAction}>
+		<CustomIcon />
+	</Button>,
+	1,
 );
 ```
 

@@ -56,51 +56,51 @@ The provider component that manages button registration state using React Contex
 
 ```tsx
 interface ButtonItem {
-  component: JSX.Element;
-  priority: number;
+	component: JSX.Element;
+	priority: number;
 }
 
 interface ButtonHolderContextType {
-  items: Map<string, ButtonItem>;
-  setButtonItem: (
-    key: string,
-    component: JSX.Element,
-    priority?: number,
-  ) => void;
-  removeButtonItem: (key: string) => void;
+	items: Map<string, ButtonItem>;
+	setButtonItem: (
+		key: string,
+		component: JSX.Element,
+		priority?: number,
+	) => void;
+	removeButtonItem: (key: string) => void;
 }
 
 export const ButtonHolderProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
+	children,
 }) => {
-  const [items, setItems] = useState<Map<string, ButtonItem>>(new Map());
+	const [items, setItems] = useState<Map<string, ButtonItem>>(new Map());
 
-  const setButtonItem = useCallback(
-    (key: string, component: JSX.Element, priority = 5) => {
-      setItems((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(key, { component, priority });
-        return newMap;
-      });
-    },
-    [],
-  );
+	const setButtonItem = useCallback(
+		(key: string, component: JSX.Element, priority = 5) => {
+			setItems((prev) => {
+				const newMap = new Map(prev);
+				newMap.set(key, { component, priority });
+				return newMap;
+			});
+		},
+		[],
+	);
 
-  const removeButtonItem = useCallback((key: string) => {
-    setItems((prev) => {
-      const newMap = new Map(prev);
-      newMap.delete(key);
-      return newMap;
-    });
-  }, []);
+	const removeButtonItem = useCallback((key: string) => {
+		setItems((prev) => {
+			const newMap = new Map(prev);
+			newMap.delete(key);
+			return newMap;
+		});
+	}, []);
 
-  return (
-    <ButtonHolderContext.Provider
-      value={{ items, setButtonItem, removeButtonItem }}
-    >
-      {children}
-    </ButtonHolderContext.Provider>
-  );
+	return (
+		<ButtonHolderContext.Provider
+			value={{ items, setButtonItem, removeButtonItem }}
+		>
+			{children}
+		</ButtonHolderContext.Provider>
+	);
 };
 ```
 
@@ -114,13 +114,13 @@ export const ButtonHolderProvider: React.FC<{ children: React.ReactNode }> = ({
 
 ```tsx
 export const useButtonHolder = () => {
-  const context = useContext(ButtonHolderContext);
-  if (!context) {
-    throw new Error(
-      "useButtonHolder must be used within a ButtonHolderProvider",
-    );
-  }
-  return context;
+	const context = useContext(ButtonHolderContext);
+	if (!context) {
+		throw new Error(
+			"useButtonHolder must be used within a ButtonHolderProvider",
+		);
+	}
+	return context;
 };
 ```
 
@@ -134,17 +134,17 @@ The component that renders registered buttons, sorted by priority.
 
 ```tsx
 export function ButtonHolder() {
-  const { items } = useButtonHolder();
+	const { items } = useButtonHolder();
 
-  return (
-    <div className="flex flex-row space-x-2">
-      {Array.from(items.values())
-        .sort((a, b) => a.priority - b.priority)
-        .map((item, index) => (
-          <div key={index}>{item.component}</div>
-        ))}
-    </div>
-  );
+	return (
+		<div className="flex flex-row space-x-2">
+			{Array.from(items.values())
+				.sort((a, b) => a.priority - b.priority)
+				.map((item, index) => (
+					<div key={index}>{item.component}</div>
+				))}
+		</div>
+	);
 }
 ```
 
@@ -166,44 +166,47 @@ Each dashboard layout system integrates ButtonHolder differently to accommodate 
 
 ```tsx
 const widgets_elements = useMemo(() => {
-  return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
-    return (
-      <div
-        key={key}
-        className="flex flex-col overflow-hidden border rounded bg-background"
-      >
-        <ButtonHolderProvider>
-          {/* Widget header with title and buttons */}
-          <div
-            className="flex flex-row content-between gap-1"
-            style={{ padding: "0.25rem" }}
-          >
-            <div className="p-2 text-center text-sm cursor-move w-full drag-handle">
-              {widget.title}
-            </div>
+	return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
+		return (
+			<div
+				key={key}
+				className="flex flex-col overflow-hidden border rounded bg-background"
+			>
+				<ButtonHolderProvider>
+					{/* Widget header with title and buttons */}
+					<div
+						className="flex flex-row content-between gap-1"
+						style={{ padding: "0.25rem" }}
+					>
+						<div className="p-2 text-center text-sm cursor-move w-full drag-handle">
+							{widget.title}
+						</div>
 
-            {/* ButtonHolder renders directly here */}
-            <ButtonHolder />
+						{/* ButtonHolder renders directly here */}
+						<ButtonHolder />
 
-            {/* System buttons (config, delete) */}
-            {!locked && (
-              <>
-                <WidgetCard fromLoaded={true} /* ... */ />
-                <Button variant="destructive" onClick={/* ... */}>
-                  <XIcon />
-                </Button>
-              </>
-            )}
-          </div>
+						{/* System buttons (config, delete) */}
+						{!locked && (
+							<>
+								<WidgetCard fromLoaded={true} /* ... */ />
+								<Button
+									variant="destructive"
+									onClick={/* ... */}
+								>
+									<XIcon />
+								</Button>
+							</>
+						)}
+					</div>
 
-          {/* Widget content */}
-          <div className="flex-grow overflow-hidden">
-            {getComponents(widget.box_id)}
-          </div>
-        </ButtonHolderProvider>
-      </div>
-    );
-  });
+					{/* Widget content */}
+					<div className="flex-grow overflow-hidden">
+						{getComponents(widget.box_id)}
+					</div>
+				</ButtonHolderProvider>
+			</div>
+		);
+	});
 }, [widgets, locked]);
 ```
 
@@ -224,104 +227,109 @@ RC-Dock controls tab titles, so portals are used to render buttons from the cont
 
 ```tsx
 const PanelDashboard = () => {
-  // Store DOM containers for each widget title
-  const titlePortalContainers = useRef<Map<string, HTMLDivElement>>(new Map());
+	// Store DOM containers for each widget title
+	const titlePortalContainers = useRef<Map<string, HTMLDivElement>>(
+		new Map(),
+	);
 
-  // Component that creates a portal container in the tab title
-  const TitlePortalContainer = ({ widgetId }: { widgetId: string }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+	// Component that creates a portal container in the tab title
+	const TitlePortalContainer = ({ widgetId }: { widgetId: string }) => {
+		const containerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-      if (containerRef.current) {
-        titlePortalContainers.current.set(widgetId, containerRef.current);
-      }
-      return () => {
-        titlePortalContainers.current.delete(widgetId);
-      };
-    }, [widgetId]);
+		useEffect(() => {
+			if (containerRef.current) {
+				titlePortalContainers.current.set(
+					widgetId,
+					containerRef.current,
+				);
+			}
+			return () => {
+				titlePortalContainers.current.delete(widgetId);
+			};
+		}, [widgetId]);
 
-    return <div ref={containerRef} className="flex flex-row space-x-2" />;
-  };
+		return <div ref={containerRef} className="flex flex-row space-x-2" />;
+	};
 
-  // Component that portals ButtonHolder into the title DOM
-  const ButtonHolderPortal = ({ widgetId }: { widgetId: string }) => {
-    const portalContainer = titlePortalContainers.current.get(widgetId);
+	// Component that portals ButtonHolder into the title DOM
+	const ButtonHolderPortal = ({ widgetId }: { widgetId: string }) => {
+		const portalContainer = titlePortalContainers.current.get(widgetId);
 
-    if (!portalContainer) {
-      return null;
-    }
+		if (!portalContainer) {
+			return null;
+		}
 
-    // Portal preserves React context and event handlers
-    return ReactDOM.createPortal(<ButtonHolder />, portalContainer);
-  };
+		// Portal preserves React context and event handlers
+		return ReactDOM.createPortal(<ButtonHolder />, portalContainer);
+	};
 
-  // Create custom title for RC-Dock tabs
-  const createCustomTitle = useCallback(
-    (widget: any) => {
-      const widgetDefinition = getDefinition(widget.widget_id);
+	// Create custom title for RC-Dock tabs
+	const createCustomTitle = useCallback(
+		(widget: any) => {
+			const widgetDefinition = getDefinition(widget.widget_id);
 
-      return (
-        <div className="flex items-center justify-between w-full min-w-0 pr-2">
-          {/* Widget title text */}
-          <span className="text-sm font-medium truncate mr-2">
-            {widget.title}
-          </span>
+			return (
+				<div className="flex items-center justify-between w-full min-w-0 pr-2">
+					{/* Widget title text */}
+					<span className="text-sm font-medium truncate mr-2">
+						{widget.title}
+					</span>
 
-          {/* Button container */}
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Portal target for widget-provided buttons */}
-            <TitlePortalContainer widgetId={widget.box_id} />
+					{/* Button container */}
+					<div className="flex items-center gap-1 shrink-0">
+						{/* Portal target for widget-provided buttons */}
+						<TitlePortalContainer widgetId={widget.box_id} />
 
-            {/* System buttons */}
-            {!locked && (
-              <>
-                <WidgetCard /* ... */ />
-              </>
-            )}
-          </div>
-        </div>
-      );
-    },
-    [getDefinition, locked, widgets, dispatch],
-  );
+						{/* System buttons */}
+						{!locked && (
+							<>
+								<WidgetCard /* ... */ />
+							</>
+						)}
+					</div>
+				</div>
+			);
+		},
+		[getDefinition, locked, widgets, dispatch],
+	);
 
-  // Load tab content (where ButtonHolder is portaled from)
-  const loadTab = useCallback(
-    (tabData: TabData) => {
-      const widget = widgets.get(tabData.id);
-      const widgetDefinition = getDefinition(widget.widget_id);
+	// Load tab content (where ButtonHolder is portaled from)
+	const loadTab = useCallback(
+		(tabData: TabData) => {
+			const widget = widgets.get(tabData.id);
+			const widgetDefinition = getDefinition(widget.widget_id);
 
-      return (
-        <ButtonHolderProvider>
-          {/* Portal ButtonHolder to title */}
-          <ButtonHolderPortal widgetId={widget.box_id} />
+			return (
+				<ButtonHolderProvider>
+					{/* Portal ButtonHolder to title */}
+					<ButtonHolderPortal widgetId={widget.box_id} />
 
-          {/* Widget content */}
-          <div className="h-full w-full overflow-hidden">
-            {widgetDefinition.Component(widget.settings)}
-          </div>
-        </ButtonHolderProvider>
-      );
-    },
-    [widgets, getDefinition],
-  );
+					{/* Widget content */}
+					<div className="h-full w-full overflow-hidden">
+						{widgetDefinition.Component(widget.settings)}
+					</div>
+				</ButtonHolderProvider>
+			);
+		},
+		[widgets, getDefinition],
+	);
 
-  return (
-    <DockLayout
-      ref={dockLayoutRef}
-      defaultLayout={defaultLayout}
-      loadTab={loadTab}
-      /* ... */
-    />
-  );
+	return (
+		<DockLayout
+			ref={dockLayoutRef}
+			defaultLayout={defaultLayout}
+			loadTab={loadTab}
+			/* ... */
+		/>
+	);
 };
 ```
 
 **Key Points:**
 
 - **Two-Phase Setup**:
-  1. `TitlePortalContainer` creates DOM element in title
-  2. `ButtonHolderPortal` renders ButtonHolder into that element via portal
+    1. `TitlePortalContainer` creates DOM element in title
+    2. `ButtonHolderPortal` renders ButtonHolder into that element via portal
 - **Context Preservation**: Portal maintains React context chain from content to title
 - **Lifecycle Management**: useEffect handles container registration/cleanup
 - **System Button Integration**: Portal container is placed alongside RC-Dock system buttons
@@ -340,64 +348,64 @@ FlexLayout has the most complex integration due to its tab rendering system. It 
 
 ```tsx
 interface FlexLayoutPortalContextType {
-  registerPortal: (widgetId: string, container: HTMLElement) => void;
-  unregisterPortal: (widgetId: string) => void;
-  getPortalContainer: (widgetId: string) => HTMLElement | null;
-  openDialog: (
-    widgetId: string,
-    widget: any,
-    definition: any,
-    onUpdateWidget: any,
-  ) => void;
-  closeDialog: () => void;
-  dialogState: DialogState | null;
+	registerPortal: (widgetId: string, container: HTMLElement) => void;
+	unregisterPortal: (widgetId: string) => void;
+	getPortalContainer: (widgetId: string) => HTMLElement | null;
+	openDialog: (
+		widgetId: string,
+		widget: any,
+		definition: any,
+		onUpdateWidget: any,
+	) => void;
+	closeDialog: () => void;
+	dialogState: DialogState | null;
 }
 
 export const FlexLayoutPortalProvider: React.FC<{ children: ReactNode }> = ({
-  children,
+	children,
 }) => {
-  const portalContainers = useRef<Map<string, HTMLElement>>(new Map());
-  const [dialogState, setDialogState] = useState<DialogState | null>(null);
+	const portalContainers = useRef<Map<string, HTMLElement>>(new Map());
+	const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
-  const registerPortal = (widgetId: string, container: HTMLElement) => {
-    portalContainers.current.set(widgetId, container);
-  };
+	const registerPortal = (widgetId: string, container: HTMLElement) => {
+		portalContainers.current.set(widgetId, container);
+	};
 
-  const unregisterPortal = (widgetId: string) => {
-    portalContainers.current.delete(widgetId);
-  };
+	const unregisterPortal = (widgetId: string) => {
+		portalContainers.current.delete(widgetId);
+	};
 
-  const getPortalContainer = (widgetId: string): HTMLElement | null => {
-    return portalContainers.current.get(widgetId) || null;
-  };
+	const getPortalContainer = (widgetId: string): HTMLElement | null => {
+		return portalContainers.current.get(widgetId) || null;
+	};
 
-  // ... dialog management functions ...
+	// ... dialog management functions ...
 
-  return (
-    <FlexLayoutPortalContext.Provider
-      value={{
-        registerPortal,
-        unregisterPortal,
-        getPortalContainer,
-        openDialog,
-        closeDialog,
-        dialogState,
-      }}
-    >
-      {children}
-      {/* Dialog rendering outside FlexLayout structure */}
-    </FlexLayoutPortalContext.Provider>
-  );
+	return (
+		<FlexLayoutPortalContext.Provider
+			value={{
+				registerPortal,
+				unregisterPortal,
+				getPortalContainer,
+				openDialog,
+				closeDialog,
+				dialogState,
+			}}
+		>
+			{children}
+			{/* Dialog rendering outside FlexLayout structure */}
+		</FlexLayoutPortalContext.Provider>
+	);
 };
 
 export const useFlexLayoutPortal = (): FlexLayoutPortalContextType => {
-  const context = useContext(FlexLayoutPortalContext);
-  if (!context) {
-    throw new Error(
-      "useFlexLayoutPortal must be used within a FlexLayoutPortalProvider",
-    );
-  }
-  return context;
+	const context = useContext(FlexLayoutPortalContext);
+	if (!context) {
+		throw new Error(
+			"useFlexLayoutPortal must be used within a FlexLayoutPortalProvider",
+		);
+	}
+	return context;
 };
 ```
 
@@ -415,40 +423,48 @@ Creates portal containers in tab titles:
 
 ```tsx
 const PortalContainer: React.FC<{ widgetId: string }> = ({ widgetId }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { registerPortal, unregisterPortal } = useFlexLayoutPortal();
+	const containerRef = useRef<HTMLDivElement>(null);
+	const { registerPortal, unregisterPortal } = useFlexLayoutPortal();
 
-  useEffect(() => {
-    if (containerRef.current) {
-      registerPortal(widgetId, containerRef.current);
-    }
-    return () => {
-      unregisterPortal(widgetId);
-    };
-  }, [widgetId, registerPortal, unregisterPortal]);
+	useEffect(() => {
+		if (containerRef.current) {
+			registerPortal(widgetId, containerRef.current);
+		}
+		return () => {
+			unregisterPortal(widgetId);
+		};
+	}, [widgetId, registerPortal, unregisterPortal]);
 
-  return <div ref={containerRef} className="flex flex-row space-x-2" />;
+	return <div ref={containerRef} className="flex flex-row space-x-2" />;
 };
 
 export const renderTab = (props: TabRendererProps) => {
-  const { node, renderValues, widgets, getDefinition, locked, onUpdateWidget } =
-    props;
-  const widget = widgets.get(node.getId());
-  const widgetDefinition = getDefinition(widget?.widget_id);
+	const {
+		node,
+		renderValues,
+		widgets,
+		getDefinition,
+		locked,
+		onUpdateWidget,
+	} = props;
+	const widget = widgets.get(node.getId());
+	const widgetDefinition = getDefinition(widget?.widget_id);
 
-  // Customize tab title content
-  renderValues.content = (
-    <div className="flex items-center justify-between w-full">
-      <span className="text-sm font-medium truncate mr-2">{widget.title}</span>
-      <div className="flex items-center gap-1 shrink-0">
-        {/* Portal target for widget buttons */}
-        <PortalContainer widgetId={widget.box_id} />
+	// Customize tab title content
+	renderValues.content = (
+		<div className="flex items-center justify-between w-full">
+			<span className="text-sm font-medium truncate mr-2">
+				{widget.title}
+			</span>
+			<div className="flex items-center gap-1 shrink-0">
+				{/* Portal target for widget buttons */}
+				<PortalContainer widgetId={widget.box_id} />
 
-        {/* System buttons */}
-        {!locked && <Button /* ... */ />}
-      </div>
-    </div>
-  );
+				{/* System buttons */}
+				{!locked && <Button /* ... */ />}
+			</div>
+		</div>
+	);
 };
 ```
 
@@ -460,42 +476,42 @@ Renders widget content with ButtonHolder portal:
 
 ```tsx
 const ButtonHolderPortal: React.FC<{ widgetId: string }> = ({ widgetId }) => {
-  const { getPortalContainer } = useFlexLayoutPortal();
-  const portalContainer = getPortalContainer(widgetId);
+	const { getPortalContainer } = useFlexLayoutPortal();
+	const portalContainer = getPortalContainer(widgetId);
 
-  if (!portalContainer) {
-    return null;
-  }
+	if (!portalContainer) {
+		return null;
+	}
 
-  // Portal ButtonHolder into tab title container
-  return ReactDOM.createPortal(<ButtonHolder />, portalContainer);
+	// Portal ButtonHolder into tab title container
+	return ReactDOM.createPortal(<ButtonHolder />, portalContainer);
 };
 
 export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
-  widgetId,
-  widget,
-  definition,
+	widgetId,
+	widget,
+	definition,
 }) => {
-  return (
-    <ButtonHolderProvider>
-      <div className="w-full h-full overflow-hidden">
-        {/* Portal ButtonHolder to tab title */}
-        <ButtonHolderPortal widgetId={widgetId} />
+	return (
+		<ButtonHolderProvider>
+			<div className="w-full h-full overflow-hidden">
+				{/* Portal ButtonHolder to tab title */}
+				<ButtonHolderPortal widgetId={widgetId} />
 
-        {/* Widget content */}
-        {definition.Component(widget.settings)}
-      </div>
-    </ButtonHolderProvider>
-  );
+				{/* Widget content */}
+				{definition.Component(widget.settings)}
+			</div>
+		</ButtonHolderProvider>
+	);
 };
 ```
 
 **Key Points:**
 
 - **Three-Layer Architecture**:
-  1. `FlexLayoutPortalProvider` wraps entire dashboard
-  2. `TabRenderer` creates portal containers in titles
-  3. `WidgetRenderer` portals ButtonHolder into containers
+    1. `FlexLayoutPortalProvider` wraps entire dashboard
+    2. `TabRenderer` creates portal containers in titles
+    3. `WidgetRenderer` portals ButtonHolder into containers
 - **Centralized Registry**: Portal containers stored in context provider
 - **Flexible Access**: Any component can access portal containers via `useFlexLayoutPortal`
 - **Dialog Management**: Same context manages widget configuration dialogs
@@ -512,31 +528,31 @@ import { Button } from "@workspace/ui/components/button";
 import { RefreshCcwIcon } from "lucide-react";
 
 function MyWidget(settings: any) {
-  const { setButtonItem, removeButtonItem } = useButtonHolder();
-  const [data, setData] = useState(null);
+	const { setButtonItem, removeButtonItem } = useButtonHolder();
+	const [data, setData] = useState(null);
 
-  const handleRefresh = () => {
-    // Refresh widget data
-    fetchData();
-  };
+	const handleRefresh = () => {
+		// Refresh widget data
+		fetchData();
+	};
 
-  useEffect(() => {
-    // Register refresh button
-    setButtonItem(
-      "my-widget-refresh", // Unique key
-      <Button variant="ghost" onClick={handleRefresh}>
-        <RefreshCcwIcon />
-      </Button>,
-      1, // Priority (optional, default: 5)
-    );
+	useEffect(() => {
+		// Register refresh button
+		setButtonItem(
+			"my-widget-refresh", // Unique key
+			<Button variant="ghost" onClick={handleRefresh}>
+				<RefreshCcwIcon />
+			</Button>,
+			1, // Priority (optional, default: 5)
+		);
 
-    // Cleanup on unmount
-    return () => {
-      removeButtonItem("my-widget-refresh");
-    };
-  }, [handleRefresh]);
+		// Cleanup on unmount
+		return () => {
+			removeButtonItem("my-widget-refresh");
+		};
+	}, [handleRefresh]);
 
-  return <div>{/* Widget content */}</div>;
+	return <div>{/* Widget content */}</div>;
 }
 ```
 
@@ -544,74 +560,74 @@ function MyWidget(settings: any) {
 
 ```tsx
 function MapWidget(settings: any) {
-  const { setButtonItem, removeButtonItem } = useButtonHolder();
-  const [showGrid, setShowGrid] = useState(false);
-  const mapRef = useRef<MapRef>(null);
+	const { setButtonItem, removeButtonItem } = useButtonHolder();
+	const [showGrid, setShowGrid] = useState(false);
+	const mapRef = useRef<MapRef>(null);
 
-  useEffect(() => {
-    // Zoom In (priority 1 - renders first)
-    setButtonItem(
-      "map-zoom-in",
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (mapRef.current) {
-            mapRef.current.setZoom(mapRef.current.getZoom() + 1);
-          }
-        }}
-      >
-        <PlusIcon />
-      </Button>,
-      1,
-    );
+	useEffect(() => {
+		// Zoom In (priority 1 - renders first)
+		setButtonItem(
+			"map-zoom-in",
+			<Button
+				variant="ghost"
+				onClick={() => {
+					if (mapRef.current) {
+						mapRef.current.setZoom(mapRef.current.getZoom() + 1);
+					}
+				}}
+			>
+				<PlusIcon />
+			</Button>,
+			1,
+		);
 
-    // Zoom Out (priority 2)
-    setButtonItem(
-      "map-zoom-out",
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (mapRef.current) {
-            mapRef.current.setZoom(mapRef.current.getZoom() - 1);
-          }
-        }}
-      >
-        <MinusIcon />
-      </Button>,
-      2,
-    );
+		// Zoom Out (priority 2)
+		setButtonItem(
+			"map-zoom-out",
+			<Button
+				variant="ghost"
+				onClick={() => {
+					if (mapRef.current) {
+						mapRef.current.setZoom(mapRef.current.getZoom() - 1);
+					}
+				}}
+			>
+				<MinusIcon />
+			</Button>,
+			2,
+		);
 
-    // Grid Toggle (priority 3)
-    setButtonItem(
-      "map-grid-toggle",
-      <Button
-        variant={showGrid ? "default" : "ghost"}
-        onClick={() => setShowGrid(!showGrid)}
-      >
-        <GridIcon />
-      </Button>,
-      3,
-    );
+		// Grid Toggle (priority 3)
+		setButtonItem(
+			"map-grid-toggle",
+			<Button
+				variant={showGrid ? "default" : "ghost"}
+				onClick={() => setShowGrid(!showGrid)}
+			>
+				<GridIcon />
+			</Button>,
+			3,
+		);
 
-    // Refresh (priority 4)
-    setButtonItem(
-      "map-refresh",
-      <Button variant="ghost" onClick={handleRefresh}>
-        <RefreshCcwIcon />
-      </Button>,
-      4,
-    );
+		// Refresh (priority 4)
+		setButtonItem(
+			"map-refresh",
+			<Button variant="ghost" onClick={handleRefresh}>
+				<RefreshCcwIcon />
+			</Button>,
+			4,
+		);
 
-    // Cleanup all buttons
-    return () => {
-      removeButtonItem("map-zoom-in");
-      removeButtonItem("map-zoom-out");
-      removeButtonItem("map-grid-toggle");
-      removeButtonItem("map-refresh");
-    };
-  }, [mapRef, showGrid]);
+		// Cleanup all buttons
+		return () => {
+			removeButtonItem("map-zoom-in");
+			removeButtonItem("map-zoom-out");
+			removeButtonItem("map-grid-toggle");
+			removeButtonItem("map-refresh");
+		};
+	}, [mapRef, showGrid]);
 
-  return <MapComponent ref={mapRef} showGrid={showGrid} />;
+	return <MapComponent ref={mapRef} showGrid={showGrid} />;
 }
 ```
 
@@ -619,35 +635,35 @@ function MapWidget(settings: any) {
 
 ```tsx
 function PathMarkerWidget(props: { topic: SelectedTopic }) {
-  const { setButtonItem, removeButtonItem } = useButtonHolder();
-  const { getSource, getSourceId } = useLocalDataSource();
-  const [show, setShow] = useState(true);
+	const { setButtonItem, removeButtonItem } = useButtonHolder();
+	const { getSource, getSourceId } = useLocalDataSource();
+	const [show, setShow] = useState(true);
 
-  useEffect(() => {
-    const data = getSource(props.topic);
-    if (!data) {
-      return;
-    }
+	useEffect(() => {
+		const data = getSource(props.topic);
+		if (!data) {
+			return;
+		}
 
-    // Register visibility toggle button (updates when data changes)
-    setButtonItem(
-      getSourceId(props.topic), // Unique key per topic
-      <Button variant="ghost" onClick={() => setShow(!show)}>
-        {show ? <EyeIcon /> : <EyeClosedIcon />}
-      </Button>,
-      1,
-    );
+		// Register visibility toggle button (updates when data changes)
+		setButtonItem(
+			getSourceId(props.topic), // Unique key per topic
+			<Button variant="ghost" onClick={() => setShow(!show)}>
+				{show ? <EyeIcon /> : <EyeClosedIcon />}
+			</Button>,
+			1,
+		);
 
-    return () => {
-      removeButtonItem(getSourceId(props.topic));
-    };
-  }, [getSource, props.topic, show]);
+		return () => {
+			removeButtonItem(getSourceId(props.topic));
+		};
+	}, [getSource, props.topic, show]);
 
-  return (
-    <div style={{ display: show ? "block" : "none" }}>
-      {/* Marker rendering */}
-    </div>
-  );
+	return (
+		<div style={{ display: show ? "block" : "none" }}>
+			{/* Marker rendering */}
+		</div>
+	);
 }
 ```
 
@@ -658,54 +674,54 @@ For complex widgets with many buttons, extract toolbar logic into a separate com
 ```tsx
 // MapToolbar.tsx
 interface MapToolbarProps {
-  mapRef: React.RefObject<MapRef | null>;
-  showGrid: boolean;
-  onToggleGrid: () => void;
-  onRefresh: () => void;
+	mapRef: React.RefObject<MapRef | null>;
+	showGrid: boolean;
+	onToggleGrid: () => void;
+	onRefresh: () => void;
 }
 
 export function MapToolbar({
-  mapRef,
-  showGrid,
-  onToggleGrid,
-  onRefresh,
+	mapRef,
+	showGrid,
+	onToggleGrid,
+	onRefresh,
 }: MapToolbarProps) {
-  const { setButtonItem, removeButtonItem } = useButtonHolder();
+	const { setButtonItem, removeButtonItem } = useButtonHolder();
 
-  useEffect(() => {
-    setButtonItem("zoom-in", <Button /* ... */ />, 1);
-    setButtonItem("zoom-out", <Button /* ... */ />, 2);
-    setButtonItem("grid-toggle", <Button /* ... */ />, 3);
-    setButtonItem("refresh", <Button /* ... */ />, 4);
+	useEffect(() => {
+		setButtonItem("zoom-in", <Button /* ... */ />, 1);
+		setButtonItem("zoom-out", <Button /* ... */ />, 2);
+		setButtonItem("grid-toggle", <Button /* ... */ />, 3);
+		setButtonItem("refresh", <Button /* ... */ />, 4);
 
-    return () => {
-      removeButtonItem("zoom-in");
-      removeButtonItem("zoom-out");
-      removeButtonItem("grid-toggle");
-      removeButtonItem("refresh");
-    };
-  }, [mapRef, showGrid, onToggleGrid, onRefresh]);
+		return () => {
+			removeButtonItem("zoom-in");
+			removeButtonItem("zoom-out");
+			removeButtonItem("grid-toggle");
+			removeButtonItem("refresh");
+		};
+	}, [mapRef, showGrid, onToggleGrid, onRefresh]);
 
-  // Component doesn't render anything, just manages toolbar
-  return null;
+	// Component doesn't render anything, just manages toolbar
+	return null;
 }
 
 // MapWidget.tsx
 function MapWidget(settings: any) {
-  const [showGrid, setShowGrid] = useState(false);
-  const mapRef = useRef<MapRef>(null);
+	const [showGrid, setShowGrid] = useState(false);
+	const mapRef = useRef<MapRef>(null);
 
-  return (
-    <>
-      <MapToolbar
-        mapRef={mapRef}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid(!showGrid)}
-        onRefresh={handleRefresh}
-      />
-      <MapComponent ref={mapRef} showGrid={showGrid} />
-    </>
-  );
+	return (
+		<>
+			<MapToolbar
+				mapRef={mapRef}
+				showGrid={showGrid}
+				onToggleGrid={() => setShowGrid(!showGrid)}
+				onRefresh={handleRefresh}
+			/>
+			<MapComponent ref={mapRef} showGrid={showGrid} />
+		</>
+	);
 }
 ```
 
@@ -739,15 +755,15 @@ Remove buttons in the useEffect cleanup function:
 ```tsx
 // ❌ BAD: No cleanup
 useEffect(() => {
-  setButtonItem("my-button", <Button /* ... */ />);
+	setButtonItem("my-button", <Button /* ... */ />);
 }, []);
 
 // ✅ GOOD: Cleanup on unmount
 useEffect(() => {
-  setButtonItem("my-button", <Button /* ... */ />);
-  return () => {
-    removeButtonItem("my-button");
-  };
+	setButtonItem("my-button", <Button /* ... */ />);
+	return () => {
+		removeButtonItem("my-button");
+	};
 }, []);
 ```
 
@@ -758,13 +774,13 @@ Include all dependencies that affect button rendering:
 ```tsx
 // ❌ BAD: Missing dependencies
 useEffect(() => {
-  setButtonItem("toggle", <Button onClick={() => setValue(!value)} />);
+	setButtonItem("toggle", <Button onClick={() => setValue(!value)} />);
 }, []); // value is not in deps - stale closure!
 
 // ✅ GOOD: Include all used variables
 useEffect(() => {
-  setButtonItem("toggle", <Button onClick={() => setValue(!value)} />);
-  return () => removeButtonItem("toggle");
+	setButtonItem("toggle", <Button onClick={() => setValue(!value)} />);
+	return () => removeButtonItem("toggle");
 }, [value, setValue]); // Button re-registers when value changes
 ```
 
@@ -774,12 +790,12 @@ Prevent unnecessary button re-registration:
 
 ```tsx
 const handleRefresh = useCallback(() => {
-  fetchData();
+	fetchData();
 }, [fetchData]);
 
 useEffect(() => {
-  setButtonItem("refresh", <Button onClick={handleRefresh} />);
-  return () => removeButtonItem("refresh");
+	setButtonItem("refresh", <Button onClick={handleRefresh} />);
+	return () => removeButtonItem("refresh");
 }, [handleRefresh]); // Only re-registers if handler changes
 ```
 
@@ -831,11 +847,11 @@ Use icons and tooltips for clarity:
 import { RefreshCcwIcon } from "lucide-react";
 
 <Button
-  variant="ghost"
-  onClick={handleRefresh}
-  title="Refresh data" // Native tooltip
+	variant="ghost"
+	onClick={handleRefresh}
+	title="Refresh data" // Native tooltip
 >
-  <RefreshCcwIcon />
+	<RefreshCcwIcon />
 </Button>;
 ```
 
@@ -849,29 +865,29 @@ import { RefreshCcwIcon } from "lucide-react";
 
 1. **Missing ButtonHolderProvider**: Widget must be wrapped in `ButtonHolderProvider`
 
-   ```tsx
-   // ❌ BAD
-   <div>{definition.Component(widget.settings)}</div>
+    ```tsx
+    // ❌ BAD
+    <div>{definition.Component(widget.settings)}</div>
 
-   // ✅ GOOD
-   <ButtonHolderProvider>
-       <div>{definition.Component(widget.settings)}</div>
-   </ButtonHolderProvider>
-   ```
+    // ✅ GOOD
+    <ButtonHolderProvider>
+        <div>{definition.Component(widget.settings)}</div>
+    </ButtonHolderProvider>
+    ```
 
 2. **Portal Container Not Created**: For RC-Dock and FlexLayout, ensure portal containers are registered
 
-   ```tsx
-   // Check in browser DevTools that portal target element exists in title
-   // For RC-Dock: <TitlePortalContainer widgetId={widget.box_id} />
-   // For FlexLayout: <PortalContainer widgetId={widget.box_id} />
-   ```
+    ```tsx
+    // Check in browser DevTools that portal target element exists in title
+    // For RC-Dock: <TitlePortalContainer widgetId={widget.box_id} />
+    // For FlexLayout: <PortalContainer widgetId={widget.box_id} />
+    ```
 
 3. **Widget ID Mismatch**: Portal uses wrong widget ID
-   ```tsx
-   // Ensure widgetId matches between portal container and ButtonHolderPortal
-   <ButtonHolderPortal widgetId={widget.box_id} />
-   ```
+    ```tsx
+    // Ensure widgetId matches between portal container and ButtonHolderPortal
+    <ButtonHolderPortal widgetId={widget.box_id} />
+    ```
 
 ### Buttons Render in Wrong Order
 
@@ -895,19 +911,19 @@ setButtonItem("third", <Button />, 3); // Renders third
 // ❌ BAD: count is stale
 const [count, setCount] = useState(0);
 useEffect(() => {
-  setButtonItem("btn", <Button onClick={() => setCount(count + 1)} />);
+	setButtonItem("btn", <Button onClick={() => setCount(count + 1)} />);
 }, []); // Missing count dependency
 
 // ✅ GOOD: Button re-registers with new closure
 useEffect(() => {
-  setButtonItem("btn", <Button onClick={() => setCount(count + 1)} />);
-  return () => removeButtonItem("btn");
+	setButtonItem("btn", <Button onClick={() => setCount(count + 1)} />);
+	return () => removeButtonItem("btn");
 }, [count]); // Include count
 
 // ✅ BETTER: Use functional update (no dependency needed)
 useEffect(() => {
-  setButtonItem("btn", <Button onClick={() => setCount((c) => c + 1)} />);
-  return () => removeButtonItem("btn");
+	setButtonItem("btn", <Button onClick={() => setCount((c) => c + 1)} />);
+	return () => removeButtonItem("btn");
 }, []); // No dependencies needed with functional update
 ```
 
@@ -920,13 +936,13 @@ useEffect(() => {
 ```tsx
 // ❌ BAD: Button persists after unmount
 useEffect(() => {
-  setButtonItem("btn", <Button />);
+	setButtonItem("btn", <Button />);
 }, []);
 
 // ✅ GOOD: Cleanup function removes button
 useEffect(() => {
-  setButtonItem("btn", <Button />);
-  return () => removeButtonItem("btn");
+	setButtonItem("btn", <Button />);
+	return () => removeButtonItem("btn");
 }, []);
 ```
 
@@ -940,11 +956,11 @@ useEffect(() => {
 const [isActive, setIsActive] = useState(false);
 
 useEffect(() => {
-  setButtonItem(
-    "toggle",
-    <Button variant={isActive ? "default" : "ghost"}>Toggle</Button>,
-  );
-  return () => removeButtonItem("toggle");
+	setButtonItem(
+		"toggle",
+		<Button variant={isActive ? "default" : "ghost"}>Toggle</Button>,
+	);
+	return () => removeButtonItem("toggle");
 }, [isActive]); // Button re-renders when isActive changes
 ```
 
@@ -956,12 +972,12 @@ Register buttons only when conditions are met:
 
 ```tsx
 useEffect(() => {
-  if (!dataLoaded) {
-    return; // No buttons until data loads
-  }
+	if (!dataLoaded) {
+		return; // No buttons until data loads
+	}
 
-  setButtonItem("action", <Button /* ... */ />);
-  return () => removeButtonItem("action");
+	setButtonItem("action", <Button /* ... */ />);
+	return () => removeButtonItem("action");
 }, [dataLoaded]);
 ```
 
@@ -971,48 +987,48 @@ Create visual button groups with separators:
 
 ```tsx
 useEffect(() => {
-  // Group 1: Navigation (priority 1-2)
-  setButtonItem(
-    "prev",
-    <Button>
-      <ChevronLeft />
-    </Button>,
-    1,
-  );
-  setButtonItem(
-    "next",
-    <Button>
-      <ChevronRight />
-    </Button>,
-    2,
-  );
+	// Group 1: Navigation (priority 1-2)
+	setButtonItem(
+		"prev",
+		<Button>
+			<ChevronLeft />
+		</Button>,
+		1,
+	);
+	setButtonItem(
+		"next",
+		<Button>
+			<ChevronRight />
+		</Button>,
+		2,
+	);
 
-  // Separator (priority 2.5)
-  setButtonItem("sep1", <div className="h-6 w-px bg-border mx-1" />, 2.5);
+	// Separator (priority 2.5)
+	setButtonItem("sep1", <div className="h-6 w-px bg-border mx-1" />, 2.5);
 
-  // Group 2: View controls (priority 3-4)
-  setButtonItem(
-    "zoom",
-    <Button>
-      <ZoomIn />
-    </Button>,
-    3,
-  );
-  setButtonItem(
-    "grid",
-    <Button>
-      <Grid />
-    </Button>,
-    4,
-  );
+	// Group 2: View controls (priority 3-4)
+	setButtonItem(
+		"zoom",
+		<Button>
+			<ZoomIn />
+		</Button>,
+		3,
+	);
+	setButtonItem(
+		"grid",
+		<Button>
+			<Grid />
+		</Button>,
+		4,
+	);
 
-  return () => {
-    removeButtonItem("prev");
-    removeButtonItem("next");
-    removeButtonItem("sep1");
-    removeButtonItem("zoom");
-    removeButtonItem("grid");
-  };
+	return () => {
+		removeButtonItem("prev");
+		removeButtonItem("next");
+		removeButtonItem("sep1");
+		removeButtonItem("zoom");
+		removeButtonItem("grid");
+	};
 }, []);
 ```
 
@@ -1024,19 +1040,19 @@ Show loading state in buttons:
 const [isLoading, setIsLoading] = useState(false);
 
 const handleRefresh = async () => {
-  setIsLoading(true);
-  await fetchData();
-  setIsLoading(false);
+	setIsLoading(true);
+	await fetchData();
+	setIsLoading(false);
 };
 
 useEffect(() => {
-  setButtonItem(
-    "refresh",
-    <Button variant="ghost" onClick={handleRefresh} disabled={isLoading}>
-      <RefreshCcwIcon className={isLoading ? "animate-spin" : ""} />
-    </Button>,
-  );
-  return () => removeButtonItem("refresh");
+	setButtonItem(
+		"refresh",
+		<Button variant="ghost" onClick={handleRefresh} disabled={isLoading}>
+			<RefreshCcwIcon className={isLoading ? "animate-spin" : ""} />
+		</Button>,
+	);
+	return () => removeButtonItem("refresh");
 }, [isLoading, handleRefresh]);
 ```
 

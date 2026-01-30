@@ -26,49 +26,49 @@
 import React, { useCallback } from "react";
 
 import {
-  ArrayLayoutProps,
-  ArrayTranslations,
-  isObjectArrayWithNesting,
-  RankedTester,
-  rankWith,
+	ArrayLayoutProps,
+	ArrayTranslations,
+	isObjectArrayWithNesting,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { ShadCNArrayLayout } from "./ShadcnArrayLayout";
 import {
-  withArrayTranslationProps,
-  withJsonFormsArrayLayoutProps,
-  withTranslateProps,
+	withArrayTranslationProps,
+	withJsonFormsArrayLayoutProps,
+	withTranslateProps,
 } from "@jsonforms/react";
 
 export const shadcnArrayLayoutRenderer = ({
-  visible,
-  addItem,
-  translations,
-  ...props
+	visible,
+	addItem,
+	translations,
+	...props
 }: ArrayLayoutProps & { translations: ArrayTranslations }) => {
-  const addItemCb = useCallback(
-    (p: string, value: any) => addItem(p, value),
-    [addItem],
-  );
-  if (!visible) {
-    return null;
-  }
+	const addItemCb = useCallback(
+		(p: string, value: any) => addItem(p, value),
+		[addItem],
+	);
+	if (!visible) {
+		return null;
+	}
 
-  return (
-    <div>
-      <ShadCNArrayLayout
-        translations={translations}
-        visible={visible}
-        addItem={addItemCb}
-        {...props}
-      />
-    </div>
-  );
+	return (
+		<div>
+			<ShadCNArrayLayout
+				translations={translations}
+				visible={visible}
+				addItem={addItemCb}
+				{...props}
+			/>
+		</div>
+	);
 };
 
 export const shadcnArrayLayoutTester: RankedTester = rankWith(
-  10,
-  isObjectArrayWithNesting,
+	10,
+	isObjectArrayWithNesting,
 );
 export default withJsonFormsArrayLayoutProps(
-  withTranslateProps(withArrayTranslationProps(shadcnArrayLayoutRenderer)),
+	withTranslateProps(withArrayTranslationProps(shadcnArrayLayoutRenderer)),
 );

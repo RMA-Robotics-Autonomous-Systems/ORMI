@@ -153,11 +153,11 @@ The **Datasource Worker** runs in a separate Web Worker thread:
 
 ```typescript
 interface DatasourceWorkerImplementation {
-  init(settings): Promise<void>; // Initialize connection
-  listTopics(): Promise<DatasourceTopic[]>; // List available topics
-  subscribe(topic): Promise<void>; // Start streaming
-  unsubscribe(topic): Promise<void>; // Stop streaming
-  shutdown(): Promise<void>; // Clean up resources
+	init(settings): Promise<void>; // Initialize connection
+	listTopics(): Promise<DatasourceTopic[]>; // List available topics
+	subscribe(topic): Promise<void>; // Start streaming
+	unsubscribe(topic): Promise<void>; // Stop streaming
+	shutdown(): Promise<void>; // Clean up resources
 }
 ```
 
@@ -166,22 +166,22 @@ interface DatasourceWorkerImplementation {
 ```typescript
 // In worker
 createDatasourceWorker((ctx) => ({
-  async subscribe(topic) {
-    // Start streaming
-    setInterval(() => {
-      const data = getSensorData();
+	async subscribe(topic) {
+		// Start streaming
+		setInterval(() => {
+			const data = getSensorData();
 
-      // Zero-copy transfer for Float32Array
-      const buffer = data.points; // Float32Array
-      ctx.publish(
-        topic.topic,
-        { points: buffer },
-        Date.now(),
-        "sensor_frame",
-        [buffer.buffer], // Transferable
-      );
-    }, 100);
-  },
+			// Zero-copy transfer for Float32Array
+			const buffer = data.points; // Float32Array
+			ctx.publish(
+				topic.topic,
+				{ points: buffer },
+				Date.now(),
+				"sensor_frame",
+				[buffer.buffer], // Transferable
+			);
+		}, 100);
+	},
 }));
 ```
 
@@ -209,33 +209,33 @@ The **WorkerDatasourceHost** lives in the main thread and manages worker communi
 
 ```typescript
 class WorkerDatasourceHost {
-  registerHooks() {
-    // Available topics
-    pluginManager.addFilter("available-topics", async (topics) => {
-      const workerTopics = await this.rpc.call("listTopics");
-      return [...topics, ...workerTopics];
-    });
+	registerHooks() {
+		// Available topics
+		pluginManager.addFilter("available-topics", async (topics) => {
+			const workerTopics = await this.rpc.call("listTopics");
+			return [...topics, ...workerTopics];
+		});
 
-    // Subscribe requests
-    pluginManager.addAction("{ds}-subscribe", async (topic) => {
-      await this.rpc.call("subscribe", topic);
-    });
+		// Subscribe requests
+		pluginManager.addAction("{ds}-subscribe", async (topic) => {
+			await this.rpc.call("subscribe", topic);
+		});
 
-    // Unsubscribe requests
-    pluginManager.addAction("{ds}-unsubscribe", async (topic) => {
-      await this.rpc.call("unsubscribe", topic);
-    });
-  }
+		// Unsubscribe requests
+		pluginManager.addAction("{ds}-unsubscribe", async (topic) => {
+			await this.rpc.call("unsubscribe", topic);
+		});
+	}
 
-  // Receive published data from worker
-  private handlePublish(event) {
-    pluginManager.doAction(
-      "{ds}-{topic}-published",
-      event.data,
-      event.time,
-      event.referenceFrameId,
-    );
-  }
+	// Receive published data from worker
+	private handlePublish(event) {
+		pluginManager.doAction(
+			"{ds}-{topic}-published",
+			event.data,
+			event.time,
+			event.referenceFrameId,
+		);
+	}
 }
 ```
 
@@ -323,14 +323,14 @@ function MyWidget({ topic }: { topic: SelectedTopic }) {
 
 ```typescript
 interface LocalDataSources {
-  getSource: (topic: SelectedTopic) => Source | undefined;
-  getSourceId: (topic: SelectedTopic) => string;
+	getSource: (topic: SelectedTopic) => Source | undefined;
+	getSourceId: (topic: SelectedTopic) => string;
 }
 
 interface Source {
-  data: unknown[];
-  times: number[];
-  referenceFrameId: string;
+	data: unknown[];
+	times: number[];
+	referenceFrameId: string;
 }
 ```
 
@@ -342,26 +342,26 @@ interface Source {
 
 1. **Register data callback** (main thread):
 
-   ```typescript
-   pluginsManager.addAction(`${datasource_id}-${topic}-published`, {
-     id: `unique-callback-id`,
-     priority: 10,
-     action: (data, timestamp, frameId) => {
-       // Handle incoming data
-     },
-   });
-   ```
+    ```typescript
+    pluginsManager.addAction(`${datasource_id}-${topic}-published`, {
+    	id: `unique-callback-id`,
+    	priority: 10,
+    	action: (data, timestamp, frameId) => {
+    		// Handle incoming data
+    	},
+    });
+    ```
 
 2. **Request subscription** (RPC to worker):
-   ```typescript
-   await pluginsManager.WaitAndDoAction(
-     `${datasource_id}-subscribe`,
-     1, // timeout in seconds
-     topic,
-   );
-   // WorkerHost forwards to worker via RPC
-   // Worker starts data generation/streaming
-   ```
+    ```typescript
+    await pluginsManager.WaitAndDoAction(
+    	`${datasource_id}-subscribe`,
+    	1, // timeout in seconds
+    	topic,
+    );
+    // WorkerHost forwards to worker via RPC
+    // Worker starts data generation/streaming
+    ```
 
 **Why this pattern?**
 
@@ -475,18 +475,18 @@ const topics = await rpc.call("listTopics");
 
 // Listen to worker events
 rpc.on("topic-published", (event) => {
-  // Forward to PluginManager
+	// Forward to PluginManager
 });
 
 // Worker thread
 createDatasourceWorker((ctx) => ({
-  async subscribe(topic) {
-    // Implementation
-  },
+	async subscribe(topic) {
+		// Implementation
+	},
 
-  async listTopics() {
-    return topics;
-  },
+	async listTopics() {
+		return topics;
+	},
 }));
 
 // Publish from worker
@@ -504,11 +504,11 @@ const points = new Float32Array(300000); // 300k points
 
 // Transfer ownership to main thread (zero-copy)
 ctx.publish(
-  "/scan/points",
-  { points },
-  Date.now(),
-  "lidar_frame",
-  [points.buffer], // Transferable - no copy!
+	"/scan/points",
+	{ points },
+	Date.now(),
+	"lidar_frame",
+	[points.buffer], // Transferable - no copy!
 );
 
 // Main thread: Receives transferred buffer
@@ -536,28 +536,28 @@ Workers isolate errors from main thread:
 ```typescript
 // Worker error handler
 createDatasourceWorker((ctx) => {
-  // Global error handler
-  self.addEventListener("error", (e) => {
-    console.error("Worker error:", e);
-    // Worker crash doesn't affect main thread
-  });
+	// Global error handler
+	self.addEventListener("error", (e) => {
+		console.error("Worker error:", e);
+		// Worker crash doesn't affect main thread
+	});
 
-  return {
-    async subscribe(topic) {
-      try {
-        // Connection logic
-      } catch (error) {
-        // Log and handle gracefully
-        errorHandler.handle(error);
-      }
-    },
-  };
+	return {
+		async subscribe(topic) {
+			try {
+				// Connection logic
+			} catch (error) {
+				// Log and handle gracefully
+				errorHandler.handle(error);
+			}
+		},
+	};
 });
 
 // Main thread handles worker termination
 workerHost.worker.addEventListener("error", (e) => {
-  console.error("Worker crashed:", e);
-  // Can restart worker if needed
+	console.error("Worker crashed:", e);
+	// Can restart worker if needed
 });
 ```
 
@@ -568,18 +568,18 @@ Workers clean up resources on termination:
 ```typescript
 // Worker shutdown
 createDatasourceWorker((ctx) => ({
-  async shutdown() {
-    // Close connections
-    websocket?.close();
+	async shutdown() {
+		// Close connections
+		websocket?.close();
 
-    // Clear timers
-    clearInterval(publishTimer);
+		// Clear timers
+		clearInterval(publishTimer);
 
-    // Clean up resources
-    subscriptions.clear();
+		// Clean up resources
+		subscriptions.clear();
 
-    // Worker will terminate after this
-  },
+		// Worker will terminate after this
+	},
 }));
 
 // Main thread triggers shutdown
@@ -609,14 +609,14 @@ Buffers store the last N messages for each topic:
 ```typescript
 // LocalDataSource context provides
 interface LocalDataSources {
-  getSource: (topic: SelectedTopic) => Source | undefined;
-  getSourceId: (topic: SelectedTopic) => string;
+	getSource: (topic: SelectedTopic) => Source | undefined;
+	getSourceId: (topic: SelectedTopic) => string;
 }
 
 interface Source {
-  data: unknown[]; // Array of buffered messages
-  times: number[]; // Corresponding timestamps (milliseconds)
-  referenceFrameId: string; // Coordinate frame reference
+	data: unknown[]; // Array of buffered messages
+	times: number[]; // Corresponding timestamps (milliseconds)
+	referenceFrameId: string; // Coordinate frame reference
 }
 
 // Usage in widget
@@ -624,11 +624,11 @@ const { getSource, getSourceId } = useLocalDataSource();
 const source = getSource(myTopic);
 
 if (source) {
-  console.log(source.data); // [msg1, msg2, ..., msgN]
-  console.log(source.times); // [time1, time2, ..., timeN]
-  // Most recent message is at the end of the arrays
-  const latest = source.data[source.data.length - 1];
-  const latestTime = source.times[source.times.length - 1];
+	console.log(source.data); // [msg1, msg2, ..., msgN]
+	console.log(source.times); // [time1, time2, ..., timeN]
+	// Most recent message is at the end of the arrays
+	const latest = source.data[source.data.length - 1];
+	const latestTime = source.times[source.times.length - 1];
 }
 ```
 
@@ -685,7 +685,7 @@ Widgets can specify which types of topics they accept:
 
 ```typescript
 interface DataRequirements {
-  accepts: string[]; // Array of internal types
+	accepts: string[]; // Array of internal types
 }
 ```
 
@@ -714,25 +714,25 @@ import { DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 
 // Filter by type
 const filter = new DatasourceTopicFilter({
-  type: /Vector3|Movement/, // RegExp
-  strict: false,
+	type: /Vector3|Movement/, // RegExp
+	strict: false,
 });
 
 // Get filtered topics
 const topics = pluginManager.applyFilter<DatasourceTopic[]>(
-  PluginsHooks.AVAILABLE_TOPICS,
-  [],
-  filter,
+	PluginsHooks.AVAILABLE_TOPICS,
+	[],
+	filter,
 );
 
 // Filter by name pattern
 const robotTopics = new DatasourceTopicFilter({
-  name: /^\/robot\//,
+	name: /^\/robot\//,
 });
 
 // Filter by datasource
 const foxgloveTopics = new DatasourceTopicFilter({
-  source_id: /foxglove/,
+	source_id: /foxglove/,
 });
 ```
 
@@ -744,24 +744,24 @@ Workers publish data using the context API:
 
 ```typescript
 createDatasourceWorker((ctx) => ({
-  async subscribe(topic) {
-    const interval = setInterval(() => {
-      const data = getSensorData();
+	async subscribe(topic) {
+		const interval = setInterval(() => {
+			const data = getSensorData();
 
-      // Simple publish
-      ctx.publish(topic.topic, data, Date.now(), "sensor_frame");
+			// Simple publish
+			ctx.publish(topic.topic, data, Date.now(), "sensor_frame");
 
-      // With Transferable for large data
-      const pointCloud = new Float32Array(100000);
-      ctx.publish(
-        "/scan/points",
-        { points: pointCloud },
-        Date.now(),
-        "lidar_frame",
-        [pointCloud.buffer], // Zero-copy transfer
-      );
-    }, 100);
-  },
+			// With Transferable for large data
+			const pointCloud = new Float32Array(100000);
+			ctx.publish(
+				"/scan/points",
+				{ points: pointCloud },
+				Date.now(),
+				"lidar_frame",
+				[pointCloud.buffer], // Zero-copy transfer
+			);
+		}, 100);
+	},
 }));
 ```
 
@@ -935,11 +935,11 @@ Monitor worker health:
 ```typescript
 // In WorkerHost
 workerHost.worker.addEventListener("message", (e) => {
-  console.log("Worker message:", e.data);
+	console.log("Worker message:", e.data);
 });
 
 workerHost.worker.addEventListener("error", (e) => {
-  console.error("Worker error:", e);
+	console.error("Worker error:", e);
 });
 ```
 
@@ -1008,14 +1008,14 @@ Subscribe to a sub-property of a complex message:
 
 ```typescript
 const selectedTopic: SelectedTopic = {
-  topic: "/robot/imu",
-  datasource_id: "foxglove-1",
-  type: "Vector3",
-  rawType: "sensor_msgs/Imu",
-  property: "linear_acceleration.x", // Select sub-property
-  source: {
-    /* ... */
-  },
+	topic: "/robot/imu",
+	datasource_id: "foxglove-1",
+	type: "Vector3",
+	rawType: "sensor_msgs/Imu",
+	property: "linear_acceleration.x", // Select sub-property
+	source: {
+		/* ... */
+	},
 };
 ```
 

@@ -25,26 +25,26 @@
 "use client";
 import React from "react";
 import {
-  and,
-  ControlProps,
-  isEnumControl,
-  optionIs,
-  OwnPropsOfEnum,
-  RankedTester,
-  rankWith,
+	and,
+	ControlProps,
+	isEnumControl,
+	optionIs,
+	OwnPropsOfEnum,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsEnumProps } from "@jsonforms/react";
 import { ShadcnRadioGroup } from "./ShadcnRadioGroup";
 
 export const ShadcnRadioGroupControl = (
-  props: ControlProps & OwnPropsOfEnum,
+	props: ControlProps & OwnPropsOfEnum,
 ) => {
-  return <ShadcnRadioGroup {...props} />;
+	return <ShadcnRadioGroup {...props} />;
 };
 
 export const shadcnRadioGroupControlTester: RankedTester = rankWith(
-  21,
-  and(isEnumControl, optionIs("format", "radio")),
+	21,
+	and(isEnumControl, optionIs("format", "radio")),
 );
 
 export default withJsonFormsEnumProps(ShadcnRadioGroupControl);

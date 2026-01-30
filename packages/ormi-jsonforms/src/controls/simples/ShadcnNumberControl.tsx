@@ -24,41 +24,41 @@
 */
 "use client";
 import {
-  ControlProps,
-  isNumberControl,
-  RankedTester,
-  rankWith,
+	ControlProps,
+	isNumberControl,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
 
 const ShadcnInputNumber = (props: ControlProps) => {
-  const { id, enabled, schema, path, handleChange, data } = props;
+	const { id, enabled, schema, path, handleChange, data } = props;
 
-  return (
-    <Input
-      type="number"
-      value={data !== undefined && data !== null ? data : ""}
-      placeholder={schema.default || ""}
-      onChange={(ev) => {
-        const value = ev.target.value;
-        handleChange(path, value === "" ? undefined : Number(value));
-      }}
-      disabled={!enabled}
-      id={id}
-      step="any"
-    />
-  );
+	return (
+		<Input
+			type="number"
+			value={data !== undefined && data !== null ? data : ""}
+			placeholder={schema.default || ""}
+			onChange={(ev) => {
+				const value = ev.target.value;
+				handleChange(path, value === "" ? undefined : Number(value));
+			}}
+			disabled={!enabled}
+			id={id}
+			step="any"
+		/>
+	);
 };
 
 export const ShadcnNumberControl = (props: ControlProps) => (
-  <ShadcnInputControl {...props} input={ShadcnInputNumber} />
+	<ShadcnInputControl {...props} input={ShadcnInputNumber} />
 );
 
 export const shadcnNumberControlTester: RankedTester = rankWith(
-  3,
-  isNumberControl,
+	3,
+	isNumberControl,
 );
 
 export default withJsonFormsControlProps(ShadcnNumberControl);

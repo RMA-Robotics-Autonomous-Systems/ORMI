@@ -2,20 +2,20 @@
 import { Template } from "./templates-types";
 
 export const temphandleLoad = (): Map<string, Template> => {
-  const templates = localStorage.getItem("ormi_templates");
+	const templates = localStorage.getItem("ormi_templates");
 
-  if (!templates) {
-    return new Map<string, Template>();
-  }
+	if (!templates) {
+		return new Map<string, Template>();
+	}
 
-  // templates is an object, convert it to Map
-  return new Map(Object.entries(JSON.parse(templates)));
+	// templates is an object, convert it to Map
+	return new Map(Object.entries(JSON.parse(templates)));
 };
 
 export const temphandleSave = (templates: Map<string, Template>) => {
-  // convert to object to save to local storage
+	// convert to object to save to local storage
 
-  const obj = Object.fromEntries(templates);
+	const obj = Object.fromEntries(templates);
 
-  localStorage.setItem("ormi_templates", JSON.stringify(obj));
+	localStorage.setItem("ormi_templates", JSON.stringify(obj));
 };

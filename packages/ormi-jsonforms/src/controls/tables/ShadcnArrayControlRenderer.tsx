@@ -25,76 +25,76 @@
 "use client";
 import React, { useCallback, useState } from "react";
 import {
-  ArrayLayoutProps,
-  ArrayTranslations,
-  RankedTester,
-  isObjectArrayControl,
-  isPrimitiveArrayControl,
-  or,
-  rankWith,
+	ArrayLayoutProps,
+	ArrayTranslations,
+	RankedTester,
+	isObjectArrayControl,
+	isPrimitiveArrayControl,
+	or,
+	rankWith,
 } from "@jsonforms/core";
 import {
-  withArrayTranslationProps,
-  withJsonFormsArrayLayoutProps,
-  withTranslateProps,
+	withArrayTranslationProps,
+	withJsonFormsArrayLayoutProps,
+	withTranslateProps,
 } from "@jsonforms/react";
 import { ShadcnTableControl } from "./ShadcnTableControl";
 import { DeleteDialog } from "./DeleteDialog";
 
 export const ShadcnArrayControlRenderer = (
-  props: ArrayLayoutProps & { translations: ArrayTranslations },
+	props: ArrayLayoutProps & { translations: ArrayTranslations },
 ) => {
-  const [open, setOpen] = useState(false);
-  const [path, setPath] = useState<string | undefined>(undefined);
-  const [rowData, setRowData] = useState<number | undefined>(undefined);
-  const { removeItems, visible, translations } = props;
+	const [open, setOpen] = useState(false);
+	const [path, setPath] = useState<string | undefined>(undefined);
+	const [rowData, setRowData] = useState<number | undefined>(undefined);
+	const { removeItems, visible, translations } = props;
 
-  const openDeleteDialog = useCallback(
-    (p: string, rowIndex: number) => {
-      setOpen(true);
-      setPath(p);
-      setRowData(rowIndex);
-    },
-    [setOpen, setPath, setRowData],
-  );
-  const deleteCancel = useCallback(() => setOpen(false), [setOpen]);
-  const deleteConfirm = useCallback(() => {
-    const p = path!.substring(0, path!.lastIndexOf("."));
-    removeItems!(p, [rowData!])();
-    setOpen(false);
-  }, [setOpen, path, rowData]);
-  const deleteClose = useCallback(() => setOpen(false), [setOpen]);
+	const openDeleteDialog = useCallback(
+		(p: string, rowIndex: number) => {
+			setOpen(true);
+			setPath(p);
+			setRowData(rowIndex);
+		},
+		[setOpen, setPath, setRowData],
+	);
+	const deleteCancel = useCallback(() => setOpen(false), [setOpen]);
+	const deleteConfirm = useCallback(() => {
+		const p = path!.substring(0, path!.lastIndexOf("."));
+		removeItems!(p, [rowData!])();
+		setOpen(false);
+	}, [setOpen, path, rowData]);
+	const deleteClose = useCallback(() => setOpen(false), [setOpen]);
 
-  if (!visible) {
-    return null;
-  }
+	if (!visible) {
+		return null;
+	}
 
-  return (
-    <>
-      <ShadcnTableControl
-        {...props}
-        openDeleteDialog={openDeleteDialog}
-        translations={translations}
-      />
-      <DeleteDialog
-        open={open}
-        onCancel={deleteCancel}
-        onConfirm={deleteConfirm}
-        onClose={deleteClose}
-        acceptText={translations.deleteDialogAccept!}
-        declineText={translations.deleteDialogDecline!}
-        title={translations.deleteDialogTitle!}
-        message={translations.deleteDialogMessage!}
-      />
-    </>
-  );
+	return (
+		<>
+			<ShadcnTableControl
+				{...props}
+				openDeleteDialog={openDeleteDialog}
+				translations={translations}
+			/>
+			<DeleteDialog
+				open={open}
+				onCancel={deleteCancel}
+				onConfirm={deleteConfirm}
+				onClose={deleteClose}
+				acceptText={translations.deleteDialogAccept!}
+				declineText={translations.deleteDialogDecline!}
+				title={translations.deleteDialogTitle!}
+				message={translations.deleteDialogMessage!}
+			/>
+		</>
+	);
 };
 
 export const shadcnArrayControlTester: RankedTester = rankWith(
-  4,
-  or(isObjectArrayControl, isPrimitiveArrayControl),
+	4,
+	or(isObjectArrayControl, isPrimitiveArrayControl),
 );
 
 export default withJsonFormsArrayLayoutProps(
-  withTranslateProps(withArrayTranslationProps(ShadcnArrayControlRenderer)),
+	withTranslateProps(withArrayTranslationProps(ShadcnArrayControlRenderer)),
 );

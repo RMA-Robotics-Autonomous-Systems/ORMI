@@ -25,15 +25,15 @@
 "use client";
 import React from "react";
 import {
-  LayoutProps,
-  RankedTester,
-  rankWith,
-  uiTypeIs,
-  VerticalLayout,
+	LayoutProps,
+	RankedTester,
+	rankWith,
+	uiTypeIs,
+	VerticalLayout,
 } from "@jsonforms/core";
 import {
-  ShadcnLayoutRenderer,
-  shadcnLayoutRendererProps,
+	ShadcnLayoutRenderer,
+	shadcnLayoutRendererProps,
 } from "../utils/layouts";
 import { withJsonFormsLayoutProps } from "@jsonforms/react";
 
@@ -42,32 +42,36 @@ import { withJsonFormsLayoutProps } from "@jsonforms/react";
  * @type {RankedTester}
  */
 export const shadcnVerticalLayoutTester: RankedTester = rankWith(
-  2,
-  uiTypeIs("VerticalLayout"),
+	2,
+	uiTypeIs("VerticalLayout"),
 );
 
 export const ShadcnVerticalLayoutRenderer = ({
-  uischema,
-  schema,
-  path,
-  enabled,
-  visible,
-  renderers,
-  cells,
+	uischema,
+	schema,
+	path,
+	enabled,
+	visible,
+	renderers,
+	cells,
 }: LayoutProps) => {
-  const verticalLayout = uischema as VerticalLayout;
-  const childProps: shadcnLayoutRendererProps = {
-    elements: verticalLayout.elements,
-    schema,
-    path,
-    enabled,
-    direction: "column",
-    visible,
-  };
+	const verticalLayout = uischema as VerticalLayout;
+	const childProps: shadcnLayoutRendererProps = {
+		elements: verticalLayout.elements,
+		schema,
+		path,
+		enabled,
+		direction: "column",
+		visible,
+	};
 
-  return (
-    <ShadcnLayoutRenderer {...childProps} renderers={renderers} cells={cells} />
-  );
+	return (
+		<ShadcnLayoutRenderer
+			{...childProps}
+			renderers={renderers}
+			cells={cells}
+		/>
+	);
 };
 
 export default withJsonFormsLayoutProps(ShadcnVerticalLayoutRenderer);

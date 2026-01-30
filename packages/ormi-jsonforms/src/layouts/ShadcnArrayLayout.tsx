@@ -26,11 +26,11 @@
 import range from "lodash/range";
 import React, { useState, useCallback } from "react";
 import {
-  ArrayLayoutProps,
-  ArrayTranslations,
-  composePaths,
-  computeLabel,
-  createDefaultValue,
+	ArrayLayoutProps,
+	ArrayTranslations,
+	composePaths,
+	computeLabel,
+	createDefaultValue,
 } from "@jsonforms/core";
 import map from "lodash/map";
 import { ArrayLayoutToolbar } from "./ArrayToolbar";
@@ -39,95 +39,98 @@ import merge from "lodash/merge";
 import { Accordion } from "@workspace/ui/components/accordion";
 
 const ShadCNArrayLayoutComponent = (
-  props: ArrayLayoutProps & { translations: ArrayTranslations },
+	props: ArrayLayoutProps & { translations: ArrayTranslations },
 ) => {
-  const [expanded, setExpanded] = useState<string | boolean>(false);
-  const innerCreateDefaultValue = useCallback(
-    () => createDefaultValue(props.schema, props.rootSchema),
-    [props.schema],
-  );
-  const handleChange = useCallback(
-    (panel: string) => (_event: any, expandedPanel: boolean) => {
-      setExpanded(expandedPanel ? panel : false);
-    },
-    [],
-  );
-  const isExpanded = (index: number) =>
-    expanded === composePaths(props.path, `${index}`);
+	const [expanded, setExpanded] = useState<string | boolean>(false);
+	const innerCreateDefaultValue = useCallback(
+		() => createDefaultValue(props.schema, props.rootSchema),
+		[props.schema],
+	);
+	const handleChange = useCallback(
+		(panel: string) => (_event: any, expandedPanel: boolean) => {
+			setExpanded(expandedPanel ? panel : false);
+		},
+		[],
+	);
+	const isExpanded = (index: number) =>
+		expanded === composePaths(props.path, `${index}`);
 
-  const {
-    enabled,
-    data,
-    path,
-    schema,
-    uischema,
-    errors,
-    addItem,
-    renderers,
-    cells,
-    label,
-    required,
-    rootSchema,
-    config,
-    uischemas,
-    description,
-    disableAdd,
-    disableRemove,
-    translations,
-  } = props;
-  const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
-  const doDisableAdd = disableAdd || appliedUiSchemaOptions.disableAdd;
-  const doDisableRemove = disableRemove || appliedUiSchemaOptions.disableRemove;
+	const {
+		enabled,
+		data,
+		path,
+		schema,
+		uischema,
+		errors,
+		addItem,
+		renderers,
+		cells,
+		label,
+		required,
+		rootSchema,
+		config,
+		uischemas,
+		description,
+		disableAdd,
+		disableRemove,
+		translations,
+	} = props;
+	const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
+	const doDisableAdd = disableAdd || appliedUiSchemaOptions.disableAdd;
+	const doDisableRemove =
+		disableRemove || appliedUiSchemaOptions.disableRemove;
 
-  return (
-    <div>
-      <ArrayLayoutToolbar
-        translations={translations}
-        label={computeLabel(
-          label,
-          required!,
-          appliedUiSchemaOptions.hideRequiredAsterisk,
-        )}
-        description={description!}
-        errors={errors}
-        path={path}
-        enabled={enabled}
-        addItem={addItem}
-        createDefault={innerCreateDefaultValue}
-        disableAdd={doDisableAdd}
-      />
-      <Accordion type="multiple">
-        {data > 0 ? (
-          map(range(data), (index) => {
-            return (
-              <ExpandPanelRenderer
-                enabled={enabled}
-                index={index}
-                expanded={isExpanded(index)}
-                schema={schema}
-                path={path}
-                handleExpansion={handleChange}
-                uischema={uischema}
-                renderers={renderers}
-                cells={cells}
-                key={index}
-                rootSchema={rootSchema}
-                enableMoveUp={index != 0}
-                enableMoveDown={index < data - 1}
-                config={config}
-                childLabelProp={appliedUiSchemaOptions.elementLabelProp}
-                uischemas={uischemas}
-                translations={translations}
-                disableRemove={doDisableRemove}
-              />
-            );
-          })
-        ) : (
-          <p>{translations.noDataMessage}</p>
-        )}
-      </Accordion>
-    </div>
-  );
+	return (
+		<div>
+			<ArrayLayoutToolbar
+				translations={translations}
+				label={computeLabel(
+					label,
+					required!,
+					appliedUiSchemaOptions.hideRequiredAsterisk,
+				)}
+				description={description!}
+				errors={errors}
+				path={path}
+				enabled={enabled}
+				addItem={addItem}
+				createDefault={innerCreateDefaultValue}
+				disableAdd={doDisableAdd}
+			/>
+			<Accordion type="multiple">
+				{data > 0 ? (
+					map(range(data), (index) => {
+						return (
+							<ExpandPanelRenderer
+								enabled={enabled}
+								index={index}
+								expanded={isExpanded(index)}
+								schema={schema}
+								path={path}
+								handleExpansion={handleChange}
+								uischema={uischema}
+								renderers={renderers}
+								cells={cells}
+								key={index}
+								rootSchema={rootSchema}
+								enableMoveUp={index != 0}
+								enableMoveDown={index < data - 1}
+								config={config}
+								childLabelProp={
+									appliedUiSchemaOptions.elementLabelProp
+								}
+								uischemas={uischemas}
+								translations={translations}
+								disableRemove={doDisableRemove}
+							/>
+						);
+					})
+				) : (
+					<p>{translations.noDataMessage}</p>
+				)}
+			</Accordion>
+		</div>
+	);
 };
 
 export const ShadCNArrayLayout = React.memo(ShadCNArrayLayoutComponent);

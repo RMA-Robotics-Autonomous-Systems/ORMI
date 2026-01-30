@@ -196,17 +196,17 @@ Sequence of positions forming a path.
 
 ```typescript
 interface PathPoint {
-  position: Vector3;
-  orientation?: Quaternion;
+	position: Vector3;
+	orientation?: Quaternion;
 }
 
 type Path = PathPoint[];
 
 // Example
 [
-  { position: { x: 0, y: 0, z: 0 } },
-  { position: { x: 1, y: 0, z: 0 } },
-  { position: { x: 2, y: 1, z: 0 } },
+	{ position: { x: 0, y: 0, z: 0 } },
+	{ position: { x: 1, y: 0, z: 0 } },
+	{ position: { x: 2, y: 1, z: 0 } },
 ];
 ```
 
@@ -218,20 +218,20 @@ type Path = PathPoint[];
 
 ```typescript
 interface PointsCloud {
-  points: Array<{
-    x: number;
-    y: number;
-    z: number;
-    rgb?: number; // Optional color
-  }>;
+	points: Array<{
+		x: number;
+		y: number;
+		z: number;
+		rgb?: number; // Optional color
+	}>;
 }
 
 // Example
 {
-  points: [
-    { x: 1, y: 2, z: 3, rgb: 0xff0000 }, // Red point
-    { x: 1.1, y: 2.1, z: 3.1, rgb: 0x00ff00 }, // Green point
-  ];
+	points: [
+		{ x: 1, y: 2, z: 3, rgb: 0xff0000 }, // Red point
+		{ x: 1.1, y: 2.1, z: 3.1, rgb: 0x00ff00 }, // Green point
+	];
 }
 ```
 
@@ -308,12 +308,12 @@ Links internal and raw types:
 
 ```typescript
 interface DatasourceTopic {
-  topic: string; // "/robot/velocity"
-  datasource_id: string; // "foxglove-1"
-  type: string; // Internal: "Movement"
-  rawType: string; // Raw: "geometry_msgs/Twist"
-  source: DatasourceProviderSettings;
-  bufferSize?: number;
+	topic: string; // "/robot/velocity"
+	datasource_id: string; // "foxglove-1"
+	type: string; // Internal: "Movement"
+	rawType: string; // Raw: "geometry_msgs/Twist"
+	source: DatasourceProviderSettings;
+	bufferSize?: number;
 }
 ```
 
@@ -324,23 +324,23 @@ interface DatasourceTopic {
 ```typescript
 // Raw ROS2 message
 const rosMessage = {
-  linear: { x: 1.0, y: 0.0, z: 0.0 },
-  angular: { x: 0.0, y: 0.0, z: 0.5 },
+	linear: { x: 1.0, y: 0.0, z: 0.0 },
+	angular: { x: 0.0, y: 0.0, z: 0.5 },
 };
 
 // Convert to internal type
 const movement: Movement = {
-  linear: rosMessage.linear as Vector3,
-  angular: rosMessage.angular as Vector3,
+	linear: rosMessage.linear as Vector3,
+	angular: rosMessage.angular as Vector3,
 };
 
 // Publish with both type annotations
 const topic: DatasourceTopic = {
-  topic: "/cmd_vel",
-  datasource_id: "rosbridge-1",
-  type: "Movement",
-  rawType: "geometry_msgs/Twist",
-  source: datasourceSettings,
+	topic: "/cmd_vel",
+	datasource_id: "rosbridge-1",
+	type: "Movement",
+	rawType: "geometry_msgs/Twist",
+	source: datasourceSettings,
 };
 ```
 
@@ -349,19 +349,19 @@ const topic: DatasourceTopic = {
 ```typescript
 // Raw API response
 const apiResponse = {
-  temperature: 23.5,
-  unit: "celsius",
+	temperature: 23.5,
+	unit: "celsius",
 };
 
 // Extract and convert
 const temperature: number = apiResponse.temperature;
 
 const topic: DatasourceTopic = {
-  topic: "/temperature",
-  datasource_id: "rest-api-1",
-  type: "number",
-  rawType: "api/TemperatureReading",
-  source: datasourceSettings,
+	topic: "/temperature",
+	datasource_id: "rest-api-1",
+	type: "number",
+	rawType: "api/TemperatureReading",
+	source: datasourceSettings,
 };
 ```
 
@@ -370,30 +370,30 @@ const topic: DatasourceTopic = {
 ```typescript
 // Raw GPS data
 const gpsData = {
-  lat: 50.8503,
-  lon: 4.3517,
-  alt: 100,
+	lat: 50.8503,
+	lon: 4.3517,
+	alt: 100,
 };
 
 // Convert to standard
 const position: GeolocationPosition = {
-  coords: {
-    latitude: gpsData.lat,
-    longitude: gpsData.lon,
-    altitude: gpsData.alt,
-    accuracy: 5,
-    altitudeAccuracy: null,
-    heading: null,
-    speed: null,
-  },
+	coords: {
+		latitude: gpsData.lat,
+		longitude: gpsData.lon,
+		altitude: gpsData.alt,
+		accuracy: 5,
+		altitudeAccuracy: null,
+		heading: null,
+		speed: null,
+	},
 };
 
 const topic: DatasourceTopic = {
-  topic: "/gps/position",
-  datasource_id: "gps-1",
-  type: "GeolocationPosition",
-  rawType: "gps/Coordinates",
-  source: datasourceSettings,
+	topic: "/gps/position",
+	datasource_id: "gps-1",
+	type: "GeolocationPosition",
+	rawType: "gps/Coordinates",
+	source: datasourceSettings,
 };
 ```
 
@@ -405,7 +405,7 @@ Widgets specify acceptable types:
 
 ```typescript
 interface DataRequirements {
-  accepts: string[]; // Array of internal type names
+	accepts: string[]; // Array of internal type names
 }
 ```
 
@@ -430,13 +430,13 @@ import { DatasourceTopicFilter } from "@workspace/ormi-core/datasources";
 
 // Filter by internal type
 const filter = new DatasourceTopicFilter({
-  type: /Vector3|Movement/,
+	type: /Vector3|Movement/,
 });
 
 const topics = pluginManager.applyFilter<DatasourceTopic[]>(
-  PluginsHooks.AVAILABLE_TOPICS,
-  [],
-  filter,
+	PluginsHooks.AVAILABLE_TOPICS,
+	[],
+	filter,
 );
 ```
 
@@ -494,18 +494,18 @@ function VelocityWidget() {
 
 ```typescript
 interface CustomSensorData {
-  temperature: number;
-  humidity: number;
-  pressure: number;
+	temperature: number;
+	humidity: number;
+	pressure: number;
 }
 
 // Register as internal type
 const topic: DatasourceTopic = {
-  topic: "/weather",
-  datasource_id: "weather-station-1",
-  type: "CustomSensorData", // New internal type
-  rawType: "WeatherStation/Reading",
-  source: props,
+	topic: "/weather",
+	datasource_id: "weather-station-1",
+	type: "CustomSensorData", // New internal type
+	rawType: "WeatherStation/Reading",
+	source: props,
 };
 ```
 
@@ -567,9 +567,9 @@ type: "MyCustomMovement";
  * - pressure: hPa
  */
 interface WeatherData {
-  temperature: number;
-  humidity: number;
-  pressure: number;
+	temperature: number;
+	humidity: number;
+	pressure: number;
 }
 ```
 
@@ -598,7 +598,7 @@ import { Vector3, Movement, IMU, Path } from "@workspace/ormi-core/types";
 
 // Use in components
 function MyWidget(props: { data: Movement }) {
-  // ...
+	// ...
 }
 ```
 

@@ -25,23 +25,23 @@ For architectural details on renderer registration and JSON Forms integration, s
 
 ```typescript
 interface RendererEntry {
-  renderer: React.ComponentType<RendererProps>;
-  tester: RankedTester;
+	renderer: React.ComponentType<RendererProps>;
+	tester: RankedTester;
 }
 
 interface RendererProps {
-  data: any;
-  path: string;
-  schema: JsonSchema;
-  uischema: UISchemaElement;
-  handleChange(path: string, value: any): void;
-  errors?: string;
+	data: any;
+	path: string;
+	schema: JsonSchema;
+	uischema: UISchemaElement;
+	handleChange(path: string, value: any): void;
+	errors?: string;
 }
 
 type RankedTester = (
-  uischema: UISchemaElement,
-  schema: JsonSchema,
-  context: any,
+	uischema: UISchemaElement,
+	schema: JsonSchema,
+	context: any,
 ) => number;
 ```
 
@@ -206,13 +206,13 @@ export const RangeSliderRendererEntry = {
 
 ```typescript
 import {
-  rankWith,
-  scopeEndsWith,
-  scopeEndsWith,
-  uiTypeIs,
-  schemaMatches,
-  and,
-  or,
+	rankWith,
+	scopeEndsWith,
+	scopeEndsWith,
+	uiTypeIs,
+	schemaMatches,
+	and,
+	or,
 } from "@jsonforms/core";
 
 // Match by scope (JSON path)
@@ -223,25 +223,25 @@ rankWith(6, uiTypeIs("TopicSelect"));
 
 // Match by schema properties
 rankWith(
-  4,
-  schemaMatches((s) => s.type === "string" && s.format === "color"),
+	4,
+	schemaMatches((s) => s.type === "string" && s.format === "color"),
 );
 
 // Combine conditions
 rankWith(
-  5,
-  and(
-    schemaMatches((s) => s.type === "number"),
-    scopeEndsWith("Angle"),
-  ),
+	5,
+	and(
+		schemaMatches((s) => s.type === "number"),
+		scopeEndsWith("Angle"),
+	),
 );
 
 rankWith(
-  3,
-  or(
-    scopeEndsWith("Color"),
-    schemaMatches((s) => s.format === "color"),
-  ),
+	3,
+	or(
+		scopeEndsWith("Color"),
+		schemaMatches((s) => s.format === "color"),
+	),
 );
 ```
 
@@ -250,16 +250,16 @@ rankWith(
 ```typescript
 // Custom logic for complex matching
 const customTester: RankedTester = (uischema, schema, context) => {
-  // Check if it's a ROS message type field
-  if (schema.type === "string" && uischema.options?.isRosTopic) {
-    return 7; // High priority
-  }
-  return -1; // Not applicable
+	// Check if it's a ROS message type field
+	if (schema.type === "string" && uischema.options?.isRosTopic) {
+		return 7; // High priority
+	}
+	return -1; // Not applicable
 };
 
 export const CustomRendererEntry = {
-  renderer: withJsonFormsControlProps(CustomRenderer),
-  tester: rankWith(7, customTester),
+	renderer: withJsonFormsControlProps(CustomRenderer),
+	tester: rankWith(7, customTester),
 };
 ```
 
@@ -270,17 +270,17 @@ export const CustomRendererEntry = {
 ```typescript
 // In your plugin registration
 import {
-  ColorPickerRendererEntry,
-  TopicSelectRendererEntry,
+	ColorPickerRendererEntry,
+	TopicSelectRendererEntry,
 } from "./renderers";
 
 export const MyPlugin = {
-  id: "my-plugin",
-  name: "My Plugin",
-  renderers: [ColorPickerRendererEntry, TopicSelectRendererEntry],
-  widgets: [
-    /* ... */
-  ],
+	id: "my-plugin",
+	name: "My Plugin",
+	renderers: [ColorPickerRendererEntry, TopicSelectRendererEntry],
+	widgets: [
+		/* ... */
+	],
 };
 ```
 
@@ -291,8 +291,8 @@ export const MyPlugin = {
 import { registerRenderer } from "@workspace/ormi-jsonforms";
 
 registerRenderer(
-  ColorPickerRendererEntry.renderer,
-  ColorPickerRendererEntry.tester,
+	ColorPickerRendererEntry.renderer,
+	ColorPickerRendererEntry.tester,
 );
 ```
 
@@ -445,13 +445,13 @@ export const vector3Tester = rankWith(
 
 ```json
 {
-  "type": "Control",
-  "scope": "#/properties/topic",
-  "options": {
-    "type": "TopicSelect",
-    "messageType": "sensor_msgs/Image",
-    "showMessageType": true
-  }
+	"type": "Control",
+	"scope": "#/properties/topic",
+	"options": {
+		"type": "TopicSelect",
+		"messageType": "sensor_msgs/Image",
+		"showMessageType": true
+	}
 }
 ```
 
@@ -459,16 +459,16 @@ export const vector3Tester = rankWith(
 
 ```typescript
 const TopicSelectRenderer = ({
-  data,
-  handleChange,
-  path,
-  uischema,
+	data,
+	handleChange,
+	path,
+	uischema,
 }: RendererProps) => {
-  const options = uischema.options || {};
-  const messageType = options.messageType as string | undefined;
-  const showMessageType = options.showMessageType as boolean;
+	const options = uischema.options || {};
+	const messageType = options.messageType as string | undefined;
+	const showMessageType = options.showMessageType as boolean;
 
-  // Use options...
+	// Use options...
 };
 ```
 
@@ -497,9 +497,9 @@ const value = data || defaultValue;
 
 ```typescript
 const handleInput = (newValue: any) => {
-  if (isValid(newValue)) {
-    handleChange(path, newValue);
-  }
+	if (isValid(newValue)) {
+		handleChange(path, newValue);
+	}
 };
 ```
 
@@ -519,8 +519,8 @@ const handleInput = (newValue: any) => {
 ```typescript
 // Always wrap with HOC
 export const MyRendererEntry = {
-  renderer: withJsonFormsControlProps(MyRenderer),
-  tester: myTester,
+	renderer: withJsonFormsControlProps(MyRenderer),
+	tester: myTester,
 };
 ```
 

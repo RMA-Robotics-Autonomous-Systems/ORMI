@@ -201,8 +201,8 @@ Edit `apps/web/ormi-plugins.ts`:
 
 ```typescript
 const registry: PluginRegistry = {
-  // ... existing plugins
-  "my-plugin": import("my-plugin"),
+	// ... existing plugins
+	"my-plugin": import("my-plugin"),
 };
 ```
 
@@ -221,12 +221,12 @@ Install these extensions:
 
 ```json
 {
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
-    "bradlc.vscode-tailwindcss",
-    "ms-vscode.vscode-typescript-next"
-  ]
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"bradlc.vscode-tailwindcss",
+		"ms-vscode.vscode-typescript-next"
+	]
 }
 ```
 
@@ -236,13 +236,13 @@ Install these extensions:
 
 ```json
 {
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-  }
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": true
+	}
 }
 ```
 
@@ -254,18 +254,18 @@ From `packages/typescript-config/react-library.json`:
 
 ```json
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "declaration": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true
-  }
+	"compilerOptions": {
+		"target": "ES2020",
+		"lib": ["ES2020", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"declaration": true,
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true
+	}
 }
 ```
 
@@ -273,13 +273,13 @@ From `packages/typescript-config/react-library.json`:
 
 ```json
 {
-  "extends": "@workspace/typescript-config/react-library.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+	"extends": "@workspace/typescript-config/react-library.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "./src"
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist"]
 }
 ```
 
@@ -356,22 +356,22 @@ Create `.vscode/launch.json`:
 
 ```json
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Next.js: debug server-side",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "bun run dev",
-      "cwd": "${workspaceFolder}/apps/web"
-    },
-    {
-      "name": "Next.js: debug client-side",
-      "type": "chrome",
-      "request": "launch",
-      "url": "http://localhost:3000"
-    }
-  ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Next.js: debug server-side",
+			"type": "node-terminal",
+			"request": "launch",
+			"command": "bun run dev",
+			"cwd": "${workspaceFolder}/apps/web"
+		},
+		{
+			"name": "Next.js: debug client-side",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:3000"
+		}
+	]
 }
 ```
 
@@ -387,15 +387,15 @@ Add logging to your plugin:
 
 ```typescript
 class MyPlugin extends Plugin {
-  constructor() {
-    super({ name: "My Plugin" });
-    console.log("[MyPlugin] Initializing...");
-  }
+	constructor() {
+		super({ name: "My Plugin" });
+		console.log("[MyPlugin] Initializing...");
+	}
 
-  protected initialize(): void {
-    console.log("[MyPlugin] Registering hooks");
-    // ...
-  }
+	protected initialize(): void {
+		console.log("[MyPlugin] Registering hooks");
+		// ...
+	}
 }
 ```
 
@@ -489,9 +489,9 @@ TypeScript's incremental compilation is enabled by default:
 
 ```json
 {
-  "compilerOptions": {
-    "incremental": true
-  }
+	"compilerOptions": {
+		"incremental": true
+	}
 }
 ```
 

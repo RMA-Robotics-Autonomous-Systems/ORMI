@@ -11,5 +11,5 @@ export const forceReloadAtom = atom<boolean>(false);
 export const datasourcesAtom = atom<Map<string, Datasource>>(new Map());
 
 export const widgetAtomFamily = atomFamily((boxId: string) =>
-  atom((get) => get(widgetsAtom).get(boxId)),
+	atom((get) => get(widgetsAtom).get(boxId)),
 );

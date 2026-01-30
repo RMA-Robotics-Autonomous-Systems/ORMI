@@ -24,36 +24,36 @@
 */
 "use client";
 import {
-  ControlProps,
-  isStringControl,
-  RankedTester,
-  rankWith,
+	ControlProps,
+	isStringControl,
+	RankedTester,
+	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
 
 const ShadcnInputText = (props: ControlProps) => {
-  const { id, enabled, schema, path, handleChange, data } = props;
+	const { id, enabled, schema, path, handleChange, data } = props;
 
-  return (
-    <Input
-      type="text"
-      value={data || schema.default || schema.const || ""}
-      onChange={(ev) => handleChange(path, ev.target.value)}
-      disabled={!enabled}
-      id={id}
-    />
-  );
+	return (
+		<Input
+			type="text"
+			value={data || schema.default || schema.const || ""}
+			onChange={(ev) => handleChange(path, ev.target.value)}
+			disabled={!enabled}
+			id={id}
+		/>
+	);
 };
 
 export const ShadcnTextControl = (props: ControlProps) => (
-  <ShadcnInputControl {...props} input={ShadcnInputText} />
+	<ShadcnInputControl {...props} input={ShadcnInputText} />
 );
 
 export const shadcnTextControlTester: RankedTester = rankWith(
-  2,
-  isStringControl,
+	2,
+	isStringControl,
 );
 
 export default withJsonFormsControlProps(ShadcnTextControl);

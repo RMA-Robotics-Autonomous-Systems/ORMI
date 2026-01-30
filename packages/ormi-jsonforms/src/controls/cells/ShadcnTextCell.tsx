@@ -25,28 +25,28 @@
 "use client";
 import React from "react";
 import {
-  CellProps,
-  isStringControl,
-  RankedTester,
-  rankWith,
-  WithClassname,
+	CellProps,
+	isStringControl,
+	RankedTester,
+	rankWith,
+	WithClassname,
 } from "@jsonforms/core";
 import { withJsonFormsCellProps } from "@jsonforms/react";
 import { Input } from "@workspace/ui/components/input";
 
 export const ShadcnTextCell = (props: CellProps & WithClassname) => {
-  const { data, className, id, enabled, handleChange, path } = props;
+	const { data, className, id, enabled, handleChange, path } = props;
 
-  return (
-    <Input
-      type="text"
-      value={data || ""}
-      onChange={(ev) => handleChange(path, ev.target.value)}
-      className={className}
-      id={id}
-      disabled={!enabled}
-    />
-  );
+	return (
+		<Input
+			type="text"
+			value={data || ""}
+			onChange={(ev) => handleChange(path, ev.target.value)}
+			className={className}
+			id={id}
+			disabled={!enabled}
+		/>
+	);
 };
 
 export const shadcnTextCellTester: RankedTester = rankWith(2, isStringControl);
