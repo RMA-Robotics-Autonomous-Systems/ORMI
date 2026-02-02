@@ -7,6 +7,42 @@ order: -1
 
 Welcome to the ORMI-CORE developer documentation. This guide covers everything you need to extend the webapp through plugins, widgets, datasources, and custom renderers.
 
+## Quick Installation with Docker
+
+The easiest way to get ORMI running is using Docker Compose, which handles all dependencies including the database.
+
+1. Clone the repository and navigate to the project directory:
+
+```bash
+git clone <repository-url>
+cd ORMI-CORE
+```
+
+2. Set up environment variables by creating a `.env` file in `apps/web`:
+
+```env
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=__YOUR__SUPER__MAGNIFICIENT__SECRET__
+DATABASE_URL=postgresql://ormi_user:ormi_password@postgres:5432/ormi_db
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+3. Start the application with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+The application will be available at `http://localhost:3000` and PostgreSQL will be running on `localhost:5432`.
+
+4. Stop the application:
+
+```bash
+docker-compose down
+```
+
+For complete setup instructions including local development, see the [main README](/) file.
+
 ## What is ORMI-CORE?
 
 ORMI-CORE is a **modular, plugin-based framework** for building real-time data visualization dashboards. It provides a flexible architecture where developers can:

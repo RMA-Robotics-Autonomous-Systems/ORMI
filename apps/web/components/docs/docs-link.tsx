@@ -16,26 +16,47 @@ export function DocsLink({
 }: DocsLinkProps) {
 	const pathname = usePathname();
 
-	// Extract current version from pathname (e.g., /docs/v1/something -> v1)
-	const versionMatch = pathname.match(/^\/docs\/([^\/]+)/);
+	// Extract current version and path from pathname (e.g., /docs/v1/api/widget-api -> v1, /api/widget-api)
+	const versionMatch = pathname.match(/^\/docs\/([^\/]+)(\/.*)?$/);
 	const currentVersion = versionMatch ? versionMatch[1] : "v1";
+	const currentDocPath = versionMatch ? versionMatch[2] || "/" : "/";
 
 	// Process the href
 	let processedHref = href || "#";
 
-	// If it's an internal docs link (starts with / but not /docs/)
-	if (processedHref.startsWith("/") && !processedHref.startsWith("/docs/")) {
-		// Add version prefix
+	// Skip processing for hash links and external URLs
+	if (processedHref.startsWith("http") || processedHref === "#") {
+		// External links and anchors are left as-is
+	}
+	// If it already starts with /docs/, leave it as-is
+	else if (processedHref.startsWith("/docs/")) {
+		// Already has full path
+	}
+	// If it's an absolute root link (starts with /)
+	else if (processedHref.startsWith("/")) {
+		// Add version prefix for docs root links
 		processedHref = `/docs/${currentVersion}${processedHref}`;
 	}
 	// If it's a relative link (doesn't start with / or http)
-	else if (
-		!processedHref.startsWith("/") &&
-		!processedHref.startsWith("http") &&
-		processedHref !== "#"
-	) {
-		// Treat as relative to current docs version
-		processedHref = `/docs/${currentVersion}/${processedHref}`;
+	else {
+		// Resolve relative paths
+		const currentDir = currentDocPath.substring(0, currentDocPath.lastIndexOf("/"));
+
+		// Split the relative path into parts
+		const parts = currentDir.split("/").filter((p) => p);
+		const linkParts = processedHref.split("/");
+
+		// Process .. and . in the path
+		for (const part of linkParts) {
+			if (part === "..") {
+				parts.pop();
+			} else if (part !== "." && part !== "") {
+				parts.push(part);
+			}
+		}
+
+		// Reconstruct the path
+		processedHref = `/docs/${currentVersion}/${parts.join("/")}`;
 	}
 
 	// External links
