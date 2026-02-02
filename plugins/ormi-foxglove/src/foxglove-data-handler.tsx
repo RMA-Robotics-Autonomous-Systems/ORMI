@@ -86,7 +86,15 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 			return;
 		}
 
-		setIsConnected(webSocket.readyState === WebSocket.OPEN);
+		// Only create the client if the socket is actually open
+		if (webSocket.readyState !== WebSocket.OPEN) {
+			setClient(null);
+			setChannels(new Map());
+			setIsConnected(false);
+			return;
+		}
+
+		setIsConnected(true);
 
 		const newClient = new FoxgloveClient({ ws: webSocket });
 
@@ -190,27 +198,27 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 	}, [channels]);
 
 	/*
-        type EventTypes = {
-        open: () => void;
-        error: (error: Error) => void;
-        close: (event: CloseEvent) => void;
- 
-        serverInfo: (event: ServerInfo) => void;
-        status: (event: StatusMessage) => void;
-        removeStatus: (event: RemoveStatusMessages) => void;
-        message: (event: MessageData) => void;
-        time: (event: Time) => void;
-        advertise: (newChannels: Channel[]) => void;
-        unadvertise: (removedChannels: ChannelId[]) => void;
-        advertiseServices: (newServices: Service[]) => void;
-        unadvertiseServices: (removedServices: ServiceId[]) => void;
-        parameterValues: (event: ParameterValues) => void;
-        serviceCallResponse: (event: ServiceCallResponse) => void;
-        connectionGraphUpdate: (event: ConnectionGraphUpdate) => void;
-        fetchAssetResponse: (event: FetchAssetResponse) => void;
-        serviceCallFailure: (event: ServiceCallFailure) => void;
-        };
-    */
+		type EventTypes = {
+		open: () => void;
+		error: (error: Error) => void;
+		close: (event: CloseEvent) => void;
+
+		serverInfo: (event: ServerInfo) => void;
+		status: (event: StatusMessage) => void;
+		removeStatus: (event: RemoveStatusMessages) => void;
+		message: (event: MessageData) => void;
+		time: (event: Time) => void;
+		advertise: (newChannels: Channel[]) => void;
+		unadvertise: (removedChannels: ChannelId[]) => void;
+		advertiseServices: (newServices: Service[]) => void;
+		unadvertiseServices: (removedServices: ServiceId[]) => void;
+		parameterValues: (event: ParameterValues) => void;
+		serviceCallResponse: (event: ServiceCallResponse) => void;
+		connectionGraphUpdate: (event: ConnectionGraphUpdate) => void;
+		fetchAssetResponse: (event: FetchAssetResponse) => void;
+		serviceCallFailure: (event: ServiceCallFailure) => void;
+		};
+	*/
 
 	const contextValue = {
 		client,
