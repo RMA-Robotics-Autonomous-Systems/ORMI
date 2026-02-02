@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { Path, CoordinateConvention, Transform } from "@workspace/ormi-core/types";
+import {
+	Path,
+	CoordinateConvention,
+	Transform,
+} from "@workspace/ormi-core/types";
 import {
 	findTransformChain,
 	useTransformSource,
@@ -59,7 +63,12 @@ const buildTransformMatrix = (
 		const transformMatrix = new THREE.Matrix4();
 		transformMatrix.compose(
 			new THREE.Vector3(position.x, position.y, position.z),
-			new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+			new THREE.Quaternion(
+				rotation.x,
+				rotation.y,
+				rotation.z,
+				rotation.w,
+			),
 			new THREE.Vector3(1, 1, 1),
 		);
 
@@ -98,8 +107,12 @@ export const PathLineRenderer = ({
 		material.linewidth = lineWidth;
 		material.opacity = lineOpacity;
 		material.transparent = lineOpacity < 1;
-		(material as unknown as { linecap?: string; linejoin?: string }).linecap = "round";
-		(material as unknown as { linecap?: string; linejoin?: string }).linejoin = "round";
+		(
+			material as unknown as { linecap?: string; linejoin?: string }
+		).linecap = "round";
+		(
+			material as unknown as { linecap?: string; linejoin?: string }
+		).linejoin = "round";
 		material.needsUpdate = true;
 	}, [material, lineColor, lineWidth, lineOpacity]);
 
@@ -191,7 +204,10 @@ export const PathLineRenderer = ({
 		geometry.computeBoundingSphere();
 	}, [source, targetFrame, transformsTrees, geometry, material]);
 
-	const lineObject = useMemo(() => new Line2(geometry, material), [geometry, material]);
+	const lineObject = useMemo(
+		() => new Line2(geometry, material),
+		[geometry, material],
+	);
 
 	return <primitive object={lineObject} ref={lineRef} />;
 };

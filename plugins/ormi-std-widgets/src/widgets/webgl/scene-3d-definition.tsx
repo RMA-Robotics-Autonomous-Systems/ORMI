@@ -1,6 +1,12 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { LocalDataSourcesProvider, SelectedTopic } from "@workspace/ormi-core/datasources";
-import { WidgetDefinition, FrameSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	LocalDataSourcesProvider,
+	SelectedTopic,
+} from "@workspace/ormi-core/datasources";
+import {
+	WidgetDefinition,
+	FrameSelectElement,
+} from "@workspace/ormi-core/widgets";
 import { Box as Box3DIcon } from "lucide-react";
 import { Scene3DComp } from "./components/scene-3d-comp";
 import { Scene3DProps } from "./types/scene-3d-types";
@@ -13,7 +19,8 @@ export function Scene3DDefinition(): WidgetDefinition {
 	return {
 		id: "std-scene-3d",
 		name: "3D Scene",
-		description: "Unified 3D visualization with support for point clouds, paths, and more",
+		description:
+			"Unified 3D visualization with support for point clouds, paths, and more",
 		titleProp: "title",
 		icon: <Box3DIcon />,
 		schema: {
@@ -23,7 +30,8 @@ export function Scene3DDefinition(): WidgetDefinition {
 				targetFrame: {
 					type: "string",
 					title: "Target Frame",
-					description: "Transform all layers into this coordinate frame",
+					description:
+						"Transform all layers into this coordinate frame",
 				},
 				showGrid: {
 					type: "boolean",
@@ -57,7 +65,10 @@ export function Scene3DDefinition(): WidgetDefinition {
 								items: {
 									type: "object",
 									properties: {
-										topic: { type: "object", title: "Topic" },
+										topic: {
+											type: "object",
+											title: "Topic",
+										},
 									},
 								},
 							},
@@ -81,7 +92,14 @@ export function Scene3DDefinition(): WidgetDefinition {
 							theme: {
 								type: "string",
 								title: "Color Theme",
-								enum: ["Default", "Neon", "Plasma", "Thermal", "Solid", "Distance"],
+								enum: [
+									"Default",
+									"Neon",
+									"Plasma",
+									"Thermal",
+									"Solid",
+									"Distance",
+								],
 								default: "Default",
 							},
 							colorMode: {
@@ -140,7 +158,10 @@ export function Scene3DDefinition(): WidgetDefinition {
 		uischema: {
 			type: "VerticalLayout",
 			elements: [
-				{ type: "Control", scope: "#/properties/title" } as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/title",
+				} as ControlElement,
 				{
 					type: "FrameSelect",
 					scope: "#/properties/targetFrame",
@@ -148,8 +169,14 @@ export function Scene3DDefinition(): WidgetDefinition {
 						placeholder: "Select target frame",
 					},
 				} as FrameSelectElement,
-				{ type: "Control", scope: "#/properties/showGrid" } as ControlElement,
-				{ type: "Control", scope: "#/properties/showAxes" } as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/showGrid",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/showAxes",
+				} as ControlElement,
 				// Point Cloud Layers
 				{
 					type: "Control",
@@ -158,8 +185,14 @@ export function Scene3DDefinition(): WidgetDefinition {
 						detail: {
 							type: "VerticalLayout",
 							elements: [
-								{ type: "Control", scope: "#/properties/label" } as ControlElement,
-								{ type: "Control", scope: "#/properties/enabled" } as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/label",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/enabled",
+								} as ControlElement,
 								{
 									type: "Control",
 									scope: "#/properties/topics",
@@ -172,7 +205,9 @@ export function Scene3DDefinition(): WidgetDefinition {
 													scope: "#/properties/topic",
 													options: {
 														dataRequirements: {
-															accepts: ["PointsCloud"],
+															accepts: [
+																"PointsCloud",
+															],
 														},
 													},
 												},
@@ -180,13 +215,34 @@ export function Scene3DDefinition(): WidgetDefinition {
 										},
 									},
 								} as ControlElement,
-								{ type: "Control", scope: "#/properties/pointSize" } as ControlElement,
-								{ type: "Control", scope: "#/properties/colorMode" } as ControlElement,
-								{ type: "Control", scope: "#/properties/theme" } as ControlElement,
-								{ type: "Control", scope: "#/properties/customColor" } as ControlElement,
-								{ type: "Control", scope: "#/properties/useTransparency" } as ControlElement,
-								{ type: "Control", scope: "#/properties/rollingBuffer" } as ControlElement,
-								{ type: "Control", scope: "#/properties/decayTime" } as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/pointSize",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/colorMode",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/theme",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/customColor",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/useTransparency",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/rollingBuffer",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/decayTime",
+								} as ControlElement,
 							],
 						},
 					},
@@ -199,7 +255,10 @@ export function Scene3DDefinition(): WidgetDefinition {
 						detail: {
 							type: "VerticalLayout",
 							elements: [
-								{ type: "Control", scope: "#/properties/enabled" } as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/enabled",
+								} as ControlElement,
 								{
 									type: "TopicSelect",
 									scope: "#/properties/topic",
@@ -209,8 +268,14 @@ export function Scene3DDefinition(): WidgetDefinition {
 										},
 									},
 								},
-								{ type: "Control", scope: "#/properties/lineWidth" } as ControlElement,
-								{ type: "Control", scope: "#/properties/lineColor" } as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/lineWidth",
+								} as ControlElement,
+								{
+									type: "Control",
+									scope: "#/properties/lineColor",
+								} as ControlElement,
 							],
 						},
 					},
@@ -252,7 +317,10 @@ export function Scene3DDefinition(): WidgetDefinition {
 			}
 
 			return (
-				<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={1}>
+				<LocalDataSourcesProvider
+					SelectedTopics={allTopics}
+					buffersSize={1}
+				>
 					<Scene3DComp {...data} />
 				</LocalDataSourcesProvider>
 			);

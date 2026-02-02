@@ -99,7 +99,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 					if (!event.wasClean) {
 						scheduleReconnect(
 							event.reason ||
-							"WebSocket connection closed unexpectedly",
+								"WebSocket connection closed unexpectedly",
 						);
 					} else {
 						onConnectionStatus({
