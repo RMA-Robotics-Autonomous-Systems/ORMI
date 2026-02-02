@@ -40,7 +40,10 @@ export function DocsLink({
 	// If it's a relative link (doesn't start with / or http)
 	else {
 		// Resolve relative paths
-		const currentDir = currentDocPath.substring(0, currentDocPath.lastIndexOf("/"));
+		const currentDir = currentDocPath.substring(
+			0,
+			currentDocPath.lastIndexOf("/"),
+		);
 
 		// Split the relative path into parts
 		const parts = currentDir.split("/").filter((p) => p);

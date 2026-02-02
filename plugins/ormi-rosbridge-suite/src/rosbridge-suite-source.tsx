@@ -234,7 +234,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error connecting to ROSBridge Suite: " +
-								error.message,
+									error.message,
 							);
 						}
 						setConnected(false);
@@ -245,7 +245,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Disconnected from ROSBridge Suite: " +
-								props.url,
+									props.url,
 							);
 						}
 
@@ -339,23 +339,28 @@ const RosBridgeSuiteSourceProvider = (
 							) {
 								if ("__imageData" in convertedMessage) {
 									// Raw image: convert ImageData to ImageBitmap
-									createImageBitmap(convertedMessage.__imageData).then(
-										(bitmap) => {
-											pluginsManager.doAction(
-												`${datasource_id}-${topic.topic}-published`,
-												bitmap,
-												Date.now(),
-												frameId,
-											);
-										},
-									);
+									createImageBitmap(
+										convertedMessage.__imageData,
+									).then((bitmap) => {
+										pluginsManager.doAction(
+											`${datasource_id}-${topic.topic}-published`,
+											bitmap,
+											Date.now(),
+											frameId,
+										);
+									});
 									return;
-								} else if ("__compressedData" in convertedMessage) {
+								} else if (
+									"__compressedData" in convertedMessage
+								) {
 									// Compressed image: decode via Blob to ImageBitmap
-									const format = convertedMessage.__format || "jpeg";
+									const format =
+										convertedMessage.__format || "jpeg";
 									let mimeType = "image/jpeg";
-									if (format.includes("png")) mimeType = "image/png";
-									else if (format.includes("webp")) mimeType = "image/webp";
+									if (format.includes("png"))
+										mimeType = "image/png";
+									else if (format.includes("webp"))
+										mimeType = "image/webp";
 
 									const blob = new Blob(
 										[convertedMessage.__compressedData],
@@ -387,11 +392,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error subscribing to topic " +
-								topic.topic +
-								": " +
-								(error instanceof Error
-									? error.message
-									: String(error)),
+									topic.topic +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 							);
 						}
 					}
@@ -429,11 +434,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error unsubscribing from topic " +
-								topic.topic +
-								": " +
-								(error instanceof Error
-									? error.message
-									: String(error)),
+									topic.topic +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 							);
 						}
 					}
@@ -600,11 +605,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error advertising topic " +
-									topicName +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+										topicName +
+										": " +
+										(error instanceof Error
+											? error.message
+											: String(error)),
 								);
 							}
 							return false; // Indicate failure
@@ -747,11 +752,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error unadvertising topic " +
-									topicName +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+										topicName +
+										": " +
+										(error instanceof Error
+											? error.message
+											: String(error)),
 								);
 							}
 							// Don't re-throw, just log

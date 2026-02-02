@@ -130,7 +130,12 @@ const buildTransformMatrix = (
 		const transformMatrix = new THREE.Matrix4();
 		transformMatrix.compose(
 			new THREE.Vector3(position.x, position.y, position.z),
-			new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+			new THREE.Quaternion(
+				rotation.x,
+				rotation.y,
+				rotation.z,
+				rotation.w,
+			),
 			new THREE.Vector3(1, 1, 1),
 		);
 
@@ -257,13 +262,15 @@ const PointCloudSourceRenderer = ({
 		const timesArray = source?.times ?? [];
 		if (dataArray.length === 0) return;
 
-		let transformChain: ReturnType<typeof findTransformChain> | undefined = [];
+		let transformChain: ReturnType<typeof findTransformChain> | undefined =
+			[];
 		const refFrame = source.referenceFrameId;
 		if (!targetFrame || targetFrame === "" || refFrame === targetFrame) {
 			transformChain = [];
 		} else {
 			transformChain =
-				findTransformChain(transformsTrees, refFrame, targetFrame) ?? null;
+				findTransformChain(transformsTrees, refFrame, targetFrame) ??
+				null;
 		}
 
 		if (targetFrame && transformChain === null) {
@@ -285,7 +292,9 @@ const PointCloudSourceRenderer = ({
 
 		if (rollingBuffer) {
 			if (!rollingBufferRef.current) {
-				rollingBufferRef.current = new RingPointBuffer(MAX_ROLLING_POINTS);
+				rollingBufferRef.current = new RingPointBuffer(
+					MAX_ROLLING_POINTS,
+				);
 			}
 
 			const startIndex = 0;
@@ -430,7 +439,14 @@ const PointCloudSourceRenderer = ({
 		needsUpdateRef.current = true;
 		invalidate();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [source, sourceId, targetFrame, rollingBuffer, transformsTrees, invalidate]);
+	}, [
+		source,
+		sourceId,
+		targetFrame,
+		rollingBuffer,
+		transformsTrees,
+		invalidate,
+	]);
 
 	const updateGeometry = useCallback(() => {
 		if (!geometryRef.current || !needsUpdateRef.current) return;
@@ -518,10 +534,15 @@ const PointCloudSourceRenderer = ({
 
 		const customCol = new THREE.Color(customColor);
 		if (mat.uniforms.customColor)
-			mat.uniforms.customColor.value.set(customCol.r, customCol.g, customCol.b);
+			mat.uniforms.customColor.value.set(
+				customCol.r,
+				customCol.g,
+				customCol.b,
+			);
 
 		const shaders =
-			themeShaders[theme as keyof typeof themeShaders] || themeShaders.Default;
+			themeShaders[theme as keyof typeof themeShaders] ||
+			themeShaders.Default;
 		if (mat.vertexShader !== shaders.vertexShader) {
 			mat.vertexShader = shaders.vertexShader;
 			mat.fragmentShader = shaders.fragmentShader;
@@ -533,7 +554,16 @@ const PointCloudSourceRenderer = ({
 
 		invalidate();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [pointSize, useTransparency, colorMode, customColor, theme, rollingBuffer, decayTime, invalidate]);
+	}, [
+		pointSize,
+		useTransparency,
+		colorMode,
+		customColor,
+		theme,
+		rollingBuffer,
+		decayTime,
+		invalidate,
+	]);
 
 	useEffect(() => {
 		processData();
@@ -660,7 +690,9 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 				</GizmoHelper>
 
 				<OrbitControls makeDefault />
-				{showGrid && <Grid infiniteGrid={true} sectionColor="lightblue" />}
+				{showGrid && (
+					<Grid infiniteGrid={true} sectionColor="lightblue" />
+				)}
 
 				{/* Render Point Cloud Layers */}
 				{pointCloudLayers

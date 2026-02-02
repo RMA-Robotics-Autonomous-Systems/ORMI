@@ -451,7 +451,8 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 						const format = convertedMessage.__format || "jpeg";
 						let mimeType = "image/jpeg";
 						if (format.includes("png")) mimeType = "image/png";
-						else if (format.includes("webp")) mimeType = "image/webp";
+						else if (format.includes("webp"))
+							mimeType = "image/webp";
 
 						const blob = new Blob(
 							[convertedMessage.__compressedData],
@@ -586,7 +587,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					if (settings.toasts) {
 						toast(
 							"Error: Failed to subscribe to topic " +
-							topic.topic,
+								topic.topic,
 						);
 					}
 				});
@@ -636,7 +637,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 							if (settings.toasts) {
 								toast(
 									"Pending Subscription Canceled: " +
-									topic.topic,
+										topic.topic,
 								);
 							}
 						}
@@ -700,7 +701,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					if (settings.toasts) {
 						toast(
 							"Error: Failed to unsubscribe from topic " +
-							topic.topic,
+								topic.topic,
 						);
 					}
 				});

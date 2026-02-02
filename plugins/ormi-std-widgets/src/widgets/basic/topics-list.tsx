@@ -29,80 +29,88 @@ function LazyTopicPreview({ topic }: { topic: DatasourceTopic }) {
 
 	return previewConfig
 		? previewConfig.component(topic)
-		: fallbackPreview?.component(topic) ?? null;
+		: (fallbackPreview?.component(topic) ?? null);
 }
 
 /**
  * Individual topic row - memoized for performance
  * HoverCard is only rendered when user starts hovering (via mouse enter)
  */
-const TopicRow = memo(function TopicRow({ topic }: { topic: DatasourceTopic }) {
-	const [showHoverCard, setShowHoverCard] = useState(false);
-	const [isHovering, setIsHovering] = useState(false);
+const TopicRow = memo(
+	function TopicRow({ topic }: { topic: DatasourceTopic }) {
+		const [showHoverCard, setShowHoverCard] = useState(false);
+		const [isHovering, setIsHovering] = useState(false);
 
-	// Only mount the HoverCard when user hovers over the trigger area
-	const handleMouseEnter = useCallback(() => {
-		setIsHovering(true);
-		// Small delay before showing to avoid flash on quick mouse movements
-		const timer = setTimeout(() => setShowHoverCard(true), 100);
-		return () => clearTimeout(timer);
-	}, []);
+		// Only mount the HoverCard when user hovers over the trigger area
+		const handleMouseEnter = useCallback(() => {
+			setIsHovering(true);
+			// Small delay before showing to avoid flash on quick mouse movements
+			const timer = setTimeout(() => setShowHoverCard(true), 100);
+			return () => clearTimeout(timer);
+		}, []);
 
-	const handleMouseLeave = useCallback(() => {
-		setIsHovering(false);
-		// Keep HoverCard mounted briefly in case user hovers back
-		setTimeout(() => {
-			setShowHoverCard((prev) => prev && false);
-		}, 500);
-	}, []);
+		const handleMouseLeave = useCallback(() => {
+			setIsHovering(false);
+			// Keep HoverCard mounted briefly in case user hovers back
+			setTimeout(() => {
+				setShowHoverCard((prev) => prev && false);
+			}, 500);
+		}, []);
 
-	return (
-		<TableRow>
-			<TableCell className="font-medium">
-				{topic.source.title}
-			</TableCell>
-			<TableCell className="font-medium">
-				<div
-					className="flex items-center gap-2 cursor-pointer w-fit"
-					onMouseEnter={handleMouseEnter}
-					onMouseLeave={handleMouseLeave}
-				>
-					{showHoverCard ? (
-						<HoverCard open={isHovering} openDelay={200}>
-							<HoverCardTrigger asChild>
-								<div className="flex items-center gap-2">
-									{topic.topic}
-									<Info className="w-3 h-3 text-muted-foreground" />
-								</div>
-							</HoverCardTrigger>
-							<HoverCardContent style={{ width: "min(400px, 90vw)" }} side="right">
-								<LazyTopicPreview topic={topic} />
-							</HoverCardContent>
-						</HoverCard>
-					) : (
-						<>
-							{topic.topic}
-							<Info className="w-3 h-3 text-muted-foreground" />
-						</>
-					)}
-				</div>
-			</TableCell>
-			<TableCell>
-				<Badge variant="secondary" className="text-xs">
-					{topic.type}
-				</Badge>
-			</TableCell>
-			<TableCell className="text-muted-foreground text-xs">
-				{topic.rawType}
-			</TableCell>
-		</TableRow>
-	);
-}, (prevProps, nextProps) => {
-	// Custom comparison - only re-render if topic identity changed
-	return prevProps.topic.topic === nextProps.topic.topic &&
-		prevProps.topic.datasource_id === nextProps.topic.datasource_id &&
-		prevProps.topic.type === nextProps.topic.type;
-});
+		return (
+			<TableRow>
+				<TableCell className="font-medium">
+					{topic.source.title}
+				</TableCell>
+				<TableCell className="font-medium">
+					<div
+						className="flex items-center gap-2 cursor-pointer w-fit"
+						onMouseEnter={handleMouseEnter}
+						onMouseLeave={handleMouseLeave}
+					>
+						{showHoverCard ? (
+							<HoverCard open={isHovering} openDelay={200}>
+								<HoverCardTrigger asChild>
+									<div className="flex items-center gap-2">
+										{topic.topic}
+										<Info className="w-3 h-3 text-muted-foreground" />
+									</div>
+								</HoverCardTrigger>
+								<HoverCardContent
+									style={{ width: "min(400px, 90vw)" }}
+									side="right"
+								>
+									<LazyTopicPreview topic={topic} />
+								</HoverCardContent>
+							</HoverCard>
+						) : (
+							<>
+								{topic.topic}
+								<Info className="w-3 h-3 text-muted-foreground" />
+							</>
+						)}
+					</div>
+				</TableCell>
+				<TableCell>
+					<Badge variant="secondary" className="text-xs">
+						{topic.type}
+					</Badge>
+				</TableCell>
+				<TableCell className="text-muted-foreground text-xs">
+					{topic.rawType}
+				</TableCell>
+			</TableRow>
+		);
+	},
+	(prevProps, nextProps) => {
+		// Custom comparison - only re-render if topic identity changed
+		return (
+			prevProps.topic.topic === nextProps.topic.topic &&
+			prevProps.topic.datasource_id === nextProps.topic.datasource_id &&
+			prevProps.topic.type === nextProps.topic.type
+		);
+	},
+);
 
 function TopicsList() {
 	const pluginsManager = usePluginsManager();
@@ -124,10 +132,12 @@ function TopicsList() {
 				// Check if any topic changed
 				const hasChanges = current_topics.some((newTopic, index) => {
 					const prevTopic = prevTopics[index];
-					return !prevTopic ||
+					return (
+						!prevTopic ||
 						prevTopic.topic !== newTopic.topic ||
 						prevTopic.type !== newTopic.type ||
-						prevTopic.datasource_id !== newTopic.datasource_id;
+						prevTopic.datasource_id !== newTopic.datasource_id
+					);
 				});
 
 				return hasChanges ? current_topics : prevTopics;
@@ -152,7 +162,10 @@ function TopicsList() {
 				</TableHeader>
 				<TableBody>
 					{topics.map((topic) => (
-						<TopicRow key={`${topic.datasource_id}-${topic.topic}`} topic={topic} />
+						<TopicRow
+							key={`${topic.datasource_id}-${topic.topic}`}
+							topic={topic}
+						/>
 					))}
 				</TableBody>
 			</Table>

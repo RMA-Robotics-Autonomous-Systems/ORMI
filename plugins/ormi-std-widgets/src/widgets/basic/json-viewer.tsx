@@ -38,7 +38,8 @@ function JsonViewer() {
 
 		// Truncate if too long to prevent memory issues
 		if (jsonStr.length > MAX_JSON_LENGTH) {
-			jsonStr = jsonStr.substring(0, MAX_JSON_LENGTH) + "\n... (truncated)";
+			jsonStr =
+				jsonStr.substring(0, MAX_JSON_LENGTH) + "\n... (truncated)";
 		}
 
 		setDisplayData(jsonStr);

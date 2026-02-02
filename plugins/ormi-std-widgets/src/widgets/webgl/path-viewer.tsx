@@ -1,5 +1,8 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { LocalDataSourcesProvider, SelectedTopic } from "@workspace/ormi-core/datasources";
+import {
+	LocalDataSourcesProvider,
+	SelectedTopic,
+} from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { RouteIcon } from "lucide-react";
 import { PathViewerComp } from "./components/path-viewer-comp";
@@ -51,7 +54,8 @@ export function PathViewerDefinition(): WidgetDefinition {
 				targetFrame: {
 					type: "string",
 					title: "Target Frame",
-					description: "Frame to transform path into (empty = no transform)",
+					description:
+						"Frame to transform path into (empty = no transform)",
 				},
 			},
 			required: ["title"],
@@ -59,7 +63,10 @@ export function PathViewerDefinition(): WidgetDefinition {
 		uischema: {
 			type: "VerticalLayout",
 			elements: [
-				{ type: "Control", scope: "#/properties/title" } as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/title",
+				} as ControlElement,
 				{
 					type: "TopicSelect",
 					scope: "#/properties/topic",
@@ -69,11 +76,26 @@ export function PathViewerDefinition(): WidgetDefinition {
 						},
 					},
 				},
-				{ type: "Control", scope: "#/properties/lineWidth" } as ControlElement,
-				{ type: "Control", scope: "#/properties/showPoses" } as ControlElement,
-				{ type: "Control", scope: "#/properties/poseScale" } as ControlElement,
-				{ type: "Control", scope: "#/properties/lineColor" } as ControlElement,
-				{ type: "Control", scope: "#/properties/targetFrame" } as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/lineWidth",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/showPoses",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/poseScale",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/lineColor",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/targetFrame",
+				} as ControlElement,
 			],
 		} as VerticalLayout,
 		data: {
