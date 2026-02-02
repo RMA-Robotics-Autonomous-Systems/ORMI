@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useRef, useMemo, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import {
@@ -8,7 +8,11 @@ import {
 	GizmoHelper,
 	GizmoViewport,
 } from "@react-three/drei";
-import { PointsCloudProps } from "../types/points-cloud-drei-types";
+import {
+	Scene3DProps,
+	PointCloudLayerConfig,
+	PathLayerConfig,
+} from "../types/scene-3d-types";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { PointsCloud, Transform } from "@workspace/ormi-core/types";
 import {
@@ -18,10 +22,14 @@ import {
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
 import { themeShaders } from "../utils/theme-shaders";
+import { PathLineRenderer } from "./path-line-renderer";
 
 const MAX_ROLLING_POINTS = 600000;
 const TIME_RESET_SECONDS = 300;
 
+// ============================================================================
+// Ring Point Buffer (for rolling point clouds)
+// ============================================================================
 class RingPointBuffer {
 	private positions: Float32Array;
 	private colors: Float32Array;
@@ -36,7 +44,6 @@ class RingPointBuffer {
 		this.colors = new Float32Array(capacity * 3);
 		this.intensities = new Float32Array(capacity);
 		this.timestamps = new Float32Array(capacity);
-		// Initialize all timestamps to 0 (will be invisible until written)
 		this.timestamps.fill(0);
 	}
 
@@ -47,7 +54,6 @@ class RingPointBuffer {
 		count: number,
 		currentTime: number,
 	): void {
-		// Write points at current position, wrapping around
 		for (let i = 0; i < count; i++) {
 			const srcIdx3 = i * 3;
 			const dstIdx = this.writeIndex;
@@ -91,17 +97,9 @@ class RingPointBuffer {
 	}
 }
 
-interface PointsRendererProps {
-	pointSize: number;
-	theme: string;
-	useTransparency: boolean;
-	customColor: string;
-	decayTime: number;
-	rollingBuffer: boolean;
-	colorMode: string;
-	targetFrame: string;
-}
-
+// ============================================================================
+// Transform utilities
+// ============================================================================
 const buildTransformMatrix = (
 	transformChain: Transform[] | undefined,
 ): THREE.Matrix4 => {
@@ -132,37 +130,38 @@ const buildTransformMatrix = (
 		const transformMatrix = new THREE.Matrix4();
 		transformMatrix.compose(
 			new THREE.Vector3(position.x, position.y, position.z),
-			new THREE.Quaternion(
-				rotation.x,
-				rotation.y,
-				rotation.z,
-				rotation.w,
-			),
+			new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
 			new THREE.Vector3(1, 1, 1),
 		);
 
-		// Apply in chain order: Tn * ... * T1
 		matrix.premultiply(transformMatrix);
 	}
 
 	return matrix;
 };
 
-type PointsSourceRendererProps = {
+// ============================================================================
+// Point Cloud Source Renderer
+// ============================================================================
+interface PointCloudSourceRendererProps {
 	sourceId: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	source: any;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	transformsTrees: any;
-	settings: PointsRendererProps;
+	config: PointCloudLayerConfig;
+	targetFrame: string;
 	frameTimeRef: React.MutableRefObject<number>;
-};
+}
 
-const PointsSourceRenderer = ({
+const PointCloudSourceRenderer = ({
 	sourceId,
 	source,
 	transformsTrees,
-	settings,
+	config,
+	targetFrame,
 	frameTimeRef,
-}: PointsSourceRendererProps) => {
+}: PointCloudSourceRendererProps) => {
 	const { invalidate } = useThree();
 
 	const pointsRef = useRef<THREE.Points | null>(null);
@@ -187,7 +186,15 @@ const PointsSourceRenderer = ({
 	const rollingBufferRef = useRef<RingPointBuffer | null>(null);
 	const lastProcessedIndexRef = useRef(0);
 	const lastProcessedTimeRef = useRef(0);
-	const startTimeRef = useRef<number>(Date.now()); // Reference point for relative time
+	const startTimeRef = useRef<number>(Date.now());
+
+	const pointSize = config.pointSize ?? 0.05;
+	const decayTime = config.decayTime ?? 0;
+	const rollingBuffer = config.rollingBuffer ?? false;
+	const theme = config.theme ?? "Default";
+	const useTransparency = config.useTransparency ?? false;
+	const customColor = config.customColor ?? "#ffffff";
+	const colorMode = config.colorMode ?? "source";
 
 	useEffect(() => {
 		const geometry = new THREE.BufferGeometry();
@@ -207,22 +214,22 @@ const PointsSourceRenderer = ({
 		geometryRef.current = geometry;
 
 		const shaders =
-			themeShaders[settings.theme as keyof typeof themeShaders] ||
+			themeShaders[theme as keyof typeof themeShaders] ||
 			themeShaders.Default;
 		const material = new THREE.ShaderMaterial({
 			uniforms: {
-				pointSize: { value: settings.pointSize },
-				useTransparency: { value: settings.useTransparency },
+				pointSize: { value: pointSize },
+				useTransparency: { value: useTransparency },
 				customColor: { value: new THREE.Vector3(1, 1, 1) },
-				useIntensity: { value: settings.colorMode === "reflectivity" },
+				useIntensity: { value: colorMode === "reflectivity" },
 				pointTransform: { value: new THREE.Matrix4() },
 				nowTime: { value: Date.now() },
-				decayTime: { value: settings.decayTime || 0 },
+				decayTime: { value: decayTime || 0 },
 			},
 			vertexShader: shaders.vertexShader,
 			fragmentShader: shaders.fragmentShader,
-			transparent: settings.useTransparency,
-			depthWrite: !settings.useTransparency,
+			transparent: useTransparency,
+			depthWrite: !useTransparency,
 			depthTest: true,
 			vertexColors: true,
 		});
@@ -232,43 +239,34 @@ const PointsSourceRenderer = ({
 			geometry.dispose();
 			material.dispose();
 		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	useEffect(() => {
-		if (settings.rollingBuffer) {
+		if (rollingBuffer) {
 			rollingBufferRef.current = new RingPointBuffer(MAX_ROLLING_POINTS);
 			lastProcessedIndexRef.current = 0;
 			lastProcessedTimeRef.current = 0;
 		} else {
 			rollingBufferRef.current = null;
 		}
-	}, [settings.rollingBuffer, sourceId]);
+	}, [rollingBuffer, sourceId]);
 
 	const processData = useCallback(() => {
 		const dataArray = source?.data ?? [];
 		const timesArray = source?.times ?? [];
 		if (dataArray.length === 0) return;
 
-		// Compute transform chain -> single matrix (once per batch)
-		let transformChain: ReturnType<typeof findTransformChain> | undefined =
-			[];
+		let transformChain: ReturnType<typeof findTransformChain> | undefined = [];
 		const refFrame = source.referenceFrameId;
-		if (
-			!settings.targetFrame ||
-			settings.targetFrame === "" ||
-			refFrame === settings.targetFrame
-		) {
+		if (!targetFrame || targetFrame === "" || refFrame === targetFrame) {
 			transformChain = [];
 		} else {
 			transformChain =
-				findTransformChain(
-					transformsTrees,
-					refFrame,
-					settings.targetFrame,
-				) ?? null;
+				findTransformChain(transformsTrees, refFrame, targetFrame) ?? null;
 		}
 
-		if (settings.targetFrame && transformChain === null) {
+		if (targetFrame && transformChain === null) {
 			return;
 		}
 
@@ -285,11 +283,9 @@ const PointsSourceRenderer = ({
 			nowSeconds = 0;
 		}
 
-		if (settings.rollingBuffer) {
+		if (rollingBuffer) {
 			if (!rollingBufferRef.current) {
-				rollingBufferRef.current = new RingPointBuffer(
-					MAX_ROLLING_POINTS,
-				);
+				rollingBufferRef.current = new RingPointBuffer(MAX_ROLLING_POINTS);
 			}
 
 			const startIndex = 0;
@@ -346,7 +342,6 @@ const PointsSourceRenderer = ({
 					continue;
 				}
 
-				// Convert to relative time in seconds for float32 precision
 				const receiveTime = getReceiveTimestamp();
 				const messageTimeSeconds =
 					(receiveTime - startTimeRef.current) / 1000.0;
@@ -356,7 +351,7 @@ const PointsSourceRenderer = ({
 					colors,
 					intensities,
 					pointCount,
-					messageTimeSeconds, // Use seconds for float32 precision
+					messageTimeSeconds,
 				);
 
 				pushedCount++;
@@ -434,7 +429,8 @@ const PointsSourceRenderer = ({
 
 		needsUpdateRef.current = true;
 		invalidate();
-	}, [source, sourceId, settings, transformsTrees, invalidate]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [source, sourceId, targetFrame, rollingBuffer, transformsTrees, invalidate]);
 
 	const updateGeometry = useCallback(() => {
 		if (!geometryRef.current || !needsUpdateRef.current) return;
@@ -461,7 +457,6 @@ const PointsSourceRenderer = ({
 
 		const posAttr = geometryRef.current.getAttribute("position");
 
-		// Recreate attributes only if capacity changed
 		if (!posAttr || posAttr.count !== count) {
 			geometryRef.current.setAttribute(
 				"position",
@@ -480,7 +475,6 @@ const PointsSourceRenderer = ({
 				new THREE.Float32BufferAttribute(timestampsView, 1),
 			);
 		} else {
-			// Update in-place
 			const colAttr = geometryRef.current.getAttribute("color");
 			const intAttr = geometryRef.current.getAttribute("intensity");
 			const tsAttr = geometryRef.current.getAttribute("timestamp");
@@ -507,50 +501,39 @@ const PointsSourceRenderer = ({
 		const mat = materialRef.current;
 		if (!mat.uniforms) return;
 
-		if (mat.uniforms.pointSize)
-			mat.uniforms.pointSize.value = settings.pointSize;
+		if (mat.uniforms.pointSize) mat.uniforms.pointSize.value = pointSize;
 		if (mat.uniforms.useTransparency)
-			mat.uniforms.useTransparency.value = settings.useTransparency;
+			mat.uniforms.useTransparency.value = useTransparency;
 		if (mat.uniforms.useIntensity)
-			mat.uniforms.useIntensity.value =
-				settings.colorMode === "reflectivity";
+			mat.uniforms.useIntensity.value = colorMode === "reflectivity";
 
 		if (mat.uniforms.pointTransform)
 			mat.uniforms.pointTransform.value.copy(transformRef.current);
-		// Convert to relative time in seconds for float32 precision
+
 		const now = frameTimeRef.current;
 		const nowSeconds = (now - startTimeRef.current) / 1000.0;
-		const decaySeconds = settings.decayTime / 1000.0;
+		const decaySeconds = decayTime / 1000.0;
 		if (mat.uniforms.nowTime) mat.uniforms.nowTime.value = nowSeconds;
 		if (mat.uniforms.decayTime) mat.uniforms.decayTime.value = decaySeconds;
 
-		const customCol = new THREE.Color(settings.customColor);
+		const customCol = new THREE.Color(customColor);
 		if (mat.uniforms.customColor)
-			mat.uniforms.customColor.value.set(
-				customCol.r,
-				customCol.g,
-				customCol.b,
-			);
+			mat.uniforms.customColor.value.set(customCol.r, customCol.g, customCol.b);
 
 		const shaders =
-			themeShaders[settings.theme as keyof typeof themeShaders] ||
-			themeShaders.Default;
+			themeShaders[theme as keyof typeof themeShaders] || themeShaders.Default;
 		if (mat.vertexShader !== shaders.vertexShader) {
 			mat.vertexShader = shaders.vertexShader;
 			mat.fragmentShader = shaders.fragmentShader;
 			mat.needsUpdate = true;
 		}
 
-		mat.transparent =
-			settings.useTransparency ||
-			(settings.rollingBuffer && settings.decayTime > 0);
-		mat.depthWrite = !(
-			settings.useTransparency ||
-			(settings.rollingBuffer && settings.decayTime > 0)
-		);
+		mat.transparent = useTransparency || (rollingBuffer && decayTime > 0);
+		mat.depthWrite = !(useTransparency || (rollingBuffer && decayTime > 0));
 
 		invalidate();
-	}, [settings, invalidate]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pointSize, useTransparency, colorMode, customColor, theme, rollingBuffer, decayTime, invalidate]);
 
 	useEffect(() => {
 		processData();
@@ -566,63 +549,109 @@ const PointsSourceRenderer = ({
 	return (
 		<points
 			ref={pointsRef}
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			geometry={geometryRef.current as any}
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			material={materialRef.current as any}
 		/>
 	);
 };
 
-/**
- * Inner renderer component - handles all Three.js operations
- * Uses packed-only point cloud data and shader transforms
- */
-const PointsRenderer = (props: PointsRendererProps) => {
-	const { sources } = useLocalDataSource();
+// ============================================================================
+// Point Cloud Layer Renderer (uses data source context)
+// ============================================================================
+interface PointCloudLayerRendererProps {
+	config: PointCloudLayerConfig;
+	targetFrame: string;
+}
+
+const PointCloudLayerRenderer = ({
+	config,
+	targetFrame,
+}: PointCloudLayerRendererProps) => {
+	const { getSource, getSourceId } = useLocalDataSource();
 	const { transformsTrees } = useTransformSource();
 	const sharedFrameTimeRef = useRef<number>(Date.now());
 
-	// Update shared frame time once per frame for all sources
 	useFrame(() => {
 		sharedFrameTimeRef.current = Date.now();
 	});
 
+	// Get the topics configured for this layer
+	const topics = config.topics ?? [];
+
 	return (
 		<>
-			{Array.from(sources.entries()).map(([sourceId, source]) => (
-				<PointsSourceRenderer
-					key={sourceId}
-					sourceId={sourceId}
-					source={source}
-					transformsTrees={transformsTrees}
-					settings={props}
-					frameTimeRef={sharedFrameTimeRef}
-				/>
-			))}
+			{topics.map((entry) => {
+				if (!entry.topic) return null;
+				const sourceId = getSourceId(entry.topic);
+				const source = getSource(entry.topic);
+				if (!source || !sourceId) return null;
+
+				return (
+					<PointCloudSourceRenderer
+						key={sourceId}
+						sourceId={sourceId}
+						source={source}
+						transformsTrees={transformsTrees}
+						config={config}
+						targetFrame={targetFrame}
+						frameTimeRef={sharedFrameTimeRef}
+					/>
+				);
+			})}
 		</>
 	);
 };
 
-/**
- * Main PointsCloud component
- */
-export const PointsCloudComp = (props: PointsCloudProps) => {
-	const pointSize = props.pointSize ?? 0.05;
-	const decayTime = props.decayTime ?? 0;
-	const rollingBuffer = props.rollingBuffer ?? false;
-	const theme = props.theme ?? "Default";
-	const useTransparency = props.useTransparency ?? false;
-	const customColor = props.customColor ?? "#ffffff";
-	const colorMode = props.colorMode ?? "source";
+// ============================================================================
+// Path Layer Renderer (uses data source context)
+// ============================================================================
+interface PathLayerRendererProps {
+	config: PathLayerConfig;
+	targetFrame: string;
+}
+
+const PathLayerRenderer = ({ config, targetFrame }: PathLayerRendererProps) => {
+	const { getSource } = useLocalDataSource();
+	const source = config.topic ? getSource(config.topic) : undefined;
+
+	return (
+		<PathLineRenderer
+			source={source}
+			targetFrame={targetFrame}
+			lineWidth={config.lineWidth ?? 0.02}
+			lineOpacity={0.7}
+			lineColor={config.lineColor ?? "#3b82f6"}
+		/>
+	);
+};
+
+// ============================================================================
+// Main Scene 3D Component
+// ============================================================================
+export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const targetFrame = props.targetFrame ?? "";
-	const enableContinuousRender = rollingBuffer && decayTime > 0;
+	const showGrid = props.showGrid ?? true;
+	const showAxes = props.showAxes ?? true;
+	const pointCloudLayers = props.pointCloudLayers ?? [];
+	const pathLayers = props.pathLayers ?? [];
+
+	// Check if any point cloud layer has rolling buffer with decay
+	const enableContinuousRender = pointCloudLayers.some(
+		(layer) => layer.rollingBuffer && (layer.decayTime ?? 0) > 0,
+	);
+
+	const axesHelper = useMemo(() => new THREE.AxesHelper(5), []);
 
 	return (
 		<div style={{ width: "100%", height: "100%" }}>
 			<Canvas frameloop={enableContinuousRender ? "always" : "demand"}>
-				<PerspectiveCamera makeDefault position={[0, 5, 10]} />
+				<PerspectiveCamera makeDefault position={[5, 5, 5]} />
 				<ambientLight intensity={1} />
 
-				<axesHelper args={[5]} />
+				{showAxes && <primitive object={axesHelper} />}
+
 				<GizmoHelper alignment="bottom-right" margin={[80, 80]}>
 					<GizmoViewport
 						axisColors={["red", "green", "blue"]}
@@ -631,18 +660,29 @@ export const PointsCloudComp = (props: PointsCloudProps) => {
 				</GizmoHelper>
 
 				<OrbitControls makeDefault />
-				<Grid infiniteGrid={true} sectionColor="lightblue" />
+				{showGrid && <Grid infiniteGrid={true} sectionColor="lightblue" />}
 
-				<PointsRenderer
-					pointSize={pointSize}
-					theme={theme}
-					useTransparency={useTransparency}
-					customColor={customColor}
-					decayTime={decayTime}
-					rollingBuffer={rollingBuffer}
-					colorMode={colorMode}
-					targetFrame={targetFrame}
-				/>
+				{/* Render Point Cloud Layers */}
+				{pointCloudLayers
+					.filter((layer) => layer.enabled !== false)
+					.map((layer, index) => (
+						<PointCloudLayerRenderer
+							key={layer.id ?? `pc-${index}`}
+							config={layer}
+							targetFrame={targetFrame}
+						/>
+					))}
+
+				{/* Render Path Layers */}
+				{pathLayers
+					.filter((layer) => layer.enabled !== false)
+					.map((layer, index) => (
+						<PathLayerRenderer
+							key={layer.id ?? `path-${index}`}
+							config={layer}
+							targetFrame={targetFrame}
+						/>
+					))}
 			</Canvas>
 		</div>
 	);

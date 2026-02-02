@@ -11,6 +11,10 @@ import {
 	PoseStamped,
 	Path,
 } from "@workspace/ormi-core/types";
+import {
+	convertPosition,
+	convertQuaternion,
+} from "@workspace/ormi-core/transforms";
 import { PluginsManager } from "@workspace/ormi-plugins";
 
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
@@ -368,27 +372,32 @@ export class UnifiedConverter {
 									? poseStamped.header.stamp.sec +
 										poseStamped.header.stamp.nanosec / 1e9
 									: timestamp;
+								const rosPosition = {
+									x: poseStamped.pose?.position?.x || 0,
+									y: poseStamped.pose?.position?.y || 0,
+									z: poseStamped.pose?.position?.z || 0,
+								};
+								const rosOrientation = {
+									x: poseStamped.pose?.orientation?.x || 0,
+									y: poseStamped.pose?.orientation?.y || 0,
+									z: poseStamped.pose?.orientation?.z || 0,
+									w: poseStamped.pose?.orientation?.w || 1,
+								};
+
+								const position = convertPosition(
+									rosPosition,
+									"ROS",
+									"THREE",
+								);
+								const orientation = convertQuaternion(
+									rosOrientation,
+									"ROS",
+									"THREE",
+								);
 
 								return {
-									position: {
-										x: poseStamped.pose?.position?.x || 0,
-										y: poseStamped.pose?.position?.y || 0,
-										z: poseStamped.pose?.position?.z || 0,
-									},
-									orientation: {
-										x:
-											poseStamped.pose?.orientation?.x ||
-											0,
-										y:
-											poseStamped.pose?.orientation?.y ||
-											0,
-										z:
-											poseStamped.pose?.orientation?.z ||
-											0,
-										w:
-											poseStamped.pose?.orientation?.w ||
-											1,
-									},
+									position,
+									orientation,
 									timestamp: poseTimestamp,
 								};
 							},
@@ -397,7 +406,7 @@ export class UnifiedConverter {
 						return {
 							poses,
 							timestamp,
-							convention: "ROS" as const,
+							convention: "THREE" as const,
 						};
 					},
 				},
@@ -685,7 +694,7 @@ export class UnifiedConverter {
 							);
 							return {
 								points: new Float32Array(0),
-								convention: "ROS",
+								convention: "THREE" as const,
 							};
 						}
 

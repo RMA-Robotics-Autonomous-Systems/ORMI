@@ -458,7 +458,7 @@ export function nedToThree(position: Vector3): Vector3 {
  */
 export function quaternionToEuler(
 	quaternion: Quaternion,
-	convention: CoordinateConvention = "ROS",
+	convention: CoordinateConvention = "THREE",
 ): { roll: number; pitch: number; yaw: number } {
 	const { x, y, z, w } = quaternion;
 

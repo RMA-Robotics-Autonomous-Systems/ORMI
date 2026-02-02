@@ -21,6 +21,7 @@ import { CycleControlDefinition } from "./widgets/basic/cycle";
 import { TransformTreeWidgetDefinition } from "./widgets/basic/transform-tree";
 import { PointsCloudDreiDefinition } from "./widgets/webgl/points-cloud-drei-definition";
 import { PathViewerDefinition } from "./widgets/webgl/path-viewer";
+import { Scene3DDefinition } from "./widgets/webgl/scene-3d-definition";
 import { ImageViewerDefinition } from "./widgets/basic/image";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
@@ -42,8 +43,9 @@ const WidgetExport = (widgets: WidgetDefinition[]) => {
 	widgets.push(TopicsListDefinition());
 	widgets.push(ImageViewerDefinition());
 
-	widgets.push(PointsCloudDreiDefinition());
-	widgets.push(PathViewerDefinition());
+	// widgets.push(PointsCloudDreiDefinition());
+	// widgets.push(PathViewerDefinition());
+	widgets.push(Scene3DDefinition());
 
 	widgets.push(ToggleControlDefinition());
 	widgets.push(BtnControlDefinition());

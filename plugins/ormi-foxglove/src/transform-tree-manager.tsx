@@ -7,6 +7,7 @@ import {
 	processTFMessage,
 	clearTransformsFromDatasource,
 } from "@workspace/ormi-core/transforms";
+import { convertPosition, convertQuaternion } from "@workspace/ormi-core/transforms";
 import { FoxgloveDataSourceSettings } from "./types";
 
 interface TransformTreeManagerProps {
@@ -51,8 +52,37 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 					_timestamp: number,
 					_frameId: string,
 				) => {
-					// Push transforms directly to the atom
-					processTFMessage(datasource_id, message);
+					// Convert TF to THREE convention once at the datasource boundary
+					const convertedMessage = {
+						...message,
+						transforms: (message.transforms || []).map((tf: any) => {
+							const translation = tf.transform?.translation ?? { x: 0, y: 0, z: 0 };
+							const rotation = tf.transform?.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+
+							const convertedTranslation = convertPosition(
+								translation,
+								"ROS",
+								"THREE",
+							);
+							const convertedRotation = convertQuaternion(
+								rotation,
+								"ROS",
+								"THREE",
+							);
+
+							return {
+								...tf,
+								transform: {
+									...tf.transform,
+									translation: convertedTranslation,
+									rotation: convertedRotation,
+									convention: "THREE",
+								},
+							};
+						}),
+					};
+
+					processTFMessage(datasource_id, convertedMessage);
 				},
 				priority: 100,
 			});

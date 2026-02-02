@@ -1,5 +1,4 @@
 import { SelectedTopic } from "@workspace/ormi-core/datasources";
-import { CoordinateConvention } from "@workspace/ormi-core/types";
 
 // Theme options for point cloud visualization
 export type PointCloudTheme =
@@ -27,10 +26,4 @@ export interface PointsCloudProps {
 	customColor?: string;
 	colorMode?: "source" | "reflectivity";
 	targetFrame?: string;
-	/**
-	 * Coordinate convention of the source data.
-	 * The component will convert from this convention to Three.js for rendering.
-	 * Defaults to 'ROS' for backwards compatibility.
-	 */
-	sourceConvention?: CoordinateConvention;
 }

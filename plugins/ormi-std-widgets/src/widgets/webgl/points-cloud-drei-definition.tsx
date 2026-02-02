@@ -88,14 +88,6 @@ export function PointsCloudDreiDefinition() {
 					title: "Target Frame",
 					description: "Transform points into this coordinate frame",
 				},
-				sourceConvention: {
-					type: "string",
-					title: "Source Coordinate System",
-					enum: ["ROS", "THREE", "ENU", "NED", "NWU"],
-					default: "ROS",
-					description:
-						"Coordinate convention of the incoming data (ROS, ENU, NED, NWU, or Three.js)",
-				},
 			},
 			required: ["title"],
 		},
@@ -175,10 +167,6 @@ export function PointsCloudDreiDefinition() {
 						placeholder: "Select target frame",
 					},
 				} as FrameSelectElement,
-				{
-					type: "Control",
-					scope: "#/properties/sourceConvention",
-				} as ControlElement,
 			],
 		} as VerticalLayout,
 		data: {
@@ -191,7 +179,6 @@ export function PointsCloudDreiDefinition() {
 			useTransparency: false,
 			customColor: "#ffffff",
 			targetFrame: "",
-			sourceConvention: "ROS",
 			topics: [],
 		},
 		Component: (data: PointsCloudProps) => (
