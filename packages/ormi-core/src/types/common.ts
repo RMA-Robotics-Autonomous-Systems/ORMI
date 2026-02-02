@@ -41,14 +41,14 @@ export type CoordinateConvention =
  *
  * @property position - Translation vector (x, y, z, w where w is typically 1 for points, 0 for directions)
  * @property rotation - Rotation quaternion
- * @property convention - The coordinate system convention this transform is expressed in (defaults to 'ROS' for backwards compatibility)
+ * @property convention - The coordinate system convention this transform is expressed in (defaults to 'THREE')
  */
 export type Transform = {
 	position: Vector4;
 	rotation: Quaternion;
 	/**
 	 * Coordinate convention this transform is expressed in.
-	 * Defaults to 'ROS' for backwards compatibility with existing data.
+	 * Defaults to 'THREE'.
 	 */
 	convention?: CoordinateConvention;
 };

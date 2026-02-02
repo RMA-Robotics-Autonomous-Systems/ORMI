@@ -66,6 +66,14 @@ export function findTransformChain(
 		return null; // One or both frames not found
 	}
 
+	const sourceConvention =
+		sourceNode.convention ?? sourceNode.transform.convention ?? "THREE";
+	const targetConvention =
+		targetNode.convention ?? targetNode.transform.convention ?? "THREE";
+	if (sourceConvention !== targetConvention) {
+		return null;
+	}
+
 	// Build path from source to root
 	const sourceToRoot: TransformTree[] = [];
 	let current: TransformTree | null = sourceNode;
@@ -186,6 +194,16 @@ export function applyTransformChain(
 	point: Vector3,
 	transforms: Transform[],
 ): Vector3 {
+	if (transforms.length > 1) {
+		const baseConvention = transforms[0]?.convention ?? "THREE";
+		const hasMismatch = transforms.some(
+			(tf) => (tf.convention ?? "THREE") !== baseConvention,
+		);
+		if (hasMismatch) {
+			return { ...point };
+		}
+	}
+
 	let result = { ...point };
 
 	for (const transform of transforms) {
@@ -264,6 +282,7 @@ export function invertTransform(transform: Transform): Transform {
 			w: 0,
 		},
 		rotation: invRotation,
+		convention: transform.convention,
 	};
 }
 

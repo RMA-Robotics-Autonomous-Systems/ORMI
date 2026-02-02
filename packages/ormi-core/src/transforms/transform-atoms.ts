@@ -12,7 +12,7 @@
  */
 
 import { atom, createStore } from "jotai";
-import { TransformTree } from "../types";
+import { CoordinateConvention, TransformTree } from "../types";
 
 // Create a single shared store instance for transforms
 // This ensures processTFMessage() and useTransformSource() use the same store
@@ -182,6 +182,7 @@ export interface TFTransform {
 	transform: {
 		translation: { x: number; y: number; z: number };
 		rotation: { x: number; y: number; z: number; w: number };
+		convention?: CoordinateConvention;
 	};
 }
 
@@ -257,10 +258,10 @@ export function processTFMessage(
 					z: tf.transform.rotation.z ?? 0,
 					w: tf.transform.rotation.w ?? 1,
 				},
-				convention: "ROS",
+				convention: tf.transform.convention ?? "THREE",
 			},
 			children: new Map(),
-			convention: "ROS",
+			convention: tf.transform.convention ?? "THREE",
 		};
 
 		const parentTree = findTreeById(newTrees, parentId);
@@ -278,10 +279,10 @@ export function processTFMessage(
 				transform: {
 					position: { x: 0, y: 0, z: 0, w: 1 },
 					rotation: { x: 0, y: 0, z: 0, w: 1 },
-					convention: "ROS",
+					convention: tf.transform.convention ?? "THREE",
 				},
 				children: new Map([[childId, transformTree]]),
-				convention: "ROS",
+				convention: tf.transform.convention ?? "THREE",
 			};
 			newTrees.set(parentId, newRoot);
 			hasChanges = true;
@@ -317,10 +318,10 @@ export function processTFMessage(
 						transform: {
 							position: { x: 0, y: 0, z: 0, w: 1 },
 							rotation: { x: 0, y: 0, z: 0, w: 1 },
-							convention: "ROS",
+							convention: tf.transform.convention ?? "THREE",
 						},
 						children: new Map([[existingTree.id, existingTree]]),
-						convention: "ROS",
+						convention: tf.transform.convention ?? "THREE",
 					};
 					newTrees.set(parentId, newRoot);
 					// Remove child from root level

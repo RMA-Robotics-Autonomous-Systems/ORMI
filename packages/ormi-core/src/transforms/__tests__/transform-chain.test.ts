@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeEach } from "bun:test";
 import { findTransformChain, applyTransformChain } from "../utils";
-import type { TransformTree, Transform, Vector3 } from "../../types";
+import type { TransformTree, Vector3 } from "../../types";
 
 describe("Transform Chain - Correctness Tests", () => {
 	let trees: Map<string, TransformTree>;
@@ -226,6 +226,68 @@ describe("Transform Chain - Correctness Tests", () => {
 		expect(pointInMapDirect.x).toBeCloseTo(pointInMapStep.x, 5);
 		expect(pointInMapDirect.y).toBeCloseTo(pointInMapStep.y, 5);
 		expect(pointInMapDirect.z).toBeCloseTo(pointInMapStep.z, 5);
+	});
+
+	test("should return null for child-to-parent with mixed conventions", () => {
+		const lidarFrame: TransformTree = {
+			id: "lidar",
+			parentId: "base_link",
+			transform: {
+				position: { x: 1, y: 0, z: 0, w: 0 }, // 1m East in ENU
+				rotation: { x: 0, y: 0, z: 0, w: 1 },
+				convention: "ENU",
+			},
+			children: new Map(),
+			convention: "ENU",
+		};
+
+		const baseLinkFrame: TransformTree = {
+			id: "base_link",
+			parentId: "",
+			transform: {
+				position: { x: 0, y: 0, z: 0, w: 0 },
+				rotation: { x: 0, y: 0, z: 0, w: 1 },
+				convention: "ROS",
+			},
+			children: new Map([["lidar", lidarFrame]]),
+			convention: "ROS",
+		};
+
+		const trees = new Map([["base_link", baseLinkFrame]]);
+
+		const chain = findTransformChain(trees, "lidar", "base_link");
+		expect(chain).toBeNull();
+	});
+
+	test("should return null for parent-to-child with mixed conventions", () => {
+		const lidarFrame: TransformTree = {
+			id: "lidar",
+			parentId: "base_link",
+			transform: {
+				position: { x: 1, y: 0, z: 0, w: 0 }, // 1m East in ENU
+				rotation: { x: 0, y: 0, z: 0, w: 1 },
+				convention: "ENU",
+			},
+			children: new Map(),
+			convention: "ENU",
+		};
+
+		const baseLinkFrame: TransformTree = {
+			id: "base_link",
+			parentId: "",
+			transform: {
+				position: { x: 0, y: 0, z: 0, w: 0 },
+				rotation: { x: 0, y: 0, z: 0, w: 1 },
+				convention: "ROS",
+			},
+			children: new Map([["lidar", lidarFrame]]),
+			convention: "ROS",
+		};
+
+		const trees = new Map([["base_link", baseLinkFrame]]);
+
+		const chain = findTransformChain(trees, "base_link", "lidar");
+		expect(chain).toBeNull();
 	});
 });
 
