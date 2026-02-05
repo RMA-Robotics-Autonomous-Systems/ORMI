@@ -7,6 +7,7 @@ import {
 
 import { useEffect, useState } from "react";
 import { JsonForms } from "@jsonforms/react";
+import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 
 // Import the custom renderers
 import {
@@ -81,7 +82,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 	];
 
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter(
+	const renderers = pluginsManager.applyFilter<JsonFormsRendererRegistryEntry[]>(
 		PluginsHooks.JSON_FORMS_RENDERER,
 		baseRenderers,
 	);
