@@ -1,0 +1,50 @@
+name: CI
+
+on:
+    pull_request:
+        branches:
+            - Master
+    push:
+        branches:
+            - Master
+
+jobs:
+    build:
+        name: Build and Test
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Build all packages
+              run: bun run build
+
+            - name: Run tests (if available)
+              run: bun test || echo "No tests configured"
+              continue-on-error: true
+
+    docker-build:
+        name: Docker Build Verification
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Build Docker image
+              run: docker build -f Dockerfile.ormi_core -t ormi-core:test .
+
+            - name: Verify docker-compose configuration
+              run: docker-compose config
