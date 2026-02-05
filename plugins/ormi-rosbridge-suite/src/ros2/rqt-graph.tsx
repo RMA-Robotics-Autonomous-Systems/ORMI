@@ -1,7 +1,7 @@
 "use client";
 import React, { JSX, useEffect, useRef, useState } from "react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import ROSLIB from "roslib";
+import * as ROSLIB from "roslib";
 import * as d3 from "d3";
 import { useTheme } from "next-themes";
 import { Datasource } from "@workspace/ormi-core/datasources";

@@ -142,13 +142,13 @@ export async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
 			return;
 		}
 
-		const addTwoIntsClient = new ROSLIB.Service({
+		const addTwoIntsClient = new ROSLIB.Service<Record<string, never>, { interfaces: string[] }>({
 			ros: ROS,
 			name: service_name,
 			serviceType: "rosapi_msgs/srv/Interfaces",
 		});
 
-		const request = new ROSLIB.ServiceRequest({});
+		const request = {};
 
 		addTwoIntsClient.callService(
 			request,
@@ -163,7 +163,7 @@ export async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
 }
 
 type RosTopicAndCounter = {
-	topic: ROSLIB.Topic;
+	topic: ROSLIB.Topic<any>;
 	counter: number;
 	hook: string;
 };
@@ -175,7 +175,7 @@ const RosBridgeSuiteSourceProvider = (
 ) => {
 	const pluginsManager = usePluginsManager();
 
-	const subscribersRef = useRef(new Map<string, ROSLIB.Topic>());
+	const subscribersRef = useRef(new Map<string, ROSLIB.Topic<any>>());
 	const subscribersCountRef = useRef(new Map<string, number>());
 
 	// constant for the datasource
@@ -230,11 +230,11 @@ const RosBridgeSuiteSourceProvider = (
 						resolve(true);
 					});
 
-					ros.on("error", (error) => {
+					ros.on("error", (error: any) => {
 						if (props.toasts) {
 							toast(
 								"Error connecting to ROSBridge Suite: " +
-									error.message,
+								(error?.message || String(error)),
 							);
 						}
 						setConnected(false);
@@ -245,7 +245,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Disconnected from ROSBridge Suite: " +
-									props.url,
+								props.url,
 							);
 						}
 
@@ -313,13 +313,13 @@ const RosBridgeSuiteSourceProvider = (
 						}
 
 						// const topicType = await GetTopicType(ROSRef.current!, topic.topic);
-						const subscriber = new ROSLIB.Topic({
+						const subscriber = new ROSLIB.Topic<any>({
 							ros: ROSRef.current!,
 							name: topic.topic,
 							messageType: topic.rawType,
 						});
 
-						subscriber.subscribe((message: ROSLIB.Message) => {
+						subscriber.subscribe((message: any) => {
 							const frameId =
 								(message as any)?.header?.frame_id ?? "unknown";
 
@@ -392,11 +392,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error subscribing to topic " +
-									topic.topic +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+								topic.topic +
+								": " +
+								(error instanceof Error
+									? error.message
+									: String(error)),
 							);
 						}
 					}
@@ -434,11 +434,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error unsubscribing from topic " +
-									topic.topic +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+								topic.topic +
+								": " +
+								(error instanceof Error
+									? error.message
+									: String(error)),
 							);
 						}
 					}
@@ -565,10 +565,7 @@ const RosBridgeSuiteSourceProvider = (
 												webtype,
 												rawType,
 											);
-										const msg = new ROSLIB.Message(
-											converted,
-										);
-										currentPublisherData.topic.publish(msg);
+										currentPublisherData.topic.publish(converted);
 									} catch (error) {
 										console.error(
 											`ROS2 Failed to publish message on ${topicName}:`,
@@ -605,11 +602,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error advertising topic " +
-										topicName +
-										": " +
-										(error instanceof Error
-											? error.message
-											: String(error)),
+									topicName +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 								);
 							}
 							return false; // Indicate failure
@@ -752,11 +749,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error unadvertising topic " +
-										topicName +
-										": " +
-										(error instanceof Error
-											? error.message
-											: String(error)),
+									topicName +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 								);
 							}
 							// Don't re-throw, just log
