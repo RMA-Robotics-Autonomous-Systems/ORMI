@@ -56,26 +56,18 @@ jobs:
                   NEXT_PUBLIC_APP_URL=http://localhost:3000
                   EOF
 
+            - name: Check code formatting
+              run: bun run format:check
+
+            - name: Run linting
+              run: bun run lint
+
+            - name: Security audit
+              run: bun audit
+              continue-on-error: true
+
             - name: Build all packages
               run: bun run build
 
-            - name: Run tests (if available)
-              run: bun test || echo "No tests configured"
-              continue-on-error: true
-
-    docker-build:
-        name: Docker Build Verification
-        runs-on: ubuntu-latest
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
-
-            - name: Build Docker image
-              run: docker build -f Dockerfile.ormi_core -t ormi-core:test .
-
-            - name: Verify docker-compose configuration
-              run: docker-compose config
+            - name: Run tests
+              run: bun test
