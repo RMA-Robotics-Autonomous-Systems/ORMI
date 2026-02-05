@@ -13,6 +13,22 @@ jobs:
         name: Build and Test
         runs-on: ubuntu-latest
 
+        services:
+            postgres:
+                image: postgres:17.0-alpine
+                env:
+                    POSTGRES_USER: ormi_user
+                    POSTGRES_PASSWORD: ormi_password
+                    POSTGRES_DB: ormi_db
+                    POSTGRES_HOST_AUTH_METHOD: trust
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U ormi_user -d ormi_db"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
         env:
             NEXTAUTH_URL: http://localhost:3000
             NEXTAUTH_SECRET: ci-test-secret-key-for-github-actions
@@ -30,6 +46,15 @@ jobs:
 
             - name: Install dependencies
               run: bun install --frozen-lockfile
+
+            - name: Create .env file for web app
+              run: |
+                  cat > apps/web/.env << EOF
+                  NEXTAUTH_URL=http://localhost:3000
+                  NEXTAUTH_SECRET=ci-test-secret-key-for-github-actions
+                  DATABASE_URL=postgresql://ormi_user:ormi_password@localhost:5432/ormi_db
+                  NEXT_PUBLIC_APP_URL=http://localhost:3000
+                  EOF
 
             - name: Build all packages
               run: bun run build
