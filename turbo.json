@@ -23,8 +23,12 @@
 			"cache": false,
 			"env": ["DATABASE_URL"]
 		},
+		"plugin-init": {
+			"dependsOn": ["^build"],
+			"cache": false
+		},
 		"typecheck": {
-			"dependsOn": ["^build", "db-generate"],
+			"dependsOn": ["^build", "plugin-init", "db-generate"],
 			"outputs": []
 		},
 		"check-types": {
