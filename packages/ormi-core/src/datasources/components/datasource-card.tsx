@@ -82,10 +82,9 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 	];
 
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter<JsonFormsRendererRegistryEntry[]>(
-		PluginsHooks.JSON_FORMS_RENDERER,
-		baseRenderers,
-	);
+	const renderers = pluginsManager.applyFilter<
+		JsonFormsRendererRegistryEntry[]
+	>(PluginsHooks.JSON_FORMS_RENDERER, baseRenderers);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
@@ -102,10 +101,10 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 					style={
 						props.data?.title === "New Datasource"
 							? {
-								animation:
-									"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-								boxShadow: "0 0 0 0 hsl(var(--primary))",
-							}
+									animation:
+										"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+									boxShadow: "0 0 0 0 hsl(var(--primary))",
+								}
 							: {}
 					}
 				>

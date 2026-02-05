@@ -31,10 +31,17 @@ export interface WssTrustButtonProps {
  * }
  * ```
  */
-const WssTrustButton = ({ value, handleChange, label, ...props }: WssTrustButtonProps) => {
+const WssTrustButton = ({
+	value,
+	handleChange,
+	label,
+	...props
+}: WssTrustButtonProps) => {
 	// Check if the URL is a wss (secure WebSocket) URL
 	const isWssUrl = useMemo(
-		() => typeof value === "string" && value.toLowerCase().startsWith("wss://"),
+		() =>
+			typeof value === "string" &&
+			value.toLowerCase().startsWith("wss://"),
 		[value],
 	);
 
