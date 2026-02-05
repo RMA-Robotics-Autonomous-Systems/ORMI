@@ -1,4 +1,4 @@
-import ROSLIB from "roslib";
+import * as ROSLIB from "roslib";
 import { RestBagClient } from "../rest-bag-client";
 import { Topic } from "../recording-types";
 

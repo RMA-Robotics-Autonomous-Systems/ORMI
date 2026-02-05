@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // Replace with your actual toast import if needed
 // Use alert as fallback for toast
 const showToast = (msg: string) => alert(msg);
-import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
+import { ResponsiveGridLayout } from "react-grid-layout";
+import type { LayoutItem, Layout, ResponsiveLayouts } from "react-grid-layout";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -63,6 +64,8 @@ const Dashboard = () => {
 	const locked = useAtomValue(lockedAtom);
 	const hasChanged = useAtomValue(hasChangedAtom);
 	const forceReload = useAtomValue(forceReloadAtom);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerWidth, setContainerWidth] = useState(1200);
 
 	const {
 		updateWidget,
@@ -75,8 +78,25 @@ const Dashboard = () => {
 		updateLayouts,
 	} = useDashboardActions();
 
+	// Track container width
+	useEffect(() => {
+		if (!containerRef.current) return;
+
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (entry) {
+				setContainerWidth(entry.contentRect.width);
+			}
+		});
+
+		observer.observe(containerRef.current);
+		setContainerWidth(containerRef.current.offsetWidth);
+
+		return () => observer.disconnect();
+	}, []);
+
 	// Cast generic layouts to react-grid-layout format
-	const gridLayouts = layouts as Layouts;
+	const gridLayouts = layouts as ResponsiveLayouts;
 
 	// Local state for compactType (vertical/horizontal)
 	const [compactType, setCompactType] = useState<
@@ -85,7 +105,7 @@ const Dashboard = () => {
 
 	// Type-specific layout functions
 	const layoutsChanged = useCallback(
-		(newLayouts: Layouts) => {
+		(newLayouts: ResponsiveLayouts) => {
 			updateLayouts(newLayouts);
 		},
 		[updateLayouts],
@@ -207,7 +227,8 @@ const Dashboard = () => {
 			const sorted_boxes = (new_layouts[breakpoint] || [])
 				.slice()
 				.sort(
-					(a, b) => a.x * a.x + a.y * a.y - (b.x * b.x + b.y * b.y),
+					(a: LayoutItem, b: LayoutItem) =>
+						a.x * a.x + a.y * a.y - (b.x * b.x + b.y * b.y),
 				);
 
 			// Explosion types
@@ -222,17 +243,19 @@ const Dashboard = () => {
 						2,
 						Math.floor(max_number_of_rows / maxRows),
 					);
-					updated = sorted_boxes.map((box, idx) => {
-						const row = idx % maxRows;
-						const col = Math.floor(idx / maxRows);
-						return {
-							...box,
-							x: col * total_cols,
-							y: row * rowHeight,
-							w: total_cols,
-							h: rowHeight,
-						};
-					});
+					updated = sorted_boxes.map(
+						(box: LayoutItem, idx: number) => {
+							const row = idx % maxRows;
+							const col = Math.floor(idx / maxRows);
+							return {
+								...box,
+								x: col * total_cols,
+								y: row * rowHeight,
+								w: total_cols,
+								h: rowHeight,
+							};
+						},
+					);
 					break;
 				}
 				case "columns": {
@@ -244,93 +267,102 @@ const Dashboard = () => {
 						1,
 						Math.floor(total_cols / maxCols),
 					);
-					updated = sorted_boxes.map((box, idx) => {
-						const col = idx % maxCols;
-						const row = Math.floor(idx / maxCols);
-						// Last column in a row fills remaining space
-						const w =
-							col === maxCols - 1
-								? total_cols - colWidth * (maxCols - 1)
-								: colWidth;
-						return {
-							...box,
-							x: col * colWidth,
-							y: row,
-							w,
-							h: 1,
-						};
-					});
+					updated = sorted_boxes.map(
+						(box: LayoutItem, idx: number) => {
+							const col = idx % maxCols;
+							const row = Math.floor(idx / maxCols);
+							// Last column in a row fills remaining space
+							const w =
+								col === maxCols - 1
+									? total_cols - colWidth * (maxCols - 1)
+									: colWidth;
+							return {
+								...box,
+								x: col * colWidth,
+								y: row,
+								w,
+								h: 1,
+							};
+						},
+					);
 					break;
 				}
 				case "masonry":
 					// Stagger widgets, each fills a cell in a grid
-					updated = sorted_boxes.map((box, idx) =>
-						optimalMatrix
-							? {
-									...box,
-									x: idx % optimalMatrix.cols,
-									y: Math.floor(idx / optimalMatrix.cols) * 2,
-									w: Math.max(
-										1,
-										Math.floor(
-											total_cols / optimalMatrix.cols,
+					updated = sorted_boxes.map(
+						(box: LayoutItem, idx: number) =>
+							optimalMatrix
+								? {
+										...box,
+										x: idx % optimalMatrix.cols,
+										y:
+											Math.floor(
+												idx / optimalMatrix.cols,
+											) * 2,
+										w: Math.max(
+											1,
+											Math.floor(
+												total_cols / optimalMatrix.cols,
+											),
 										),
-									),
-									h: 2,
-								}
-							: box,
+										h: 2,
+									}
+								: box,
 					);
 					break;
 				case "single":
 					// First widget fills all, others minimized
-					updated = sorted_boxes.map((box, idx) =>
-						idx === 0
-							? {
-									...box,
-									x: 0,
-									y: 0,
-									w: total_cols,
-									h: Math.floor(max_number_of_rows),
-								}
-							: {
-									...box,
-									x: total_cols - 1,
-									y: Math.floor(max_number_of_rows) - 1,
-									w: total_cols,
-									h: Math.floor(max_number_of_rows),
-								},
+					updated = sorted_boxes.map(
+						(box: LayoutItem, idx: number) =>
+							idx === 0
+								? {
+										...box,
+										x: 0,
+										y: 0,
+										w: total_cols,
+										h: Math.floor(max_number_of_rows),
+									}
+								: {
+										...box,
+										x: total_cols - 1,
+										y: Math.floor(max_number_of_rows) - 1,
+										w: total_cols,
+										h: Math.floor(max_number_of_rows),
+									},
 					);
 					break;
 				case "custom":
 				default:
-					updated = sorted_boxes.map((box, index) => {
-						if (!optimalMatrix) return box;
-						const cols = optimalMatrix.cols;
-						const row = Math.floor(index / cols);
-						const col = index % cols;
-						const col_width = Math.floor(total_cols / cols);
-						const row_height = Math.floor(
-							max_number_of_rows / optimalMatrix.rows,
-						);
-						if (index === widgets.size - 1) {
-							const remaining_width =
-								total_cols - col * col_width;
+					updated = sorted_boxes.map(
+						(box: LayoutItem, index: number) => {
+							if (!optimalMatrix) return box;
+							const cols = optimalMatrix.cols;
+							const row = Math.floor(index / cols);
+							const col = index % cols;
+							const col_width = Math.floor(total_cols / cols);
+							const row_height = Math.floor(
+								max_number_of_rows / optimalMatrix.rows,
+							);
+							if (index === widgets.size - 1) {
+								const remaining_width =
+									total_cols - col * col_width;
+								return {
+									...box,
+									x: col * col_width,
+									y: row * row_height,
+									w: remaining_width,
+									h: row_height,
+								};
+							}
 							return {
 								...box,
 								x: col * col_width,
 								y: row * row_height,
-								w: remaining_width,
+								w: col_width,
 								h: row_height,
 							};
-						}
-						return {
-							...box,
-							x: col * col_width,
-							y: row * row_height,
-							w: col_width,
-							h: row_height,
-						};
-					});
+						},
+					);
 			}
 			new_layouts[breakpoint] = updated;
 			layoutsChanged(new_layouts);
@@ -342,13 +374,8 @@ const Dashboard = () => {
 
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
 
-	const ResponsiveGridLayout = useMemo(
-		() => WidthProvider(Responsive) as unknown as React.FC<any>,
-		[forceReload],
-	); // (improve performance from 'doc', also, juste make it works)
-
 	const handleLayoutChange = useCallback(
-		(currentLayout: Layout[], allLayouts: Layouts) => {
+		(currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
 			if (JSON.stringify(gridLayouts) !== JSON.stringify(allLayouts)) {
 				layoutsChanged({ ...allLayouts });
 			}
@@ -586,23 +613,33 @@ const Dashboard = () => {
 	]);
 
 	return (
-		<ResponsiveGridLayout
-			className="layout"
-			useCSSTransforms={true}
-			margin={[2, 2]}
-			layouts={gridLayouts}
-			breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-			cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-			draggableHandle={`.drag-handle`}
-			onLayoutChange={handleLayoutChange}
-			preventCollision={true}
-			rowHeight={30}
-			compactType={compactType}
-			isDraggable={!locked}
-			isResizable={!locked}
-		>
-			{widgets_elements}
-		</ResponsiveGridLayout>
+		<div ref={containerRef} style={{ width: "100%", height: "100%" }}>
+			<ResponsiveGridLayout
+				width={containerWidth}
+				className="layout"
+				margin={[2, 2]}
+				layouts={gridLayouts}
+				breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+				cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+				dragConfig={{
+					enabled: !locked,
+					handle: `.drag-handle`,
+				}}
+				resizeConfig={{
+					enabled: !locked,
+				}}
+				onLayoutChange={handleLayoutChange}
+				compactor={{
+					type: compactType,
+					allowOverlap: false,
+					preventCollision: true,
+					compact: (layout, cols) => layout, // Placeholder
+				}}
+				rowHeight={30}
+			>
+				{widgets_elements}
+			</ResponsiveGridLayout>
+		</div>
 	);
 };
 
