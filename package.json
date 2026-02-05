@@ -12,6 +12,7 @@
 		"start": "cd apps/web && bun run start",
 		"dev": "bunx turbo dev",
 		"lint": "turbo lint",
+		"typecheck": "turbo typecheck",
 		"format": "prettier --write \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
 		"format:check": "prettier --check \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
 		"create": "bun scripts/create-package.js",

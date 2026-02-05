@@ -59,6 +59,9 @@ jobs:
             - name: Check code formatting
               run: bun run format:check
 
+            - name: Run type checks
+              run: bun run typecheck
+
             - name: Build all packages
               run: bun run build
 

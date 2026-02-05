@@ -1,25 +1,47 @@
 {
-    "$schema": "https://turbo.build/schema.json",
-    "ui": "tui",
-    "concurrency": "50",
-    "tasks": {
-        "build": {
-            "dependsOn": ["^build"],
-            "inputs": ["$TURBO_DEFAULT$", ".env*"],
-            "outputs": [".next/**", "!.next/cache/**", "dist/**"]
-        },
-        "lint": {
-            "dependsOn": ["^lint"]
-        },
-        "check-types": {
-            "dependsOn": ["^check-types"]
-        },
-        "dev": {
-            "cache": false,
-            "persistent": true
-        },
-        "clean": {
-            "cache": false
-        }
-    }
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"concurrency": "50",
+	"globalEnv": ["NODE_ENV", "CI"],
+	"globalPassThroughEnv": ["SKIP_ENV_VALIDATION"],
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"inputs": ["$TURBO_DEFAULT$", ".env*"],
+			"outputs": [".next/**", "!.next/cache/**", "dist/**"],
+			"env": [
+				"NEXTAUTH_URL",
+				"NEXTAUTH_SECRET",
+				"DATABASE_URL",
+				"NEXT_PUBLIC_APP_URL"
+			]
+		},
+		"lint": {
+			"dependsOn": ["^lint"]
+		},
+		"db-generate": {
+			"cache": false,
+			"env": ["DATABASE_URL"]
+		},
+		"typecheck": {
+			"dependsOn": ["^build", "db-generate"],
+			"outputs": []
+		},
+		"check-types": {
+			"dependsOn": ["^check-types"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"env": [
+				"NEXTAUTH_URL",
+				"NEXTAUTH_SECRET",
+				"DATABASE_URL",
+				"NEXT_PUBLIC_APP_URL"
+			]
+		},
+		"clean": {
+			"cache": false
+		}
+	}
 }
