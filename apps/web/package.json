@@ -9,7 +9,7 @@
 		"start": "bun run db-deploy && next start",
 		"lint": "next lint",
 		"lint:fix": "next lint --fix",
-		"typecheck": "bun run db-generate && tsc --noEmit",
+		"typecheck": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts && bun run db-generate && tsc --noEmit",
 		"db-generate": "prisma generate",
 		"db-migrate": "prisma migrate dev --name init",
 		"db-studio": "prisma studio",
