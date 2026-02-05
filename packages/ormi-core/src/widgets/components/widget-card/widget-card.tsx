@@ -10,6 +10,7 @@ import { shadcnRenderer, shadcnCells } from "@workspace/ormi-jsonforms";
 
 import React, { useEffect, useState } from "react";
 import { JsonForms } from "@jsonforms/react";
+import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 import { toast } from "sonner";
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -108,7 +109,7 @@ export function WidgetCard(props: WidgetCardProps) {
 	];
 
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter(
+	const renderers = pluginsManager.applyFilter<JsonFormsRendererRegistryEntry[]>(
 		PluginsHooks.JSON_FORMS_RENDERER,
 		baseRenderers,
 	);
