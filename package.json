@@ -1,39 +1,41 @@
 {
-    "name": "ormi",
-    "version": "0.0.1",
-    "private": true,
-    "workspaces": [
-        "apps/*",
-        "packages/*",
-        "plugins/*"
-    ],
-    "scripts": {
-        "build": "bun test && turbo build",
-        "start": "cd apps/web && bun run start",
-        "dev": "bunx turbo dev",
-        "lint": "turbo lint",
-        "format": "prettier --write \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
-        "create": "bun scripts/create-package.js",
-        "clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules"
-    },
-    "devDependencies": {
-        "@workspace/eslint-config": "workspace:*",
-        "@workspace/typescript-config": "workspace:*",
-        "babel-plugin-react-compiler": "^1.0.0",
-        "prettier": "^3.8.1",
-        "turbo": "^2.7.5",
-        "typescript": "5.7.3"
-    },
-    "packageManager": "bun@1.2.17",
-    "engines": {
-        "node": ">=20"
-    },
-    "overrides": {
-        "@jsonforms/core": "3.7.0",
-        "@jsonforms/react": "3.7.0"
-    },
-    "dependencies": {
-        "@types/three": "^0.181.0",
-        "three": "^0.181.2"
-    }
+	"name": "ormi",
+	"version": "0.0.1",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*",
+		"plugins/*"
+	],
+	"scripts": {
+		"build": "turbo build",
+		"start": "cd apps/web && bun run start",
+		"dev": "bunx turbo dev",
+		"lint": "turbo lint",
+		"format": "prettier --write \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
+		"format:check": "prettier --check \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
+		"create": "bun scripts/create-package.js",
+		"clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules",
+		"update:deps": "for dir in apps/* packages/* plugins/*; do [ -d \"$dir\" ] && (cd \"$dir\" && echo \"Updating $dir...\" && bun update --latest); done"
+	},
+	"devDependencies": {
+		"@workspace/eslint-config": "workspace:*",
+		"@workspace/typescript-config": "workspace:*",
+		"babel-plugin-react-compiler": "^1.0.0",
+		"prettier": "^3.8.1",
+		"turbo": "^2.8.3",
+		"typescript": "5.9.3"
+	},
+	"packageManager": "bun@1.2.17",
+	"engines": {
+		"node": ">=20"
+	},
+	"overrides": {
+		"@jsonforms/core": "3.7.0",
+		"@jsonforms/react": "3.7.0"
+	},
+	"dependencies": {
+		"@types/three": "^0.182.0",
+		"three": "^0.182.0"
+	}
 }

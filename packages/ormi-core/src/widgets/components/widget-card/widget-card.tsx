@@ -109,10 +109,9 @@ export function WidgetCard(props: WidgetCardProps) {
 	];
 
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter<JsonFormsRendererRegistryEntry[]>(
-		PluginsHooks.JSON_FORMS_RENDERER,
-		baseRenderers,
-	);
+	const renderers = pluginsManager.applyFilter<
+		JsonFormsRendererRegistryEntry[]
+	>(PluginsHooks.JSON_FORMS_RENDERER, baseRenderers);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 

@@ -2,12 +2,7 @@
 
 import React, { useMemo } from "react";
 import { withJsonFormsControlProps } from "@jsonforms/react";
-import {
-	ControlProps,
-	rankWith,
-	and,
-	scopeEndsWith,
-} from "@jsonforms/core";
+import { ControlProps, rankWith, and, scopeEndsWith } from "@jsonforms/core";
 import { Label } from "@workspace/ui/components/label";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
@@ -42,7 +37,8 @@ const UrlWithButtonRenderer = (props: ControlProps) => {
 		}
 	};
 
-	const canOpenUrl = url && (url.startsWith("ws://") || url.startsWith("wss://"));
+	const canOpenUrl =
+		url && (url.startsWith("ws://") || url.startsWith("wss://"));
 
 	return (
 		<div className="space-y-2">
@@ -81,7 +77,4 @@ const UrlWithButtonRenderer = (props: ControlProps) => {
 export default withJsonFormsControlProps(UrlWithButtonRenderer);
 
 // Tester that matches the URL field in Foxglove datasource
-export const urlWithButtonTester = rankWith(
-	100,
-	and(scopeEndsWith("url")),
-);
+export const urlWithButtonTester = rankWith(100, and(scopeEndsWith("url")));
