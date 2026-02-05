@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { shadcnCells, shadcnRenderer } from "@workspace/ormi-jsonforms";
 import { coreRenderer } from "../../renderers";
 import { AddDatasourceToTemplatesBtn, Template } from "../../templates";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
 interface DatasourceCardProps {
 	definition: DatasourceDefinition<DatasourceProviderSettings>;
@@ -71,11 +72,19 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 		}
 	}, []);
 
-	const renderers = [
+	const pluginsManager = usePluginsManager();
+
+	const baseRenderers = [
 		...materialRenderers,
 		...shadcnRenderer,
 		...coreRenderer,
 	];
+
+	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
+	const renderers = pluginsManager.applyFilter(
+		PluginsHooks.JSON_FORMS_RENDERER,
+		baseRenderers,
+	);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
@@ -92,10 +101,10 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 					style={
 						props.data?.title === "New Datasource"
 							? {
-									animation:
-										"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-									boxShadow: "0 0 0 0 hsl(var(--primary))",
-								}
+								animation:
+									"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+								boxShadow: "0 0 0 0 hsl(var(--primary))",
+							}
 							: {}
 					}
 				>

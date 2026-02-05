@@ -4,6 +4,9 @@ import {
 	FoxgloveSourceProvider,
 } from "./foxglove-source";
 import { DatasourceDefinition } from "@workspace/ormi-core/datasources";
+import UrlWithButtonRenderer, {
+	urlWithButtonTester,
+} from "./url-with-button-renderer";
 
 // Export components for potential external use
 export { FoxgloveSourceProvider } from "./foxglove-source";
@@ -92,6 +95,19 @@ class FoxglovePlugin extends Plugin {
 		};
 
 		this.addFilter(PluginsHooks.DATASOURCES_LIST, dataSourceFilter);
+
+		// Register custom renderer for URL field
+		this.addFilter(PluginsHooks.JSON_FORMS_RENDERER, {
+			id: "foxglove-url-renderer",
+			priority: 10,
+			filter: (renderers: any[]) => {
+				renderers.push({
+					tester: urlWithButtonTester,
+					renderer: UrlWithButtonRenderer,
+				});
+				return renderers;
+			},
+		});
 	}
 }
 
