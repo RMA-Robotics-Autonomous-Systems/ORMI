@@ -24,6 +24,7 @@ import {
 import { SettingsIcon, CheckIcon } from "lucide-react";
 import { AddToTemplatesBtn } from "../../../templates/components/add-to-templates";
 import { coreRenderer } from "../../../renderers";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
 import styles from "./widget-card.module.css";
 
@@ -98,11 +99,19 @@ export function WidgetCard(props: WidgetCardProps) {
 		);
 	};
 
-	const renderers = [
+	const pluginsManager = usePluginsManager();
+
+	const baseRenderers = [
 		...materialRenderers,
 		...shadcnRenderer,
 		...coreRenderer,
 	];
+
+	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
+	const renderers = pluginsManager.applyFilter(
+		PluginsHooks.JSON_FORMS_RENDERER,
+		baseRenderers,
+	);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
