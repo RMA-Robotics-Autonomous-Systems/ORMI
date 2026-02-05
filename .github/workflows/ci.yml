@@ -13,6 +13,12 @@ jobs:
         name: Build and Test
         runs-on: ubuntu-latest
 
+        env:
+            NEXTAUTH_URL: http://localhost:3000
+            NEXTAUTH_SECRET: ci-test-secret-key-for-github-actions
+            DATABASE_URL: postgresql://ormi_user:ormi_password@localhost:5432/ormi_db
+            NEXT_PUBLIC_APP_URL: http://localhost:3000
+
         steps:
             - name: Checkout code
               uses: actions/checkout@v4

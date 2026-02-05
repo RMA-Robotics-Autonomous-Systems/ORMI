@@ -39,11 +39,10 @@ yarn-error.log*
 next-env.d.ts
 
 # Ignore all lock files wherever they are
-**/*.lock
 **/*.lockb
 
 # ignore all folders except the ones specified inside the ormi-core/plugins folder
-# keep 
+# keep
 #
 #   - ormi-app/plugins/standard-widgets
 #   - ormi-app/plugins/ros-2
