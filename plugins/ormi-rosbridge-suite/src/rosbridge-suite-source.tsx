@@ -142,7 +142,10 @@ export async function GetAllTopicTypes(ROS: ROSLIB.Ros): Promise<string[]> {
 			return;
 		}
 
-		const addTwoIntsClient = new ROSLIB.Service<Record<string, never>, { interfaces: string[] }>({
+		const addTwoIntsClient = new ROSLIB.Service<
+			Record<string, never>,
+			{ interfaces: string[] }
+		>({
 			ros: ROS,
 			name: service_name,
 			serviceType: "rosapi_msgs/srv/Interfaces",
@@ -234,7 +237,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error connecting to ROSBridge Suite: " +
-								(error?.message || String(error)),
+									(error?.message || String(error)),
 							);
 						}
 						setConnected(false);
@@ -245,7 +248,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Disconnected from ROSBridge Suite: " +
-								props.url,
+									props.url,
 							);
 						}
 
@@ -392,11 +395,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error subscribing to topic " +
-								topic.topic +
-								": " +
-								(error instanceof Error
-									? error.message
-									: String(error)),
+									topic.topic +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 							);
 						}
 					}
@@ -434,11 +437,11 @@ const RosBridgeSuiteSourceProvider = (
 						if (props.toasts) {
 							toast(
 								"Error unsubscribing from topic " +
-								topic.topic +
-								": " +
-								(error instanceof Error
-									? error.message
-									: String(error)),
+									topic.topic +
+									": " +
+									(error instanceof Error
+										? error.message
+										: String(error)),
 							);
 						}
 					}
@@ -565,7 +568,9 @@ const RosBridgeSuiteSourceProvider = (
 												webtype,
 												rawType,
 											);
-										currentPublisherData.topic.publish(converted);
+										currentPublisherData.topic.publish(
+											converted,
+										);
 									} catch (error) {
 										console.error(
 											`ROS2 Failed to publish message on ${topicName}:`,
@@ -602,11 +607,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error advertising topic " +
-									topicName +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+										topicName +
+										": " +
+										(error instanceof Error
+											? error.message
+											: String(error)),
 								);
 							}
 							return false; // Indicate failure
@@ -749,11 +754,11 @@ const RosBridgeSuiteSourceProvider = (
 							if (props.toasts) {
 								toast(
 									"Error unadvertising topic " +
-									topicName +
-									": " +
-									(error instanceof Error
-										? error.message
-										: String(error)),
+										topicName +
+										": " +
+										(error instanceof Error
+											? error.message
+											: String(error)),
 								);
 							}
 							// Don't re-throw, just log
