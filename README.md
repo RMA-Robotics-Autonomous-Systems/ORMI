@@ -246,7 +246,9 @@ Website: https://mecatron.rma.ac.be
 
 ## License
 
-This project is maintained by the Royal Military Academy of Belgium. Please refer to the LICENSE file for specific terms and conditions.
+This project is maintained by the Royal Military Academy of Belgium and is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+If you use this software in academic work, please cite it. See [CITATION.cff](CITATION.cff).
 
 ## Contributing
 
