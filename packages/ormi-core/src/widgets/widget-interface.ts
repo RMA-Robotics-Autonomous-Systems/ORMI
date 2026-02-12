@@ -1,11 +1,13 @@
 import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 import { JSX } from "react";
 
+/** Data types a widget can accept. */
 interface DataRequirements {
-	accepts: string[]; // Webapp types this widget can handle: ['number', 'Vector3', 'Movement']
+	/** Webapp types this widget can handle (e.g., "number", "Vector3", "Movement"). */
+	accepts: string[];
 }
 
-// TopicSelect UI Schema Element with DataRequirements
+/** TopicSelect UI schema element with data requirements. */
 interface TopicSelectElement extends Omit<
 	import("@jsonforms/core").ControlElement,
 	"type"
@@ -16,6 +18,7 @@ interface TopicSelectElement extends Omit<
 	};
 }
 
+/** FrameSelect UI schema element. */
 interface FrameSelectElement extends Omit<
 	import("@jsonforms/core").ControlElement,
 	"type"
@@ -26,28 +29,41 @@ interface FrameSelectElement extends Omit<
 	};
 }
 
+/** Widget definition registered by a plugin. */
 interface WidgetDefinition {
-	id: string; // Id of the widgets, allow the dashboard to find which widgets is what component
-	name: string; // name of the widget in the widget list
-	description: string; // description of the widget
-	icon?: JSX.Element; // icon of the widget
+	/** Id of the widget definition. */
+	id: string;
+	/** Name shown in the widget list. */
+	name: string;
+	/** Description shown in the UI. */
+	description: string;
+	/** Optional icon for the widget. */
+	icon?: JSX.Element;
 
-	titleProp?: string; // A widget has multiple properties that are defined in the "schema" props, this allow the dashboard to find the property with the title
+	/** Property name used for the widget title. */
+	titleProp?: string;
 
-	//https://jsonforms.io/
-	schema: JsonSchema; // a schema that describe the properties of the widget
-	uischema: UISchemaElement; // describe how to display the properties in the settings section of the widgets
-	data: any; // default value of the widgets
+	/** JSON Schema describing widget settings. */
+	schema: JsonSchema;
+	/** UI schema describing widget settings layout. */
+	uischema: UISchemaElement;
+	/** Default settings for the widget. */
+	data: any;
 
-	// component that will be put inside of the widget (the widget itself)
+	/** React component that renders the widget. */
 	Component: (data: any) => JSX.Element;
 }
 
+/** Widget instance in a dashboard layout. */
 interface Widget {
-	widget_id: string; // point to the widget definition
-	box_id: string; // unique id for the widget, used to identify the widget in the layout
-	title: string; // title of the widget
-	settings: any; // settings of the widget
+	/** Widget definition id. */
+	widget_id: string;
+	/** Unique id for the widget instance. */
+	box_id: string;
+	/** Widget title. */
+	title: string;
+	/** Widget settings. */
+	settings: any;
 }
 
 export type {

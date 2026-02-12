@@ -9,12 +9,18 @@ import {
 } from "./types";
 import { UnifiedConverter } from "./unified-converter";
 
+/**
+ * Channel information from Foxglove.
+ */
 interface Channel {
 	id: number;
 	schemaName: string;
 	schema?: string;
 }
 
+/**
+ * Schema resolver with promise and timeout.
+ */
 interface SchemaResolver {
 	promise: Promise<string>;
 	resolve: (schema: string) => void;
@@ -22,6 +28,9 @@ interface SchemaResolver {
 	timeout: NodeJS.Timeout;
 }
 
+/**
+ * Manages publishers for Foxglove datasource.
+ */
 export class PublisherService {
 	private publishers = new Map<number, Publisher>();
 	private schemaResolvers = new Map<string, SchemaResolver>();

@@ -1,6 +1,12 @@
 import { JsonSchema } from "@jsonforms/core";
 import { TreeDataItem } from "@workspace/ui/components/tree-view";
 
+/**
+ * Generate tree view items from a JSON schema.
+ * @param schema - JSON schema.
+ * @param handlePropertyChange - Click handler for property selection.
+ * @returns Tree view items.
+ */
 export function generateTreeView(
 	schema: JsonSchema,
 	handlePropertyChange: (itemId: string) => void,

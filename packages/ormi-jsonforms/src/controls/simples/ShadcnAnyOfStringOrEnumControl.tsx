@@ -116,6 +116,9 @@ const simpleAnyOf = and(
 	),
 );
 
+/**
+ * Ranked tester for the Shadcn anyOf string or enum control renderer.
+ */
 export const shadcnAnyOfStringOrEnumControlTester: RankedTester = rankWith(
 	6,
 	simpleAnyOf,

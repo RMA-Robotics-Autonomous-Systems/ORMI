@@ -1,11 +1,20 @@
+/**
+ * Timestamp in nanoseconds since epoch.
+ */
 export interface Timestamp {
 	nanoseconds_since_epoch: number;
 }
 
+/**
+ * Duration in nanoseconds.
+ */
 export interface Duration {
 	nanoseconds: number;
 }
 
+/**
+ * Topic metadata for bag file.
+ */
 export interface TopicMetadata {
 	name: string;
 	type: string;
@@ -14,11 +23,17 @@ export interface TopicMetadata {
 	type_description_hash: string;
 }
 
+/**
+ * Topic with message count.
+ */
 export interface TopicWithMessageCount {
 	topic_metadata: TopicMetadata;
 	message_count: number;
 }
 
+/**
+ * File information within a bag.
+ */
 export interface FileInfo {
 	path: string;
 	starting_time: Timestamp;
@@ -26,6 +41,9 @@ export interface FileInfo {
 	message_count: number;
 }
 
+/**
+ * Bag metadata information.
+ */
 export interface BagMeta {
 	version: number;
 	storage_identifier: string;
@@ -41,24 +59,35 @@ export interface BagMeta {
 	ros_distro: string;
 }
 
+/**
+ * Complete bag information.
+ */
 export interface BagInfo {
 	name: string;
 	meta: BagMeta;
 	path: string;
 }
 
+/**
+ * Response containing all bags.
+ */
 export interface BagsResponse {
 	[path: string]: {
 		[bagName: string]: BagInfo;
 	};
 }
 
-// Compression and download types
+/**
+ * Compression task information.
+ */
 export interface CompressionTask {
 	task_id: string;
 	message: string;
 }
 
+/**
+ * Compression progress information.
+ */
 export interface CompressionProgress {
 	status:
 		| "starting"

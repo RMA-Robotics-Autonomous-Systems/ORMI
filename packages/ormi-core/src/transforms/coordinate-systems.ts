@@ -17,9 +17,7 @@ import { Vector3, Quaternion, CoordinateConvention } from "../types";
 // Re-export the type for convenience
 export type { CoordinateConvention } from "../types";
 
-/**
- * Detailed description of each coordinate convention
- */
+/** Coordinate convention details for UI and diagnostics. */
 export const COORDINATE_CONVENTION_INFO: Record<
 	CoordinateConvention,
 	{
@@ -279,17 +277,11 @@ function getCachedConversionMatrix(
 }
 
 /**
- * Convert a position vector from one coordinate convention to another
- *
- * @param position - The position to convert
- * @param from - Source coordinate convention
- * @param to - Target coordinate convention
- * @returns Converted position in target convention
- *
- * @example
- * // Convert ROS coordinates to Three.js
- * const threePos = convertPosition({ x: 1, y: 0, z: 0 }, 'ROS', 'THREE');
- * // Result: { x: 0, y: 0, z: -1 } (forward in ROS = into screen in Three.js)
+ * Convert a position vector between coordinate conventions.
+ * @param position - Position to convert.
+ * @param from - Source convention.
+ * @param to - Target convention.
+ * @returns Converted position in target convention.
  */
 export function convertPosition(
 	position: Vector3,
@@ -305,12 +297,11 @@ export function convertPosition(
 }
 
 /**
- * Convert multiple positions efficiently
- *
- * @param positions - Array of positions to convert
- * @param from - Source coordinate convention
- * @param to - Target coordinate convention
- * @returns Array of converted positions
+ * Convert multiple positions between conventions.
+ * @param positions - Positions to convert.
+ * @param from - Source convention.
+ * @param to - Target convention.
+ * @returns Converted positions.
  */
 export function convertPositions(
 	positions: Vector3[],
@@ -326,15 +317,11 @@ export function convertPositions(
 }
 
 /**
- * Convert a quaternion rotation from one coordinate convention to another
- *
- * This handles the fact that rotations need special treatment when
- * converting between coordinate systems with different axis orientations.
- *
- * @param quaternion - The quaternion to convert
- * @param from - Source coordinate convention
- * @param to - Target coordinate convention
- * @returns Converted quaternion
+ * Convert a quaternion between coordinate conventions.
+ * @param quaternion - Quaternion to convert.
+ * @param from - Source convention.
+ * @param to - Target convention.
+ * @returns Converted quaternion.
  */
 export function convertQuaternion(
 	quaternion: Quaternion,
@@ -450,11 +437,10 @@ export function nedToThree(position: Vector3): Vector3 {
 }
 
 /**
- * Quaternion to Euler angles conversion with frame convention support
- *
- * @param quaternion - Input quaternion
- * @param convention - The coordinate convention the quaternion is expressed in
- * @returns Euler angles (roll, pitch, yaw) in radians
+ * Convert quaternion to Euler angles.
+ * @param quaternion - Input quaternion.
+ * @param convention - Coordinate convention of the quaternion.
+ * @returns Euler angles (roll, pitch, yaw) in radians.
  */
 export function quaternionToEuler(
 	quaternion: Quaternion,
@@ -482,12 +468,11 @@ export function quaternionToEuler(
 }
 
 /**
- * Euler angles to quaternion conversion
- *
- * @param roll - Roll angle in radians
- * @param pitch - Pitch angle in radians
- * @param yaw - Yaw angle in radians
- * @returns Quaternion
+ * Convert Euler angles to a quaternion.
+ * @param roll - Roll angle in radians.
+ * @param pitch - Pitch angle in radians.
+ * @param yaw - Yaw angle in radians.
+ * @returns Quaternion.
  */
 export function eulerToQuaternion(
 	roll: number,
@@ -511,14 +496,11 @@ export function eulerToQuaternion(
 }
 
 /**
- * Extract heading (yaw) from quaternion with frame convention adjustment
- *
- * Converts to aviation-standard heading where 0° = North
- *
- * @param quaternion - Input quaternion orientation
- * @param sourceConvention - Coordinate convention of the quaternion
- * @param headingAxis - Which Euler angle to use as heading ('X', 'Y', 'Z')
- * @returns Heading in radians (0 = North, positive = clockwise)
+ * Extract heading from a quaternion.
+ * @param quaternion - Input quaternion orientation.
+ * @param sourceConvention - Coordinate convention of the quaternion.
+ * @param headingAxis - Euler axis to use as heading.
+ * @returns Heading in radians (0 = North, positive = clockwise).
  */
 export function quaternionToHeading(
 	quaternion: Quaternion,
@@ -568,12 +550,10 @@ export function quaternionToHeading(
 }
 
 /**
- * Create a coordinate converter function for a specific source->target conversion
- * Useful for performance-critical loops where you want to avoid repeated string lookups
- *
- * @param from - Source coordinate convention
- * @param to - Target coordinate convention
- * @returns A function that converts positions
+ * Create a position converter for a specific source/target convention.
+ * @param from - Source convention.
+ * @param to - Target convention.
+ * @returns Converter function.
  */
 export function createPositionConverter(
 	from: CoordinateConvention,
@@ -588,7 +568,9 @@ export function createPositionConverter(
 }
 
 /**
- * Check if a coordinate convention is valid
+ * Check if a coordinate convention string is valid.
+ * @param convention - Convention string to validate.
+ * @returns True if valid.
  */
 export function isValidConvention(
 	convention: string,
@@ -597,7 +579,8 @@ export function isValidConvention(
 }
 
 /**
- * Get all available coordinate conventions
+ * Get all available coordinate conventions.
+ * @returns Convention list.
  */
 export function getAvailableConventions(): CoordinateConvention[] {
 	return Object.keys(COORDINATE_CONVENTION_INFO) as CoordinateConvention[];

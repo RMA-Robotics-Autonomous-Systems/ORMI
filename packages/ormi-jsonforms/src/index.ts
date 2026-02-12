@@ -101,6 +101,9 @@ import {
 	shadcnOneOfTester,
 } from "./layouts/ShadcnOneOfLayout";
 
+/**
+ * Collection of Shadcn-themed JSON Forms renderer entries.
+ */
 export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
 	{ tester: asyncSelectTester, renderer: AsyncSelectControl },
@@ -172,6 +175,9 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	},
 ];
 
+/**
+ * Collection of Shadcn-themed JSON Forms cell renderer entries.
+ */
 export const shadcnCells: JsonFormsCellRendererRegistryEntry[] = [
 	{ tester: shadcnBooleanCellTester, cell: ShadcnBooleanCell },
 	{ tester: shadcnBooleanToggleCellTester, cell: ShadcnBooleanToggleCell },

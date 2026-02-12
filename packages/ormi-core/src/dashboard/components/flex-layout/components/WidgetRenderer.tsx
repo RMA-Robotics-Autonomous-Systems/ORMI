@@ -9,14 +9,16 @@ import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
 import { useAtomValue } from "jotai";
 import { widgetAtomFamily } from "../../../atoms";
 
+/** Props for WidgetRenderer. */
 interface WidgetRendererProps {
 	widgetId: string;
 	definition: WidgetDefinition | null;
 }
 
 /**
- * ButtonHolderPortal component that renders ButtonHolder into tab title
- * Uses the FlexLayoutPortalContext to find the portal container
+ * Portal ButtonHolder into a tab title.
+ * @param props - Component props.
+ * @returns React element or null.
  */
 const ButtonHolderPortal: React.FC<{ widgetId: string }> = ({ widgetId }) => {
 	const { getPortalContainer } = useFlexLayoutPortal();
@@ -32,8 +34,9 @@ const ButtonHolderPortal: React.FC<{ widgetId: string }> = ({ widgetId }) => {
 };
 
 /**
- * Simple widget renderer with ButtonHolder integration
- * Replaces the complex OptimizedWidget system
+ * Widget renderer with ButtonHolder integration.
+ * @param props - Component props.
+ * @returns React element.
  */
 const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
 	widgetId,
@@ -64,6 +67,7 @@ const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
 	);
 };
 
+/** Memoized widget renderer for FlexLayout. */
 export const WidgetRenderer = React.memo(WidgetRendererComponent);
 WidgetRenderer.displayName = "WidgetRenderer";
 

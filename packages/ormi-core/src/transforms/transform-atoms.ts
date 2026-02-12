@@ -16,6 +16,7 @@ import { CoordinateConvention, TransformTree } from "../types";
 
 // Create a single shared store instance for transforms
 // This ensures processTFMessage() and useTransformSource() use the same store
+/** Shared Jotai store for transform state. */
 export const transformStore = createStore();
 
 // ============================================================================
@@ -29,6 +30,7 @@ export const transformStore = createStore();
  * IMPORTANT: This is a writable atom that can be updated imperatively
  * from outside React (e.g., from web workers or callbacks)
  */
+/** Atom holding all transform trees from all datasources. */
 export const transformTreesAtom = atom<Map<string, TransformTree>>(
 	new Map<string, TransformTree>(),
 );
@@ -37,11 +39,13 @@ export const transformTreesAtom = atom<Map<string, TransformTree>>(
  * Atom to track which datasources have contributed transforms
  * Useful for debugging and cleanup
  */
+/** Atom tracking datasource ids that contributed transforms. */
 export const transformSourcesAtom = atom<Set<string>>(new Set<string>());
 
 /**
  * Derived atom that returns the number of frames in the transform tree
  */
+/** Atom computing total frame count across all trees. */
 export const transformFrameCountAtom = atom((get) => {
 	const trees = get(transformTreesAtom);
 	let count = 0;
@@ -68,12 +72,21 @@ export const transformFrameCountAtom = atom((get) => {
 /**
  * Get the current transform trees (for use outside React)
  */
+/**
+ * Get the current transform trees map (outside React).
+ * @returns Transform tree map.
+ */
 export function getTransformTrees(): Map<string, TransformTree> {
 	return transformStore.get(transformTreesAtom);
 }
 
 /**
  * Subscribe to transform tree changes (for use outside React)
+ */
+/**
+ * Subscribe to transform tree updates (outside React).
+ * @param callback - Change callback.
+ * @returns Unsubscribe function.
  */
 export function subscribeToTransforms(callback: () => void): () => void {
 	return transformStore.sub(transformTreesAtom, callback);
@@ -173,6 +186,7 @@ function transformsEqual(
 // Transform Update Functions
 // ============================================================================
 
+/** Single transform entry in a TF message. */
 export interface TFTransform {
 	header: {
 		frame_id: string;
@@ -186,6 +200,7 @@ export interface TFTransform {
 	};
 }
 
+/** TF message payload containing one or more transforms. */
 export interface TFMessage {
 	transforms: TFTransform[];
 }
@@ -197,6 +212,7 @@ export interface TFMessage {
  * @param datasourceId - Unique ID of the datasource (for tracking)
  * @param message - TF message containing transforms
  */
+/** Process a TF message and update the transform trees. */
 export function processTFMessage(
 	datasourceId: string,
 	message: TFMessage,
@@ -345,6 +361,10 @@ export function processTFMessage(
  * Note: Currently clears ALL transforms since we don't track per-datasource ownership.
  * For a more sophisticated implementation, we could tag each transform with its source.
  */
+/**
+ * Clear transforms when a datasource disconnects.
+ * @param datasourceId - Datasource id.
+ */
 export function clearTransformsFromDatasource(datasourceId: string): void {
 	const sources = transformStore.get(transformSourcesAtom);
 
@@ -363,6 +383,7 @@ export function clearTransformsFromDatasource(datasourceId: string): void {
 /**
  * Completely clear all transforms
  */
+/** Clear all transforms and sources. */
 export function clearAllTransforms(): void {
 	transformStore.set(transformTreesAtom, new Map());
 	transformStore.set(transformSourcesAtom, new Set());

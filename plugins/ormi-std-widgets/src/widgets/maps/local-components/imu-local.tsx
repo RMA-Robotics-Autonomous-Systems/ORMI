@@ -14,14 +14,20 @@ import {
 import { getColorsFromString } from "@workspace/utils";
 import { toast } from "sonner";
 
+/**
+ * Extended local topic configuration for IMU data.
+ */
 export interface IMULocalTopic extends LocalTopic {
 	imuFrame: "ENU" | "NED" | "NWU";
 	headingAxis: "X" | "Y" | "Z";
-	minDistance?: number; // Minimum distance in meters between arrows (default: 0.5m)
-	maxArrows?: number; // Maximum number of arrows to display (default: 500)
-	timeWindow?: number; // Time window in milliseconds for IMU matching (default: 100ms)
+	minDistance?: number;
+	maxArrows?: number;
+	timeWindow?: number;
 }
 
+/**
+ * Props for IMU visualizer.
+ */
 interface IMUVisualizerProps extends LocalTopicVisualizerProps {
 	minDistance?: number;
 	maxArrows?: number;
@@ -32,14 +38,22 @@ interface IMUVisualizerProps extends LocalTopicVisualizerProps {
 	};
 }
 
+/**
+ * Single arrow data for IMU visualization.
+ */
 interface ArrowData {
 	coords: [number, number];
-	heading: number; // in radians
-	timestamp: number; // GPS timestamp
+	heading: number;
+	timestamp: number;
 }
 
 /**
- * Calculate distance between two GPS coordinates using Haversine formula
+ * Calculates distance between two GPS coordinates using Haversine formula.
+ * @param lat1 - First latitude.
+ * @param lon1 - First longitude.
+ * @param lat2 - Second latitude.
+ * @param lon2 - Second longitude.
+ * @returns Distance in meters.
  */
 function calculateDistance(
 	lat1: number,
@@ -62,7 +76,12 @@ function calculateDistance(
 }
 
 /**
- * Find best matching IMU data using interpolation or nearest neighbor
+ * Finds best matching IMU data using time interpolation.
+ * @param gpsTime - GPS timestamp.
+ * @param imuData - Array of IMU data.
+ * @param imuTimes - Array of IMU timestamps.
+ * @param timeWindowMs - Time window in milliseconds.
+ * @returns Matching IMU data or null.
  */
 function findMatchingIMU(
 	gpsTime: number,
@@ -93,7 +112,14 @@ function findMatchingIMU(
 }
 
 /**
- * Convert quaternion to Euler angles and extract heading based on axis and frame
+ * Converts quaternion to heading based on axis and frame convention.
+ * @param qx - Quaternion x.
+ * @param qy - Quaternion y.
+ * @param qz - Quaternion z.
+ * @param qw - Quaternion w.
+ * @param imuFrame - IMU frame convention.
+ * @param headingAxis - Axis to extract heading from.
+ * @returns Heading in radians.
  */
 function quaternionToHeading(
 	qx: number,

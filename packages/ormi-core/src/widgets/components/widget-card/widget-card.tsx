@@ -31,6 +31,7 @@ import styles from "./widget-card.module.css";
 
 // Import the custom renderers
 
+/** Props for WidgetCard. */
 interface WidgetCardProps {
 	displayType?: "card" | "list" | "gear";
 	definition: WidgetDefinition;
@@ -41,6 +42,11 @@ interface WidgetCardProps {
 	onDialogClose?: () => void;
 }
 
+/**
+ * Widget configuration card with JsonForms dialog.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function WidgetCard(props: WidgetCardProps) {
 	const [data, setData] = useState(props.definition.data);
 	const [errors, setErrors] = useState<any>(null);

@@ -33,6 +33,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 // Types
 // ============================================================================
 
+/** Props for RemoteCallExplorer widget. */
 interface RemoteCallWidgetProps {
 	title: string;
 }
@@ -512,6 +513,10 @@ function ServiceCard({ definition, isExpanded, onToggle }: ServiceCardProps) {
 // Main Widget Component
 // ============================================================================
 
+/**
+ * Remote call explorer widget body.
+ * @returns React element.
+ */
 function RemoteCallExplorer({}: RemoteCallWidgetProps) {
 	// Use the event-driven atom-based hook - no polling needed!
 	const { calls, count, isEmpty } = useAvailableRemoteCalls();
@@ -625,6 +630,10 @@ function RemoteCallExplorer({}: RemoteCallWidgetProps) {
 // Widget Definition
 // ============================================================================
 
+/**
+ * Widget definition for remote call explorer.
+ * @returns Widget definition.
+ */
 export function RemoteCallExplorerDefinition(): WidgetDefinition {
 	return {
 		id: "remote-call-explorer-widget",

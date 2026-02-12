@@ -1,6 +1,8 @@
 import { JsonSchema } from "@jsonforms/core";
 
-// Type definitions for Foxglove parsed message structures
+/**
+ * Type definitions for Foxglove parsed message structures.
+ */
 interface FoxgloveField {
 	name: string;
 	type: string;
@@ -11,23 +13,27 @@ interface FoxgloveField {
 	value?: any;
 }
 
+/**
+ * Foxglove message definition.
+ */
 interface FoxgloveMessageDefinition {
 	name?: string;
 	definitions: FoxgloveField[];
 }
 
 /**
- * Sanitize a type name to be safe for use in JSON Schema $ref paths.
- * Replaces slashes with double underscores to avoid path separator issues.
+ * Sanitizes a type name to be safe for use in JSON Schema $ref paths.
+ * @param name - Type name to sanitize.
+ * @returns Sanitized type name.
  */
 function sanitizeTypeName(name: string): string {
 	return name.replace(/\//g, "__");
 }
 
 /**
- * Converts Foxglove parsed IDL structure to JsonSchema format
- * @param parsedIDL - The result from @foxglove/rosmsg parse function
- * @returns JsonSchema compatible with JsonForms
+ * Converts Foxglove parsed IDL structure to JsonSchema format.
+ * @param parsedIDL - Result from @foxglove/rosmsg parse function.
+ * @returns JsonSchema compatible with JsonForms.
  */
 export function foxgloveIdlToJsonSchema(parsedIDL: any): JsonSchema {
 	// parsedIDL is an array where each element is a message definition

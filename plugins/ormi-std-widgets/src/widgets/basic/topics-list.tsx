@@ -112,6 +112,10 @@ const TopicRow = memo(
 	},
 );
 
+/**
+ * Topics list widget body.
+ * @returns React element.
+ */
 function TopicsList() {
 	const pluginsManager = usePluginsManager();
 
@@ -173,6 +177,10 @@ function TopicsList() {
 	);
 }
 
+/**
+ * Widget definition for TopicsList.
+ * @returns Widget definition.
+ */
 export function TopicsListDefinition(): WidgetDefinition {
 	return {
 		id: "topics-List-widget",

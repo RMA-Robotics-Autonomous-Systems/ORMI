@@ -18,6 +18,7 @@ import type {
 } from "./protocol";
 import { createRpcServer } from "./rpc";
 
+/** Datasource worker implementation contract. */
 export interface DatasourceWorkerImplementation<
 	Settings = DatasourceProviderSettings,
 > {
@@ -37,6 +38,7 @@ export interface DatasourceWorkerImplementation<
 	shutdown: () => void | Promise<void>;
 }
 
+/** Context exposed to a datasource worker implementation. */
 export interface DatasourceWorkerContext {
 	publish: (
 		topic: string,
@@ -51,6 +53,10 @@ export interface DatasourceWorkerContext {
 	emitRemoteCallResult: (callId: string, result: RemoteCallResult) => void;
 }
 
+/**
+ * Create and register a datasource worker RPC server.
+ * @param factory - Factory that returns the worker implementation.
+ */
 export function createDatasourceWorker<Settings = DatasourceProviderSettings>(
 	factory: (
 		context: DatasourceWorkerContext,

@@ -1,55 +1,66 @@
+/**
+ * Plugin system hooks for extending ORMI functionality.
+ */
 enum PluginsHooks {
-	PLUGIN_PROVIDER_BEFORE_CHILDREN = "plugins-before-children", // filter called before rendering children of the plugin provider
-	PLUGIN_PROVIDER_AFTER_CHILDREN = "plugins-after-children", // filter called after  rendering children of the plugin provider
+	PLUGIN_PROVIDER_BEFORE_CHILDREN = "plugins-before-children",
+	PLUGIN_PROVIDER_AFTER_CHILDREN = "plugins-after-children",
 
-	JSON_FORMS_RENDERER = "plugins-jsonforms-renderer", // hooks that take an array of jsonforms renderer and return an jsonforms renderer
+	JSON_FORMS_RENDERER = "plugins-jsonforms-renderer",
 
-	WIDGETS_LIST = "plugins-widgets-list", // hooks that take an array of widgets and return an array of widgets
-	DATASOURCES_LIST = "plugins-datasources-list", // hooks that take an array of datasources definition and return an array of datasources definition
+	WIDGETS_LIST = "plugins-widgets-list",
+	DATASOURCES_LIST = "plugins-datasources-list",
 
-	WIDGET_LIST_WITH_DATASOURCE = "plugins-widgets-list-with-datasource", // hooks that take an array of widgets and array of availables datasources then return an array of widgets
+	WIDGET_LIST_WITH_DATASOURCE = "plugins-widgets-list-with-datasource",
 
 	/**
-	 *  hooks that take an array of topics and return an array of all available topics from the different plugins
-	 *  params: [ topics: DatasourceTopic[], filter?: DatasourceTopicFilter ]
+	 * Hooks that take an array of topics and return all available topics from plugins.
+	 * @param topics - Array of datasource topics.
+	 * @param filter - Optional topic filter.
 	 */
-	AVAILABLE_TOPICS = "plugins-topics-list", // hooks that take an array of topics and return an array of topics
-	AVAILABLE_DATASOURCES = "plugins-datasources-availables", // hooks that take an array of datasources and return an array of datasources, Datasource that are enable in the workspace
+	AVAILABLE_TOPICS = "plugins-topics-list",
+	AVAILABLE_DATASOURCES = "plugins-datasources-availables",
 
-	TRANSFORM_TREE = "CORE-TRANSFORM-TREE", // hooks that take a map of transform tree and return a map transform tree
+	TRANSFORM_TREE = "CORE-TRANSFORM-TREE",
 
-	MAP_LOCAL_VISUALIZERS = "map-local-visualizers", // hooks that take a map of local topic visualizers and return an extended map
-
-	// ========================================================================
-	// Remote Call Hooks (Services/Actions unified API)
-	// ========================================================================
+	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
 
 	/**
 	 * Filter that returns all available remote calls from all datasources.
-	 * Similar to AVAILABLE_TOPICS but for services/actions.
-	 * params: [ calls: RemoteCallDefinition[], filter?: RemoteCallFilter ]
+	 * @param calls - Array of remote call definitions.
+	 * @param filter - Optional remote call filter.
 	 */
 	AVAILABLE_REMOTE_CALLS = "plugins-remote-calls-list",
 
 	/**
 	 * Filter to get the schema/definition for a specific remote call.
-	 * params: [ definition: RemoteCallDefinition | null, datasource_id: string, callName: string ]
+	 * @param definition - Remote call definition or null.
+	 * @param datasource_id - Datasource identifier.
+	 * @param callName - Remote call name.
 	 */
 	REMOTE_CALL_DEFINITION = "plugins-remote-call-definition",
 }
 
+/**
+ * Plugin action definition.
+ */
 interface PluginAction {
 	id: string;
 	priority: number;
 	action: (...args: any) => void;
 }
 
+/**
+ * Plugin filter definition.
+ */
 interface PluginFilter {
 	id: string;
 	priority: number;
 	filter: (...args: any) => any;
 }
 
+/**
+ * Base plugin class for extending ORMI functionality.
+ */
 export class Plugin {
 	protected name: string;
 	protected author: string;
@@ -151,13 +162,22 @@ export class Plugin {
 	}
 }
 
+/**
+ * Plugin registry type mapping plugin names to plugin instances.
+ */
 export type PluginRegistry = Record<string, Promise<Plugin>>;
 
+/**
+ * Plugin information interface.
+ */
 export interface PluginInfo {
 	name: string;
 	description: string;
 	version: string;
 }
 
+/**
+ * Exported types for plugin actions and filters.
+ */
 export type { PluginAction, PluginFilter };
 export { PluginsHooks };

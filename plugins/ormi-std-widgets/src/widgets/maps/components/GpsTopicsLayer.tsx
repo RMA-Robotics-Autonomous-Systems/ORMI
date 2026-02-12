@@ -14,6 +14,9 @@ import HeatMarker from "../gps-components/marker-heat";
 import PathMarker from "../gps-components/marker-path";
 import MultiPoints from "../gps-components/marker-multipoints";
 
+/**
+ * Configuration for a GPS topic marker.
+ */
 interface GpsTopicConfig {
 	name: string;
 	topic: SelectedTopic;
@@ -21,14 +24,18 @@ interface GpsTopicConfig {
 	numericalTopic?: SelectedTopic;
 }
 
+/**
+ * Props for GpsTopicsLayer.
+ */
 interface GpsTopicsLayerProps {
 	topics: GpsTopicConfig[];
 	mapRef?: React.RefObject<MapRef | null>;
 }
 
 /**
- * Component that renders all GPS-based topics (already in GPS coordinates)
- * Handles LocalDataSourcesProvider setup and marker rendering
+ * Renders GPS-based topics (already in GPS coordinates).
+ * @param props - Component props.
+ * @returns React element or null when there is nothing to render.
  */
 export function GpsTopicsLayer({ topics, mapRef }: GpsTopicsLayerProps) {
 	const pluginsManager = usePluginsManager();

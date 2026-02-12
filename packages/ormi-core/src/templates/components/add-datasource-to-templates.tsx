@@ -16,6 +16,11 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DatasourceDefinition, Datasource } from "../../datasources";
 
+/**
+ * Button to save a datasource configuration as a template.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function AddDatasourceToTemplatesBtn(props: {
 	datasource: Datasource;
 	definition: DatasourceDefinition;

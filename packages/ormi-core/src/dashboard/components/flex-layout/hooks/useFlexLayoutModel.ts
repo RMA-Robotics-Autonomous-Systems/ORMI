@@ -8,6 +8,7 @@ import {
 	getDefaultFlexLayoutConfig,
 } from "../layout-serializer";
 
+/** Props for useFlexLayoutModel. */
 interface UseFlexLayoutModelProps {
 	widgets: Map<string, Widget>;
 	layouts: Record<string, any>;
@@ -19,8 +20,9 @@ interface UseFlexLayoutModelProps {
 }
 
 /**
- * Hook to manage FlexLayout Model state
- * Handles model creation, updates, widget synchronization, and FlexLayout actions
+ * Manage FlexLayout model state and synchronization.
+ * @param props - Hook props.
+ * @returns FlexLayout model handlers.
  */
 export const useFlexLayoutModel = ({
 	widgets,

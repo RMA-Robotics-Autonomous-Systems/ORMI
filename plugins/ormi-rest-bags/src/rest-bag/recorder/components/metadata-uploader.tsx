@@ -5,6 +5,11 @@ import { MetadataUploaderProps } from "../types";
 import { Topic } from "../../recording-types";
 import { Button } from "@workspace/ui/components/button";
 
+/**
+ * Component for uploading and parsing bag metadata files.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const MetadataUploader = ({
 	onMetadataUploaded,
 	onError,

@@ -10,6 +10,11 @@ import { EyeClosedIcon, EyeIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Layer, Source, Popup, useMap } from "react-map-gl/maplibre";
 
+/**
+ * Heatmap marker combining GPS location with numerical values.
+ * @param props - Component props.
+ * @returns React element or null when hidden.
+ */
 export default function HeatMarker(props: {
 	topic: SelectedTopic;
 	name: string;

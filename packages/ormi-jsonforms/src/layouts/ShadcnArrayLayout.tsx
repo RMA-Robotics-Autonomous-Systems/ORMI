@@ -133,4 +133,7 @@ const ShadCNArrayLayoutComponent = (
 	);
 };
 
+/**
+ * Memoized Shadcn array layout component.
+ */
 export const ShadCNArrayLayout = React.memo(ShadCNArrayLayoutComponent);

@@ -10,6 +10,9 @@ import { Spinner } from "@workspace/ui/components/spinner";
 
 const websocketContext = createContext<WebSocketContextValue | null>(null);
 
+/**
+ * Enum representing WebSocket connection status.
+ */
 export enum WebSocketStatus {
 	CONNECTING = "connecting",
 	CONNECTED = "connected",
@@ -18,6 +21,9 @@ export enum WebSocketStatus {
 	ERROR = "error",
 }
 
+/**
+ * Interface for WebSocket error data.
+ */
 export interface WebSocketError {
 	type: "connection" | "timeout" | "message" | "unknown";
 	message: string;
@@ -55,6 +61,11 @@ interface WebSocketContextValue {
 	clearError: () => void;
 }
 
+/**
+ * WebSocket provider component.
+ *
+ * @param props - Provider props including URL, callbacks, and configuration
+ */
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 	children,
 	url,
@@ -377,6 +388,11 @@ const WebSocketStatusOverlay: React.FC<WebSocketStatusOverlayProps> = ({
 	);
 };
 
+/**
+ * Hook to access WebSocket context.
+ *
+ * @returns WebSocket context value
+ */
 export const useWebSocket = () => {
 	const context = useContext(websocketContext);
 	if (context === null) {
@@ -385,7 +401,11 @@ export const useWebSocket = () => {
 	return context;
 };
 
-// Utility hook for easier message handling with typed messages
+/**
+ * Utility hook for easier message handling with typed messages.
+ *
+ * @returns WebSocket context with typed message sender
+ */
 export const useWebSocketMessages = <T = any,>() => {
 	const { sendMessage, ...rest } = useWebSocket();
 

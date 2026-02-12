@@ -2,13 +2,18 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { GamepadIcon } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
-// Extend props to support optional mouse control
+/** Props for NotAPong. */
 interface NotAPongProps {
 	title: string;
 	mouseControl?: boolean;
 	aiVsAi?: boolean;
 }
 
+/**
+ * Not-a-pong mini game widget body.
+ * @param props - Component props.
+ * @returns React element.
+ */
 function NotAPong(props: NotAPongProps) {
 	// refs for container & moving elements
 	// refs for container & moving elements
@@ -399,6 +404,10 @@ function NotAPong(props: NotAPongProps) {
 	);
 }
 
+/**
+ * Widget definition for NotAPong.
+ * @returns Widget definition.
+ */
 export function NotAPongDefinition() {
 	return {
 		id: "not-a-pong",

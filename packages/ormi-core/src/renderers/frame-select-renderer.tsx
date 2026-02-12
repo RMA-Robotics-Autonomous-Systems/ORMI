@@ -20,6 +20,11 @@ import {
 import { TransformTree } from "@workspace/ormi-core/types";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 
+/**
+ * Collect frame ids from transform trees.
+ * @param trees - Transform trees map.
+ * @returns Sorted frame id list.
+ */
 const collectFrames = (trees: Map<string, TransformTree>): string[] => {
 	const frames: string[] = [];
 
@@ -33,6 +38,11 @@ const collectFrames = (trees: Map<string, TransformTree>): string[] => {
 	return Array.from(new Set(frames)).sort();
 };
 
+/**
+ * JsonForms renderer for selecting a transform frame.
+ * @param props - JsonForms control props.
+ * @returns React element.
+ */
 const FrameSelectRenderer = (props: ControlProps) => {
 	const { data, handleChange, path, uischema, label } = props;
 	const { transformsTrees } = useTransformSource();
@@ -73,6 +83,7 @@ const FrameSelectRenderer = (props: ControlProps) => {
 
 export default withJsonFormsControlProps(FrameSelectRenderer);
 
+/** JsonForms tester for the FrameSelect UI schema type. */
 const frameSelectTester = rankWith(10, and(isControl, uiTypeIs("FrameSelect")));
 
 export { frameSelectTester };

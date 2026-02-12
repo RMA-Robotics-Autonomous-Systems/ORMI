@@ -1,5 +1,11 @@
 import { Transform, TransformTree, Vector3, Quaternion } from "../types";
 
+/**
+ * Get a transform tree node by id within a tree.
+ * @param tree - Root tree.
+ * @param id - Frame id to search for.
+ * @returns Matching node or null.
+ */
 export function getTransformTreeFromTreeId(
 	tree: TransformTree,
 	id: string,
@@ -21,6 +27,12 @@ export function getTransformTreeFromTreeId(
 	return result;
 }
 
+/**
+ * Get a transform tree node by id across multiple tree roots.
+ * @param treeMap - Map of root trees.
+ * @param id - Frame id to search for.
+ * @returns Matching node or null.
+ */
 export function getTransformTreeFromTreeIdInMaps(
 	treeMap: Map<string, TransformTree>,
 	id: string,
@@ -41,12 +53,11 @@ export function getTransformTreeFromTreeIdInMaps(
 }
 
 /**
- * Find a path from source frame to target frame in the transform tree
- * Returns array of transforms to apply in order, or null if no path exists
- *
- * Handles multiple independent transform trees by checking if frames are connected
- * through a common root. If frames are in different trees with no connection,
- * returns null.
+ * Find a transform chain between two frames.
+ * @param treeMap - Map of transform trees.
+ * @param sourceFrameId - Source frame id.
+ * @param targetFrameId - Target frame id.
+ * @returns Ordered transforms or null if no path exists.
  */
 export function findTransformChain(
 	treeMap: Map<string, TransformTree>,
@@ -173,7 +184,10 @@ export function findTransformChain(
 }
 
 /**
- * Apply a single transform to a 3D point
+ * Apply a single transform to a 3D point.
+ * @param point - Input point.
+ * @param transform - Transform to apply.
+ * @returns Transformed point.
  */
 export function applyTransform(point: Vector3, transform: Transform): Vector3 {
 	// First apply rotation using quaternion
@@ -188,7 +202,10 @@ export function applyTransform(point: Vector3, transform: Transform): Vector3 {
 }
 
 /**
- * Apply a chain of transforms to a point
+ * Apply a chain of transforms to a 3D point.
+ * @param point - Input point.
+ * @param transforms - Ordered transforms.
+ * @returns Transformed point.
  */
 export function applyTransformChain(
 	point: Vector3,
@@ -214,11 +231,10 @@ export function applyTransformChain(
 }
 
 /**
- * Rotate a vector by a quaternion using the formula: q * v * q^-1
- *
- * @param v - The vector to rotate
- * @param q - The quaternion representing the rotation
- * @returns The rotated vector
+ * Rotate a vector by a quaternion.
+ * @param v - Vector to rotate.
+ * @param q - Rotation quaternion.
+ * @returns Rotated vector.
  */
 export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
 	// Convert to quaternion multiplication: q * v * q^-1
@@ -246,12 +262,8 @@ export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
 
 /**
  * Invert a transform.
- *
- * For a transform T that takes points from frame A to frame B,
- * the inverse T^-1 takes points from frame B to frame A.
- *
- * @param transform - The transform to invert
- * @returns The inverted transform
+ * @param transform - Transform to invert.
+ * @returns Inverted transform.
  */
 export function invertTransform(transform: Transform): Transform {
 	// Invert quaternion (conjugate for unit quaternions)
@@ -286,9 +298,7 @@ export function invertTransform(transform: Transform): Transform {
 	};
 }
 
-/**
- * GPS Coordinates interface
- */
+/** GPS coordinates (latitude, longitude, optional altitude). */
 export interface GPSCoords {
 	latitude: number;
 	longitude: number;
@@ -296,12 +306,10 @@ export interface GPSCoords {
 }
 
 /**
- * Convert local ENU (East-North-Up) coordinates to GPS coordinates
- * using an origin GPS point as reference
- *
- * @param localPoint - Point in local ENU frame (meters)
- * @param originGPS - GPS coordinates of the local frame origin
- * @returns GPS coordinates
+ * Convert local ENU coordinates to GPS coordinates.
+ * @param localPoint - Point in local ENU frame (meters).
+ * @param originGPS - GPS coordinates of the local frame origin.
+ * @returns GPS coordinates.
  */
 export function localToGPS(
 	localPoint: Vector3,
@@ -327,12 +335,10 @@ export function localToGPS(
 }
 
 /**
- * Convert GPS coordinates to local ENU (East-North-Up) coordinates
- * relative to an origin GPS point
- *
- * @param gps - GPS coordinates to convert
- * @param originGPS - GPS coordinates of the local frame origin
- * @returns Point in local ENU frame (meters)
+ * Convert GPS coordinates to local ENU coordinates.
+ * @param gps - GPS coordinates to convert.
+ * @param originGPS - GPS origin.
+ * @returns Point in local ENU frame (meters).
  */
 export function gpsToLocal(gps: GPSCoords, originGPS: GPSCoords): Vector3 {
 	// Earth's radius in meters

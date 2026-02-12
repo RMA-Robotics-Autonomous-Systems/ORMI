@@ -12,6 +12,7 @@ import { DataRequirements } from "../../widgets/widget-interface";
 import { TopicCompatibilityResult } from "../../widgets/topic-compatibility";
 import { TopicCreatorDialog } from "./topic-creator-dialog";
 
+/** Props for TopicBrowser. */
 interface TopicBrowserProps {
 	topics: DatasourceTopic[];
 	selectedTopic: DatasourceTopic | null;
@@ -24,6 +25,11 @@ interface TopicBrowserProps {
 	onTopicCreated?: (topic: DatasourceTopic) => void;
 }
 
+/**
+ * Browser list for available topics.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	topics,
 	selectedTopic,

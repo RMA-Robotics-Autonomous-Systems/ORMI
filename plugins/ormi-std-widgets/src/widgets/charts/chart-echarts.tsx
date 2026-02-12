@@ -12,6 +12,7 @@ import {
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { ChartLineIcon } from "lucide-react";
+/** Series settings for the ECharts widget. */
 interface EchartsSeriesSettings {
 	title: string;
 	topic: SelectedTopic;
@@ -35,6 +36,7 @@ interface EchartsSeriesSettings {
 	[key: string]: any;
 }
 
+/** Settings for the ECharts chart widget. */
 interface ChartEchartsSettings {
 	title: string;
 	timeHistory: number;
@@ -47,6 +49,11 @@ interface ChartEchartsSettings {
 	series: EchartsSeriesSettings[];
 }
 
+/**
+ * ECharts time-series widget.
+ * @param props - Widget settings.
+ * @returns React element.
+ */
 export function ChartEchartsWidget(props: ChartEchartsSettings) {
 	const chartRef = useRef<HTMLDivElement>(null);
 	const echartsInstanceRef = useRef<echarts.EChartsType | null>(null);
@@ -224,6 +231,10 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
 	return <div ref={chartRef} style={{ width: "100%", height: "100%" }} />;
 }
 
+/**
+ * Widget definition for the ECharts chart.
+ * @returns Widget definition.
+ */
 export function ChartEchartsWidgetDefinition() {
 	const title: ControlElement = {
 		type: "Control",

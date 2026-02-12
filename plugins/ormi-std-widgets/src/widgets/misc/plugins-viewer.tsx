@@ -11,6 +11,10 @@ import { FolderTreeIcon } from "lucide-react";
 
 import { useEffect, useState } from "react";
 
+/**
+ * Plugins viewer widget body.
+ * @returns React element.
+ */
 function PluginViewer() {
 	const [data, setData] = useState<TreeDataItem[]>([]);
 
@@ -94,6 +98,10 @@ function PluginViewer() {
 	);
 }
 
+/**
+ * Widget definition for plugins viewer.
+ * @returns Widget definition.
+ */
 export function PluginsViewerDefinition(): WidgetDefinition {
 	return {
 		id: "plugins-viewer-widget",

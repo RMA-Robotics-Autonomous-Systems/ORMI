@@ -58,6 +58,10 @@ import {
 	widgetAtomFamily,
 } from "../../atoms";
 
+/**
+ * React-grid-layout dashboard implementation.
+ * @returns React element.
+ */
 const Dashboard = () => {
 	const widgets = useAtomValue(widgetsAtom);
 	const layouts = useAtomValue(layoutsAtom);

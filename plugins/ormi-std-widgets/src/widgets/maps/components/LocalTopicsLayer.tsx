@@ -8,6 +8,9 @@ import {
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { LocalTopicVisualizer } from "../local-topic-visualizer-types";
 
+/**
+ * Configuration for a local coordinate topic.
+ */
 interface LocalTopicConfig {
 	name: string;
 	topic: SelectedTopic;
@@ -15,13 +18,17 @@ interface LocalTopicConfig {
 	visualizerType?: string;
 }
 
+/**
+ * Props for LocalTopicsLayer.
+ */
 interface LocalTopicsLayerProps {
 	localTopics: LocalTopicConfig[];
 }
 
 /**
- * Component that renders all local coordinate topics
- * Handles transformation from local frames to GPS coordinates
+ * Renders local coordinate topics and converts them to GPS coordinates.
+ * @param props - Component props.
+ * @returns React element or null when there is nothing to render.
  */
 export function LocalTopicsLayer({ localTopics }: LocalTopicsLayerProps) {
 	const pluginsManager = usePluginsManager();

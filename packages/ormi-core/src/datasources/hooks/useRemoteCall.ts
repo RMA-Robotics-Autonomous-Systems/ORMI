@@ -20,6 +20,7 @@ import {
 // Hook State Interface
 // ============================================================================
 
+/** State for remote call execution. */
 interface UseRemoteCallState<TFeedback> {
 	/** Current status of the call */
 	status: RemoteCallStatus;
@@ -33,6 +34,7 @@ interface UseRemoteCallState<TFeedback> {
 	lastDuration: number | null;
 }
 
+/** Return shape for the useRemoteCall hook. */
 interface UseRemoteCallReturn<
 	TRequest,
 	TResponse,
@@ -57,37 +59,8 @@ interface UseRemoteCallReturn<
 
 /**
  * React hook for executing remote calls (services/actions).
- *
- * @example
- * ```tsx
- * // Simple service call
- * const { execute, isExecuting, error } = useRemoteCall<SetBoolRequest, SetBoolResponse>(
- *   serviceDefinition
- * );
- *
- * const handleClick = async () => {
- *   const result = await execute({ data: true });
- *   if (result.success) {
- *     console.log('Response:', result.data);
- *   }
- * };
- * ```
- *
- * @example
- * ```tsx
- * // Action with feedback
- * const { execute, cancel, feedback, status } = useRemoteCall<
- *   NavigateGoal,
- *   NavigateResult,
- *   NavigateFeedback
- * >(actionDefinition);
- *
- * useEffect(() => {
- *   if (feedback) {
- *     console.log('Distance remaining:', feedback.distance_remaining);
- *   }
- * }, [feedback]);
- * ```
+ * @param definition - Remote call definition.
+ * @returns Remote call helpers and state.
  */
 function useRemoteCall<
 	TRequest = unknown,
@@ -293,6 +266,7 @@ function useRemoteCall<
 // useAvailableRemoteCalls Hook
 // ============================================================================
 
+/** Filter options for available remote calls. */
 interface UseAvailableRemoteCallsFilter {
 	datasource_id?: string;
 	hasFeedback?: boolean;
@@ -300,16 +274,9 @@ interface UseAvailableRemoteCallsFilter {
 }
 
 /**
- * React hook to get all available remote calls from all datasources.
- * Uses Jotai atoms for event-driven updates - no polling needed.
- *
- * @example
- * ```tsx
- * const { calls, count, byDatasource } = useAvailableRemoteCalls();
- *
- * // Filter to only actions (calls with feedback)
- * const actions = calls.filter(c => c.feedbackType);
- * ```
+ * React hook to get available remote calls from all datasources.
+ * @param filter - Optional filter.
+ * @returns Remote call list and metadata.
  */
 function useAvailableRemoteCalls(filter?: UseAvailableRemoteCallsFilter) {
 	// Subscribe to the atoms - automatic re-render when they change

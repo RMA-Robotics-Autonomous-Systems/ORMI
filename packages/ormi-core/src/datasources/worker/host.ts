@@ -24,6 +24,7 @@ import type {
 } from "./protocol";
 import { createRpcClient } from "./rpc";
 
+/** Options for configuring a worker datasource host. */
 interface WorkerDatasourceHostOptions<Settings = DatasourceProviderSettings> {
 	worker: Worker;
 	datasourceId: string;
@@ -31,6 +32,7 @@ interface WorkerDatasourceHostOptions<Settings = DatasourceProviderSettings> {
 	pluginsManager: PluginsManager;
 }
 
+/** Worker host that proxies datasource hooks to a Web Worker. */
 export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 	private readonly worker: Worker;
 	private readonly datasourceId: string;

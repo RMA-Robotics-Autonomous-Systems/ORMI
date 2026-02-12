@@ -48,10 +48,8 @@ const defaultLayout: LayoutData = {
 };
 
 /**
- * Panel Dashboard using RC-Dock with ButtonHolder integration via React Portals
- *
- * This component integrates the ButtonHolder system with RC-Dock tabs by using React Portals
- * to render buttons from widget content into tab titles while preserving React context and event handlers.
+ * RC-Dock dashboard with ButtonHolder integration.
+ * @returns React element.
  */
 const PanelDashboard = () => {
 	const {

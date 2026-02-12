@@ -4,6 +4,9 @@ import React, { useMemo } from "react";
 import { Button } from "@workspace/ui/components/button";
 import { ExternalLink } from "lucide-react";
 
+/**
+ * Props for WssTrustButton component.
+ */
 export interface WssTrustButtonProps {
 	value?: string;
 	handleChange?: (newValue: any) => void;

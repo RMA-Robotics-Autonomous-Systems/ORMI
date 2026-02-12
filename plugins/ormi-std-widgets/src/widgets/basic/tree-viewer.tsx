@@ -12,6 +12,10 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { TreeDataItem, TreeView } from "@workspace/ui/components/tree-view";
 import { ListTreeIcon } from "lucide-react";
 
+/**
+ * Tree viewer widget body.
+ * @returns React element.
+ */
 export function TreeViewer() {
 	const { sources } = useLocalDataSource();
 	// const animationFrameId = useRef<number>();
@@ -60,6 +64,10 @@ export function TreeViewer() {
 	);
 }
 
+/**
+ * Widget definition for TreeViewer.
+ * @returns Widget definition.
+ */
 export function TreeViewerDefinition(): WidgetDefinition {
 	const pluginsManager = usePluginsManager();
 

@@ -91,6 +91,12 @@ const handleLoad = async (): Promise<Map<string, Template>> => {
 	}
 };
 
+/**
+ * Handles template update operations.
+ * @param templateId - Template ID to update.
+ * @param updatedTemplate - Updated template data.
+ * @returns True if update succeeded, false otherwise.
+ */
 export const handleUpdate = async (
 	templateId: string,
 	updatedTemplate: Template,

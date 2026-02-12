@@ -1,11 +1,9 @@
 import { Plugin, PluginAction, PluginFilter } from "./plugins-types";
 import { PluginsHooks } from "./plugins-types";
 
-/*
-
-    Class used in client side to manage actions and filters of plugins
-
-*/
+/**
+ * Manages plugin actions and filters on client side.
+ */
 export class PluginsManager {
 	private plugins: Map<string | PluginsHooks, Plugin>;
 
@@ -23,6 +21,12 @@ export class PluginsManager {
 		);
 	}
 
+	/**
+	 * Applies a filter to transform data through registered plugin filters.
+	 * @param filterName - Filter hook name.
+	 * @param args - Arguments where first is the value to transform.
+	 * @returns Transformed value.
+	 */
 	applyFilter<T>(filterName: string | PluginsHooks, ...args: any): T {
 		if (args.length < 1) {
 			throw new Error(`No argument given in ${filterName}`);
@@ -53,6 +57,12 @@ export class PluginsManager {
 		return result;
 	}
 
+	/**
+	 * Applies a filter asynchronously through registered plugin filters.
+	 * @param filterName - Filter hook name.
+	 * @param args - Arguments where first is the value to transform.
+	 * @returns Promise resolving to transformed value.
+	 */
 	async applyFilterAsync<T>(
 		filterName: string | PluginsHooks,
 		...args: any
@@ -87,6 +97,11 @@ export class PluginsManager {
 		return result;
 	}
 
+	/**
+	 * Adds a filter to the basic plugin.
+	 * @param filterName - Filter hook name.
+	 * @param filter - Filter to add.
+	 */
 	addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void {
 		const basicPlugin = this.plugins.get("basic");
 
@@ -105,6 +120,10 @@ export class PluginsManager {
 		basicPlugin.filters.get(filterName)?.set(filter.id, filter);
 	}
 
+	/**
+	 * Removes a filter by its ID from all plugins.
+	 * @param pluginFilterId - Filter ID to remove.
+	 */
 	removeFilter(pluginFilterId: string): void {
 		// search for the filter in all plugins
 		// if none has the filter, throw an error, otherwise delete it
@@ -120,10 +139,11 @@ export class PluginsManager {
 		// throw new Error(`Filter with id ${pluginFilterId} not found`);
 	}
 
-	/*
-        Execute all callback registered on the "actionName" hook.
-        If no action found, will log a warning.
-    */
+	/**
+	 * Executes all callbacks registered on the action hook.
+	 * @param actionName - Action hook name.
+	 * @param args - Arguments to pass to actions.
+	 */
 	doAction(actionName: string | PluginsHooks, ...args: any): void {
 		const actions: PluginAction[] = [];
 
@@ -150,9 +170,13 @@ export class PluginsManager {
 		});
 	}
 
-	/*
-        Same as do action, but will wait for action to exist.
-    */
+	/**
+	 * Waits for action to exist, then executes it.
+	 * @param actionName - Action hook name.
+	 * @param timeoutSecond - Timeout in seconds (default 5).
+	 * @param args - Arguments to pass to action.
+	 * @returns Promise resolving to true if action executed, false if timeout.
+	 */
 	async WaitAndDoAction(
 		actionName: string | PluginsHooks,
 		timeoutSecond: number = 5,
@@ -171,9 +195,11 @@ export class PluginsManager {
 		return true;
 	}
 
-	/*
-        Add an action to the system. The action can later be called using the "actionName"
-    */
+	/**
+	 * Adds an action to the basic plugin.
+	 * @param actionName - Action hook name.
+	 * @param action - Action to add.
+	 */
 	addAction(actionName: string | PluginsHooks, action: PluginAction): void {
 		const basicPlugin = this.plugins.get("basic");
 
@@ -192,9 +218,10 @@ export class PluginsManager {
 		basicPlugin.actions.get(actionName)?.set(action.id, action);
 	}
 
-	/*
-        Remove an action from its id
-    */
+	/**
+	 * Removes an action by its ID from all plugins.
+	 * @param pluginActionId - Action ID to remove.
+	 */
 	removeAction(pluginActionId: string): void {
 		// search for the action in all plugins, if none has the action, throw an error, otherwise delete it
 		this.plugins.forEach((plugin) => {
@@ -209,9 +236,12 @@ export class PluginsManager {
 		// throw new Error(`Action with id ${pluginActionId} not found`);
 	}
 
-	/*
-        Wait for action to existe, check at a period of 100ms until found or timed out
-    */
+	/**
+	 * Waits for an action to exist with periodic checks.
+	 * @param actionName - Action hook name.
+	 * @param timeoutSecond - Timeout in seconds (default 5).
+	 * @returns Promise resolving to true if found, false if timeout.
+	 */
 	WaitForActionToExist(
 		actionName: string | PluginsHooks,
 		timeoutSecond: number = 5,
@@ -232,6 +262,10 @@ export class PluginsManager {
 		});
 	}
 
+	/**
+	 * Gets all registered plugins.
+	 * @returns Map of plugins.
+	 */
 	getPlugins(): Map<string | PluginsHooks, Plugin> {
 		return this.plugins;
 	}

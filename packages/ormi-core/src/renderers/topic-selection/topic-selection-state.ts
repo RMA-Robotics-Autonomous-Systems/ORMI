@@ -8,6 +8,7 @@ import {
 	DualPropertyTree,
 } from "../../widgets/topic-compatibility";
 
+/** Topic selection state shape. */
 export interface TopicSelectionState {
 	// Data
 	topics: DatasourceTopic[];
@@ -30,6 +31,7 @@ export interface TopicSelectionState {
 	requirements?: DataRequirements;
 }
 
+/** Topic selection actions. */
 export type TopicSelectionAction =
 	| { type: "SET_TOPICS"; topics: DatasourceTopic[] }
 	| { type: "SET_REQUIREMENTS"; requirements?: DataRequirements }
@@ -45,6 +47,7 @@ export type TopicSelectionAction =
 	  }
 	| { type: "SET_PROPERTY_TREES"; trees: Map<string, DualPropertyTree> };
 
+/** Initial topic selection state. */
 export const initialTopicSelectionState: TopicSelectionState = {
 	topics: [],
 	filteredTopics: [],
@@ -60,6 +63,14 @@ export const initialTopicSelectionState: TopicSelectionState = {
 	requirements: undefined,
 };
 
+/**
+ * Filter topics by search and compatibility.
+ * @param topics - Topics list.
+ * @param searchTerm - Search query.
+ * @param showOnlyCompatible - Whether to filter by compatibility.
+ * @param compatibilityAnalysis - Compatibility analysis map.
+ * @returns Filtered topics list.
+ */
 const filterTopics = (
 	topics: DatasourceTopic[],
 	searchTerm: string,
@@ -92,6 +103,12 @@ const filterTopics = (
 	return filtered;
 };
 
+/**
+ * Reducer for topic selection state.
+ * @param state - Current state.
+ * @param action - Action to apply.
+ * @returns Next state.
+ */
 export const topicSelectionReducer = (
 	state: TopicSelectionState,
 	action: TopicSelectionAction,

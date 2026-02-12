@@ -10,10 +10,18 @@ interface CookiesProviderProps {
 	children: ReactNode;
 }
 
+/**
+ * Context for cookies operations.
+ */
 export const TemplatesProviderContext = createContext<
 	CookiesProviderContextInterface | undefined
 >(undefined);
 
+/**
+ * Cookies provider component.
+ *
+ * @param props - Provider props including children
+ */
 export const CookiesProvider = (props: CookiesProviderProps) => {
 	const cookiesRef = useRef<Bun.CookieMap>(new Bun.CookieMap());
 
@@ -39,6 +47,11 @@ export const CookiesProvider = (props: CookiesProviderProps) => {
 	);
 };
 
+/**
+ * Hook to access cookies context.
+ *
+ * @returns Cookies context value
+ */
 export const useCookies = () => {
 	const context = useContext(TemplatesProviderContext);
 	if (!context) {

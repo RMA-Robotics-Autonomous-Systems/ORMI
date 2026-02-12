@@ -5,6 +5,7 @@ import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
 import { Button } from "@workspace/ui/components/button";
 import { SettingsIcon } from "lucide-react";
 
+/** Props for renderTab. */
 interface TabRendererProps {
 	node: TabNode;
 	renderValues: ITabRenderValues;
@@ -15,7 +16,9 @@ interface TabRendererProps {
 }
 
 /**
- * Portal container component that registers itself with the FlexLayoutPortalContext
+ * Portal container for ButtonHolder rendering.
+ * @param props - Component props.
+ * @returns React element.
  */
 const PortalContainer: React.FC<{ widgetId: string }> = ({ widgetId }) => {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -35,8 +38,8 @@ const PortalContainer: React.FC<{ widgetId: string }> = ({ widgetId }) => {
 };
 
 /**
- * Custom tab renderer for FlexLayout
- * Handles tab title, icon, and settings button
+ * Render a FlexLayout tab with widget actions.
+ * @param props - Renderer props.
  */
 export const renderTab = ({
 	node,

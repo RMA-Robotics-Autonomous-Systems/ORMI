@@ -26,6 +26,7 @@ import { LocalTopicsLayer } from "./components/LocalTopicsLayer";
 import { LocalTopic } from "./local-topic-visualizer-types";
 import { IMULocalTopic } from "./local-components/imu-local";
 
+/** Settings for MapsBoxViewer widget. */
 interface MapsViewerSettings {
 	title: string;
 	mapUrl: string;
@@ -55,6 +56,11 @@ interface MapsViewerSettings {
 	}[];
 }
 
+/**
+ * Map viewer widget with GPS and local topic layers.
+ * @param props - Widget settings.
+ * @returns React element.
+ */
 export default function MapsBoxViewer(props: MapsViewerSettings) {
 	// State management
 	const [refreshCounter, setRefreshCounter] = useState(0);
@@ -169,6 +175,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 	);
 }
 
+/**
+ * Widget definition for MapsBoxViewer.
+ * @returns Widget definition.
+ */
 export function MapsBoxViewerDefinition() {
 	const pluginsManager = usePluginsManager();
 

@@ -1,6 +1,9 @@
 import { SiteConfig } from "@/types/index";
 import { env } from "./env.js";
 
+/**
+ * Site configuration for ORMI application.
+ */
 export const siteConfig: SiteConfig = {
 	name: "ORMI",
 	description:

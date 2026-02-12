@@ -8,6 +8,7 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { Slider } from "@workspace/ui/components/slider";
 
+/** Custom raster layer configuration. */
 interface CustomLayer {
 	name: string;
 	url: string;
@@ -16,6 +17,11 @@ interface CustomLayer {
 	bounds?: [[number, number], [number, number]]; // Optional bounds: [[minLng, minLat], [maxLng, maxLat]]
 }
 
+/**
+ * Overlay UI for custom map layers.
+ * @param props - Component props.
+ * @returns React element or null.
+ */
 export function CustomLayersOverlay({
 	customLayers,
 	mapRef,

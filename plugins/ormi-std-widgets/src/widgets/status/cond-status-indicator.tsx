@@ -11,6 +11,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
+/** Props for ConditionStatusIndicator. */
 interface ConditionStatusIndicatorProps {
 	title: string;
 	topic: SelectedTopic;
@@ -22,6 +23,11 @@ interface ConditionStatusIndicatorProps {
 	}[];
 }
 
+/**
+ * Conditional status indicator widget body.
+ * @param props - Component props.
+ * @returns React element.
+ */
 function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
 	const { sources } = useLocalDataSource();
 
@@ -84,6 +90,10 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
 	);
 }
 
+/**
+ * Widget definition for conditional status indicator.
+ * @returns Widget definition.
+ */
 export function CondStatusIndicatorDefinition() {
 	const pluginsManager = usePluginsManager();
 

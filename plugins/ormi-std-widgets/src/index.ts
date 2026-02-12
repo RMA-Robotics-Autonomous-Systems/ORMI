@@ -6,6 +6,7 @@ import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-types";
 import { registerDefaultTopicPreviews } from "./widgets/basic/topic-previews";
 
+/** Standard widgets plugin registration. */
 class PluginA extends Plugin {
 	constructor() {
 		super();

@@ -1,5 +1,6 @@
-// Offline Database Types and Interfaces
-
+/**
+ * Workspace data for offline storage.
+ */
 export interface WorkspaceData {
 	id: number;
 	name: string;
@@ -11,6 +12,9 @@ export interface WorkspaceData {
 	_synced: boolean;
 }
 
+/**
+ * Template data for offline storage.
+ */
 export interface TemplateData {
 	id: number;
 	name: string;
@@ -26,6 +30,9 @@ export interface TemplateData {
 	_synced: boolean;
 }
 
+/**
+ * User data for offline storage.
+ */
 export interface UserData {
 	id: string;
 	name?: string;
@@ -35,6 +42,9 @@ export interface UserData {
 	_synced: boolean;
 }
 
+/**
+ * Authentication data for offline storage.
+ */
 export interface AuthData {
 	sessionToken?: string;
 	userId?: string;
@@ -44,6 +54,9 @@ export interface AuthData {
 	_lastModified: number;
 }
 
+/**
+ * Sync operation queue entry.
+ */
 export interface SyncOperation {
 	id: string;
 	method: string;
@@ -53,13 +66,18 @@ export interface SyncOperation {
 	retryCount: number;
 }
 
+/**
+ * API response structure.
+ */
 export interface ApiResponse {
 	status: number;
 	data?: unknown;
 	headers?: Record<string, string>;
 }
 
-// API endpoint patterns
+/**
+ * API endpoint patterns for routing.
+ */
 export const API_ENDPOINTS = {
 	WORKSPACES: "/api/workspaces",
 	WORKSPACE_BY_ID: /^\/api\/workspaces\/(\d+)$/,
@@ -72,7 +90,9 @@ export const API_ENDPOINTS = {
 	AUTH_SIGNOUT: /^\/api\/auth\/signout/,
 } as const;
 
-// Sync statuses
+/**
+ * Sync status enum.
+ */
 export enum SyncStatus {
 	PENDING = "pending",
 	SYNCING = "syncing",

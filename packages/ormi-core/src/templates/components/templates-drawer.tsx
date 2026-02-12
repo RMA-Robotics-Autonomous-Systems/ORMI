@@ -40,6 +40,7 @@ import {
 	DatasourceProviderSettings,
 } from "../../datasources";
 
+/** Props for WidgetTemplateDrawer. */
 interface WidgetTemplateDrawerProps {
 	templates: Map<string, Template>;
 	removeTemplate: (id: string) => void;
@@ -51,6 +52,11 @@ interface WidgetTemplateDrawerProps {
 	updateTemplate?: (id: string, updatedTemplate: Template) => void;
 }
 
+/**
+ * Drawer UI for browsing and applying templates.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function WidgetTemplateDrawer(props: WidgetTemplateDrawerProps) {
 	const {
 		templates,

@@ -52,10 +52,18 @@ const ShadcnInputNumber = (props: ControlProps) => {
 	);
 };
 
+/**
+ * Shadcn number control component.
+ *
+ * @param props - Component props
+ */
 export const ShadcnNumberControl = (props: ControlProps) => (
 	<ShadcnInputControl {...props} input={ShadcnInputNumber} />
 );
 
+/**
+ * Ranked tester for the Shadcn number control renderer.
+ */
 export const shadcnNumberControlTester: RankedTester = rankWith(
 	3,
 	isNumberControl,

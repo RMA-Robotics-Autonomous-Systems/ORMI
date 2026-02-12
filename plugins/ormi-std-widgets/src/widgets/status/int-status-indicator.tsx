@@ -11,6 +11,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
+/** Props for IntStatusIndicator. */
 interface IntStatusIndicatorProps {
 	title: string;
 	topic: SelectedTopic;
@@ -20,6 +21,11 @@ interface IntStatusIndicatorProps {
 	}[];
 }
 
+/**
+ * Integer status indicator widget body.
+ * @param props - Component props.
+ * @returns React element.
+ */
 function IntStatusIndicator(props: IntStatusIndicatorProps) {
 	const { sources } = useLocalDataSource();
 
@@ -72,6 +78,10 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
 	);
 }
 
+/**
+ * Widget definition for integer status indicator.
+ * @returns Widget definition.
+ */
 export function IntStatusIndicatorDefinition() {
 	const pluginsManager = usePluginsManager();
 

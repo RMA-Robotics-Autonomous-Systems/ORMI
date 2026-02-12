@@ -2,6 +2,10 @@ import { JSX } from "react";
 import { WidgetDefinition } from "../widget-interface";
 import { OctagonAlertIcon } from "lucide-react";
 
+/**
+ * Fallback widget content for missing widget definitions.
+ * @returns React element.
+ */
 const notFound = (): JSX.Element => {
 	return (
 		<div
@@ -78,6 +82,7 @@ const notFound = (): JSX.Element => {
 	);
 };
 
+/** Fallback widget definition used when a widget is missing. */
 export const widgetNotFound = {
 	id: "widget-not-found",
 	name: "Widget Not Found",

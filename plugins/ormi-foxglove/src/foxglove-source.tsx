@@ -19,9 +19,19 @@ import {
 	FoxgloveWorkerConnection,
 } from "./foxglove-connection";
 
+/**
+ * Checks if the WebSocket URL is insecure (ws://).
+ * @param url - WebSocket URL.
+ * @returns True if insecure.
+ */
 const isInsecureWebSocketUrl = (url: string) =>
 	url.trim().toLowerCase().startsWith("ws://");
 
+/**
+ * Hook to manage Foxglove connection status.
+ * @param toasts - Whether to show toast notifications.
+ * @returns Connection status and handlers.
+ */
 const useConnectionStatus = (toasts: boolean) => {
 	const [readyState, setReadyState] = useState(ReadyState.CONNECTING);
 	const [reconnectAttempt, setReconnectAttempt] = useState(0);
@@ -142,7 +152,10 @@ const FoxgloveSourceProvider = (
 export { FoxgloveSourceProvider };
 export type { FoxgloveDataSourceSettings };
 
-// Hook to use the Foxglove context (deprecated)
+/**
+ * Hook to use the Foxglove context (deprecated after worker migration).
+ * @returns Throws error.
+ */
 export const useFoxgloveSource = () => {
 	throw new Error("useFoxgloveSource is deprecated after worker migration");
 };

@@ -20,6 +20,9 @@ import type {
 	FoxgloveWorkerMethods,
 } from "./foxglove-worker-protocol";
 
+/**
+ * Options for FoxgloveWorkerHost constructor.
+ */
 interface FoxgloveWorkerHostOptions<Settings = DatasourceProviderSettings> {
 	worker: Worker;
 	datasourceId: string;
@@ -27,6 +30,10 @@ interface FoxgloveWorkerHostOptions<Settings = DatasourceProviderSettings> {
 	pluginsManager: PluginsManager;
 }
 
+/**
+ * Manages communication with Foxglove worker thread.
+ * @template Settings - Datasource provider settings type.
+ */
 export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 	private readonly worker: Worker;
 	private readonly datasourceId: string;

@@ -27,6 +27,7 @@ import { Badge } from "@workspace/ui/components/badge";
 
 import { ActionDialog } from "@workspace/ui/combined/ActionDialog";
 
+/** Props for TemplateComponent. */
 interface TemplateProps {
 	template: WidgetTemplate;
 	templateId: string;
@@ -36,6 +37,11 @@ interface TemplateProps {
 	updateTemplate?: (id: string, updatedTemplate: WidgetTemplate) => void;
 }
 
+/**
+ * Widget template list item with actions.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const TemplateComponent = (props: TemplateProps) => {
 	const { template, templateId, availableWidgets } = props;
 	const [optionsOpen, setOptionsOpen] = useState(false);

@@ -19,6 +19,7 @@ import {
 import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
+/** Props for KeyBoardControl. */
 interface KeyboardControlData {
 	title: string;
 	axes: {
@@ -37,6 +38,11 @@ interface KeyboardControlData {
 	keepPublishZero: boolean;
 }
 
+/**
+ * Keyboard control widget.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function KeyBoardControl(props: KeyboardControlData) {
 	const [speed, setSpeed] = useState<number>(props.startingSpeed || 1.0);
 	const [unlockActive, setUnlockActive] = useState<boolean>(false);
@@ -297,7 +303,7 @@ export function KeyBoardControl(props: KeyboardControlData) {
 					<div
 						data-active={!isLocked}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
                             data-[active=true]:bg-green-600/20
@@ -317,7 +323,7 @@ export function KeyBoardControl(props: KeyboardControlData) {
 					<div
 						data-active={speedkeyIncActive || speedkeyDecActive}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
                             data-[active=true]:bg-green-600/20
@@ -441,6 +447,10 @@ export function KeyBoardControl(props: KeyboardControlData) {
 	);
 }
 
+/**
+ * Widget definition for keyboard control.
+ * @returns Widget definition.
+ */
 export function KeyboardControlDefinition() {
 	const pluginsManager = usePluginsManager();
 

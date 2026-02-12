@@ -15,14 +15,21 @@ import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { IMU, Vector3 } from "@workspace/ormi-core/types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
+/**
+ * Props for heading indicator widget.
+ */
 interface HeadingProps {
 	title: string;
 	topic: SelectedTopic;
-
-	orientationAxis: string; // which axis to show the orientation
-	imuFrame: "ENU" | "NED" | "NWU"; // IMU frame convention
+	orientationAxis: string;
+	imuFrame: "ENU" | "NED" | "NWU";
 }
 
+/**
+ * Heading indicator widget displaying compass heading.
+ * @param props - Widget props.
+ * @returns React element.
+ */
 export function WidgetHeadingIndicator(props: HeadingProps) {
 	const { getSource } = useLocalDataSource();
 	const [heading, setHeading] = useState(0);
@@ -104,6 +111,10 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
 	);
 }
 
+/**
+ * Returns widget definition for heading indicator.
+ * @returns Widget definition.
+ */
 export function HeadingDefinition() {
 	const pluginsManager = usePluginsManager();
 

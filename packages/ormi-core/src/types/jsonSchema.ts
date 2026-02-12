@@ -10,6 +10,7 @@ import {
 } from "./common";
 import { Movement, IMU } from "./movement";
 
+/** List of supported webapp type names. */
 export const WebTypes: string[] = [
 	"Vector2",
 	"Vector3",
@@ -27,6 +28,11 @@ export const WebTypes: string[] = [
 	"Pose",
 ];
 
+/**
+ * Resolve a JSON Schema definition from a known webapp type name.
+ * @param name - Webapp type name.
+ * @returns JSON Schema for the given type name.
+ */
 export const getSchemaFromStringName = (name: string): JSONSchema7 => {
 	switch (name) {
 		case "Vector2":

@@ -11,6 +11,7 @@ import type {
 	RemoteCallStatus,
 } from "../remote-call-interface";
 
+/** RPC methods exposed by a datasource worker. */
 export interface DatasourceWorkerMethods<
 	Settings = DatasourceProviderSettings,
 > extends RpcMethodMap {
@@ -30,11 +31,13 @@ export interface DatasourceWorkerMethods<
 	shutdown: () => void | Promise<void>;
 }
 
+/** Wire format for remote call handle metadata. */
 export interface RemoteCallHandleWire {
 	callId: string;
 	status?: RemoteCallStatus;
 }
 
+/** Events emitted by a datasource worker. */
 export interface DatasourceWorkerEvents {
 	"topic-published": {
 		topic: string;

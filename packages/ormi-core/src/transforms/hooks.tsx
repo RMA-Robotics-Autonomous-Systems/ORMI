@@ -12,12 +12,11 @@ import {
 import { Vector3 } from "../types";
 
 /**
- * Hook to transform data from a local coordinate frame to GPS coordinates
- *
- * @param sourceFrameId - The frame_id of the source data (e.g., "base_link", "odom")
- * @param gpsOriginTopic - The GPS topic to use as origin reference
- * @param gpsOriginData - The latest GPS data to use as origin (should be GeolocationPosition)
- * @returns Object with transform functions and error state
+ * Transform local coordinates into GPS coordinates using a transform chain.
+ * @param sourceFrameId - Source frame id.
+ * @param gpsFrameId - GPS frame id.
+ * @param gpsOriginData - Latest GPS data used as origin.
+ * @returns Transform helpers and status flags.
  */
 export function useTransformToGPS(
 	sourceFrameId: string,
@@ -110,7 +109,10 @@ export function useTransformToGPS(
 }
 
 /**
- * Hook to get the latest GPS data from a topic for use as origin
+ * Resolve the latest GPS origin from a topic source.
+ * @param gpsTopic - Selected GPS topic.
+ * @param getSource - Source accessor for topic data.
+ * @returns Latest GPS position or null.
  */
 export function useGPSOrigin(
 	gpsTopic: SelectedTopic | null,

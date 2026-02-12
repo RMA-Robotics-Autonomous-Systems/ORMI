@@ -12,8 +12,7 @@ import { SyncManager } from "./sync-manager";
 import { ConflictResolver } from "./conflict-resolver";
 
 /**
- * Main Offline Proxy System
- * Coordinates all offline functionality
+ * Main offline proxy system coordinating all offline functionality.
  */
 export class OfflineProxy {
 	private database: OfflineDatabase;
@@ -36,7 +35,8 @@ export class OfflineProxy {
 	}
 
 	/**
-	 * Initialize the offline proxy system
+	 * Initializes the offline proxy system.
+	 * @returns Promise that resolves when initialized.
 	 */
 	async initialize(): Promise<void> {
 		if (this.initialized) return;
@@ -59,7 +59,9 @@ export class OfflineProxy {
 	}
 
 	/**
-	 * Handle incoming requests
+	 * Handles incoming requests.
+	 * @param request - Request to handle.
+	 * @returns Response or null if not handled.
 	 */
 	async handleRequest(request: Request): Promise<Response | null> {
 		if (!this.initialized) {
@@ -70,7 +72,9 @@ export class OfflineProxy {
 	}
 
 	/**
-	 * Set authentication data
+	 * Sets authentication data.
+	 * @param authData - Authentication data to store.
+	 * @returns Promise that resolves when complete.
 	 */
 	async setAuth(authData: Record<string, unknown>): Promise<void> {
 		await this.database.setAuth({

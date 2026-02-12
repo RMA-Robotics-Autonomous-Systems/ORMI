@@ -9,7 +9,8 @@ import path from "path";
 import { PluginInfo } from "./plugins-types";
 
 /**
- * Server action to load plugins from the file system
+ * Loads plugins from the file system (server action).
+ * @returns Promise resolving to map of plugin names to plugin info.
  */
 export async function loadPlugins(): Promise<Map<string, PluginInfo>> {
 	const plugins = new Map<string, PluginInfo>();

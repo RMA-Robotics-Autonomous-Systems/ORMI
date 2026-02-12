@@ -7,8 +7,7 @@ import {
 } from "./types";
 
 /**
- * IndexedDB Database Wrapper for Offline Storage
- * Manages all offline data storage and retrieval operations
+ * IndexedDB database wrapper for offline storage.
  */
 export class OfflineDatabase {
 	private dbName = "ormi-offline-db";
