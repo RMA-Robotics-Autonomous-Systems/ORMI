@@ -6,11 +6,20 @@ A modern, modular web platform for monitoring and controlling heterogeneous robo
 
 The Robotics and Autonomous Systems Laboratory develops ORMI at the Royal Military Academy of Belgium. The platform addresses the need for flexible, responsive human-machine interfaces that can adapt to diverse robotic systems while maintaining high performance and reliability.
 
-The architecture supports multiple data sources including ROS2 systems through ROSBridge Suite and Foxglove WebSocket protocol, direct drone control via Tello drones, and custom data providers. Widgets and dashboards are fully customizable through a plugin-based system.
+The architecture supports multiple data sources, including ROS2 systems through ROSBridge Suite and Foxglove WebSocket protocol, direct drone control via Tello drones, and custom data providers. Widgets and dashboards are fully customizable through a plugin-based system.
 
+## Screenshots
+- Lidar workspace
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-45-49" src="https://github.com/user-attachments/assets/e4f28a3a-e6ad-41de-88d6-1a948e4a9002" />
+- Map workspace
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-36-53" src="https://github.com/user-attachments/assets/74aab6f6-54d7-40f0-8df4-59b21e196aa0" />
+- Workspaces
 <img width="2542" height="1253" alt="Screenshot from 2026-02-12 10-34-05" src="https://github.com/user-attachments/assets/e2696fe5-744d-429d-a3f4-0dc463045d5e" />
+- New workspaces and layouts 
+<img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-34-57" src="https://github.com/user-attachments/assets/5ff083b2-0b7c-4210-8c1e-4ae442c63d0a" />
+- Widgets
+<img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-40-15" src="https://github.com/user-attachments/assets/e49a6faf-4eb8-4625-a598-b9362d3aba4e" />
+
 
 ## Key Features
 
