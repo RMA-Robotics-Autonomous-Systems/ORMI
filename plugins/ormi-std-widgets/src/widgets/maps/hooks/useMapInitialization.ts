@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 
 /**
- * Hook to handle map initialization
- * Manages loading state and geolocation detection
+ * Manages map initialization with geolocation detection.
+ * @returns Starting location and loading state.
  */
 export function useMapInitialization() {
 	const [startingLocation, setStartingLocation] = useState<[number, number]>([

@@ -18,17 +18,12 @@ import { RemoteCallDefinition } from "./remote-call-interface";
 // Core Atoms
 // ============================================================================
 
-/**
- * Main atom holding all remote calls from all datasources
- * Key is the datasource_id
- */
+/** Main atom holding remote calls grouped by datasource id. */
 export const remoteCallsAtom = atom<Map<string, RemoteCallDefinition[]>>(
 	new Map<string, RemoteCallDefinition[]>(),
 );
 
-/**
- * Derived atom that returns a flat array of all remote calls
- */
+/** Derived atom returning a flat array of all remote calls. */
 export const allRemoteCallsAtom = atom((get) => {
 	const callsByDatasource = get(remoteCallsAtom);
 	const allCalls: RemoteCallDefinition[] = [];
@@ -40,24 +35,18 @@ export const allRemoteCallsAtom = atom((get) => {
 	return allCalls;
 });
 
-/**
- * Derived atom that returns the total count of remote calls
- */
+/** Derived atom returning the total count of remote calls. */
 export const remoteCallCountAtom = atom((get) => {
 	const allCalls = get(allRemoteCallsAtom);
 	return allCalls.length;
 });
 
-/**
- * Derived atom that returns remote calls grouped by datasource
- */
+/** Derived atom returning remote calls grouped by datasource. */
 export const remoteCallsByDatasourceAtom = atom((get) => {
 	return get(remoteCallsAtom);
 });
 
-/**
- * Atom to track which datasources have registered remote calls
- */
+/** Atom tracking datasource ids that registered remote calls. */
 export const remoteCallSourcesAtom = atom<Set<string>>(new Set<string>());
 
 // ============================================================================
@@ -65,21 +54,25 @@ export const remoteCallSourcesAtom = atom<Set<string>>(new Set<string>());
 // ============================================================================
 
 /**
- * Get the current remote calls (for use outside React)
+ * Get remote calls grouped by datasource (outside React).
+ * @returns Remote calls map.
  */
 export function getRemoteCalls(): Map<string, RemoteCallDefinition[]> {
 	return getDefaultStore().get(remoteCallsAtom);
 }
 
 /**
- * Get all remote calls as a flat array (for use outside React)
+ * Get all remote calls as a flat array (outside React).
+ * @returns Remote call list.
  */
 export function getAllRemoteCalls(): RemoteCallDefinition[] {
 	return getDefaultStore().get(allRemoteCallsAtom);
 }
 
 /**
- * Subscribe to remote call changes (for use outside React)
+ * Subscribe to remote call changes (outside React).
+ * @param callback - Change callback.
+ * @returns Unsubscribe function.
  */
 export function subscribeToRemoteCalls(callback: () => void): () => void {
 	return getDefaultStore().sub(remoteCallsAtom, callback);
@@ -90,11 +83,9 @@ export function subscribeToRemoteCalls(callback: () => void): () => void {
 // ============================================================================
 
 /**
- * Add or update remote calls from a datasource
- * This completely replaces the calls for the given datasource
- *
- * @param datasourceId - Unique ID of the datasource
- * @param calls - Array of remote call definitions
+ * Replace remote calls for a datasource.
+ * @param datasourceId - Datasource id.
+ * @param calls - Remote call definitions.
  */
 export function setRemoteCalls(
 	datasourceId: string,
@@ -118,11 +109,9 @@ export function setRemoteCalls(
 }
 
 /**
- * Add a single remote call to a datasource
- * If the call already exists (by name), it will be updated
- *
- * @param datasourceId - Unique ID of the datasource
- * @param call - Remote call definition to add
+ * Add or update a single remote call.
+ * @param datasourceId - Datasource id.
+ * @param call - Remote call definition.
  */
 export function addRemoteCall(
 	datasourceId: string,
@@ -159,10 +148,9 @@ export function addRemoteCall(
 }
 
 /**
- * Remove a specific remote call from a datasource
- *
- * @param datasourceId - Unique ID of the datasource
- * @param callName - Name of the call to remove
+ * Remove a specific remote call from a datasource.
+ * @param datasourceId - Datasource id.
+ * @param callName - Call name to remove.
  */
 export function removeRemoteCall(datasourceId: string, callName: string): void {
 	const store = getDefaultStore();
@@ -190,10 +178,8 @@ export function removeRemoteCall(datasourceId: string, callName: string): void {
 }
 
 /**
- * Clear all remote calls from a specific datasource
- * Call this when a datasource disconnects
- *
- * @param datasourceId - Unique ID of the datasource
+ * Clear all remote calls for a datasource.
+ * @param datasourceId - Datasource id.
  */
 export function clearRemoteCallsFromDatasource(datasourceId: string): void {
 	const store = getDefaultStore();
@@ -214,9 +200,7 @@ export function clearRemoteCallsFromDatasource(datasourceId: string): void {
 	}
 }
 
-/**
- * Completely clear all remote calls
- */
+/** Clear all remote calls and sources. */
 export function clearAllRemoteCalls(): void {
 	const store = getDefaultStore();
 	store.set(remoteCallsAtom, new Map());
@@ -224,10 +208,10 @@ export function clearAllRemoteCalls(): void {
 }
 
 /**
- * Find a remote call definition by name and optionally datasource
- *
- * @param callName - Name of the call to find
- * @param datasourceId - Optional datasource to search in
+ * Find a remote call definition by name and optional datasource.
+ * @param callName - Call name to find.
+ * @param datasourceId - Optional datasource id.
+ * @returns Remote call definition or null.
  */
 export function findRemoteCall(
 	callName: string,

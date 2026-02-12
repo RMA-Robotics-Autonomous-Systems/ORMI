@@ -29,6 +29,7 @@ import { DataRequirements } from "../../widgets/widget-interface";
 import { useDashboardManager } from "../../dashboard/components/dashboard-provider";
 import { WebTypes } from "../../types/jsonSchema";
 
+/** Props for TopicCreatorDialog. */
 interface TopicCreatorDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -36,6 +37,7 @@ interface TopicCreatorDialogProps {
 	requirements?: DataRequirements;
 }
 
+/** Form state for topic creation. */
 interface TopicCreationForm {
 	datasourceId: string;
 	topicName: string;
@@ -46,6 +48,11 @@ interface TopicCreationForm {
 // Use the centralized WebTypes from the type system
 // This ensures we stay decoupled from specific protocols like ROS
 
+/**
+ * Dialog for creating custom topics.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 	isOpen,
 	onClose,

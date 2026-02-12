@@ -3,14 +3,16 @@ import { TabNode } from "flexlayout-react";
 import { Widget, WidgetDefinition } from "../../../../widgets/widget-interface";
 import { WidgetRenderer } from "../components/WidgetRenderer";
 
+/** Props for useWidgetFactory. */
 interface UseWidgetFactoryProps {
 	widgets: Map<string, Widget>;
 	getDefinition: (widget_id: string) => WidgetDefinition;
 }
 
 /**
- * Hook to create FlexLayout factory function
- * Simple factory that renders widgets by their box_id
+ * Create a FlexLayout factory for widget rendering.
+ * @param props - Hook props.
+ * @returns FlexLayout factory function.
  */
 export const useWidgetFactory = ({
 	widgets,

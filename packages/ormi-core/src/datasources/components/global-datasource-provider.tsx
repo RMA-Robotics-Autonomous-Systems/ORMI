@@ -1,11 +1,8 @@
 "use client";
 
-/*
-    Load all available datasources and create a provider for them
-
-    - allow to interact with all datasources
-
-*/
+/**
+ * Load available datasources and render their providers.
+ */
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import {
@@ -44,6 +41,11 @@ type GlobalDataSources = object;
 
 const GlobalDataSourcesContext = createContext<GlobalDataSources>({});
 
+/**
+ * Global datasource provider wiring datasource providers and navbar UI.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	const { children } = props;
 
@@ -307,6 +309,10 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	);
 };
 
+/**
+ * Access global datasource context.
+ * @returns Global datasource context value.
+ */
 const useGlobalDataSources = () => {
 	const context = useContext(GlobalDataSourcesContext);
 	if (!context) {

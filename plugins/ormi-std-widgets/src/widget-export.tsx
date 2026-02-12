@@ -25,6 +25,11 @@ import { Scene3DDefinition } from "./widgets/webgl/scene-3d-definition";
 import { ImageViewerDefinition } from "./widgets/basic/image";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
+/**
+ * Register standard widget definitions.
+ * @param widgets - Widget list to extend.
+ * @returns Updated widget list.
+ */
 const WidgetExport = (widgets: WidgetDefinition[]) => {
 	widgets.push(KeyboardControlDefinition());
 	widgets.push(JoypadControlsDefinition());

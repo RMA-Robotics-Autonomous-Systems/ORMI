@@ -2,11 +2,16 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { GlobeIcon } from "lucide-react";
 
+/** Props for IFrame widget. */
 interface IFrameProps {
 	title: string;
 	url: string;
 }
 
+/**
+ * Widget definition for iframe viewer.
+ * @returns Widget definition.
+ */
 export function IframeDefinition(): WidgetDefinition {
 	return {
 		id: "iframe-widget",

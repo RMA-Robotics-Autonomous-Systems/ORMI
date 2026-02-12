@@ -1,9 +1,9 @@
 import { IJsonModel, Model, IJsonTabNode } from "flexlayout-react";
 
 /**
- * Serializes FlexLayout Model to JSON-safe format
- * Filters out transient state (focus, selection, exact sizes, auto-generated IDs)
- * Only preserves structural layout data that should be persisted
+ * Serialize a FlexLayout model to a JSON-safe structure.
+ * @param model - FlexLayout model.
+ * @returns JSON-safe model.
  */
 export function serializeFlexLayoutModel(model: Model): Record<string, any> {
 	const rawJson = model.toJson();
@@ -124,8 +124,9 @@ function cleanLayout(node: any): any {
 }
 
 /**
- * Deserializes JSON data back to FlexLayout Model format
- * Validates and fills in missing required properties with defaults
+ * Deserialize JSON data into a FlexLayout model.
+ * @param serializedModel - Serialized layout data.
+ * @returns FlexLayout model.
  */
 export function deserializeFlexLayoutModel(
 	serializedModel: Record<string, any>,
@@ -179,7 +180,9 @@ export function deserializeFlexLayoutModel(
 }
 
 /**
- * Extracts all tab IDs from a FlexLayout model
+ * Extract tab ids from a FlexLayout model.
+ * @param model - FlexLayout model.
+ * @returns Tab id list.
  */
 export function extractTabIdsFromModel(model: Model): string[] {
 	const tabIds: string[] = [];
@@ -197,7 +200,11 @@ export function extractTabIdsFromModel(model: Model): string[] {
 }
 
 /**
- * Creates a new tab configuration for adding to FlexLayout
+ * Create a tab configuration for FlexLayout.
+ * @param id - Tab id.
+ * @param name - Tab title.
+ * @param component - Optional component name.
+ * @returns Tab config.
  */
 export function createTabConfig(
 	id: string,
@@ -214,7 +221,8 @@ export function createTabConfig(
 }
 
 /**
- * Default FlexLayout configuration optimized for dashboard use
+ * Get default FlexLayout configuration.
+ * @returns FlexLayout JSON model.
  */
 export function getDefaultFlexLayoutConfig(): IJsonModel {
 	return {

@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the following reference."
+title: "ORMI - Open Robotic Management Interface"
+abstract: "A modern, modular web platform for monitoring and controlling heterogeneous robotics and autonomous systems in real-time."
+type: software
+authors:
+  - name: "Lebecque Florian"
+    affiliation: "Royal Military Academy of Belgium"
+    email: "Florian.lebecque@mil.be"
+repository-code: ""
+license: "Apache-2.0"
+keywords:
+  - robotics
+  - autonomy
+  - human-machine interface
+  - web platform
+  - ros2
+  - foxglove
+  - webrtc
+  - websocket

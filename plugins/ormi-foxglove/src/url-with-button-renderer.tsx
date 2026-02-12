@@ -76,5 +76,7 @@ const UrlWithButtonRenderer = (props: ControlProps) => {
 
 export default withJsonFormsControlProps(UrlWithButtonRenderer);
 
-// Tester that matches the URL field in Foxglove datasource
+/**
+ * Tester that matches the URL field in Foxglove datasource.
+ */
 export const urlWithButtonTester = rankWith(100, and(scopeEndsWith("url")));

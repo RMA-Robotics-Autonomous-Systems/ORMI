@@ -1,3 +1,11 @@
+/**
+ * Converts HSL color values to RGB.
+ *
+ * @param h - Hue (0-1)
+ * @param s - Saturation (0-1)
+ * @param l - Lightness (0-1)
+ * @returns RGB values as [r, g, b] tuple
+ */
 export function hslToRgb(
 	h: number,
 	s: number,
@@ -30,6 +38,14 @@ export function hslToRgb(
 	return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
+/**
+ * Converts HSV color values to RGB.
+ *
+ * @param h - Hue (0-1)
+ * @param s - Saturation (0-1)
+ * @param v - Value (0-1)
+ * @returns RGB values as [r, g, b] tuple
+ */
 export function hsvToRgb(
 	h: number,
 	s: number,
@@ -80,13 +96,13 @@ export function hsvToRgb(
 	return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-/*
-    Hashes a string and returns a color,
-        -> The color is in hexadecimal format
-        -> vibrant colors are preferred
-
-
-*/
+/**
+ * Generates a vibrant color from a string using hashing.
+ *
+ * @param input - Input string to hash
+ * @param alpha - Alpha transparency value (0-1)
+ * @returns RGBA color string
+ */
 export function getColorsFromString(input: string, alpha: number = 1): string {
 	// Generate a hash of the string using a simple hash function
 	function hashString(str: string): number {
@@ -115,6 +131,13 @@ export function getColorsFromString(input: string, alpha: number = 1): string {
 	return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/**
+ * Generates a transparent vibrant color from text.
+ *
+ * @param text - Input text to hash
+ * @param alpha - Alpha transparency value (0-1)
+ * @returns RGBA color string
+ */
 export function getTransparentColorFromText(
 	text: string,
 	alpha: number = 0.5,
@@ -122,6 +145,13 @@ export function getTransparentColorFromText(
 	return getColorsFromString(text, alpha);
 }
 
+/**
+ * Converts a color string to RGBA with specified alpha.
+ *
+ * @param color - Color string (hex, hsl, rgb, or rgba)
+ * @param alpha - Alpha transparency value (0-1)
+ * @returns RGBA color string
+ */
 export function getTransparentColorString(
 	color: string,
 	alpha: number = 0.5,

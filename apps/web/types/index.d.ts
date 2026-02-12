@@ -1,3 +1,6 @@
+/**
+ * Site configuration type.
+ */
 export type SiteConfig = {
 	name: string;
 	description: string;
@@ -19,14 +22,23 @@ export type SiteConfig = {
 	};
 };
 
+/**
+ * Navigation item type.
+ */
 export type NavItem = {
 	title: string;
 	href: string;
 	disabled?: boolean;
 };
 
+/**
+ * Home navigation item type.
+ */
 export type HomeNavItem = NavItem;
 
+/**
+ * Home navigation configuration.
+ */
 export type HomeNavConfig = {
 	homeNav: HomeNavItem[];
 };

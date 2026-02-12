@@ -72,3 +72,6 @@ apps/web/ormi-plugins.ts
 # Serwist
 apps/web/public/sw*
 apps/web/public/sw-worker*
+
+# Ignore the generated docs
+docs/*

@@ -157,6 +157,11 @@ const ShadcnCombobox = ({
 	);
 };
 
+/**
+ * Shadcn oneOf enum control component.
+ *
+ * @param props - Component props
+ */
 export const ShadcnOneOfEnumControl = (
 	props: ControlProps & OwnPropsOfEnum & TranslateProps,
 ) => {
@@ -170,6 +175,9 @@ export const ShadcnOneOfEnumControl = (
 	);
 };
 
+/**
+ * Ranked tester for the Shadcn oneOf enum control renderer.
+ */
 export const shadcnOneOfEnumControlTester: RankedTester = rankWith(
 	6,
 	isOneOfEnumControl,

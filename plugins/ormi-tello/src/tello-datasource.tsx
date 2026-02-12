@@ -31,6 +31,9 @@ import { toast } from "sonner";
 
 const TelloSourceContext = createContext(null);
 
+/**
+ * Settings for Tello drone datasource.
+ */
 export interface TelloSourceSettings {
 	id: string;
 	title: string;
@@ -521,7 +524,7 @@ const TelloSourceProvider = (
                                         b : forward backward (-100 to 100)
                                         c : up down (-100 to 100)
                                         d : yaw (-100 to 100)
-    
+
                                         movement.linear.x -> backward forward (-1 to 1)
                                         movement.linear.y -> left right (-1 to 1)
                                         movement.linear.z -> up down (-1 to 1)

@@ -15,14 +15,21 @@ import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { Movement, Vector3 } from "@workspace/ormi-core/types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
+/**
+ * Props for airspeed indicator widget.
+ */
 interface AirSpeedProps {
 	title: string;
 	topic: SelectedTopic;
-
-	speedAxis: string; // with axis to show the orientation
+	speedAxis: string;
 	invert: boolean;
 }
 
+/**
+ * Airspeed indicator widget displaying movement speed.
+ * @param props - Widget props.
+ * @returns React element.
+ */
 export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 	const { getSource } = useLocalDataSource();
 
@@ -92,6 +99,10 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
 // a few lines later ...
 
+/**
+ * Returns widget definition for airspeed indicator.
+ * @returns Widget definition.
+ */
 export function AirspeedDefinition() {
 	const pluginsManager = usePluginsManager();
 

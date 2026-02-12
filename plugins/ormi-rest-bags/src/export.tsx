@@ -9,12 +9,22 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
+/**
+ * Exports REST bag datasource definition.
+ * @param datasources - Array of datasource definitions.
+ * @returns Updated datasource array.
+ */
 export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 	datasources.push(RestBagDatasourceDefinition);
 
 	return datasources;
 };
 
+/**
+ * Exports REST bag widgets.
+ * @param widgets - Array of widget definitions.
+ * @returns Updated widget array.
+ */
 export const widgetsExport = (widgets: WidgetDefinition[]) => {
 	widgets.push(BagListDefinition());
 	widgets.push(BagRecorderDefinition());
@@ -22,6 +32,12 @@ export const widgetsExport = (widgets: WidgetDefinition[]) => {
 	return widgets;
 };
 
+/**
+ * Filters widgets based on REST bag datasource availability.
+ * @param widgets - Array of widget definitions.
+ * @param datasources - Array of datasources.
+ * @returns Filtered widget array.
+ */
 export const widgetFilters = (
 	widgets: WidgetDefinition[],
 	datasources: Datasource[],

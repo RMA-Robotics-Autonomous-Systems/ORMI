@@ -25,7 +25,9 @@ import {
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
 
-// Context for sharing Foxglove client and data across components
+/**
+ * Context for sharing Foxglove client and data across components.
+ */
 const FoxgloveDataContext = createContext<{
 	client: FoxgloveClient | null;
 	isConnected: boolean;
@@ -34,6 +36,9 @@ const FoxgloveDataContext = createContext<{
 	removeCallback?: (eventType: string, callback: () => void) => void;
 } | null>(null);
 
+/**
+ * Props for FoxgloveDataHandler.
+ */
 interface FoxgloveDataHandlerProps {
 	children: ReactNode;
 	settings: FoxgloveDataSourceSettings;
@@ -198,27 +203,27 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 	}, [channels]);
 
 	/*
-		type EventTypes = {
-		open: () => void;
-		error: (error: Error) => void;
-		close: (event: CloseEvent) => void;
+        type EventTypes = {
+        open: () => void;
+        error: (error: Error) => void;
+        close: (event: CloseEvent) => void;
 
-		serverInfo: (event: ServerInfo) => void;
-		status: (event: StatusMessage) => void;
-		removeStatus: (event: RemoveStatusMessages) => void;
-		message: (event: MessageData) => void;
-		time: (event: Time) => void;
-		advertise: (newChannels: Channel[]) => void;
-		unadvertise: (removedChannels: ChannelId[]) => void;
-		advertiseServices: (newServices: Service[]) => void;
-		unadvertiseServices: (removedServices: ServiceId[]) => void;
-		parameterValues: (event: ParameterValues) => void;
-		serviceCallResponse: (event: ServiceCallResponse) => void;
-		connectionGraphUpdate: (event: ConnectionGraphUpdate) => void;
-		fetchAssetResponse: (event: FetchAssetResponse) => void;
-		serviceCallFailure: (event: ServiceCallFailure) => void;
-		};
-	*/
+        serverInfo: (event: ServerInfo) => void;
+        status: (event: StatusMessage) => void;
+        removeStatus: (event: RemoveStatusMessages) => void;
+        message: (event: MessageData) => void;
+        time: (event: Time) => void;
+        advertise: (newChannels: Channel[]) => void;
+        unadvertise: (removedChannels: ChannelId[]) => void;
+        advertiseServices: (newServices: Service[]) => void;
+        unadvertiseServices: (removedServices: ServiceId[]) => void;
+        parameterValues: (event: ParameterValues) => void;
+        serviceCallResponse: (event: ServiceCallResponse) => void;
+        connectionGraphUpdate: (event: ConnectionGraphUpdate) => void;
+        fetchAssetResponse: (event: FetchAssetResponse) => void;
+        serviceCallFailure: (event: ServiceCallFailure) => void;
+        };
+    */
 
 	const contextValue = {
 		client,

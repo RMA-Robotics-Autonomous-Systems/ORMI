@@ -17,7 +17,9 @@ import {
 } from "@workspace/ormi-core/transforms";
 import { PluginsManager } from "@workspace/ormi-plugins";
 
-// Modified interface to handle multiple ros2 conversion logics per webapp type.
+/**
+ * Converter entry for unified ros2/webapp type conversion.
+ */
 interface ConverterEntry {
 	conversions: {
 		[ros2Type: string]: {
@@ -28,6 +30,9 @@ interface ConverterEntry {
 	isPrimitive?: boolean;
 }
 
+/**
+ * Unified converter for ros2 and webapp types.
+ */
 export class UnifiedConverter {
 	static pluginManager: PluginsManager | null = null;
 	static externalConverters: { [webType: string]: ConverterEntry } | null =

@@ -7,6 +7,7 @@ import { WidgetTemplateDrawer } from "../../../../templates/components/templates
 import { WidgetsCombo } from "../../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition } from "../../../../widgets/widget-interface";
 
+/** Props for NavbarIntegration. */
 interface NavbarIntegrationProps {
 	locked: boolean;
 	hasChanged: boolean;
@@ -17,8 +18,9 @@ interface NavbarIntegrationProps {
 }
 
 /**
- * Handles navbar integration for FlexLayout dashboard
- * Adds widget combo, template drawer, lock/unlock, and save buttons
+ * Register navbar items for the FlexLayout dashboard.
+ * @param props - Component props.
+ * @returns Null (side-effect only).
  */
 export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 	locked,

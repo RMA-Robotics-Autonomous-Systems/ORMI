@@ -1,0 +1,43 @@
+{
+	"$schema": "https://typedoc.org/schema.json",
+	"entryPoints": [
+		"packages/ormi-core/src/index.ts",
+		"packages/ormi-plugins/src/index.ts",
+		"packages/ormi-jsonforms/src/index.ts",
+		"packages/utils/src/index.ts",
+		"plugins/ormi-std-widgets/src/index.ts",
+		"plugins/ormi-foxglove/src/index.ts",
+		"plugins/ormi-tello/src/index.ts",
+		"plugins/ormi-rest-bags/src/index.ts",
+		"plugins/ormi-fligth-indicator/src/index.ts",
+		"plugins/ormi-rosbridge-suite/src/index.ts",
+		"plugins/ormi-randoms-datasources/src/index.ts",
+		"plugins/teodor-emi-extension/src/index.ts"
+	],
+	"entryPointStrategy": "expand",
+	"out": "docs",
+	"exclude": [
+		"**/node_modules/**",
+		"**/*.test.ts",
+		"**/*.spec.ts",
+		"apps/**"
+	],
+	"tsconfig": "./tsconfig.docs.json",
+	"excludePrivate": true,
+	"excludeProtected": false,
+	"excludeExternals": true,
+	"skipErrorChecking": true,
+	"validation": {
+		"notExported": false,
+		"invalidLink": false,
+		"notDocumented": false
+	},
+	"includeVersion": true,
+	"hideGenerator": false,
+	"searchInComments": true,
+	"readme": "README.md",
+	"name": "ORMI Documentation",
+	"categorizeByGroup": true,
+	"defaultCategory": "Other",
+	"categoryOrder": ["Core", "Plugins", "JSON Forms", "Utilities", "*"]
+}

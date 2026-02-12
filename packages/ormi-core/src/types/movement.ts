@@ -1,5 +1,6 @@
 import { Vector3, Vector4, CoordinateConvention } from "./common";
 
+/** Linear and angular velocity. */
 export interface Movement {
 	linear: Vector3;
 	angular: Vector3;
@@ -7,6 +8,7 @@ export interface Movement {
 	convention?: CoordinateConvention;
 }
 
+/** Inertial measurement unit data. */
 export interface IMU {
 	linear_acceleration: Vector3;
 	angular_velocity: Vector3;

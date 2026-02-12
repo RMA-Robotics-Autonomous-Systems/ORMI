@@ -20,6 +20,7 @@ import { AlignedData } from "uplot";
 import UplotReact from "uplot-react";
 import "uplot/dist/uPlot.min.css";
 
+/** Settings for the time series chart widget. */
 interface TimeSeriesSettings {
 	title: string;
 	timeHistory: number;
@@ -36,6 +37,11 @@ interface TimeSeriesSettings {
 	}[];
 }
 
+/**
+ * Time series chart widget body.
+ * @param props - Widget settings.
+ * @returns React element.
+ */
 export function TimeChartComponent(props: TimeSeriesSettings) {
 	const { sources, getSource } = useLocalDataSource();
 	const divRef = useRef<HTMLDivElement>(null);
@@ -256,6 +262,10 @@ function showErrorToast(notFoundTopics: string[]) {
 	);
 }
 
+/**
+ * Widget definition for the time series chart.
+ * @returns Widget definition.
+ */
 export function TimeSeriesChartDefinition() {
 	const pluginsManager = usePluginsManager();
 

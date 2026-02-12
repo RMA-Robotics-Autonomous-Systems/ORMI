@@ -336,19 +336,19 @@ export const withContextToExpandPanelProps = (
 		);
 		const {
 			// eslint is unable to detect that these props are "checked" via Typescript already
-			// eslint-disable-next-line react/prop-types
+
 			childLabelProp,
-			// eslint-disable-next-line react/prop-types
+
 			schema,
-			// eslint-disable-next-line react/prop-types
+
 			uischema,
-			// eslint-disable-next-line react/prop-types
+
 			rootSchema,
-			// eslint-disable-next-line react/prop-types
+
 			path,
-			// eslint-disable-next-line react/prop-types
+
 			index,
-			// eslint-disable-next-line react/prop-types
+
 			uischemas,
 		} = props;
 		const childPath = composePaths(path, `${index}`);

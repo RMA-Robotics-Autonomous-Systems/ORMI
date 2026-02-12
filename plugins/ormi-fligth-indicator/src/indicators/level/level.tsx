@@ -13,16 +13,22 @@ import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { IMU, Vector3 } from "@workspace/ormi-core/types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
+/**
+ * Props for level indicator widget.
+ */
 interface LevelProps {
 	title: string;
 	topic: SelectedTopic;
-
-	pitchAxis: string; // with axis to show the orientation
-	rollAxis: string; // with axis to show the orientation
-
+	pitchAxis: string;
+	rollAxis: string;
 	invert: boolean;
 }
 
+/**
+ * Level/attitude indicator widget displaying pitch and roll.
+ * @param props - Widget props.
+ * @returns React element.
+ */
 export function WidgetLevelIndicator(props: LevelProps) {
 	const { getSource } = useLocalDataSource();
 	const [pitch, setPitch] = useState(0);
@@ -129,6 +135,10 @@ const LevelIcon = () => {
 	);
 };
 
+/**
+ * Returns widget definition for level indicator.
+ * @returns Widget definition.
+ */
 export function LevelDefinition() {
 	const pluginsManager = usePluginsManager();
 

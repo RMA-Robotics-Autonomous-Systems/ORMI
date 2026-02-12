@@ -86,6 +86,7 @@ const hashDashboardState = (
 	return hash.toString();
 };
 
+/** Dashboard context value. */
 interface DashboardContextInterface {
 	layouts: Record<string, any>;
 	widgets: Map<string, Widget>;
@@ -120,6 +121,7 @@ interface DashboardContextInterface {
 	dispatch: React.Dispatch<any>;
 }
 
+/** Dashboard actions context value. */
 interface DashboardActionsInterface {
 	getDefinition: (widget_id: string) => WidgetDefinition;
 	addWidget: (widget: WidgetDefinition, settings: any) => void;
@@ -189,6 +191,7 @@ const DashboardActionsContext = createContext<DashboardActionsInterface>({
 	},
 });
 
+/** Props for DashboardProvider. */
 interface DashboardProviderProps {
 	children: ReactNode;
 	dashboardType: string;
@@ -227,6 +230,11 @@ function dashboardReducer(state: any, action: any) {
 	}
 }
 
+/**
+ * Dashboard state provider and lifecycle handler.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const DashboardProvider = (props: DashboardProviderProps) => {
 	const { children, dashboardType, dashboardDefinition, OnLoad, OnSave } =
 		props;
@@ -633,7 +641,10 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 	);
 };
 
-// Create a custom hook to use the context
+/**
+ * Access dashboard state context.
+ * @returns Dashboard context value.
+ */
 const useDashboardManager = () => {
 	const context = useContext(DashboardContext);
 	if (context === undefined) {
@@ -646,6 +657,10 @@ const useDashboardManager = () => {
 
 export { DashboardProvider, useDashboardManager };
 
+/**
+ * Access dashboard actions context.
+ * @returns Dashboard actions context value.
+ */
 const useDashboardActions = () => {
 	const context = useContext(DashboardActionsContext);
 	if (context === undefined) {

@@ -1,14 +1,19 @@
 import { Widget } from "../widgets/widget-interface";
 import { Datasource } from "../datasources/datasource-interface";
 
+/** Dashboard state including layout, widgets, and datasources. */
 interface DashboardInterface {
-	layouts: Record<string, any>; // Generic layout storage - supports any layout system (react-grid-layout, rc-dock, etc.)
+	/** Generic layout storage for multiple layout systems (react-grid-layout, rc-dock, etc.). */
+	layouts: Record<string, any>;
 
-	widgets: Map<string, Widget>; // Represent the widgets in the dashboard
+	/** Widgets currently in the dashboard. */
+	widgets: Map<string, Widget>;
 
-	datasources: Map<string, Datasource>; // Represent the datasources in the dashboard
+	/** Datasources available to the dashboard. */
+	datasources: Map<string, Datasource>;
 
-	locked: boolean; // Represent if the dashboard is locked or not
+	/** Whether the dashboard is locked. */
+	locked: boolean;
 }
 
 export type { DashboardInterface };

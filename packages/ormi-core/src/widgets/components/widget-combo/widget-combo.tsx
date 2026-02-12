@@ -31,6 +31,11 @@ import {
 	HoverCardTrigger,
 } from "@workspace/ui/components/hover-card";
 
+/**
+ * Widget picker combo for adding a widget.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function WidgetsCombo(props: {
 	onValidate: (widget: WidgetDefinition, settings: object) => void;
 }) {

@@ -1,6 +1,9 @@
+/** Map of RPC method names to functions. */
 export type RpcMethodMap = Record<string, (...args: any[]) => any>;
+/** Map of RPC event names to payloads. */
 export type RpcEventMap = Record<string, any>;
 
+/** RPC request message. */
 export interface RpcRequest<M extends RpcMethodMap = RpcMethodMap> {
 	type: "rpc/request";
 	id: string;
@@ -8,6 +11,7 @@ export interface RpcRequest<M extends RpcMethodMap = RpcMethodMap> {
 	params: Parameters<M[keyof M]>;
 }
 
+/** RPC response message. */
 export interface RpcResponse {
 	type: "rpc/response";
 	id: string;
@@ -16,23 +20,27 @@ export interface RpcResponse {
 	error?: RpcError;
 }
 
+/** RPC event message. */
 export interface RpcEvent<E extends RpcEventMap = RpcEventMap> {
 	type: "rpc/event";
 	event: keyof E & string;
 	payload: E[keyof E];
 }
 
+/** Union of RPC wire messages. */
 export type RpcMessage<
 	M extends RpcMethodMap = RpcMethodMap,
 	E extends RpcEventMap = RpcEventMap,
 > = RpcRequest<M> | RpcResponse | RpcEvent<E>;
 
+/** RPC error payload. */
 export interface RpcError {
 	message: string;
 	code?: string;
 	data?: unknown;
 }
 
+/** RPC client interface. */
 export interface RpcClient<M extends RpcMethodMap, E extends RpcEventMap> {
 	call<K extends keyof M>(
 		method: K,
@@ -45,6 +53,7 @@ export interface RpcClient<M extends RpcMethodMap, E extends RpcEventMap> {
 	dispose(): void;
 }
 
+/** RPC server interface. */
 export interface RpcServer<E extends RpcEventMap> {
 	emit<K extends keyof E>(
 		event: K,
@@ -54,6 +63,7 @@ export interface RpcServer<E extends RpcEventMap> {
 	dispose(): void;
 }
 
+/** Minimal message target used by the RPC client/server. */
 export interface RpcTarget {
 	postMessage(message: unknown, transfer?: Transferable[]): void;
 	addEventListener(
@@ -66,6 +76,11 @@ export interface RpcTarget {
 	): void;
 }
 
+/**
+ * Create an RPC client bound to a message target.
+ * @param target - Message target (worker or window).
+ * @returns RPC client instance.
+ */
 export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 	target: RpcTarget,
 ): RpcClient<M, E> {
@@ -149,6 +164,12 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 	return { call, onEvent, dispose };
 }
 
+/**
+ * Create an RPC server bound to a message target.
+ * @param target - Message target (worker or window).
+ * @param methods - Method map exposed by the server.
+ * @returns RPC server instance.
+ */
 export function createRpcServer<M extends RpcMethodMap, E extends RpcEventMap>(
 	target: RpcTarget,
 	methods: M,

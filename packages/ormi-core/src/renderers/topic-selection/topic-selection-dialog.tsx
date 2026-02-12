@@ -32,6 +32,7 @@ import {
 	TopicSelectionState,
 } from "../topic-selection/topic-selection-state";
 
+/** Props for TopicSelectionDialog. */
 interface TopicSelectionDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -41,6 +42,11 @@ interface TopicSelectionDialogProps {
 	label?: string;
 }
 
+/**
+ * Dialog for selecting a datasource topic.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 	isOpen,
 	onClose,

@@ -56,8 +56,8 @@ jobs:
                   NEXT_PUBLIC_APP_URL=http://localhost:3000
                   EOF
 
-            - name: Check code formatting
-              run: bun run format:check
+            - name: Lint code
+              run: bun run lint
 
             - name: Run type checks
               run: bun run typecheck
@@ -66,4 +66,4 @@ jobs:
               run: bun run build
 
             - name: Run tests
-              run: bun test
+              run: bun run test

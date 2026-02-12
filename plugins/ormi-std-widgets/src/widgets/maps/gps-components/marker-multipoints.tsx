@@ -11,6 +11,11 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 
+/**
+ * Multiple points GPS marker with hover support.
+ * @param props - Component props.
+ * @returns React element or null when hidden.
+ */
 export default function MultiPoints(props: {
 	topic: SelectedTopic;
 	name: string;

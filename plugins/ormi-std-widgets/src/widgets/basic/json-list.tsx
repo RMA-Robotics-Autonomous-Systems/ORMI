@@ -24,6 +24,7 @@ import {
 import { FileIcon, ArrowDown } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 
+/** Props for JsonList. */
 interface JsonListProps {
 	title: string;
 	topic: SelectedTopic;
@@ -76,6 +77,11 @@ const MemoizedJsonCard = memo(
 	),
 );
 
+/**
+ * JSON list widget body.
+ * @param props - Component props.
+ * @returns React element.
+ */
 function JsonList(props: JsonListProps) {
 	const { getSource } = useLocalDataSource();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -232,6 +238,10 @@ function JsonList(props: JsonListProps) {
 	);
 }
 
+/**
+ * Widget definition for JsonList.
+ * @returns Widget definition.
+ */
 export function JsonListDefinition(): WidgetDefinition {
 	const pluginsManager = usePluginsManager();
 

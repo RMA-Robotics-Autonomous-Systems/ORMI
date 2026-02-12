@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+/** Props for DatasourceTemplateComponent. */
 interface DatasourceTemplateProps {
 	template: DatasourceTemplate;
 	templateId: string;
@@ -41,6 +42,11 @@ interface DatasourceTemplateProps {
 	updateTemplate?: (id: string, updatedTemplate: DatasourceTemplate) => void;
 }
 
+/**
+ * Datasource template list item with actions.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const DatasourceTemplateComponent = (props: DatasourceTemplateProps) => {
 	const { template, templateId, availableDatasources } = props;
 	const [optionsOpen, setOptionsOpen] = useState(false);

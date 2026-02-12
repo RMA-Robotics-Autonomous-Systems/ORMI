@@ -10,6 +10,10 @@ import { Image } from "@workspace/ormi-core/types";
 import { CameraIcon, FileIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+/**
+ * Image viewer widget body.
+ * @returns React element.
+ */
 function ImageViewer() {
 	const { sources } = useLocalDataSource();
 	const firstKey = Array.from(sources.keys())[0];
@@ -80,6 +84,10 @@ function ImageViewer() {
 	);
 }
 
+/**
+ * Widget definition for ImageViewer.
+ * @returns Widget definition.
+ */
 export function ImageViewerDefinition(): WidgetDefinition {
 	interface ImageViewerProps {
 		title: string;

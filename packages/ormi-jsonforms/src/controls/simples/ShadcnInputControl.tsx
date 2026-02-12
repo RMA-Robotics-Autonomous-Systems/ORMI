@@ -31,10 +31,18 @@ import merge from "lodash/merge";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
 
+/**
+ * Interface for components that accept an input component.
+ */
 export interface WithInput {
 	input: any;
 }
 
+/**
+ * Shadcn input control wrapper component.
+ *
+ * @param props - Component props including input component
+ */
 export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 	const {
 		id,

@@ -47,6 +47,9 @@ const keySelectorTester = rankWith(
 
 export { keySelectorTester };
 
+/**
+ * Control element type for key selector controls.
+ */
 export interface KeyControlType extends Omit<ControlElement, "type"> {
 	type: "Key";
 }

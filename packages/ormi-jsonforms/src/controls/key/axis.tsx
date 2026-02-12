@@ -47,6 +47,9 @@ const axisSelectorTester = rankWith(
 
 export { axisSelectorTester };
 
+/**
+ * Control element type for axis selector controls.
+ */
 export interface axisControlType extends Omit<ControlElement, "type"> {
 	type: "Axis";
 }

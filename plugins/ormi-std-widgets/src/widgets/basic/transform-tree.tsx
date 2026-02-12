@@ -7,12 +7,18 @@ import { TransformTree } from "@workspace/ormi-core/types";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
+/** Props for TransformTreeViewer. */
 interface TransformTreeViewerProps {
 	title: string;
 	showCoordinates: boolean;
 	treeId?: string;
 }
 
+/**
+ * Transform tree viewer widget body.
+ * @param props - Component props.
+ * @returns React element.
+ */
 function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
 	const { resolvedTheme } = useTheme();
 	const { transformsTrees } = useTransformSource();
@@ -203,6 +209,10 @@ function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
 	);
 }
 
+/**
+ * Widget definition for TransformTreeViewer.
+ * @returns Widget definition.
+ */
 export function TransformTreeWidgetDefinition(): WidgetDefinition {
 	return {
 		id: "transform-tree",

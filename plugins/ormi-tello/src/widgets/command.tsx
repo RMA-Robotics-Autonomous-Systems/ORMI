@@ -8,6 +8,9 @@ import {
 } from "@workspace/ui/combined/triggers";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 
+/**
+ * Props for Tello commands control widget.
+ */
 interface TelloCommandsControlData {
 	title: string;
 	telloSourceId: string;
@@ -19,6 +22,11 @@ interface TelloCommandsControlData {
 	emergency: DigitalInput;
 }
 
+/**
+ * Tello drone command control widget.
+ * @param props - Widget props.
+ * @returns React element.
+ */
 export function TelloCommandsControl(props: TelloCommandsControlData) {
 	const pluginsManager = usePluginsManager();
 	const telloWS = pluginsManager.applyFilter<WebSocket>(
@@ -347,6 +355,10 @@ const TelloDroneSVGIcon = () => {
 	);
 };
 
+/**
+ * Returns widget definition for Tello commands control.
+ * @returns Widget definition.
+ */
 export function TelloCommandsControlDefinition() {
 	const pluginsManager = usePluginsManager();
 

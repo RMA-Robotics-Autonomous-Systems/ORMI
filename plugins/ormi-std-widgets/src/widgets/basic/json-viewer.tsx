@@ -12,6 +12,10 @@ import { useRef, useState, useEffect } from "react";
 // Maximum characters to display to prevent memory issues with large data
 const MAX_JSON_LENGTH = 10000;
 
+/**
+ * JSON viewer widget body.
+ * @returns React element.
+ */
 function JsonViewer() {
 	const { sources } = useLocalDataSource();
 	const [displayData, setDisplayData] = useState<string>("");
@@ -61,6 +65,10 @@ function JsonViewer() {
 	);
 }
 
+/**
+ * Widget definition for JsonViewer.
+ * @returns Widget definition.
+ */
 export function JsonViewerDefinition(): WidgetDefinition {
 	interface JsonViewerProps {
 		title: string;

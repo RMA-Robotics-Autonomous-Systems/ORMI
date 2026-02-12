@@ -8,7 +8,9 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TransformTree } from "@workspace/ormi-core/types";
 
-// Extended settings for Foxglove data source
+/**
+ * Extended settings for Foxglove data source.
+ */
 export interface FoxgloveDataSourceSettings extends DatasourceProviderSettings {
 	url: string;
 	reconnectTimeout: number;
@@ -16,7 +18,9 @@ export interface FoxgloveDataSourceSettings extends DatasourceProviderSettings {
 	transformTreeTopics: string[];
 }
 
-// Subscriber interface
+/**
+ * Subscriber for Foxglove topics.
+ */
 export interface Subscriber {
 	subscriberId: number;
 	channelId: number;
@@ -28,7 +32,9 @@ export interface Subscriber {
 	reader: MessageReader;
 }
 
-// Pending subscription interface
+/**
+ * Pending subscription awaiting resolution.
+ */
 export interface PendingSubscription {
 	topic: string;
 	count: number;
@@ -36,7 +42,9 @@ export interface PendingSubscription {
 	rejectors: Array<(error: any) => void>;
 }
 
-// Publisher interface
+/**
+ * Publisher for Foxglove topics.
+ */
 export interface Publisher {
 	channelId: number;
 	topic: string;
@@ -47,12 +55,16 @@ export interface Publisher {
 	writer: MessageWriter;
 }
 
-// Message data interface for Foxglove protocol
+/**
+ * Message data for Foxglove protocol.
+ */
 export interface FoxgloveMessageData {
 	subscriptionId: number;
 	timestamp: any;
 	data: Uint8Array;
 }
 
-// Re-export commonly used types
+/**
+ * Re-exported types for convenience.
+ */
 export type { DatasourceTopic, SelectedTopic, TransformTree };

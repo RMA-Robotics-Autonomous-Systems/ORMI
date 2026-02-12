@@ -2,6 +2,7 @@ import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 
 import { ReactNode, FC } from "react";
 
+/** Datasource definition describing UI and provider settings. */
 interface DatasourceDefinition<T = DatasourceProviderSettings> {
 	id: string;
 	name: string;
@@ -13,40 +14,51 @@ interface DatasourceDefinition<T = DatasourceProviderSettings> {
 	uischema?: UISchemaElement;
 	data: T;
 
+	/** Provider component for this datasource. */
 	Provider: FC<{
 		children: ReactNode;
 		props: T;
 	}>;
 }
 
+/** Datasource instance configured in a dashboard. */
 interface Datasource {
-	datasource_id: string; // point to the widget definition
-	title: string; // title of the widget
-	settings: DatasourceProviderSettings; // settings of the widget
+	/** Points to the datasource definition id. */
+	datasource_id: string;
+	/** Display title of the datasource. */
+	title: string;
+	/** Provider settings for the datasource. */
+	settings: DatasourceProviderSettings;
 }
 
+/** Topic published by a datasource. */
 interface DatasourceTopic {
 	topic: string;
 	datasource_id: string;
 	source: DatasourceProviderSettings;
-	type: string; // type of the data inside the webapp
-	rawType: string; // type of the data inside the datasource
+	/** Type of the data inside the webapp. */
+	type: string;
+	/** Type of the data inside the datasource. */
+	rawType: string;
 	bufferSize?: number;
 }
 
+/** Topic selected for widget configuration. */
 interface SelectedTopic extends DatasourceTopic {
 	property: string;
 }
 
+/** Filter criteria for datasource topics. */
 interface DatasourceTopicFilterProps {
 	name?: RegExp;
 	type?: RegExp;
 	rawType?: RegExp;
 	source_id?: RegExp;
-	strict?: boolean; // if true, the filter returns true only if all properties match
+	/** If true, the filter returns true only if all properties match. */
+	strict?: boolean;
 }
 
-// the filter works by using regexes on the name and type of the topic
+/** Regex-based filter for datasource topics. */
 class DatasourceTopicFilter {
 	name?: RegExp;
 	type?: RegExp;
@@ -59,9 +71,10 @@ class DatasourceTopicFilter {
 		this.type = props.type;
 		this.source_id = props.source_id;
 		this.rawType = props.rawType;
-		this.strict = props.strict || false; // if true, the filter returns true only if
+		this.strict = props.strict || false;
 	}
 
+	/** Check if a topic matches this filter. */
 	filter(topic: DatasourceTopic): boolean {
 		const matches = [];
 
@@ -89,6 +102,7 @@ class DatasourceTopicFilter {
 	}
 }
 
+/** Settings required to configure a datasource provider. */
 interface DatasourceProviderSettings {
 	id: string;
 	title: string;

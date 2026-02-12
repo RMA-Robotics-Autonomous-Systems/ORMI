@@ -1,10 +1,7 @@
 "use client";
-/*
-    This file is responsible for providing the local datasource to the widgets.
-    it manages the subscriptions and unsubscriptions of the widgets to the datasource topics.
-
-    it also manages the buffer of the data that is being sent to the widgets.
-*/
+/**
+ * Local datasource provider for widget subscriptions and buffering.
+ */
 
 import React, {
 	createContext,
@@ -25,11 +22,12 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { atom, useAtom } from "jotai";
 
-// Helper function to generate unique keys from SelectedTopic objects
+/** Create a stable key for a selected topic. */
 const createTopicKey = (selectedTopic: SelectedTopic): string => {
 	return `${selectedTopic.source.id}::${selectedTopic.topic}${selectedTopic.property ? "::" + selectedTopic.property : ""}`;
 };
 
+/** Local datasource context value. */
 interface LocalDataSources {
 	sources: Map<string, Source>;
 	version: number; // Increment on every update to force re-renders
@@ -37,12 +35,14 @@ interface LocalDataSources {
 	getSourceId: (topic: SelectedTopic) => string;
 }
 
+/** Buffered source data. */
 interface Source {
 	data: unknown[];
 	times: number[];
 	referenceFrameId: string;
 }
 
+/** Props for LocalDataSourcesProvider. */
 interface LocalDataSourcesProviderProps {
 	children: ReactNode;
 	SelectedTopics: SelectedTopic[];
@@ -57,6 +57,11 @@ const LocalDataSourcesContext = createContext<LocalDataSources>({
 	getSourceId: () => "",
 });
 
+/**
+ * Provide local datasource buffering and subscription lifecycle.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	const {
 		children,
@@ -314,7 +319,10 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	);
 };
 
-// Hook to force updates when data changes
+/**
+ * Access local datasource context.
+ * @returns Local datasource context value.
+ */
 const useLocalDataSource = () => {
 	const context = useContext(LocalDataSourcesContext);
 	if (!context) {

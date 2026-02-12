@@ -49,7 +49,6 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
 
 	useEffect(() => {
 		if (!isSelecting && !data) {
-			setActivationLevel(0);
 			return;
 		}
 
@@ -133,6 +132,10 @@ export const AnalogInputComponent = (props: AnalogInputComponentProps) => {
 
 		return () => {
 			clearInterval(gamePadInterval);
+			// Reset activation level on cleanup (when deps change or unmount)
+			if (!isSelecting && !data) {
+				setActivationLevel(0);
+			}
 		};
 	}, [isSelecting, data, onChange, restingAxisValues, activationLevel]);
 

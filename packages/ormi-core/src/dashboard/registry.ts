@@ -3,12 +3,14 @@ import { PanelDashboard } from "./components/rc-dock/panel-dashboard";
 import { FlexLayoutDashboard } from "./components/flex-layout/flex-layout-dashboard";
 import { Layers, LayoutGrid, PanelTop } from "lucide-react";
 
+/** Dashboard component registry keyed by layout type. */
 export const dashboardRegistry = {
 	GRID: ReactGridLayoutDashboard,
 	PANEL: PanelDashboard,
 	FLEX: FlexLayoutDashboard,
 };
 
+/** Available dashboard types for UI selection. */
 export const DASHBOARD_TYPES = [
 	{
 		id: "GRID",

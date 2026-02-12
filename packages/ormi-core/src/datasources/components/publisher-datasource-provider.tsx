@@ -1,10 +1,7 @@
 "use client";
-/*
-    This file is responsible for providing the local datasource to the widgets.
-    it manages the subscriptions and unsubscriptions of the widgets to the datasource topics.
-
-    it also manages the buffer of the data that is being sent to the widgets.
-*/
+/**
+ * Publisher datasource provider for advertising and publishing topics.
+ */
 
 import React, {
 	createContext,
@@ -20,15 +17,18 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
 import { PluginsManager, usePluginsManager } from "@workspace/ormi-plugins";
 
+/** Publisher datasource context value. */
 interface PublisherDataSources {
 	publishers: Map<string, Publisher>;
 }
 
+/** Props for PublisherDataSourcesProvider. */
 interface PublisherDataSourcesProviderProps {
 	children: ReactNode;
 	SelectedTopics: SelectedTopic[];
 }
 
+/** Publisher wrapper for a selected topic. */
 class Publisher {
 	topic: SelectedTopic;
 
@@ -64,6 +64,11 @@ const PublisherDataSourcesContext = createContext<PublisherDataSources>({
 	publishers: new Map<string, Publisher>(),
 });
 
+/**
+ * Provide publisher instances for selected topics.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const PublisherDataSourcesProvider = (
 	props: PublisherDataSourcesProviderProps,
 ) => {
@@ -274,6 +279,10 @@ const PublisherDataSourcesProvider = (
 	);
 };
 
+/**
+ * Access publisher datasource context.
+ * @returns Publisher datasource context value.
+ */
 const usePublisherDataSource = () => {
 	const context = useContext(PublisherDataSourcesContext);
 	if (!context) {

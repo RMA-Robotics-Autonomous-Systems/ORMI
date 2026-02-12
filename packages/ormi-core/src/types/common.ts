@@ -1,16 +1,20 @@
+/** 2D vector with x and y components. */
 export type Vector2 = {
 	x: number;
 	y: number;
 };
 
+/** 3D vector with x, y, and z components. */
 export type Vector3 = Vector2 & {
 	z: number;
 };
 
+/** 4D vector with x, y, z, and w components. */
 export type Vector4 = Vector3 & {
 	w: number;
 };
 
+/** Quaternion rotation. */
 export type Quaternion = {
 	x: number;
 	y: number;
@@ -19,14 +23,9 @@ export type Quaternion = {
 };
 
 /**
- * Coordinate system convention identifiers
+ * Supported coordinate system conventions.
  *
- * - ROS: ROS REP-103: X forward, Y left, Z up (right-handed)
- * - THREE: Three.js: X right, Y up, Z towards viewer (right-handed)
- * - ENU: East-North-Up: X east, Y north, Z up (right-handed)
- * - NED: North-East-Down: X north, Y east, Z down (right-handed)
- * - NWU: North-West-Up: X north, Y west, Z up (right-handed)
- * - CUSTOM: User-defined custom convention
+ * ROS: REP-103, THREE: Three.js, ENU/NED/NWU: navigation frames, CUSTOM: user-defined.
  */
 export type CoordinateConvention =
 	| "ROS"
@@ -37,35 +36,31 @@ export type CoordinateConvention =
 	| "CUSTOM";
 
 /**
- * Transform between coordinate frames
- *
- * @property position - Translation vector (x, y, z, w where w is typically 1 for points, 0 for directions)
- * @property rotation - Rotation quaternion
- * @property convention - The coordinate system convention this transform is expressed in (defaults to 'THREE')
+ * Transform between coordinate frames.
  */
 export type Transform = {
+	/** Translation vector (x, y, z, w where w is typically 1 for points, 0 for directions). */
 	position: Vector4;
+	/** Rotation quaternion. */
 	rotation: Quaternion;
 	/**
 	 * Coordinate convention this transform is expressed in.
-	 * Defaults to 'THREE'.
+	 * Defaults to "THREE".
 	 */
 	convention?: CoordinateConvention;
 };
 
 /**
- * Transform tree node representing a coordinate frame hierarchy
- *
- * @property id - Unique identifier for this frame (e.g., "base_link", "camera")
- * @property parentId - ID of the parent frame (empty string for root frames)
- * @property transform - Transform from parent frame to this frame
- * @property children - Child frames in the hierarchy
- * @property convention - Coordinate convention for the entire tree (inherited by children if not specified)
+ * Transform tree node representing a coordinate frame hierarchy.
  */
 export type TransformTree = {
+	/** Unique identifier for this frame (e.g., "base_link", "camera"). */
 	id: string;
+	/** ID of the parent frame (empty string for root frames). */
 	parentId: string;
+	/** Transform from parent frame to this frame. */
 	transform: Transform;
+	/** Child frames in the hierarchy. */
 	children: Map<string, TransformTree>;
 	/**
 	 * Default coordinate convention for this tree.
@@ -74,6 +69,7 @@ export type TransformTree = {
 	convention?: CoordinateConvention;
 };
 
+/** RGBA color with components in 0..1 range. */
 export type Color = {
 	r: number;
 	g: number;
@@ -81,6 +77,7 @@ export type Color = {
 	a: number;
 };
 
+/** Point cloud payload with packed buffers. */
 export type PointsCloud = {
 	/** Packed positions: [x0, y0, z0, x1, y1, z1, ...] */
 	points: Float32Array;
@@ -92,8 +89,10 @@ export type PointsCloud = {
 	convention?: CoordinateConvention;
 };
 
+/** Image payload backed by ImageBitmap. */
 export type Image = ImageBitmap;
 
+/** Pose with position and orientation. */
 export type Pose = {
 	position: Vector3;
 	orientation: Quaternion;
@@ -101,13 +100,17 @@ export type Pose = {
 	convention?: CoordinateConvention;
 };
 
+/** Pose with timestamp in seconds. */
 export type PoseStamped = Pose & {
-	timestamp: number; // in seconds
+	/** Timestamp in seconds. */
+	timestamp: number;
 };
 
+/** Path of poses with timestamp. */
 export type Path = {
 	poses: PoseStamped[];
-	timestamp: number; // path timestamp in seconds
+	/** Path timestamp in seconds. */
+	timestamp: number;
 	/** Coordinate convention the path is expressed in */
 	convention?: CoordinateConvention;
 };

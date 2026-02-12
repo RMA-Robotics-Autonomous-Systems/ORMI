@@ -38,6 +38,7 @@ import { coreRenderer } from "../../renderers";
 import { AddDatasourceToTemplatesBtn, Template } from "../../templates";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
+/** Props for DatasourceCard. */
 interface DatasourceCardProps {
 	definition: DatasourceDefinition<DatasourceProviderSettings>;
 	data?: DatasourceProviderSettings;
@@ -49,6 +50,11 @@ interface DatasourceCardProps {
 	addTemplate: (template: Template, key?: string) => void; // Optional, if you want to add templates directly from the card
 }
 
+/**
+ * Datasource configuration card with JSON Forms UI.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const DatasourceCard = (props: DatasourceCardProps) => {
 	const [data, setData] = useState(props.definition.data);
 	const [errors, setErrors] = useState<any>(null);

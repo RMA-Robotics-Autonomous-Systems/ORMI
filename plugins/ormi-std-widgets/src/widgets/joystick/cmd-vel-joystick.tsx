@@ -22,6 +22,7 @@ import {
 import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
+/** Props for JoypadControls. */
 interface JoypadControlsProps {
 	title: string;
 	axes: {
@@ -40,6 +41,11 @@ interface JoypadControlsProps {
 	keepPublishZero: boolean;
 }
 
+/**
+ * Joystick control widget.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function JoypadControls(props: JoypadControlsProps) {
 	// State for speed control
 	const [speed, setSpeed] = useState<number>(props.startingSpeed || 1.0);
@@ -251,7 +257,7 @@ export function JoypadControls(props: JoypadControlsProps) {
 					<div
 						data-active={!isLocked}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
                             data-[active=true]:bg-green-600/20
@@ -271,7 +277,7 @@ export function JoypadControls(props: JoypadControlsProps) {
 					<div
 						data-active={speedkeyIncActive || speedkeyDecActive}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
                             data-[active=true]:bg-green-600/20
@@ -372,6 +378,10 @@ export function JoypadControls(props: JoypadControlsProps) {
 	);
 }
 
+/**
+ * Widget definition for joystick control.
+ * @returns Widget definition.
+ */
 export function JoypadControlsDefinition() {
 	const pluginsManager = usePluginsManager();
 

@@ -37,6 +37,11 @@ import {
 } from "@workspace/ui/components/radio-group";
 import { cn } from "@workspace/ui/lib/utils";
 
+/**
+ * Shadcn radio group component.
+ *
+ * @param props - Component props
+ */
 export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 	const [focused, onFocus, onBlur] = useFocus();
 	const {

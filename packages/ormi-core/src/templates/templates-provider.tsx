@@ -12,6 +12,7 @@ import {
 
 import { useNavbar } from "@workspace/ui/combined/navbar";
 
+/** Templates provider context value. */
 interface TemplatesProviderContextInterface {
 	templates: Map<string, Template>;
 	addTemplate: (template: Template, key?: string) => void;
@@ -22,10 +23,12 @@ interface TemplatesProviderContextInterface {
 	getDatasourceTemplates: () => Map<string, DatasourceTemplate>;
 }
 
+/** Templates provider React context. */
 export const TemplatesProviderContext = createContext<
 	TemplatesProviderContextInterface | undefined
 >(undefined);
 
+/** Props for TemplatesProvider. */
 interface TemplatesProviderProps {
 	children: React.ReactNode;
 
@@ -38,6 +41,11 @@ interface TemplatesProviderProps {
 	onLoad: () => Promise<Map<string, Template>>;
 }
 
+/**
+ * Templates provider with persistence hooks.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const TemplatesProvider = (props: TemplatesProviderProps) => {
 	const [templates, setTemplates] = useState<Map<string, Template>>(
 		new Map<string, Template>(),
@@ -143,6 +151,10 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 	);
 };
 
+/**
+ * Access templates context.
+ * @returns Templates context value.
+ */
 const useTemplates = () => {
 	const context = useContext(TemplatesProviderContext);
 

@@ -12,6 +12,10 @@ import type {
 	RemoteCallResult,
 } from "@workspace/ormi-core/datasources";
 
+/**
+ * Worker methods for Foxglove datasource.
+ * @template Settings - Datasource provider settings type.
+ */
 export interface FoxgloveWorkerMethods<
 	Settings = DatasourceProviderSettings,
 > extends DatasourceWorkerMethods<Settings> {
@@ -34,6 +38,9 @@ export interface FoxgloveWorkerMethods<
 	};
 }
 
+/**
+ * Worker events for Foxglove datasource.
+ */
 export interface FoxgloveWorkerEvents extends DatasourceWorkerEvents {
 	"connection-status": {
 		connected: boolean;

@@ -11,6 +11,11 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
+/**
+ * GPS path marker rendering a line from multiple GPS points.
+ * @param props - Component props.
+ * @returns React element or null when hidden.
+ */
 export default function PathMarker(props: {
 	topic: SelectedTopic;
 	name: string;

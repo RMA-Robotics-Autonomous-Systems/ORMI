@@ -4,15 +4,23 @@ import matter from "gray-matter";
 
 const docsDirectory = path.join(process.cwd(), "content/docs");
 
+/**
+ * Navigation item structure for documentation.
+ */
 export interface NavigationItem {
 	title: string;
 	href: string;
 	children?: NavigationItem[];
 }
 
-// Legacy alias for backward compatibility
+/**
+ * Legacy alias for NavigationItem (backward compatibility).
+ */
 export type NavItem = NavigationItem;
 
+/**
+ * File information for navigation building.
+ */
 interface FileInfo {
 	name: string;
 	title: string;
@@ -21,7 +29,9 @@ interface FileInfo {
 }
 
 /**
- * Build navigation tree from file system
+ * Builds navigation tree from file system.
+ * @param version - Documentation version.
+ * @returns Array of navigation items.
  */
 export function buildNavigation(version: string): NavItem[] {
 	const versionPath = path.join(docsDirectory, version);

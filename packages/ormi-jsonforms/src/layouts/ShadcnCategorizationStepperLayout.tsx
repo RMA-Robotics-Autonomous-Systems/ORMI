@@ -52,6 +52,9 @@ import {
 	withAjvProps,
 } from "../utils/layouts";
 
+/**
+ * Ranked tester for the Shadcn categorization stepper layout renderer.
+ */
 export const shadcnCategorizationStepperTester: RankedTester = rankWith(
 	3,
 	and(
@@ -61,15 +64,26 @@ export const shadcnCategorizationStepperTester: RankedTester = rankWith(
 	),
 );
 
+/**
+ * State interface for categorization stepper component.
+ */
 export interface CategorizationStepperState {
 	activeCategory: number;
 }
 
+/**
+ * Props for the Shadcn categorization stepper layout renderer.
+ */
 export interface ShadcnCategorizationStepperLayoutRendererProps
 	extends StatePropsOfLayout, AjvProps, TranslateProps {
 	data: any;
 }
 
+/**
+ * Shadcn categorization stepper layout renderer component.
+ *
+ * @param props - Component props
+ */
 export const ShadcnCategorizationStepperLayoutRenderer = (
 	props: ShadcnCategorizationStepperLayoutRendererProps,
 ) => {

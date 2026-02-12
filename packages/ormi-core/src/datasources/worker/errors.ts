@@ -1,6 +1,4 @@
-/**
- * Error severity levels for datasource operations
- */
+/** Error severity levels for datasource operations. */
 export enum ErrorSeverity {
 	/** Information only - no action required */
 	SILENT = "silent",
@@ -12,9 +10,7 @@ export enum ErrorSeverity {
 	FATAL = "fatal",
 }
 
-/**
- * Error categories for better error classification
- */
+/** Error categories for datasource errors. */
 export enum ErrorCategory {
 	/** Network/connection related errors */
 	CONNECTION = "connection",
@@ -34,9 +30,7 @@ export enum ErrorCategory {
 	UNKNOWN = "unknown",
 }
 
-/**
- * Standardized datasource error with context
- */
+/** Standardized datasource error with context. */
 export class DatasourceError extends Error {
 	readonly severity: ErrorSeverity;
 	readonly category: ErrorCategory;
@@ -71,7 +65,8 @@ export class DatasourceError extends Error {
 	}
 
 	/**
-	 * Format error for logging with full context
+	 * Format error for logging with full context.
+	 * @returns Log string.
 	 */
 	toLogString(): string {
 		const parts = [`[${this.severity.toUpperCase()}]`];
@@ -97,14 +92,16 @@ export class DatasourceError extends Error {
 	}
 
 	/**
-	 * Check if error should be logged based on severity
+	 * Check if error should be logged based on severity.
+	 * @returns True if loggable.
 	 */
 	shouldLog(): boolean {
 		return this.severity !== ErrorSeverity.SILENT;
 	}
 
 	/**
-	 * Check if error is recoverable
+	 * Check if error is recoverable.
+	 * @returns True if recoverable.
 	 */
 	isRecoverable(): boolean {
 		return (
@@ -114,9 +111,7 @@ export class DatasourceError extends Error {
 	}
 }
 
-/**
- * Centralized error handler for datasources
- */
+/** Centralized error handler for datasources. */
 export class DatasourceErrorHandler {
 	private readonly datasourceId: string;
 	private readonly errorHistory: DatasourceError[] = [];
@@ -128,7 +123,8 @@ export class DatasourceErrorHandler {
 	}
 
 	/**
-	 * Handle an error with appropriate logging and tracking
+	 * Handle an error with logging and tracking.
+	 * @param error - Datasource error.
 	 */
 	handle(error: DatasourceError): void {
 		// Add to history
@@ -160,7 +156,10 @@ export class DatasourceErrorHandler {
 	}
 
 	/**
-	 * Create and handle an error from a raw error object
+	 * Create and handle an error from a raw error object.
+	 * @param error - Raw error.
+	 * @param options - Error options.
+	 * @returns Datasource error.
 	 */
 	handleRaw(
 		error: unknown,
@@ -187,35 +186,40 @@ export class DatasourceErrorHandler {
 	}
 
 	/**
-	 * Get recent errors
+	 * Get recent errors.
+	 * @param count - Number of errors.
+	 * @returns Error list.
 	 */
 	getRecentErrors(count = 10): DatasourceError[] {
 		return this.errorHistory.slice(-count);
 	}
 
 	/**
-	 * Get errors by category
+	 * Get errors by category.
+	 * @param category - Error category.
+	 * @returns Error list.
 	 */
 	getErrorsByCategory(category: ErrorCategory): DatasourceError[] {
 		return this.errorHistory.filter((e) => e.category === category);
 	}
 
 	/**
-	 * Get errors by severity
+	 * Get errors by severity.
+	 * @param severity - Error severity.
+	 * @returns Error list.
 	 */
 	getErrorsBySeverity(severity: ErrorSeverity): DatasourceError[] {
 		return this.errorHistory.filter((e) => e.severity === severity);
 	}
 
-	/**
-	 * Clear error history
-	 */
+	/** Clear error history. */
 	clearHistory(): void {
 		this.errorHistory.length = 0;
 	}
 
 	/**
-	 * Get error statistics
+	 * Get error statistics.
+	 * @returns Error stats.
 	 */
 	getStats(): {
 		total: number;
@@ -240,7 +244,11 @@ export class DatasourceErrorHandler {
 }
 
 /**
- * Convenience functions for creating common error types
+ * Create a connection error.
+ * @param message - Error message.
+ * @param datasourceId - Optional datasource id.
+ * @param context - Optional context.
+ * @returns Datasource error.
  */
 
 export function createConnectionError(
@@ -256,6 +264,13 @@ export function createConnectionError(
 	});
 }
 
+/**
+ * Create a conversion error.
+ * @param message - Error message.
+ * @param datasourceId - Optional datasource id.
+ * @param context - Optional context.
+ * @returns Datasource error.
+ */
 export function createConversionError(
 	message: string,
 	datasourceId?: string,
@@ -269,6 +284,13 @@ export function createConversionError(
 	});
 }
 
+/**
+ * Create a serialization error.
+ * @param message - Error message.
+ * @param datasourceId - Optional datasource id.
+ * @param context - Optional context.
+ * @returns Datasource error.
+ */
 export function createSerializationError(
 	message: string,
 	datasourceId?: string,
@@ -282,6 +304,14 @@ export function createSerializationError(
 	});
 }
 
+/**
+ * Create a worker error.
+ * @param message - Error message.
+ * @param datasourceId - Optional datasource id.
+ * @param context - Optional context.
+ * @param severity - Error severity.
+ * @returns Datasource error.
+ */
 export function createWorkerError(
 	message: string,
 	datasourceId?: string,

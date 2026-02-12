@@ -4,18 +4,14 @@ import { JsonSchema } from "@jsonforms/core";
 import { getSchemaFromStringName } from "../types/jsonSchema";
 import { JSONSchema7 } from "json-schema";
 
-/**
- * Represents a compatible property path within a topic
- */
+/** Compatible property path within a topic. */
 export interface CompatibleProperty {
 	path: string; // Property path like "linear.x" or "position.z"
 	type: string; // Final type of the property ("number", "string", etc.)
 	source: "webapp" | "raw"; // Whether this comes from webapp type or raw type schema
 }
 
-/**
- * Represents a property node in the tree structure
- */
+/** Property node within a tree structure. */
 export interface PropertyTreeNode {
 	name: string; // Property name (e.g., "linear", "x")
 	path: string; // Full path (e.g., "linear.x")
@@ -25,9 +21,7 @@ export interface PropertyTreeNode {
 	isLeaf: boolean; // Whether this is a final property (no children)
 }
 
-/**
- * Structured property trees for both type systems
- */
+/** Property trees for webapp and raw schemas. */
 export interface DualPropertyTree {
 	webapp: PropertyTreeNode[]; // Tree from webapp type schema
 	raw: PropertyTreeNode[]; // Tree from raw type schema
@@ -35,9 +29,7 @@ export interface DualPropertyTree {
 	hasRawData: boolean; // Whether raw schema was found
 }
 
-/**
- * Result of topic compatibility analysis
- */
+/** Result of topic compatibility analysis. */
 export interface TopicCompatibilityResult {
 	isCompatible: boolean;
 	directMatch: boolean; // Topic type directly matches requirements
@@ -47,7 +39,12 @@ export interface TopicCompatibilityResult {
 }
 
 /**
- * Analyzes a JSON schema to find properties that match accepted types
+ * Analyze a JSON schema to find properties that match accepted types.
+ * @param schema - JSON schema to analyze.
+ * @param acceptedTypes - Accepted type list.
+ * @param source - Source type system.
+ * @param parentPath - Parent property path.
+ * @returns Compatible properties list.
  */
 export const analyzeSchemaProperties = (
 	schema: JsonSchema | JSONSchema7,
@@ -107,8 +104,11 @@ export const analyzeSchemaProperties = (
 };
 
 /**
- * Comprehensive topic compatibility analysis
- * Checks direct type match and analyzes properties from both webapp and raw schemas
+ * Analyze topic compatibility against data requirements.
+ * @param topic - Datasource topic.
+ * @param requirements - Widget data requirements.
+ * @param pluginsManager - Plugins manager for raw schema access.
+ * @returns Compatibility analysis result.
  */
 export const analyzeTopicCompatibility = async (
 	topic: DatasourceTopic,
@@ -187,7 +187,10 @@ export const analyzeTopicCompatibility = async (
 };
 
 /**
- * Simple synchronous compatibility check (for backward compatibility)
+ * Synchronous compatibility check.
+ * @param topic - Datasource topic.
+ * @param requirements - Widget data requirements.
+ * @returns True if compatible.
  */
 export const isTopicCompatible = (
 	topic: DatasourceTopic,
@@ -217,7 +220,11 @@ export const isTopicCompatible = (
 };
 
 /**
- * Filters a list of topics to only include those compatible with widget requirements
+ * Filter topics to those compatible with requirements.
+ * @param topics - Topics list.
+ * @param requirements - Widget data requirements.
+ * @param pluginsManager - Plugins manager for raw schema access.
+ * @returns Compatible topics with analysis.
  */
 export const filterCompatibleTopics = async (
 	topics: DatasourceTopic[],
@@ -241,7 +248,11 @@ export const filterCompatibleTopics = async (
 };
 
 /**
- * Gets all possible data sources for a widget (topics + their compatible properties)
+ * Get possible data sources for a widget.
+ * @param topics - Topics list.
+ * @param requirements - Widget data requirements.
+ * @param pluginsManager - Plugins manager for raw schema access.
+ * @returns Direct topics and compatible properties.
  */
 export const getWidgetDataSources = async (
 	topics: DatasourceTopic[],
@@ -283,7 +294,10 @@ export const getWidgetDataSources = async (
 };
 
 /**
- * Resolves a $ref reference in a JSON schema
+ * Resolve a $ref reference in a JSON schema.
+ * @param ref - Reference string.
+ * @param rootSchema - Root schema.
+ * @returns Resolved schema or null.
  */
 const resolveRef = (
 	ref: string,
@@ -305,7 +319,12 @@ const resolveRef = (
 };
 
 /**
- * Builds a property tree from a JSON schema
+ * Build a property tree from a JSON schema.
+ * @param schema - JSON schema.
+ * @param acceptedTypes - Accepted type list.
+ * @param parentPath - Parent property path.
+ * @param rootSchema - Root schema.
+ * @returns Property tree nodes.
  */
 export const buildPropertyTree = (
 	schema: JsonSchema | JSONSchema7,
@@ -377,11 +396,11 @@ export const buildPropertyTree = (
 };
 
 /**
- * Builds dual property trees for a topic (separate webapp and raw trees)
- *
- * Important: Raw properties are only available when there's no webapp type.
- * If a topic has a webapp type, the data will be converted to that format,
- * making raw properties inaccessible to widgets.
+ * Build dual property trees for a topic.
+ * @param topic - Datasource topic.
+ * @param requirements - Widget data requirements.
+ * @param pluginsManager - Plugins manager for raw schema access.
+ * @returns Dual property tree.
  */
 export const buildDualPropertyTree = async (
 	topic: DatasourceTopic,
@@ -443,7 +462,10 @@ export const buildDualPropertyTree = async (
 };
 
 /**
- * Gets all compatible properties from a property tree (flattened)
+ * Get compatible properties from a property tree.
+ * @param nodes - Property tree nodes.
+ * @param source - Source type system.
+ * @returns Compatible properties list.
  */
 export const getCompatiblePropertiesFromTree = (
 	nodes: PropertyTreeNode[],
@@ -472,8 +494,11 @@ export const getCompatiblePropertiesFromTree = (
 };
 
 /**
- * Comprehensive topic compatibility analysis with property trees
- * This is the enhanced version that includes dual property trees for UI consumption
+ * Analyze topic compatibility with property trees.
+ * @param topic - Datasource topic.
+ * @param requirements - Widget data requirements.
+ * @param pluginsManager - Plugins manager for raw schema access.
+ * @returns Compatibility analysis result.
  */
 export const analyzeTopicCompatibilityWithTrees = async (
 	topic: DatasourceTopic,
@@ -532,7 +557,9 @@ export const analyzeTopicCompatibilityWithTrees = async (
 };
 
 /**
- * Counts compatible properties in a property tree
+ * Count compatible properties in a property tree.
+ * @param nodes - Property tree nodes.
+ * @returns Compatible property count.
  */
 export const countCompatibleProperties = (
 	nodes: PropertyTreeNode[],
@@ -555,7 +582,9 @@ export const countCompatibleProperties = (
 };
 
 /**
- * Gets tab information for the dual property tree UI
+ * Get tab info for dual property tree UI.
+ * @param propertyTree - Dual property tree.
+ * @returns Tab info payload.
  */
 export const getPropertyTreeTabInfo = (propertyTree: DualPropertyTree) => {
 	const webappCount = countCompatibleProperties(propertyTree.webapp);
@@ -578,7 +607,10 @@ export const getPropertyTreeTabInfo = (propertyTree: DualPropertyTree) => {
 };
 
 /**
- * Finds a specific property node by path in a tree
+ * Find a property node by path.
+ * @param nodes - Property tree nodes.
+ * @param targetPath - Property path.
+ * @returns Matching node or null.
  */
 export const findPropertyNodeByPath = (
 	nodes: PropertyTreeNode[],
@@ -599,7 +631,9 @@ export const findPropertyNodeByPath = (
 };
 
 /**
- * Gets all leaf nodes (selectable properties) from a tree
+ * Get selectable properties from a property tree.
+ * @param nodes - Property tree nodes.
+ * @returns Selectable nodes.
  */
 export const getSelectableProperties = (
 	nodes: PropertyTreeNode[],
@@ -621,7 +655,10 @@ export const getSelectableProperties = (
 };
 
 /**
- * Validates that a data requirements object is properly configured
+ * Validate data requirements configuration.
+ * @param requirements - Widget data requirements.
+ * @param widgetId - Optional widget id.
+ * @returns Validation errors.
  */
 export const validateDataRequirements = (
 	requirements: DataRequirements | undefined,
@@ -648,7 +685,10 @@ export const validateDataRequirements = (
 };
 
 /**
- * Utility function to get validation summary text for UI display
+ * Get validation summary text for UI display.
+ * @param errors - Validation errors.
+ * @param compatibilityResult - Compatibility result.
+ * @returns Summary text.
  */
 export const getValidationSummary = (
 	errors: string[],
@@ -681,7 +721,9 @@ export const getValidationSummary = (
 };
 
 /**
- * Utility function to get compatibility icon for UI display
+ * Get compatibility icon for UI display.
+ * @param compatibilityResult - Compatibility result.
+ * @returns Icon string.
  */
 export const getCompatibilityIcon = (
 	compatibilityResult?: TopicCompatibilityResult,

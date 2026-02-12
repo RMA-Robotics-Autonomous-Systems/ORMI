@@ -17,6 +17,11 @@ import { SelectedTopic } from "../datasources/datasource-interface";
 import { DataRequirements } from "../widgets/widget-interface";
 import { TopicSelectionDialog } from "./topic-selection/topic-selection-dialog";
 
+/**
+ * JsonForms renderer for selecting a datasource topic.
+ * @param props - JsonForms control props.
+ * @returns React element.
+ */
 const TopicSelectRenderer = (props: ControlProps) => {
 	const { data, handleChange, path, uischema, label } = props;
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -135,12 +140,12 @@ const TopicSelectRenderer = (props: ControlProps) => {
 
 export default withJsonFormsControlProps(TopicSelectRenderer);
 
-// Tester that matches the TopicSelect UI schema type
+/** JsonForms tester for the TopicSelect UI schema type. */
 const topicSelectTester = rankWith(10, and(isControl, uiTypeIs("TopicSelect")));
 
 export { topicSelectTester };
 
-// Type for the UI schema element
+/** UI schema element for TopicSelect. */
 export interface TopicSelectElement {
 	type: "TopicSelect";
 	scope: string;

@@ -20,6 +20,11 @@ import {
 	usePluginsManager,
 } from "@workspace/ormi-plugins";
 
+/**
+ * Datasource add button and selection dialog.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const DatasourceAdder = (props: {
 	handleAdd: (datasource_id: string) => void;
 }) => {

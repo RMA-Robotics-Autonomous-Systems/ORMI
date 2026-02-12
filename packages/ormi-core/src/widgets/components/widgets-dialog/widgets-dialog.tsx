@@ -1,12 +1,8 @@
 "use client";
 
-/*
-    Dialog that display available widgets as cards
-
-    when click on a widget card, it will open a dialog to configure the widget;
-    The confirator returns the widget configuration to be saved.
-
-*/
+/**
+ * Dialog for selecting and configuring widgets.
+ */
 
 import { useState } from "react";
 
@@ -33,6 +29,10 @@ import {
 } from "@workspace/ui/components/dialog";
 import style from "./widgets-dialog.module.css";
 
+/**
+ * Floating dialog to add widgets to the dashboard.
+ * @returns React element.
+ */
 export function WidgetsDialog() {
 	const [isOpen, setIsOpen] = useState(false);
 

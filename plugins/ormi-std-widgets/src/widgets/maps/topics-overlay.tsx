@@ -12,6 +12,11 @@ import Image from "next/image";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 
+/**
+ * Overlay list for map topics with quick centering.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function TopicListOverlay({
 	topics,
 	mapRef,

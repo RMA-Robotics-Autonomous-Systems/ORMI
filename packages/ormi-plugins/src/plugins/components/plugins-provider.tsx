@@ -11,15 +11,24 @@ import React, {
 import { PluginsManager } from "../plugins-manager";
 import { PluginsHooks, Plugin, PluginRegistry } from "../plugins-types";
 
-// Create the context with a default value
+/**
+ * Context for accessing plugins manager.
+ */
 const PluginsContext = createContext<PluginsManager | undefined>(undefined);
 
+/**
+ * Props for PluginsProvider.
+ */
 interface PluginsProviderProps {
 	children: ReactNode;
 	PluginsInfo: PluginRegistry;
 }
 
-// Create a provider component
+/**
+ * Provider component for plugin system.
+ * @param props - Component props.
+ * @returns React element.
+ */
 const PluginsProvider = (props: PluginsProviderProps) => {
 	const { children, PluginsInfo } = props;
 
@@ -78,7 +87,11 @@ const PluginsProvider = (props: PluginsProviderProps) => {
 	);
 };
 
-// Create a custom hook to use the context
+/**
+ * Hook to access plugins manager from context.
+ * @returns PluginsManager instance.
+ * @throws Error if used outside PluginsProvider.
+ */
 const usePluginsManager = () => {
 	const context = useContext(PluginsContext);
 	if (context === undefined) {
@@ -87,4 +100,7 @@ const usePluginsManager = () => {
 	return context;
 };
 
+/**
+ * Exported components and hooks for plugin system.
+ */
 export { PluginsProvider, usePluginsManager };

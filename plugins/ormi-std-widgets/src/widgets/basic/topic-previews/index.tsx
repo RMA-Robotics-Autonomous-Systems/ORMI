@@ -424,8 +424,7 @@ const PointCloudPreview = memo(function PointCloudPreview({
 });
 
 /**
- * Register all default topic preview configurations
- * These reuse existing widget definitions with their default settings
+ * Register default topic preview configurations.
  */
 export function registerDefaultTopicPreviews() {
 	// Image type - reuse ImageViewer widget

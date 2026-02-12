@@ -11,6 +11,11 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
+/**
+ * Simple GPS marker with visibility toggle.
+ * @param props - Component props.
+ * @returns React element or null when hidden or no data.
+ */
 export default function TopicMarker(props: {
 	topic: SelectedTopic;
 	name: string;

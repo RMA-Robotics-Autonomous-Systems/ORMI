@@ -36,12 +36,20 @@ import {
 import { withJsonFormsEnumProps } from "@jsonforms/react";
 import { ShadcnRadioGroup } from "./ShadcnRadioGroup";
 
+/**
+ * Shadcn radio group control component.
+ *
+ * @param props - Component props
+ */
 export const ShadcnRadioGroupControl = (
 	props: ControlProps & OwnPropsOfEnum,
 ) => {
 	return <ShadcnRadioGroup {...props} />;
 };
 
+/**
+ * Ranked tester for the Shadcn radio group control renderer.
+ */
 export const shadcnRadioGroupControlTester: RankedTester = rankWith(
 	21,
 	and(isEnumControl, optionIs("format", "radio")),

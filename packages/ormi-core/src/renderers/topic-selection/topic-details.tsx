@@ -36,6 +36,7 @@ import {
 	getPropertyTreeTabInfo,
 } from "../../widgets/topic-compatibility";
 
+/** Props for TopicDetails. */
 interface TopicDetailsProps {
 	topic: DatasourceTopic | null;
 	analysis: TopicCompatibilityResult | null;
@@ -50,6 +51,11 @@ interface TopicDetailsProps {
 	requirements?: DataRequirements;
 }
 
+/**
+ * Topic details panel with compatibility and property selection.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export const TopicDetails: React.FC<TopicDetailsProps> = ({
 	topic,
 	analysis,
@@ -303,6 +309,7 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 	);
 };
 
+/** Props for PropertyTree. */
 interface PropertyTreeProps {
 	nodes: PropertyTreeNode[];
 	selectedProperty: string | null;

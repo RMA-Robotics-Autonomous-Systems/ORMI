@@ -10,10 +10,18 @@ interface LocalStorageProviderProps {
 	children: ReactNode;
 }
 
+/**
+ * Context for local storage operations.
+ */
 export const LocalStorageProviderContext = createContext<
 	LocalStorageProviderContextInterface | undefined
 >(undefined);
 
+/**
+ * Local storage provider component.
+ *
+ * @param props - Provider props including children
+ */
 export const LocalStorageProvider = (props: LocalStorageProviderProps) => {
 	return (
 		<LocalStorageProviderContext.Provider
@@ -63,6 +71,11 @@ export const LocalStorageProvider = (props: LocalStorageProviderProps) => {
 	);
 };
 
+/**
+ * Hook to access local storage context.
+ *
+ * @returns Local storage context value
+ */
 export const useLocalStorage = () => {
 	const context = useContext(LocalStorageProviderContext);
 	if (!context) {

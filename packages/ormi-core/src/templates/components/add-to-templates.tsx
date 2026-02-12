@@ -16,6 +16,11 @@ import {
 } from "@workspace/ui/components/dialog";
 import { WidgetDefinition } from "../../widgets";
 
+/**
+ * Button to save a widget configuration as a template.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function AddToTemplatesBtn(props: {
 	widget: WidgetDefinition;
 	data: any;

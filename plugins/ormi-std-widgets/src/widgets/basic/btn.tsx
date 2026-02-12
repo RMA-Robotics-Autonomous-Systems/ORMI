@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 
+/** Props for BtnControl. */
 interface BtnControlData {
 	title: string;
 	keyInput: DigitalInput;
@@ -23,6 +24,11 @@ interface BtnControlData {
 	value: number;
 }
 
+/**
+ * Button control widget.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function BtnControl(props: BtnControlData) {
 	const { publishers } = usePublisherDataSource();
 
@@ -51,6 +57,10 @@ export function BtnControl(props: BtnControlData) {
 	);
 }
 
+/**
+ * Widget definition for BtnControl.
+ * @returns Widget definition.
+ */
 export function BtnControlDefinition() {
 	const pluginsManager = usePluginsManager();
 

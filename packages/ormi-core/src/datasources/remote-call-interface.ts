@@ -5,9 +5,7 @@ import { DatasourceProviderSettings } from "./datasource-interface";
 // Remote Call Status
 // ============================================================================
 
-/**
- * Status of a remote call execution
- */
+/** Remote call execution status. */
 type RemoteCallStatus =
 	| "pending" // Call created, waiting to be sent
 	| "executing" // Server is processing the request
@@ -19,20 +17,7 @@ type RemoteCallStatus =
 // Remote Call Definition
 // ============================================================================
 
-/**
- * Unified abstraction for remote procedure calls.
- *
- * This interface abstracts:
- * - ROS2 Services (request/response)
- * - ROS2 Actions (goal/feedback/result)
- * - REST API calls
- * - gRPC calls
- * - WebSocket RPC
- * - Any other request/response pattern
- *
- * The key insight is that an "Action" is just a "Service" with optional
- * feedback streaming and cancel support.
- */
+/** Remote call definition for request/response or action-like flows. */
 interface RemoteCallDefinition {
 	/** Unique name of the remote call (e.g., "/navigate_to_pose", "/add_two_ints") */
 	name: string;
@@ -81,9 +66,7 @@ interface RemoteCallDefinition {
 // Remote Call Result
 // ============================================================================
 
-/**
- * Result of a remote call execution
- */
+/** Result of a remote call execution. */
 interface RemoteCallResult<T = unknown> {
 	/** Whether the call succeeded */
 	success: boolean;
@@ -101,10 +84,7 @@ interface RemoteCallResult<T = unknown> {
 // Remote Call Handle
 // ============================================================================
 
-/**
- * Handle returned when executing a remote call.
- * Provides methods to track progress, receive feedback, and cancel.
- */
+/** Handle for a running remote call. */
 interface RemoteCallHandle<TFeedback = unknown, TResult = unknown> {
 	/** Unique identifier for this call instance */
 	id: string;
@@ -115,24 +95,15 @@ interface RemoteCallHandle<TFeedback = unknown, TResult = unknown> {
 	/** Promise that resolves when the call completes */
 	result: Promise<RemoteCallResult<TResult>>;
 
-	/**
-	 * Subscribe to feedback updates (only available if feedbackType is defined)
-	 * @returns Unsubscribe function
-	 */
+	/** Subscribe to feedback updates (only available if feedbackType is defined). */
 	onFeedback?: (callback: (feedback: TFeedback) => void) => () => void;
 
-	/**
-	 * Subscribe to status changes
-	 * @returns Unsubscribe function
-	 */
+	/** Subscribe to status changes. */
 	onStatusChange: (
 		callback: (status: RemoteCallStatus) => void,
 	) => () => void;
 
-	/**
-	 * Cancel the call (only available if cancelable is true)
-	 * @returns Promise that resolves to true if cancellation was successful
-	 */
+	/** Cancel the call (only available if cancelable is true). */
 	cancel?: () => Promise<boolean>;
 }
 
@@ -140,9 +111,7 @@ interface RemoteCallHandle<TFeedback = unknown, TResult = unknown> {
 // Remote Call Options
 // ============================================================================
 
-/**
- * Options for executing a remote call
- */
+/** Options for executing a remote call. */
 interface RemoteCallOptions {
 	/** Timeout in milliseconds (0 = no timeout) */
 	timeout?: number;
@@ -154,6 +123,7 @@ interface RemoteCallOptions {
 // Remote Call Filter
 // ============================================================================
 
+/** Filter criteria for remote calls. */
 interface RemoteCallFilterProps {
 	/** Filter by call name (regex) */
 	name?: RegExp;
@@ -173,9 +143,7 @@ interface RemoteCallFilterProps {
 	strict?: boolean;
 }
 
-/**
- * Filter for remote calls - similar to DatasourceTopicFilter
- */
+/** Regex-based filter for remote calls. */
 class RemoteCallFilter {
 	name?: RegExp;
 	requestType?: RegExp;
@@ -197,9 +165,7 @@ class RemoteCallFilter {
 		this.strict = props.strict ?? false;
 	}
 
-	/**
-	 * Check if a remote call definition matches this filter
-	 */
+	/** Check if a remote call definition matches this filter. */
 	filter(call: RemoteCallDefinition): boolean {
 		const failures: boolean[] = [];
 
@@ -256,9 +222,7 @@ class RemoteCallFilter {
 // Selected Remote Call (for widget configuration)
 // ============================================================================
 
-/**
- * A remote call that has been selected/configured for use in a widget
- */
+/** Remote call selected/configured for widget use. */
 interface SelectedRemoteCall extends RemoteCallDefinition {
 	/** Custom label for this call in the widget */
 	label?: string;

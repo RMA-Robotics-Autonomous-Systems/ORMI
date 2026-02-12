@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { StyleSpecification } from "react-map-gl/maplibre";
 import { GridUtils } from "../gps-components/maps-grid";
 
+/**
+ * Custom layer configuration.
+ */
 interface CustomLayer {
 	name: string;
 	url: string;
@@ -10,6 +13,9 @@ interface CustomLayer {
 	bounds?: [[number, number], [number, number]];
 }
 
+/**
+ * Props for useMapStyle.
+ */
 interface UseMapStyleProps {
 	mapUrl: string;
 	use3D: boolean;
@@ -19,8 +25,9 @@ interface UseMapStyleProps {
 }
 
 /**
- * Hook to generate MapLibre style specification
- * Handles base raster tiles, custom layers, grid, and 3D buildings
+ * Generates MapLibre style specification with custom layers and grid.
+ * @param props - Hook props.
+ * @returns MapLibre style specification or undefined.
  */
 export function useMapStyle({
 	mapUrl,

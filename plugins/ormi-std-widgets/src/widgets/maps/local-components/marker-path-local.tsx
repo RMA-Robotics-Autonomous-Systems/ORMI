@@ -11,6 +11,11 @@ import { Path, Vector3 } from "@workspace/ormi-core/types";
 import { LocalTopicVisualizerProps } from "../local-topic-visualizer-types";
 import { toast } from "sonner";
 
+/**
+ * Local path marker with GPS origin transformation.
+ * @param props - Component props.
+ * @returns React element or null when hidden or no data.
+ */
 export default function PathLocalMarker(props: LocalTopicVisualizerProps) {
 	const { name, topic, gpsOriginTopic } = props;
 	const { getSource, getSourceId } = useLocalDataSource();

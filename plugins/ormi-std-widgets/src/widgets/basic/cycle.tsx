@@ -17,6 +17,7 @@ import { RefreshCcwDot } from "lucide-react";
 import { useEffect, useState } from "react"; // Import useCallback
 import { toast } from "sonner";
 
+/** Props for CycleControl. */
 interface CycleControlData {
 	title: string;
 	keyInput: DigitalInput;
@@ -30,6 +31,11 @@ interface CycleControlData {
 	publicationFrequency: number;
 }
 
+/**
+ * Cycle control widget.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export function CycleControl(props: CycleControlData) {
 	const { publishers } = usePublisherDataSource();
 	const [cycle, setCycle] = useState<number>(0); // index of the current value
@@ -131,7 +137,7 @@ export function CycleControl(props: CycleControlData) {
 					onClick={handlecycle}
 					style={{ width: "12rem" }}
 					className={`
-                        bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 
+                        bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                         flex justify-center items-center select-none cursor-pointer
                         hover:bg-black/20 hover:scale-110 transition-all duration-100
                         data-[active=true]:bg-green-600/20 data-[active=true]:scale-110
@@ -151,6 +157,10 @@ export function CycleControl(props: CycleControlData) {
 	);
 }
 
+/**
+ * Widget definition for CycleControl.
+ * @returns Widget definition.
+ */
 export function CycleControlDefinition() {
 	const pluginsManager = usePluginsManager();
 

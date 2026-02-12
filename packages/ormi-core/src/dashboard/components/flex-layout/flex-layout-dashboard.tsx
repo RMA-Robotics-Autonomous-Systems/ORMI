@@ -22,10 +22,8 @@ import "@workspace/ormi-core/flex-layout-theme.css";
 import { Spinner } from "@workspace/ui/components/spinner";
 
 /**
- * FlexLayout Dashboard
- *
- * Focused solely on FlexLayout integration with the ORMI dashboard system.
- * Uses custom hooks for model management and widget rendering.
+ * FlexLayout dashboard implementation.
+ * @returns React element.
  */
 const FlexLayoutDashboard = () => {
 	const widgets = useAtomValue(widgetsAtom);

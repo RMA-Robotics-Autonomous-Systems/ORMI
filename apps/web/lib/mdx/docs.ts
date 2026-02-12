@@ -4,6 +4,9 @@ import matter from "gray-matter";
 
 const docsDirectory = path.join(process.cwd(), "content/docs");
 
+/**
+ * Documentation metadata.
+ */
 export interface DocMetadata {
 	title: string;
 	description?: string;
@@ -11,13 +14,17 @@ export interface DocMetadata {
 	path: string;
 }
 
+/**
+ * Documentation content with metadata.
+ */
 export interface DocContent {
 	metadata: DocMetadata;
 	content: string;
 }
 
 /**
- * Get all available documentation versions
+ * Gets all available documentation versions.
+ * @returns Array of version strings (latest first).
  */
 export function getVersions(): string[] {
 	const versions = fs.readdirSync(docsDirectory).filter((item) => {
@@ -29,7 +36,8 @@ export function getVersions(): string[] {
 }
 
 /**
- * Get the latest version
+ * Gets the latest documentation version.
+ * @returns Latest version string.
  */
 export function getLatestVersion(): string {
 	const versions = getVersions();
@@ -37,7 +45,10 @@ export function getLatestVersion(): string {
 }
 
 /**
- * Read and parse a markdown file
+ * Reads and parses a markdown documentation file.
+ * @param version - Documentation version.
+ * @param slug - Document slug path segments.
+ * @returns Document content or null if not found.
  */
 export async function getDocBySlug(
 	version: string,
@@ -93,7 +104,9 @@ export async function getDocBySlug(
 }
 
 /**
- * Get all documentation files for a version
+ * Gets all documentation files for a version.
+ * @param version - Documentation version.
+ * @returns Array of document metadata.
  */
 export function getAllDocs(version: string): DocMetadata[] {
 	const versionPath = path.join(docsDirectory, version);

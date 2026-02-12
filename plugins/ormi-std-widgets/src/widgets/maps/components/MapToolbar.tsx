@@ -6,6 +6,9 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { MinusIcon, PlusIcon, RefreshCcwIcon } from "lucide-react";
 
+/**
+ * Props for MapToolbar.
+ */
 interface MapToolbarProps {
 	mapRef: React.RefObject<MapRef | null>;
 	showGrid: boolean;
@@ -14,7 +17,9 @@ interface MapToolbarProps {
 }
 
 /**
- * Map toolbar component that manages zoom, refresh, and grid toggle buttons
+ * Registers map toolbar buttons for zoom, refresh, and grid toggle.
+ * @param props - Component props.
+ * @returns Null; this component only manages toolbar buttons.
  */
 export function MapToolbar({
 	mapRef,

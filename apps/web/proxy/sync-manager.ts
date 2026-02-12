@@ -3,9 +3,7 @@ import { ConflictResolver } from "./conflict-resolver";
 import { SyncOperation, SyncStatus } from "./types";
 
 /**
- * Sync Manager
- * Handles background synchronization when network is restored
- * Implements last-write-wins conflict resolution
+ * Manages background synchronization with last-write-wins conflict resolution.
  */
 export class SyncManager {
 	private db: OfflineDatabase;
@@ -39,7 +37,9 @@ export class SyncManager {
 	}
 
 	/**
-	 * Queue an operation for later synchronization
+	 * Queues an operation for later synchronization.
+	 * @param operation - Operation to queue.
+	 * @returns Promise that resolves when queued.
 	 */
 	async queueOperation(operation: SyncOperation): Promise<void> {
 		console.log(

@@ -3,12 +3,20 @@
 import React, { useEffect, useRef } from "react";
 import { MapRef } from "react-map-gl/maplibre";
 
+/**
+ * Props for MapsGrid.
+ */
 interface MapsGridProps {
 	mapRef: React.RefObject<MapRef | null>;
 	showGrid: boolean;
 	onGridUpdate?: (gridSizeMeters: number) => void;
 }
 
+/**
+ * Dynamic metric grid overlay for maps.
+ * @param props - Component props.
+ * @returns React element.
+ */
 export default function MapsGrid({
 	mapRef,
 	showGrid,
@@ -166,7 +174,12 @@ export default function MapsGrid({
 	return null;
 }
 
-// Hook to use grid functionality
+/**
+ * Hook to manage map grid updates on viewport changes.
+ * @param mapRef - Reference to the map instance.
+ * @param showGrid - Whether the grid is visible.
+ * @returns Grid update function.
+ */
 export const useMapGrid = (
 	mapRef: React.RefObject<MapRef | null>,
 	showGrid: boolean,
@@ -203,7 +216,9 @@ export const useMapGrid = (
 	};
 };
 
-// Export utility functions for external use
+/**
+ * Grid utilities for creating and managing metric grid lines.
+ */
 export const GridUtils = {
 	metersToDegreesLat: (meters: number) => meters / 111320,
 	metersToDegreesLng: (meters: number, latitude: number) =>

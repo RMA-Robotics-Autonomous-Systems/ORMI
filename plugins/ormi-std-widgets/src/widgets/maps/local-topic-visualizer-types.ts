@@ -2,34 +2,45 @@ import React from "react";
 import { SelectedTopic } from "@workspace/ormi-core/datasources";
 
 /**
- * Props passed to local topic visualizer components
+ * Props for local topic visualizer components.
  */
 export interface LocalTopicVisualizerProps {
+	/** Display name for the local topic. */
 	name: string;
-	topic: SelectedTopic; // The local coordinate topic (Path, PointCloud, etc.)
-	gpsOriginTopic: SelectedTopic; // The GPS topic to use as origin
-	settings?: any; // Visualizer-specific settings
+	/** Local coordinate topic (Path, PointCloud, etc.). */
+	topic: SelectedTopic;
+	/** GPS topic used as origin. */
+	gpsOriginTopic: SelectedTopic;
+	/** Visualizer-specific settings. */
+	settings?: any;
 }
 
 /**
- * Definition of a local topic visualizer
- * Used internally by the map widget to render local coordinate topics
+ * Definition of a local topic visualizer.
  */
 export interface LocalTopicVisualizer {
+	/** Visualizer React component. */
 	component: React.ComponentType<LocalTopicVisualizerProps>;
-	accepts: string[]; // Web types this visualizer can handle (e.g., ["Path"])
-	name: string; // Display name
+	/** Web types this visualizer can handle (e.g., ["Path"]). */
+	accepts: string[];
+	/** Display name. */
+	name: string;
+	/** Optional description. */
 	description?: string;
 }
 
 /**
- *  Base definition for a local topic
- *  Can be extended for specific local topics that require additional properties
+ * Base definition for a local topic.
  */
 export interface LocalTopic {
+	/** Display name. */
 	name: string;
-	topic: SelectedTopic; // Path, PointCloud, etc.
-	gpsOriginTopic: SelectedTopic; // GPS topic to use as origin
-	visualizerType?: string; // Optional: specific visualizer to use
-	transform?: "continuous" | "first" | "none"; // continuous -> apply transform continuously, first -> apply transform only once at the beginning, none -> no transform applied
+	/** Local topic (Path, PointCloud, etc.). */
+	topic: SelectedTopic;
+	/** GPS topic used as origin. */
+	gpsOriginTopic: SelectedTopic;
+	/** Optional: specific visualizer to use. */
+	visualizerType?: string;
+	/** Transform strategy for local-to-GPS conversion. */
+	transform?: "continuous" | "first" | "none";
 }

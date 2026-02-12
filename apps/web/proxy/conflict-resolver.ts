@@ -2,8 +2,7 @@ import { OfflineDatabase } from "./database";
 import { WorkspaceData, TemplateData } from "./types";
 
 /**
- * Conflict Resolver
- * Implements last-write-wins strategy for conflict resolution
+ * Resolves conflicts using last-write-wins strategy.
  */
 export class ConflictResolver {
 	private db: OfflineDatabase;
@@ -13,7 +12,9 @@ export class ConflictResolver {
 	}
 
 	/**
-	 * Resolve workspace conflict using last-write-wins
+	 * Resolves workspace conflict using last-write-wins.
+	 * @param localWorkspace - Local workspace data.
+	 * @returns Promise that resolves when conflict is resolved.
 	 */
 	async resolveWorkspaceConflict(
 		localWorkspace: WorkspaceData,

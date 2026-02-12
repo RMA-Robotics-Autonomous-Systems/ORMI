@@ -9,8 +9,7 @@ import {
 } from "./types";
 
 /**
- * API Request Interceptor
- * Handles online-first, offline-fallback logic for all API requests
+ * API request interceptor with online-first, offline-fallback logic.
  */
 export class ApiInterceptor {
 	private db: OfflineDatabase;
@@ -22,7 +21,9 @@ export class ApiInterceptor {
 	}
 
 	/**
-	 * Main request handler - decides whether to handle offline or pass through
+	 * Handles API request with offline fallback.
+	 * @param request - Request to handle.
+	 * @returns Response or null if passthrough.
 	 */
 	async handleRequest(request: Request): Promise<Response | null> {
 		const url = new URL(request.url);
@@ -73,7 +74,9 @@ export class ApiInterceptor {
 	}
 
 	/**
-	 * Try to make the request online with timeout
+	 * Attempts online request with timeout.
+	 * @param request - Request to make.
+	 * @returns Response from server.
 	 */
 	private async tryOnlineRequest(request: Request): Promise<Response> {
 		const controller = new AbortController();

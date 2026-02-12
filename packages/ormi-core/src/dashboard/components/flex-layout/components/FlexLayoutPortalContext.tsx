@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { WidgetCard } from "../../../../widgets/components/widget-card/widget-card";
 
+/** Dialog state for the widget config dialog. */
 interface DialogState {
 	isOpen: boolean;
 	widgetId: string;
@@ -18,6 +19,7 @@ interface DialogState {
 	onUpdateWidget: (box_id: string, settings: any) => void;
 }
 
+/** FlexLayout portal context value. */
 interface FlexLayoutPortalContextType {
 	registerPortal: (widgetId: string, container: HTMLElement) => void;
 	unregisterPortal: (widgetId: string) => void;
@@ -35,16 +37,15 @@ interface FlexLayoutPortalContextType {
 const FlexLayoutPortalContext =
 	createContext<FlexLayoutPortalContextType | null>(null);
 
+/** Props for FlexLayoutPortalProvider. */
 interface FlexLayoutPortalProviderProps {
 	children: ReactNode;
 }
 
 /**
- * FlexLayoutPortalProvider manages portal containers for ButtonHolder integration
- *
- * This provider allows TabRenderer components to register DOM containers
- * and WidgetRenderer components to portal ButtonHolder into those containers
- * while preserving React context chains.
+ * Provide portal containers and widget dialog state for FlexLayout.
+ * @param props - Component props.
+ * @returns React element.
  */
 export const FlexLayoutPortalProvider: React.FC<
 	FlexLayoutPortalProviderProps
@@ -122,7 +123,8 @@ export const FlexLayoutPortalProvider: React.FC<
 };
 
 /**
- * Custom hook to use the FlexLayoutPortal context
+ * Access the FlexLayout portal context.
+ * @returns FlexLayout portal context value.
  */
 export const useFlexLayoutPortal = (): FlexLayoutPortalContextType => {
 	const context = useContext(FlexLayoutPortalContext);
