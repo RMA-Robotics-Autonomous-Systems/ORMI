@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
-import { buildNavigation, getVersions } from "@/lib/mdx";
+import { buildNavigation } from "@/lib/mdx";
 import { DocsSidebar } from "@/components/docs/sidebar";
-import { DocsVersionSwitcher } from "@/components/docs/version-switcher";
 import { DocsHeader } from "@/components/docs/header";
 import {
 	SidebarProvider,
@@ -10,40 +9,23 @@ import {
 	SidebarHeader,
 	SidebarInset,
 } from "@workspace/ui/components/sidebar";
-import "../docs.css";
+import "./docs.css";
 
 interface DocsLayoutProps {
 	children: ReactNode;
-	params: Promise<{
-		version: string;
-	}>;
 }
 
-export default async function DocsLayout({
-	children,
-	params,
-}: DocsLayoutProps) {
-	const { version } = await params;
-	const versions = getVersions();
-	const navigation = await buildNavigation(version);
+export default function DocsLayout({ children }: DocsLayoutProps) {
+	const navigation = buildNavigation();
 
 	return (
 		<SidebarProvider defaultOpen={true}>
 			<Sidebar className="sticky h-[calc(100vh-4rem)]">
 				<SidebarHeader className="border-b px-4 py-4">
-					<h2 className="text-lg font-semibold mb-3">
-						Documentation
-					</h2>
-					<DocsVersionSwitcher
-						currentVersion={version}
-						versions={versions}
-					/>
+					<h2 className="text-lg font-semibold">Documentation</h2>
 				</SidebarHeader>
 				<SidebarContent>
-					<DocsSidebar
-						navigation={navigation}
-						currentVersion={version}
-					/>
+					<DocsSidebar navigation={navigation} />
 				</SidebarContent>
 			</Sidebar>
 			<SidebarInset className="">
