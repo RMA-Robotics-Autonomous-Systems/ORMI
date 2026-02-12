@@ -17,7 +17,8 @@
 		"format:check": "prettier --check \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
 		"create": "bun scripts/create-package.js",
 		"clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules",
-		"update:deps": "for dir in apps/* packages/* plugins/*; do [ -d \"$dir\" ] && (cd \"$dir\" && echo \"Updating $dir...\" && bun update --latest); done"
+		"update:deps": "for dir in apps/* packages/* plugins/*; do [ -d \"$dir\" ] && (cd \"$dir\" && echo \"Updating $dir...\" && bun update --latest); done",
+		"docs:generate": "bunx typedoc"
 	},
 	"devDependencies": {
 		"@workspace/eslint-config": "workspace:*",
@@ -37,6 +38,7 @@
 	},
 	"dependencies": {
 		"@types/three": "^0.182.0",
-		"three": "^0.182.0"
+		"three": "^0.182.0",
+		"typedoc": "^0.28.16"
 	}
 }
