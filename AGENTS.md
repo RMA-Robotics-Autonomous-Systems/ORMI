@@ -57,6 +57,7 @@ If documentation is incomplete or missing, request it explicitly before implemen
 - Avoid anti-patterns: implicit shared mutable state, side effects in render, heavy logic inside components, and overly broad context providers.
 - Keep public APIs typed and stable; add JSDoc for exported or shared modules.
 - Respect existing repo formats, linting, and TypeScript configs.
+- When user give an error message, don't fix it, explain what could be the cause, propose a solution
 
 ## Reference Docs (review before changes)
 
