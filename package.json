@@ -12,19 +12,25 @@
 		"start": "cd apps/web && bun run start",
 		"dev": "bunx turbo dev",
 		"lint": "turbo lint",
+		"lint:fix": "turbo lint -- --fix",
+		"test": "turbo test",
 		"typecheck": "turbo typecheck",
 		"format": "prettier --write \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
 		"format:check": "prettier --check \"apps/**/*.{ts,tsx,md}\" \"packages/**/*.{ts,tsx,md}\" \"plugins/**/*.{ts,tsx,md}\" \"*.md\"",
 		"create": "bun scripts/create-package.js",
 		"clean": "bunx turbo clean && rm -rf node_modules apps/*/node_modules packages/*/node_modules plugins/*/node_modules",
 		"update:deps": "for dir in apps/* packages/* plugins/*; do [ -d \"$dir\" ] && (cd \"$dir\" && echo \"Updating $dir...\" && bun update --latest); done",
-		"docs:generate": "bunx typedoc"
+		"docs:generate": "bunx typedoc",
+		"precommit": "lint-staged",
+		"prepare": "simple-git-hooks"
 	},
 	"devDependencies": {
 		"@workspace/eslint-config": "workspace:*",
 		"@workspace/typescript-config": "workspace:*",
 		"babel-plugin-react-compiler": "^1.0.0",
+		"lint-staged": "^15.2.11",
 		"prettier": "^3.8.1",
+		"simple-git-hooks": "^2.12.1",
 		"turbo": "^2.8.3",
 		"typescript": "5.9.3"
 	},
@@ -40,5 +46,23 @@
 		"@types/three": "^0.182.0",
 		"three": "^0.182.0",
 		"typedoc": "^0.28.16"
+	},
+	"simple-git-hooks": {
+		"pre-commit": "bun run precommit",
+		"pre-push": "bun run lint && bun run typecheck"
+	},
+	"lint-staged": {
+		"*.{ts,tsx}": [
+			"prettier --write",
+			"bash -c 'if grep -nE \"(console\\.(log|debug|info|warn)|debugger)\" \"$0\"; then echo \"❌ Error: Found console statements or debugger in $0\" >&2 && exit 1; fi'",
+			"bash -c 'if grep -nE \"\\.only\\(|fdescribe|fit\" \"$0\"; then echo \"❌ Error: Found .only() or focused tests in $0\" >&2 && exit 1; fi'",
+			"bash -c 'if grep -nE \"^(<{7}|>{7}|={7})\" \"$0\"; then echo \"❌ Error: Found merge conflict markers in $0\" >&2 && exit 1; fi'"
+		],
+		"*.{json,md}": [
+			"prettier --write"
+		],
+		"package.json": [
+			"bash -c 'node -e \"JSON.parse(require(\\\"fs\\\").readFileSync(\\\"$0\\\", \\\"utf8\\\"))\" || (echo \"❌ Error: Invalid JSON in $0\" >&2 && exit 1)'"
+		]
 	}
 }
