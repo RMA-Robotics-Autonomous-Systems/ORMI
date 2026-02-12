@@ -1,12 +1,16 @@
 # ORMI - Open Robotic Management Interface
 
-A modern, modular web platform for monitoring and controlling heterogeneous robotics and autonomous systems in real-time. ORMI provides a unified interface for managing multiple robotic platforms through a scalable architecture built with contemporary web technologies.
+A modern, modular web platform for monitoring and controlling heterogeneous robotics and autonomous systems in real-time. ORMI offers a unified interface for managing multiple robotic platforms, leveraging a scalable architecture constructed with modern web technologies.
 
 ## Overview
 
-ORMI is developed by the Robotics and Autonomous Systems Laboratory at the Royal Military Academy of Belgium. The platform addresses the need for flexible, responsive human-machine interfaces that can adapt to diverse robotic systems while maintaining high performance and reliability.
+The Robotics and Autonomous Systems Laboratory develops ORMI at the Royal Military Academy of Belgium. The platform addresses the need for flexible, responsive human-machine interfaces that can adapt to diverse robotic systems while maintaining high performance and reliability.
 
 The architecture supports multiple data sources including ROS2 systems through ROSBridge Suite and Foxglove WebSocket protocol, direct drone control via Tello drones, and custom data providers. Widgets and dashboards are fully customizable through a plugin-based system.
+
+<img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-45-49" src="https://github.com/user-attachments/assets/e4f28a3a-e6ad-41de-88d6-1a948e4a9002" />
+<img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-36-53" src="https://github.com/user-attachments/assets/74aab6f6-54d7-40f0-8df4-59b21e196aa0" />
+<img width="2542" height="1253" alt="Screenshot from 2026-02-12 10-34-05" src="https://github.com/user-attachments/assets/e2696fe5-744d-429d-a3f4-0dc463045d5e" />
 
 ## Key Features
 
