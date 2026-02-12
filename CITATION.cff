@@ -7,7 +7,7 @@ authors:
   - name: "Lebecque Florian"
     affiliation: "Royal Military Academy of Belgium"
     email: "Florian.lebecque@mil.be"
-repository-code: ""
+repository-code: "https://github.com/RMA-Robotics-Autonomous-Systems/ORMI"
 license: "Apache-2.0"
 keywords:
   - robotics
