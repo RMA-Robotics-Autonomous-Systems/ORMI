@@ -17,7 +17,16 @@
 			]
 		},
 		"lint": {
-			"dependsOn": ["^lint"]
+			"dependsOn": ["^lint"],
+			"inputs": [
+				"src/**/*.{ts,tsx,js,jsx}",
+				"app/**/*.{ts,tsx,js,jsx}",
+				"components/**/*.{ts,tsx,js,jsx}",
+				"eslint.config.js",
+				".eslintrc*"
+			],
+			"outputs": [],
+			"cache": true
 		},
 		"db-generate": {
 			"cache": false,
