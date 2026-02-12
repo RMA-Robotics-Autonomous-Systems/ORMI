@@ -49,7 +49,12 @@
 	},
 	"simple-git-hooks": {
 		"pre-commit": "bun run precommit",
-		"pre-push": "bun run lint && bun run typecheck"
+		"pre-push": "bun run typecheck"
+	},
+	"comments": {
+		"pre-commit": "Fast checks on staged files only (format, patterns)",
+		"pre-push": "Quick type check before pushing (turbo caches unchanged)",
+		"ci": "Full validation: lint, typecheck, build, test (source of truth)"
 	},
 	"lint-staged": {
 		"*.{ts,tsx}": [
