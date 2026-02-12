@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import matter from "gray-matter";
 
 const docsDirectory = path.join(process.cwd(), "content/docs");
 
@@ -23,133 +22,200 @@ export interface DocContent {
 }
 
 /**
- * Gets all available documentation versions.
- * @returns Array of version strings (latest first).
- */
-export function getVersions(): string[] {
-	const versions = fs.readdirSync(docsDirectory).filter((item) => {
-		const itemPath = path.join(docsDirectory, item);
-		return fs.statSync(itemPath).isDirectory();
-	});
-
-	return versions.sort().reverse(); // Latest version first
-}
-
-/**
- * Gets the latest documentation version.
- * @returns Latest version string.
- */
-export function getLatestVersion(): string {
-	const versions = getVersions();
-	return versions[0] || "v1";
-}
-
-/**
- * Reads and parses a markdown documentation file.
- * @param version - Documentation version.
- * @param slug - Document slug path segments.
+ * Reads and parses a markdown documentation file from the flat wiki structure.
+ * @param slug - Document slug (flat filename without .md extension).
  * @returns Document content or null if not found.
  */
-export async function getDocBySlug(
-	version: string,
-	slug: string[],
-): Promise<DocContent | null> {
+export function getDocBySlug(slug: string): DocContent | null {
 	try {
-		const slugPath = slug.join("/");
-		const versionPath = path.join(docsDirectory, version);
-
-		// Try different file extensions
-		const possiblePaths = [
-			path.join(versionPath, `${slugPath}.md`),
-			path.join(versionPath, `${slugPath}.mdx`),
-			path.join(versionPath, slugPath, "index.md"),
-			path.join(versionPath, slugPath, "index.mdx"),
-		];
-
-		let filePath: string | null = null;
-		for (const p of possiblePaths) {
-			if (fs.existsSync(p)) {
-				filePath = p;
-				break;
-			}
-		}
-
-		if (!filePath) {
-			return null;
-		}
-
-		const fileContents = fs.readFileSync(filePath, "utf8");
-		const { data, content } = matter(fileContents);
-
-		// Extract title from frontmatter or first heading
-		let title = data.title || "";
-		if (!title) {
-			const match = content.match(/^#\s+(.+)$/m);
-			title = match ? match[1] : slug[slug.length - 1];
-		}
-
-		return {
-			metadata: {
-				title,
-				description: data.description,
-				slug: slugPath,
-				path: filePath,
-			},
-			content,
-		};
+		return getDocFromWiki(slug);
 	} catch (error) {
-		console.error(`Error reading doc: ${version}/${slug.join("/")}`, error);
+		console.error(`Error reading doc: ${slug}`, error);
 		return null;
 	}
 }
 
 /**
- * Gets all documentation files for a version.
- * @param version - Documentation version.
- * @returns Array of document metadata.
+ * Gets a document from the flat wiki structure.
+ * @param slug - Slug (flat filename without .md extension).
+ * @returns Document content or null if not found.
  */
-export function getAllDocs(version: string): DocMetadata[] {
-	const versionPath = path.join(docsDirectory, version);
-
-	if (!fs.existsSync(versionPath)) {
-		return [];
+function getDocFromWiki(slug: string): DocContent | null {
+	if (!slug || slug === "index" || slug === "" || slug === "home") {
+		// Home page
+		const filePath = path.join(docsDirectory, "Home.md");
+		if (fs.existsSync(filePath)) {
+			return parseDocFile(filePath, slug === "home" ? "home" : "index");
+		}
+		return null;
 	}
 
-	const docs: DocMetadata[] = [];
-
-	function walkDirectory(dir: string, basePath: string = "") {
-		const files = fs.readdirSync(dir);
-
-		for (const file of files) {
-			const filePath = path.join(dir, file);
-			const stat = fs.statSync(filePath);
-
-			if (stat.isDirectory()) {
-				walkDirectory(filePath, path.join(basePath, file));
-			} else if (file.endsWith(".md") || file.endsWith(".mdx")) {
-				const slug = path.join(
-					basePath,
-					file.replace(/\.(md|mdx)$/, ""),
-				);
-				const fileContents = fs.readFileSync(filePath, "utf8");
-				const { data, content } = matter(fileContents);
-
-				let title = data.title || "";
-				if (!title) {
-					const match = content.match(/^#\s+(.+)$/m);
-					title = match ? match[1] : file.replace(/\.(md|mdx)$/, "");
-				}
-
-				docs.push({
-					title,
-					description: data.description,
-					slug: slug.replace(/\\/g, "/"), // Normalize path separators
-					path: filePath,
-				});
+	const normalizedSlug = slug.toLowerCase();
+	const files = fs.readdirSync(docsDirectory);
+	for (const file of files) {
+		if (
+			(file.endsWith(".md") || file.endsWith(".mdx")) &&
+			file !== "Home.md" &&
+			file !== "_Sidebar.md"
+		) {
+			const fileSlug = file.replace(/\.(md|mdx)$/, "").toLowerCase();
+			if (fileSlug === normalizedSlug) {
+				const filePath = path.join(docsDirectory, file);
+				return parseDocFile(filePath, slug);
 			}
 		}
 	}
 
-	walkDirectory(versionPath);
+	return null;
+}
+
+/**
+ * Parses a markdown file and extracts frontmatter and content.
+ * @param filePath - Full file path.
+ * @param slug - Document slug.
+ * @returns Parsed document content.
+ */
+function parseDocFile(filePath: string, slug: string): DocContent {
+	const fileContents = fs.readFileSync(filePath, "utf8");
+
+	// Parse simple frontmatter (YAML between ---)
+	const frontmatterMatch = fileContents.match(
+		/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/,
+	);
+
+	const frontmatter: Record<string, string> = {};
+	let content = fileContents;
+
+	if (frontmatterMatch && frontmatterMatch[1] && frontmatterMatch[2]) {
+		const frontmatterText = frontmatterMatch[1];
+		content = frontmatterMatch[2];
+
+		// Parse simple key: value pairs
+		frontmatterText.split("\n").forEach((line) => {
+			const match = line.match(/^([^:]+):\s*(.+)$/);
+			if (match && match[1] && match[2]) {
+				frontmatter[match[1].trim()] = match[2].trim();
+			}
+		});
+	}
+
+	let title = frontmatter.title || "";
+	if (!title) {
+		const match = content.match(/^##?\s+(.+?)$/m);
+		title = match && match[1] ? match[1] : slug;
+	}
+
+	return {
+		metadata: {
+			title,
+			description: frontmatter.description,
+			slug,
+			path: filePath,
+		},
+		content,
+	};
+}
+
+/**
+ * Gets all documentation files from the flat wiki structure.
+ * @returns Array of document metadata.
+ */
+export function getAllDocs(): DocMetadata[] {
+	const docs: DocMetadata[] = [];
+
+	// Get Home.md
+	const homeFile = path.join(docsDirectory, "Home.md");
+	if (fs.existsSync(homeFile)) {
+		try {
+			const fileContents = fs.readFileSync(homeFile, "utf8");
+			const frontmatterMatch = fileContents.match(
+				/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/,
+			);
+
+			const frontmatter: Record<string, string> = {};
+			let content = fileContents;
+
+			if (
+				frontmatterMatch &&
+				frontmatterMatch[1] &&
+				frontmatterMatch[2]
+			) {
+				const frontmatterText = frontmatterMatch[1];
+				content = frontmatterMatch[2];
+				frontmatterText.split("\n").forEach((line) => {
+					const match = line.match(/^([^:]+):\s*(.+)$/);
+					if (match && match[1] && match[2]) {
+						frontmatter[match[1].trim()] = match[2].trim();
+					}
+				});
+			}
+
+			const title =
+				frontmatter.title ||
+				content.match(/^##?\s+(.+?)$/m)?.[1] ||
+				"Home";
+
+			docs.push({
+				title,
+				description: frontmatter.description,
+				slug: "index",
+				path: homeFile,
+			});
+		} catch (error) {
+			console.error(`Error loading ${homeFile}:`, error);
+		}
+	}
+
+	// Get all other .md files
+	const files = fs.readdirSync(docsDirectory);
+	for (const file of files) {
+		if (
+			(file.endsWith(".md") || file.endsWith(".mdx")) &&
+			file !== "Home.md" &&
+			file !== "_Sidebar.md"
+		) {
+			const filePath = path.join(docsDirectory, file);
+			try {
+				const fileContents = fs.readFileSync(filePath, "utf8");
+				const frontmatterMatch = fileContents.match(
+					/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/,
+				);
+
+				const frontmatter: Record<string, string> = {};
+				let content = fileContents;
+
+				if (
+					frontmatterMatch &&
+					frontmatterMatch[1] &&
+					frontmatterMatch[2]
+				) {
+					const frontmatterText = frontmatterMatch[1];
+					content = frontmatterMatch[2];
+					frontmatterText.split("\n").forEach((line) => {
+						const match = line.match(/^([^:]+):\s*(.+)$/);
+						if (match && match[1] && match[2]) {
+							frontmatter[match[1].trim()] = match[2].trim();
+						}
+					});
+				}
+
+				const title =
+					frontmatter.title ||
+					content.match(/^##?\s+(.+?)$/m)?.[1] ||
+					file.replace(/\.(md|mdx)$/, "");
+				const slug = file.replace(/\.(md|mdx)$/, "").toLowerCase();
+
+				docs.push({
+					title,
+					description: frontmatter.description,
+					slug,
+					path: filePath,
+				});
+			} catch (error) {
+				console.error(`Error loading ${filePath}:`, error);
+			}
+		}
+	}
+
 	return docs;
 }

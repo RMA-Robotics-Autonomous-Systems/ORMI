@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import matter from "gray-matter";
 
 const docsDirectory = path.join(process.cwd(), "content/docs");
 
@@ -19,130 +18,172 @@ export interface NavigationItem {
 export type NavItem = NavigationItem;
 
 /**
- * File information for navigation building.
+ * Builds navigation tree from the flat wiki structure.
+ * @returns Array of navigation items.
  */
-interface FileInfo {
-	name: string;
-	title: string;
-	path: string;
-	order: number;
+export function buildNavigation(): NavItem[] {
+	return buildWikiNavigation();
 }
 
 /**
- * Builds navigation tree from file system.
- * @param version - Documentation version.
+ * Builds navigation from the flat wiki structure using _Sidebar.md.
  * @returns Array of navigation items.
  */
-export function buildNavigation(version: string): NavItem[] {
-	const versionPath = path.join(docsDirectory, version);
+function buildWikiNavigation(): NavItem[] {
+	const sidebarPath = path.join(docsDirectory, "_Sidebar.md");
 
-	if (!fs.existsSync(versionPath)) {
-		return [];
+	if (!fs.existsSync(sidebarPath)) {
+		// Fallback: generate navigation from all .md files
+		return generateWikiNavFallback();
 	}
 
-	return buildNavFromDirectory(versionPath, version, "");
-}
-
-function buildNavFromDirectory(
-	dir: string,
-	version: string,
-	basePath: string,
-): NavItem[] {
+	const sidebarContent = fs.readFileSync(sidebarPath, "utf8");
 	const items: NavItem[] = [];
-	const files = fs.readdirSync(dir);
 
-	const fileInfos: FileInfo[] = [];
-	const directories: string[] = [];
+	// Parse markdown links from _Sidebar.md
+	// Expected format: [Title](filename) or [Title](Filename)
+	let currentCategory = "";
+	let currentCategoryItems: NavItem[] = [];
 
-	// Separate files and directories
-	for (const file of files) {
-		const filePath = path.join(dir, file);
-		const stat = fs.statSync(filePath);
+	const lines = sidebarContent.split("\n");
 
-		if (stat.isDirectory()) {
-			directories.push(file);
-		} else if (file.endsWith(".md") || file.endsWith(".mdx")) {
-			const fileContents = fs.readFileSync(filePath, "utf8");
-			const { data, content } = matter(fileContents);
-
-			let title = data.title || "";
-			if (!title) {
-				const match = content.match(/^#\s+(.+)$/m);
-				title = match ? match[1] : file.replace(/\.(md|mdx)$/, "");
-			}
-
-			fileInfos.push({
-				name: file,
-				title: formatTitle(title),
-				path: filePath,
-				order: data.order || 999,
-			});
-		}
-	}
-
-	// Sort files by order, then alphabetically
-	fileInfos.sort((a, b) => {
-		if (a.order !== b.order) return a.order - b.order;
-		return a.title.localeCompare(b.title);
-	});
-
-	// Add files to navigation
-	for (const fileInfo of fileInfos) {
-		const fileName = fileInfo.name.replace(/\.(md|mdx)$/, "");
-
-		// Handle index files specially
-		if (fileName === "index" || fileName === "README") {
-			// Only add index at the root level (when basePath is empty)
-			if (basePath === "") {
+	for (const line of lines) {
+		// Check for section headers (##, ###, ####)
+		const headerMatch = line.match(/^(#{2,4})\s+(.+)$/);
+		if (headerMatch && headerMatch[2]) {
+			// If we have accumulated items in a category, add the category
+			if (currentCategory && currentCategoryItems.length > 0) {
 				items.push({
-					title: fileInfo.title || "Documentation Home",
-					href: `/docs/${version}`,
+					title: currentCategory,
+					href: "#",
+					children: currentCategoryItems,
 				});
 			}
+
+			currentCategory = headerMatch[2];
+			currentCategoryItems = [];
 			continue;
 		}
 
-		const slug = basePath ? `${basePath}/${fileName}` : fileName;
+		// Check for list items with links
+		const listMatch = line.match(
+			/^\s*[-*]\s+\*?\*?\[([^\]]+)\]\(([^)]+)\)/,
+		);
+		if (listMatch && listMatch[1] && listMatch[2]) {
+			const title = listMatch[1];
+			const linkHref = listMatch[2];
 
+			const navItem: NavItem = {
+				title,
+				href: `/docs/${linkHref.toLowerCase()}`,
+			};
+
+			currentCategoryItems.push(navItem);
+		}
+	}
+
+	// Add the last category if we have items
+	if (currentCategory && currentCategoryItems.length > 0) {
 		items.push({
-			title: fileInfo.title,
-			href: `/docs/${version}/${slug}`,
+			title: currentCategory,
+			href: "#",
+			children: currentCategoryItems,
 		});
 	}
 
-	// Process directories
-	for (const dirName of directories.sort()) {
-		const dirPath = path.join(dir, dirName);
-		const slug = basePath ? `${basePath}/${dirName}` : dirName;
+	// If we successfully parsed the sidebar, return the items
+	if (items.length > 0) {
+		return items;
+	}
 
-		// Check if directory has an index file
-		const indexPath = ["index.md", "index.mdx", "README.md"]
-			.map((f) => path.join(dirPath, f))
-			.find((p) => fs.existsSync(p));
+	// Fallback if _Sidebar.md is malformed
+	return generateWikiNavFallback();
+}
 
-		let title = formatTitle(dirName);
-		let order = 999;
+/**
+ * Generates navigation for wiki structure if _Sidebar.md doesn't exist or is malformed.
+ * @returns Array of navigation items grouped by category.
+ */
+function generateWikiNavFallback(): NavItem[] {
+	const items: NavItem[] = [];
+	const files = fs.readdirSync(docsDirectory);
 
-		if (indexPath) {
-			const fileContents = fs.readFileSync(indexPath, "utf8");
-			const { data, content } = matter(fileContents);
+	// Group files by category
+	const gettingStarted: NavItem[] = [];
+	const coreConcepts: NavItem[] = [];
+	const apiReference: NavItem[] = [];
+	const guides: NavItem[] = [];
 
-			if (data.title) {
-				title = data.title;
+	for (const file of files) {
+		if (
+			file.endsWith(".md") &&
+			file !== "Home.md" &&
+			file !== "_Sidebar.md"
+		) {
+			const title = formatTitle(file.replace(/\.md$/, ""));
+			const slug = file.replace(/\.md$/, "").toLowerCase();
+
+			const navItem: NavItem = {
+				title,
+				href: `/docs/${slug}`,
+			};
+
+			// Categorize based on filename
+			if (
+				[
+					"installation",
+					"development-setup",
+					"quick-reference",
+				].includes(slug)
+			) {
+				gettingStarted.push(navItem);
+			} else if (slug.includes("-api")) {
+				apiReference.push(navItem);
+			} else if (
+				[
+					"creating-a-plugin",
+					"creating-a-widget",
+					"creating-a-datasource",
+					"creating-a-custom-renderer",
+				].includes(slug)
+			) {
+				guides.push(navItem);
 			} else {
-				const match = content.match(/^#\s+(.+)$/m);
-				if (match && match[1]) title = match[1];
+				coreConcepts.push(navItem);
 			}
-
-			order = data.order || 999;
 		}
+	}
 
-		const children = buildNavFromDirectory(dirPath, version, slug);
-
+	// Build navigation structure
+	if (gettingStarted.length > 0) {
 		items.push({
-			title,
-			href: `/docs/${version}/${slug}`,
-			children: children.length > 0 ? children : undefined,
+			title: "Getting Started",
+			href: "#",
+			children: gettingStarted,
+		});
+	}
+
+	if (coreConcepts.length > 0) {
+		items.push({
+			title: "Core Concepts",
+			href: "#",
+			children: coreConcepts,
+		});
+	}
+
+	if (guides.length > 0) {
+		items.push({
+			title: "Guides",
+			href: "#",
+			children: guides,
+		});
+	}
+
+	if (apiReference.length > 0) {
+		items.push({
+			title: "API Reference",
+			href: "#",
+			children: apiReference,
 		});
 	}
 
@@ -150,7 +191,9 @@ function buildNavFromDirectory(
 }
 
 /**
- * Format directory/file name to title
+ * Format directory/file name to title case.
+ * @param name - Name to format.
+ * @returns Formatted title.
  */
 function formatTitle(name: string): string {
 	return name

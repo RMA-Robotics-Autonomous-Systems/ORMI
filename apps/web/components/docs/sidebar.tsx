@@ -23,7 +23,6 @@ import { useState } from "react";
 
 interface DocsSidebarProps {
 	navigation: NavigationItem[];
-	currentVersion: string;
 }
 
 export function DocsSidebar({ navigation }: DocsSidebarProps) {
@@ -33,9 +32,9 @@ export function DocsSidebar({ navigation }: DocsSidebarProps) {
 		<SidebarGroup>
 			<SidebarGroupContent>
 				<SidebarMenu>
-					{navigation.map((item) => (
+					{navigation.map((item, index) => (
 						<NavItem
-							key={item.href}
+							key={`${item.href}-${item.title}-${index}`}
 							item={item}
 							pathname={pathname}
 						/>
@@ -96,9 +95,9 @@ function NavItem({
 				</CollapsibleTrigger>
 				<CollapsibleContent>
 					<SidebarMenuSub>
-						{item.children?.map((child) => (
+						{item.children?.map((child, index) => (
 							<SubNavItem
-								key={child.href}
+								key={`${child.href}-${child.title}-${index}`}
 								item={child}
 								pathname={pathname}
 							/>
@@ -150,9 +149,9 @@ function SubNavItem({
 				</CollapsibleTrigger>
 				<CollapsibleContent>
 					<div className="ml-4 border-l pl-2 space-y-1">
-						{item.children?.map((child) => (
+						{item.children?.map((child, index) => (
 							<SidebarMenuSubButton
-								key={child.href}
+								key={`${child.href}-${child.title}-${index}`}
 								asChild
 								isActive={pathname === child.href}
 							>
