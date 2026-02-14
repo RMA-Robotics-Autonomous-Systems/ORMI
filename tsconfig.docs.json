@@ -21,7 +21,7 @@
 		"plugins/ormi-foxglove/src/**/*",
 		"plugins/ormi-tello/src/**/*",
 		"plugins/ormi-rest-bags/src/**/*",
-		"plugins/ormi-fligth-indicator/src/**/*",
+		"plugins/ormi-flight-indicator/src/**/*",
 		"plugins/ormi-rosbridge-suite/src/**/*",
 		"plugins/ormi-randoms-datasources/src/**/*",
 		"plugins/teodor-emi-extension/src/**/*"

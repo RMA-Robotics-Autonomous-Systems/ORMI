@@ -1,7 +1,7 @@
 import { PluginsHooks, Plugin, PluginFilter } from "@workspace/ormi-plugins";
 import { dataSourceExport, WidgetExport, widgetFilters } from "./export";
 
-class TelloDronePlugin extends Plugin {
+class TelloPlugin extends Plugin {
 	constructor() {
 		super();
 
@@ -38,4 +38,4 @@ class TelloDronePlugin extends Plugin {
 	}
 }
 
-export default TelloDronePlugin;
+export default TelloPlugin;

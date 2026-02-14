@@ -3,7 +3,7 @@ import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 
 import { dataSourceExport, widgetFilters, widgetsExport } from "./export";
 
-class RandomDataSourcePlugins extends Plugin {
+class RosBridgeSuitePlugin extends Plugin {
 	constructor() {
 		super();
 
@@ -45,6 +45,6 @@ interface RandomDataSourceSettings extends DatasourceProviderSettings {
 
 export type { RandomDataSourceSettings, RandomDataSourceTopicDefinition };
 
-export default RandomDataSourcePlugins;
+export default RosBridgeSuitePlugin;
 
 export { UnifiedConverter } from "./ros2/unified-converter";

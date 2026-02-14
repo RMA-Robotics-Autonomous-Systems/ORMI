@@ -13,7 +13,7 @@ interface CookiesProviderProps {
 /**
  * Context for cookies operations.
  */
-export const TemplatesProviderContext = createContext<
+export const CookiesProviderContext = createContext<
 	CookiesProviderContextInterface | undefined
 >(undefined);
 
@@ -26,7 +26,7 @@ export const CookiesProvider = (props: CookiesProviderProps) => {
 	const cookiesRef = useRef<Bun.CookieMap>(new Bun.CookieMap());
 
 	return (
-		<TemplatesProviderContext.Provider
+		<CookiesProviderContext.Provider
 			value={{
 				get: (key: string) => {
 					// Implement your logic here
@@ -43,7 +43,7 @@ export const CookiesProvider = (props: CookiesProviderProps) => {
 			}}
 		>
 			{props.children}
-		</TemplatesProviderContext.Provider>
+		</CookiesProviderContext.Provider>
 	);
 };
 
@@ -53,7 +53,7 @@ export const CookiesProvider = (props: CookiesProviderProps) => {
  * @returns Cookies context value
  */
 export const useCookies = () => {
-	const context = useContext(TemplatesProviderContext);
+	const context = useContext(CookiesProviderContext);
 	if (!context) {
 		throw new Error("useCookies must be used within a CookiesProvider");
 	}
