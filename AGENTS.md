@@ -1,4 +1,4 @@
-# ORMI Engineering Agenda
+# ORMI Engineering Rules
 
 ## Purpose
 
@@ -59,11 +59,158 @@ If documentation is incomplete or missing, request it explicitly before implemen
 - Respect existing repo formats, linting, and TypeScript configs.
 - When user give an error message, don't fix it, explain what could be the cause, propose a solution
 
+## Implementation Patterns (approved solutions)
+
+This section captures the approved patterns for common problems. Use these instead of inventing alternatives.
+
+### 1. API Responses — `apiResponse` helper
+
+**Problem:** Inconsistent HTTP response construction across API routes.
+**Solution:** Use a single `apiResponse(data, status)` helper that wraps `NextResponse.json()`.
+
+```typescript
+// packages/utils or apps/web/lib
+export function apiResponse(data: unknown, status = 200) {
+	return NextResponse.json(data, { status });
+}
+```
+
+- Every route handler returns `apiResponse(...)`.
+- Error responses use the same helper: `apiResponse({ error: "msg" }, 400)`.
+- Do NOT use `new Response(JSON.stringify(...))` or raw `NextResponse.json()` directly.
+
+### 2. Route Validation — Zod on every mutating endpoint
+
+**Problem:** Some routes validate with Zod, others skip validation entirely.
+**Solution:** All POST/PUT/PATCH/DELETE routes must parse the body with a Zod schema before processing.
+
+```typescript
+const schema = z.object({ name: z.string().min(1) });
+const parsed = schema.safeParse(await request.json());
+if (!parsed.success) return apiResponse({ error: parsed.error.flatten() }, 400);
+```
+
+- GET routes validate query params only when relevant.
+- Zod schemas live next to the route or in a shared `validations/` folder.
+
+### 3. Context Providers — `createSafeContext<T>(name)`
+
+**Problem:** Providers use different defaults (`undefined`, `null`, `{}`), inconsistent hook guards, and inconsistent naming.
+**Solution:** Use the `createSafeContext` factory for all new contexts.
+
+```typescript
+function createSafeContext<T>(name: string) {
+	const Context = createContext<T | undefined>(undefined);
+	const useCtx = () => {
+		const ctx = useContext(Context);
+		if (ctx === undefined)
+			throw new Error(`use${name} must be within ${name}Provider`);
+		return ctx;
+	};
+	return [Context.Provider, useCtx] as const;
+}
+```
+
+Rules:
+
+- Default is always `undefined`.
+- Hook always throws if used outside provider.
+- Context name uses PascalCase: `DashboardContext`, `NavbarContext`.
+- Split state + actions into two contexts only when the provider is complex (e.g., `DashboardProvider`).
+
+### 4. Plugin Exports — Standard interface
+
+**Problem:** Plugins export their content inconsistently (default export vs named, different shapes).
+**Solution:** Every plugin exports a single `default` class extending `Plugin`, and uses the `export.tsx` / `widget-export.tsx` pattern for widget/datasource registration.
+
+```typescript
+// index.ts — every plugin
+export default class MyPlugin extends Plugin {
+	name = "my-plugin";
+	register(pm: PluginsManager) {
+		/* register hooks */
+	}
+}
+```
+
+- Widget definitions go in `export.tsx` → registered via `PluginsHooks.WIDGETS_LIST`.
+- Datasource definitions go in `export.tsx` → registered via `PluginsHooks.DATASOURCES_LIST`.
+- Do NOT register hooks outside the `register()` method.
+
+### 5. Plugin Datasource Providers — Lifecycle components
+
+**Problem:** Plugin datasource providers all create a React Context but pass `null` as the context value. Data flows through `PluginsManager` hooks, not through context.
+**Solution:** Plugin datasource providers that pass `null`/empty context values should be plain lifecycle components, not context providers.
+
+When to use a Context provider for a datasource:
+
+- The provider holds **shared reactive state** that children consume directly (e.g., connection status, client instance).
+
+When to use a plain component:
+
+- Data flows solely through `PluginsManager.addFilter/addAction` hooks.
+- The context value is `null`, `{}`, or unused.
+
+Current plugin datasource providers that are lifecycle-only (no real context value):
+
+- `RandomDataSourceProvider` → context value `null`
+- `RosBridgeSuiteSourceProvider` → context value `null`
+- `TelloSourceProvider` → context value `null`
+- `RestBagDataSourceProvider` → context value `null`
+- `FoxgloveDataHandler` → context value `{client, channels, isConnected}`, but **only consumed by internal sub-managers** (SubscriptionManager, PublisherManager, ServiceManager, TypeSystemManager). No dashboard component or widget reads it. From the dashboard perspective it is a lifecycle component; the context is plugin-internal plumbing.
+
+### 6. Storage Wrappers — Plain hooks, not providers
+
+**Problem:** `LocalStorageProvider` and `CookiesProvider` wrap browser APIs in a Context but hold no reactive state. The get/set/remove functions never change.
+**Solution:** Replace with plain hooks or module-level functions. No provider needed.
+
+```typescript
+// Preferred: simple hook
+export function useLocalStorage() {
+	return {
+		get: (key: string) => {
+			/* ... */
+		},
+		set: (key: string, value: any) => {
+			/* ... */
+		},
+		remove: (key: string) => {
+			/* ... */
+		},
+	};
+}
+```
+
+Use a provider only when the underlying storage needs to be swapped for testing or the state must be reactive.
+
+### 7. Auth Route Wrappers — `withAuth` higher-order handler
+
+**Problem:** Every API route repeats the same `getServerSession` + null-check pattern.
+**Solution:** Use a `withAuth(handler)` wrapper that extracts the session and returns 401 automatically.
+
+```typescript
+export function withAuth(
+	handler: (req: Request, session: Session) => Promise<Response>,
+) {
+	return async (req: Request) => {
+		const session = await getServerSession(authOptions);
+		if (!session) return apiResponse({ error: "Unauthorized" }, 401);
+		return handler(req, session);
+	};
+}
+```
+
+### 8. Widget Gating — Utility function
+
+**Problem:** Widget availability filtering is inline in `global-datasource-provider.tsx`.
+**Solution:** Extract `filterWidgetsByDatasources(widgets, datasources)` into a shared utility. Widgets that require a specific datasource type declare their dependency in their definition.
+
 ## Reference Docs (review before changes)
 
 - Data flow: [apps/web/content/docs/v1/core/data-flow.md](apps/web/content/docs/v1/core/data-flow.md)
 - Plugin system: [apps/web/content/docs/v1/core/plugin-system.md](apps/web/content/docs/v1/core/plugin-system.md)
 - Widgets system: [apps/web/content/docs/v1/core/widgets.md](apps/web/content/docs/v1/core/widgets.md)
+- Harmonization report: [HARMONIZATION_REPORT.md](HARMONIZATION_REPORT.md)
 
 ## Workflow
 
