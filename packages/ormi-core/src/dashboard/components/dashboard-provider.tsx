@@ -1,8 +1,6 @@
 "use client";
 
 import React, {
-	createContext,
-	useContext,
 	ReactNode,
 	useEffect,
 	useReducer,
@@ -37,6 +35,7 @@ import {
 } from "../../datasources/datasource-interface";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
+import { createSafeContext } from "@workspace/utils";
 
 // Simple hash function for dashboard state
 const hashDashboardState = (
@@ -142,54 +141,10 @@ interface DashboardActionsInterface {
 	dispatch: React.Dispatch<any>;
 }
 
-// Create the context with a default value
-const DashboardContext = createContext<DashboardContextInterface>({
-	layouts: {},
-	widgets: new Map<string, Widget>(),
-
-	getComponents: () => <></>,
-	getDefinition: () => {
-		throw new Error("Method not implemented.");
-	},
-	addWidget: () => {},
-	removeWidget: () => {},
-	updateWidget: () => {},
-
-	updateLayouts: (newLayouts: Record<string, any>) => {},
-
-	lockUnLockDashboard: () => {},
-	locked: false,
-
-	savesDashboard: () => {},
-	hasChanged: false,
-	forceReload: false,
-
-	datasources: new Map<string, Datasource>(),
-	updateDatasource: () => {},
-	addDatasource: () => {},
-	removeDatasource: () => {},
-	dispatch: () => {
-		throw new Error("Dispatch not implemented.");
-	},
-});
-
-const DashboardActionsContext = createContext<DashboardActionsInterface>({
-	getDefinition: () => {
-		throw new Error("Method not implemented.");
-	},
-	addWidget: () => {},
-	removeWidget: () => {},
-	updateWidget: () => {},
-	updateLayouts: () => {},
-	lockUnLockDashboard: () => {},
-	savesDashboard: () => {},
-	addDatasource: () => {},
-	removeDatasource: () => {},
-	updateDatasource: () => {},
-	dispatch: () => {
-		throw new Error("Dispatch not implemented.");
-	},
-});
+const [DashboardContextProvider, useDashboardContext] =
+	createSafeContext<DashboardContextInterface>("Dashboard");
+const [DashboardActionsContextProvider, useDashboardActionsContext] =
+	createSafeContext<DashboardActionsInterface>("DashboardActions");
 
 /** Props for DashboardProvider. */
 interface DashboardProviderProps {
@@ -633,11 +588,11 @@ const DashboardProvider = (props: DashboardProviderProps) => {
 	);
 
 	return (
-		<DashboardActionsContext.Provider value={actionsValue}>
-			<DashboardContext.Provider value={contextValue}>
+		<DashboardActionsContextProvider value={actionsValue}>
+			<DashboardContextProvider value={contextValue}>
 				{initialized ? children : <Spinner />}
-			</DashboardContext.Provider>
-		</DashboardActionsContext.Provider>
+			</DashboardContextProvider>
+		</DashboardActionsContextProvider>
 	);
 };
 
@@ -646,13 +601,7 @@ const DashboardProvider = (props: DashboardProviderProps) => {
  * @returns Dashboard context value.
  */
 const useDashboardManager = () => {
-	const context = useContext(DashboardContext);
-	if (context === undefined) {
-		throw new Error(
-			"useDashboardManager must be used within a DashboardProvider",
-		);
-	}
-	return context;
+	return useDashboardContext();
 };
 
 export { DashboardProvider, useDashboardManager };
@@ -662,13 +611,7 @@ export { DashboardProvider, useDashboardManager };
  * @returns Dashboard actions context value.
  */
 const useDashboardActions = () => {
-	const context = useContext(DashboardActionsContext);
-	if (context === undefined) {
-		throw new Error(
-			"useDashboardActions must be used within a DashboardProvider",
-		);
-	}
-	return context;
+	return useDashboardActionsContext();
 };
 
 export { useDashboardActions };

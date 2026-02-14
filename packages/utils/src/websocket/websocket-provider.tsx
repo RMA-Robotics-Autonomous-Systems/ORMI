@@ -1,14 +1,9 @@
-import {
-	createContext,
-	useContext,
-	useRef,
-	useState,
-	useEffect,
-	useCallback,
-} from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Spinner } from "@workspace/ui/components/spinner";
+import { createSafeContext } from "../create-safe-context";
 
-const websocketContext = createContext<WebSocketContextValue | null>(null);
+const [WebSocketContextProvider, useWebSocketContext] =
+	createSafeContext<WebSocketContextValue>("WebSocket");
 
 /**
  * Enum representing WebSocket connection status.
@@ -324,7 +319,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 	};
 
 	return (
-		<websocketContext.Provider value={contextValue}>
+		<WebSocketContextProvider value={contextValue}>
 			<WebSocketStatusOverlay
 				status={status}
 				error={error}
@@ -332,7 +327,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 				maxReconnectAttempts={reconnectAttempts}
 			/>
 			{status === WebSocketStatus.CONNECTED && children}
-		</websocketContext.Provider>
+		</WebSocketContextProvider>
 	);
 };
 
@@ -394,11 +389,7 @@ const WebSocketStatusOverlay: React.FC<WebSocketStatusOverlayProps> = ({
  * @returns WebSocket context value
  */
 export const useWebSocket = () => {
-	const context = useContext(websocketContext);
-	if (context === null) {
-		throw new Error("useWebSocket must be used within a WebSocketProvider");
-	}
-	return context;
+	return useWebSocketContext();
 };
 
 /**

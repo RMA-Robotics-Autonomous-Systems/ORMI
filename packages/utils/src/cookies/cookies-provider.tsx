@@ -1,61 +1,28 @@
-import { createContext, ReactNode, useContext, useRef } from "react";
-
-interface CookiesProviderContextInterface {
+interface CookiesInterface {
 	get: (key: string) => any | undefined;
 	set: (key: string, value: any) => void;
 	remove: (key: string) => void;
 }
 
-interface CookiesProviderProps {
-	children: ReactNode;
-}
+// Module-level cookie storage
+const cookieStore = new Bun.CookieMap();
 
 /**
- * Context for cookies operations.
- */
-export const CookiesProviderContext = createContext<
-	CookiesProviderContextInterface | undefined
->(undefined);
-
-/**
- * Cookies provider component.
+ * Hook to access cookie operations.
+ * No provider needed - functions are stable and use module-level storage.
  *
- * @param props - Provider props including children
+ * @returns Cookie operations
  */
-export const CookiesProvider = (props: CookiesProviderProps) => {
-	const cookiesRef = useRef<Bun.CookieMap>(new Bun.CookieMap());
-
-	return (
-		<CookiesProviderContext.Provider
-			value={{
-				get: (key: string) => {
-					// Implement your logic here
-					return cookiesRef.current.get(key);
-				},
-				set: (key: string, value: any) => {
-					// Implement your logic here
-					cookiesRef.current.set(key, value);
-				},
-				remove: (key: string) => {
-					// Implement your logic here
-					cookiesRef.current.delete(key);
-				},
-			}}
-		>
-			{props.children}
-		</CookiesProviderContext.Provider>
-	);
-};
-
-/**
- * Hook to access cookies context.
- *
- * @returns Cookies context value
- */
-export const useCookies = () => {
-	const context = useContext(CookiesProviderContext);
-	if (!context) {
-		throw new Error("useCookies must be used within a CookiesProvider");
-	}
-	return context;
+export const useCookies = (): CookiesInterface => {
+	return {
+		get: (key: string) => {
+			return cookieStore.get(key);
+		},
+		set: (key: string, value: any) => {
+			cookieStore.set(key, value);
+		},
+		remove: (key: string) => {
+			cookieStore.delete(key);
+		},
+	};
 };

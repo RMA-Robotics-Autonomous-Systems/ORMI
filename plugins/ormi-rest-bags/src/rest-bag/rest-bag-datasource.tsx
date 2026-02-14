@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useEffect,
-	useState,
-} from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { RestBagClient } from "./rest-bag-client";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import {
@@ -15,13 +9,14 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { Spinner } from "@workspace/ui/components/spinner";
 
-const RestBagDataSourceContext = createContext(null);
-
 interface RestBagDatasourceSettings extends DatasourceProviderSettings {
 	url: string;
 }
 
-// Create a provider component
+/**
+ * Lifecycle component for REST bag datasource.
+ * Registers API URL and client filters via PluginsManager.
+ */
 const RestBagDataSourceProvider = (
 	children: ReactNode,
 	props: RestBagDatasourceSettings,
@@ -60,25 +55,14 @@ const RestBagDataSourceProvider = (
 	}, []);
 
 	return (
-		<RestBagDataSourceContext.Provider value={null}>
+		<>
 			{initialized && children}
 			{!initialized && <Spinner />}
-		</RestBagDataSourceContext.Provider>
+		</>
 	);
 };
 
-// Create a custom hook to use the context
-const useRestBagProvider = () => {
-	const context = useContext(RestBagDataSourceContext);
-	if (context === null) {
-		throw new Error(
-			"useRestBagProvider must be used within a RestBagDataSourceProvider",
-		);
-	}
-	return context;
-};
-
-export { RestBagDataSourceProvider, useRestBagProvider };
+export { RestBagDataSourceProvider };
 
 export const RestBagDatasourceDefinition = {
 	id: "rest-bag-source",

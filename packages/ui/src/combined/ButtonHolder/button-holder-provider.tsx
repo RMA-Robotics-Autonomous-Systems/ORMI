@@ -16,13 +16,8 @@
     The component takes a title, a zone, and a react components as children.
 */
 
-import React, {
-	createContext,
-	JSX,
-	useCallback,
-	useContext,
-	useState,
-} from "react";
+import React, { JSX, useCallback, useState } from "react";
+import { createSafeContext } from "@workspace/utils";
 
 // each zone iz an array of react components
 interface ButtonItem {
@@ -40,11 +35,8 @@ interface ButtonHolderContextType {
 	removeButtonItem: (key: string) => void;
 }
 
-const ButtonHolderContext = createContext<ButtonHolderContextType>({
-	items: new Map(),
-	setButtonItem: () => {},
-	removeButtonItem: () => {},
-});
+const [ButtonHolderContextProvider, useButtonHolderContext] =
+	createSafeContext<ButtonHolderContextType>("ButtonHolder");
 
 interface ButtonHolderProviderProps {
 	children: React.ReactNode;
@@ -75,20 +67,14 @@ export const ButtonHolderProvider: React.FC<ButtonHolderProviderProps> = ({
 	}, []);
 
 	return (
-		<ButtonHolderContext.Provider
+		<ButtonHolderContextProvider
 			value={{ items, setButtonItem, removeButtonItem }}
 		>
 			{children}
-		</ButtonHolderContext.Provider>
+		</ButtonHolderContextProvider>
 	);
 };
 
 export const useButtonHolder = () => {
-	const context = useContext(ButtonHolderContext);
-	if (!context) {
-		throw new Error(
-			"useButtonHolder must be used within a ButtonHolderProvider",
-		);
-	}
-	return context;
+	return useButtonHolderContext();
 };

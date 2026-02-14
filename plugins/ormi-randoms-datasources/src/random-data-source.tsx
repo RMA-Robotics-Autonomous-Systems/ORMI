@@ -14,23 +14,17 @@
         },
 */
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 
 import { RandomDataSourceSettings } from "./index";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
 import { Spinner } from "@workspace/ui/components/spinner";
 
-const RandomDataSourceContext = createContext(null);
-
-// Create a provider component
+/**
+ * Lifecycle component for random datasource.
+ * Manages worker initialization and plugin hook registration.
+ */
 const RandomDataSourceProvider = (
 	children: ReactNode,
 	props: RandomDataSourceSettings,
@@ -88,22 +82,11 @@ const RandomDataSourceProvider = (
 	}, [pluginsManager, props.id, props.enable, props.title, props.topics]);
 
 	return (
-		<RandomDataSourceContext.Provider value={null}>
+		<>
 			{initialized && children}
 			{!initialized && <Spinner />}
-		</RandomDataSourceContext.Provider>
+		</>
 	);
 };
 
-// Create a custom hook to use the context
-const useRandomProvider = () => {
-	const context = useContext(RandomDataSourceContext);
-	if (context === undefined) {
-		throw new Error(
-			"useRandomProvider must be used within a RandomDataSourceProvider",
-		);
-	}
-	return context;
-};
-
-export { RandomDataSourceProvider, useRandomProvider };
+export { RandomDataSourceProvider };

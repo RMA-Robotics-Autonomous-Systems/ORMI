@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 
 import { JsonSchema } from "@jsonforms/core";
 import {
@@ -28,8 +21,6 @@ import {
 } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
-
-const TelloSourceContext = createContext(null);
 
 /**
  * Settings for Tello drone datasource.
@@ -662,22 +653,11 @@ const TelloSourceProvider = (
 	}, [props]);
 
 	return (
-		<TelloSourceContext.Provider value={null}>
+		<>
 			{initialized && children}
 			{!initialized && <Spinner />}
-		</TelloSourceContext.Provider>
+		</>
 	);
 };
 
-// Create a custom hook to use the context
-const useRandomProvider = () => {
-	const context = useContext(TelloSourceContext);
-	if (context === undefined) {
-		throw new Error(
-			"useRandomProvider must be used within a TelloSourceProvider",
-		);
-	}
-	return context;
-};
-
-export { TelloSourceProvider, useRandomProvider };
+export { TelloSourceProvider };

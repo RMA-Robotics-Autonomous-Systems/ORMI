@@ -1,19 +1,19 @@
 "use client";
 /*
-	Provider that creates a datasets with random data
+    Provider that creates a datasets with random data
 
-	data ->
-		[source] -> {
-			label: 'current_time',
-			data: [random data]
-		},
-		[source] -> {
-			label: 'current_time',
-			data: [random data]
-		},
+    data ->
+        [source] -> {
+            label: 'current_time',
+            data: [random data]
+        },
+        [source] -> {
+            label: 'current_time',
+            data: [random data]
+        },
 */
 
-import React, { createContext, ReactNode, useEffect, useRef } from "react";
+import React, { ReactNode, useEffect, useRef } from "react";
 
 import * as ROSLIB from "roslib";
 
@@ -29,8 +29,6 @@ import {
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
-
-const RosBridgeSuiteSourceContext = createContext(null);
 
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
@@ -895,10 +893,10 @@ const RosBridgeSuiteSourceProvider = (
 	}, [retry, props, pluginsManager]); // Add pluginsManager dependency
 
 	return (
-		<RosBridgeSuiteSourceContext.Provider value={null}>
+		<>
 			{connected && children}
 			{!connected && <Spinner />}
-		</RosBridgeSuiteSourceContext.Provider>
+		</>
 	);
 };
 

@@ -3,19 +3,13 @@
  * Publisher datasource provider for advertising and publishing topics.
  */
 
-import React, {
-	createContext,
-	ReactNode,
-	useContext,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 
 import { SelectedTopic } from "../datasource-interface";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
 import { PluginsManager, usePluginsManager } from "@workspace/ormi-plugins";
+import { createSafeContext } from "@workspace/utils";
 
 /** Publisher datasource context value. */
 interface PublisherDataSources {
@@ -60,9 +54,8 @@ class Publisher {
 	}
 }
 
-const PublisherDataSourcesContext = createContext<PublisherDataSources>({
-	publishers: new Map<string, Publisher>(),
-});
+const [PublisherDataSourcesContextProvider, usePublisherDataSourcesContext] =
+	createSafeContext<PublisherDataSources>("PublisherDataSources");
 
 /**
  * Provide publisher instances for selected topics.
@@ -272,10 +265,10 @@ const PublisherDataSourcesProvider = (
 	}, [SelectedTopics, pluginsManager]);
 
 	return (
-		<PublisherDataSourcesContext.Provider value={{ publishers }}>
+		<PublisherDataSourcesContextProvider value={{ publishers }}>
 			{initialized && children}
 			{!initialized && <Spinner />} {/* Use Spinner */}
-		</PublisherDataSourcesContext.Provider>
+		</PublisherDataSourcesContextProvider>
 	);
 };
 
@@ -284,14 +277,7 @@ const PublisherDataSourcesProvider = (
  * @returns Publisher datasource context value.
  */
 const usePublisherDataSource = () => {
-	const context = useContext(PublisherDataSourcesContext);
-	if (!context) {
-		throw new Error(
-			"useLocalDataSource must be used within a GlobalDataSourcesProvider",
-		);
-	}
-
-	return context;
+	return usePublisherDataSourcesContext();
 };
 
 export { PublisherDataSourcesProvider, usePublisherDataSource };

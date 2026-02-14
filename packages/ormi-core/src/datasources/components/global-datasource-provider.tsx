@@ -4,7 +4,7 @@
  * Load available datasources and render their providers.
  */
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	Datasource,
 	DatasourceDefinition,
@@ -36,10 +36,12 @@ import DatasourceAdder from "./datasource-adder";
 import DatasourceCard from "./datasource-card";
 import { CheckIcon, CloudCogIcon } from "lucide-react";
 import { Template, useTemplates } from "../../templates";
+import { createSafeContext } from "@workspace/utils";
 
 type GlobalDataSources = object;
 
-const GlobalDataSourcesContext = createContext<GlobalDataSources>({});
+const [GlobalDataSourcesContextProvider, useGlobalDataSourcesContext] =
+	createSafeContext<GlobalDataSources>("GlobalDataSources");
 
 /**
  * Global datasource provider wiring datasource providers and navbar UI.
@@ -303,9 +305,9 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	}, [providersReady, datasources, children, dataSourcesTypes]);
 
 	return (
-		<GlobalDataSourcesContext.Provider value={{}}>
+		<GlobalDataSourcesContextProvider value={{}}>
 			{providerChain}
-		</GlobalDataSourcesContext.Provider>
+		</GlobalDataSourcesContextProvider>
 	);
 };
 
@@ -314,14 +316,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
  * @returns Global datasource context value.
  */
 const useGlobalDataSources = () => {
-	const context = useContext(GlobalDataSourcesContext);
-	if (!context) {
-		throw new Error(
-			"useGlobalDataSources must be used within a GlobalDataSourcesProvider",
-		);
-	}
-
-	return context;
+	return useGlobalDataSourcesContext();
 };
 
 export { GlobalDataSourcesProvider, useGlobalDataSources };

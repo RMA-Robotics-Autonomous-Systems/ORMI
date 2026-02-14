@@ -1,14 +1,8 @@
 "use client";
 
-import React, {
-	createContext,
-	useContext,
-	useRef,
-	ReactNode,
-	useState,
-	useCallback,
-} from "react";
+import React, { useRef, ReactNode, useState, useCallback } from "react";
 import { WidgetCard } from "../../../../widgets/components/widget-card/widget-card";
+import { createSafeContext } from "@workspace/utils";
 
 /** Dialog state for the widget config dialog. */
 interface DialogState {
@@ -34,8 +28,8 @@ interface FlexLayoutPortalContextType {
 	dialogState: DialogState | null;
 }
 
-const FlexLayoutPortalContext =
-	createContext<FlexLayoutPortalContextType | null>(null);
+const [FlexLayoutPortalContextProvider, useFlexLayoutPortalContext] =
+	createSafeContext<FlexLayoutPortalContextType>("FlexLayoutPortal");
 
 /** Props for FlexLayoutPortalProvider. */
 interface FlexLayoutPortalProviderProps {
@@ -97,7 +91,7 @@ export const FlexLayoutPortalProvider: React.FC<
 	};
 
 	return (
-		<FlexLayoutPortalContext.Provider value={contextValue}>
+		<FlexLayoutPortalContextProvider value={contextValue}>
 			{children}
 			{/* Render dialog outside of FlexLayout structure */}
 			{dialogState && (
@@ -118,7 +112,7 @@ export const FlexLayoutPortalProvider: React.FC<
 					}}
 				/>
 			)}
-		</FlexLayoutPortalContext.Provider>
+		</FlexLayoutPortalContextProvider>
 	);
 };
 
@@ -127,11 +121,5 @@ export const FlexLayoutPortalProvider: React.FC<
  * @returns FlexLayout portal context value.
  */
 export const useFlexLayoutPortal = (): FlexLayoutPortalContextType => {
-	const context = useContext(FlexLayoutPortalContext);
-	if (!context) {
-		throw new Error(
-			"useFlexLayoutPortal must be used within a FlexLayoutPortalProvider",
-		);
-	}
-	return context;
+	return useFlexLayoutPortalContext();
 };
