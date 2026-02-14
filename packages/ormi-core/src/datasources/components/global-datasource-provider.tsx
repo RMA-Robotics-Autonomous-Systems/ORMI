@@ -21,6 +21,7 @@ import {
 import { useNavbar } from "@workspace/ui/combined/navbar";
 
 import { Button } from "@workspace/ui/components/button";
+import { Badge } from "@workspace/ui/components/badge";
 import {
 	Dialog,
 	DialogTrigger,
@@ -34,9 +35,24 @@ import {
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import DatasourceAdder from "./datasource-adder";
 import DatasourceCard from "./datasource-card";
-import { CheckIcon, CloudCogIcon } from "lucide-react";
+import {
+	CheckIcon,
+	CloudCogIcon,
+	Loader2,
+	AlertCircle,
+	XCircle,
+} from "lucide-react";
 import { Template, useTemplates } from "../../templates";
 import { createSafeContext } from "@workspace/utils";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@workspace/ui/components/tooltip";
+
+/** Datasource connection status. */
+type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
 
 type GlobalDataSources = object;
 
@@ -62,7 +78,12 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 	const [dataLoaded, setDataLoaded] = useState(false);
 	const [initialized, setInitialized] = useState(false);
-	const [providersReady, setProvidersReady] = useState(false);
+	const [readyDatasources, setReadyDatasources] = useState<Set<string>>(
+		new Set(),
+	);
+	const [datasourceStatuses, setDatasourceStatuses] = useState<
+		Map<string, DatasourceStatus>
+	>(new Map());
 
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
 
@@ -87,23 +108,82 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		setInitialized(dataLoaded === true);
 	}, [dataLoaded]);
 
-	// Track provider readiness - ensure all providers are mounted before mounting children
+	// Initialize datasources as connecting when they're added
+	useEffect(() => {
+		setDatasourceStatuses((prev) => {
+			const next = new Map(prev);
+			datasources.forEach((ds) => {
+				if (!next.has(ds.settings.id)) {
+					next.set(ds.settings.id, "connecting");
+				}
+			});
+			// Remove statuses for deleted datasources
+			next.forEach((_, id) => {
+				if (
+					!Array.from(datasources.values()).some(
+						(ds) => ds.settings.id === id,
+					)
+				) {
+					next.delete(id);
+				}
+			});
+			return next;
+		});
+	}, [datasources]);
+
+	// Track datasource readiness via lifecycle actions
+	// Register listeners immediately to avoid race conditions
+	useEffect(() => {
+		const handleDatasourceReady = (datasourceId: string) => {
+			setReadyDatasources((prev) => {
+				const next = new Set(prev);
+				next.add(datasourceId);
+				return next;
+			});
+			setDatasourceStatuses((prev) => {
+				const next = new Map(prev);
+				next.set(datasourceId, "ready");
+				return next;
+			});
+		};
+
+		const handleDatasourceDisposed = (datasourceId: string) => {
+			setReadyDatasources((prev) => {
+				const next = new Set(prev);
+				next.delete(datasourceId);
+				return next;
+			});
+			setDatasourceStatuses((prev) => {
+				const next = new Map(prev);
+				next.set(datasourceId, "disposed");
+				return next;
+			});
+		};
+
+		pluginsManager.addAction(PluginsHooks.DATASOURCE_READY, {
+			id: "global-datasources-ready-tracker",
+			priority: 10,
+			action: handleDatasourceReady,
+		});
+
+		pluginsManager.addAction(PluginsHooks.DATASOURCE_DISPOSED, {
+			id: "global-datasources-disposed-tracker",
+			priority: 10,
+			action: handleDatasourceDisposed,
+		});
+
+		return () => {
+			pluginsManager.removeAction("global-datasources-ready-tracker");
+			pluginsManager.removeAction("global-datasources-disposed-tracker");
+		};
+	}, [pluginsManager]);
+
+	// Clear readiness tracking when not initialized
 	useEffect(() => {
 		if (!initialized) {
-			setProvidersReady(false);
-			return;
+			setReadyDatasources(new Set());
 		}
-
-		// If no datasources, children can be mounted immediately
-		if (datasources.size === 0) {
-			setProvidersReady(true);
-			return;
-		}
-
-		// For now, set providers ready when initialized
-		// In the future, this could wait for actual provider mounting signals
-		setProvidersReady(true);
-	}, [initialized, datasources.size]);
+	}, [initialized]);
 
 	useEffect(() => {
 		if (!initialized) return;
@@ -124,6 +204,80 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 		function handleRemove(source_id: string) {
 			removeDatasource(source_id);
+		}
+
+		// Create status badges for each datasource
+		const datasourceStatusElements = Array.from(datasources.values()).map(
+			(ds) => {
+				const status =
+					datasourceStatuses.get(ds.settings.id) || "connecting";
+				const statusConfig = {
+					connecting: {
+						icon: Loader2,
+						variant: "secondary" as const,
+						color: "text-blue-600",
+						label: "Connecting",
+					},
+					ready: {
+						icon: CheckIcon,
+						variant: "default" as const,
+						color: "text-green-600",
+						label: "Ready",
+					},
+					error: {
+						icon: AlertCircle,
+						variant: "destructive" as const,
+						color: "text-red-600",
+						label: "Error",
+					},
+					disposed: {
+						icon: XCircle,
+						variant: "outline" as const,
+						color: "text-gray-600",
+						label: "Disposed",
+					},
+				}[status];
+				const Icon = statusConfig.icon;
+
+				return (
+					<Tooltip key={ds.settings.id}>
+						<TooltipTrigger asChild>
+							<Badge
+								variant={statusConfig.variant}
+								className="gap-1"
+							>
+								<Icon
+									className={`h-3 w-3 ${statusConfig.color} ${status === "connecting" ? "animate-spin" : ""}`}
+								/>
+								<span className={statusConfig.color}>
+									{ds.settings.title}
+								</span>
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent>
+							<p>
+								{ds.settings.title}: {statusConfig.label}
+							</p>
+						</TooltipContent>
+					</Tooltip>
+				);
+			},
+		);
+
+		// Set status indicator as separate navbar item
+		if (datasourceStatusElements.length > 0) {
+			setNavbarItem(
+				"center",
+				"datasources_status",
+				<TooltipProvider>
+					<div className="flex h-full items-center gap-2">
+						{datasourceStatusElements}
+					</div>
+				</TooltipProvider>,
+				0,
+			);
+		} else {
+			removeNavbarItem("center", "datasources_status");
 		}
 
 		setNavbarItem(
@@ -212,6 +366,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 		return () => {
 			removeNavbarItem("center", "datasources_combo");
+			removeNavbarItem("center", "datasources_status");
 			pluginsManager.removeFilter("available_datasources");
 		};
 	}, [
@@ -221,6 +376,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		updateDatasource,
 		dataSourcesTypes,
 		datasources,
+		datasourceStatuses,
 		pluginsManager,
 		addTemplate,
 		setNavbarItem,
@@ -264,49 +420,37 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		};
 	}, [datasources, initialized, pluginsManager]);
 
-	// Memoize the provider chain to prevent unnecessary rerenders
-	const providerChain = React.useMemo(() => {
-		const getProvider = (datasource_id: string) => {
-			const dataSourceType = dataSourcesTypes.get(datasource_id);
-			if (!dataSourceType) {
-				console.error(`Datasource ${datasource_id} not found`);
-				return null;
-			}
-			return dataSourceType.Provider;
-		};
+	// Determine if all datasources are ready
+	const allDatasourcesReady =
+		datasources.size === 0 || readyDatasources.size === datasources.size;
 
-		// Don't render anything until providers are ready
-		if (!providersReady) return null;
-
-		// If no datasources, render children directly
-		if (datasources.size === 0) {
-			return children;
-		}
-
-		// Build the provider chain from outside to inside
-		return Array.from(datasources.values()).reduceRight(
-			(children_stack, datasource) => {
-				const Provider = getProvider(datasource.datasource_id);
-				if (!Provider) {
-					return children_stack;
+	// Render datasources as parallel siblings
+	const datasourceComponents = initialized
+		? Array.from(datasources.values()).map((datasource) => {
+				const dataSourceType = dataSourcesTypes.get(
+					datasource.datasource_id,
+				);
+				if (!dataSourceType) {
+					console.error(
+						`Datasource ${datasource.datasource_id} not found`,
+					);
+					return null;
 				}
 
+				const Provider = dataSourceType.Provider;
 				return (
 					<Provider
 						key={datasource.settings.id}
-						props={datasource.settings}
-					>
-						{children_stack}
-					</Provider>
+						{...datasource.settings}
+					/>
 				);
-			},
-			children,
-		);
-	}, [providersReady, datasources, children, dataSourcesTypes]);
+			})
+		: null;
 
 	return (
 		<GlobalDataSourcesContextProvider value={{}}>
-			{providerChain}
+			{datasourceComponents}
+			{allDatasourcesReady && children}
 		</GlobalDataSourcesContextProvider>
 	);
 };

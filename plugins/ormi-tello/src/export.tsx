@@ -31,7 +31,7 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 			ip: "192.168.10.1",
 		} as TelloSourceSettings,
 
-		Provider: ({ children, props }) => TelloSourceProvider(children, props),
+		Provider: (props) => TelloSourceProvider(props),
 	} as DatasourceDefinition<TelloSourceSettings>);
 
 	return datasources;

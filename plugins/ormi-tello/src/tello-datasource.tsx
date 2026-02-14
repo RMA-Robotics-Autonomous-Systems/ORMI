@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { JsonSchema } from "@jsonforms/core";
 import {
@@ -19,7 +19,6 @@ import {
 	usePluginsManager,
 	PluginsHooks,
 } from "@workspace/ormi-plugins";
-import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
 
 /**
@@ -205,10 +204,7 @@ Received message: {"origin": "state", "raw": "pitch:-1;roll:0;yaw:0;vgx:0;vgy:0;
 */
 
 // Create a provider component
-const TelloSourceProvider = (
-	children: ReactNode,
-	props: TelloSourceSettings,
-) => {
+const TelloSourceProvider = (props: TelloSourceSettings) => {
 	const pluginsManager = usePluginsManager();
 
 	const subscribersCountRef = useRef(new Map<string, number>());
@@ -249,6 +245,10 @@ const TelloSourceProvider = (
 					socketRef.current?.send("command");
 					resolve(true);
 					setInitialized(true);
+					pluginsManager.doAction(
+						PluginsHooks.DATASOURCE_READY,
+						props.id,
+					);
 				};
 
 				socketRef.current.onerror = (error) => {
@@ -652,12 +652,7 @@ const TelloSourceProvider = (
 		};
 	}, [props]);
 
-	return (
-		<>
-			{initialized && children}
-			{!initialized && <Spinner />}
-		</>
-	);
+	return null;
 };
 
 export { TelloSourceProvider };

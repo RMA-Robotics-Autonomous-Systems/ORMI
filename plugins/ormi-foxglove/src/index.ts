@@ -86,8 +86,7 @@ class FoxglovePlugin extends Plugin {
 						reconnectTimeout: 2,
 					},
 
-					Provider: ({ children, props }) =>
-						FoxgloveSourceProvider(children, props),
+					Provider: (props) => FoxgloveSourceProvider(props),
 				} as DatasourceDefinition<FoxgloveDataSourceSettings>);
 
 				return datasources;

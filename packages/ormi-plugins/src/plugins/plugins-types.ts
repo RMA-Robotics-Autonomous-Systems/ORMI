@@ -20,6 +20,13 @@ enum PluginsHooks {
 	AVAILABLE_TOPICS = "plugins-topics-list",
 	AVAILABLE_DATASOURCES = "plugins-datasources-availables",
 
+	/**
+	 * Actions for datasource lifecycle management.
+	 * Datasource providers emit these to coordinate initialization.
+	 */
+	DATASOURCE_READY = "datasource-ready",
+	DATASOURCE_DISPOSED = "datasource-disposed",
+
 	TRANSFORM_TREE = "CORE-TRANSFORM-TREE",
 
 	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",

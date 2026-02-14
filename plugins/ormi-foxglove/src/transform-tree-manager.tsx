@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
@@ -14,7 +14,6 @@ import {
 import { FoxgloveDataSourceSettings } from "./types";
 
 interface TransformTreeManagerProps {
-	children: ReactNode;
 	settings: FoxgloveDataSourceSettings;
 }
 
@@ -27,11 +26,9 @@ interface TransformTreeManagerProps {
  * - Widgets automatically re-render when atoms update
  */
 const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
-	children,
 	settings,
 }) => {
 	const pluginsManager = usePluginsManager();
-	const [isInitialized, setIsInitialized] = useState(false);
 
 	const datasource_id = settings.id;
 
@@ -122,11 +119,7 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 			}
 		});
 
-		setIsInitialized(true);
-
 		return () => {
-			setIsInitialized(false);
-
 			// Remove message handlers
 			actionIds.forEach((actionId) => {
 				pluginsManager.removeAction(actionId);
@@ -167,7 +160,7 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 		datasource_id,
 	]);
 
-	return <>{isInitialized ? children : null}</>;
+	return null;
 };
 
 export { TransformTreeManager };

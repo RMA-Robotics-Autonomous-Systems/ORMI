@@ -4,25 +4,54 @@ interface CookiesInterface {
 	remove: (key: string) => void;
 }
 
-// Module-level cookie storage
-const cookieStore = new Bun.CookieMap();
+/**
+ * Parse document.cookie string into key-value pairs.
+ */
+const parseCookies = (): Record<string, string> => {
+	if (typeof document === "undefined") return {};
+
+	return document.cookie.split(";").reduce(
+		(acc, cookie) => {
+			const [key, value] = cookie.trim().split("=");
+			if (key) {
+				acc[key] = decodeURIComponent(value || "");
+			}
+			return acc;
+		},
+		{} as Record<string, string>,
+	);
+};
 
 /**
  * Hook to access cookie operations.
- * No provider needed - functions are stable and use module-level storage.
+ * No provider needed - functions are stable and use document.cookie.
  *
  * @returns Cookie operations
  */
 export const useCookies = (): CookiesInterface => {
 	return {
 		get: (key: string) => {
-			return cookieStore.get(key);
+			const cookies = parseCookies();
+			const value = cookies[key];
+			if (!value) return undefined;
+
+			try {
+				return JSON.parse(value);
+			} catch {
+				return value;
+			}
 		},
 		set: (key: string, value: any) => {
-			cookieStore.set(key, value);
+			if (typeof document === "undefined") return;
+
+			const serialized =
+				typeof value === "string" ? value : JSON.stringify(value);
+			document.cookie = `${key}=${encodeURIComponent(serialized)}; path=/; max-age=31536000`;
 		},
 		remove: (key: string) => {
-			cookieStore.delete(key);
+			if (typeof document === "undefined") return;
+
+			document.cookie = `${key}=; path=/; max-age=0`;
 		},
 	};
 };

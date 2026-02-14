@@ -58,8 +58,7 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 			reconnectTimeout: 2,
 		},
 
-		Provider: ({ children, props }) =>
-			RosBridgeSuiteSourceProvider(children, props),
+		Provider: (props) => RosBridgeSuiteSourceProvider(props),
 	} as DatasourceDefinition<RosBridgeSuiteDataSourceSettings>);
 
 	return datasources;

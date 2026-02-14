@@ -14,21 +14,17 @@
         },
 */
 
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { RandomDataSourceSettings } from "./index";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
-import { Spinner } from "@workspace/ui/components/spinner";
 
 /**
  * Lifecycle component for random datasource.
  * Manages worker initialization and plugin hook registration.
  */
-const RandomDataSourceProvider = (
-	children: ReactNode,
-	props: RandomDataSourceSettings,
-) => {
+const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const hostRef =
 		useRef<WorkerDatasourceHost<RandomDataSourceSettings> | null>(null);
@@ -60,6 +56,10 @@ const RandomDataSourceProvider = (
 			.then(() => {
 				if (!disposed) {
 					setInitialized(true);
+					pluginsManager.doAction(
+						PluginsHooks.DATASOURCE_READY,
+						props.id,
+					);
 				}
 			})
 			.catch((error) => {
@@ -76,17 +76,13 @@ const RandomDataSourceProvider = (
 
 		return () => {
 			disposed = true;
+			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, props.id);
 			if (host) host.dispose();
 			hostRef.current = null;
 		};
 	}, [pluginsManager, props.id, props.enable, props.title, props.topics]);
 
-	return (
-		<>
-			{initialized && children}
-			{!initialized && <Spinner />}
-		</>
-	);
+	return null;
 };
 
 export { RandomDataSourceProvider };

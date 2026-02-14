@@ -1,13 +1,12 @@
 "use client";
 
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { RestBagClient } from "./rest-bag-client";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	DatasourceDefinition,
 	DatasourceProviderSettings,
 } from "@workspace/ormi-core/datasources";
-import { Spinner } from "@workspace/ui/components/spinner";
 
 interface RestBagDatasourceSettings extends DatasourceProviderSettings {
 	url: string;
@@ -17,10 +16,7 @@ interface RestBagDatasourceSettings extends DatasourceProviderSettings {
  * Lifecycle component for REST bag datasource.
  * Registers API URL and client filters via PluginsManager.
  */
-const RestBagDataSourceProvider = (
-	children: ReactNode,
-	props: RestBagDatasourceSettings,
-) => {
+const RestBagDataSourceProvider = (props: RestBagDatasourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const { url, id } = props;
 	const [initialized, setInitialized] = useState(false);
@@ -47,19 +43,15 @@ const RestBagDataSourceProvider = (
 		});
 
 		setInitialized(true);
-
+		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, id);
 		return () => {
 			pluginsManager.removeFilter(`${id}-api-url`);
 			pluginsManager.removeFilter(`${id}-client`);
+			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, id);
 		};
-	}, []);
+	}, [url, id, pluginsManager]);
 
-	return (
-		<>
-			{initialized && children}
-			{!initialized && <Spinner />}
-		</>
-	);
+	return null;
 };
 
 export { RestBagDataSourceProvider };
@@ -89,6 +81,5 @@ export const RestBagDatasourceDefinition = {
 		url: "http://localhost:8000/",
 	},
 
-	Provider: ({ children, props }) =>
-		RestBagDataSourceProvider(children, props),
+	Provider: (props) => RestBagDataSourceProvider(props),
 } as DatasourceDefinition<RestBagDatasourceSettings>;
