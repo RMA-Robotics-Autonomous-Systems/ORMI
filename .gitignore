@@ -75,3 +75,5 @@ apps/web/public/sw-worker*
 
 # Ignore the generated docs
 docs/*
+HARMONIZATION_REPORT.md
+HARMONIZATION_PLAN.md
