@@ -1,33 +1,26 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { getServerSession } from "next-auth/next";
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 
-import { authOptions } from "@/server/auth";
 import { db } from "@/server/db";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import { templateCreateSchema } from "@/lib/validations/template";
 import {
 	Template,
 	WidgetTemplate,
 	DatasourceTemplate,
 } from "@workspace/ormi-core/templates";
 
-export async function GET() {
+export const GET = withAuth(async (_req, session) => {
 	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(null, { status: 401 });
-		}
-
-		// Get from new Template table
 		const templates = await db.template.findMany({
 			where: {
 				OR: [{ public: true }, { createdById: session.user.id }],
 			},
 		});
 
-		// convert the templates to the format used in the template provider
 		const templatesMap = new Map<string, Template>();
 
-		// Process new templates
 		templates.forEach((template: any) => {
 			const templateType = template.type.toLowerCase() as
 				| "widget"
@@ -54,7 +47,6 @@ export async function GET() {
 			}
 		});
 
-		// convert the map to an array
 		const templatesArray = Array.from(templatesMap.entries()).map(
 			([key, value]) => ({
 				id: key,
@@ -72,46 +64,42 @@ export async function GET() {
 			}),
 		);
 
-		return new Response(JSON.stringify(templatesArray), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
+		return apiResponse(templatesArray);
 	} catch (error) {
 		console.error("Templates reading error:", error);
+		return apiResponse({ error: "Internal server error" }, 500);
 	}
-	return new Response(null, { status: 500 });
-}
+});
 
-export async function POST(req: NextRequest) {
-	// check if the user is logged in
-	const session = await getServerSession(authOptions);
-	if (!session?.user) {
-		return new Response(null, { status: 401 });
+export const POST = withAuth(async (req: NextRequest, session) => {
+	try {
+		const body = await req.json();
+		const parsedBody = templateCreateSchema.safeParse(body);
+		if (!parsedBody.success) {
+			return apiResponse({ error: parsedBody.error.flatten() }, 400);
+		}
+
+		const template = parsedBody.data.content;
+		const templateType = template.type.toString().toUpperCase() as
+			| "WIDGET"
+			| "DATASOURCE";
+
+		const newTemplate = await db.template.create({
+			data: {
+				name: template.name,
+				content: template as Prisma.InputJsonValue,
+				type: templateType,
+				public: template.public,
+				tags: template.tags,
+				createdById: session.user.id,
+				createdAT: new Date(),
+				updatedAT: new Date(),
+			},
+		});
+
+		return apiResponse(newTemplate.id.toString());
+	} catch (error) {
+		console.error("Template creation error:", error);
+		return apiResponse({ error: "Internal server error" }, 500);
 	}
-
-	const body = (await req.json()) as any;
-	const template = body.content;
-
-	// Use new Template table
-	const newTemplate = await db.template.create({
-		data: {
-			name: template.name,
-			content: template,
-			type: template.type.toUpperCase() as "WIDGET" | "DATASOURCE",
-			public: template.public,
-			tags: template.tags,
-			createdById: session.user.id,
-			createdAT: new Date(),
-			updatedAT: new Date(),
-		},
-	});
-
-	return new Response(JSON.stringify(newTemplate.id.toString()), {
-		status: 200,
-		headers: {
-			"Content-Type": "application/json",
-		},
-	});
-}
+});

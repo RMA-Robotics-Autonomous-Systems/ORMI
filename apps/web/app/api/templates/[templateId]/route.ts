@@ -1,220 +1,160 @@
-import { getServerSession } from "next-auth";
 import { NextRequest } from "next/server";
-import { authOptions } from "@/server/auth";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import {
+	emptyBodySchema,
+	templateIdSchema,
+	templateUpdateSchema,
+} from "@/lib/validations/template";
 
-export async function DELETE(
-	req: NextRequest,
-	{ params }: { params: Promise<{ templateId: string }> },
-) {
-	try {
-		const resolvedParams = await params;
-		const strTemplateId = resolvedParams.templateId;
+export const DELETE = withAuth(
+	async (
+		req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ templateId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = templateIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		if (!strTemplateId) {
-			return new Response(
-				JSON.stringify({ error: "Template ID is required" }),
-				{
-					status: 400,
-				},
-			);
-		}
+			const body = await req.json().catch(() => ({}));
+			const parsedBody = emptyBodySchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
+			const templateId = parsedParams.data.templateId;
+			const template = await db.template.findUnique({
+				where: { id: templateId },
+				select: { createdById: true },
 			});
+
+			if (!template) {
+				return apiResponse({ error: "Template not found" }, 404);
+			}
+
+			if (template.createdById !== session.user.id) {
+				return apiResponse(
+					{
+						error: "You don't have permission to delete this template",
+					},
+					403,
+				);
+			}
+
+			await db.template.delete({ where: { id: templateId } });
+
+			return apiResponse(null, 204);
+		} catch (error) {
+			console.error("Template deletion error:", error);
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
+	},
+);
 
-		// Use the wsId from the URL params
-		const templateId = parseInt(strTemplateId);
+export const PUT = withAuth(
+	async (
+		req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ templateId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = templateIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		if (isNaN(templateId)) {
-			return new Response(
-				JSON.stringify({ error: "Invalid template ID format" }),
-				{
-					status: 400,
-				},
-			);
-		}
+			const body = await req.json();
+			const parsedBody = templateUpdateSchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		console.log(
-			`Attempting to delete template ${templateId} for user ${session.user.id}`,
-		);
-
-		// Check if the template belongs to the user
-		const template = await db.template.findUnique({
-			where: { id: templateId },
-			select: { createdById: true },
-		});
-
-		if (!template) {
-			return new Response(
-				JSON.stringify({ error: "Template not found" }),
-				{
-					status: 404,
-				},
-			);
-		}
-
-		if (template.createdById !== session.user.id) {
-			return new Response(
-				JSON.stringify({
-					error: "You don't have permission to delete this template",
-				}),
-				{
-					status: 403,
-				},
-			);
-		}
-
-		// Delete the template
-		await db.template.delete({ where: { id: templateId } });
-		console.log(`Successfully deleted template ${templateId}`);
-
-		return new Response(null, { status: 204 });
-	} catch (error) {
-		console.error("Template deletion error:", error);
-		return new Response(
-			JSON.stringify({ error: "Internal server error" }),
-			{
-				status: 500,
-			},
-		);
-	}
-}
-
-export async function PUT(
-	req: NextRequest,
-	{ params }: { params: Promise<{ templateId: string }> },
-) {
-	try {
-		const resolvedParams = await params;
-		const strTemplateId = resolvedParams.templateId;
-
-		if (!strTemplateId) {
-			return new Response(
-				JSON.stringify({ error: "Template ID is required" }),
-				{
-					status: 400,
-				},
-			);
-		}
-
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
+			const templateId = parsedParams.data.templateId;
+			const existingTemplate = await db.template.findUnique({
+				where: { id: templateId },
+				select: { createdById: true, type: true },
 			});
-		}
 
-		const templateId = parseInt(strTemplateId);
+			if (!existingTemplate) {
+				return apiResponse({ error: "Template not found" }, 404);
+			}
 
-		if (isNaN(templateId)) {
-			return new Response(
-				JSON.stringify({ error: "Invalid template ID format" }),
-				{
-					status: 400,
+			if (existingTemplate.createdById !== session.user.id) {
+				return apiResponse(
+					{
+						error: "You don't have permission to update this template",
+					},
+					403,
+				);
+			}
+
+			const updateData = parsedBody.data;
+			const templateType = (updateData.type ?? existingTemplate.type)
+				.toString()
+				.toLowerCase();
+
+			if (templateType === "widget" && updateData.widget === undefined) {
+				return apiResponse(
+					{
+						error: "Missing widget data for widget template update",
+					},
+					400,
+				);
+			}
+
+			if (
+				templateType === "datasource" &&
+				updateData.datasource === undefined
+			) {
+				return apiResponse(
+					{
+						error: "Missing datasource data for datasource template update",
+					},
+					400,
+				);
+			}
+
+			const contentData: Prisma.InputJsonValue = {
+				...updateData,
+				yours: true,
+				type: templateType,
+				...(templateType === "widget" && updateData.widget
+					? { widget: updateData.widget }
+					: {}),
+				...(templateType === "datasource" && updateData.datasource
+					? { datasource: updateData.datasource }
+					: {}),
+			} as Prisma.InputJsonValue;
+
+			const updatedTemplate = await db.template.update({
+				where: { id: templateId },
+				data: {
+					name: updateData.name,
+					public: updateData.public,
+					tags: updateData.tags,
+					type: templateType.toUpperCase() as "WIDGET" | "DATASOURCE",
+					content: contentData,
+					updatedAT: new Date(),
 				},
-			);
+			});
+
+			return apiResponse(updatedTemplate);
+		} catch (error) {
+			console.error("Template update error:", error);
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
-
-		const body = await req.json();
-		const { name, public: isPublic, tags, widget, datasource, type } = body;
-
-		// Check if the template belongs to the user
-		const existingTemplate = await db.template.findUnique({
-			where: { id: templateId },
-			select: { createdById: true, type: true },
-		});
-
-		if (!existingTemplate) {
-			return new Response(
-				JSON.stringify({ error: "Template not found" }),
-				{
-					status: 404,
-				},
-			);
-		}
-
-		if (existingTemplate.createdById !== session.user.id) {
-			return new Response(
-				JSON.stringify({
-					error: "You don't have permission to update this template",
-				}),
-				{
-					status: 403,
-				},
-			);
-		}
-
-		// Prepare content based on template type
-		const templateType = type || existingTemplate.type.toLowerCase();
-
-		const contentData = {
-			name,
-			public: isPublic,
-			tags,
-			yours: true,
-			type: templateType,
-			...(templateType === "widget" && widget ? { widget } : {}),
-			...(templateType === "datasource" && datasource
-				? { datasource }
-				: {}),
-		};
-
-		// Validate that required data is present
-		if (templateType === "widget" && !widget) {
-			return new Response(
-				JSON.stringify({
-					error: "Missing widget data for widget template update",
-				}),
-				{
-					status: 400,
-				},
-			);
-		}
-
-		if (templateType === "datasource" && !datasource) {
-			return new Response(
-				JSON.stringify({
-					error: "Missing datasource data for datasource template update",
-				}),
-				{
-					status: 400,
-				},
-			);
-		}
-
-		// Update the template
-		const updatedTemplate = await db.template.update({
-			where: { id: templateId },
-			data: {
-				name,
-				public: isPublic,
-				tags,
-				type: templateType.toUpperCase() as "WIDGET" | "DATASOURCE",
-				content: contentData,
-				updatedAT: new Date(),
-			},
-		});
-
-		console.log(`Successfully updated template ${templateId}`);
-
-		return new Response(JSON.stringify(updatedTemplate), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
-	} catch (error) {
-		console.error("Template update error:", error);
-		return new Response(
-			JSON.stringify({ error: "Internal server error" }),
-			{
-				status: 500,
-			},
-		);
-	}
-}
+	},
+);
