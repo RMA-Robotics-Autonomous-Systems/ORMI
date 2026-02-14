@@ -145,6 +145,26 @@ bun run dev
 
 The application will be available at `http://localhost:3000`.
 
+#### Linux file watch limits (Turbopack)
+
+If you hit an error like "OS file watch limit reached", increase the inotify
+limits:
+
+```bash
+sudo sysctl -w fs.inotify.max_user_watches=524288
+sudo sysctl -w fs.inotify.max_user_instances=1024
+```
+
+To make it persistent:
+
+```bash
+sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null <<'EOF'
+fs.inotify.max_user_watches=524288
+fs.inotify.max_user_instances=1024
+EOF
+sudo sysctl --system
+```
+
 Individual package development:
 
 ```bash
