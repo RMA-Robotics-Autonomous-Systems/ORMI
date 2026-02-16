@@ -19,14 +19,16 @@ import {
 	handleUpdate as tu,
 } from "@/server/prisma-templates";
 import { handleLoad, handleSave } from "@/server/prisma-dashboard";
+import { useParams } from "next/navigation";
+
 export default function Page() {
+	const params = useParams();
+	const workspaceId = params.wsId as string;
 	const [dashboardType, setDashboardType] = useState<string>("GRID");
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		async function fetchWorkspaceType() {
-			const url = new URL(window.location.href);
-			const workspaceId = url.pathname.split("/")[3];
 			if (!workspaceId) {
 				setLoading(false);
 				return;
@@ -44,7 +46,7 @@ export default function Page() {
 			}
 		}
 		fetchWorkspaceType();
-	}, []);
+	}, [workspaceId]);
 
 	const dashboardDefinition: DashboardInterface = {
 		layouts: {},
@@ -56,14 +58,23 @@ export default function Page() {
 	const DashboardComponent =
 		dashboardRegistry[dashboardType as keyof typeof dashboardRegistry];
 
+	// Wrapper functions that include workspaceId
+	const wrappedHandleLoad = async (setState: (state: any) => void) => {
+		return handleLoad(workspaceId, setState);
+	};
+
+	const wrappedHandleSave = async (dashboardState: any) => {
+		return handleSave(dashboardState, workspaceId);
+	};
+
 	if (loading) return <div>Loading workspace...</div>;
 
 	return (
 		<DashboardProvider
 			dashboardType={dashboardType}
 			dashboardDefinition={dashboardDefinition}
-			OnLoad={handleLoad}
-			OnSave={handleSave}
+			OnLoad={wrappedHandleLoad}
+			OnSave={wrappedHandleSave}
 		>
 			<TemplatesProvider
 				onLoad={tl}

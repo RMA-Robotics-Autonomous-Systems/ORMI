@@ -1,93 +1,55 @@
 "use client";
 
-interface Workspace {
-	id: number;
-	name: string;
-	createdAT: Date;
-	updatedAT?: Date;
-}
+import { workspaceApi, type Workspace } from "../lib/api/workspace-api";
 
 const handleCreate = async (
 	title: string,
 	userId: string,
 ): Promise<Workspace | null> => {
-	try {
-		const response = await fetch(`/api/workspaces`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ title, userId }),
-		});
+	const result = await workspaceApi.create(title, userId);
 
-		if (!response.ok) {
-			throw new Error(`Error creating workspace: ${response.statusText}`);
-		}
-
-		const workspace = (await response.json()) as Workspace;
-		return workspace;
-	} catch (error) {
-		console.error("Failed to create workspace:", error);
+	if (!result.ok) {
+		console.error("Failed to create workspace:", result.error);
 		return null;
 	}
+
+	return result.data;
 };
 
 const handleDelete = async (workspaceId: number): Promise<boolean> => {
-	try {
-		const response = await fetch(`/api/workspaces/${workspaceId}`, {
-			method: "DELETE",
-		});
+	const result = await workspaceApi.delete(workspaceId);
 
-		if (!response.ok) {
-			throw new Error(`Error deleting workspace: ${response.statusText}`);
-		}
-
-		return true;
-	} catch (error) {
-		console.error("Failed to delete workspace:", error);
+	if (!result.ok) {
+		console.error("Failed to delete workspace:", result.error);
 		return false;
 	}
+
+	return true;
 };
 
 const handleLoad = async (): Promise<Workspace[]> => {
-	try {
-		const response = await fetch(`/api/workspaces`);
+	const result = await workspaceApi.getAll();
 
-		if (!response.ok) {
-			throw new Error(`Error loading workspaces: ${response.statusText}`);
-		}
-
-		const workspaces = (await response.json()) as Workspace[];
-		return workspaces;
-	} catch (error) {
-		console.error("Failed to load workspaces:", error);
+	if (!result.ok) {
+		console.error("Failed to load workspaces:", result.error);
 		return [];
 	}
+
+	return result.data;
 };
 
 const handleUpdate = async (
 	workspaceId: number,
 	name: string,
 ): Promise<boolean> => {
-	try {
-		const response = await fetch(`/api/workspaces/${workspaceId}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ name }),
-		});
+	const result = await workspaceApi.update(workspaceId, { name });
 
-		if (!response.ok) {
-			console.error("Failed to update workspace:", response.statusText);
-			return false;
-		}
-
-		return true;
-	} catch (error) {
-		console.error("Error updating workspace:", error);
+	if (!result.ok) {
+		console.error("Failed to update workspace:", result.error);
 		return false;
 	}
+
+	return true;
 };
 
 export { handleCreate, handleDelete, handleLoad, handleUpdate };
