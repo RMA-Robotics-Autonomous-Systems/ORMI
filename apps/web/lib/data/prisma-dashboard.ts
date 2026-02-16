@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { dashboardApi, type DashboardState } from "../lib/api/dashboard-api";
+import { dashboardApi, type DashboardState } from "../api/dashboard-api";
 
 const handleSave = async (
-	dashboardState: any,
+	dashboardState: DashboardState,
 	workspaceId: string,
 ): Promise<boolean> => {
 	if (!workspaceId) {
@@ -24,7 +23,7 @@ const handleSave = async (
 
 const handleLoad = async (
 	workspaceId: string,
-	setState: (state: any) => void,
+	setState: (state: DashboardState) => void,
 ) => {
 	if (!workspaceId) {
 		console.error("Workspace ID is required");

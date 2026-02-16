@@ -1,6 +1,6 @@
 "use client";
 
-import { workspaceApi, type Workspace } from "../lib/api/workspace-api";
+import { workspaceApi, type Workspace } from "../api/workspace-api";
 
 const handleCreate = async (
 	title: string,

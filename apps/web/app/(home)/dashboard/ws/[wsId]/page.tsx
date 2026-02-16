@@ -17,8 +17,8 @@ import {
 	handleSave as ts,
 	handleDelete as td,
 	handleUpdate as tu,
-} from "@/server/prisma-templates";
-import { handleLoad, handleSave } from "@/server/prisma-dashboard";
+} from "@/lib/data/prisma-templates";
+import { handleLoad, handleSave } from "@/lib/data/prisma-dashboard";
 import { useParams } from "next/navigation";
 
 export default function Page() {

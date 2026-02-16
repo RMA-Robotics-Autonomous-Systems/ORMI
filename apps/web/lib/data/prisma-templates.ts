@@ -1,12 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { templateApi } from "../lib/api/template-api";
-import {
-	Template,
-	WidgetTemplate,
-	DatasourceTemplate,
-} from "@workspace/ormi-core/templates";
+import { templateApi } from "../api/template-api";
+import { Template } from "@workspace/ormi-core/templates";
 
 const handleSave = async (template: Template): Promise<string> => {
 	const result = await templateApi.save(template);
