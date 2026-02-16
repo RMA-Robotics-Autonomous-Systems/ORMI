@@ -1,12 +1,5 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
-import {
-	FoxgloveDataSourceSettings,
-	FoxgloveSourceProvider,
-} from "./foxglove-source";
-import { DatasourceDefinition } from "@workspace/ormi-core/datasources";
-import UrlWithButtonRenderer, {
-	urlWithButtonTester,
-} from "./url-with-button-renderer";
+import { datasourceDefinition, rendererDefinition } from "./export";
 
 // Export components for potential external use
 export { FoxgloveSourceProvider } from "./foxglove-source";
@@ -37,73 +30,22 @@ class FoxglovePlugin extends Plugin {
 		this.author = "Florian Lebecque";
 		this.email = "florian.lebecque@mil.be";
 
-		// Register the DataSource provider
-		const dataSourceFilter = {
+		// Register datasource
+		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 			id: "foxglove-datasource-provider",
 			priority: 10,
 			filter: (datasources: any[]) => {
-				// Add Foxglove WebSocket datasource provider
-				datasources.push({
-					id: "foxglove-source",
-					name: "ROS2 Foxglove",
-					description: "Connecting to Foxglove WebSocket servers",
-
-					schema: {
-						title: "Foxglove WebSocket",
-						type: "object",
-						properties: {
-							title: { type: "string", title: "Title" },
-							enable: { type: "boolean", title: "Enable" },
-							url: {
-								type: "string",
-								title: "URL",
-							},
-							reconnectTimeout: {
-								type: "number",
-								title: "Reconnect Timeout (s)",
-							},
-							toasts: {
-								type: "boolean",
-								title: "Display Toasts",
-							},
-							transformTreeTopics: {
-								type: "array",
-								title: "Transform Tree Topics",
-								items: {
-									type: "string",
-								},
-							},
-						},
-					},
-
-					data: {
-						id: "",
-						title: "",
-						enable: true,
-						toasts: false,
-						transformTreeTopics: ["/tf", "/tf_static"],
-						url: "ws://localhost:8765",
-						reconnectTimeout: 2,
-					},
-
-					Provider: (props) => FoxgloveSourceProvider(props),
-				} as DatasourceDefinition<FoxgloveDataSourceSettings>);
-
+				datasources.push(datasourceDefinition);
 				return datasources;
 			},
-		};
-
-		this.addFilter(PluginsHooks.DATASOURCES_LIST, dataSourceFilter);
+		});
 
 		// Register custom renderer for URL field
 		this.addFilter(PluginsHooks.JSON_FORMS_RENDERER, {
 			id: "foxglove-url-renderer",
 			priority: 10,
 			filter: (renderers: any[]) => {
-				renderers.push({
-					tester: urlWithButtonTester,
-					renderer: UrlWithButtonRenderer,
-				});
+				renderers.push(rendererDefinition);
 				return renderers;
 			},
 		});

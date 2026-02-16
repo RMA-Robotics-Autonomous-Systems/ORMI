@@ -1,5 +1,5 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
-import WidgetExport from "./widget-export";
+import WidgetExport from "./export";
 import PathLocalMarker from "./widgets/maps/local-components/marker-path-local";
 import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 // import PointCloudLocalMarker from "./widgets/maps/marker-pointcloud-local";
@@ -7,7 +7,7 @@ import { LocalTopicVisualizer } from "./widgets/maps/local-topic-visualizer-type
 import { registerDefaultTopicPreviews } from "./widgets/basic/topic-previews";
 
 /** Standard widgets plugin registration. */
-class PluginA extends Plugin {
+class StdWidgetsPlugin extends Plugin {
 	constructor() {
 		super();
 
@@ -72,4 +72,4 @@ class PluginA extends Plugin {
 	}
 }
 
-export default PluginA;
+export default StdWidgetsPlugin;

@@ -1,5 +1,5 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
-import WidgetExport from "./widget-export";
+import WidgetExport from "./export";
 
 class FlightIndicator extends Plugin {
 	constructor() {
