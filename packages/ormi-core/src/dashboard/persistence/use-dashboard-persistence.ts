@@ -1,0 +1,199 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useSetAtom, useAtomValue } from "jotai";
+import {
+	widgetsAtom,
+	layoutsAtom,
+	lockedAtom,
+	datasourcesAtom,
+	hasChangedAtom,
+} from "../atoms";
+import { DashboardInterface } from "../dashboard-interface";
+import { Widget } from "../../widgets/widget-interface";
+import { Datasource } from "../../datasources/datasource-interface";
+import { toast } from "sonner";
+
+// ---------------------------------------------------------------------------
+// Hash helper
+// ---------------------------------------------------------------------------
+
+function hashDashboardState(
+	layouts: Record<string, any>,
+	widgets: Map<string, Widget>,
+	datasources: Map<string, Datasource>,
+	locked: boolean,
+): string {
+	const stateString = JSON.stringify(
+		{
+			layouts,
+			widgets: Object.fromEntries(widgets),
+			datasources: Object.fromEntries(datasources),
+			locked,
+		},
+		(key, value) => {
+			if (key === "parent" || key === "_owner" || key === "_store") {
+				return undefined;
+			}
+			if (
+				typeof value === "object" &&
+				value !== null &&
+				!Array.isArray(value)
+			) {
+				const ordered: any = {};
+				Object.keys(value)
+					.sort()
+					.forEach((k) => {
+						ordered[k] = value[k];
+					});
+				return ordered;
+			}
+			return value;
+		},
+	);
+
+	let hash = 0;
+	for (let i = 0; i < stateString.length; i++) {
+		const char = stateString.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash;
+	}
+	return hash.toString();
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Callbacks injected from the page. */
+export interface PersistenceOptions {
+	onLoad: (apply: (state: DashboardInterface) => void) => Promise<boolean>;
+	onSave: (state: DashboardInterface) => Promise<boolean>;
+}
+
+/** Values exposed to the shell and engines. */
+export interface PersistenceState {
+	/** False until onLoad has resolved. The shell renders a spinner while this is false. */
+	initialized: boolean;
+	/** True when the current state differs from the last loaded/saved hash. */
+	hasChanged: boolean;
+	/** Persist the current state. No-ops with a toast if there are no changes. */
+	save: () => Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+/**
+ * Manages dashboard persistence lifecycle: load on mount, change detection
+ * via full-state hash, and save with confirmation feedback.
+ * @param options - Load and save callbacks.
+ * @returns Persistence state and save action.
+ */
+export function useDashboardPersistence(
+	options: PersistenceOptions,
+): PersistenceState {
+	const { onLoad, onSave } = options;
+
+	// Atom writers
+	const setWidgets = useSetAtom(widgetsAtom);
+	const setLayouts = useSetAtom(layoutsAtom);
+	const setLocked = useSetAtom(lockedAtom);
+	const setDatasources = useSetAtom(datasourcesAtom);
+	const setHasChanged = useSetAtom(hasChangedAtom);
+
+	// Atom readers (for hash and save)
+	const widgets = useAtomValue(widgetsAtom);
+	const layouts = useAtomValue(layoutsAtom);
+	const locked = useAtomValue(lockedAtom);
+	const datasources = useAtomValue(datasourcesAtom);
+
+	const [initialized, setInitialized] = useState(false);
+	const [hasChanged, setHasChangedLocal] = useState(false);
+
+	// Keep a stable ref to the most recent saved/loaded hash
+	const initialHashRef = useRef<string>("");
+
+	// Stable refs for latest state used in save (avoids stale closures)
+	const widgetsRef = useRef(widgets);
+	const layoutsRef = useRef(layouts);
+	const lockedRef = useRef(locked);
+	const datasourcesRef = useRef(datasources);
+	const onSaveRef = useRef(onSave);
+
+	useEffect(() => {
+		widgetsRef.current = widgets;
+		layoutsRef.current = layouts;
+		lockedRef.current = locked;
+		datasourcesRef.current = datasources;
+	}, [widgets, layouts, locked, datasources]);
+
+	useEffect(() => {
+		onSaveRef.current = onSave;
+	}, [onSave]);
+
+	// Load on mount
+	useEffect(() => {
+		onLoad((loadedState: DashboardInterface) => {
+			setLayouts(loadedState.layouts);
+			setWidgets(loadedState.widgets);
+			setLocked(loadedState.locked);
+			setDatasources(loadedState.datasources);
+		}).then(() => {
+			setInitialized(true);
+		});
+		// onLoad is a stable reference from the page
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	// Change detection: recompute hash whenever atoms change after init
+	useEffect(() => {
+		if (!initialized) return;
+		const currentHash = hashDashboardState(
+			layouts,
+			widgets,
+			datasources,
+			locked,
+		);
+		if (!initialHashRef.current) {
+			initialHashRef.current = currentHash;
+		}
+		const changed = currentHash !== initialHashRef.current;
+		setHasChangedLocal(changed);
+		setHasChanged(changed);
+	}, [initialized, layouts, widgets, datasources, locked, setHasChanged]);
+
+	const save = useCallback(async () => {
+		if (!hasChanged) {
+			toast("No changes to save");
+			return;
+		}
+		const state: DashboardInterface = {
+			layouts: layoutsRef.current,
+			widgets: widgetsRef.current,
+			datasources: datasourcesRef.current,
+			locked: lockedRef.current,
+		};
+		try {
+			const success = await onSaveRef.current(state);
+			if (success) {
+				initialHashRef.current = hashDashboardState(
+					state.layouts,
+					state.widgets,
+					state.datasources,
+					state.locked,
+				);
+				setHasChangedLocal(false);
+				setHasChanged(false);
+			} else {
+				toast("Failed to save dashboard");
+			}
+		} catch (error) {
+			console.error("Save error:", error);
+			toast("Failed to save dashboard");
+		}
+	}, [hasChanged, setHasChanged]);
+
+	return { initialized, hasChanged, save };
+}

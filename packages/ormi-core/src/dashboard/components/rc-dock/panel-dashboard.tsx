@@ -11,7 +11,17 @@ import DockLayout, {
 import "rc-dock/dist/rc-dock.css";
 import "@workspace/ormi-core/rc-dock-theme.css";
 
-import { useDashboardManager } from "../dashboard-provider";
+import { useDashboardActions } from "../../state/use-dashboard-actions";
+import { useDashboardShell } from "../../shell/dashboard-shell";
+import { useAtomValue } from "jotai";
+import {
+	widgetsAtom,
+	layoutsAtom,
+	lockedAtom,
+	hasChangedAtom,
+} from "../../atoms";
+import { WidgetHost } from "../../layout/widget-host";
+import { LayoutEngineDefinition } from "../../layout/layout-engine";
 import { useNavbar } from "@workspace/ui/combined/navbar";
 import { Button } from "@workspace/ui/components/button";
 import { useTemplates } from "../../../templates/templates-provider";
@@ -52,20 +62,22 @@ const defaultLayout: LayoutData = {
  * @returns React element.
  */
 const PanelDashboard = () => {
+	const widgets = useAtomValue(widgetsAtom);
+	const layouts = useAtomValue(layoutsAtom);
+	const locked = useAtomValue(lockedAtom);
+	const hasChanged = useAtomValue(hasChangedAtom);
+
 	const {
-		widgets,
-		layouts,
-		getComponents,
 		getDefinition,
-		locked,
-		lockUnLockDashboard,
-		savesDashboard,
-		hasChanged,
+		toggleLock,
 		addWidget,
 		removeWidget,
+		updateWidget,
 		addDatasource,
-		dispatch,
-	} = useDashboardManager();
+		updateLayouts,
+	} = useDashboardActions();
+
+	const { save } = useDashboardShell();
 
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
 	const { templates, removeTemplate, updateTemplate } = useTemplates();
@@ -138,31 +150,10 @@ const PanelDashboard = () => {
 									definition={widgetDefinition}
 									displayType="gear"
 									onValidate={(
-										widgetDef: WidgetDefinition,
+										_widgetDef: WidgetDefinition,
 										settings: any,
 									) => {
-										// Update widget through dashboard provider
-										const newWidgets = new Map(widgets);
-										const existingWidget = newWidgets.get(
-											widget.box_id,
-										);
-										if (existingWidget) {
-											existingWidget.settings = settings;
-											if (widgetDef.titleProp) {
-												existingWidget.title =
-													settings[
-														widgetDef.titleProp
-													];
-											}
-											newWidgets.set(
-												widget.box_id,
-												existingWidget,
-											);
-											dispatch({
-												type: "SET_WIDGETS",
-												payload: newWidgets,
-											});
-										}
+										updateWidget(widget.box_id, settings);
 									}}
 								/>
 							</>
@@ -171,7 +162,7 @@ const PanelDashboard = () => {
 				</div>
 			);
 		},
-		[getDefinition, locked, widgets, dispatch],
+		[getDefinition, locked, updateWidget],
 	);
 
 	// Load tab callback - converts minimal TabBase back to full TabData
@@ -196,7 +187,10 @@ const PanelDashboard = () => {
 					<ButtonHolderProvider>
 						<ButtonHolderPortal widgetId={widget.box_id} />
 						<div className="p-4 h-full flex flex-col">
-							{getComponents(widget.box_id)}
+							<WidgetHost
+								widgetId={widget.box_id}
+								getDefinition={getDefinition}
+							/>
 						</div>
 					</ButtonHolderProvider>
 				);
@@ -218,7 +212,7 @@ const PanelDashboard = () => {
 				closable: !locked,
 			};
 		},
-		[widgets, getComponents, createCustomTitle, locked],
+		[widgets, getDefinition, createCustomTitle, locked],
 	);
 
 	// Save tab callback - strips TabData down to minimal TabBase
@@ -247,12 +241,11 @@ const PanelDashboard = () => {
 			const layout = createMinimalRCDockLayout(widgetIds);
 			setCurrentLayout(layout);
 
-			// Update dashboard provider with initial layout
+			// Update dashboard with initial layout
 			const serializedLayout = serializeRCDockLayout(layout);
-			const newLayouts = { ...layouts, "rc-dock": serializedLayout };
-			dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
+			updateLayouts({ ...layouts, "rc-dock": serializedLayout });
 		}
-	}, [widgets, layouts, dispatch]);
+	}, [widgets, layouts, updateLayouts]);
 
 	// Handle layout changes from RC-Dock
 	const handleLayoutChange = useCallback(
@@ -260,10 +253,9 @@ const PanelDashboard = () => {
 			if (!locked) {
 				setCurrentLayout(newLayout);
 
-				// Serialize and save to dashboard provider
+				// Serialize and save to dashboard
 				const serializedLayout = serializeRCDockLayout(newLayout);
-				const newLayouts = { ...layouts, "rc-dock": serializedLayout };
-				dispatch({ type: "SET_LAYOUTS", payload: newLayouts });
+				updateLayouts({ ...layouts, "rc-dock": serializedLayout });
 
 				console.log(
 					"RC-Dock layout changed and saved:",
@@ -272,7 +264,7 @@ const PanelDashboard = () => {
 				);
 			}
 		},
-		[locked, layouts, dispatch],
+		[locked, layouts, updateLayouts],
 	);
 
 	// Add new widget to RC-Dock layout
@@ -290,7 +282,10 @@ const PanelDashboard = () => {
 					<ButtonHolderProvider>
 						<ButtonHolderPortal widgetId={widget.box_id} />
 						<div className="p-4 h-full flex flex-col">
-							{getComponents(widgetBoxId)}
+							<WidgetHost
+								widgetId={widgetBoxId}
+								getDefinition={getDefinition}
+							/>
 						</div>
 					</ButtonHolderProvider>
 				);
@@ -315,7 +310,7 @@ const PanelDashboard = () => {
 				}
 			}
 		},
-		[widgets, getComponents, createCustomTitle, locked],
+		[widgets, getDefinition, createCustomTitle, locked],
 	);
 
 	// Watch for widget changes and sync with layout
@@ -367,13 +362,13 @@ const PanelDashboard = () => {
 		previousWidgets.current = currentWidgetIds;
 	}, [widgets, addWidgetToLayout]);
 
-	const onLockToggleRef = useRef(lockUnLockDashboard);
-	const onSaveRef = useRef(savesDashboard);
+	const onLockToggleRef = useRef(toggleLock);
+	const onSaveRef = useRef(save);
 
 	useEffect(() => {
-		onLockToggleRef.current = lockUnLockDashboard;
-		onSaveRef.current = savesDashboard;
-	}, [lockUnLockDashboard, savesDashboard]);
+		onLockToggleRef.current = toggleLock;
+		onSaveRef.current = save;
+	}, [toggleLock, save]);
 
 	// Navbar items: Template drawer (right), lock/unlock and save (center)
 	useEffect(() => {
@@ -479,3 +474,12 @@ const PanelDashboard = () => {
 };
 
 export { PanelDashboard };
+
+/** Layout engine definition for plugin registration. */
+export const panelEngineDefinition: LayoutEngineDefinition = {
+	id: "PANEL",
+	name: "Panel Layout",
+	description: "Modern tabbed interface with dockable panels",
+	badge: "Popular",
+	Component: PanelDashboard,
+};

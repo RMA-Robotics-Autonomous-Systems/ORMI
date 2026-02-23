@@ -3,7 +3,8 @@
 import React, { useRef } from "react";
 import { Layout, TabNode, ITabRenderValues } from "flexlayout-react";
 
-import { useDashboardActions } from "../dashboard-provider";
+import { useDashboardActions } from "../../state/use-dashboard-actions";
+import { useDashboardShell } from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
 import {
 	widgetsAtom,
@@ -16,10 +17,12 @@ import { useWidgetFactory } from "./hooks/useWidgetFactory";
 import { renderTab } from "./components/TabRenderer";
 import { NavbarIntegration } from "./components/NavbarIntegration";
 import { FlexLayoutPortalProvider } from "./components/FlexLayoutPortalContext";
+import { LayoutEngineDefinition } from "../../layout/layout-engine";
 
 import "flexlayout-react/style/light.css";
 import "@workspace/ormi-core/flex-layout-theme.css";
 import { Spinner } from "@workspace/ui/components/spinner";
+import { Layers } from "lucide-react";
 
 /**
  * FlexLayout dashboard implementation.
@@ -38,10 +41,10 @@ const FlexLayoutDashboard = () => {
 		addDatasource,
 		updateLayouts,
 		getDefinition,
-		lockUnLockDashboard,
-		savesDashboard,
-		dispatch,
+		toggleLock,
 	} = useDashboardActions();
+
+	const { save } = useDashboardShell();
 
 	const layoutRef = useRef<Layout>(null);
 
@@ -51,7 +54,6 @@ const FlexLayoutDashboard = () => {
 		layouts,
 		locked,
 		getDefinition,
-		dispatch,
 		removeWidget,
 		updateLayouts,
 	});
@@ -84,8 +86,8 @@ const FlexLayoutDashboard = () => {
 				<NavbarIntegration
 					locked={locked}
 					hasChanged={hasChanged}
-					onLockToggle={lockUnLockDashboard}
-					onSave={savesDashboard}
+					onLockToggle={toggleLock}
+					onSave={save}
 					onAddWidget={addWidget}
 					onAddDatasource={addDatasource}
 				/>
@@ -109,3 +111,13 @@ const FlexLayoutDashboard = () => {
 };
 
 export { FlexLayoutDashboard };
+
+/** Layout engine definition for plugin registration. */
+export const flexLayoutEngineDefinition: LayoutEngineDefinition = {
+	id: "FLEX",
+	name: "Flex Layout",
+	description: "Advanced flexible layout with popout windows support",
+	icon: React.createElement(Layers, { size: 16 }),
+	badge: "New",
+	Component: FlexLayoutDashboard,
+};

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import {
 	DashboardInterface,
-	DashboardProvider,
-	dashboardRegistry,
+	DashboardShell,
+	DashboardEngine,
 } from "@workspace/ormi-core/dashboard";
 import {
 	Datasource,
@@ -55,9 +55,6 @@ export default function Page() {
 		locked: false,
 	};
 
-	const DashboardComponent =
-		dashboardRegistry[dashboardType as keyof typeof dashboardRegistry];
-
 	// Wrapper functions that include workspaceId
 	const wrappedHandleLoad = async (setState: (state: any) => void) => {
 		return handleLoad(workspaceId, setState);
@@ -70,11 +67,11 @@ export default function Page() {
 	if (loading) return <div>Loading workspace...</div>;
 
 	return (
-		<DashboardProvider
+		<DashboardShell
 			dashboardType={dashboardType}
 			dashboardDefinition={dashboardDefinition}
-			OnLoad={wrappedHandleLoad}
-			OnSave={wrappedHandleSave}
+			onLoad={wrappedHandleLoad}
+			onSave={wrappedHandleSave}
 		>
 			<TemplatesProvider
 				onLoad={tl}
@@ -83,10 +80,10 @@ export default function Page() {
 				updateTemplate={tu}
 			>
 				<GlobalDataSourcesProvider>
-					<DashboardComponent />
+					<DashboardEngine />
 					<WidgetsDialog />
 				</GlobalDataSourcesProvider>
 			</TemplatesProvider>
-		</DashboardProvider>
+		</DashboardShell>
 	);
 }

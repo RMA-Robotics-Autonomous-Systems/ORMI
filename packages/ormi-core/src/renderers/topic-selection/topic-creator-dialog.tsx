@@ -26,7 +26,8 @@ import {
 	DatasourceTopic,
 } from "../../datasources/datasource-interface";
 import { DataRequirements } from "../../widgets/widget-interface";
-import { useDashboardManager } from "../../dashboard/components/dashboard-provider";
+import { useAtomValue } from "jotai";
+import { datasourcesAtom } from "../../dashboard";
 import { WebTypes } from "../../types/jsonSchema";
 
 /** Props for TopicCreatorDialog. */
@@ -60,7 +61,7 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 	requirements,
 }) => {
 	const pluginsManager = usePluginsManager();
-	const { datasources } = useDashboardManager();
+	const datasources = useAtomValue(datasourcesAtom);
 
 	const [form, setForm] = useState<TopicCreationForm>({
 		datasourceId: "",

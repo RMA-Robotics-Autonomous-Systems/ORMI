@@ -47,7 +47,9 @@ import { useTemplates } from "../../../templates/templates-provider";
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
 import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
-import { useDashboardActions } from "../dashboard-provider";
+import { LayoutEngineDefinition } from "../../layout/layout-engine";
+import { useDashboardActions } from "../../state/use-dashboard-actions";
+import { useDashboardShell } from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
 import {
 	widgetsAtom,
@@ -76,11 +78,12 @@ const Dashboard = () => {
 		removeWidget,
 		addWidget,
 		getDefinition,
-		lockUnLockDashboard,
-		savesDashboard,
+		toggleLock,
 		addDatasource,
 		updateLayouts,
 	} = useDashboardActions();
+
+	const { save } = useDashboardShell();
 
 	// Track container width
 	useEffect(() => {
@@ -408,13 +411,13 @@ const Dashboard = () => {
 		[updateWidget],
 	);
 
-	const onLockToggleRef = useRef(lockUnLockDashboard);
-	const onSaveRef = useRef(savesDashboard);
+	const onLockToggleRef = useRef(toggleLock);
+	const onSaveRef = useRef(save);
 
 	useEffect(() => {
-		onLockToggleRef.current = lockUnLockDashboard;
-		onSaveRef.current = savesDashboard;
-	}, [lockUnLockDashboard, savesDashboard]);
+		onLockToggleRef.current = toggleLock;
+		onSaveRef.current = save;
+	}, [toggleLock, save]);
 
 	useEffect(() => {
 		setNavbarItem(
@@ -648,6 +651,15 @@ const Dashboard = () => {
 };
 
 export { Dashboard };
+
+/** Layout engine definition for plugin registration. */
+export const gridEngineDefinition: LayoutEngineDefinition = {
+	id: "GRID",
+	name: "Grid Layout",
+	description: "Traditional grid-based dashboard with resizable widgets",
+	badge: "Classic",
+	Component: Dashboard,
+};
 
 const GridWidgetContent = React.memo(
 	({

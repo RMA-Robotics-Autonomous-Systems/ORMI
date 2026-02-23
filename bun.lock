@@ -154,6 +154,7 @@
       "name": "@workspace/ormi-plugins",
       "version": "1.0.0",
       "dependencies": {
+        "@workspace/utils": "workspace:*",
         "sonner": "^2.0.7",
       },
       "devDependencies": {

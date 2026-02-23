@@ -16,7 +16,9 @@ import {
 import { WidgetCard } from "../widget-card/widget-card";
 
 import { WidgetDefinition } from "../../widget-interface";
-import { useDashboardManager } from "./../../../dashboard";
+import { useDashboardActions } from "./../../../dashboard";
+import { useAtomValue } from "jotai";
+import { lockedAtom } from "./../../../dashboard";
 
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -37,7 +39,8 @@ export function WidgetsDialog() {
 	const [isOpen, setIsOpen] = useState(false);
 
 	const pluginsManager = usePluginsManager() as PluginsManager;
-	const { addWidget, locked } = useDashboardManager();
+	const { addWidget } = useDashboardActions();
+	const locked = useAtomValue(lockedAtom);
 
 	const widgets: WidgetDefinition[] = pluginsManager.applyFilter<
 		WidgetDefinition[]

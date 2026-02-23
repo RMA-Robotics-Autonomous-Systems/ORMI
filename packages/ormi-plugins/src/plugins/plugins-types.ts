@@ -32,6 +32,13 @@ enum PluginsHooks {
 	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
 
 	/**
+	 * Filter that returns all registered layout engine definitions.
+	 * Plugins push a LayoutEngineDefinition to extend available dashboard layouts.
+	 * @param engines - Array of LayoutEngineDefinition.
+	 */
+	DASHBOARD_LAYOUTS_LIST = "dashboard:layouts:list",
+
+	/**
 	 * Filter that returns all available remote calls from all datasources.
 	 * @param calls - Array of remote call definitions.
 	 * @param filter - Optional remote call filter.

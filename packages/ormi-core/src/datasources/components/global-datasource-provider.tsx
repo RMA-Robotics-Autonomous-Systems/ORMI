@@ -10,7 +10,9 @@ import {
 	DatasourceDefinition,
 	DatasourceProviderSettings,
 } from "../datasource-interface";
-import { useDashboardManager } from "../../dashboard/components/dashboard-provider";
+import { useDashboardActions } from "../../dashboard";
+import { useAtomValue } from "jotai";
+import { datasourcesAtom } from "../../dashboard";
 
 import {
 	PluginsHooks,
@@ -67,8 +69,9 @@ const [GlobalDataSourcesContextProvider, useGlobalDataSourcesContext] =
 const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	const { children } = props;
 
-	const { datasources, updateDatasource, addDatasource, removeDatasource } =
-		useDashboardManager();
+	const datasources = useAtomValue(datasourcesAtom);
+	const { updateDatasource, addDatasource, removeDatasource } =
+		useDashboardActions();
 
 	const [dataSourcesTypes, setDataSourcesTypes] = useState<
 		Map<string, DatasourceDefinition<DatasourceProviderSettings>>

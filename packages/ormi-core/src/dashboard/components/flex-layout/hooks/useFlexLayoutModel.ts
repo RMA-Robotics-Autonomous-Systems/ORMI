@@ -14,7 +14,6 @@ interface UseFlexLayoutModelProps {
 	layouts: Record<string, any>;
 	locked: boolean;
 	getDefinition: (widget_id: string) => any;
-	dispatch: React.Dispatch<any>;
 	removeWidget: (box_id: string) => void;
 	updateLayouts: (newLayouts: Record<string, any>) => void;
 }
@@ -29,7 +28,6 @@ export const useFlexLayoutModel = ({
 	layouts,
 	locked,
 	getDefinition,
-	dispatch,
 	removeWidget,
 	updateLayouts,
 }: UseFlexLayoutModelProps) => {
