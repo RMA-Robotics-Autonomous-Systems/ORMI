@@ -18,7 +18,7 @@ export function addWidget(
 	widget: WidgetDefinition,
 	settings: any,
 ): Map<string, Widget> {
-	const box_id = `component_${widgets.size}_${Date.now()}`;
+	const box_id = `component_${crypto.randomUUID()}`;
 	let widget_title = widget.name;
 	if (widget.titleProp) {
 		widget_title = settings[widget.titleProp];
@@ -98,7 +98,7 @@ export function addDatasource(
 	if (!datasourceDef) {
 		throw new Error(`Datasource ${datasourceId} not found`);
 	}
-	const id = `datasource_${datasources.size}_${Date.now()}`;
+	const id = `datasource_${crypto.randomUUID()}`;
 	const datasource: Datasource = {
 		datasource_id: datasourceId,
 		title: settings?.title || "New Datasource",

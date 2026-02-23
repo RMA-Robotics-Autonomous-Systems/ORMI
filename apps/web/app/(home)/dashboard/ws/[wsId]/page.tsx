@@ -2,15 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
-	DashboardInterface,
 	DashboardShell,
 	DashboardEngine,
 } from "@workspace/ormi-core/dashboard";
-import {
-	Datasource,
-	GlobalDataSourcesProvider,
-} from "@workspace/ormi-core/datasources";
-import { Widget, WidgetsDialog } from "@workspace/ormi-core/widgets";
+import { GlobalDataSourcesProvider } from "@workspace/ormi-core/datasources";
+import { WidgetsDialog } from "@workspace/ormi-core/widgets";
 import { TemplatesProvider } from "@workspace/ormi-core/templates";
 import {
 	handleLoad as tl,
@@ -48,13 +44,6 @@ export default function Page() {
 		fetchWorkspaceType();
 	}, [workspaceId]);
 
-	const dashboardDefinition: DashboardInterface = {
-		layouts: {},
-		widgets: new Map<string, Widget>(),
-		datasources: new Map<string, Datasource>(),
-		locked: false,
-	};
-
 	// Wrapper functions that include workspaceId
 	const wrappedHandleLoad = async (setState: (state: any) => void) => {
 		return handleLoad(workspaceId, setState);
@@ -69,7 +58,6 @@ export default function Page() {
 	return (
 		<DashboardShell
 			dashboardType={dashboardType}
-			dashboardDefinition={dashboardDefinition}
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>

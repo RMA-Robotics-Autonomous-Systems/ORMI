@@ -18,12 +18,12 @@ import { toast } from "sonner";
 // Hash helper
 // ---------------------------------------------------------------------------
 
-function hashDashboardState(
+async function hashDashboardState(
 	layouts: Record<string, any>,
 	widgets: Map<string, Widget>,
 	datasources: Map<string, Datasource>,
 	locked: boolean,
-): string {
+): Promise<string> {
 	const stateString = JSON.stringify(
 		{
 			layouts,
@@ -52,13 +52,11 @@ function hashDashboardState(
 		},
 	);
 
-	let hash = 0;
-	for (let i = 0; i < stateString.length; i++) {
-		const char = stateString.charCodeAt(i);
-		hash = (hash << 5) - hash + char;
-		hash = hash & hash;
-	}
-	return hash.toString();
+	const encoded = new TextEncoder().encode(stateString);
+	const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+	return Array.from(new Uint8Array(hashBuffer))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +119,7 @@ export function useDashboardPersistence(
 	const lockedRef = useRef(locked);
 	const datasourcesRef = useRef(datasources);
 	const onSaveRef = useRef(onSave);
+	const onLoadRef = useRef(onLoad);
 
 	useEffect(() => {
 		widgetsRef.current = widgets;
@@ -133,35 +132,44 @@ export function useDashboardPersistence(
 		onSaveRef.current = onSave;
 	}, [onSave]);
 
-	// Load on mount
 	useEffect(() => {
-		onLoad((loadedState: DashboardInterface) => {
-			setLayouts(loadedState.layouts);
-			setWidgets(loadedState.widgets);
-			setLocked(loadedState.locked);
-			setDatasources(loadedState.datasources);
-		}).then(() => {
-			setInitialized(true);
-		});
-		// onLoad is a stable reference from the page
+		onLoadRef.current = onLoad;
+	}, [onLoad]);
+
+	// Load on mount — onLoadRef keeps a stable closure without requiring the
+	// caller to wrap in useCallback.
+	useEffect(() => {
+		onLoadRef
+			.current((loadedState: DashboardInterface) => {
+				setLayouts(loadedState.layouts);
+				setWidgets(loadedState.widgets);
+				setLocked(loadedState.locked);
+				setDatasources(loadedState.datasources);
+			})
+			.then(() => {
+				setInitialized(true);
+			});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// Change detection: recompute hash whenever atoms change after init
+	// Change detection: recompute SHA-256 hash whenever atoms change after init
 	useEffect(() => {
 		if (!initialized) return;
-		const currentHash = hashDashboardState(
-			layouts,
-			widgets,
-			datasources,
-			locked,
+		let cancelled = false;
+		hashDashboardState(layouts, widgets, datasources, locked).then(
+			(currentHash) => {
+				if (cancelled) return;
+				if (!initialHashRef.current) {
+					initialHashRef.current = currentHash;
+				}
+				const changed = currentHash !== initialHashRef.current;
+				setHasChangedLocal(changed);
+				setHasChanged(changed);
+			},
 		);
-		if (!initialHashRef.current) {
-			initialHashRef.current = currentHash;
-		}
-		const changed = currentHash !== initialHashRef.current;
-		setHasChangedLocal(changed);
-		setHasChanged(changed);
+		return () => {
+			cancelled = true;
+		};
 	}, [initialized, layouts, widgets, datasources, locked, setHasChanged]);
 
 	const save = useCallback(async () => {
@@ -178,7 +186,7 @@ export function useDashboardPersistence(
 		try {
 			const success = await onSaveRef.current(state);
 			if (success) {
-				initialHashRef.current = hashDashboardState(
+				initialHashRef.current = await hashDashboardState(
 					state.layouts,
 					state.widgets,
 					state.datasources,

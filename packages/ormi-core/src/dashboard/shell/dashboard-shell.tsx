@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode, useEffect } from "react";
+import React, { ReactNode, useMemo, useEffect } from "react";
 import {
 	PluginsManager,
 	usePluginsManager,
@@ -10,7 +10,6 @@ import {
 	useDashboardPersistence,
 	PersistenceOptions,
 } from "../persistence/use-dashboard-persistence";
-import { DashboardInterface } from "../dashboard-interface";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { createSafeContext } from "@workspace/utils";
 import {
@@ -26,21 +25,43 @@ import { flexLayoutEngineDefinition } from "../components/flex-layout/flex-layou
 import { panelEngineDefinition } from "../components/rc-dock/panel-dashboard";
 
 // ---------------------------------------------------------------------------
-// Shell context — minimal surface shared with DashboardEngine
+// Context 1 — Shell state (changes on every save / lock toggle)
+// Consumers: save button, lock indicator, anything that reacts to hasChanged.
 // ---------------------------------------------------------------------------
 
 export interface DashboardShellContextValue {
+	/** Active layout engine identifier (e.g. "GRID", "FLEX"). */
 	dashboardType: string;
+	/** True when the current state differs from the last loaded/saved snapshot. */
 	hasChanged: boolean;
+	/** Persist the current state. No-ops with a toast if there are no changes. */
 	save: () => Promise<void>;
-	/** All widget definitions resolved from the plugin registry (stable per mount). */
-	widgetDefinitions: WidgetDefinition[];
-	/** All datasource definitions resolved from the plugin registry (stable per mount). */
-	datasourceDefinitions: DatasourceDefinition<DatasourceProviderSettings>[];
 }
 
 export const [DashboardShellContextProvider, useDashboardShell] =
 	createSafeContext<DashboardShellContextValue>("DashboardShell");
+
+// ---------------------------------------------------------------------------
+// Context 2 — Plugin registry (stable per mount)
+// Consumers: useDashboardActions, DashboardEngine, WidgetHost resolver.
+// Split from shell state so definition consumers don't re-render on every
+// hasChanged / save reference change.
+// ---------------------------------------------------------------------------
+
+export interface DashboardRegistryContextValue {
+	/** All widget definitions resolved from the plugin registry. */
+	widgetDefinitions: WidgetDefinition[];
+	/** All datasource definitions resolved from the plugin registry. */
+	datasourceDefinitions: DatasourceDefinition<DatasourceProviderSettings>[];
+	/**
+	 * All layout engine definitions resolved from the plugin registry.
+	 * Includes built-in engines plus any registered by external plugins.
+	 */
+	engineDefinitions: LayoutEngineDefinition[];
+}
+
+export const [DashboardRegistryContextProvider, useDashboardRegistry] =
+	createSafeContext<DashboardRegistryContextValue>("DashboardRegistry");
 
 // ---------------------------------------------------------------------------
 // Props
@@ -49,8 +70,6 @@ export const [DashboardShellContextProvider, useDashboardShell] =
 export interface DashboardShellProps {
 	/** Active layout engine identifier (e.g. "GRID", "FLEX"). */
 	dashboardType: string;
-	/** Empty initial state — persistence hook populates it from onLoad. */
-	dashboardDefinition: DashboardInterface;
 	/** Load callback from the page. Receives a setter and calls it with persisted state. */
 	onLoad: PersistenceOptions["onLoad"];
 	/** Save callback from the page. Receives the current state and returns success. */
@@ -65,9 +84,9 @@ export interface DashboardShellProps {
 
 /**
  * Dashboard shell.
- * Owns persistence lifecycle (load, save, change detection).
- * Renders a spinner until the initial load resolves, then renders children.
- * Does not render the layout engine — place <DashboardEngine /> inside children.
+ * Owns persistence lifecycle (load, save, change detection) and provides two
+ * separate contexts: shell state (changes often) and plugin registry (stable
+ * per mount). Place <DashboardEngine /> inside children to render the active layout.
  */
 export const DashboardShell: React.FC<DashboardShellProps> = ({
 	dashboardType,
@@ -89,8 +108,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	const datasourceDefinitions = pluginsManager.applyFilter<
 		DatasourceDefinition<DatasourceProviderSettings>[]
 	>(PluginsHooks.DATASOURCES_LIST, []);
+	const engineDefinitions = pluginsManager.applyFilter<
+		LayoutEngineDefinition[]
+	>(PluginsHooks.DASHBOARD_LAYOUTS_LIST, []);
 
-	// Register built-in layout engines
+	// Register built-in layout engines for the lifetime of the shell.
+	// External plugins can register their own engines at any priority.
 	useEffect(() => {
 		pluginsManager.addFilter(PluginsHooks.DASHBOARD_LAYOUTS_LIST, {
 			id: "ormi-core-built-in-engines",
@@ -109,7 +132,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 		};
 	}, [pluginsManager]);
 
-	// Register the AVAILABLE_TOPICS filter for the lifetime of the dashboard
+	// Register the AVAILABLE_TOPICS filter for the lifetime of the dashboard.
 	useEffect(() => {
 		pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 			id: "dashboard-available-topics",
@@ -141,12 +164,20 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 		onSave,
 	});
 
-	const shellValue: DashboardShellContextValue = {
-		dashboardType,
-		hasChanged,
-		save,
+	// Shell state changes on every save/lock toggle — kept in its own context
+	// so registry consumers are not forced to re-render.
+	const shellValue = useMemo<DashboardShellContextValue>(
+		() => ({ dashboardType, hasChanged, save }),
+		[dashboardType, hasChanged, save],
+	);
+
+	// Registry value: new arrays every render (applyFilter cannot be memoized —
+	// see comment above). A separate context still prevents shell-state changes
+	// from reaching registry-only consumers and vice-versa.
+	const registryValue: DashboardRegistryContextValue = {
 		widgetDefinitions,
 		datasourceDefinitions,
+		engineDefinitions,
 	};
 
 	if (!initialized) {
@@ -159,7 +190,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
 	return (
 		<DashboardShellContextProvider value={shellValue}>
-			{children}
+			<DashboardRegistryContextProvider value={registryValue}>
+				{children}
+			</DashboardRegistryContextProvider>
 		</DashboardShellContextProvider>
 	);
 };

@@ -5,8 +5,12 @@ export { DashboardShell } from "./shell/dashboard-shell";
 export type {
 	DashboardShellProps,
 	DashboardShellContextValue,
+	DashboardRegistryContextValue,
 } from "./shell/dashboard-shell";
-export { useDashboardShell } from "./shell/dashboard-shell";
+export {
+	useDashboardShell,
+	useDashboardRegistry,
+} from "./shell/dashboard-shell";
 export { DashboardEngine } from "./shell/dashboard-engine";
 
 // State
@@ -24,7 +28,6 @@ export {
 	layoutsAtom,
 	lockedAtom,
 	hasChangedAtom,
-	forceReloadAtom,
 	datasourcesAtom,
 	widgetAtomFamily,
 } from "./atoms";

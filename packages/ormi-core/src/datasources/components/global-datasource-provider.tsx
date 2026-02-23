@@ -331,10 +331,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 													datasource_def,
 													settings: DatasourceProviderSettings,
 												): void {
-													updateDatasource(
-														datasource.datasource_id,
-														settings,
-													);
+													updateDatasource(settings);
 												}}
 											/>
 										);

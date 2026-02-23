@@ -43,11 +43,12 @@ const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	}
 
 	const definition = getDefinition(widget.widget_id);
+	const WidgetComponent = definition.Component;
 
 	return (
 		<ButtonHolderProvider>
 			<div className={className ?? "w-full h-full overflow-hidden"}>
-				{definition.Component(widget.settings)}
+				<WidgetComponent {...widget.settings} />
 			</div>
 		</ButtonHolderProvider>
 	);

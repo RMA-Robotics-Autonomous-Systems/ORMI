@@ -56,7 +56,6 @@ import {
 	layoutsAtom,
 	lockedAtom,
 	hasChangedAtom,
-	forceReloadAtom,
 	widgetAtomFamily,
 } from "../../atoms";
 
@@ -69,7 +68,6 @@ const Dashboard = () => {
 	const layouts = useAtomValue(layoutsAtom);
 	const locked = useAtomValue(lockedAtom);
 	const hasChanged = useAtomValue(hasChangedAtom);
-	const forceReload = useAtomValue(forceReloadAtom);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerWidth, setContainerWidth] = useState(1200);
 
@@ -131,7 +129,6 @@ const Dashboard = () => {
 	// Improved exploseLayout supporting multiple types
 	type Breakpoint = "lg" | "md" | "sm" | "xs" | "xxs";
 	type LayoutMatrix = { cols: number; rows: number };
-	// Use forceReload and setForceReload from dashboard manager context
 
 	const exploseLayout = useCallback(
 		(

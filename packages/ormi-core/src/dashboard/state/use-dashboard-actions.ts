@@ -11,7 +11,7 @@ import {
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import { DatasourceProviderSettings } from "../../datasources/datasource-interface";
 import { widgetNotFound } from "../../widgets/components/widget-not-found";
-import { useDashboardShell } from "../shell/dashboard-shell";
+import { useDashboardRegistry } from "../shell/dashboard-shell";
 import * as actions from "./actions";
 
 /** Public contract for all dashboard mutation operations. */
@@ -27,10 +27,8 @@ export interface DashboardActions {
 		settings?: DatasourceProviderSettings,
 	) => void;
 	removeDatasource: (datasourceId: string) => void;
-	updateDatasource: (
-		datasourceId: string,
-		settings: DatasourceProviderSettings,
-	) => void;
+	/** The instance id is read from `settings.id`. */
+	updateDatasource: (settings: DatasourceProviderSettings) => void;
 	toggleLock: () => void;
 }
 
@@ -46,7 +44,7 @@ export function useDashboardActions(): DashboardActions {
 	const setLocked = useSetAtom(lockedAtom);
 	const setDatasources = useSetAtom(datasourcesAtom);
 
-	const { widgetDefinitions, datasourceDefinitions } = useDashboardShell();
+	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	const getDefinition = useCallback(
 		(widgetId: string): WidgetDefinition => {
@@ -110,7 +108,7 @@ export function useDashboardActions(): DashboardActions {
 	);
 
 	const updateDatasource = useCallback(
-		(_datasourceId: string, settings: DatasourceProviderSettings) => {
+		(settings: DatasourceProviderSettings) => {
 			setDatasources((prev) => actions.updateDatasource(prev, settings));
 		},
 		[setDatasources],

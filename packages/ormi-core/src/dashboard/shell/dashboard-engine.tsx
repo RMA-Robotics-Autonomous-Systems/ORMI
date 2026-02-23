@@ -1,29 +1,23 @@
 "use client";
 
 import React from "react";
-import {
-	PluginsManager,
-	usePluginsManager,
-	PluginsHooks,
-} from "@workspace/ormi-plugins";
-import { useDashboardShell } from "./dashboard-shell";
+import { useDashboardShell, useDashboardRegistry } from "./dashboard-shell";
 import { LayoutEngineDefinition } from "../layout/layout-engine";
 
 /**
  * Resolves the active layout engine from the plugin registry and renders it.
  * Must be placed inside a DashboardShell — and inside any providers the engine
  * needs (e.g. GlobalDataSourcesProvider).
+ * Engine definitions are consumed from the DashboardRegistry context, which is
+ * populated by the shell — no second applyFilter call is needed here.
  */
 export const DashboardEngine: React.FC = () => {
 	const { dashboardType } = useDashboardShell();
-	const pluginsManager = usePluginsManager() as PluginsManager;
+	const { engineDefinitions } = useDashboardRegistry();
 
-	const engines = pluginsManager.applyFilter<LayoutEngineDefinition[]>(
-		PluginsHooks.DASHBOARD_LAYOUTS_LIST,
-		[],
+	const engine: LayoutEngineDefinition | undefined = engineDefinitions.find(
+		(e) => e.id === dashboardType,
 	);
-
-	const engine = engines.find((e) => e.id === dashboardType);
 
 	if (!engine) {
 		return (
