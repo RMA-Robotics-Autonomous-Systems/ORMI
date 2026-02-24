@@ -140,8 +140,6 @@ const LevelIcon = () => {
  * @returns Widget definition.
  */
 export function LevelDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "level-widget",
 		name: "Level Indicator",

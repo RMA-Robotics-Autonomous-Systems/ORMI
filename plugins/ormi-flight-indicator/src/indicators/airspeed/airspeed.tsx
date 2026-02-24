@@ -104,8 +104,6 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
  * @returns Widget definition.
  */
 export function AirspeedDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "speed-widget",
 		name: "Speed Indicator",

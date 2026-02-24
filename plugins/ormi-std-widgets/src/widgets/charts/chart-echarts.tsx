@@ -248,7 +248,6 @@ export function ChartEchartsWidgetDefinition() {
 		type: "Control",
 		scope: "#/properties/updateFrequency",
 	};
-	const pluginsManager = usePluginsManager();
 
 	// Main axis control for the chart (not per-series)
 	const axis: ControlElement = {

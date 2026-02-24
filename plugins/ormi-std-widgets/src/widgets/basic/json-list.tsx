@@ -242,9 +242,7 @@ function JsonList(props: JsonListProps) {
  * Widget definition for JsonList.
  * @returns Widget definition.
  */
-export function JsonListDefinition(): WidgetDefinition {
-	const pluginsManager = usePluginsManager();
-
+export function JsonListDefinition() {
 	return {
 		id: "json-List-widget",
 		name: "Json List",
@@ -291,5 +289,5 @@ export function JsonListDefinition(): WidgetDefinition {
 				<JsonList {...data} />
 			</LocalDataSourcesProvider>
 		),
-	} as WidgetDefinition;
+	};
 }

@@ -141,8 +141,6 @@ export function ToggleControl(props: ToggleControlData) {
  * @returns Widget definition.
  */
 export function ToggleControlDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "toggle-cmd-vel-widget",
 		name: "Toggle control",

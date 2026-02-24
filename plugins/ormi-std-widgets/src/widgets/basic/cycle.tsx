@@ -162,8 +162,6 @@ export function CycleControl(props: CycleControlData) {
  * @returns Widget definition.
  */
 export function CycleControlDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "cycle-cmd-vel-widget",
 		name: "Cycle control",

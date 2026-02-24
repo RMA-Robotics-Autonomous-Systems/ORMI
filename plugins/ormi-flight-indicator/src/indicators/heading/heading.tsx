@@ -116,8 +116,6 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
  * @returns Widget definition.
  */
 export function HeadingDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "heading-widget",
 		name: "Heading Indicator",

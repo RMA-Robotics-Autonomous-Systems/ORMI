@@ -452,8 +452,6 @@ export function KeyBoardControl(props: KeyboardControlData) {
  * @returns Widget definition.
  */
 export function KeyboardControlDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "keyboard-cmd-vel-widget",
 		name: "Keyboard control",

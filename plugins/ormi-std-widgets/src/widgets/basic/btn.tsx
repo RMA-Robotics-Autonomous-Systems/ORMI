@@ -62,8 +62,6 @@ export function BtnControl(props: BtnControlData) {
  * @returns Widget definition.
  */
 export function BtnControlDefinition() {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "btn-cmd-vel-widget",
 		name: "Btn control",
