@@ -25,7 +25,7 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
  * @param widgets - Array of widget definitions.
  * @returns Updated widget array.
  */
-export const widgetsExport = (widgets: WidgetDefinition[]) => {
+export const widgetsExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(BagListDefinition());
 	widgets.push(BagRecorderDefinition());
 

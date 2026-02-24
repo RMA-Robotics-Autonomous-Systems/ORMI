@@ -50,8 +50,12 @@ interface WidgetDefinition<
 	schema: JsonSchema;
 	/** UI schema describing widget settings layout. */
 	uischema: UISchemaElement;
-	/** Default settings for the widget. */
-	data: TSettings;
+	/**
+	 * Default/initial settings for the widget.
+	 * May be partial — only required fields and sensible defaults.
+	 * Full contract defined by schema; resolved settings passed to Component at runtime.
+	 */
+	data: Partial<TSettings>;
 
 	/** React component that renders the widget. */
 	Component: React.FC<TSettings>;

@@ -30,7 +30,7 @@ import { WidgetDefinition } from "@workspace/ormi-core/widgets";
  * @param widgets - Widget list to extend.
  * @returns Updated widget list.
  */
-const WidgetExport = (widgets: WidgetDefinition[]) => {
+const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(KeyboardControlDefinition());
 	widgets.push(JoypadControlsDefinition());
 	widgets.push(TimeSeriesChartDefinition());

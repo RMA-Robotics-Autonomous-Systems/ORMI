@@ -64,7 +64,7 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 	return datasources;
 };
 
-export const widgetsExport = (widgets: WidgetDefinition[]) => {
+export const widgetsExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(Ros2ConvertionGraphDefinition());
 	widgets.push(RQTGraphDefinition());
 	widgets.push(WebRtcRos2Definition());

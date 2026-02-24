@@ -15,7 +15,7 @@ import { Scene3DProps } from "./types/scene-3d-types";
  * Unified 3D Scene widget definition
  * Combines Point Cloud and Path visualization in a single 3D canvas
  */
-export function Scene3DDefinition(): WidgetDefinition {
+export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 	return {
 		id: "std-scene-3d",
 		name: "3D Scene",

@@ -177,11 +177,16 @@ function TopicsList() {
 	);
 }
 
+/** Props for TopicsList widget. */
+interface TopicsListProps extends Record<string, unknown> {
+	title: string;
+}
+
 /**
  * Widget definition for TopicsList.
  * @returns Widget definition.
  */
-export function TopicsListDefinition(): WidgetDefinition {
+export function TopicsListDefinition(): WidgetDefinition<TopicsListProps> {
 	return {
 		id: "topics-List-widget",
 		name: "Topics List",

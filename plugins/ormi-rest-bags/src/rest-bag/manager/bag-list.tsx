@@ -38,7 +38,7 @@ import {
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
 
-interface BagListProps {
+interface BagListProps extends Record<string, unknown> {
 	datasource_id: string;
 	title: string;
 }
@@ -554,7 +554,7 @@ const BagList = (props: BagListProps) => {
 	);
 };
 
-export function BagListDefinition(): WidgetDefinition {
+export function BagListDefinition(): WidgetDefinition<BagListProps> {
 	const pluginsManager = usePluginsManager();
 
 	return {

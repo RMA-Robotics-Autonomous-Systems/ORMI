@@ -8,7 +8,10 @@ import {
 	DatasourceTopicFilter,
 	PublisherDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { Movement } from "@workspace/ormi-core/types";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
@@ -20,7 +23,7 @@ import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
 /** Props for KeyBoardControl. */
-interface KeyboardControlData {
+interface KeyboardControlData extends Record<string, unknown> {
 	title: string;
 	axes: {
 		axis: string;
@@ -451,7 +454,7 @@ export function KeyBoardControl(props: KeyboardControlData) {
  * Widget definition for keyboard control.
  * @returns Widget definition.
  */
-export function KeyboardControlDefinition() {
+export function KeyboardControlDefinition(): WidgetDefinition<KeyboardControlData> {
 	return {
 		id: "keyboard-cmd-vel-widget",
 		name: "Keyboard control",

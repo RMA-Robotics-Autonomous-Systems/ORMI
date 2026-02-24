@@ -8,7 +8,7 @@ import { Datasource } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
-interface RQTGraphProps {
+interface RQTGraphProps extends Record<string, unknown> {
 	title: string;
 	datasource_id: string;
 	poolingRateHz: number;
@@ -328,7 +328,9 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 	);
 }
 
-export function RQTGraphDefinition(): WidgetDefinition {
+/** Settings for RQTGraph widget. */
+
+export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 	const pluginsManager = usePluginsManager();
 
 	return {

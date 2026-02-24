@@ -79,7 +79,7 @@ const buildTransformMatrix = (
 // ============================================================================
 // Point Cloud Source Renderer
 // ============================================================================
-interface PointCloudSourceRendererProps {
+interface PointCloudSourceRendererProps extends Record<string, unknown> {
 	sourceId: string;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	source: any;
@@ -521,7 +521,7 @@ const PointCloudSourceRenderer = ({
 // ============================================================================
 // Point Cloud Layer Renderer (uses data source context)
 // ============================================================================
-interface PointCloudLayerRendererProps {
+interface PointCloudLayerRendererProps extends Record<string, unknown> {
 	config: PointCloudLayerConfig;
 	targetFrame: string;
 }
@@ -568,7 +568,7 @@ const PointCloudLayerRenderer = ({
 // ============================================================================
 // Path Layer Renderer (uses data source context)
 // ============================================================================
-interface PathLayerRendererProps {
+interface PathLayerRendererProps extends Record<string, unknown> {
 	config: PathLayerConfig;
 	targetFrame: string;
 }

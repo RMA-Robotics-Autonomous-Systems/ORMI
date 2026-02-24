@@ -1,5 +1,6 @@
 import { ConciergeBellIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import {
 	DatasourceTopic,
 	DatasourceTopicFilter,
@@ -17,7 +18,7 @@ import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 
 /** Props for BtnControl. */
-interface BtnControlData {
+interface BtnControlData extends Record<string, unknown> {
 	title: string;
 	keyInput: DigitalInput;
 	topic: SelectedTopic;
@@ -61,7 +62,7 @@ export function BtnControl(props: BtnControlData) {
  * Widget definition for BtnControl.
  * @returns Widget definition.
  */
-export function BtnControlDefinition() {
+export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 	return {
 		id: "btn-cmd-vel-widget",
 		name: "Btn control",

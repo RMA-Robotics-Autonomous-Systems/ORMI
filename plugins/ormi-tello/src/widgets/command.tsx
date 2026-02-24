@@ -1,6 +1,7 @@
 import { useState } from "react"; // Import useCallback
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { Datasource } from "@workspace/ormi-core/datasources";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	DigitalInput,
@@ -11,7 +12,7 @@ import { KeyControlType } from "@workspace/ormi-jsonforms";
 /**
  * Props for Tello commands control widget.
  */
-interface TelloCommandsControlData {
+interface TelloCommandsControlData extends Record<string, unknown> {
 	title: string;
 	telloSourceId: string;
 	takeoff: DigitalInput;
@@ -355,11 +356,13 @@ const TelloDroneSVGIcon = () => {
 	);
 };
 
+/** Settings for TelloCommandsControl widget. */
+
 /**
  * Returns widget definition for Tello commands control.
  * @returns Widget definition.
  */
-export function TelloCommandsControlDefinition() {
+export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommandsControlData> {
 	const pluginsManager = usePluginsManager();
 
 	return {

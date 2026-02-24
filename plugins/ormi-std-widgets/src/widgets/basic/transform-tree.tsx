@@ -8,7 +8,7 @@ import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
 /** Props for TransformTreeViewer. */
-interface TransformTreeViewerProps {
+interface TransformTreeViewerProps extends Record<string, unknown> {
 	title: string;
 	showCoordinates: boolean;
 	treeId?: string;
@@ -213,7 +213,7 @@ function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
  * Widget definition for TransformTreeViewer.
  * @returns Widget definition.
  */
-export function TransformTreeWidgetDefinition(): WidgetDefinition {
+export function TransformTreeWidgetDefinition(): WidgetDefinition<TransformTreeViewerProps> {
 	return {
 		id: "transform-tree",
 		name: "Transform Tree Viewer",

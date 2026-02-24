@@ -15,7 +15,7 @@ export interface ThemeShaders {
 	fragmentShader: string;
 }
 
-export interface PointsCloudProps {
+export interface PointsCloudProps extends Record<string, unknown> {
 	title: string;
 	topics?: Array<{ topic: SelectedTopic }>;
 	pointSize?: number;

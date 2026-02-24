@@ -6,7 +6,7 @@ import { MapRef } from "react-map-gl/maplibre";
 /**
  * Props for MapsGrid.
  */
-interface MapsGridProps {
+interface MapsGridProps extends Record<string, unknown> {
 	mapRef: React.RefObject<MapRef | null>;
 	showGrid: boolean;
 	onGridUpdate?: (gridSizeMeters: number) => void;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { AttitudeIndicator } from "react-typescript-flight-indicators";
@@ -16,7 +17,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 /**
  * Props for level indicator widget.
  */
-interface LevelProps {
+interface LevelProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	pitchAxis: string;
@@ -135,11 +136,13 @@ const LevelIcon = () => {
 	);
 };
 
+/** Settings for Level widget. */
+
 /**
- * Returns widget definition for level indicator.
+ * Widget definition for level indicator.
  * @returns Widget definition.
  */
-export function LevelDefinition() {
+export function LevelDefinition(): WidgetDefinition<LevelProps> {
 	return {
 		id: "level-widget",
 		name: "Level Indicator",

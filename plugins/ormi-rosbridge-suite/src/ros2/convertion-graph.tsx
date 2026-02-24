@@ -82,7 +82,14 @@ function Ros2ConvertionGraph(): JSX.Element {
 	return <div ref={divRef} style={{ width: "100%", height: "100%" }}></div>;
 }
 
-export function Ros2ConvertionGraphDefinition(): WidgetDefinition {
+/** Props for Ros2ConvertionGraph widget. */
+interface Ros2ConvertionGraphProps extends Record<string, unknown> {
+	title: string;
+}
+
+/** Settings for Ros2ConvertionGraph widget. */
+
+export function Ros2ConvertionGraphDefinition(): WidgetDefinition<Ros2ConvertionGraphProps> {
 	return {
 		id: "ros2-conversion-graph",
 		name: "ROS2 Conversion Graph",

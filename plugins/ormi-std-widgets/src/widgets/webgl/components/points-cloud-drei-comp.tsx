@@ -23,7 +23,7 @@ import { themeShaders } from "../utils/theme-shaders";
 const MAX_ROLLING_POINTS = 600000;
 const TIME_RESET_SECONDS = 300;
 
-interface PointsRendererProps {
+interface PointsRendererProps extends Record<string, unknown> {
 	pointSize: number;
 	theme: string;
 	useTransparency: boolean;

@@ -19,7 +19,7 @@ import {
 } from "@workspace/ui/components/table";
 import { Badge } from "@workspace/ui/components/badge";
 
-interface RecorderProps {
+interface RecorderProps extends Record<string, unknown> {
 	recorder: RecordingStatus;
 	client: RestBagClient;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"; // Import useCallback
 import { ToggleLeftIcon, ToggleRightIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import {
 	SelectedTopic,
 	usePublisherDataSource,
@@ -18,7 +19,7 @@ import {
 import { toast } from "sonner";
 
 /** Props for ToggleControl. */
-interface ToggleControlData {
+interface ToggleControlData extends Record<string, unknown> {
 	title: string;
 	keyInput: DigitalInput;
 	topic: SelectedTopic;
@@ -140,7 +141,7 @@ export function ToggleControl(props: ToggleControlData) {
  * Widget definition for ToggleControl.
  * @returns Widget definition.
  */
-export function ToggleControlDefinition() {
+export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 	return {
 		id: "toggle-cmd-vel-widget",
 		name: "Toggle control",

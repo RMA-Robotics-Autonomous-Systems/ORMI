@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { HeadingIndicator } from "react-typescript-flight-indicators";
@@ -18,7 +19,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 /**
  * Props for heading indicator widget.
  */
-interface HeadingProps {
+interface HeadingProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	orientationAxis: string;
@@ -111,11 +112,13 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
 	);
 }
 
+/** Settings for Heading widget. */
+
 /**
- * Returns widget definition for heading indicator.
+ * Widget definition for heading indicator.
  * @returns Widget definition.
  */
-export function HeadingDefinition() {
+export function HeadingDefinition(): WidgetDefinition<HeadingProps> {
 	return {
 		id: "heading-widget",
 		name: "Heading Indicator",

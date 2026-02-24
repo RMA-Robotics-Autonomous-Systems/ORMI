@@ -5,7 +5,10 @@ import {
 	DatasourceTopic,
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	getColorsFromString,
@@ -21,7 +24,7 @@ import UplotReact from "uplot-react";
 import "uplot/dist/uPlot.min.css";
 
 /** Settings for the time series chart widget. */
-interface TimeSeriesSettings {
+interface TimeSeriesSettings extends Record<string, unknown> {
 	title: string;
 	timeHistory: number;
 	updateFrequency: number;
@@ -266,9 +269,7 @@ function showErrorToast(notFoundTopics: string[]) {
  * Widget definition for the time series chart.
  * @returns Widget definition.
  */
-export function TimeSeriesChartDefinition() {
-	const pluginsManager = usePluginsManager();
-
+export function TimeSeriesChartDefinition(): WidgetDefinition<TimeSeriesSettings> {
 	const title: ControlElement = {
 		type: "Control",
 		scope: "#/properties/title",

@@ -3,12 +3,15 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { PointsCloudProps } from "./types/points-cloud-drei-types";
 import { PointsCloudComp } from "./components/points-cloud-drei-comp";
 import { LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { FrameSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	FrameSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 
 /**
  * Definition for the PointsCloudDrei widget with schema configuration
  */
-export function PointsCloudDreiDefinition() {
+export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> {
 	return {
 		id: "std-points-cloud-drei",
 		name: "Points Cloud Drei",

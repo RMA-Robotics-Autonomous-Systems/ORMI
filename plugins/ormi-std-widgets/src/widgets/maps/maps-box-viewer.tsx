@@ -12,7 +12,10 @@ import {
 	SelectedTopic,
 	DatasourceTopicFilter,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
@@ -27,7 +30,7 @@ import { LocalTopic } from "./local-topic-visualizer-types";
 import { IMULocalTopic } from "./local-components/imu-local";
 
 /** Settings for MapsBoxViewer widget. */
-interface MapsViewerSettings {
+interface MapsViewerSettings extends Record<string, unknown> {
 	title: string;
 	mapUrl: string;
 	use3D: boolean;
@@ -179,7 +182,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
  * Widget definition for MapsBoxViewer.
  * @returns Widget definition.
  */
-export function MapsBoxViewerDefinition() {
+export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> {
 	const pluginsManager = usePluginsManager();
 
 	const mapType = pluginsManager.applyFilter<string[]>(

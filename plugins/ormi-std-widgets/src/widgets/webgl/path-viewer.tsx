@@ -7,7 +7,7 @@ import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { RouteIcon } from "lucide-react";
 import { PathViewerComp } from "./components/path-viewer-comp";
 
-export interface PathViewerProps {
+export interface PathViewerProps extends Record<string, unknown> {
 	title: string;
 	topic?: SelectedTopic;
 	lineWidth?: number;
@@ -17,7 +17,7 @@ export interface PathViewerProps {
 	targetFrame?: string;
 }
 
-export function PathViewerDefinition(): WidgetDefinition {
+export function PathViewerDefinition(): WidgetDefinition<PathViewerProps> {
 	return {
 		id: "std-path-viewer",
 		name: "Path Viewer",

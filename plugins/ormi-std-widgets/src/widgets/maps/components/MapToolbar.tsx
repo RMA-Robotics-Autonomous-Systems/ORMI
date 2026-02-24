@@ -9,7 +9,7 @@ import { MinusIcon, PlusIcon, RefreshCcwIcon } from "lucide-react";
 /**
  * Props for MapToolbar.
  */
-interface MapToolbarProps {
+interface MapToolbarProps extends Record<string, unknown> {
 	mapRef: React.RefObject<MapRef | null>;
 	showGrid: boolean;
 	onToggleGrid: () => void;

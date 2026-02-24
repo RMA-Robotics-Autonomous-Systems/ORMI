@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { Airspeed } from "react-typescript-flight-indicators";
@@ -18,7 +19,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 /**
  * Props for airspeed indicator widget.
  */
-interface AirSpeedProps {
+interface AirSpeedProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	speedAxis: string;
@@ -99,11 +100,13 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
 // a few lines later ...
 
+/** Settings for Airspeed widget. */
+
 /**
- * Returns widget definition for airspeed indicator.
+ * Widget definition for airspeed indicator.
  * @returns Widget definition.
  */
-export function AirspeedDefinition() {
+export function AirspeedDefinition(): WidgetDefinition<AirSpeedProps> {
 	return {
 		id: "speed-widget",
 		name: "Speed Indicator",

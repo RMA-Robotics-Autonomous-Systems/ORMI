@@ -34,7 +34,7 @@ export interface PathLayerConfig {
 }
 
 // Main props for the 3D Scene widget
-export interface Scene3DProps {
+export interface Scene3DProps extends Record<string, unknown> {
 	title: string;
 	pointCloudLayers?: PointCloudLayerConfig[];
 	pathLayers?: PathLayerConfig[];

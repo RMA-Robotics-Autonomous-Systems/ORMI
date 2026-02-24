@@ -34,7 +34,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 // ============================================================================
 
 /** Props for RemoteCallExplorer widget. */
-interface RemoteCallWidgetProps {
+interface RemoteCallWidgetProps extends Record<string, unknown> {
 	title: string;
 }
 
@@ -107,7 +107,7 @@ function safeStringify(value: unknown, space?: number): string {
 // Feedback Display Component
 // ============================================================================
 
-interface FeedbackDisplayProps {
+interface FeedbackDisplayProps extends Record<string, unknown> {
 	feedback: unknown;
 	feedbackType?: string;
 	feedbackSchema?: JsonSchema;
@@ -185,7 +185,7 @@ function FeedbackDisplay({
 // Result Display Component
 // ============================================================================
 
-interface ResultDisplayProps {
+interface ResultDisplayProps extends Record<string, unknown> {
 	result: unknown;
 	error?: string | null;
 	duration?: number | null;
@@ -252,7 +252,7 @@ function ResultDisplay({
 // Call Executor Component
 // ============================================================================
 
-interface CallExecutorProps {
+interface CallExecutorProps extends Record<string, unknown> {
 	definition: RemoteCallDefinition;
 }
 
@@ -422,7 +422,7 @@ function CallExecutor({ definition }: CallExecutorProps) {
 // Service Card Component (Accordion-style)
 // ============================================================================
 
-interface ServiceCardProps {
+interface ServiceCardProps extends Record<string, unknown> {
 	definition: RemoteCallDefinition;
 	isExpanded: boolean;
 	onToggle: () => void;
@@ -634,7 +634,8 @@ function RemoteCallExplorer({}: RemoteCallWidgetProps) {
  * Widget definition for remote call explorer.
  * @returns Widget definition.
  */
-export function RemoteCallExplorerDefinition(): WidgetDefinition {
+
+export function RemoteCallExplorerDefinition(): WidgetDefinition<RemoteCallWidgetProps> {
 	return {
 		id: "remote-call-explorer-widget",
 		name: "Remote Call Explorer",
@@ -671,5 +672,5 @@ export function RemoteCallExplorerDefinition(): WidgetDefinition {
 		Component: (data: RemoteCallWidgetProps) => (
 			<RemoteCallExplorer {...data} />
 		),
-	} as WidgetDefinition;
+	} as WidgetDefinition<RemoteCallWidgetProps>;
 }

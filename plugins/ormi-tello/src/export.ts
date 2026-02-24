@@ -39,7 +39,7 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 
 export { dataSourceExport };
 
-const WidgetExport = (widgets: WidgetDefinition[]) => {
+const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(TelloCommandsControlDefinition());
 
 	return widgets;

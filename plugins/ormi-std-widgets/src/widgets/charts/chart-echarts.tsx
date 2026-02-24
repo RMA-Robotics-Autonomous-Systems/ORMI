@@ -9,11 +9,14 @@ import {
 	DatasourceTopic,
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { ChartLineIcon } from "lucide-react";
 /** Series settings for the ECharts widget. */
-interface EchartsSeriesSettings {
+interface EchartsSeriesSettings extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	color: string;
@@ -37,7 +40,7 @@ interface EchartsSeriesSettings {
 }
 
 /** Settings for the ECharts chart widget. */
-interface ChartEchartsSettings {
+interface ChartEchartsSettings extends Record<string, unknown> {
 	title: string;
 	timeHistory: number;
 	updateFrequency: number;
@@ -235,7 +238,7 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
  * Widget definition for the ECharts chart.
  * @returns Widget definition.
  */
-export function ChartEchartsWidgetDefinition() {
+export function ChartEchartsWidgetDefinition(): WidgetDefinition<ChartEchartsSettings> {
 	const title: ControlElement = {
 		type: "Control",
 		scope: "#/properties/title",
