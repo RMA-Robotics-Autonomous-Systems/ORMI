@@ -48,6 +48,7 @@ import { WidgetCard } from "../../../widgets/components/widget-card/widget-card"
 import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
 import { LayoutEngineDefinition } from "../../layout/layout-engine";
+import { WidgetHost } from "../../layout/widget-host";
 import { useDashboardActions } from "../../state/use-dashboard-actions";
 import { useDashboardShell } from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
@@ -599,7 +600,7 @@ const Dashboard = () => {
 							)}
 						</div>
 						<div className="flex-grow overflow-hidden">
-							<GridWidgetContent
+							<WidgetHost
 								widgetId={widget.box_id}
 								getDefinition={getDefinition}
 							/>
@@ -659,24 +660,4 @@ export const gridEngineDefinition: LayoutEngineDefinition = {
 	Component: Dashboard,
 };
 
-const GridWidgetContent = React.memo(
-	({
-		widgetId,
-		getDefinition,
-	}: {
-		widgetId: string;
-		getDefinition: (widget_id: string) => WidgetDefinition;
-	}) => {
-		const widget = useAtomValue(widgetAtomFamily(widgetId));
-
-		if (!widget) {
-			return null;
-		}
-
-		const definition = getDefinition(widget.widget_id);
-		return definition.Component(widget.settings);
-	},
-	(prev, next) =>
-		prev.widgetId === next.widgetId &&
-		prev.getDefinition === next.getDefinition,
-);
+// GridWidgetContent removed — now using canonical WidgetHost

@@ -1,11 +1,15 @@
 "use client";
 
 import React from "react";
+import ReactDOM from "react-dom";
 import { useAtomValue } from "jotai";
 import { widgetAtomFamily } from "../atoms";
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import { widgetNotFound } from "../../widgets/components/widget-not-found";
-import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
+import {
+	ButtonHolder,
+	ButtonHolderProvider,
+} from "@workspace/ui/combined/ButtonHolder";
 
 /** Props for WidgetHost. */
 export interface WidgetHostProps {
@@ -19,7 +23,31 @@ export interface WidgetHostProps {
 	getDefinition: (widgetId: string) => WidgetDefinition;
 	/** Optional class name applied to the wrapper div. */
 	className?: string;
+	/**
+	 * Optional target element for ButtonHolder portal (Flex layout only).
+	 * If provided, ButtonHolder will be rendered into this target via portal.
+	 * Used for tab title button integration in FlexLayout.
+	 */
+	portalTarget?: HTMLElement;
 }
+
+/**
+ * Portal ButtonHolder into a target element (Flex layout tab titles).
+ * @param props - Component props.
+ * @returns React element or null.
+ */
+const ButtonHolderPortal: React.FC<{ portalTarget: HTMLElement }> = ({
+	portalTarget,
+}) => {
+	// Verify target is still in DOM before creating portal
+	if (!portalTarget.isConnected) {
+		return null;
+	}
+
+	// Portal the ButtonHolder component into the tab title container
+	// This preserves the React context and event handlers from the content area
+	return ReactDOM.createPortal(<ButtonHolder />, portalTarget);
+};
 
 /**
  * Renders a single widget instance.
@@ -30,6 +58,7 @@ const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	widgetId,
 	getDefinition,
 	className,
+	portalTarget,
 }) => {
 	const widget = useAtomValue(widgetAtomFamily(widgetId));
 
@@ -48,6 +77,10 @@ const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	return (
 		<ButtonHolderProvider>
 			<div className={className ?? "w-full h-full overflow-hidden"}>
+				{/* Portal ButtonHolder to tab title (Flex only) */}
+				{portalTarget && (
+					<ButtonHolderPortal portalTarget={portalTarget} />
+				)}
 				<WidgetComponent {...widget.settings} />
 			</div>
 		</ButtonHolderProvider>
