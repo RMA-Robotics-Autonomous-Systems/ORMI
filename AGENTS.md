@@ -59,14 +59,13 @@ If documentation is incomplete or missing, request it explicitly before implemen
 - Respect existing repo formats, linting, and TypeScript configs.
 - When user give an error message, don't fix it, explain what could be the cause, propose a solution
 
-## Implementation Patterns (approved solutions)
+## Implementation Patterns
 
 This section captures the approved patterns for common problems. Use these instead of inventing alternatives.
 
 ### 1. API Responses — `apiResponse` helper
 
-**Problem:** Inconsistent HTTP response construction across API routes.
-**Solution:** Use a single `apiResponse(data, status)` helper that wraps `NextResponse.json()`.
+Use a single `apiResponse(data, status)` helper for all API responses.
 
 ```typescript
 // packages/utils or apps/web/lib
@@ -75,14 +74,13 @@ export function apiResponse(data: unknown, status = 200) {
 }
 ```
 
-- Every route handler returns `apiResponse(...)`.
-- Error responses use the same helper: `apiResponse({ error: "msg" }, 400)`.
-- Do NOT use `new Response(JSON.stringify(...))` or raw `NextResponse.json()` directly.
+- Every route handler returns `apiResponse(...)`
+- Error responses: `apiResponse({ error: "msg" }, 400)`
+- Do NOT use `new Response(JSON.stringify(...))` or raw `NextResponse.json()` directly
 
 ### 2. Route Validation — Zod on every mutating endpoint
 
-**Problem:** Some routes validate with Zod, others skip validation entirely.
-**Solution:** All POST/PUT/PATCH/DELETE routes must parse the body with a Zod schema before processing.
+All POST/PUT/PATCH/DELETE routes must parse the body with a Zod schema before processing.
 
 ```typescript
 const schema = z.object({ name: z.string().min(1) });
@@ -90,13 +88,12 @@ const parsed = schema.safeParse(await request.json());
 if (!parsed.success) return apiResponse({ error: parsed.error.flatten() }, 400);
 ```
 
-- GET routes validate query params only when relevant.
-- Zod schemas live next to the route or in a shared `validations/` folder.
+- GET routes validate query params only when relevant
+- Zod schemas live next to the route or in a shared `validations/` folder
 
 ### 3. Context Providers — `createSafeContext<T>(name)`
 
-**Problem:** Providers use different defaults (`undefined`, `null`, `{}`), inconsistent hook guards, and inconsistent naming.
-**Solution:** Use the `createSafeContext` factory for all new contexts.
+Use the `createSafeContext` factory for all new contexts.
 
 ```typescript
 function createSafeContext<T>(name: string) {
@@ -111,82 +108,61 @@ function createSafeContext<T>(name: string) {
 }
 ```
 
-Rules:
+- Default is always `undefined`
+- Hook always throws if used outside provider
+- Context name uses PascalCase: `DashboardContext`, `NavbarContext`
+- Split state + actions into two contexts only when the provider is complex (e.g., `DashboardProvider`)
 
-- Default is always `undefined`.
-- Hook always throws if used outside provider.
-- Context name uses PascalCase: `DashboardContext`, `NavbarContext`.
-- Split state + actions into two contexts only when the provider is complex (e.g., `DashboardProvider`).
+### 4. Plugin Exports — Standard file naming
 
-### 4. Plugin Exports — Standard interface
-
-**Problem:** Plugins export their content inconsistently (default export vs named, different shapes).
-**Solution:** Every plugin exports a single `default` class extending `Plugin`, and uses the `export.tsx` / `widget-export.tsx` pattern for widget/datasource registration.
+Standardize on `export.ts` for all definition exports.
 
 ```typescript
-// index.ts — every plugin
+// export.ts — definitions
+export const datasourceDefinition = { id, name, schema, data, Provider };
+export const widgetDefinitions = [{ id, name, component, ... }];
+export const rendererDefinitions = [{ tester, renderer }];
+
+// index.ts — plugin class
 export default class MyPlugin extends Plugin {
-	name = "my-plugin";
-	register(pm: PluginsManager) {
-		/* register hooks */
+	constructor() {
+		super();
+		this.name = "my-plugin";
+
+		// Register hooks with imported or inline definitions
+		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
+			id: "my-plugin-datasource",
+			priority: 10,
+			filter: (datasources) => {
+				datasources.push(datasourceDefinition);
+				return datasources;
+			},
+		});
 	}
 }
 ```
 
-- Widget definitions go in `export.tsx` → registered via `PluginsHooks.WIDGETS_LIST`.
-- Datasource definitions go in `export.tsx` → registered via `PluginsHooks.DATASOURCES_LIST`.
-- Do NOT register hooks outside the `register()` method.
+- Use `export.ts` (or `export.tsx` if JSX needed) for datasource/widget/renderer definitions
+- Keep inline only for trivial 1-2 line callbacks
+- Constructor registers hooks via `this.addFilter()` / `this.addAction()`
+- Filter functions receive array, mutate it, return it
 
 ### 5. Plugin Datasource Providers — Lifecycle components
 
-**Problem:** Plugin datasource providers all create a React Context but pass `null` as the context value. Data flows through `PluginsManager` hooks, not through context.
-**Solution:** Plugin datasource providers that pass `null`/empty context values should be plain lifecycle components, not context providers.
+Plugin datasource providers that pass `null`/empty context values should be plain lifecycle components, not context providers.
 
-When to use a Context provider for a datasource:
+**Use a Context provider when:**
 
-- The provider holds **shared reactive state** that children consume directly (e.g., connection status, client instance).
+- The provider holds shared reactive state that children consume directly (e.g., connection status, client instance)
 
-When to use a plain component:
+**Use a plain component when:**
 
-- Data flows solely through `PluginsManager.addFilter/addAction` hooks.
-- The context value is `null`, `{}`, or unused.
+- Data flows solely through `PluginsManager.addFilter/addAction` hooks
+- The context value is `null`, `{}`, or unused
 
-Current plugin datasource providers that are lifecycle-only (no real context value):
+### 6. Auth Route Wrappers — `withAuth` higher-order handler
 
-- `RandomDataSourceProvider` → context value `null`
-- `RosBridgeSuiteSourceProvider` → context value `null`
-- `TelloSourceProvider` → context value `null`
-- `RestBagDataSourceProvider` → context value `null`
-- `FoxgloveDataHandler` → context value `{client, channels, isConnected}`, but **only consumed by internal sub-managers** (SubscriptionManager, PublisherManager, ServiceManager, TypeSystemManager). No dashboard component or widget reads it. From the dashboard perspective it is a lifecycle component; the context is plugin-internal plumbing.
-
-### 6. Storage Wrappers — Plain hooks, not providers
-
-**Problem:** `LocalStorageProvider` and `CookiesProvider` wrap browser APIs in a Context but hold no reactive state. The get/set/remove functions never change.
-**Solution:** Replace with plain hooks or module-level functions. No provider needed.
-
-```typescript
-// Preferred: simple hook
-export function useLocalStorage() {
-	return {
-		get: (key: string) => {
-			/* ... */
-		},
-		set: (key: string, value: any) => {
-			/* ... */
-		},
-		remove: (key: string) => {
-			/* ... */
-		},
-	};
-}
-```
-
-Use a provider only when the underlying storage needs to be swapped for testing or the state must be reactive.
-
-### 7. Auth Route Wrappers — `withAuth` higher-order handler
-
-**Problem:** Every API route repeats the same `getServerSession` + null-check pattern.
-**Solution:** Use a `withAuth(handler)` wrapper that extracts the session and returns 401 automatically.
+Use `withAuth(handler)` wrapper for all authenticated routes.
 
 ```typescript
 export function withAuth(
@@ -202,8 +178,44 @@ export function withAuth(
 
 ### 8. Widget Gating — Utility function
 
-**Problem:** Widget availability filtering is inline in `global-datasource-provider.tsx`.
-**Solution:** Extract `filterWidgetsByDatasources(widgets, datasources)` into a shared utility. Widgets that require a specific datasource type declare their dependency in their definition.
+Extract `filterWidgetsByDatasources(widgets, datasources)` into a shared utility. Widgets that require a specific datasource type declare their dependency in their definition.
+
+### 9. Client-Side HTTP Requests — Domain API wrappers
+
+Use the shared HTTP client and domain-specific API wrappers for all client-side HTTP operations.
+
+```typescript
+// apps/web/lib/http/client.ts
+export class HttpClient {
+	async get<T>(url: string): Promise<ApiResult<T>> {
+		/* ... */
+	}
+	async post<T>(url: string, data: unknown): Promise<ApiResult<T>> {
+		/* ... */
+	}
+	// ... put, patch, delete
+}
+
+export type ApiResult<T> =
+	| { ok: true; data: T }
+	| { ok: false; error: string; details?: unknown };
+
+// apps/web/lib/api/workspace-api.ts
+export const workspaceApi = {
+	async getAll() {
+		return httpClient.get<Workspace[]>("/api/workspaces");
+	},
+	async create(title: string, userId: string) {
+		/* ... */
+	},
+	// ...
+};
+```
+
+- Client-side HTTP code in `apps/web/server/prisma-*.ts` must use domain API wrappers, never raw `fetch()`
+- All API wrappers return `ApiResult<T>` for consistent error handling
+- Test API wrappers with Bun test using mocked `httpClient`
+- Route handlers remain independent; this pattern is for client-side code only
 
 ## Reference Docs (review before changes)
 
