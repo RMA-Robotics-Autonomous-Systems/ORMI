@@ -29,25 +29,47 @@ plugins/
     ormi-*               Plugin implementations, ormi prefix used for included plugins
 ```
 
-## Required Inputs (ask if missing)
+## Required Inputs
+
+Split into two tiers. Start with must-haves; request nice-to-haves only if ambiguity blocks progress.
+
+### Must-have before starting
 
 - Feature goal and success criteria.
 - Target area (core vs plugin) and expected impact.
-- User story and UX expectations.
 - Data contracts: inputs, outputs, formats, constraints, and validation rules.
+
+### Request if ambiguous or missing
+
+- User story and UX expectations.
 - Data flow and logic flow (diagram or step list). If missing, request it and propose a solution.
 - External dependencies, integrations, or API constraints.
 - Non-functional requirements: performance, security, accessibility, and rollout constraints.
 
 If documentation is incomplete or missing, request it explicitly before implementation.
 
+## Error Handling Rule
+
+> **When the user provides an error message: do NOT fix it directly. Instead, explain the likely cause and propose a solution for the user to apply.**
+
+This is a behavioral override — agents default to fixing immediately. This rule takes priority.
+
+## Core Immutability Rule
+
+**Core (`packages/ormi-core`) is treated as immutable.** Exceptions require:
+
+1. Explicit user approval.
+2. A listed impact analysis of all affected areas.
+3. Updated documentation in [apps/web/content/docs](apps/web/content/docs).
+
+All other sections reference this rule. Do not modify core without satisfying all three conditions above.
+
 ## Placement Rules
 
 - Detect whether the change belongs in packages or plugins based on intent and scope.
 - Packages: internal logic and shared core capabilities.
 - Plugins: features that extend the core.
-- Core is treated as immutable; exceptions must be justified and explicitly agreed.
-- If core is changed, update documentation in [apps/web/content/docs](apps/web/content/docs).
+- Core is immutable — see [Core Immutability Rule](#core-immutability-rule).
 - No legacy support: if a breaking change is required, get explicit user approval, list all impacted code areas, and update them.
 
 ## Conventions and Guardrails
@@ -57,7 +79,6 @@ If documentation is incomplete or missing, request it explicitly before implemen
 - Avoid anti-patterns: implicit shared mutable state, side effects in render, heavy logic inside components, and overly broad context providers.
 - Keep public APIs typed and stable; add JSDoc for exported or shared modules.
 - Respect existing repo formats, linting, and TypeScript configs.
-- When user give an error message, don't fix it, explain what could be the cause, propose a solution
 
 ## Implementation Patterns
 
@@ -68,15 +89,20 @@ This section captures the approved patterns for common problems. Use these inste
 Use a single `apiResponse(data, status)` helper for all API responses.
 
 ```typescript
-// packages/utils or apps/web/lib
+// packages/utils/src/api-response.ts
 export function apiResponse(data: unknown, status = 200) {
 	return NextResponse.json(data, { status });
 }
 ```
 
-- Every route handler returns `apiResponse(...)`
-- Error responses: `apiResponse({ error: "msg" }, 400)`
-- Do NOT use `new Response(JSON.stringify(...))` or raw `NextResponse.json()` directly
+```typescript
+// ✅ Correct
+return apiResponse({ error: "Not found" }, 404);
+
+// ❌ Wrong — never use raw response constructors
+return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+return NextResponse.json({ error: "Not found" }, { status: 404 });
+```
 
 ### 2. Route Validation — Zod on every mutating endpoint
 
@@ -88,14 +114,30 @@ const parsed = schema.safeParse(await request.json());
 if (!parsed.success) return apiResponse({ error: parsed.error.flatten() }, 400);
 ```
 
-- GET routes validate query params only when relevant
-- Zod schemas live next to the route or in a shared `validations/` folder
+```typescript
+// ❌ Wrong — never trust the body without parsing
+const body = await request.json();
+await db.create({ name: body.name });
+```
+
+- GET routes validate query params only when relevant.
+- Zod schemas live next to the route or in a shared `validations/` folder.
 
 ### 3. Context Providers — `createSafeContext<T>(name)`
 
-Use the `createSafeContext` factory for all new contexts.
+Use the `createSafeContext` factory (located at `packages/utils/src/create-safe-context.ts`) for all new contexts. Import it — do not reimplement it.
 
 ```typescript
+import { createSafeContext } from "@ormi/utils/create-safe-context";
+
+const [DashboardProvider, useDashboard] =
+	createSafeContext<DashboardState>("Dashboard");
+```
+
+Factory reference:
+
+```typescript
+// packages/utils/src/create-safe-context.ts
 function createSafeContext<T>(name: string) {
 	const Context = createContext<T | undefined>(undefined);
 	const useCtx = () => {
@@ -108,10 +150,10 @@ function createSafeContext<T>(name: string) {
 }
 ```
 
-- Default is always `undefined`
-- Hook always throws if used outside provider
-- Context name uses PascalCase: `DashboardContext`, `NavbarContext`
-- Split state + actions into two contexts only when the provider is complex (e.g., `DashboardProvider`)
+- Default is always `undefined`.
+- Hook always throws if used outside provider.
+- Context name uses PascalCase: `DashboardContext`, `NavbarContext`.
+- Split state + actions into two contexts only when the provider is complex (e.g., `DashboardProvider`).
 
 ### 4. Plugin Exports — Standard file naming
 
@@ -129,7 +171,6 @@ export default class MyPlugin extends Plugin {
 		super();
 		this.name = "my-plugin";
 
-		// Register hooks with imported or inline definitions
 		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 			id: "my-plugin-datasource",
 			priority: 10,
@@ -142,10 +183,10 @@ export default class MyPlugin extends Plugin {
 }
 ```
 
-- Use `export.ts` (or `export.tsx` if JSX needed) for datasource/widget/renderer definitions
-- Keep inline only for trivial 1-2 line callbacks
-- Constructor registers hooks via `this.addFilter()` / `this.addAction()`
-- Filter functions receive array, mutate it, return it
+- Use `export.ts` (or `export.tsx` if JSX needed) for datasource/widget/renderer definitions.
+- Keep inline only for trivial 1-2 line callbacks.
+- Constructor registers hooks via `this.addFilter()` / `this.addAction()`.
+- Filter functions receive array, mutate it, return it.
 
 ### 5. Plugin Datasource Providers — Lifecycle components
 
@@ -153,18 +194,19 @@ Plugin datasource providers that pass `null`/empty context values should be plai
 
 **Use a Context provider when:**
 
-- The provider holds shared reactive state that children consume directly (e.g., connection status, client instance)
+- The provider holds shared reactive state that children consume directly (e.g., connection status, client instance).
 
 **Use a plain component when:**
 
-- Data flows solely through `PluginsManager.addFilter/addAction` hooks
-- The context value is `null`, `{}`, or unused
+- Data flows solely through `PluginsManager.addFilter/addAction` hooks.
+- The context value is `null`, `{}`, or unused.
 
 ### 6. Auth Route Wrappers — `withAuth` higher-order handler
 
 Use `withAuth(handler)` wrapper for all authenticated routes.
 
 ```typescript
+// apps/web/lib/auth/with-auth.ts
 export function withAuth(
 	handler: (req: Request, session: Session) => Promise<Response>,
 ) {
@@ -176,9 +218,31 @@ export function withAuth(
 }
 ```
 
+```typescript
+// ❌ Wrong — never inline auth checks in route handlers
+export async function POST(req: Request) {
+	const session = await getServerSession(authOptions);
+	if (!session) return apiResponse({ error: "Unauthorized" }, 401);
+	// ...
+}
+```
+
+### 7. Server-Side Data Access — Prisma helpers
+
+All Prisma calls must go through dedicated helper files in `apps/web/server/prisma-*.ts`. Do not call Prisma directly from route handlers or components.
+
+```typescript
+// ✅ Correct — call a server helper
+import { getWorkspaceById } from "@/server/prisma-workspaces";
+
+// ❌ Wrong — never call prisma directly from a route
+import { prisma } from "@/lib/prisma";
+const workspace = await prisma.workspace.findUnique({ where: { id } });
+```
+
 ### 8. Widget Gating — Utility function
 
-Extract `filterWidgetsByDatasources(widgets, datasources)` into a shared utility. Widgets that require a specific datasource type declare their dependency in their definition.
+Extract `filterWidgetsByDatasources(widgets, datasources)` into a shared utility (located at `packages/utils/src/filter-widgets.ts`). Widgets that require a specific datasource type declare their dependency in their definition.
 
 ### 9. Client-Side HTTP Requests — Domain API wrappers
 
@@ -208,14 +272,18 @@ export const workspaceApi = {
 	async create(title: string, userId: string) {
 		/* ... */
 	},
-	// ...
 };
 ```
 
-- Client-side HTTP code in `apps/web/server/prisma-*.ts` must use domain API wrappers, never raw `fetch()`
-- All API wrappers return `ApiResult<T>` for consistent error handling
-- Test API wrappers with Bun test using mocked `httpClient`
-- Route handlers remain independent; this pattern is for client-side code only
+```typescript
+// ❌ Wrong — never use raw fetch() on the client
+const res = await fetch("/api/workspaces");
+const data = await res.json();
+```
+
+- All API wrappers return `ApiResult<T>` for consistent error handling.
+- Test API wrappers with Bun test using mocked `httpClient`.
+- Route handlers remain independent; this pattern is for client-side code only.
 
 ## Reference Docs (review before changes)
 
@@ -226,45 +294,40 @@ export const workspaceApi = {
 
 ## Workflow
 
-1. Discovery and clarification
-    - Ask for missing documentation.
-    - Ask for logic and data flow; propose at least one solution if absent.
+1. **Discovery**
+    - Confirm must-have inputs are present; request missing ones before proceeding.
     - Detect whether the change belongs in packages or plugins.
-    - Treat core as immutable by default; confirm exception and scope if core changes are needed.
-    - If breaking changes are required, ask the user to decide and provide an impact list.
+    - If core changes are needed, confirm approval and scope per the [Core Immutability Rule](#core-immutability-rule).
+    - If breaking changes are required, present an impact list and get user sign-off.
 
-2. Design and API preparation
+2. **Design and API preparation**
     - Draft data models, types, and interfaces.
     - Prepare API shape (inputs, outputs, errors) with example usage.
-    - Validate the plan against the data flow and plugin system.
+    - Validate the plan against the data flow and plugin system docs.
 
-3. Implementation plan
+3. **Implementation plan**
     - Map file-level changes and confirm module boundaries.
-    - Ensure naming and patterns match existing codebase conventions.
+    - Ensure naming and patterns match existing conventions.
     - Include JSDoc for exported or shared modules.
-    - For breaking changes, enumerate and update every impacted area in the codebase.
+    - For breaking changes, enumerate and update every impacted area.
 
-4. Testing plan (production-oriented)
+4. **Testing plan (production-oriented)**
     - Write tests that mirror production data and realistic workflows.
-    - Prefer tests that can detect broken logic and integration regressions.
-    - Include error-path and edge-case coverage where applicable.
+    - Prefer tests that detect broken logic and integration regressions.
+    - Include error-path and edge-case coverage.
     - If a testing framework is missing, flag it and propose a minimal setup.
 
-5. Documentation and validation
+5. **Documentation and validation**
     - Update core docs if core changes are introduced.
     - Verify formatting and linting rules.
     - Ensure docs reflect final API and data flow.
 
 ## Definition of Done
 
-- Requirements clarified; missing docs requested or provided.
+- Must-have requirements confirmed; ambiguous inputs resolved.
 - Data flow and logic flow captured.
-- API prepared and validated.
-- Implementation adheres to conventions and patterns.
-- Tests added (or a testing gap is documented).
+- API prepared and validated against patterns.
+- Implementation adheres to conventions and all 9 patterns.
+- Tests added (or testing gap is documented with a reason).
 - Documentation updated for any core changes.
 - Any approved breaking changes implemented with all impacted areas updated.
-
-## Next Step
-
-Collect missing requirements and confirm the logic/data flow, then proceed to API prep and solution implementation.
