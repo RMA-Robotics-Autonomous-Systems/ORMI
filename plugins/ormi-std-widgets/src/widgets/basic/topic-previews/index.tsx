@@ -71,7 +71,7 @@ const ImagePreview = memo(function ImagePreview({
 
 	return (
 		<div style={{ height: "200px" }}>
-			{imageWidget.Component(widgetProps)}
+			{<imageWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -113,7 +113,7 @@ const JsonPreview = memo(function JsonPreview({
 
 	return (
 		<div style={{ height: "150px", fontSize: "0.75rem" }}>
-			{jsonWidget.Component(widgetProps)}
+			{<jsonWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -172,7 +172,7 @@ const ConditionalPreview = memo(function ConditionalPreview({
 
 	return (
 		<div style={{ height: "80px" }}>
-			{conditionalWidget.Component(widgetProps)}
+			{<conditionalWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -226,7 +226,7 @@ const EchartPreview = memo(function EchartPreview({
 
 	return (
 		<div style={{ height: "200px" }}>
-			{echartWidget.Component(widgetProps)}
+			{<echartWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -319,7 +319,7 @@ const IMUPreview = memo(function IMUPreview({
 
 	return (
 		<div style={{ height: "250px" }}>
-			{echartWidget.Component(widgetProps)}
+			{<echartWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -365,7 +365,7 @@ const PathPreview = memo(function PathPreview({
 
 	return (
 		<div style={{ height: "250px" }}>
-			{pathWidget.Component(widgetProps)}
+			{<pathWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -418,7 +418,7 @@ const PointCloudPreview = memo(function PointCloudPreview({
 
 	return (
 		<div style={{ height: "250px" }}>
-			{pointCloudWidget.Component(widgetProps)}
+			{<pointCloudWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
