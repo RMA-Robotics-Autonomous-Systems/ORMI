@@ -119,5 +119,6 @@ export const flexLayoutEngineDefinition: LayoutEngineDefinition = {
 	description: "Advanced flexible layout with popout windows support",
 	icon: React.createElement(Layers, { size: 16 }),
 	badge: "New",
+	layoutKey: "flex",
 	Component: FlexLayoutDashboard,
 };

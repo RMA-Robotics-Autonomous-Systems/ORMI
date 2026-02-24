@@ -655,6 +655,7 @@ export const gridEngineDefinition: LayoutEngineDefinition = {
 	name: "Grid Layout",
 	description: "Traditional grid-based dashboard with resizable widgets",
 	badge: "Classic",
+	layoutKey: "grid",
 	Component: Dashboard,
 };
 

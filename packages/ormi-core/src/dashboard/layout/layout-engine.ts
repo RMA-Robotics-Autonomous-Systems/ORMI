@@ -2,7 +2,7 @@ import React from "react";
 
 /** Contract that every dashboard layout engine must satisfy. */
 export interface LayoutEngineDefinition {
-	/** Unique identifier (e.g. "GRID", "FLEX", "PANEL"). */
+	/** Unique identifier (e.g. "GRID", "FLEX"). */
 	id: string;
 	/** Display name shown in the workspace settings UI. */
 	name: string;
@@ -12,6 +12,12 @@ export interface LayoutEngineDefinition {
 	icon?: React.ReactNode;
 	/** Optional badge label ("New", "Classic", …). */
 	badge?: string;
+	/**
+	 * The key this engine uses in layoutsAtom.
+	 * Each engine must declare its own key to namespace layout data.
+	 * E.g. "grid" for react-grid-layout, "flex" for flexlayout-react.
+	 */
+	layoutKey: string;
 	/**
 	 * Self-contained layout component.
 	 * Reads state via atoms (widgetsAtom, layoutsAtom, lockedAtom, hasChangedAtom).

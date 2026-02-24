@@ -45,7 +45,6 @@
 			"types": "./dist/transforms/index.d.ts",
 			"import": "./dist/transforms/index.js"
 		},
-		"./rc-dock-theme.css": "./src/dashboard/components/rc-dock/rc-dock-theme.css",
 		"./flex-layout-theme.css": "./src/dashboard/components/flex-layout/flex-layout-theme.css"
 	},
 	"scripts": {
@@ -84,7 +83,6 @@
 		"jotai": "^2.17.1",
 		"json-schema": "^0.4.0",
 		"lucide-react": "^0.563.0",
-		"rc-dock": "^4.0.0-alpha.2",
 		"react-grid-layout": "^2.2.2",
 		"react-resizable": "^3.1.3",
 		"sonner": "^2.0.7"

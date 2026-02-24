@@ -22,7 +22,6 @@ import { WidgetDefinition } from "../../widgets/widget-interface";
 import { LayoutEngineDefinition } from "../layout/layout-engine";
 import { gridEngineDefinition } from "../components/react-grid-layout/dashboard";
 import { flexLayoutEngineDefinition } from "../components/flex-layout/flex-layout-dashboard";
-import { panelEngineDefinition } from "../components/rc-dock/panel-dashboard";
 
 // ---------------------------------------------------------------------------
 // Context 1 — Shell state (changes on every save / lock toggle)
@@ -119,11 +118,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 			id: "ormi-core-built-in-engines",
 			priority: 0,
 			filter: (engines: LayoutEngineDefinition[]) => {
-				engines.push(
-					gridEngineDefinition,
-					flexLayoutEngineDefinition,
-					panelEngineDefinition,
-				);
+				engines.push(gridEngineDefinition, flexLayoutEngineDefinition);
 				return engines;
 			},
 		});
