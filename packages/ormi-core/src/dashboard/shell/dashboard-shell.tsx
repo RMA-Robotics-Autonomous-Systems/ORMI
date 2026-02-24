@@ -73,8 +73,10 @@ export interface DashboardShellProps {
 	onLoad: PersistenceOptions["onLoad"];
 	/** Save callback from the page. Receives the current state and returns success. */
 	onSave: PersistenceOptions["onSave"];
-	/** Page-level providers (TemplatesProvider, GlobalDataSourcesProvider, WidgetsDialog, etc.). */
-	children: ReactNode;
+	/** Page-level providers (TemplatesProvider, GlobalDataSourcesProvider, WidgetsDialog, etc.). Can be ReactNode or render function. */
+	children:
+		| ReactNode
+		| ((registry: DashboardRegistryContextValue) => ReactNode);
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +188,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	return (
 		<DashboardShellContextProvider value={shellValue}>
 			<DashboardRegistryContextProvider value={registryValue}>
-				{children}
+				{typeof children === "function"
+					? children(registryValue)
+					: children}
 			</DashboardRegistryContextProvider>
 		</DashboardShellContextProvider>
 	);

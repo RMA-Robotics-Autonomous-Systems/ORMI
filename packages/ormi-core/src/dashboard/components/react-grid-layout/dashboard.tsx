@@ -1,8 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Replace with your actual toast import if needed
-// Use alert as fallback for toast
-const showToast = (msg: string) => alert(msg);
+import { toast } from "sonner";
 import { ResponsiveGridLayout } from "react-grid-layout";
 import type { LayoutItem, Layout, ResponsiveLayouts } from "react-grid-layout";
 
@@ -50,7 +48,10 @@ import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
 import { LayoutEngineDefinition } from "../../layout/layout-engine";
 import { WidgetHost } from "../../layout/widget-host";
 import { useDashboardActions } from "../../state/use-dashboard-actions";
-import { useDashboardShell } from "../../shell/dashboard-shell";
+import {
+	useDashboardShell,
+	useDashboardRegistry,
+} from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
 import {
 	widgetsAtom,
@@ -83,6 +84,7 @@ const Dashboard = () => {
 	} = useDashboardActions();
 
 	const { save } = useDashboardShell();
+	const { widgetDefinitions } = useDashboardRegistry();
 
 	// Track container width
 	useEffect(() => {
@@ -141,7 +143,7 @@ const Dashboard = () => {
 				| "single" = "custom",
 		) => {
 			if (locked) {
-				showToast(
+				toast.error(
 					"Dashboard is locked. Unlock the dashboard to explode the layout",
 				);
 				return;
@@ -396,14 +398,18 @@ const Dashboard = () => {
 	);
 
 	const handleValidate = useCallback(
-		(widget: WidgetDefinition, settings: object) => {
+		(widget: WidgetDefinition, settings: Record<string, unknown>) => {
 			addWidget(widget, settings);
 		},
 		[addWidget],
 	);
 
 	const handleSaveWidget = useCallback(
-		(box_id: string, widget: WidgetDefinition, settings: object) => {
+		(
+			box_id: string,
+			widget: WidgetDefinition,
+			settings: Record<string, unknown>,
+		) => {
 			updateWidget(box_id, settings);
 		},
 		[updateWidget],
@@ -447,7 +453,10 @@ const Dashboard = () => {
 		setNavbarItem(
 			"center",
 			"widgets_combo",
-			<WidgetsCombo onValidate={handleValidate} />,
+			<WidgetsCombo
+				widgetDefinitions={widgetDefinitions}
+				onValidate={handleValidate}
+			/>,
 		);
 
 		setNavbarItem(

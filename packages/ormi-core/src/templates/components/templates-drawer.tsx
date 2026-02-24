@@ -44,7 +44,10 @@ import {
 interface WidgetTemplateDrawerProps {
 	templates: Map<string, Template>;
 	removeTemplate: (id: string) => void;
-	addWidget: (widget: WidgetDefinition, settings: object) => void;
+	addWidget: (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => void;
 	addDatasource?: (
 		datasource_id: string,
 		settings: DatasourceProviderSettings,

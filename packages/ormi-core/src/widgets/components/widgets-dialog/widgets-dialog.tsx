@@ -8,11 +8,6 @@ import { useState } from "react";
 
 import { Plus } from "lucide-react"; // Import the plus icon
 
-import {
-	PluginsHooks,
-	PluginsManager,
-	usePluginsManager,
-} from "@workspace/ormi-plugins";
 import { WidgetCard } from "../widget-card/widget-card";
 
 import { WidgetDefinition } from "../../widget-interface";
@@ -33,20 +28,22 @@ import style from "./widgets-dialog.module.css";
 
 /**
  * Floating dialog to add widgets to the dashboard.
+ * @param props - Component props.
  * @returns React element.
  */
-export function WidgetsDialog() {
+export function WidgetsDialog(props: {
+	widgetDefinitions: WidgetDefinition[];
+}) {
 	const [isOpen, setIsOpen] = useState(false);
 
-	const pluginsManager = usePluginsManager() as PluginsManager;
+	const { widgetDefinitions } = props;
 	const { addWidget } = useDashboardActions();
 	const locked = useAtomValue(lockedAtom);
 
-	const widgets: WidgetDefinition[] = pluginsManager.applyFilter<
-		WidgetDefinition[]
-	>(PluginsHooks.WIDGETS_LIST, []);
-
-	const handleValidate = (widget: WidgetDefinition, settings: object) => {
+	const handleValidate = (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => {
 		addWidget(widget, settings);
 		setIsOpen(false); // close the dialog
 	};
@@ -71,8 +68,8 @@ export function WidgetsDialog() {
 						</DialogDescription>
 					</DialogHeader>
 					<div className={style.widget_container}>
-						{widgets.length > 0 ? (
-							widgets.map((widget, index) => (
+						{widgetDefinitions.length > 0 ? (
+							widgetDefinitions.map((widget, index) => (
 								<WidgetCard
 									key={index}
 									definition={widget}

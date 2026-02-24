@@ -61,17 +61,19 @@ export default function Page() {
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>
-			<TemplatesProvider
-				onLoad={tl}
-				addTemplate={ts}
-				removeTemplate={td}
-				updateTemplate={tu}
-			>
-				<GlobalDataSourcesProvider>
-					<DashboardEngine />
-					<WidgetsDialog />
-				</GlobalDataSourcesProvider>
-			</TemplatesProvider>
+			{({ widgetDefinitions }) => (
+				<TemplatesProvider
+					onLoad={tl}
+					addTemplate={ts}
+					removeTemplate={td}
+					updateTemplate={tu}
+				>
+					<GlobalDataSourcesProvider>
+						<DashboardEngine />
+						<WidgetsDialog widgetDefinitions={widgetDefinitions} />
+					</GlobalDataSourcesProvider>
+				</TemplatesProvider>
+			)}
 		</DashboardShell>
 	);
 }

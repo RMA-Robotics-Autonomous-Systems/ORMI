@@ -152,8 +152,8 @@ describe("addWidget", () => {
 		expect(widget!.settings.x).toBe(1);
 	});
 
-	test("handles null settings without throwing", () => {
-		expect(() => addWidget(new Map(), makeWidgetDef(), null)).not.toThrow();
+	test("handles empty settings without throwing", () => {
+		expect(() => addWidget(new Map(), makeWidgetDef(), {})).not.toThrow();
 	});
 });
 

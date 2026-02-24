@@ -36,7 +36,10 @@ interface WidgetCardProps {
 	displayType?: "card" | "list" | "gear";
 	definition: WidgetDefinition;
 	data?: any;
-	onValidate: (widget: WidgetDefinition, settings: object) => void;
+	onValidate: (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => void;
 	fromLoaded?: boolean;
 	isDialogOpen?: boolean;
 	onDialogClose?: () => void;

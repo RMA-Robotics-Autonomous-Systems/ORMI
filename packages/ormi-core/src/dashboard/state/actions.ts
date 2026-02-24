@@ -13,15 +13,15 @@ import {
  * @param settings - Initial settings for the widget.
  * @returns New widgets map with the widget added.
  */
-export function addWidget(
+export function addWidget<TSettings extends Record<string, unknown>>(
 	widgets: Map<string, Widget>,
-	widget: WidgetDefinition,
-	settings: any,
+	widget: WidgetDefinition<TSettings>,
+	settings: TSettings,
 ): Map<string, Widget> {
 	const box_id = `component_${crypto.randomUUID()}`;
 	let widget_title = widget.name;
 	if (widget.titleProp) {
-		widget_title = settings[widget.titleProp];
+		widget_title = String(settings[widget.titleProp]);
 	}
 	const newWidget: Widget = {
 		box_id,
@@ -57,10 +57,10 @@ export function removeWidget(
  * @param getDefinition - Resolver for widget definitions (needed for titleProp).
  * @returns New widgets map with the widget updated.
  */
-export function updateWidget(
+export function updateWidget<TSettings extends Record<string, unknown>>(
 	widgets: Map<string, Widget>,
 	boxId: string,
-	settings: any,
+	settings: TSettings,
 	getDefinition: (widgetId: string) => WidgetDefinition,
 ): Map<string, Widget> {
 	const next = new Map(widgets);
@@ -69,7 +69,7 @@ export function updateWidget(
 	const widgetDef = getDefinition(widget.widget_id);
 	const nextSettings = settings ? { ...settings } : settings;
 	const nextTitle = widgetDef.titleProp
-		? nextSettings?.[widgetDef.titleProp]
+		? String(nextSettings?.[widgetDef.titleProp])
 		: widget.title;
 	next.set(boxId, {
 		...widget,

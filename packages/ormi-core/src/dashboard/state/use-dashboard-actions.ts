@@ -18,10 +18,16 @@ import * as actions from "./actions";
 export interface DashboardActions {
 	/** Resolve a widget definition by its type ID. */
 	getDefinition: (widgetId: string) => WidgetDefinition;
-	addWidget: (widget: WidgetDefinition, settings: any) => void;
+	addWidget: <TSettings extends Record<string, unknown>>(
+		widget: WidgetDefinition<TSettings>,
+		settings: TSettings,
+	) => void;
 	removeWidget: (boxId: string) => void;
-	updateWidget: (boxId: string, settings: any) => void;
-	updateLayouts: (layouts: Record<string, any>) => void;
+	updateWidget: <TSettings extends Record<string, unknown>>(
+		boxId: string,
+		settings: TSettings,
+	) => void;
+	updateLayouts: (layouts: Record<string, unknown>) => void;
 	addDatasource: (
 		datasourceId: string,
 		settings?: DatasourceProviderSettings,
@@ -55,7 +61,10 @@ export function useDashboardActions(): DashboardActions {
 	);
 
 	const addWidget = useCallback(
-		(widget: WidgetDefinition, settings: any) => {
+		<TSettings extends Record<string, unknown>>(
+			widget: WidgetDefinition<TSettings>,
+			settings: TSettings,
+		) => {
 			setWidgets((prev) => actions.addWidget(prev, widget, settings));
 		},
 		[setWidgets],
@@ -69,7 +78,10 @@ export function useDashboardActions(): DashboardActions {
 	);
 
 	const updateWidget = useCallback(
-		(boxId: string, settings: any) => {
+		<TSettings extends Record<string, unknown>>(
+			boxId: string,
+			settings: TSettings,
+		) => {
 			setWidgets((prev) =>
 				actions.updateWidget(prev, boxId, settings, getDefinition),
 			);
@@ -78,7 +90,7 @@ export function useDashboardActions(): DashboardActions {
 	);
 
 	const updateLayouts = useCallback(
-		(layouts: Record<string, any>) => {
+		(layouts: Record<string, unknown>) => {
 			setLayouts((prev) => actions.updateLayouts(prev, layouts));
 		},
 		[setLayouts],
