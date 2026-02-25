@@ -127,12 +127,10 @@ function cleanLayout(node: any): any {
 
 /**
  * Deserialize JSON data into a FlexLayout model.
- * @param serializedModel - Serialized layout data.
+ * @param serializedModel - Serialized FlexLayout model data (IJsonModel format).
  * @returns FlexLayout model.
  */
-export function deserializeFlexLayoutModel(
-	serializedModel: Record<string, unknown>,
-): Model {
+export function deserializeFlexLayoutModel(serializedModel: IJsonModel): Model {
 	// Validate that we have the minimum required structure
 	if (
 		!serializedModel ||

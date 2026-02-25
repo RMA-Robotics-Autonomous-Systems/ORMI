@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { Model, Action, Actions } from "flexlayout-react";
+import { Model, Action, Actions, IJsonModel } from "flexlayout-react";
 import { Widget } from "../../../../widgets/widget-interface";
 import {
 	serializeFlexLayoutModel,
@@ -40,9 +40,11 @@ export const useFlexLayoutModel = ({
 		let newModel: Model;
 
 		// Try to initialize from saved layout first
-		if (!model && layouts && typeof layouts === "object") {
+		// Flex engine stores its layout state under the "flex" key
+		const flexLayoutData = layouts["flex"] as IJsonModel | undefined;
+		if (!model && flexLayoutData && typeof flexLayoutData === "object") {
 			try {
-				newModel = deserializeFlexLayoutModel(layouts);
+				newModel = deserializeFlexLayoutModel(flexLayoutData);
 				setModel(newModel);
 				return;
 			} catch (error) {
@@ -188,7 +190,8 @@ export const useFlexLayoutModel = ({
 			// Sync layout to provider after programmatic model updates
 			if (updatedModel) {
 				const serializedModel = serializeFlexLayoutModel(updatedModel);
-				updateLayouts(serializedModel);
+				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
+				updateLayouts({ ...layouts, flex: serializedModel });
 			}
 		}
 	}, [layouts, widgets, locked, getDefinition, model, updateLayouts]);
@@ -215,8 +218,8 @@ export const useFlexLayoutModel = ({
 			const serializedString = JSON.stringify(serializedModel);
 			if (serializedString !== lastSerializedRef.current) {
 				lastSerializedRef.current = serializedString;
-				// FlexLayout dashboard only cares about its own layout data
-				updateLayouts(serializedModel);
+				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
+				updateLayouts({ ...layouts, flex: serializedModel });
 			}
 		}
 	};

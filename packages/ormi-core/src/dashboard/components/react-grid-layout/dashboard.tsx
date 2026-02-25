@@ -104,7 +104,8 @@ const Dashboard = () => {
 	}, []);
 
 	// Cast generic layouts to react-grid-layout format
-	const gridLayouts = layouts as ResponsiveLayouts;
+	// Grid engine stores its layout state under the "grid" key
+	const gridLayouts = (layouts["grid"] as ResponsiveLayouts) || {};
 
 	// Local state for compactType (vertical/horizontal)
 	const [compactType, setCompactType] = useState<
@@ -114,9 +115,10 @@ const Dashboard = () => {
 	// Type-specific layout functions
 	const layoutsChanged = useCallback(
 		(newLayouts: ResponsiveLayouts) => {
-			updateLayouts(newLayouts);
+			// Update only the grid key, preserve other engines' layouts
+			updateLayouts({ ...layouts, grid: newLayouts });
 		},
-		[updateLayouts],
+		[updateLayouts, layouts],
 	);
 
 	const moveToVertical = useCallback(() => {
