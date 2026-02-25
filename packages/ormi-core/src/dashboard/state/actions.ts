@@ -155,9 +155,9 @@ export function updateDatasource(
  * @returns The new layouts object.
  */
 export function updateLayouts(
-	_current: Record<string, any>,
-	next: Record<string, any>,
-): Record<string, any> {
+	_current: Record<string, unknown>,
+	next: Record<string, unknown>,
+): Record<string, unknown> {
 	return next;
 }
 

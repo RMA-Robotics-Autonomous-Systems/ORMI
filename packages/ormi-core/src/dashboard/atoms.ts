@@ -5,8 +5,8 @@ import { Datasource } from "../datasources/datasource-interface";
 
 /** Atom holding widgets by box id. */
 export const widgetsAtom = atom<Map<string, Widget>>(new Map());
-/** Atom holding layout state. */
-export const layoutsAtom = atom<Record<string, any>>({});
+/** Atom holding layout state. Each engine writes to its own key (e.g., "grid", "flex", "rc-dock"). */
+export const layoutsAtom = atom<Record<string, unknown>>({});
 /** Atom indicating whether the dashboard is locked. */
 export const lockedAtom = atom<boolean>(false);
 /** Atom indicating whether the dashboard has unsaved changes. */

@@ -11,11 +11,11 @@ import {
 /** Props for useFlexLayoutModel. */
 interface UseFlexLayoutModelProps {
 	widgets: Map<string, Widget>;
-	layouts: Record<string, any>;
+	layouts: Record<string, unknown>;
 	locked: boolean;
 	getDefinition: (widget_id: string) => any;
 	removeWidget: (box_id: string) => void;
-	updateLayouts: (newLayouts: Record<string, any>) => void;
+	updateLayouts: (newLayouts: Record<string, unknown>) => void;
 }
 
 /**

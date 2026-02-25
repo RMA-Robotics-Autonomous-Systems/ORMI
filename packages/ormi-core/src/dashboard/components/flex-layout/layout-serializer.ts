@@ -5,7 +5,9 @@ import { IJsonModel, Model, IJsonTabNode } from "flexlayout-react";
  * @param model - FlexLayout model.
  * @returns JSON-safe model.
  */
-export function serializeFlexLayoutModel(model: Model): Record<string, any> {
+export function serializeFlexLayoutModel(
+	model: Model,
+): Record<string, unknown> {
 	const rawJson = model.toJson();
 
 	// Create a clean copy with only persistent data
@@ -129,7 +131,7 @@ function cleanLayout(node: any): any {
  * @returns FlexLayout model.
  */
 export function deserializeFlexLayoutModel(
-	serializedModel: Record<string, any>,
+	serializedModel: Record<string, unknown>,
 ): Model {
 	// Validate that we have the minimum required structure
 	if (
@@ -152,7 +154,9 @@ export function deserializeFlexLayoutModel(
 	};
 
 	// Ensure borders exist with proper structure
-	const borders = serializedModel.borders || [
+	const borders = (Array.isArray(serializedModel.borders)
+		? serializedModel.borders
+		: null) || [
 		{ type: "border", location: "left", children: [] },
 		{ type: "border", location: "right", children: [] },
 	];

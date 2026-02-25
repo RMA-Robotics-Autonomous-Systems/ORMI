@@ -19,7 +19,7 @@ import { toast } from "sonner";
 // ---------------------------------------------------------------------------
 
 async function hashDashboardState(
-	layouts: Record<string, any>,
+	layouts: Record<string, unknown>,
 	widgets: Map<string, Widget>,
 	datasources: Map<string, Datasource>,
 	locked: boolean,
