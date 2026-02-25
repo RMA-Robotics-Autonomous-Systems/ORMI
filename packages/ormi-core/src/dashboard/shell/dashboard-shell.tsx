@@ -102,10 +102,19 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	// run on every render at a consistent position in the hook chain.
 	// Do NOT wrap in useMemo — the memo bail-out would skip those inner hook
 	// calls and cause a "change in order of Hooks" violation.
-	const widgetDefinitions = pluginsManager.applyFilter<WidgetDefinition[]>(
+	let widgetDefinitions = pluginsManager.applyFilter<WidgetDefinition[]>(
 		PluginsHooks.WIDGETS_LIST,
 		[],
 	);
+
+	// Apply extensibility hooks to allow plugins to modify definitions at registry time.
+	// This decouples definition factories from hook calls while preserving plugin extensibility.
+	widgetDefinitions = widgetDefinitions.map((def) => {
+		if (def.extensibilityHook) {
+			return def.extensibilityHook(def, pluginsManager);
+		}
+		return def;
+	});
 	const datasourceDefinitions = pluginsManager.applyFilter<
 		DatasourceDefinition<DatasourceProviderSettings>[]
 	>(PluginsHooks.DATASOURCES_LIST, []);
@@ -142,12 +151,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 				const filteredTopics = topics.filter((topic) =>
 					filter.filter(topic),
 				);
-				if (filteredTopics.length === 0) {
-					console.warn("No topics found for the filter", {
-						topics,
-						filter,
-					});
-				}
 				return filteredTopics;
 			},
 		});

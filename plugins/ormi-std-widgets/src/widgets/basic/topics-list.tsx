@@ -218,5 +218,5 @@ export function TopicsListDefinition(): WidgetDefinition<TopicsListProps> {
 			title: "Topics List",
 		},
 		Component: () => <TopicsList />,
-	} as WidgetDefinition;
+	};
 }

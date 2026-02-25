@@ -1,6 +1,7 @@
 import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 import { JSX } from "react";
 import React from "react";
+import { PluginsManager } from "@workspace/ormi-plugins";
 
 /** Data types a widget can accept. */
 interface DataRequirements {
@@ -59,6 +60,19 @@ interface WidgetDefinition<
 
 	/** React component that renders the widget. */
 	Component: React.FC<TSettings>;
+
+	/**
+	 * Optional extensibility hook for plugins to modify the definition at registry time.
+	 * Called after initial definition creation, allows plugins to extend schema, enums, etc.
+	 * Hook receives the definition and pluginsManager; should mutate and return the definition.
+	 * @param definition - The widget definition to mutate.
+	 * @param pluginsManager - Plugin manager for accessing other registered extensions.
+	 * @returns The mutated definition.
+	 */
+	extensibilityHook?: (
+		definition: WidgetDefinition<TSettings>,
+		pluginsManager: PluginsManager,
+	) => WidgetDefinition<TSettings>;
 }
 
 /** Widget instance in a dashboard layout. */
