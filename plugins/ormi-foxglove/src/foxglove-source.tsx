@@ -1,14 +1,14 @@
 "use client";
 
-import React, { ReactNode, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { ReadyState } from "react-use-websocket";
 
-import { WebSocketStatusOverlay } from "@workspace/utils";
+// import { WebSocketStatusOverlay } from "@workspace/utils";
 import { toast } from "sonner";
 
 import { TransformTreeManager } from "./transform-tree-manager";
 import { FoxgloveDataSourceSettings } from "./types";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { FoxgloveDataHandler } from "./foxglove-data-handler";
 import { SubscriptionManager } from "./subscription-manager";
 import { PublisherManager } from "./publisher-manager";
@@ -78,18 +78,33 @@ const useConnectionStatus = (toasts: boolean) => {
 	};
 };
 
-const FoxgloveSourceProvider = (
-	children: ReactNode,
-	props: FoxgloveDataSourceSettings,
-) => {
+const FoxgloveSourceProvider = (props: FoxgloveDataSourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const [initialized, setInitialized] = useState(false);
+
+	const handleInitialized = useCallback(
+		(isInit: boolean) => {
+			setInitialized(isInit);
+			if (isInit) {
+				pluginsManager.doAction(
+					PluginsHooks.DATASOURCE_READY,
+					props.id,
+				);
+			} else {
+				pluginsManager.doAction(
+					PluginsHooks.DATASOURCE_DISPOSED,
+					props.id,
+				);
+			}
+		},
+		[pluginsManager, props.id],
+	);
 	const [webSocket, setWebSocket] = useState<WebSocket | null>(null);
 	const {
-		readyState,
-		reconnectAttempt,
-		connectionError,
-		showOverlay,
+		// readyState,
+		// reconnectAttempt,
+		// connectionError,
+		// showOverlay,
 		handleConnectionStatus,
 		setReconnectAttempt,
 	} = useConnectionStatus(props.toasts);
@@ -104,36 +119,31 @@ const FoxgloveSourceProvider = (
 						<PublisherManager settings={props}>
 							<ServiceManager settings={props}>
 								<SubscriptionManager settings={props}>
-									<TransformTreeManager settings={props}>
-										{children}
-									</TransformTreeManager>
+									<TransformTreeManager settings={props} />
 								</SubscriptionManager>
 							</ServiceManager>
 						</PublisherManager>
 					</TypeSystemManager>
 				</FoxgloveDataHandler>
 			)
-		: initialized && (
-				<TransformTreeManager settings={props}>
-					{children}
-				</TransformTreeManager>
-			);
+		: initialized && <TransformTreeManager settings={props} />;
 
 	return (
 		<>
-			<WebSocketStatusOverlay
-				readyState={readyState}
-				reconnectAttempt={reconnectAttempt}
-				maxReconnectAttempts={10}
-				error={connectionError}
-				isVisible={showOverlay}
-			/>
+			{/* TODO: Move WebSocketStatusOverlay to GlobalDataSourcesProvider or dashboard-level solution */}
+			{/* <WebSocketStatusOverlay
+                readyState={readyState}
+                reconnectAttempt={reconnectAttempt}
+                maxReconnectAttempts={10}
+                error={connectionError}
+                isVisible={showOverlay}
+            /> */}
 			{useMainThread ? (
 				<FoxgloveMainThreadConnection
 					settings={props}
 					onConnectionStatus={handleConnectionStatus}
 					onReconnectAttempt={setReconnectAttempt}
-					onInitialized={setInitialized}
+					onInitialized={handleInitialized}
 					onWebSocket={setWebSocket}
 				/>
 			) : (
@@ -141,7 +151,7 @@ const FoxgloveSourceProvider = (
 					settings={props}
 					pluginsManager={pluginsManager}
 					onConnectionStatus={handleConnectionStatus}
-					onInitialized={setInitialized}
+					onInitialized={handleInitialized}
 				/>
 			)}
 			{content}

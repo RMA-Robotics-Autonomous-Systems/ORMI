@@ -1,37 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { getServerSession } from "next-auth/next";
-import { z } from "zod";
 import { NextRequest } from "next/server";
 
-import { authOptions } from "@/server/auth";
 import { db } from "@/server/db";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import {
+	createWorkspaceSchema,
+	reorderWorkspacesSchema,
+} from "@/lib/validations/workspace";
 
-// Create a schema for workspace creation
-const createWorkspaceSchema = z.object({
-	title: z.string(),
-	userId: z.string(),
-	dashboardType: z.string().optional(),
-});
-
-const reorderWorkspacesSchema = z.object({
-	updates: z.array(
-		z.object({
-			id: z.number(),
-			order: z.number(),
-			categoryId: z.number().nullable().optional(),
-		}),
-	),
-});
-
-export async function GET() {
+export const GET = withAuth(async (_req, session) => {
 	try {
-		// Ensure user is authenticated
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(null, { status: 401 });
-		}
-
-		// Get all workspaces for the current user
 		const workspaces = await db.workspace.findMany({
 			where: {
 				createdById: session.user.id,
@@ -54,32 +32,28 @@ export async function GET() {
 			orderBy: [{ order: "asc" }, { updatedAT: "desc" }],
 		});
 
-		return new Response(JSON.stringify(workspaces), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
+		return apiResponse(workspaces);
 	} catch (error) {
 		console.error("Workspace fetch error:", error);
-		return new Response(null, { status: 500 });
+		return apiResponse({ error: "Internal server error" }, 500);
 	}
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest, session) => {
 	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(null, { status: 401 });
+		const body = await req.json();
+		const parsedBody = reorderWorkspacesSchema.safeParse(body);
+		if (!parsedBody.success) {
+			return apiResponse({ error: parsedBody.error.flatten() }, 400);
 		}
 
-		const body = await req.json();
-		const { updates } = reorderWorkspacesSchema.parse(body);
+		const { updates } = parsedBody.data;
 
-		// Update all workspaces in a transaction
 		await db.$transaction(
 			updates.map(({ id, order, categoryId }) => {
-				const data: any = { order };
+				const data: { order: number; categoryId?: number | null } = {
+					order,
+				};
 				if (categoryId !== undefined) {
 					data.categoryId = categoryId;
 				}
@@ -93,37 +67,27 @@ export async function PATCH(req: NextRequest) {
 			}),
 		);
 
-		return new Response(JSON.stringify({ success: true }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
+		return apiResponse({ success: true });
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return new Response(JSON.stringify(error.issues), { status: 422 });
-		}
 		console.error("Workspace reorder error:", error);
-		return new Response(null, { status: 500 });
+		return apiResponse({ error: "Internal server error" }, 500);
 	}
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, session) => {
 	try {
-		// Ensure user is authenticated
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(null, { status: 401 });
+		const body = await req.json();
+		const parsedBody = createWorkspaceSchema.safeParse(body);
+		if (!parsedBody.success) {
+			return apiResponse({ error: parsedBody.error.flatten() }, 400);
 		}
 
-		// Get the request body and validate it
-		const body = (await req.json()) as any;
-		const payload = createWorkspaceSchema.parse(body);
+		const payload = parsedBody.data;
 
-		// Verify the userId in the request matches the authenticated user
 		if (payload.userId !== session.user.id) {
-			return new Response(null, { status: 403 });
+			return apiResponse({ error: "Forbidden" }, 403);
 		}
 
-		// Create the workspace
 		const workspace = await db.workspace.create({
 			data: {
 				name: payload.title,
@@ -134,18 +98,9 @@ export async function POST(req: NextRequest) {
 			},
 		});
 
-		return new Response(JSON.stringify(workspace), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
+		return apiResponse(workspace);
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return new Response(JSON.stringify(error.issues), { status: 422 });
-		}
-
 		console.error("Workspace creation error:", error);
-		return new Response(null, { status: 500 });
+		return apiResponse({ error: "Internal server error" }, 500);
 	}
-}
+});

@@ -64,17 +64,18 @@ export function TreeViewer() {
 	);
 }
 
+/** Props for TreeViewer widget. */
+interface TreeViewerProps extends Record<string, unknown> {
+	title: string;
+	topic: SelectedTopic;
+}
+
 /**
  * Widget definition for TreeViewer.
  * @returns Widget definition.
  */
-export function TreeViewerDefinition(): WidgetDefinition {
+export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 	const pluginsManager = usePluginsManager();
-
-	interface TreeViewerProps {
-		title: string;
-		topic: SelectedTopic;
-	}
 
 	return {
 		id: "tree-viewer-widget",
@@ -121,5 +122,5 @@ export function TreeViewerDefinition(): WidgetDefinition {
 				<TreeViewer />
 			</LocalDataSourcesProvider>
 		),
-	} as WidgetDefinition;
+	} as WidgetDefinition<TreeViewerProps>;
 }

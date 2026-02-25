@@ -9,7 +9,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Badge } from "@workspace/ui/components/badge";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 
-interface BagPlayerProps {
+interface BagPlayerProps extends Record<string, unknown> {
 	bag: BagInfo;
 	datasource_id: string;
 	title: string;

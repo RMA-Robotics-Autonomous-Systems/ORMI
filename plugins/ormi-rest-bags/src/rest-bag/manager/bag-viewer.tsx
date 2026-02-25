@@ -18,7 +18,7 @@ import {
 } from "@workspace/ui/components/table";
 import { BagInfo } from "../bags";
 
-interface BagViewerProps {
+interface BagViewerProps extends Record<string, unknown> {
 	bag: BagInfo;
 	trigger?: any;
 }

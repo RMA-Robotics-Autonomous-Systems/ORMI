@@ -25,7 +25,7 @@ import { FileIcon, ArrowDown } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 
 /** Props for JsonList. */
-interface JsonListProps {
+interface JsonListProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 }
@@ -242,9 +242,7 @@ function JsonList(props: JsonListProps) {
  * Widget definition for JsonList.
  * @returns Widget definition.
  */
-export function JsonListDefinition(): WidgetDefinition {
-	const pluginsManager = usePluginsManager();
-
+export function JsonListDefinition(): WidgetDefinition<JsonListProps> {
 	return {
 		id: "json-List-widget",
 		name: "Json List",
@@ -291,5 +289,5 @@ export function JsonListDefinition(): WidgetDefinition {
 				<JsonList {...data} />
 			</LocalDataSourcesProvider>
 		),
-	} as WidgetDefinition;
+	};
 }

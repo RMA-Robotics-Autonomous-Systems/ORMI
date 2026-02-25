@@ -20,9 +20,23 @@ enum PluginsHooks {
 	AVAILABLE_TOPICS = "plugins-topics-list",
 	AVAILABLE_DATASOURCES = "plugins-datasources-availables",
 
+	/**
+	 * Actions for datasource lifecycle management.
+	 * Datasource providers emit these to coordinate initialization.
+	 */
+	DATASOURCE_READY = "datasource-ready",
+	DATASOURCE_DISPOSED = "datasource-disposed",
+
 	TRANSFORM_TREE = "CORE-TRANSFORM-TREE",
 
 	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
+
+	/**
+	 * Filter that returns all registered layout engine definitions.
+	 * Plugins push a LayoutEngineDefinition to extend available dashboard layouts.
+	 * @param engines - Array of LayoutEngineDefinition.
+	 */
+	DASHBOARD_LAYOUTS_LIST = "dashboard:layouts:list",
 
 	/**
 	 * Filter that returns all available remote calls from all datasources.

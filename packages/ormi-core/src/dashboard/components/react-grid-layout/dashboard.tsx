@@ -1,8 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// Replace with your actual toast import if needed
-// Use alert as fallback for toast
-const showToast = (msg: string) => alert(msg);
+import { toast } from "sonner";
 import { ResponsiveGridLayout } from "react-grid-layout";
 import type { LayoutItem, Layout, ResponsiveLayouts } from "react-grid-layout";
 
@@ -47,14 +45,19 @@ import { useTemplates } from "../../../templates/templates-provider";
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
 import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
-import { useDashboardActions } from "../dashboard-provider";
+import { LayoutEngineDefinition } from "../../layout/layout-engine";
+import { WidgetHost } from "../../layout/widget-host";
+import { useDashboardActions } from "../../state/use-dashboard-actions";
+import {
+	useDashboardShell,
+	useDashboardRegistry,
+} from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
 import {
 	widgetsAtom,
 	layoutsAtom,
 	lockedAtom,
 	hasChangedAtom,
-	forceReloadAtom,
 	widgetAtomFamily,
 } from "../../atoms";
 
@@ -67,7 +70,6 @@ const Dashboard = () => {
 	const layouts = useAtomValue(layoutsAtom);
 	const locked = useAtomValue(lockedAtom);
 	const hasChanged = useAtomValue(hasChangedAtom);
-	const forceReload = useAtomValue(forceReloadAtom);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerWidth, setContainerWidth] = useState(1200);
 
@@ -76,11 +78,13 @@ const Dashboard = () => {
 		removeWidget,
 		addWidget,
 		getDefinition,
-		lockUnLockDashboard,
-		savesDashboard,
+		toggleLock,
 		addDatasource,
 		updateLayouts,
 	} = useDashboardActions();
+
+	const { save } = useDashboardShell();
+	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	// Track container width
 	useEffect(() => {
@@ -100,7 +104,8 @@ const Dashboard = () => {
 	}, []);
 
 	// Cast generic layouts to react-grid-layout format
-	const gridLayouts = layouts as ResponsiveLayouts;
+	// Grid engine stores its layout state under the "grid" key
+	const gridLayouts = (layouts["grid"] as ResponsiveLayouts) || {};
 
 	// Local state for compactType (vertical/horizontal)
 	const [compactType, setCompactType] = useState<
@@ -110,9 +115,10 @@ const Dashboard = () => {
 	// Type-specific layout functions
 	const layoutsChanged = useCallback(
 		(newLayouts: ResponsiveLayouts) => {
-			updateLayouts(newLayouts);
+			// Update only the grid key, preserve other engines' layouts
+			updateLayouts({ ...layouts, grid: newLayouts });
 		},
-		[updateLayouts],
+		[updateLayouts, layouts],
 	);
 
 	const moveToVertical = useCallback(() => {
@@ -128,7 +134,6 @@ const Dashboard = () => {
 	// Improved exploseLayout supporting multiple types
 	type Breakpoint = "lg" | "md" | "sm" | "xs" | "xxs";
 	type LayoutMatrix = { cols: number; rows: number };
-	// Use forceReload and setForceReload from dashboard manager context
 
 	const exploseLayout = useCallback(
 		(
@@ -140,7 +145,7 @@ const Dashboard = () => {
 				| "single" = "custom",
 		) => {
 			if (locked) {
-				showToast(
+				toast.error(
 					"Dashboard is locked. Unlock the dashboard to explode the layout",
 				);
 				return;
@@ -395,26 +400,30 @@ const Dashboard = () => {
 	);
 
 	const handleValidate = useCallback(
-		(widget: WidgetDefinition, settings: object) => {
+		(widget: WidgetDefinition, settings: Record<string, unknown>) => {
 			addWidget(widget, settings);
 		},
 		[addWidget],
 	);
 
 	const handleSaveWidget = useCallback(
-		(box_id: string, widget: WidgetDefinition, settings: object) => {
+		(
+			box_id: string,
+			widget: WidgetDefinition,
+			settings: Record<string, unknown>,
+		) => {
 			updateWidget(box_id, settings);
 		},
 		[updateWidget],
 	);
 
-	const onLockToggleRef = useRef(lockUnLockDashboard);
-	const onSaveRef = useRef(savesDashboard);
+	const onLockToggleRef = useRef(toggleLock);
+	const onSaveRef = useRef(save);
 
 	useEffect(() => {
-		onLockToggleRef.current = lockUnLockDashboard;
-		onSaveRef.current = savesDashboard;
-	}, [lockUnLockDashboard, savesDashboard]);
+		onLockToggleRef.current = toggleLock;
+		onSaveRef.current = save;
+	}, [toggleLock, save]);
 
 	useEffect(() => {
 		setNavbarItem(
@@ -426,6 +435,8 @@ const Dashboard = () => {
 				addDatasource={addDatasource}
 				removeTemplate={removeTemplate}
 				updateTemplate={updateTemplate}
+				widgetDefinitions={widgetDefinitions}
+				datasourceDefinitions={datasourceDefinitions}
 			/>,
 		);
 
@@ -440,13 +451,18 @@ const Dashboard = () => {
 		updateTemplate,
 		setNavbarItem,
 		removeNavbarItem,
+		widgetDefinitions,
+		datasourceDefinitions,
 	]);
 
 	useEffect(() => {
 		setNavbarItem(
 			"center",
 			"widgets_combo",
-			<WidgetsCombo onValidate={handleValidate} />,
+			<WidgetsCombo
+				widgetDefinitions={widgetDefinitions}
+				onValidate={handleValidate}
+			/>,
 		);
 
 		setNavbarItem(
@@ -599,7 +615,7 @@ const Dashboard = () => {
 							)}
 						</div>
 						<div className="flex-grow overflow-hidden">
-							<GridWidgetContent
+							<WidgetHost
 								widgetId={widget.box_id}
 								getDefinition={getDefinition}
 							/>
@@ -649,24 +665,14 @@ const Dashboard = () => {
 
 export { Dashboard };
 
-const GridWidgetContent = React.memo(
-	({
-		widgetId,
-		getDefinition,
-	}: {
-		widgetId: string;
-		getDefinition: (widget_id: string) => WidgetDefinition;
-	}) => {
-		const widget = useAtomValue(widgetAtomFamily(widgetId));
+/** Layout engine definition for plugin registration. */
+export const gridEngineDefinition: LayoutEngineDefinition = {
+	id: "GRID",
+	name: "Grid Layout",
+	description: "Traditional grid-based dashboard with resizable widgets",
+	badge: "Classic",
+	layoutKey: "grid",
+	Component: Dashboard,
+};
 
-		if (!widget) {
-			return null;
-		}
-
-		const definition = getDefinition(widget.widget_id);
-		return definition.Component(widget.settings);
-	},
-	(prev, next) =>
-		prev.widgetId === next.widgetId &&
-		prev.getDefinition === next.getDefinition,
-);
+// GridWidgetContent removed — now using canonical WidgetHost

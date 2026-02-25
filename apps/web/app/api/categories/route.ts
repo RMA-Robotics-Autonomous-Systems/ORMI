@@ -1,33 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/server/auth";
+import { NextRequest } from "next/server";
 import { db } from "@/server/db";
-import { z } from "zod";
-
-const categorySchema = z.object({
-	name: z.string().min(1).max(50),
-});
-
-const reorderSchema = z.object({
-	updates: z.array(
-		z.object({
-			id: z.number(),
-			order: z.number(),
-		}),
-	),
-});
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import {
+	categoryCreateSchema,
+	categoryReorderSchema,
+} from "@/lib/validations/category";
 
 // GET /api/categories - List user's categories
-export async function GET() {
+export const GET = withAuth(async (_request: NextRequest, session) => {
 	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user?.id) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 },
-			);
-		}
-
 		const categories = await db.category.findMany({
 			where: { createdById: session.user.id },
 			orderBy: { order: "asc" },
@@ -38,31 +20,24 @@ export async function GET() {
 			},
 		});
 
-		return NextResponse.json(categories);
+		return apiResponse(categories);
 	} catch (error) {
 		console.error("Failed to fetch categories:", error);
-		return NextResponse.json(
-			{ error: "Failed to fetch categories" },
-			{ status: 500 },
-		);
+		return apiResponse({ error: "Failed to fetch categories" }, 500);
 	}
-}
+});
 
 // POST /api/categories - Create new category
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, session) => {
 	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user?.id) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 },
-			);
+		const body = await request.json();
+		const parsedBody = categoryCreateSchema.safeParse(body);
+		if (!parsedBody.success) {
+			return apiResponse({ error: parsedBody.error.flatten() }, 400);
 		}
 
-		const body = await request.json();
-		const { name } = categorySchema.parse(body);
+		const { name } = parsedBody.data;
 
-		// Get current max order
 		const maxOrder = await db.category.findFirst({
 			where: { createdById: session.user.id },
 			orderBy: { order: "desc" },
@@ -82,80 +57,46 @@ export async function POST(request: NextRequest) {
 			},
 		});
 
-		return NextResponse.json(category, { status: 201 });
+		return apiResponse(category, 201);
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return NextResponse.json(
-				{ error: "Invalid input", details: error.issues },
-				{ status: 400 },
-			);
-		}
-
-		// Check for unique constraint violation
 		if (
 			error instanceof Error &&
 			error.message.includes("Unique constraint")
 		) {
-			return NextResponse.json(
-				{ error: "Category name already exists" },
-				{ status: 409 },
-			);
+			return apiResponse({ error: "Category name already exists" }, 409);
 		}
 
 		console.error("Failed to create category:", error);
-		return NextResponse.json(
-			{ error: "Failed to create category" },
-			{ status: 500 },
-		);
+		return apiResponse({ error: "Failed to create category" }, 500);
 	}
-}
+});
 
 // PATCH /api/categories/reorder - Reorder categories
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAuth(async (request: NextRequest, session) => {
 	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user?.id) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 },
-			);
-		}
-
 		const body = await request.json();
-
-		// Check if this is a reorder request
-		if (body.updates && Array.isArray(body.updates)) {
-			const { updates } = reorderSchema.parse(body);
-
-			// Update all categories in a transaction
-			await db.$transaction(
-				updates.map(({ id, order }) =>
-					db.category.updateMany({
-						where: {
-							id,
-							createdById: session.user.id,
-						},
-						data: { order },
-					}),
-				),
-			);
-
-			return NextResponse.json({ success: true });
+		const parsedBody = categoryReorderSchema.safeParse(body);
+		if (!parsedBody.success) {
+			return apiResponse({ error: parsedBody.error.flatten() }, 400);
 		}
 
-		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return NextResponse.json(
-				{ error: "Invalid input", details: error.issues },
-				{ status: 400 },
-			);
-		}
+		const { updates } = parsedBody.data;
 
-		console.error("Failed to reorder categories:", error);
-		return NextResponse.json(
-			{ error: "Failed to reorder categories" },
-			{ status: 500 },
+		await db.$transaction(
+			updates.map(({ id, order }) =>
+				db.category.updateMany({
+					where: {
+						id,
+						createdById: session.user.id,
+					},
+					data: { order },
+				}),
+			),
 		);
+
+		return apiResponse({ success: true });
+	} catch (error) {
+		console.error("Failed to reorder categories:", error);
+		return apiResponse({ error: "Failed to reorder categories" }, 500);
 	}
-}
+});

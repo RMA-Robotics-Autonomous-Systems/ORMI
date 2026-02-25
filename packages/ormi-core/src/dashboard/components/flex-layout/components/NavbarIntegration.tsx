@@ -6,6 +6,7 @@ import { useTemplates } from "../../../../templates/templates-provider";
 import { WidgetTemplateDrawer } from "../../../../templates/components/templates-drawer";
 import { WidgetsCombo } from "../../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition } from "../../../../widgets/widget-interface";
+import { useDashboardRegistry } from "../../../shell/dashboard-shell";
 
 /** Props for NavbarIntegration. */
 interface NavbarIntegrationProps {
@@ -13,7 +14,10 @@ interface NavbarIntegrationProps {
 	hasChanged: boolean;
 	onLockToggle: () => void;
 	onSave: () => void;
-	onAddWidget: (widget: WidgetDefinition, settings: any) => void;
+	onAddWidget: (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => void;
 	onAddDatasource: (datasource_id: string, settings?: any) => void;
 }
 
@@ -32,6 +36,7 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 }) => {
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
 	const { templates, removeTemplate, updateTemplate } = useTemplates();
+	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	// Use refs to capture the latest callback functions to avoid closure issues
 	const onSaveRef = React.useRef(onSave);
@@ -52,7 +57,7 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 	}, [onAddWidget, onAddDatasource]);
 
 	const handleAddWidget = useCallback(
-		(widget: WidgetDefinition, settings: object) => {
+		(widget: WidgetDefinition, settings: Record<string, unknown>) => {
 			onAddWidgetRef.current(widget, settings);
 		},
 		[],
@@ -74,6 +79,8 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 				}
 				removeTemplate={removeTemplate}
 				updateTemplate={updateTemplate}
+				widgetDefinitions={widgetDefinitions}
+				datasourceDefinitions={datasourceDefinitions}
 			/>,
 		);
 
@@ -81,10 +88,12 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 		setNavbarItem(
 			"center",
 			"widgets_combo",
-			<WidgetsCombo onValidate={handleAddWidget} />,
+			<WidgetsCombo
+				widgetDefinitions={widgetDefinitions}
+				onValidate={handleAddWidget}
+			/>,
 		);
 
-		// Lock/unlock button (center)
 		setNavbarItem(
 			"center",
 			"lock_unlock",
@@ -130,6 +139,8 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 		updateTemplate,
 		setNavbarItem,
 		removeNavbarItem,
+		widgetDefinitions,
+		datasourceDefinitions,
 	]);
 
 	return null; // This component only manages navbar items

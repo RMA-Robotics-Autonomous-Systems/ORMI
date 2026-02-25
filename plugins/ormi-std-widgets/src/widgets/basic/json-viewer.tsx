@@ -65,16 +65,17 @@ function JsonViewer() {
 	);
 }
 
+/** Props for JsonViewer widget. */
+interface JsonViewerProps extends Record<string, unknown> {
+	title: string;
+	topic: SelectedTopic;
+}
+
 /**
  * Widget definition for JsonViewer.
  * @returns Widget definition.
  */
-export function JsonViewerDefinition(): WidgetDefinition {
-	interface JsonViewerProps {
-		title: string;
-		topic: SelectedTopic;
-	}
-
+export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 	return {
 		id: "json-viewer-widget",
 		name: "Json viewer",
@@ -121,5 +122,5 @@ export function JsonViewerDefinition(): WidgetDefinition {
 				<JsonViewer />
 			</LocalDataSourcesProvider>
 		),
-	} as WidgetDefinition;
+	} as WidgetDefinition<JsonViewerProps>;
 }

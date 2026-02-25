@@ -9,17 +9,17 @@ The Robotics and Autonomous Systems Laboratory develops ORMI at the Royal Milita
 The architecture supports multiple data sources, including ROS2 systems through ROSBridge Suite and Foxglove WebSocket protocol, direct drone control via Tello drones, and custom data providers. Widgets and dashboards are fully customizable through a plugin-based system.
 
 ## Screenshots
+
 Lidars and maps
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-45-49" src="https://github.com/user-attachments/assets/e4f28a3a-e6ad-41de-88d6-1a948e4a9002" />
 Map with path and video feedback
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-36-53" src="https://github.com/user-attachments/assets/74aab6f6-54d7-40f0-8df4-59b21e196aa0" />
 Different workspaces
 <img width="2542" height="1253" alt="Screenshot from 2026-02-12 10-34-05" src="https://github.com/user-attachments/assets/e2696fe5-744d-429d-a3f4-0dc463045d5e" />
-New workspaces and layouts 
+New workspaces and layouts
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-34-57" src="https://github.com/user-attachments/assets/5ff083b2-0b7c-4210-8c1e-4ae442c63d0a" />
 Widgets
 <img width="2557" height="2007" alt="Screenshot from 2026-02-12 10-40-15" src="https://github.com/user-attachments/assets/e49a6faf-4eb8-4625-a598-b9362d3aba4e" />
-
 
 ## Key Features
 
@@ -144,6 +144,26 @@ bun run dev
 ```
 
 The application will be available at `http://localhost:3000`.
+
+#### Linux file watch limits (Turbopack)
+
+If you hit an error like "OS file watch limit reached", increase the inotify
+limits:
+
+```bash
+sudo sysctl -w fs.inotify.max_user_watches=524288
+sudo sysctl -w fs.inotify.max_user_instances=1024
+```
+
+To make it persistent:
+
+```bash
+sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null <<'EOF'
+fs.inotify.max_user_watches=524288
+fs.inotify.max_user_instances=1024
+EOF
+sudo sysctl --system
+```
 
 Individual package development:
 

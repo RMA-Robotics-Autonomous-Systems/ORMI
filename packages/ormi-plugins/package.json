@@ -28,6 +28,7 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
-		"sonner": "^2.0.7"
+		"sonner": "^2.0.7",
+		"@workspace/utils": "workspace:*"
 	}
 }

@@ -9,7 +9,7 @@
 		"plugins/ormi-foxglove/src/index.ts",
 		"plugins/ormi-tello/src/index.ts",
 		"plugins/ormi-rest-bags/src/index.ts",
-		"plugins/ormi-fligth-indicator/src/index.ts",
+		"plugins/ormi-flight-indicator/src/index.ts",
 		"plugins/ormi-rosbridge-suite/src/index.ts",
 		"plugins/ormi-randoms-datasources/src/index.ts",
 		"plugins/teodor-emi-extension/src/index.ts"

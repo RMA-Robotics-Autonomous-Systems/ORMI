@@ -32,7 +32,10 @@ interface TemplateProps {
 	template: WidgetTemplate;
 	templateId: string;
 	removeTemplate: (id: string) => void;
-	addWidget: (widget: WidgetDefinition, settings: object) => void;
+	addWidget: (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => void;
 	availableWidgets: WidgetDefinition[];
 	updateTemplate?: (id: string, updatedTemplate: WidgetTemplate) => void;
 }

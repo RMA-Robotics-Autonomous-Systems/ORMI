@@ -1,4 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import {
 	SelectedTopic,
 	usePublisherDataSource,
@@ -18,7 +19,7 @@ import { useEffect, useState } from "react"; // Import useCallback
 import { toast } from "sonner";
 
 /** Props for CycleControl. */
-interface CycleControlData {
+interface CycleControlData extends Record<string, unknown> {
 	title: string;
 	keyInput: DigitalInput;
 	topic: SelectedTopic;
@@ -161,9 +162,7 @@ export function CycleControl(props: CycleControlData) {
  * Widget definition for CycleControl.
  * @returns Widget definition.
  */
-export function CycleControlDefinition() {
-	const pluginsManager = usePluginsManager();
-
+export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 	return {
 		id: "cycle-cmd-vel-widget",
 		name: "Cycle control",

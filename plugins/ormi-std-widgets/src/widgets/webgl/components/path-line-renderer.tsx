@@ -24,7 +24,7 @@ type PathSource = {
 	referenceFrameId: string;
 };
 
-interface PathLineRendererProps {
+interface PathLineRendererProps extends Record<string, unknown> {
 	source?: PathSource;
 	targetFrame?: string;
 	lineWidth?: number;

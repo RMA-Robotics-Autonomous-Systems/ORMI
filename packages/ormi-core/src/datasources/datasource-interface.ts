@@ -1,6 +1,6 @@
 import { JsonSchema, UISchemaElement } from "@jsonforms/core";
 
-import { ReactNode, FC } from "react";
+import { FC } from "react";
 
 /** Datasource definition describing UI and provider settings. */
 interface DatasourceDefinition<T = DatasourceProviderSettings> {
@@ -14,11 +14,8 @@ interface DatasourceDefinition<T = DatasourceProviderSettings> {
 	uischema?: UISchemaElement;
 	data: T;
 
-	/** Provider component for this datasource. */
-	Provider: FC<{
-		children: ReactNode;
-		props: T;
-	}>;
+	/** Provider component for this datasource (lifecycle component, no children). */
+	Provider: FC<T>;
 }
 
 /** Datasource instance configured in a dashboard. */

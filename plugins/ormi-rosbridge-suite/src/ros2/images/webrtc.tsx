@@ -6,14 +6,17 @@ import {
 	DatasourceTopic,
 	DatasourceTopicFilter,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { CctvIcon, RotateCcw, RotateCw } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 
-interface WebrtcRos2VideoStreamProps {
+interface WebrtcRos2VideoStreamProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	iceServersUrls?: string[];
@@ -349,7 +352,9 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
 export default WebrtcRos2VideoStream;
 
-export function WebRtcRos2Definition() {
+/** Settings for WebRtcRos2 widget. */
+
+export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamProps> {
 	const pluginsManager = usePluginsManager();
 
 	const title: ControlElement = {

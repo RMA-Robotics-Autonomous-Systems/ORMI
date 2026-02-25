@@ -1,141 +1,116 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/server/auth";
-import { db } from "@/server/db";
-import { z } from "zod";
+import { NextRequest } from "next/server";
 
-const categoryUpdateSchema = z.object({
-	name: z.string().min(1).max(50).optional(),
-	order: z.number().optional(),
-});
+import { db } from "@/server/db";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import {
+	categoryIdSchema,
+	categoryUpdateSchema,
+	emptyBodySchema,
+} from "@/lib/validations/category";
 
 // PUT /api/categories/:id - Update category
-export async function PUT(
-	request: NextRequest,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user?.id) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 },
-			);
-		}
+export const PUT = withAuth(
+	async (
+		request: NextRequest,
+		session,
+		{ params }: { params: Promise<{ id: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = categoryIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		const { id } = await params;
-		const categoryId = parseInt(id);
+			const body = await request.json();
+			const parsedBody = categoryUpdateSchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		if (isNaN(categoryId)) {
-			return NextResponse.json(
-				{ error: "Invalid category ID" },
-				{ status: 400 },
-			);
-		}
-
-		const body = await request.json();
-		const data = categoryUpdateSchema.parse(body);
-
-		// Check if category belongs to user
-		const existingCategory = await db.category.findFirst({
-			where: {
-				id: categoryId,
-				createdById: session.user.id,
-			},
-		});
-
-		if (!existingCategory) {
-			return NextResponse.json(
-				{ error: "Category not found" },
-				{ status: 404 },
-			);
-		}
-
-		const category = await db.category.update({
-			where: { id: categoryId },
-			data,
-			include: {
-				_count: {
-					select: { workspaces: true },
+			const categoryId = parsedParams.data.id;
+			const existingCategory = await db.category.findFirst({
+				where: {
+					id: categoryId,
+					createdById: session.user.id,
 				},
-			},
-		});
+			});
 
-		return NextResponse.json(category);
-	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return NextResponse.json(
-				{ error: "Invalid input", details: error.issues },
-				{ status: 400 },
-			);
+			if (!existingCategory) {
+				return apiResponse({ error: "Category not found" }, 404);
+			}
+
+			const category = await db.category.update({
+				where: { id: categoryId },
+				data: parsedBody.data,
+				include: {
+					_count: {
+						select: { workspaces: true },
+					},
+				},
+			});
+
+			return apiResponse(category);
+		} catch (error) {
+			console.error("Failed to update category:", error);
+			return apiResponse({ error: "Failed to update category" }, 500);
 		}
-
-		console.error("Failed to update category:", error);
-		return NextResponse.json(
-			{ error: "Failed to update category" },
-			{ status: 500 },
-		);
-	}
-}
+	},
+);
 
 // DELETE /api/categories/:id - Delete category
-export async function DELETE(
-	request: NextRequest,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	try {
-		const session = await getServerSession(authOptions);
-		if (!session?.user?.id) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 },
-			);
-		}
+export const DELETE = withAuth(
+	async (
+		request: NextRequest,
+		session,
+		{ params }: { params: Promise<{ id: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = categoryIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		const { id } = await params;
-		const categoryId = parseInt(id);
+			const body = await request.json().catch(() => ({}));
+			const parsedBody = emptyBodySchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		if (isNaN(categoryId)) {
-			return NextResponse.json(
-				{ error: "Invalid category ID" },
-				{ status: 400 },
-			);
-		}
-
-		// Check if category belongs to user
-		const existingCategory = await db.category.findFirst({
-			where: {
-				id: categoryId,
-				createdById: session.user.id,
-			},
-			include: {
-				_count: {
-					select: { workspaces: true },
+			const categoryId = parsedParams.data.id;
+			const existingCategory = await db.category.findFirst({
+				where: {
+					id: categoryId,
+					createdById: session.user.id,
 				},
-			},
-		});
+				include: {
+					_count: {
+						select: { workspaces: true },
+					},
+				},
+			});
 
-		if (!existingCategory) {
-			return NextResponse.json(
-				{ error: "Category not found" },
-				{ status: 404 },
-			);
+			if (!existingCategory) {
+				return apiResponse({ error: "Category not found" }, 404);
+			}
+
+			await db.category.delete({ where: { id: categoryId } });
+
+			return apiResponse({
+				success: true,
+				workspacesAffected: existingCategory._count.workspaces,
+			});
+		} catch (error) {
+			console.error("Failed to delete category:", error);
+			return apiResponse({ error: "Failed to delete category" }, 500);
 		}
-
-		// Delete category (workspaces will be set to null via onDelete: SetNull)
-		await db.category.delete({
-			where: { id: categoryId },
-		});
-
-		return NextResponse.json({
-			success: true,
-			workspacesAffected: existingCategory._count.workspaces,
-		});
-	} catch (error) {
-		console.error("Failed to delete category:", error);
-		return NextResponse.json(
-			{ error: "Failed to delete category" },
-			{ status: 500 },
-		);
-	}
-}
+	},
+);

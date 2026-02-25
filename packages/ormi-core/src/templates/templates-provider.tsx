@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Widget } from "../widgets/widget-interface";
 import { Datasource } from "../datasources";
 
@@ -11,6 +11,7 @@ import {
 } from "./templates-types";
 
 import { useNavbar } from "@workspace/ui/combined/navbar";
+import { createSafeContext } from "@workspace/utils";
 
 /** Templates provider context value. */
 interface TemplatesProviderContextInterface {
@@ -24,9 +25,8 @@ interface TemplatesProviderContextInterface {
 }
 
 /** Templates provider React context. */
-export const TemplatesProviderContext = createContext<
-	TemplatesProviderContextInterface | undefined
->(undefined);
+const [TemplatesProviderContextProvider, useTemplatesContext] =
+	createSafeContext<TemplatesProviderContextInterface>("Templates");
 
 /** Props for TemplatesProvider. */
 interface TemplatesProviderProps {
@@ -135,7 +135,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 	}, [props]);
 
 	return (
-		<TemplatesProviderContext.Provider
+		<TemplatesProviderContextProvider
 			value={{
 				templates,
 				addTemplate,
@@ -147,7 +147,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 			}}
 		>
 			{props.children}
-		</TemplatesProviderContext.Provider>
+		</TemplatesProviderContextProvider>
 	);
 };
 
@@ -156,13 +156,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
  * @returns Templates context value.
  */
 const useTemplates = () => {
-	const context = useContext(TemplatesProviderContext);
-
-	if (context === undefined) {
-		throw new Error("useTemplates must be used within a TemplatesProvider");
-	}
-
-	return context;
+	return useTemplatesContext();
 };
 
 export { TemplatesProvider, useTemplates };

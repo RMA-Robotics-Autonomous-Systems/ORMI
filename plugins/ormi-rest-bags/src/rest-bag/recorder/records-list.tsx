@@ -11,7 +11,7 @@ import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 
-interface RecorderListProps {
+interface RecorderListProps extends Record<string, unknown> {
 	title: string;
 	api_datasource_id: string;
 	ros_datasource_id: string;
@@ -91,7 +91,7 @@ const BagsRecorders = (props: RecorderListProps) => {
 	);
 };
 
-export function BagRecorderDefinition(): WidgetDefinition {
+export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 	const pluginsManager = usePluginsManager();
 
 	return {

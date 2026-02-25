@@ -1,31 +1,22 @@
 "use client";
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useEffect,
-	useState,
-} from "react";
+import React, { useEffect, useState } from "react";
 import { RestBagClient } from "./rest-bag-client";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	DatasourceDefinition,
 	DatasourceProviderSettings,
 } from "@workspace/ormi-core/datasources";
-import { Spinner } from "@workspace/ui/components/spinner";
-
-const RestBagDataSourceContext = createContext(null);
 
 interface RestBagDatasourceSettings extends DatasourceProviderSettings {
 	url: string;
 }
 
-// Create a provider component
-const RestBagDataSourceProvider = (
-	children: ReactNode,
-	props: RestBagDatasourceSettings,
-) => {
+/**
+ * Lifecycle component for REST bag datasource.
+ * Registers API URL and client filters via PluginsManager.
+ */
+const RestBagDataSourceProvider = (props: RestBagDatasourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const { url, id } = props;
 	const [initialized, setInitialized] = useState(false);
@@ -52,33 +43,18 @@ const RestBagDataSourceProvider = (
 		});
 
 		setInitialized(true);
-
+		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, id);
 		return () => {
 			pluginsManager.removeFilter(`${id}-api-url`);
 			pluginsManager.removeFilter(`${id}-client`);
+			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, id);
 		};
-	}, []);
+	}, [url, id, pluginsManager]);
 
-	return (
-		<RestBagDataSourceContext.Provider value={null}>
-			{initialized && children}
-			{!initialized && <Spinner />}
-		</RestBagDataSourceContext.Provider>
-	);
+	return null;
 };
 
-// Create a custom hook to use the context
-const useRestBagProvider = () => {
-	const context = useContext(RestBagDataSourceContext);
-	if (context === null) {
-		throw new Error(
-			"useRestBagProvider must be used within a RestBagDataSourceProvider",
-		);
-	}
-	return context;
-};
-
-export { RestBagDataSourceProvider, useRestBagProvider };
+export { RestBagDataSourceProvider };
 
 export const RestBagDatasourceDefinition = {
 	id: "rest-bag-source",
@@ -105,6 +81,5 @@ export const RestBagDatasourceDefinition = {
 		url: "http://localhost:8000/",
 	},
 
-	Provider: ({ children, props }) =>
-		RestBagDataSourceProvider(children, props),
+	Provider: (props) => RestBagDataSourceProvider(props),
 } as DatasourceDefinition<RestBagDatasourceSettings>;

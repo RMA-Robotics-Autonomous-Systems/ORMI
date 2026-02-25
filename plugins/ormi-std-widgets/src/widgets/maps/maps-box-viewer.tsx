@@ -12,8 +12,11 @@ import {
 	SelectedTopic,
 	DatasourceTopicFilter,
 } from "@workspace/ormi-core/datasources";
-import { TopicSelectElement } from "@workspace/ormi-core/widgets";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import {
+	TopicSelectElement,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
+import { PluginsManager } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
 
@@ -27,7 +30,7 @@ import { LocalTopic } from "./local-topic-visualizer-types";
 import { IMULocalTopic } from "./local-components/imu-local";
 
 /** Settings for MapsBoxViewer widget. */
-interface MapsViewerSettings {
+interface MapsViewerSettings extends Record<string, unknown> {
 	title: string;
 	mapUrl: string;
 	use3D: boolean;
@@ -179,19 +182,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
  * Widget definition for MapsBoxViewer.
  * @returns Widget definition.
  */
-export function MapsBoxViewerDefinition() {
-	const pluginsManager = usePluginsManager();
+export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> {
+	const defaultMapTypes = ["simple", "heatmap", "path", "multipoints"];
 
-	const mapType = pluginsManager.applyFilter<string[]>(
-		"std-widgets-map-type",
-		["simple", "heatmap", "path", "multipoints"],
-	);
-	const topicFilter = pluginsManager.applyFilter<DatasourceTopicFilter>(
-		"std-widgets-map-topic-available-type",
-		new DatasourceTopicFilter({ type: /GeolocationPosition/ }),
-	);
-
-	return {
+	const definition: WidgetDefinition<MapsViewerSettings> = {
 		id: "map-box-viewer",
 		name: "Maps",
 		description: "Display the location of collection of robots",
@@ -278,7 +272,7 @@ export function MapsBoxViewerDefinition() {
 							makerType: {
 								type: "string",
 								title: "Marker Type",
-								enum: mapType,
+								enum: defaultMapTypes,
 							},
 							topic: { type: "object", title: "Topic" },
 							numericalTopic: {
@@ -667,5 +661,76 @@ export function MapsBoxViewerDefinition() {
 			},
 		},
 		Component: (data: MapsViewerSettings) => <MapsBoxViewer {...data} />,
+
+		/**
+		 * Extensibility hook to allow plugins to extend available map types.
+		 * Resolves the "std-widgets-map-type" filter and updates the makerType enum.
+		 */
+		extensibilityHook: ((
+			def: WidgetDefinition<MapsViewerSettings>,
+			pluginsManager: PluginsManager,
+		) => {
+			const mapTypes = pluginsManager.applyFilter<string[]>(
+				"std-widgets-map-type",
+				defaultMapTypes,
+			);
+
+			// Update the makerType enum in topics items schema
+			if (
+				def.schema &&
+				typeof def.schema === "object" &&
+				"properties" in def.schema &&
+				def.schema.properties &&
+				typeof def.schema.properties === "object"
+			) {
+				const properties = def.schema.properties as Record<
+					string,
+					unknown
+				>;
+				if (
+					properties.topics &&
+					typeof properties.topics === "object"
+				) {
+					const topicsSchema = properties.topics as Record<
+						string,
+						unknown
+					>;
+					if (
+						topicsSchema.items &&
+						typeof topicsSchema.items === "object"
+					) {
+						const topicsItems = topicsSchema.items as Record<
+							string,
+							unknown
+						>;
+						if (
+							topicsItems.properties &&
+							typeof topicsItems.properties === "object"
+						) {
+							const topicsProperties =
+								topicsItems.properties as Record<
+									string,
+									unknown
+								>;
+							if (topicsProperties.makerType) {
+								const makerType =
+									topicsProperties.makerType as Record<
+										string,
+										unknown
+									>;
+								makerType.enum = mapTypes;
+							}
+						}
+					}
+				}
+			}
+
+			return def;
+		}) as (
+			def: WidgetDefinition<MapsViewerSettings>,
+			pluginsManager: PluginsManager,
+		) => WidgetDefinition<MapsViewerSettings>,
 	};
+
+	return definition;
 }

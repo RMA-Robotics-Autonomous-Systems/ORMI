@@ -27,7 +27,7 @@ interface GpsTopicConfig {
 /**
  * Props for GpsTopicsLayer.
  */
-interface GpsTopicsLayerProps {
+interface GpsTopicsLayerProps extends Record<string, unknown> {
 	topics: GpsTopicConfig[];
 	mapRef?: React.RefObject<MapRef | null>;
 }

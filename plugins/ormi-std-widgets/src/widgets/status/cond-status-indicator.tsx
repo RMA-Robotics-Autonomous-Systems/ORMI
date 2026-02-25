@@ -1,4 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import {
 	SelectedTopic,
 	useLocalDataSource,
@@ -12,7 +13,7 @@ import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
 /** Props for ConditionStatusIndicator. */
-interface ConditionStatusIndicatorProps {
+interface ConditionStatusIndicatorProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	status: {
@@ -21,6 +22,7 @@ interface ConditionStatusIndicatorProps {
 		condition: string;
 		value: number;
 	}[];
+	use3D?: boolean;
 }
 
 /**
@@ -94,9 +96,7 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
  * Widget definition for conditional status indicator.
  * @returns Widget definition.
  */
-export function CondStatusIndicatorDefinition() {
-	const pluginsManager = usePluginsManager();
-
+export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatusIndicatorProps> {
 	return {
 		id: "cond-status-indicator",
 		name: "Conditional Status",

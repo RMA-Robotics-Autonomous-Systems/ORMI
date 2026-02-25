@@ -1,13 +1,7 @@
 import React from "react";
-import ReactDOM from "react-dom";
-import {
-	ButtonHolder,
-	ButtonHolderProvider,
-} from "@workspace/ui/combined/ButtonHolder";
-import { Widget, WidgetDefinition } from "../../../../widgets/widget-interface";
+import { WidgetDefinition } from "../../../../widgets/widget-interface";
+import { WidgetHost } from "../../../../dashboard/layout/widget-host";
 import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
-import { useAtomValue } from "jotai";
-import { widgetAtomFamily } from "../../../atoms";
 
 /** Props for WidgetRenderer. */
 interface WidgetRendererProps {
@@ -16,25 +10,9 @@ interface WidgetRendererProps {
 }
 
 /**
- * Portal ButtonHolder into a tab title.
- * @param props - Component props.
- * @returns React element or null.
- */
-const ButtonHolderPortal: React.FC<{ widgetId: string }> = ({ widgetId }) => {
-	const { getPortalContainer } = useFlexLayoutPortal();
-	const portalContainer = getPortalContainer(widgetId);
-
-	if (!portalContainer) {
-		return null;
-	}
-
-	// Portal the ButtonHolder component into the tab title container
-	// This preserves the React context and event handlers from the content area
-	return ReactDOM.createPortal(<ButtonHolder />, portalContainer);
-};
-
-/**
- * Widget renderer with ButtonHolder integration.
+ * Widget renderer for FlexLayout.
+ * Uses canonical WidgetHost and integrates with FlexLayoutPortalContext
+ * to pass the portal target for tab title button rendering.
  * @param props - Component props.
  * @returns React element.
  */
@@ -42,48 +20,27 @@ const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
 	widgetId,
 	definition,
 }) => {
-	const widget = useAtomValue(widgetAtomFamily(widgetId));
+	const { getPortalContainer } = useFlexLayoutPortal();
+	const portalTarget = getPortalContainer(widgetId);
 
-	if (!widget || !definition) {
+	if (!definition) {
 		return (
 			<div className="flex items-center justify-center h-full text-muted-foreground">
-				Widget not found: {widgetId}
+				Widget definition not found: {widgetId}
 			</div>
 		);
 	}
 
+	// Use canonical WidgetHost with portal target from FlexLayoutPortalContext
 	return (
-		<ButtonHolderProvider>
-			<div className="w-full h-full overflow-hidden">
-				{/* Portal ButtonHolder to tab title */}
-				<ButtonHolderPortal widgetId={widgetId} />
-
-				<WidgetHost
-					component={definition.Component}
-					settings={widget.settings}
-				/>
-			</div>
-		</ButtonHolderProvider>
+		<WidgetHost
+			widgetId={widgetId}
+			getDefinition={() => definition}
+			portalTarget={portalTarget || undefined}
+		/>
 	);
 };
 
 /** Memoized widget renderer for FlexLayout. */
 export const WidgetRenderer = React.memo(WidgetRendererComponent);
 WidgetRenderer.displayName = "WidgetRenderer";
-
-const WidgetHost = React.memo(
-	({
-		component,
-		settings,
-	}: {
-		component: React.ElementType | React.ReactElement;
-		settings: any;
-	}) => {
-		if (React.isValidElement(component)) {
-			return component;
-		}
-		return React.createElement(component as React.ElementType, settings);
-	},
-	(prev, next) =>
-		prev.component === next.component && prev.settings === next.settings,
-);

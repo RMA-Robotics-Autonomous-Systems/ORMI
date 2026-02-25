@@ -1,9 +1,10 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { GamepadIcon } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 /** Props for NotAPong. */
-interface NotAPongProps {
+interface NotAPongProps extends Record<string, unknown> {
 	title: string;
 	mouseControl?: boolean;
 	aiVsAi?: boolean;

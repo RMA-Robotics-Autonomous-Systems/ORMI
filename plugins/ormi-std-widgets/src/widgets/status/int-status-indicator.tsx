@@ -1,4 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import {
 	SelectedTopic,
 	useLocalDataSource,
@@ -12,13 +13,14 @@ import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
 /** Props for IntStatusIndicator. */
-interface IntStatusIndicatorProps {
+interface IntStatusIndicatorProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	status: {
 		name: string;
 		color: string;
 	}[];
+	use3D?: boolean;
 }
 
 /**
@@ -82,9 +84,7 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
  * Widget definition for integer status indicator.
  * @returns Widget definition.
  */
-export function IntStatusIndicatorDefinition() {
-	const pluginsManager = usePluginsManager();
-
+export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndicatorProps> {
 	return {
 		id: "int-status-indicator",
 		name: "Status indicator",

@@ -16,7 +16,8 @@
     The component takes a title, a zone, and a react components as children.
 */
 
-import React, { createContext, JSX, useContext, useState } from "react";
+import React, { JSX, useState } from "react";
+import { createSafeContext } from "@workspace/utils";
 
 export type NavbarZone = "left" | "center" | "right";
 
@@ -39,13 +40,8 @@ interface NavbarContextType {
 	removeNavbarItem: (zone: NavbarZone, key: string) => void;
 }
 
-const NavbarContext = createContext<NavbarContextType>({
-	left: new Map(),
-	center: new Map(),
-	right: new Map(),
-	setNavbarItem: () => {},
-	removeNavbarItem: () => {},
-});
+const [NavbarContextProvider, useNavbarContext] =
+	createSafeContext<NavbarContextType>("Navbar");
 
 interface NavbarProviderProps {
 	children: React.ReactNode;
@@ -140,18 +136,14 @@ export const NavbarProvider = (props: NavbarProviderProps) => {
 	};
 
 	return (
-		<NavbarContext.Provider
+		<NavbarContextProvider
 			value={{ left, center, right, setNavbarItem, removeNavbarItem }}
 		>
 			{children}
-		</NavbarContext.Provider>
+		</NavbarContextProvider>
 	);
 };
 
 export const useNavbar = () => {
-	const context = useContext(NavbarContext);
-	if (!context) {
-		throw new Error("useNavbar must be used within a NavbarProvider");
-	}
-	return context;
+	return useNavbarContext();
 };

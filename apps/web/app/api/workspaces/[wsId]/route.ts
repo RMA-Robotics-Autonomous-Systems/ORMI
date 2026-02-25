@@ -1,222 +1,169 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { getServerSession } from "next-auth/next";
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 
-import { authOptions } from "@/server/auth";
 import { db } from "@/server/db";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import {
+	emptyBodySchema,
+	workspaceIdSchema,
+	workspaceUpdateSchema,
+} from "@/lib/validations/workspace";
 
-export async function GET(
-	req: NextRequest,
-	{ params }: { params: Promise<{ wsId: string }> },
-) {
-	try {
-		const resolvedParams = await params;
-		const wsId = resolvedParams.wsId;
+export const GET = withAuth(
+	async (
+		_req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ wsId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = workspaceIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
+			const workspace = await db.workspace.findUnique({
+				where: {
+					id: parsedParams.data.wsId,
+					createdById: session.user.id,
+				},
+				select: {
+					id: true,
+					name: true,
+					content: true,
+					dashboardType: true,
+				},
 			});
+
+			return apiResponse(workspace);
+		} catch (error) {
+			console.error("Error fetching workspace:", error);
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
+	},
+);
 
-		const workspaceId = parseInt(wsId);
+export const PATCH = withAuth(
+	async (
+		req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ wsId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = workspaceIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		const workspace = await db.workspace.findUnique({
-			where: {
-				id: workspaceId,
-				createdById: session.user.id,
-			},
-			select: {
-				id: true,
-				name: true,
-				content: true,
-				dashboardType: true,
-			},
-		});
+			const body = await req.json();
+			const parsedBody = workspaceUpdateSchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		return new Response(JSON.stringify(workspace), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
-	} catch (error) {
-		console.error("Error fetching workspace:", error);
-		return new Response(
-			JSON.stringify({ error: "Internal server error" }),
-			{
-				status: 500,
-			},
-		);
-	}
-}
-
-export async function PATCH(
-	req: NextRequest,
-	{ params }: { params: Promise<{ wsId: string }> },
-) {
-	try {
-		const resolvedParams = await params;
-		const wsId = resolvedParams.wsId;
-
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
+			const workspaceId = parsedParams.data.wsId;
+			const existingWorkspace = await db.workspace.findUnique({
+				where: { id: workspaceId },
+				select: { createdById: true },
 			});
-		}
 
-		// Parse request body
-		const body = (await req.json()) as any;
+			if (!existingWorkspace) {
+				return apiResponse({ error: "Workspace not found" }, 404);
+			}
 
-		// Validate workspace ID
-		const workspaceId = parseInt(wsId);
-		if (isNaN(workspaceId)) {
-			return new Response(
-				JSON.stringify({ error: "Invalid workspace ID format" }),
-				{
-					status: 400,
-				},
-			);
-		}
+			if (existingWorkspace.createdById !== session.user.id) {
+				return apiResponse(
+					{
+						error: "You don't have permission to update this workspace",
+					},
+					403,
+				);
+			}
 
-		// Check if workspace exists and belongs to user
-		const existingWorkspace = await db.workspace.findUnique({
-			where: { id: workspaceId },
-			select: { createdById: true },
-		});
+			const updateData: {
+				content?: Prisma.InputJsonValue;
+				category?: { connect: { id: number } } | { disconnect: true };
+			} = {};
+			if (parsedBody.data.content !== undefined) {
+				updateData.content = parsedBody.data
+					.content as Prisma.InputJsonValue;
+			}
+			if (parsedBody.data.categoryId !== undefined) {
+				updateData.category =
+					parsedBody.data.categoryId === null
+						? { disconnect: true }
+						: { connect: { id: parsedBody.data.categoryId } };
+			}
 
-		if (!existingWorkspace) {
-			return new Response(
-				JSON.stringify({ error: "Workspace not found" }),
-				{
-					status: 404,
-				},
-			);
-		}
-
-		if (existingWorkspace.createdById !== session.user.id) {
-			return new Response(
-				JSON.stringify({
-					error: "You don't have permission to update this workspace",
-				}),
-				{
-					status: 403,
-				},
-			);
-		}
-
-		// Update workspace with dashboard content
-		const updateData: any = {};
-		if (body.content !== undefined) {
-			updateData.content = body.content;
-		}
-		if (body.categoryId !== undefined) {
-			updateData.categoryId = body.categoryId;
-		}
-
-		const updatedWorkspace = await db.workspace.update({
-			where: { id: workspaceId },
-			data: updateData,
-			select: { id: true, name: true, categoryId: true },
-		});
-
-		return new Response(JSON.stringify(updatedWorkspace), {
-			status: 200,
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
-	} catch (error) {
-		console.error("Error updating workspace content:", error);
-		return new Response(
-			JSON.stringify({ error: "Internal server error" }),
-			{
-				status: 500,
-			},
-		);
-	}
-}
-
-export async function DELETE(
-	req: NextRequest,
-	{ params }: { params: Promise<{ wsId: string }> },
-) {
-	try {
-		const resolvedParams = await params;
-		const wsId = resolvedParams.wsId;
-
-		if (!wsId) {
-			return new Response(
-				JSON.stringify({ error: "Workspace ID is required" }),
-				{
-					status: 400,
-				},
-			);
-		}
-
-		const session = await getServerSession(authOptions);
-		if (!session?.user) {
-			return new Response(JSON.stringify({ error: "Unauthorized" }), {
-				status: 401,
+			const updatedWorkspace = await db.workspace.update({
+				where: { id: workspaceId },
+				data: updateData,
+				select: { id: true, name: true, categoryId: true },
 			});
+
+			return apiResponse(updatedWorkspace);
+		} catch (error) {
+			console.error("Error updating workspace content:", error);
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
+	},
+);
 
-		// Use the wsId from the URL params
-		const workspaceId = parseInt(wsId);
+export const DELETE = withAuth(
+	async (
+		req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ wsId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = workspaceIdSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-		if (isNaN(workspaceId)) {
-			return new Response(
-				JSON.stringify({ error: "Invalid workspace ID format" }),
-				{
-					status: 400,
-				},
-			);
+			const body = await req.json().catch(() => ({}));
+			const parsedBody = emptyBodySchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
+
+			const workspaceId = parsedParams.data.wsId;
+			const workspace = await db.workspace.findUnique({
+				where: { id: workspaceId },
+				select: { createdById: true },
+			});
+
+			if (!workspace) {
+				return apiResponse({ error: "Workspace not found" }, 404);
+			}
+
+			if (workspace.createdById !== session.user.id) {
+				return apiResponse(
+					{
+						error: "You don't have permission to delete this workspace",
+					},
+					403,
+				);
+			}
+
+			await db.workspace.delete({ where: { id: workspaceId } });
+
+			return apiResponse(null, 204);
+		} catch (error) {
+			console.error("Workspace deletion error:", error);
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
-
-		console.log(
-			`Attempting to delete workspace ${workspaceId} for user ${session.user.id}`,
-		);
-
-		// Check if the workspace belongs to the user
-		const workspace = await db.workspace.findUnique({
-			where: { id: workspaceId },
-			select: { createdById: true },
-		});
-
-		if (!workspace) {
-			return new Response(
-				JSON.stringify({ error: "Workspace not found" }),
-				{
-					status: 404,
-				},
-			);
-		}
-
-		if (workspace.createdById !== session.user.id) {
-			return new Response(
-				JSON.stringify({
-					error: "You don't have permission to delete this workspace",
-				}),
-				{
-					status: 403,
-				},
-			);
-		}
-
-		// Delete the workspace
-		await db.workspace.delete({ where: { id: workspaceId } });
-		console.log(`Successfully deleted workspace ${workspaceId}`);
-
-		return new Response(null, { status: 204 });
-	} catch (error) {
-		console.error("Workspace deletion error:", error);
-		return new Response(
-			JSON.stringify({ error: "Internal server error" }),
-			{
-				status: 500,
-			},
-		);
-	}
-}
+	},
+);

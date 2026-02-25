@@ -14,27 +14,17 @@
         },
 */
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { RandomDataSourceSettings } from "./index";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
-import { Spinner } from "@workspace/ui/components/spinner";
 
-const RandomDataSourceContext = createContext(null);
-
-// Create a provider component
-const RandomDataSourceProvider = (
-	children: ReactNode,
-	props: RandomDataSourceSettings,
-) => {
+/**
+ * Lifecycle component for random datasource.
+ * Manages worker initialization and plugin hook registration.
+ */
+const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const hostRef =
 		useRef<WorkerDatasourceHost<RandomDataSourceSettings> | null>(null);
@@ -66,6 +56,10 @@ const RandomDataSourceProvider = (
 			.then(() => {
 				if (!disposed) {
 					setInitialized(true);
+					pluginsManager.doAction(
+						PluginsHooks.DATASOURCE_READY,
+						props.id,
+					);
 				}
 			})
 			.catch((error) => {
@@ -82,28 +76,13 @@ const RandomDataSourceProvider = (
 
 		return () => {
 			disposed = true;
+			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, props.id);
 			if (host) host.dispose();
 			hostRef.current = null;
 		};
 	}, [pluginsManager, props.id, props.enable, props.title, props.topics]);
 
-	return (
-		<RandomDataSourceContext.Provider value={null}>
-			{initialized && children}
-			{!initialized && <Spinner />}
-		</RandomDataSourceContext.Provider>
-	);
+	return null;
 };
 
-// Create a custom hook to use the context
-const useRandomProvider = () => {
-	const context = useContext(RandomDataSourceContext);
-	if (context === undefined) {
-		throw new Error(
-			"useRandomProvider must be used within a RandomDataSourceProvider",
-		);
-	}
-	return context;
-};
-
-export { RandomDataSourceProvider, useRandomProvider };
+export { RandomDataSourceProvider };

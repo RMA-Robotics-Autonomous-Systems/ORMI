@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { MoreVertical, Loader2, Trash } from "lucide-react";
 import WorkspaceImport from "./workspace-import";
 
-import { handleDelete } from "@/server/prisma-workspaces";
+import { handleDelete } from "@/lib/data/prisma-workspaces";
 
 async function deleteWorkspace(wsId: number) {
 	return await handleDelete(wsId);

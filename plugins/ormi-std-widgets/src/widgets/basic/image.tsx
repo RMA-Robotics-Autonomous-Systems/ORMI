@@ -84,16 +84,17 @@ function ImageViewer() {
 	);
 }
 
+/** Props for ImageViewer widget. */
+interface ImageViewerProps extends Record<string, unknown> {
+	title: string;
+	topic: SelectedTopic;
+}
+
 /**
  * Widget definition for ImageViewer.
  * @returns Widget definition.
  */
-export function ImageViewerDefinition(): WidgetDefinition {
-	interface ImageViewerProps {
-		title: string;
-		topic: SelectedTopic;
-	}
-
+export function ImageViewerDefinition(): WidgetDefinition<ImageViewerProps> {
 	return {
 		id: "image-viewer-widget",
 		name: "Image viewer",
@@ -145,5 +146,5 @@ export function ImageViewerDefinition(): WidgetDefinition {
 				<ImageViewer />
 			</LocalDataSourcesProvider>
 		),
-	} as WidgetDefinition;
+	} as WidgetDefinition<ImageViewerProps>;
 }

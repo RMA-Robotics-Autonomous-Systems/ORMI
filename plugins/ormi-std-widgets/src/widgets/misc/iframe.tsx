@@ -3,7 +3,7 @@ import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { GlobeIcon } from "lucide-react";
 
 /** Props for IFrame widget. */
-interface IFrameProps {
+interface IFrameProps extends Record<string, unknown> {
 	title: string;
 	url: string;
 }
@@ -12,7 +12,7 @@ interface IFrameProps {
  * Widget definition for iframe viewer.
  * @returns Widget definition.
  */
-export function IframeDefinition(): WidgetDefinition {
+export function IframeDefinition(): WidgetDefinition<IFrameProps> {
 	return {
 		id: "iframe-widget",
 		name: "IFrame viewer",
@@ -57,5 +57,5 @@ export function IframeDefinition(): WidgetDefinition {
 				></iframe>
 			</div>
 		),
-	} as WidgetDefinition;
+	} as WidgetDefinition<IFrameProps>;
 }

@@ -1,5 +1,5 @@
 import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
-import dataSourceExport from "./datasource-export";
+import dataSourceExport from "./export";
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
 
 class RandomDataSourcePlugins extends Plugin {

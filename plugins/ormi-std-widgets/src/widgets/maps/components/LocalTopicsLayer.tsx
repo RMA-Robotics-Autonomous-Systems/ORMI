@@ -21,7 +21,7 @@ interface LocalTopicConfig {
 /**
  * Props for LocalTopicsLayer.
  */
-interface LocalTopicsLayerProps {
+interface LocalTopicsLayerProps extends Record<string, unknown> {
 	localTopics: LocalTopicConfig[];
 }
 

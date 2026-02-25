@@ -3,7 +3,7 @@ import {
 	addMapTypeArray,
 	addTopicTypeFilter,
 	mapMarkerComponent,
-} from "./teodor-emi-export";
+} from "./export";
 
 class TeodorEMIPlugin extends Plugin {
 	constructor() {

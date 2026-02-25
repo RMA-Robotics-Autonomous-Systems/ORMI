@@ -82,7 +82,6 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 					FoxgloveClient.SUPPORTED_SUBPROTOCOL,
 					"foxglove.sdk.v1",
 				]);
-				onInitialized(true);
 
 				socket.addEventListener("open", () => {
 					if (disposed) return;
@@ -90,12 +89,14 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 					onReconnectAttempt(0);
 					// Pass the socket only after it's open
 					onWebSocket(socket);
+					onInitialized(true);
 					onConnectionStatus({ connected: true });
 				});
 
 				socket.addEventListener("close", (event) => {
 					if (disposed) return;
 					onWebSocket(null);
+					onInitialized(false);
 					if (!event.wasClean) {
 						scheduleReconnect(
 							event.reason ||
@@ -112,6 +113,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 				socket.addEventListener("error", () => {
 					if (disposed) return;
 					onWebSocket(null);
+					onInitialized(false);
 					scheduleReconnect("Foxglove WebSocket error");
 				});
 			} catch (error) {

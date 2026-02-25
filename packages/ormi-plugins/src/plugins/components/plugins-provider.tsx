@@ -1,20 +1,16 @@
 "use client";
 
-import React, {
-	createContext,
-	useContext,
-	ReactNode,
-	useRef,
-	useEffect,
-} from "react";
+import React, { ReactNode, useRef, useEffect } from "react";
 // import PluginsLoader from './plugins-loader';
 import { PluginsManager } from "../plugins-manager";
 import { PluginsHooks, Plugin, PluginRegistry } from "../plugins-types";
+import { createSafeContext } from "@workspace/utils";
 
 /**
  * Context for accessing plugins manager.
  */
-const PluginsContext = createContext<PluginsManager | undefined>(undefined);
+const [PluginsContextProvider, usePluginsContext] =
+	createSafeContext<PluginsManager>("Plugins");
 
 /**
  * Props for PluginsProvider.
@@ -78,11 +74,11 @@ const PluginsProvider = (props: PluginsProviderProps) => {
 
 	return (
 		pluginsManagerRef.current && (
-			<PluginsContext.Provider value={pluginsManagerRef.current}>
+			<PluginsContextProvider value={pluginsManagerRef.current}>
 				{/* {elements_before_children} */}
 				{initialized && children}
 				{/* {elements_after_children} */}
-			</PluginsContext.Provider>
+			</PluginsContextProvider>
 		)
 	);
 };
@@ -93,11 +89,7 @@ const PluginsProvider = (props: PluginsProviderProps) => {
  * @throws Error if used outside PluginsProvider.
  */
 const usePluginsManager = () => {
-	const context = useContext(PluginsContext);
-	if (context === undefined) {
-		throw new Error("usePlugins must be used within a PluginsProvider");
-	}
-	return context;
+	return usePluginsContext();
 };
 
 /**

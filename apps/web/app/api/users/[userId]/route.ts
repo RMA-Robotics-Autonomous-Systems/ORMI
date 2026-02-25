@@ -1,55 +1,48 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { getServerSession } from "next-auth/next";
-import { z } from "zod";
 import { NextRequest } from "next/server";
 
-import { authOptions } from "@/server/auth";
 import { db } from "@/server/db";
-import { userNameSchema } from "@/lib/validations/user";
+import { apiResponse } from "@/lib/api-utils";
+import { withAuth } from "@/lib/with-auth";
+import { userIdParamSchema, userNameSchema } from "@/lib/validations/user";
 
-const routeContextSchema = z.object({
-	params: z.object({
-		userId: z.string(),
-	}),
-});
+export const PATCH = withAuth(
+	async (
+		req: NextRequest,
+		session,
+		{ params }: { params: Promise<{ userId: string }> },
+	) => {
+		try {
+			const resolvedParams = await params;
+			const parsedParams = userIdParamSchema.safeParse(resolvedParams);
+			if (!parsedParams.success) {
+				return apiResponse(
+					{ error: parsedParams.error.flatten() },
+					400,
+				);
+			}
 
-export async function PATCH(
-	req: NextRequest,
-	{ params }: { params: Promise<{ userId: string }> },
-) {
-	try {
-		// wait for the params to resolve
-		const resolvedParams = await params;
+			if (parsedParams.data.userId !== session.user.id) {
+				return apiResponse({ error: "Forbidden" }, 403);
+			}
 
-		// Validate the route context.
-		routeContextSchema.parse({ params });
+			const body = await req.json();
+			const parsedBody = userNameSchema.safeParse(body);
+			if (!parsedBody.success) {
+				return apiResponse({ error: parsedBody.error.flatten() }, 400);
+			}
 
-		// Ensure user is authentication and has access to this user.
-		const session = await getServerSession(authOptions);
-		if (!session?.user || resolvedParams.userId !== session?.user.id) {
-			return new Response(null, { status: 403 });
+			await db.user.update({
+				where: {
+					id: session.user.id,
+				},
+				data: {
+					name: parsedBody.data.name,
+				},
+			});
+
+			return apiResponse(null, 200);
+		} catch (error) {
+			return apiResponse({ error: "Internal server error" }, 500);
 		}
-
-		// Get the request body and validate it.
-		const body = (await req.json()) as any;
-		const payload = userNameSchema.parse(body);
-
-		// Update the user.
-		await db.user.update({
-			where: {
-				id: session.user.id,
-			},
-			data: {
-				name: payload.name,
-			},
-		});
-
-		return new Response(null, { status: 200 });
-	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return new Response(JSON.stringify(error.issues), { status: 422 });
-		}
-
-		return new Response(null, { status: 500 });
-	}
-}
+	},
+);

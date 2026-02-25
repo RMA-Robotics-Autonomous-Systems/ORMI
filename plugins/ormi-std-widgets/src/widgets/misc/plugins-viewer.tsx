@@ -98,11 +98,16 @@ function PluginViewer() {
 	);
 }
 
+/** Props for PluginsViewer widget. */
+interface PluginsViewerProps extends Record<string, unknown> {
+	title: string;
+}
+
 /**
  * Widget definition for plugins viewer.
  * @returns Widget definition.
  */
-export function PluginsViewerDefinition(): WidgetDefinition {
+export function PluginsViewerDefinition(): WidgetDefinition<PluginsViewerProps> {
 	return {
 		id: "plugins-viewer-widget",
 		name: "Plugins viewer",

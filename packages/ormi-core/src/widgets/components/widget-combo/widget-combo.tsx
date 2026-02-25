@@ -5,11 +5,6 @@ import { Search } from "lucide-react";
 
 import { WidgetDefinition } from "../../widget-interface";
 import { WidgetCard } from "../widget-card/widget-card";
-import {
-	PluginsHooks,
-	PluginsManager,
-	usePluginsManager,
-} from "@workspace/ormi-plugins";
 
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -37,16 +32,20 @@ import {
  * @returns React element.
  */
 export function WidgetsCombo(props: {
-	onValidate: (widget: WidgetDefinition, settings: object) => void;
+	widgetDefinitions: WidgetDefinition[];
+	onValidate: (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => void;
 }) {
 	const [open, setOpen] = React.useState(false);
 
-	const pluginsManager = usePluginsManager() as PluginsManager;
-	const widgets: WidgetDefinition[] = pluginsManager.applyFilter<
-		WidgetDefinition[]
-	>(PluginsHooks.WIDGETS_LIST, []);
+	const { widgetDefinitions } = props;
 
-	const handleValidate = (widget: WidgetDefinition, settings: object) => {
+	const handleValidate = (
+		widget: WidgetDefinition,
+		settings: Record<string, unknown>,
+	) => {
 		props.onValidate(widget, settings);
 
 		setOpen(false); // close the popover
@@ -73,7 +72,7 @@ export function WidgetsCombo(props: {
 							datasource first
 						</CommandEmpty>
 						<CommandGroup>
-							{widgets.map((widget) => (
+							{widgetDefinitions.map((widget) => (
 								<CommandItem
 									key={widget.id}
 									value={widget.id}

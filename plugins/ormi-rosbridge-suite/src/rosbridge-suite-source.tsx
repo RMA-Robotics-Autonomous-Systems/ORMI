@@ -1,19 +1,19 @@
 "use client";
 /*
-	Provider that creates a datasets with random data
+    Provider that creates a datasets with random data
 
-	data ->
-		[source] -> {
-			label: 'current_time',
-			data: [random data]
-		},
-		[source] -> {
-			label: 'current_time',
-			data: [random data]
-		},
+    data ->
+        [source] -> {
+            label: 'current_time',
+            data: [random data]
+        },
+        [source] -> {
+            label: 'current_time',
+            data: [random data]
+        },
 */
 
-import React, { createContext, ReactNode, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
 import * as ROSLIB from "roslib";
 
@@ -27,10 +27,7 @@ import {
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
-import { Spinner } from "@workspace/ui/components/spinner";
 import { toast } from "sonner";
-
-const RosBridgeSuiteSourceContext = createContext(null);
 
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
@@ -173,7 +170,6 @@ type RosTopicAndCounter = {
 
 // Create a provider component
 const RosBridgeSuiteSourceProvider = (
-	children: ReactNode,
 	props: RosBridgeSuiteDataSourceSettings,
 ) => {
 	const pluginsManager = usePluginsManager();
@@ -230,6 +226,10 @@ const RosBridgeSuiteSourceProvider = (
 						}
 
 						setConnected(true);
+						pluginsManager.doAction(
+							PluginsHooks.DATASOURCE_READY,
+							datasource_id,
+						);
 						resolve(true);
 					});
 
@@ -252,6 +252,10 @@ const RosBridgeSuiteSourceProvider = (
 							);
 						}
 
+						pluginsManager.doAction(
+							PluginsHooks.DATASOURCE_DISPOSED,
+							datasource_id,
+						);
 						setTimeout(() => {
 							setRetry(retry + 1);
 						}, props.reconnectTimeout * 1000);
@@ -894,12 +898,7 @@ const RosBridgeSuiteSourceProvider = (
 		};
 	}, [retry, props, pluginsManager]); // Add pluginsManager dependency
 
-	return (
-		<RosBridgeSuiteSourceContext.Provider value={null}>
-			{connected && children}
-			{!connected && <Spinner />}
-		</RosBridgeSuiteSourceContext.Provider>
-	);
+	return null;
 };
 
 export { RosBridgeSuiteSourceProvider };
