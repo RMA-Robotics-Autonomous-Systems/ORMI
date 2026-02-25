@@ -23,7 +23,6 @@ import {
 import { useNavbar } from "@workspace/ui/combined/navbar";
 
 import { Button } from "@workspace/ui/components/button";
-import { Badge } from "@workspace/ui/components/badge";
 import {
 	Dialog,
 	DialogTrigger,
@@ -37,21 +36,10 @@ import {
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import DatasourceAdder from "./datasource-adder";
 import DatasourceCard from "./datasource-card";
-import {
-	CheckIcon,
-	CloudCogIcon,
-	Loader2,
-	AlertCircle,
-	XCircle,
-} from "lucide-react";
+import { DatasourceStatusBadges } from "./datasource-status-badges";
+import { CheckIcon, CloudCogIcon, XCircle } from "lucide-react";
 import { Template, useTemplates } from "../../templates";
 import { createSafeContext } from "@workspace/utils";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@workspace/ui/components/tooltip";
 
 /** Datasource connection status. */
 type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
@@ -217,79 +205,16 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 			removeDatasource(source_id);
 		}
 
-		// Create status badges for each datasource
-		const datasourceStatusElements = Array.from(datasources.values()).map(
-			(ds) => {
-				const status =
-					datasourceStatuses.get(ds.settings.id) || "connecting";
-				const statusConfig = {
-					connecting: {
-						icon: Loader2,
-						variant: "secondary" as const,
-						color: "text-blue-600",
-						label: "Connecting",
-					},
-					ready: {
-						icon: CheckIcon,
-						variant: "default" as const,
-						color: "text-green-600",
-						label: "Ready",
-					},
-					error: {
-						icon: AlertCircle,
-						variant: "destructive" as const,
-						color: "text-red-600",
-						label: "Error",
-					},
-					disposed: {
-						icon: XCircle,
-						variant: "outline" as const,
-						color: "text-gray-600",
-						label: "Disposed",
-					},
-				}[status];
-				const Icon = statusConfig.icon;
-
-				return (
-					<Tooltip key={ds.settings.id}>
-						<TooltipTrigger asChild>
-							<Badge
-								variant={statusConfig.variant}
-								className="gap-1"
-							>
-								<Icon
-									className={`h-3 w-3 ${statusConfig.color} ${status === "connecting" ? "animate-spin" : ""}`}
-								/>
-								<span className={statusConfig.color}>
-									{ds.settings.title}
-								</span>
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent>
-							<p>
-								{ds.settings.title}: {statusConfig.label}
-							</p>
-						</TooltipContent>
-					</Tooltip>
-				);
-			},
+		// Inject datasource status badges into navbar
+		setNavbarItem(
+			"center",
+			"datasources_status",
+			<DatasourceStatusBadges
+				datasources={Array.from(datasources.values())}
+				datasourceStatuses={datasourceStatuses}
+			/>,
+			0,
 		);
-
-		// Set status indicator as separate navbar item
-		if (datasourceStatusElements.length > 0) {
-			setNavbarItem(
-				"center",
-				"datasources_status",
-				<TooltipProvider>
-					<div className="flex h-full items-center gap-2">
-						{datasourceStatusElements}
-					</div>
-				</TooltipProvider>,
-				0,
-			);
-		} else {
-			removeNavbarItem("center", "datasources_status");
-		}
 
 		setNavbarItem(
 			"center",
