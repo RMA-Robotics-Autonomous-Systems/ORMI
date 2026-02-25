@@ -106,9 +106,9 @@ export function useDashboardPersistence(
 	const layouts = useAtomValue(layoutsAtom);
 	const locked = useAtomValue(lockedAtom);
 	const datasources = useAtomValue(datasourcesAtom);
+	const hasChanged = useAtomValue(hasChangedAtom);
 
 	const [initialized, setInitialized] = useState(false);
-	const [hasChanged, setHasChangedLocal] = useState(false);
 
 	// Keep a stable ref to the most recent saved/loaded hash
 	const initialHashRef = useRef<string>("");
@@ -163,7 +163,6 @@ export function useDashboardPersistence(
 					initialHashRef.current = currentHash;
 				}
 				const changed = currentHash !== initialHashRef.current;
-				setHasChangedLocal(changed);
 				setHasChanged(changed);
 			},
 		);
@@ -192,7 +191,6 @@ export function useDashboardPersistence(
 					state.datasources,
 					state.locked,
 				);
-				setHasChangedLocal(false);
 				setHasChanged(false);
 			} else {
 				toast("Failed to save dashboard");
