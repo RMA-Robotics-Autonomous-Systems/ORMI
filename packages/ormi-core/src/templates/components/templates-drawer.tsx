@@ -32,7 +32,6 @@ import {
 	TabsTrigger,
 } from "@workspace/ui/components/tabs";
 import { X } from "lucide-react";
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
 
 import { WidgetDefinition } from "../../widgets";
 import {
@@ -53,6 +52,10 @@ interface WidgetTemplateDrawerProps {
 		settings: DatasourceProviderSettings,
 	) => void;
 	updateTemplate?: (id: string, updatedTemplate: Template) => void;
+	/** Widget definitions from DashboardRegistryContext. */
+	widgetDefinitions: WidgetDefinition[];
+	/** Datasource definitions from DashboardRegistryContext. */
+	datasourceDefinitions: DatasourceDefinition[];
 }
 
 /**
@@ -67,20 +70,15 @@ export function WidgetTemplateDrawer(props: WidgetTemplateDrawerProps) {
 		addWidget,
 		addDatasource,
 		updateTemplate,
+		widgetDefinitions,
+		datasourceDefinitions,
 	} = props;
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-	const pluginsManager = usePluginsManager();
-
-	// Pre-fetch available widgets and datasources once at component level
-	const availableWidgets = pluginsManager.applyFilter<WidgetDefinition[]>(
-		PluginsHooks.WIDGETS_LIST,
-		[],
-	);
-	const availableDatasources = pluginsManager.applyFilter<
-		DatasourceDefinition[]
-	>(PluginsHooks.DATASOURCES_LIST, []);
+	// Use definitions passed from DashboardRegistryContext (resolved once per shell mount)
+	const availableWidgets = widgetDefinitions;
+	const availableDatasources = datasourceDefinitions;
 
 	// Get all unique tags from templates
 	const allTags = useMemo(() => {

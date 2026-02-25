@@ -84,7 +84,7 @@ const Dashboard = () => {
 	} = useDashboardActions();
 
 	const { save } = useDashboardShell();
-	const { widgetDefinitions } = useDashboardRegistry();
+	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	// Track container width
 	useEffect(() => {
@@ -435,6 +435,8 @@ const Dashboard = () => {
 				addDatasource={addDatasource}
 				removeTemplate={removeTemplate}
 				updateTemplate={updateTemplate}
+				widgetDefinitions={widgetDefinitions}
+				datasourceDefinitions={datasourceDefinitions}
 			/>,
 		);
 
@@ -449,6 +451,8 @@ const Dashboard = () => {
 		updateTemplate,
 		setNavbarItem,
 		removeNavbarItem,
+		widgetDefinitions,
+		datasourceDefinitions,
 	]);
 
 	useEffect(() => {

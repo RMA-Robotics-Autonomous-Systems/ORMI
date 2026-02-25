@@ -36,7 +36,7 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 }) => {
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
 	const { templates, removeTemplate, updateTemplate } = useTemplates();
-	const { widgetDefinitions } = useDashboardRegistry();
+	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	// Use refs to capture the latest callback functions to avoid closure issues
 	const onSaveRef = React.useRef(onSave);
@@ -79,6 +79,8 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 				}
 				removeTemplate={removeTemplate}
 				updateTemplate={updateTemplate}
+				widgetDefinitions={widgetDefinitions}
+				datasourceDefinitions={datasourceDefinitions}
 			/>,
 		);
 
@@ -137,6 +139,8 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 		updateTemplate,
 		setNavbarItem,
 		removeNavbarItem,
+		widgetDefinitions,
+		datasourceDefinitions,
 	]);
 
 	return null; // This component only manages navbar items
