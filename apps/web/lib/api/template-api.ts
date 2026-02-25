@@ -92,9 +92,7 @@ export const templateApi = {
 		templateId: string,
 		template: Template,
 	): Promise<ApiResult<void>> {
-		return httpClient.put<void>(`/api/templates/${templateId}`, {
-			content: template,
-		});
+		return httpClient.put<void>(`/api/templates/${templateId}`, template);
 	},
 
 	/**
