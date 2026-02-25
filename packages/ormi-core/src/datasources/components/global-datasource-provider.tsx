@@ -56,7 +56,15 @@ import {
 /** Datasource connection status. */
 type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
 
-type GlobalDataSources = object;
+/** Global datasource context value — exposed for external consumers. */
+interface GlobalDataSources {
+	/** Per-datasource connection status: connecting, ready, error, disposed. */
+	datasourceStatuses: Map<string, DatasourceStatus>;
+	/** Set of datasource instance IDs that are currently ready. */
+	readyDatasources: Set<string>;
+	/** True when all configured datasources are ready (or no datasources configured). */
+	allDatasourcesReady: boolean;
+}
 
 const [GlobalDataSourcesContextProvider, useGlobalDataSourcesContext] =
 	createSafeContext<GlobalDataSources>("GlobalDataSources");
@@ -448,7 +456,13 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		: null;
 
 	return (
-		<GlobalDataSourcesContextProvider value={{}}>
+		<GlobalDataSourcesContextProvider
+			value={{
+				datasourceStatuses,
+				readyDatasources,
+				allDatasourcesReady,
+			}}
+		>
 			{datasourceComponents}
 			{allDatasourcesReady && children}
 		</GlobalDataSourcesContextProvider>
