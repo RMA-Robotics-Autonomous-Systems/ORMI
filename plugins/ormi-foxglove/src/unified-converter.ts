@@ -10,6 +10,7 @@ import {
 	Color,
 	PoseStamped,
 	Path,
+	MapGrid,
 } from "@workspace/ormi-core/types";
 import {
 	convertPosition,
@@ -904,6 +905,202 @@ export class UnifiedConverter {
 						return {
 							__compressedData: rawData,
 							__format: data.format?.toLowerCase() || "jpeg",
+						};
+					},
+				},
+			},
+		},
+		/**
+		 * Map / occupancy grid type.
+		 *
+		 * Both nav_msgs/OccupancyGrid and nav2_msgs/Costmap are normalised to the
+		 * same canonical encoding:
+		 *   0   = free, 1-253 = cost gradient, 254 = lethal/occupied, 255 = unknown.
+		 */
+		MapGrid: {
+			conversions: {
+				/**
+				 * Standard ROS2 occupancy grid.
+				 * data: int8[] – -1 = unknown, 0 = free, 1–100 = occupied/cost.
+				 */
+				"nav_msgs/msg/OccupancyGrid": {
+					toRos2: (grid: MapGrid) => ({
+						header: {
+							stamp: {
+								sec: Math.floor(grid.timestamp),
+								nanosec: Math.floor((grid.timestamp % 1) * 1e9),
+							},
+							frame_id: grid.frameId,
+						},
+						info: {
+							width: grid.width,
+							height: grid.height,
+							resolution: grid.resolution,
+							origin: {
+								position: grid.origin.position,
+								orientation: grid.origin.orientation,
+							},
+						},
+						data: Array.from(grid.data).map((v) => {
+							if (v === 255) return -1;
+							if (v === 0) return 0;
+							if (v >= 254) return 100;
+							return Math.round((v / 253) * 99) + 1;
+						}),
+					}),
+					fromRos2: (data: any): MapGrid => {
+						const width: number = data.info?.width ?? 0;
+						const height: number = data.info?.height ?? 0;
+						const rawData: number[] | Int8Array =
+							data.data instanceof Int8Array
+								? data.data
+								: new Int8Array(data.data ?? []);
+
+						// Normalise int8 (-1..100) → canonical uint8 (0..255)
+						const rowMajor = new Uint8Array(width * height);
+						for (let i = 0; i < rowMajor.length; i++) {
+							const v = rawData[i] as number;
+							if (v < 0) {
+								// -1 = unknown
+								rowMajor[i] = 255;
+							} else if (v === 0) {
+								rowMajor[i] = 0;
+							} else if (v >= 100) {
+								// 100 = fully occupied → lethal
+								rowMajor[i] = 254;
+							} else {
+								// 1–99 → 1–252 (keep proportional)
+								rowMajor[i] = Math.round((v / 99) * 252);
+							}
+						}
+						// Use row-major data as-is. ROS (0,0) = bottom-left is handled by coordinate conversion and geometry rotation.
+						const canonical = rowMajor;
+						const timestamp =
+							(data.header?.stamp.sec ?? 0) +
+							(data.header?.stamp.nanosec ?? 0) / 1e9;
+
+						const originRos = data.info?.origin ?? {};
+
+						// Convert position and orientation from ROS to THREE convention
+						const posRos = {
+							x: originRos.position?.x ?? 0,
+							y: originRos.position?.y ?? 0,
+							z: originRos.position?.z ?? 0,
+						};
+						const rotRos = {
+							x: originRos.orientation?.x ?? 0,
+							y: originRos.orientation?.y ?? 0,
+							z: originRos.orientation?.z ?? 0,
+							w: originRos.orientation?.w ?? 1,
+						};
+
+						const posThree = convertPosition(
+							posRos,
+							"ROS",
+							"THREE",
+						);
+						const rotThree = convertQuaternion(
+							rotRos,
+							"ROS",
+							"THREE",
+						);
+
+						return {
+							width,
+							height,
+							resolution: data.info?.resolution ?? 0.05,
+							origin: {
+								position: posThree,
+								orientation: rotThree,
+							},
+							data: canonical,
+							frameId: data.header?.frame_id ?? "map",
+							timestamp,
+							convention: "THREE",
+						};
+					},
+				},
+				/**
+				 * Navigation 2 costmap.
+				 * data: uint8[] – 0 = free, 1-252 = cost, 253 = inscribed, 254 = lethal, 255 = unknown.
+				 * Already in canonical format – just wrap.
+				 */
+				"nav2_msgs/msg/Costmap": {
+					toRos2: (grid: MapGrid) => ({
+						header: {
+							stamp: {
+								sec: Math.floor(grid.timestamp),
+								nanosec: Math.floor((grid.timestamp % 1) * 1e9),
+							},
+							frame_id: grid.frameId,
+						},
+						metadata: {
+							size_x: grid.width,
+							size_y: grid.height,
+							resolution: grid.resolution,
+							origin: {
+								position: grid.origin.position,
+								orientation: grid.origin.orientation,
+							},
+						},
+						data: Array.from(grid.data),
+					}),
+					fromRos2: (data: any): MapGrid => {
+						const width: number = data.metadata?.size_x ?? 0;
+						const height: number = data.metadata?.size_y ?? 0;
+						const rawData: number[] | Uint8Array =
+							data.data instanceof Uint8Array
+								? data.data
+								: new Uint8Array(data.data ?? []);
+
+						// nav2 costmap values are already in canonical format
+						const rowMajor = new Uint8Array(width * height);
+						rowMajor.set(
+							rawData instanceof Uint8Array
+								? rawData.subarray(0, rowMajor.length)
+								: rawData.slice(0, rowMajor.length),
+						);
+						// Use row-major data as-is. ROS (0,0) = bottom-left is handled by coordinate conversion and geometry rotation.
+						const canonical = rowMajor;
+						// Convert position and orientation from ROS to THREE convention
+						const posRos = {
+							x: data.info.origin.position?.x ?? 0,
+							y: data.info.origin.position?.y ?? 0,
+							z: data.info.origin.position?.z ?? 0,
+						};
+						const rotRos = {
+							x: data.info.origin.orientation?.x ?? 0,
+							y: data.info.origin.orientation?.y ?? 0,
+							z: data.info.origin.orientation?.z ?? 0,
+							w: data.info.origin.orientation?.w ?? 1,
+						};
+
+						const timestamp =
+							(data.header?.stamp.sec ?? 0) +
+							(data.header?.stamp.nanosec ?? 0) / 1e9;
+
+						const posThree = convertPosition(
+							posRos,
+							"ROS",
+							"THREE",
+						);
+						const rotThree = convertQuaternion(
+							rotRos,
+							"ROS",
+							"THREE",
+						);
+						return {
+							width,
+							height,
+							resolution: data.metadata?.resolution ?? 0.05,
+							origin: {
+								position: posThree,
+								orientation: rotThree,
+							},
+							data: canonical,
+							frameId: data.header?.frame_id ?? "map",
+							timestamp,
+							convention: "THREE",
 						};
 					},
 				},
