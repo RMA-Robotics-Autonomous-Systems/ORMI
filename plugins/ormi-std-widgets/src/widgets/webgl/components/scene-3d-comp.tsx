@@ -41,29 +41,22 @@ const PointCloudLayerRenderer = ({
 		sharedFrameTimeRef.current = Date.now();
 	});
 
-	// Get the topics configured for this layer
-	const topics = config.topics ?? [];
+	// Get the topic configured for this layer
+	const topic = config.topic;
 
 	return (
 		<>
-			{topics.map((entry) => {
-				if (!entry.topic) return null;
-				const sourceId = getSourceId(entry.topic);
-				const source = getSource(entry.topic);
-				if (!source || !sourceId) return null;
-
-				return (
-					<PointCloudSourceRenderer
-						key={sourceId}
-						sourceId={sourceId}
-						source={source}
-						transformsTrees={transformsTrees}
-						config={config}
-						targetFrame={targetFrame}
-						frameTimeRef={sharedFrameTimeRef}
-					/>
-				);
-			})}
+			{topic ? (
+				<PointCloudSourceRenderer
+					key={getSourceId(topic)}
+					sourceId={getSourceId(topic)}
+					source={getSource(topic)}
+					transformsTrees={transformsTrees}
+					config={config}
+					targetFrame={targetFrame}
+					frameTimeRef={sharedFrameTimeRef}
+				/>
+			) : null}
 		</>
 	);
 };

@@ -13,8 +13,7 @@ export type PointCloudTheme =
 export interface PointCloudLayerConfig {
 	id?: string;
 	enabled?: boolean;
-	label?: string;
-	topics?: Array<{ topic: SelectedTopic }>;
+	topic?: SelectedTopic;
 	pointSize?: number;
 	decayTime?: number;
 	rollingBuffer?: boolean;
@@ -46,7 +45,6 @@ export type MapGridColorMode = "costmap" | "grayscale" | "heatmap";
 export interface MapGridLayerConfig {
 	id?: string;
 	enabled?: boolean;
-	label?: string;
 	topic?: SelectedTopic;
 	/** How to colour-map occupancy values. @default "costmap" */
 	colorMode?: MapGridColorMode;

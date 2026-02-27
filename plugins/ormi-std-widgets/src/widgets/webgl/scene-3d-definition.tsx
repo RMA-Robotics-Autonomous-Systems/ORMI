@@ -59,18 +59,9 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 								title: "Enabled",
 								default: true,
 							},
-							topics: {
-								type: "array",
-								title: "Topics",
-								items: {
-									type: "object",
-									properties: {
-										topic: {
-											type: "object",
-											title: "Topic",
-										},
-									},
-								},
+							topic: {
+								type: "object",
+								title: "Topic",
 							},
 							pointSize: {
 								type: "number",
@@ -159,10 +150,6 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 					items: {
 						type: "object",
 						properties: {
-							label: {
-								type: "string",
-								title: "Label",
-							},
 							enabled: {
 								type: "boolean",
 								title: "Enabled",
@@ -284,36 +271,17 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 									elements: [
 										{
 											type: "Control",
-											scope: "#/properties/label",
-										} as ControlElement,
-										{
-											type: "Control",
 											scope: "#/properties/enabled",
 										} as ControlElement,
 										{
-											type: "Control",
-											scope: "#/properties/topics",
+											type: "TopicSelect",
+											scope: "#/properties/topic",
 											options: {
-												detail: {
-													type: "VerticalLayout",
-													elements: [
-														{
-															type: "TopicSelect",
-															scope: "#/properties/topic",
-															options: {
-																dataRequirements:
-																	{
-																		accepts:
-																			[
-																				"PointsCloud",
-																			],
-																	},
-															},
-														},
-													],
+												dataRequirements: {
+													accepts: ["PointsCloud"],
 												},
 											},
-										} as ControlElement,
+										},
 										{
 											type: "Control",
 											scope: "#/properties/pointSize",
@@ -387,10 +355,6 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 								detail: {
 									type: "VerticalLayout",
 									elements: [
-										{
-											type: "Control",
-											scope: "#/properties/label",
-										} as ControlElement,
 										{
 											type: "Control",
 											scope: "#/properties/enabled",
@@ -475,12 +439,8 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 			if (data.pointCloudLayers) {
 				for (const layer of data.pointCloudLayers) {
 					if (layer.enabled === false) continue;
-					if (layer.topics) {
-						for (const entry of layer.topics) {
-							if (entry.topic) {
-								allTopics.push(entry.topic);
-							}
-						}
+					if (layer.topic) {
+						allTopics.push(layer.topic);
 					}
 				}
 			}
