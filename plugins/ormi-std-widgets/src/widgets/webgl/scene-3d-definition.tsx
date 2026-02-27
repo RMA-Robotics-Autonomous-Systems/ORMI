@@ -221,28 +221,36 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						},
 					},
 				},
-				// Goal Pose Publishing
-				goalPoseConfig: {
+				// Unified Pose Publisher
+				posePublisherConfig: {
 					type: "object",
-					title: "Goal Pose",
+					title: "Pose Publisher",
 					properties: {
 						enabled: {
 							type: "boolean",
-							title: "Enable Goal Pose",
+							title: "Enabled",
 							default: false,
 						},
-						topic: {
+						goalTopic: {
 							type: "object",
-							title: "Publish Topic",
+							title: "Goal Pose Topic",
+						},
+						initialTopic: {
+							type: "object",
+							title: "Initial Pose Topic",
 						},
 						frameId: {
 							type: "string",
 							title: "Frame ID",
 							default: "map",
 						},
-						keyboardShortcut: {
+						goalShortcut: {
 							type: "object",
-							title: "Keyboard Shortcut",
+							title: "Goal Pose Shortcut",
+						},
+						initialShortcut: {
+							type: "object",
+							title: "Initial Pose Shortcut",
 						},
 						markerColor: {
 							type: "string",
@@ -452,18 +460,18 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						} as ControlElement,
 					],
 				} as Category,
-				// Tab 4: Goal Pose
+				// Tab 4: Pose Publisher
 				{
 					type: "Category",
-					label: "Goal Pose",
+					label: "Pose Publisher",
 					elements: [
 						{
 							type: "Control",
-							scope: "#/properties/goalPoseConfig/properties/enabled",
+							scope: "#/properties/posePublisherConfig/properties/enabled",
 						} as ControlElement,
 						{
 							type: "TopicSelect",
-							scope: "#/properties/goalPoseConfig/properties/topic",
+							scope: "#/properties/posePublisherConfig/properties/goalTopic",
 							options: {
 								dataRequirements: {
 									accepts: ["Pose"],
@@ -471,24 +479,37 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 							},
 						} as TopicSelectElement,
 						{
+							type: "TopicSelect",
+							scope: "#/properties/posePublisherConfig/properties/initialTopic",
+							options: {
+								dataRequirements: {
+									accepts: ["InitialPose"],
+								},
+							},
+						} as TopicSelectElement,
+						{
 							type: "FrameSelect",
-							scope: "#/properties/goalPoseConfig/properties/frameId",
+							scope: "#/properties/posePublisherConfig/properties/frameId",
 							options: {
 								placeholder: "map",
 							},
 						} as FrameSelectElement,
 						{
 							type: "Key",
-							scope: "#/properties/goalPoseConfig/properties/keyboardShortcut",
+							scope: "#/properties/posePublisherConfig/properties/goalShortcut",
+						} as KeyControlType,
+						{
+							type: "Key",
+							scope: "#/properties/posePublisherConfig/properties/initialShortcut",
 						} as KeyControlType,
 						{
 							type: "Control",
-							scope: "#/properties/goalPoseConfig/properties/markerColor",
+							scope: "#/properties/posePublisherConfig/properties/markerColor",
 							options: { color: true },
 						} as ControlElement,
 						{
 							type: "Control",
-							scope: "#/properties/goalPoseConfig/properties/markerSize",
+							scope: "#/properties/posePublisherConfig/properties/markerSize",
 						} as ControlElement,
 					],
 				} as Category,
@@ -510,12 +531,13 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 				uniformColor: "#00ff88",
 				showLabels: true,
 			},
-			goalPoseConfig: {
+			posePublisherConfig: {
 				enabled: false,
 				frameId: "map",
-				keyboardShortcut: { type: "keyboard", key: "g" },
+				goalShortcut: { type: "keyboard", key: "g" },
+				initialShortcut: { type: "keyboard", key: "p" },
 				markerColor: "#ff4400",
-				markerSize: 0.1,
+				markerSize: 0.5,
 			},
 		},
 		Component: (data: Scene3DProps) => {

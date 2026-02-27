@@ -13,9 +13,9 @@ import {
 	PointCloudLayerConfig,
 	PathLayerConfig,
 	MapGridLayerConfig,
-	GoalPoseConfig,
+	PosePublisherConfig,
 } from "../types/scene-3d-types";
-import { GoalPoseOverlay } from "./goal-pose-overlay";
+import { GoalPoseOverlay, PoseMode } from "./goal-pose-overlay";
 import { MapGridRenderer } from "./map-grid-renderer";
 import { TransformTreeRenderer } from "./transform-tree-renderer";
 import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
@@ -125,18 +125,27 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const pathLayers = props.pathLayers ?? [];
 	const mapGridLayers = props.mapGridLayers ?? [];
 	const transformTree = props.transformTree ?? { enabled: false };
-	const goalPoseConfig = props.goalPoseConfig as GoalPoseConfig | undefined;
+	const posePublisherConfig = props.posePublisherConfig as
+		| PosePublisherConfig
+		| undefined;
 
-	const [isGoalPoseActive, setIsGoalPoseActive] = useState(false);
-	const handleGoalPoseActiveChange = useCallback(
-		(active: boolean) => setIsGoalPoseActive(active),
+	const [poseMode, setPoseMode] = useState<PoseMode>("idle");
+	const handlePoseModeChange = useCallback(
+		(m: PoseMode) => setPoseMode(m),
 		[],
 	);
-	const shortcutLabel = (
-		goalPoseConfig?.keyboardShortcut?.key ??
-		(goalPoseConfig?.keyboardShortcut?.gamepadButton !== undefined
-			? `Btn ${goalPoseConfig.keyboardShortcut.gamepadButtonIndex}`
+
+	const goalShortcutLabel = (
+		posePublisherConfig?.goalShortcut?.key ??
+		(posePublisherConfig?.goalShortcut?.gamepadButtonIndex !== undefined
+			? `Btn ${posePublisherConfig.goalShortcut.gamepadButtonIndex}`
 			: "G")
+	).toUpperCase();
+	const initialShortcutLabel = (
+		posePublisherConfig?.initialShortcut?.key ??
+		(posePublisherConfig?.initialShortcut?.gamepadButtonIndex !== undefined
+			? `Btn ${posePublisherConfig.initialShortcut.gamepadButtonIndex}`
+			: "P")
 	).toUpperCase();
 
 	// Check if any point cloud layer has rolling buffer with decay
@@ -212,17 +221,17 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					/>
 				)}
 
-				{/* Goal pose interaction overlay (R3F plane + 3D markers) */}
-				{goalPoseConfig?.enabled && goalPoseConfig.topic && (
+				{/* Unified pose overlay — handles goal pose (G) and initial pose (P) */}
+				{posePublisherConfig?.enabled && (
 					<GoalPoseOverlay
-						config={goalPoseConfig}
-						onActiveChange={handleGoalPoseActiveChange}
+						config={posePublisherConfig}
+						onModeChange={handlePoseModeChange}
 					/>
 				)}
 			</Canvas>
 
-			{/* DOM overlay — always visible when goal pose is configured */}
-			{goalPoseConfig?.enabled && goalPoseConfig.topic && (
+			{/* DOM overlay hints */}
+			{posePublisherConfig?.enabled && (
 				<div
 					style={{
 						position: "absolute",
@@ -231,12 +240,19 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 						transform: "translateX(-50%)",
 						pointerEvents: "none",
 						zIndex: 10,
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						gap: "4px",
 					}}
 				>
-					{isGoalPoseActive ? (
+					{/* Active mode banner */}
+					{poseMode === "goalPose" && (
 						<div
 							style={{
-								background: "rgba(255, 68, 0, 0.9)",
+								background: posePublisherConfig.markerColor
+									? `${posePublisherConfig.markerColor}e6`
+									: "rgba(255, 68, 0, 0.9)",
 								color: "#fff",
 								borderRadius: "8px",
 								padding: "8px 16px",
@@ -246,9 +262,27 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
 							}}
 						>
-							click to place, drag to set heading
+							Goal pose — click to place, drag to set heading
 						</div>
-					) : (
+					)}
+					{poseMode === "initialPose" && (
+						<div
+							style={{
+								background: "rgba(0, 136, 255, 0.9)",
+								color: "#fff",
+								borderRadius: "8px",
+								padding: "8px 16px",
+								fontSize: "13px",
+								fontWeight: 600,
+								whiteSpace: "nowrap",
+								boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+							}}
+						>
+							Initial pose — click to place, drag to set heading
+						</div>
+					)}
+					{/* Idle hints — show available shortcuts */}
+					{poseMode === "idle" && (
 						<div
 							style={{
 								background: "rgba(0,0,0,0.5)",
@@ -257,20 +291,52 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								padding: "4px 10px",
 								fontSize: "11px",
 								whiteSpace: "nowrap",
+								display: "flex",
+								gap: "10px",
+								alignItems: "center",
 							}}
 						>
-							Press{" "}
-							<kbd
-								style={{
-									background: "rgba(255,255,255,0.2)",
-									borderRadius: "3px",
-									padding: "1px 5px",
-									fontFamily: "monospace",
-								}}
-							>
-								{shortcutLabel}
-							</kbd>{" "}
-							for goal pose
+							{posePublisherConfig.goalTopic && (
+								<span>
+									<kbd
+										style={{
+											background: "rgba(255,255,255,0.2)",
+											borderRadius: "3px",
+											padding: "1px 5px",
+											fontFamily: "monospace",
+										}}
+									>
+										{goalShortcutLabel}
+									</kbd>{" "}
+									goal pose
+								</span>
+							)}
+							{posePublisherConfig.goalTopic &&
+								posePublisherConfig.initialTopic && (
+									<span
+										style={{
+											opacity: 0.4,
+											fontSize: "10px",
+										}}
+									>
+										|
+									</span>
+								)}
+							{posePublisherConfig.initialTopic && (
+								<span>
+									<kbd
+										style={{
+											background: "rgba(255,255,255,0.2)",
+											borderRadius: "3px",
+											padding: "1px 5px",
+											fontFamily: "monospace",
+										}}
+									>
+										{initialShortcutLabel}
+									</kbd>{" "}
+									initial pose
+								</span>
+							)}
 						</div>
 					)}
 				</div>

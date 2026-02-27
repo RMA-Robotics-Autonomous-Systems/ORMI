@@ -23,10 +23,10 @@ export const PointCloudLayerRenderer: React.FC<
 		return null;
 	}
 
-	const topics = layer.topics ?? [];
+	const topic = layer.topic ?? null;
 
-	const sourceElements = topics.map((entry) => {
-		const topicInfo = entry.topic;
+	const sourceElements = () => {
+		const topicInfo = topic;
 		if (!topicInfo) return null;
 
 		const source = (sourcesData?.[
@@ -59,7 +59,7 @@ export const PointCloudLayerRenderer: React.FC<
 				frameTimeRef={frameTimeRef}
 			/>
 		);
-	});
+	};
 
-	return <>{sourceElements}</>;
+	return <>{sourceElements()}</>;
 };

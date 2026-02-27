@@ -1,15 +1,26 @@
 "use client";
 /**
- * Goal pose interaction overlay for the R3F Canvas.
+ * Unified goal-pose / initial-pose interaction overlay for the R3F Canvas.
  *
- * Renders an invisible ground plane that captures pointer events.
- * When goal-pose mode is active (toggled by a keyboard shortcut),
- * a click-drag-release gesture places a navigation goal:
+ * Manages two mutually-exclusive pose modes (goalPose, initialPose) with a
+ * single invisible ground-plane for raycasting and independent persistent
+ * markers for each mode.
  *
- *   1. Press the shortcut key (default "g") to enter goal-pose mode.
- *   2. Click anywhere on the ground plane to set the goal position.
+ * Mode transitions:
+ *   - Press G (goalPose shortcut)     → enter goal-pose mode
+ *                                       (blocked while initialPose is active)
+ *   - Press P (initialPose shortcut)  → enter initial-pose mode
+ *                                       (blocked while goalPose is active)
+ *   - Press the active shortcut again → return to idle
+ *   - After publishing an initial pose → automatically switch to goal-pose
+ *     mode (if goalPoseConfig is enabled + has a topic, otherwise go to idle)
+ *
+ * Workflow per mode:
+ *   1. Press the shortcut key to enter that mode.
+ *   2. Click anywhere on the ground plane to set the position.
  *   3. Drag to set the heading direction.
- *   4. Release to publish the goal and return to orbit mode.
+ *   4. Release to publish. Goal-pose stays active for another placement;
+ *      initial-pose auto-switches to goal-pose.
  *
  * Publishing uses pluginsManager directly (advertise once on mount,
  * publish on release, unadvertise on unmount) so no additional
@@ -28,16 +39,25 @@ import { ThreeEvent, useThree } from "@react-three/fiber";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { DigitalInput } from "@workspace/ui/combined/triggers";
 
-import { GoalPoseConfig } from "../types/scene-3d-types";
+import { PosePublisherConfig } from "../types/scene-3d-types";
 import { GoalPoseMarker } from "./goal-pose-marker";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Intermediate drag state while the user is placing a goal. */
+/** Active pose mode. */
+export type PoseMode = "idle" | "goalPose" | "initialPose";
+
+/** Intermediate drag state while the user is placing a pose. */
 interface DragState {
 	clickPos: THREE.Vector3;
+	yaw: number;
+}
+
+/** Confirmed pose for a persistent marker. */
+interface ConfirmedPose {
+	pos: THREE.Vector3;
 	yaw: number;
 }
 
@@ -47,79 +67,108 @@ interface DragState {
 
 /** Props for GoalPoseOverlay. */
 export interface GoalPoseOverlayProps {
-	config: GoalPoseConfig;
-	/** Called whenever goal-pose mode is toggled so the parent can render a DOM overlay. */
-	onActiveChange?: (active: boolean) => void;
+	/** Unified pose publisher configuration. */
+	config: PosePublisherConfig;
+	/** Called whenever the active mode changes. */
+	onModeChange?: (mode: PoseMode) => void;
 }
 
 /**
- * Goal pose overlay placed inside the R3F Canvas.
+ * Unified pose overlay placed inside the R3F Canvas.
  *
  * An invisible ground-plane mesh handles `onPointerDown / Move / Up`.
- * The component manages orbit-control availability and keyboard toggling.
+ * The component manages orbit-control availability and keyboard toggling for
+ * both goal-pose (G) and initial-pose (P) modes with mutual exclusion.
  */
 export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	config,
-	onActiveChange,
+	onModeChange,
 }) => {
 	const pm = usePluginsManager();
 	const { controls, gl } = useThree();
 
-	const shortcutInput: DigitalInput = config.keyboardShortcut ?? {
+	const goalShortcut: DigitalInput = config.goalShortcut ?? {
 		type: "keyboard",
 		key: "g",
 	};
+	const initialShortcut: DigitalInput = config.initialShortcut ?? {
+		type: "keyboard",
+		key: "p",
+	};
 
-	// Goal-pose mode is toggled by the keyboard shortcut
-	const [isActive, setIsActive] = useState(false);
+	const goalTopic = config.goalTopic;
+	const initialTopic = config.initialTopic;
+
+	// Active mode — only one can be active at a time
+	const [mode, setMode] = useState<PoseMode>("idle");
 
 	// Drag state while the user holds the mouse
 	const [drag, setDrag] = useState<DragState | null>(null);
 
-	// Last successfully published goal — shown as a persistent marker
-	const [confirmed, setConfirmed] = useState<{
-		pos: THREE.Vector3;
-		yaw: number;
-	} | null>(null);
+	// Persistent marker for last confirmed goal pose only
+	// (initial pose marker is intentionally not shown — it clutters the view)
+	const [confirmedGoal, setConfirmedGoal] = useState<ConfirmedPose | null>(
+		null,
+	);
 
-	// Track advertise promise so we only call it once
-	const advertisedRef = useRef(false);
+	const isActive = mode !== "idle";
+
+	// Derived: active topic for current mode
+	const activeTopic =
+		mode === "goalPose"
+			? goalTopic
+			: mode === "initialPose"
+				? initialTopic
+				: undefined;
 
 	// -----------------------------------------------------------------------
-	// Advertise on mount, unadvertise on unmount
+	// Advertise on mount, unadvertise on unmount — one ref per topic
 	// -----------------------------------------------------------------------
+	const advertisedGoalRef = useRef(false);
+	const advertisedInitialRef = useRef(false);
+
 	useEffect(() => {
-		if (!config.topic || advertisedRef.current) return;
-		advertisedRef.current = true;
-
+		if (!goalTopic || advertisedGoalRef.current) return;
+		advertisedGoalRef.current = true;
 		pm.applyFilterAsync(
-			`${config.topic.source.id}-advertise`,
-			config.topic,
-		).catch((err: unknown) => {
-			console.warn("[GoalPoseOverlay] advertise failed:", err);
-		});
-
+			`${goalTopic.source.id}-advertise`,
+			goalTopic,
+		).catch(() => {});
 		return () => {
-			if (config.topic) {
+			if (goalTopic) {
+				pm.doAction(`${goalTopic.source.id}-unadvertise`, goalTopic);
+			}
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [goalTopic?.source?.id, goalTopic?.topic]);
+
+	useEffect(() => {
+		if (!initialTopic || advertisedInitialRef.current) return;
+		advertisedInitialRef.current = true;
+		pm.applyFilterAsync(
+			`${initialTopic.source.id}-advertise`,
+			initialTopic,
+		).catch(() => {});
+		return () => {
+			if (initialTopic) {
 				pm.doAction(
-					`${config.topic.source.id}-unadvertise`,
-					config.topic,
+					`${initialTopic.source.id}-unadvertise`,
+					initialTopic,
 				);
 			}
 		};
-		// Re-run only if topic identity changes (source id or topic string)
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [config.topic?.source?.id, config.topic?.topic]);
+	}, [initialTopic?.source?.id, initialTopic?.topic]);
 
 	// -----------------------------------------------------------------------
-	// Notify parent whenever active state changes
+	// Notify parent whenever mode changes
 	// -----------------------------------------------------------------------
 	useEffect(() => {
-		onActiveChange?.(isActive);
-	}, [isActive, onActiveChange]);
+		onModeChange?.(mode);
+	}, [mode, onModeChange]);
 
 	// -----------------------------------------------------------------------
-	// Keyboard shortcut — toggle goal-pose mode
+	// Keyboard shortcuts — mutual exclusion between modes
 	// -----------------------------------------------------------------------
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -131,17 +180,51 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 			) {
 				return;
 			}
+
+			const key = e.key.toLowerCase();
+
+			// G: toggle goal-pose mode — blocked when initial-pose is active
 			if (
-				shortcutInput.type === "keyboard" &&
-				shortcutInput.key &&
-				e.key.toLowerCase() === shortcutInput.key.toLowerCase()
+				config.enabled &&
+				goalTopic &&
+				goalShortcut.type === "keyboard" &&
+				goalShortcut.key &&
+				key === goalShortcut.key.toLowerCase()
 			) {
-				setIsActive((prev) => !prev);
+				if (mode === "initialPose") return; // must disable P first
+				setMode((prev) => (prev === "goalPose" ? "idle" : "goalPose"));
+				setDrag(null);
+				return;
+			}
+
+			// P: toggle initial-pose mode — blocked when goal-pose is active
+			if (
+				config.enabled &&
+				initialTopic &&
+				initialShortcut.type === "keyboard" &&
+				initialShortcut.key &&
+				key === initialShortcut.key.toLowerCase()
+			) {
+				if (mode === "goalPose") return; // must disable G first
+				setMode((prev) =>
+					prev === "initialPose" ? "idle" : "initialPose",
+				);
+				setDrag(null);
+				return;
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [shortcutInput.type, shortcutInput.key]);
+	}, [
+		config.enabled,
+		goalTopic,
+		goalShortcut.type,
+		goalShortcut.key,
+		initialTopic,
+		initialShortcut.type,
+		initialShortcut.key,
+		mode,
+	]);
 
 	// -----------------------------------------------------------------------
 	// Enable / disable OrbitControls and update cursor
@@ -158,7 +241,7 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	}, [isActive, controls, gl.domElement]);
 
 	// -----------------------------------------------------------------------
-	// Plane materials (memoised to avoid per-frame allocations)
+	// Plane material (memoised to avoid per-frame allocations)
 	// -----------------------------------------------------------------------
 	const planeMaterial = useMemo(
 		() =>
@@ -199,7 +282,7 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 
 	const handlePointerUp = useCallback(
 		(e: ThreeEvent<PointerEvent>) => {
-			if (!isActive || !drag) return;
+			if (!isActive || !drag || !activeTopic) return;
 			e.stopPropagation();
 
 			const { clickPos, yaw } = drag;
@@ -215,32 +298,47 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 				yaw - Math.PI / 2,
 			);
 
-			// Publish canonical PoseStamped (THREE convention) with frameId
-			// extension the converter reads to populate header.frame_id
 			const poseData = {
 				position: { x: clickPos.x, y: clickPos.y, z: clickPos.z },
 				orientation: { x: quat.x, y: quat.y, z: quat.z, w: quat.w },
 				timestamp: Date.now() / 1000,
 				convention: "THREE" as const,
-				// frameId is read by the Pose toRos2 converter — not part of
-				// the canonical PoseStamped type but safe as an extension prop
 				frameId: config.frameId ?? "map",
 			};
 
-			if (config.topic) {
-				pm.doAction(
-					`${config.topic.source.id}-${config.topic.topic}-publish`,
-					config.topic,
-					poseData,
-					"Pose",
-				);
-				setConfirmed({ pos: clickPos.clone(), yaw });
+			const webType = mode === "initialPose" ? "InitialPose" : "Pose";
+
+			pm.doAction(
+				`${activeTopic.source.id}-${activeTopic.topic}-publish`,
+				activeTopic,
+				poseData,
+				webType,
+			);
+
+			if (mode === "initialPose") {
+				// Auto-switch to goal-pose mode after publishing initial pose
+				if (config.enabled && goalTopic) {
+					setMode("goalPose");
+				} else {
+					setMode("idle");
+				}
+			} else {
+				setConfirmedGoal({ pos: clickPos.clone(), yaw });
+				// Stay in goalPose mode so user can place another goal
 			}
 
-			// Clear drag; stay in active mode so user can place another goal
 			setDrag(null);
 		},
-		[isActive, drag, config.topic, config.frameId, pm],
+		[
+			isActive,
+			drag,
+			activeTopic,
+			mode,
+			config.enabled,
+			config.frameId,
+			goalTopic,
+			pm,
+		],
 	);
 
 	// -----------------------------------------------------------------------
@@ -249,19 +347,20 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	return (
 		<>
 			{/*
-			 * Large invisible horizontal plane (XZ) for raycasting.
-			 * Must stay visible=true so Three.js raycaster can hit it.
-			 * Pointer handlers are no-ops when goal mode is inactive.
+			 * Invisible horizontal plane (XZ) for raycasting — only mounted when
+			 * a mode is active so it never interferes with orbit controls.
 			 */}
-			<mesh
-				rotation={[-Math.PI / 2, 0, 0]}
-				material={planeMaterial}
-				onPointerDown={handlePointerDown}
-				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerUp}
-			>
-				<planeGeometry args={[10_000, 10_000]} />
-			</mesh>
+			{isActive && (
+				<mesh
+					rotation={[-Math.PI / 2, 0, 0]}
+					material={planeMaterial}
+					onPointerDown={handlePointerDown}
+					onPointerMove={handlePointerMove}
+					onPointerUp={handlePointerUp}
+				>
+					<planeGeometry args={[10_000, 10_000]} />
+				</mesh>
+			)}
 
 			{/* In-progress marker while the user is dragging */}
 			{isActive && drag && (
@@ -274,11 +373,11 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 				/>
 			)}
 
-			{/* Persistent marker at the last confirmed goal */}
-			{confirmed && (
+			{/* Persistent marker at the last confirmed goal pose only */}
+			{confirmedGoal && (
 				<GoalPoseMarker
-					position={confirmed.pos}
-					yaw={confirmed.yaw}
+					position={confirmedGoal.pos}
+					yaw={confirmedGoal.yaw}
 					color={config.markerColor ?? "#ff4400"}
 					size={config.markerSize ?? 0.5}
 					opacity={0.9}

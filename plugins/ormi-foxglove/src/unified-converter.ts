@@ -1103,6 +1103,88 @@ export class UnifiedConverter {
 				},
 			},
 		},
+		/**
+		 * Initial pose estimate — published to /initialpose as
+		 * geometry_msgs/msg/PoseWithCovarianceStamped (nav2 standard).
+		 * The covariance matrix is set to zeros (unknown) on publish;
+		 * users can configure it via the AMCL node itself.
+		 */
+		InitialPose: {
+			conversions: {
+				"geometry_msgs/msg/PoseWithCovarianceStamped": {
+					toRos2: (data: PoseStamped & { frameId?: string }) => {
+						const rosPosition = convertPosition(
+							data.position,
+							"THREE",
+							"ROS",
+						);
+						const rosOrientation = convertQuaternion(
+							data.orientation,
+							"THREE",
+							"ROS",
+						);
+						const sec = Math.floor(data.timestamp);
+						const nanosec = Math.floor(
+							(data.timestamp - sec) * 1e9,
+						);
+						return {
+							header: {
+								stamp: { sec, nanosec },
+								frame_id: data.frameId ?? "map",
+							},
+							pose: {
+								pose: {
+									position: {
+										x: rosPosition.x,
+										y: rosPosition.y,
+										z: rosPosition.z,
+									},
+									orientation: {
+										x: rosOrientation.x,
+										y: rosOrientation.y,
+										z: rosOrientation.z,
+										w: rosOrientation.w,
+									},
+								},
+								// Zero covariance — AMCL will estimate it
+								covariance: Array<number>(36).fill(0),
+							},
+						};
+					},
+					fromRos2: (data: any): PoseStamped => {
+						const timestamp = data.header?.stamp
+							? data.header.stamp.sec +
+								data.header.stamp.nanosec / 1e9
+							: Date.now() / 1000;
+						const rosPosition = {
+							x: data.pose?.pose?.position?.x || 0,
+							y: data.pose?.pose?.position?.y || 0,
+							z: data.pose?.pose?.position?.z || 0,
+						};
+						const rosOrientation = {
+							x: data.pose?.pose?.orientation?.x || 0,
+							y: data.pose?.pose?.orientation?.y || 0,
+							z: data.pose?.pose?.orientation?.z || 0,
+							w: data.pose?.pose?.orientation?.w || 1,
+						};
+						return {
+							position: convertPosition(
+								rosPosition,
+								"ROS",
+								"THREE",
+							),
+							orientation: convertQuaternion(
+								rosOrientation,
+								"ROS",
+								"THREE",
+							),
+							timestamp,
+							convention: "THREE",
+						};
+					},
+				},
+			},
+		},
 		Pose: {
 			conversions: {
 				"geometry_msgs/msg/PoseStamped": {

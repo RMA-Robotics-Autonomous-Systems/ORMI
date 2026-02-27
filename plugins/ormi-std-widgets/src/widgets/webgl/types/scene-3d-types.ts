@@ -70,19 +70,30 @@ export interface TransformTreeConfig {
 	showLabels?: boolean;
 }
 
-/** Goal pose publishing configuration for the 3D Scene widget. */
-export interface GoalPoseConfig {
-	/** Enable goal pose interaction. @default false */
+/**
+ * Unified pose publisher configuration.
+ *
+ * Drives both goal-pose mode (publishes `geometry_msgs/msg/PoseStamped`) and
+ * initial-pose mode (publishes `geometry_msgs/msg/PoseWithCovarianceStamped`).
+ * The two modes share a frame ID, a common marker appearance, and each have
+ * their own topic and keyboard shortcut.
+ */
+export interface PosePublisherConfig {
+	/** Enable pose publishing interactions. @default false */
 	enabled?: boolean;
-	/** Topic to publish the goal pose to. */
-	topic?: SelectedTopic;
-	/** TF frame to use in the published header. @default "map" */
+	/** Topic to publish the goal pose (PoseStamped). */
+	goalTopic?: SelectedTopic;
+	/** Topic to publish the initial pose estimate (PoseWithCovarianceStamped). */
+	initialTopic?: SelectedTopic;
+	/** TF frame used in all published headers. @default "map" */
 	frameId?: string;
-	/** Keyboard / gamepad input that toggles goal pose mode. */
-	keyboardShortcut?: DigitalInput;
-	/** Colour of the visual goal marker. @default "#ff4400" */
+	/** Keyboard / gamepad input that toggles goal-pose mode. */
+	goalShortcut?: DigitalInput;
+	/** Keyboard / gamepad input that toggles initial-pose mode. */
+	initialShortcut?: DigitalInput;
+	/** Colour of the visual marker. @default "#ff4400" */
 	markerColor?: string;
-	/** Scale of the visual goal marker in scene units. @default 0.5 */
+	/** Scale of the visual marker in scene units. @default 0.5 */
 	markerSize?: number;
 }
 
@@ -93,8 +104,8 @@ export interface Scene3DProps extends Record<string, unknown> {
 	pathLayers?: PathLayerConfig[];
 	mapGridLayers?: MapGridLayerConfig[];
 	transformTree?: TransformTreeConfig;
-	/** Goal pose publishing configuration. */
-	goalPoseConfig?: GoalPoseConfig;
+	/** Unified pose publisher configuration (goal pose + initial pose estimate). */
+	posePublisherConfig?: PosePublisherConfig;
 	targetFrame?: string;
 	showGrid?: boolean;
 	showAxes?: boolean;
