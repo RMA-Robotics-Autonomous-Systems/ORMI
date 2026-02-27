@@ -114,3 +114,42 @@ export type Path = {
 	/** Coordinate convention the path is expressed in */
 	convention?: CoordinateConvention;
 };
+
+/**
+ * Map / occupancy grid payload.
+ *
+ * Unified representation for `nav_msgs/msg/OccupancyGrid` and `nav2_msgs/msg/Costmap`.
+ * The origin pose points to cell (0,0), which is the bottom-left corner of the grid
+ * (row-major storage, rows along Y, columns along X).
+ *
+ * Cell value encoding (canonical):
+ * - 0   = free space
+ * - 1–253 = cost gradient (1 = low cost, 253 = near-lethal)
+ * - 254 = lethal / fully occupied / maximum cost
+ * - 255 = unknown / no information
+ */
+export type MapGrid = {
+	/** Number of columns (cells along the grid's local +X axis). */
+	width: number;
+	/** Number of rows (cells along the grid's local +Y axis). */
+	height: number;
+	/** Physical size of one cell in metres. */
+	resolution: number;
+	/**
+	 * Pose of cell (0,0) — the bottom-left corner — expressed in `frameId`.
+	 * The orientation describes the grid's own axes relative to the source frame.
+	 */
+	origin: Pose;
+	/**
+	 * Flat, row-major cell values: row 0 is the bottom row (Y=0),
+	 * within each row columns run in the +X direction.
+	 * Values are encoded as described in the type-level documentation.
+	 */
+	data: Uint8Array;
+	/** Coordinate frame identifier from the source message header (e.g. `"map"`). */
+	frameId: string;
+	/** Message timestamp in seconds. */
+	timestamp: number;
+	/** Coordinate convention of the origin pose. Defaults to `"ROS"`. */
+	convention?: CoordinateConvention;
+};
