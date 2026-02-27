@@ -1,4 +1,5 @@
 import { SelectedTopic } from "@workspace/ormi-core/datasources";
+import { DigitalInput } from "@workspace/ui/combined/triggers";
 
 // Theme options for point cloud visualization
 export type PointCloudTheme =
@@ -69,6 +70,22 @@ export interface TransformTreeConfig {
 	showLabels?: boolean;
 }
 
+/** Goal pose publishing configuration for the 3D Scene widget. */
+export interface GoalPoseConfig {
+	/** Enable goal pose interaction. @default false */
+	enabled?: boolean;
+	/** Topic to publish the goal pose to. */
+	topic?: SelectedTopic;
+	/** TF frame to use in the published header. @default "map" */
+	frameId?: string;
+	/** Keyboard / gamepad input that toggles goal pose mode. */
+	keyboardShortcut?: DigitalInput;
+	/** Colour of the visual goal marker. @default "#ff4400" */
+	markerColor?: string;
+	/** Scale of the visual goal marker in scene units. @default 0.5 */
+	markerSize?: number;
+}
+
 // Main props for the 3D Scene widget
 export interface Scene3DProps extends Record<string, unknown> {
 	title: string;
@@ -76,6 +93,8 @@ export interface Scene3DProps extends Record<string, unknown> {
 	pathLayers?: PathLayerConfig[];
 	mapGridLayers?: MapGridLayerConfig[];
 	transformTree?: TransformTreeConfig;
+	/** Goal pose publishing configuration. */
+	goalPoseConfig?: GoalPoseConfig;
 	targetFrame?: string;
 	showGrid?: boolean;
 	showAxes?: boolean;

@@ -40,14 +40,14 @@ export class UnifiedConverter {
 		null;
 
 	private static getConverters(): { [webType: string]: ConverterEntry } {
-		if (this.pluginManager) {
-			return (
-				this.pluginManager.applyFilter<
-					typeof UnifiedConverter.converters
-				>("ros2-converters", UnifiedConverter.converters) ||
-				UnifiedConverter.converters
-			);
-		}
+		// if (this.pluginManager) {
+		// 	return (
+		// 		this.pluginManager.applyFilter<
+		// 			typeof UnifiedConverter.converters
+		// 		>("ros2-converters", UnifiedConverter.converters) ||
+		// 		UnifiedConverter.converters
+		// 	);
+		// }
 
 		return this.externalConverters ?? UnifiedConverter.converters;
 	}
@@ -877,9 +877,6 @@ export class UnifiedConverter {
 								imageData.data[dstIndex + 3] = 255;
 							}
 						} else {
-							console.warn(
-								`Unknown image encoding: ${data.encoding}, attempting raw copy`,
-							);
 							imageData.data.set(
 								rawData.subarray(0, imageData.data.length),
 							);
@@ -1099,6 +1096,84 @@ export class UnifiedConverter {
 							},
 							data: canonical,
 							frameId: data.header?.frame_id ?? "map",
+							timestamp,
+							convention: "THREE",
+						};
+					},
+				},
+			},
+		},
+		Pose: {
+			conversions: {
+				"geometry_msgs/msg/PoseStamped": {
+					toRos2: (data: PoseStamped & { frameId?: string }) => {
+						const rosPosition = convertPosition(
+							data.position,
+							"THREE",
+							"ROS",
+						);
+						const rosOrientation = convertQuaternion(
+							data.orientation,
+							"THREE",
+							"ROS",
+						);
+
+						const sec = Math.floor(data.timestamp);
+						const nanosec = Math.floor(
+							(data.timestamp - sec) * 1e9,
+						);
+						return {
+							header: {
+								stamp: { sec, nanosec },
+								frame_id: data.frameId ?? "map",
+							},
+							pose: {
+								position: {
+									x: rosPosition.x,
+									y: rosPosition.y,
+									z: rosPosition.z,
+								},
+								orientation: {
+									x: rosOrientation.x,
+									y: rosOrientation.y,
+									z: rosOrientation.z,
+									w: rosOrientation.w,
+								},
+							},
+						};
+					},
+					fromRos2: (data: any): PoseStamped => {
+						const timestamp = data.header?.stamp
+							? data.header.stamp.sec +
+								data.header.stamp.nanosec / 1e9
+							: Date.now() / 1000;
+
+						const rosPosition = {
+							x: data.pose?.position?.x || 0,
+							y: data.pose?.position?.y || 0,
+							z: data.pose?.position?.z || 0,
+						};
+						const rosOrientation = {
+							x: data.pose?.orientation?.x || 0,
+							y: data.pose?.orientation?.y || 0,
+							z: data.pose?.orientation?.z || 0,
+							w: data.pose?.orientation?.w || 1,
+						};
+
+						const position = convertPosition(
+							rosPosition,
+							"ROS",
+							"THREE",
+						);
+						const orientation = convertQuaternion(
+							rosOrientation,
+							"ROS",
+							"THREE",
+						);
+
+						return {
+							position,
+							orientation,
 							timestamp,
 							convention: "THREE",
 						};

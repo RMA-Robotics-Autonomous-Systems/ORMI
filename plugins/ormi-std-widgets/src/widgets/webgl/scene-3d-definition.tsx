@@ -6,7 +6,9 @@ import {
 import {
 	WidgetDefinition,
 	FrameSelectElement,
+	TopicSelectElement,
 } from "@workspace/ormi-core/widgets";
+import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { Box as Box3DIcon } from "lucide-react";
 import { Scene3DComp } from "./components/scene-3d-comp";
 import { Scene3DProps } from "./types/scene-3d-types";
@@ -219,6 +221,43 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						},
 					},
 				},
+				// Goal Pose Publishing
+				goalPoseConfig: {
+					type: "object",
+					title: "Goal Pose",
+					properties: {
+						enabled: {
+							type: "boolean",
+							title: "Enable Goal Pose",
+							default: false,
+						},
+						topic: {
+							type: "object",
+							title: "Publish Topic",
+						},
+						frameId: {
+							type: "string",
+							title: "Frame ID",
+							default: "map",
+						},
+						keyboardShortcut: {
+							type: "object",
+							title: "Keyboard Shortcut",
+						},
+						markerColor: {
+							type: "string",
+							title: "Marker Color",
+							default: "#ff4400",
+						},
+						markerSize: {
+							type: "number",
+							title: "Marker Size",
+							minimum: 0.1,
+							maximum: 5.0,
+							default: 0.5,
+						},
+					},
+				},
 			},
 			required: ["title"],
 		},
@@ -413,6 +452,46 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						} as ControlElement,
 					],
 				} as Category,
+				// Tab 4: Goal Pose
+				{
+					type: "Category",
+					label: "Goal Pose",
+					elements: [
+						{
+							type: "Control",
+							scope: "#/properties/goalPoseConfig/properties/enabled",
+						} as ControlElement,
+						{
+							type: "TopicSelect",
+							scope: "#/properties/goalPoseConfig/properties/topic",
+							options: {
+								dataRequirements: {
+									accepts: ["Pose"],
+								},
+							},
+						} as TopicSelectElement,
+						{
+							type: "FrameSelect",
+							scope: "#/properties/goalPoseConfig/properties/frameId",
+							options: {
+								placeholder: "map",
+							},
+						} as FrameSelectElement,
+						{
+							type: "Key",
+							scope: "#/properties/goalPoseConfig/properties/keyboardShortcut",
+						} as KeyControlType,
+						{
+							type: "Control",
+							scope: "#/properties/goalPoseConfig/properties/markerColor",
+							options: { color: true },
+						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/goalPoseConfig/properties/markerSize",
+						} as ControlElement,
+					],
+				} as Category,
 			],
 		} as Categorization,
 		data: {
@@ -430,6 +509,13 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 				colorScheme: "depth",
 				uniformColor: "#00ff88",
 				showLabels: true,
+			},
+			goalPoseConfig: {
+				enabled: false,
+				frameId: "map",
+				keyboardShortcut: { type: "keyboard", key: "g" },
+				markerColor: "#ff4400",
+				markerSize: 0.1,
 			},
 		},
 		Component: (data: Scene3DProps) => {

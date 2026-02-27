@@ -117,14 +117,6 @@ function createRGBATexture(
 	opacity: number,
 	showUnknown: boolean,
 ): Uint8ClampedArray {
-	console.log(
-		"createRGBATexture: data length =",
-		data.length,
-		"width =",
-		width,
-		"height =",
-		height,
-	);
 	const rgba = new Uint8ClampedArray(data.length * 4);
 
 	// Rotate 90 degrees clockwise
@@ -327,25 +319,12 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 			new THREE.Vector3(1, 1, 1),
 		);
 
-		console.log("[MapGridRenderer] Applying transforms:", {
-			refFrame,
-			targetFrame,
-			transformChain,
-			mapOriginMatrix,
-		});
-
 		const finalMatrix = new THREE.Matrix4()
 			.copy(frameToTarget)
 			.multiply(mapOriginMatrix);
 
 		meshRef.current.matrix.copy(finalMatrix);
 		meshRef.current.matrixAutoUpdate = false;
-
-		console.log("[MapGridRenderer] Grid displayed:", {
-			refFrame,
-			targetFrame,
-			size: { width: width * resolution, height: height * resolution },
-		});
 
 		invalidate();
 	}, [

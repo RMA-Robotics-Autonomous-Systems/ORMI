@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
@@ -13,7 +13,9 @@ import {
 	PointCloudLayerConfig,
 	PathLayerConfig,
 	MapGridLayerConfig,
+	GoalPoseConfig,
 } from "../types/scene-3d-types";
+import { GoalPoseOverlay } from "./goal-pose-overlay";
 import { MapGridRenderer } from "./map-grid-renderer";
 import { TransformTreeRenderer } from "./transform-tree-renderer";
 import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
@@ -123,6 +125,19 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const pathLayers = props.pathLayers ?? [];
 	const mapGridLayers = props.mapGridLayers ?? [];
 	const transformTree = props.transformTree ?? { enabled: false };
+	const goalPoseConfig = props.goalPoseConfig as GoalPoseConfig | undefined;
+
+	const [isGoalPoseActive, setIsGoalPoseActive] = useState(false);
+	const handleGoalPoseActiveChange = useCallback(
+		(active: boolean) => setIsGoalPoseActive(active),
+		[],
+	);
+	const shortcutLabel = (
+		goalPoseConfig?.keyboardShortcut?.key ??
+		(goalPoseConfig?.keyboardShortcut?.gamepadButton !== undefined
+			? `Btn ${goalPoseConfig.keyboardShortcut.gamepadButtonIndex}`
+			: "G")
+	).toUpperCase();
 
 	// Check if any point cloud layer has rolling buffer with decay
 	const enableContinuousRender = pointCloudLayers.some(
@@ -132,7 +147,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const axesHelper = useMemo(() => new THREE.AxesHelper(5), []);
 
 	return (
-		<div style={{ width: "100%", height: "100%" }}>
+		<div style={{ width: "100%", height: "100%", position: "relative" }}>
 			<Canvas frameloop={enableContinuousRender ? "always" : "demand"}>
 				<PerspectiveCamera makeDefault position={[5, 5, 5]} />
 				<ambientLight intensity={1} />
@@ -196,7 +211,70 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 						targetFrame={targetFrame}
 					/>
 				)}
+
+				{/* Goal pose interaction overlay (R3F plane + 3D markers) */}
+				{goalPoseConfig?.enabled && goalPoseConfig.topic && (
+					<GoalPoseOverlay
+						config={goalPoseConfig}
+						onActiveChange={handleGoalPoseActiveChange}
+					/>
+				)}
 			</Canvas>
+
+			{/* DOM overlay — always visible when goal pose is configured */}
+			{goalPoseConfig?.enabled && goalPoseConfig.topic && (
+				<div
+					style={{
+						position: "absolute",
+						bottom: "12px",
+						left: "50%",
+						transform: "translateX(-50%)",
+						pointerEvents: "none",
+						zIndex: 10,
+					}}
+				>
+					{isGoalPoseActive ? (
+						<div
+							style={{
+								background: "rgba(255, 68, 0, 0.9)",
+								color: "#fff",
+								borderRadius: "8px",
+								padding: "8px 16px",
+								fontSize: "13px",
+								fontWeight: 600,
+								whiteSpace: "nowrap",
+								boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+							}}
+						>
+							click to place, drag to set heading
+						</div>
+					) : (
+						<div
+							style={{
+								background: "rgba(0,0,0,0.5)",
+								color: "#fff",
+								borderRadius: "6px",
+								padding: "4px 10px",
+								fontSize: "11px",
+								whiteSpace: "nowrap",
+							}}
+						>
+							Press{" "}
+							<kbd
+								style={{
+									background: "rgba(255,255,255,0.2)",
+									borderRadius: "3px",
+									padding: "1px 5px",
+									fontFamily: "monospace",
+								}}
+							>
+								{shortcutLabel}
+							</kbd>{" "}
+							for goal pose
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };
