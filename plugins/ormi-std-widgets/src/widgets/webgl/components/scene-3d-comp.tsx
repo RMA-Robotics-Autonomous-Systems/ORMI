@@ -8,6 +8,7 @@ import {
 	GizmoHelper,
 	GizmoViewport,
 } from "@react-three/drei";
+import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
 	Scene3DProps,
 	PointCloudLayerConfig,
@@ -17,7 +18,7 @@ import {
 } from "../types/scene-3d-types";
 import { GoalPoseOverlay, PoseMode } from "./goal-pose-overlay";
 import { MapGridRenderer } from "./map-grid-renderer";
-import { TransformTreeRenderer } from "./transform-tree-renderer";
+import { TransformTreeFollowLayer } from "./transform-tree-follow-layer";
 import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
@@ -130,6 +131,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 		| undefined;
 
 	const [poseMode, setPoseMode] = useState<PoseMode>("idle");
+	const controlsRef = useRef<OrbitControlsImpl | null>(null);
 	const handlePoseModeChange = useCallback(
 		(m: PoseMode) => setPoseMode(m),
 		[],
@@ -170,7 +172,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					/>
 				</GizmoHelper>
 
-				<OrbitControls makeDefault />
+				<OrbitControls ref={controlsRef} makeDefault />
 				{showGrid && (
 					<Grid
 						cellSize={1}
@@ -215,7 +217,8 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 
 				{/* Render Transform Tree */}
 				{transformTree.enabled && (
-					<TransformTreeRenderer
+					<TransformTreeFollowLayer
+						controlsRef={controlsRef}
 						config={transformTree}
 						targetFrame={targetFrame}
 					/>

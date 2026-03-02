@@ -13,9 +13,10 @@
  * frames in the robot/scene.
  */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { Text } from "@react-three/drei";
+import { Billboard, Text } from "@react-three/drei";
+import { ThreeEvent } from "@react-three/fiber";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 import {
 	TransformTree,
@@ -49,6 +50,15 @@ interface TransformTreeRendererProps {
 	config?: TransformTreeRendererConfig;
 	/** Only visualize frames within this tree (empty = show all). */
 	targetFrame?: string;
+	/** Called when a node is clicked to trigger camera follow. */
+	onNodeClick?: (nodeId: string, worldPos: THREE.Vector3) => void;
+	/** Currently tracked node id for follow mode. */
+	trackedNodeId?: string | null;
+	/** Called when tracked node world position changes. */
+	onTrackedNodePositionChange?: (
+		nodeId: string,
+		worldPos: THREE.Vector3,
+	) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +155,70 @@ const collectFrameNodes = (
 	return nodes;
 };
 
+interface FrameLabelProps {
+	nodeId: string;
+	position: [number, number, number];
+	fontSize: number;
+	color: THREE.Color;
+	isHovered: boolean;
+	sphereRadius: number;
+}
+
+const FrameLabel: React.FC<FrameLabelProps> = ({
+	nodeId,
+	position,
+	fontSize,
+	color,
+	isHovered,
+	sphereRadius,
+}) => {
+	const textRef = useRef<THREE.Object3D | null>(null);
+
+	useEffect(() => {
+		const textObject = textRef.current as unknown as {
+			material?: THREE.Material | THREE.Material[];
+			renderOrder: number;
+		};
+		if (!textObject) return;
+
+		textObject.renderOrder = isHovered ? 1000 : 0;
+
+		const materials = textObject.material
+			? Array.isArray(textObject.material)
+				? textObject.material
+				: [textObject.material]
+			: [];
+
+		materials.forEach((material) => {
+			material.depthTest = !isHovered;
+			material.depthWrite = !isHovered;
+			material.needsUpdate = true;
+		});
+	}, [isHovered]);
+
+	return (
+		<Billboard
+			position={position}
+			follow
+			renderOrder={isHovered ? 1000 : 0}
+		>
+			<Text
+				ref={textRef}
+				fontSize={fontSize}
+				color={color}
+				anchorX="center"
+				anchorY="bottom"
+				outlineWidth={sphereRadius * 0.01}
+				outlineColor="black"
+				renderOrder={isHovered ? 1000 : 0}
+				depthOffset={isHovered ? -2 : 0}
+			>
+				{nodeId}
+			</Text>
+		</Billboard>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -152,8 +226,13 @@ const collectFrameNodes = (
 export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	config = {},
 	targetFrame = "",
+	onNodeClick,
+	trackedNodeId = null,
+	onTrackedNodePositionChange,
 }) => {
 	const { transformsTrees } = useTransformSource();
+	const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+	const [hoverColor, setHoverColor] = useState<string>("#ffcc00");
 
 	const {
 		enabled = true,
@@ -165,7 +244,7 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	} = config;
 
 	// Collect all frame nodes from all transform trees
-	const frameNodes = useMemo(() => {
+	const frameNodes = useMemo<FrameNode[]>(() => {
 		if (!enabled || transformsTrees.size === 0) return [];
 
 		const allNodes: FrameNode[] = [];
@@ -196,6 +275,80 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 		[cylinderRadius],
 	);
 
+	const trackedNode = useMemo(() => {
+		if (!trackedNodeId) return null;
+		return frameNodes.find((node) => node.id === trackedNodeId) ?? null;
+	}, [frameNodes, trackedNodeId]);
+
+	useEffect(() => {
+		if (!trackedNode || !onTrackedNodePositionChange) return;
+		onTrackedNodePositionChange(
+			trackedNode.id,
+			trackedNode.worldPos.clone(),
+		);
+	}, [trackedNode, onTrackedNodePositionChange]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		const resolveCssColor = (value: string): string | null => {
+			const canvas = document.createElement("canvas");
+			canvas.width = 1;
+			canvas.height = 1;
+
+			const ctx = canvas.getContext("2d", {
+				willReadFrequently: true,
+			});
+			if (!ctx) return null;
+
+			ctx.clearRect(0, 0, 1, 1);
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, 1, 1);
+
+			try {
+				ctx.fillStyle = value;
+			} catch {
+				return null;
+			}
+
+			ctx.fillRect(0, 0, 1, 1);
+			const pixel = ctx.getImageData(0, 0, 1, 1).data;
+			const [r, g, b, a] = pixel;
+			if (a === 0) return null;
+			return `rgb(${r}, ${g}, ${b})`;
+		};
+
+		const updateHoverColor = () => {
+			const primaryToken = getComputedStyle(
+				document.documentElement,
+			).getPropertyValue("--primary");
+			const normalizedPrimary = primaryToken.trim();
+			if (normalizedPrimary) {
+				const resolvedPrimaryColor =
+					resolveCssColor("var(--primary)") ??
+					resolveCssColor(normalizedPrimary);
+				if (resolvedPrimaryColor) {
+					setHoverColor(resolvedPrimaryColor);
+					return;
+				}
+			}
+			setHoverColor("#ffcc00");
+		};
+
+		updateHoverColor();
+
+		const observer = new MutationObserver(() => {
+			updateHoverColor();
+		});
+
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["class", "style", "data-theme"],
+		});
+
+		return () => observer.disconnect();
+	}, []);
+
 	if (!enabled || frameNodes.length === 0) {
 		return null;
 	}
@@ -203,6 +356,7 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	return (
 		<group>
 			{frameNodes.map((node, index) => {
+				const isHovered = hoveredNodeId === node.id;
 				// Determine color
 				let color: THREE.Color;
 				if (colorScheme === "uniform") {
@@ -214,33 +368,51 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 					color = getDepthColor(node.depth);
 				}
 
+				if (isHovered) {
+					color = new THREE.Color(hoverColor);
+				}
+
 				return (
 					<React.Fragment key={node.id}>
 						{/* Sphere at frame origin */}
 						<mesh
 							geometry={sphereGeometry}
 							position={node.worldPos}
+							scale={isHovered ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+							onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+								e.stopPropagation();
+								setHoveredNodeId(node.id);
+							}}
+							onPointerOut={(e: ThreeEvent<PointerEvent>) => {
+								e.stopPropagation();
+								setHoveredNodeId((prev) =>
+									prev === node.id ? null : prev,
+								);
+							}}
+							onClick={(e: ThreeEvent<MouseEvent>) => {
+								e.stopPropagation();
+								onNodeClick?.(node.id, node.worldPos.clone());
+							}}
 						>
 							<meshStandardMaterial color={color} />
 						</mesh>
 
 						{/* Frame label */}
 						{showLabels && (
-							<Text
+							<FrameLabel
+								nodeId={node.id}
 								position={[
 									node.worldPos.x,
 									node.worldPos.y + sphereRadius * 2.5,
 									node.worldPos.z,
 								]}
-								fontSize={sphereRadius * 0.6}
+								fontSize={
+									sphereRadius * (isHovered ? 0.9 : 0.6)
+								}
 								color={color}
-								anchorX="center"
-								anchorY="bottom"
-								outlineWidth={sphereRadius * 0.01}
-								outlineColor="black"
-							>
-								{node.id}
-							</Text>
+								isHovered={isHovered}
+								sphereRadius={sphereRadius}
+							/>
 						)}
 
 						{/* Cylinder connecting to parent (if not root) */}
