@@ -84,6 +84,133 @@ const getRainbowColor = (index: number, total: number): THREE.Color => {
 	return new THREE.Color().setHSL(hue, 0.8, 0.6);
 };
 
+const multiplyMatrix3x3ByVector3 = (
+	matrix: [
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+		number,
+	],
+	vector: [number, number, number],
+): [number, number, number] => {
+	const [x, y, z] = vector;
+	return [
+		matrix[0] * x + matrix[1] * y + matrix[2] * z,
+		matrix[3] * x + matrix[4] * y + matrix[5] * z,
+		matrix[6] * x + matrix[7] * y + matrix[8] * z,
+	];
+};
+
+const parseOklch = (
+	value: string,
+): { l: number; c: number; h: number } | null => {
+	const match = value
+		.trim()
+		.match(
+			/^oklch\(\s*([+-]?\d*\.?\d+%?)\s+([+-]?\d*\.?\d+%?)\s+([+-]?\d*\.?\d+)(deg|rad|turn|grad)?(?:\s*\/\s*[+-]?\d*\.?\d+%?)?\s*\)$/i,
+		);
+	if (!match) return null;
+
+	const [, lRaw, cRaw, hRaw, hUnit] = match;
+	if (!lRaw || !cRaw || !hRaw) return null;
+
+	const parseComponent = (component: string) => {
+		const isPercent = component.endsWith("%");
+		const numeric = Number.parseFloat(component);
+		if (!Number.isFinite(numeric)) return NaN;
+		return isPercent ? numeric / 100 : numeric;
+	};
+
+	const l = parseComponent(lRaw);
+	const c = parseComponent(cRaw);
+	const hNumeric = Number.parseFloat(hRaw);
+	if (
+		!Number.isFinite(l) ||
+		!Number.isFinite(c) ||
+		!Number.isFinite(hNumeric)
+	) {
+		return null;
+	}
+
+	let h = hNumeric;
+	if (hUnit === "turn") h = hNumeric * 360;
+	if (hUnit === "rad") h = (hNumeric * 180) / Math.PI;
+	if (hUnit === "grad") h = hNumeric * 0.9;
+
+	return {
+		l: l > 1 ? l / 100 : l,
+		c,
+		h,
+	};
+};
+
+const oklchToRgbString = (value: string): string | null => {
+	const parsed = parseOklch(value);
+	if (!parsed) return null;
+
+	const hRad = (parsed.h * Math.PI) / 180;
+	const oklab: [number, number, number] = [
+		parsed.l,
+		Number.isNaN(parsed.h) ? 0 : parsed.c * Math.cos(hRad),
+		Number.isNaN(parsed.h) ? 0 : parsed.c * Math.sin(hRad),
+	];
+
+	const lmsPrime = multiplyMatrix3x3ByVector3(
+		[
+			1, 0.3963377773761749, 0.2158037573099136, 1, -0.1055613458156586,
+			-0.0638541728258133, 1, -0.0894841775298119, -1.2914855480194092,
+		],
+		oklab,
+	);
+
+	const lms: [number, number, number] = [
+		lmsPrime[0] ** 3,
+		lmsPrime[1] ** 3,
+		lmsPrime[2] ** 3,
+	];
+
+	const xyz = multiplyMatrix3x3ByVector3(
+		[
+			1.2268798758459243, -0.5578149944602171, 0.2813910456659647,
+			-0.0405757452148008, 1.112286803280317, -0.0717110580655164,
+			-0.0763729366746601, -0.4214933324022432, 1.5869240198367816,
+		],
+		lms,
+	);
+
+	const linearRgb = multiplyMatrix3x3ByVector3(
+		[
+			3.2409699419045226, -1.537383177570094, -0.4986107602930034,
+			-0.9692436362808796, 1.8759675015077202, 0.04155505740717559,
+			0.05563007969699366, -0.20397695888897652, 1.0569715142428786,
+		],
+		xyz,
+	);
+
+	const toGammaSrgb = (channel: number): number => {
+		if (Math.abs(channel) <= 0.0031308) {
+			return 12.92 * channel;
+		}
+		const sign = channel < 0 ? -1 : 1;
+		return sign * (1.055 * Math.abs(channel) ** (1 / 2.4) - 0.055);
+	};
+
+	const clamp01 = (valueToClamp: number) =>
+		Math.max(0, Math.min(1, valueToClamp));
+
+	const [rLinear, gLinear, bLinear] = linearRgb;
+	const r = Math.round(clamp01(toGammaSrgb(rLinear)) * 255);
+	const g = Math.round(clamp01(toGammaSrgb(gLinear)) * 255);
+	const b = Math.round(clamp01(toGammaSrgb(bLinear)) * 255);
+
+	return `rgb(${r}, ${g}, ${b})`;
+};
+
 /**
  * Convert a TransformTree node's transform into a THREE.js transformation matrix.
  */
@@ -291,33 +418,6 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	useEffect(() => {
 		if (typeof window === "undefined") return;
 
-		const resolveCssColor = (value: string): string | null => {
-			const canvas = document.createElement("canvas");
-			canvas.width = 1;
-			canvas.height = 1;
-
-			const ctx = canvas.getContext("2d", {
-				willReadFrequently: true,
-			});
-			if (!ctx) return null;
-
-			ctx.clearRect(0, 0, 1, 1);
-			ctx.fillStyle = "#000";
-			ctx.fillRect(0, 0, 1, 1);
-
-			try {
-				ctx.fillStyle = value;
-			} catch {
-				return null;
-			}
-
-			ctx.fillRect(0, 0, 1, 1);
-			const pixel = ctx.getImageData(0, 0, 1, 1).data;
-			const [r, g, b, a] = pixel;
-			if (a === 0) return null;
-			return `rgb(${r}, ${g}, ${b})`;
-		};
-
 		const updateHoverColor = () => {
 			const primaryToken = getComputedStyle(
 				document.documentElement,
@@ -325,8 +425,7 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 			const normalizedPrimary = primaryToken.trim();
 			if (normalizedPrimary) {
 				const resolvedPrimaryColor =
-					resolveCssColor("var(--primary)") ??
-					resolveCssColor(normalizedPrimary);
+					oklchToRgbString(normalizedPrimary);
 				if (resolvedPrimaryColor) {
 					setHoverColor(resolvedPrimaryColor);
 					return;
