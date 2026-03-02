@@ -133,7 +133,8 @@ export const PathLineRenderer = ({
 
 	useEffect(() => {
 		const clearLine = () => {
-			geometry.setPositions([]);
+			geometry.setPositions([0, 0, 0, 0, 0, 0]);
+			geometry.setDrawRange(0, 0);
 			geometry.computeBoundingSphere();
 			linePositionsRef.current = null;
 		};
