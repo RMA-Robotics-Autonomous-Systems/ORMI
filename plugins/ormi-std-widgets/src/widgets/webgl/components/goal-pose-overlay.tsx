@@ -37,7 +37,10 @@ import React, {
 import * as THREE from "three";
 import { ThreeEvent, useThree } from "@react-three/fiber";
 import { usePluginsManager } from "@workspace/ormi-plugins";
-import { DigitalInput } from "@workspace/ui/combined/triggers";
+import {
+	DigitalInput,
+	useDigitalTrigger,
+} from "@workspace/ui/combined/triggers";
 
 import { PosePublisherConfig } from "../types/scene-3d-types";
 import { GoalPoseMarker } from "./goal-pose-marker";
@@ -126,6 +129,8 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	// -----------------------------------------------------------------------
 	const advertisedGoalRef = useRef(false);
 	const advertisedInitialRef = useRef(false);
+	const goalInputArmedRef = useRef(true);
+	const initialInputArmedRef = useRef(true);
 
 	useEffect(() => {
 		if (!goalTopic || advertisedGoalRef.current) return;
@@ -167,64 +172,61 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 		onModeChange?.(mode);
 	}, [mode, onModeChange]);
 
-	// -----------------------------------------------------------------------
-	// Keyboard shortcuts — mutual exclusion between modes
-	// -----------------------------------------------------------------------
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			// Ignore shortcuts when typing in an input
-			if (
-				e.target instanceof HTMLInputElement ||
-				e.target instanceof HTMLTextAreaElement ||
-				(e.target as HTMLElement).isContentEditable
-			) {
-				return;
-			}
+	const isTypingInEditableElement = useCallback(() => {
+		const activeEl = document.activeElement;
+		if (!activeEl) return false;
+		if (activeEl instanceof HTMLInputElement) return true;
+		if (activeEl instanceof HTMLTextAreaElement) return true;
+		return activeEl instanceof HTMLElement && activeEl.isContentEditable;
+	}, []);
 
-			const key = e.key.toLowerCase();
+	const handleGoalInputActive = useCallback(() => {
+		if (!goalInputArmedRef.current) return;
+		goalInputArmedRef.current = false;
 
-			// G: toggle goal-pose mode — blocked when initial-pose is active
-			if (
-				config.enabled &&
-				goalTopic &&
-				goalShortcut.type === "keyboard" &&
-				goalShortcut.key &&
-				key === goalShortcut.key.toLowerCase()
-			) {
-				if (mode === "initialPose") return; // must disable P first
-				setMode((prev) => (prev === "goalPose" ? "idle" : "goalPose"));
-				setDrag(null);
-				return;
-			}
+		if (isTypingInEditableElement()) return;
+		if (!config.enabled || !goalTopic) return;
+		if (mode === "initialPose") return;
 
-			// P: toggle initial-pose mode — blocked when goal-pose is active
-			if (
-				config.enabled &&
-				initialTopic &&
-				initialShortcut.type === "keyboard" &&
-				initialShortcut.key &&
-				key === initialShortcut.key.toLowerCase()
-			) {
-				if (mode === "goalPose") return; // must disable G first
-				setMode((prev) =>
-					prev === "initialPose" ? "idle" : "initialPose",
-				);
-				setDrag(null);
-				return;
-			}
-		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [
-		config.enabled,
-		goalTopic,
-		goalShortcut.type,
-		goalShortcut.key,
-		initialTopic,
-		initialShortcut.type,
-		initialShortcut.key,
-		mode,
-	]);
+		setMode((prev) => (prev === "goalPose" ? "idle" : "goalPose"));
+		setDrag(null);
+	}, [config.enabled, goalTopic, mode, isTypingInEditableElement]);
+
+	const handleGoalInputInactive = useCallback(() => {
+		goalInputArmedRef.current = true;
+	}, []);
+
+	const handleInitialInputActive = useCallback(() => {
+		if (!initialInputArmedRef.current) return;
+		initialInputArmedRef.current = false;
+
+		if (isTypingInEditableElement()) return;
+		if (!config.enabled || !initialTopic) return;
+		if (mode === "goalPose") return;
+
+		setMode((prev) => (prev === "initialPose" ? "idle" : "initialPose"));
+		setDrag(null);
+	}, [config.enabled, initialTopic, mode, isTypingInEditableElement]);
+
+	const handleInitialInputInactive = useCallback(() => {
+		initialInputArmedRef.current = true;
+	}, []);
+
+	useDigitalTrigger({
+		digitalInput: goalShortcut,
+		onActive: handleGoalInputActive,
+		onInactive: handleGoalInputInactive,
+		enabled: Boolean(config.enabled && goalTopic),
+		shouldHandleKeyboardEvent: () => !isTypingInEditableElement(),
+	});
+
+	useDigitalTrigger({
+		digitalInput: initialShortcut,
+		onActive: handleInitialInputActive,
+		onInactive: handleInitialInputInactive,
+		enabled: Boolean(config.enabled && initialTopic),
+		shouldHandleKeyboardEvent: () => !isTypingInEditableElement(),
+	});
 
 	// -----------------------------------------------------------------------
 	// Enable / disable OrbitControls and update cursor
