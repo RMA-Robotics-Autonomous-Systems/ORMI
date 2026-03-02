@@ -133,7 +133,7 @@ export const PathLineRenderer = ({
 
 	useEffect(() => {
 		const clearLine = () => {
-			geometry.setDrawRange(0, 0);
+			geometry.setPositions([]);
 			geometry.computeBoundingSphere();
 			linePositionsRef.current = null;
 		};
@@ -153,6 +153,7 @@ export const PathLineRenderer = ({
 		const sourceConvention: CoordinateConvention =
 			pathData.convention || "THREE";
 		if (sourceConvention !== "THREE") {
+			clearLine();
 			return;
 		}
 
@@ -178,6 +179,7 @@ export const PathLineRenderer = ({
 				: [];
 
 		if (targetFrame && transformChain === null) {
+			clearLine();
 			return;
 		}
 
@@ -200,7 +202,6 @@ export const PathLineRenderer = ({
 		}
 
 		geometry.setPositions(positions.subarray(0, usedPoseCount * 3));
-		geometry.setDrawRange(0, usedPoseCount);
 		geometry.computeBoundingSphere();
 	}, [source, targetFrame, transformsTrees, geometry, material]);
 
