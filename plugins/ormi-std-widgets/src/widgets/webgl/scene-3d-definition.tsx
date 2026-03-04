@@ -291,6 +291,23 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 							minimum: 0.1,
 							default: 1,
 						},
+						jointFrameMappings: {
+							type: "array",
+							title: "Joint → Frame Mapping",
+							items: {
+								type: "object",
+								properties: {
+									jointName: {
+										type: "string",
+										title: "Joint Name",
+									},
+									frameId: {
+										type: "string",
+										title: "TF Frame",
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -574,6 +591,28 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 							type: "Control",
 							scope: "#/properties/jointController/properties/duration",
 						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/jointController/properties/jointFrameMappings",
+							options: {
+								detail: {
+									type: "VerticalLayout",
+									elements: [
+										{
+											type: "Control",
+											scope: "#/properties/jointName",
+										} as ControlElement,
+										{
+											type: "FrameSelect",
+											scope: "#/properties/frameId",
+											options: {
+												placeholder: "Select TF frame",
+											},
+										} as FrameSelectElement,
+									],
+								},
+							},
+						} as ControlElement,
 					],
 				} as Category,
 			],
@@ -605,6 +644,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 			jointController: {
 				enabled: false,
 				duration: 1,
+				jointFrameMappings: [],
 			},
 		},
 		Component: (data: Scene3DProps) => {

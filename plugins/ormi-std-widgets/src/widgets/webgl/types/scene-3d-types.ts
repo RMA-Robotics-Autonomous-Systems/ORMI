@@ -112,6 +112,14 @@ export interface JointControllerConfig {
 	jointStateTopic?: SelectedTopic;
 	/** Topic that accepts `trajectory_msgs/msg/JointTrajectory` commands. */
 	commandTopic?: SelectedTopic;
+	/**
+	 * Optional manual joint→frame mapping used before auto-discovery.
+	 * This is useful when TF frame names do not follow joint naming conventions.
+	 */
+	jointFrameMappings?: Array<{
+		jointName: string;
+		frameId: string;
+	}>;
 	/** Trajectory execution duration in seconds. @default 1 */
 	duration?: number;
 }

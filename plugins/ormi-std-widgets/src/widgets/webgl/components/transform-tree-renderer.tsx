@@ -248,6 +248,7 @@ const getWorldMatrix = (
 interface FrameNode {
 	id: string;
 	worldPos: THREE.Vector3;
+	worldQuaternion: THREE.Quaternion;
 	parentPos: THREE.Vector3 | null;
 	depth: number;
 }
@@ -261,6 +262,9 @@ const collectFrameNodes = (
 	const worldMatrix = getWorldMatrix(tree, parentMatrix);
 	const worldPos = new THREE.Vector3();
 	worldPos.setFromMatrixPosition(worldMatrix);
+	const worldQuaternion = new THREE.Quaternion().setFromRotationMatrix(
+		worldMatrix,
+	);
 
 	const parentPos =
 		depth === 0
@@ -270,6 +274,7 @@ const collectFrameNodes = (
 	nodes.push({
 		id: tree.id,
 		worldPos,
+		worldQuaternion,
 		parentPos,
 		depth,
 	});
@@ -358,6 +363,69 @@ const FrameLabel: React.FC<FrameLabelProps> = ({
 	);
 };
 
+interface FrameAxesProps {
+	position: [number, number, number];
+	quaternion: [number, number, number, number];
+	size: number;
+}
+
+const FrameAxes: React.FC<FrameAxesProps> = ({
+	position,
+	quaternion,
+	size,
+}) => {
+	const axesHelper = useMemo(() => {
+		const helper = new THREE.AxesHelper(size);
+		helper.raycast = () => null;
+
+		helper.traverse((obj) => {
+			const mesh = obj as THREE.LineSegments;
+			const material = mesh.material;
+			if (!material) return;
+			if (Array.isArray(material)) {
+				material.forEach((m) => {
+					m.depthTest = false;
+					m.depthWrite = false;
+					m.transparent = true;
+					m.opacity = 0.9;
+				});
+			} else {
+				material.depthTest = false;
+				material.depthWrite = false;
+				material.transparent = true;
+				material.opacity = 0.9;
+			}
+		});
+
+		return helper;
+	}, [size]);
+
+	useEffect(() => {
+		return () => {
+			axesHelper.traverse((obj) => {
+				const mesh = obj as THREE.LineSegments;
+				if (mesh.geometry) mesh.geometry.dispose();
+				const material = mesh.material;
+				if (!material) return;
+				if (Array.isArray(material)) {
+					material.forEach((m) => m.dispose());
+				} else {
+					material.dispose();
+				}
+			});
+		};
+	}, [axesHelper]);
+
+	return (
+		<primitive
+			object={axesHelper}
+			position={position}
+			quaternion={quaternion}
+			renderOrder={20}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -381,6 +449,7 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 		uniformColor = "#00ff88",
 		showLabels = true,
 	} = config;
+	const frameAxesSize = sphereRadius * 2.2;
 
 	// Collect all frame nodes from all transform trees
 	const frameNodes = useMemo<FrameNode[]>(() => {
@@ -486,6 +555,21 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 
 				return (
 					<React.Fragment key={node.id}>
+						<FrameAxes
+							position={[
+								node.worldPos.x,
+								node.worldPos.y,
+								node.worldPos.z,
+							]}
+							quaternion={[
+								node.worldQuaternion.x,
+								node.worldQuaternion.y,
+								node.worldQuaternion.z,
+								node.worldQuaternion.w,
+							]}
+							size={frameAxesSize}
+						/>
+
 						{/* Sphere at frame origin */}
 						<mesh
 							geometry={sphereGeometry}
