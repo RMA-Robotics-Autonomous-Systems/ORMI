@@ -65,7 +65,6 @@ export function useDigitalTrigger(
 
 	useEffect(() => {
 		if (!enabled || !digitalInput) {
-			deactivate(0);
 			return;
 		}
 

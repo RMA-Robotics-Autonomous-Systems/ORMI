@@ -133,6 +133,7 @@ export const PathLineRenderer = ({
 
 	useEffect(() => {
 		const clearLine = () => {
+			geometry.setPositions([0, 0, 0, 0, 0, 0]);
 			geometry.setDrawRange(0, 0);
 			geometry.computeBoundingSphere();
 			linePositionsRef.current = null;
@@ -152,10 +153,6 @@ export const PathLineRenderer = ({
 
 		const sourceConvention: CoordinateConvention =
 			pathData.convention || "THREE";
-		if (sourceConvention !== "THREE") {
-			return;
-		}
-
 		const poses = pathData.poses;
 		const totalPoseCount = poses.length;
 		const usedPoseCount = Math.min(totalPoseCount, MAX_PATH_POINTS);
@@ -177,10 +174,6 @@ export const PathLineRenderer = ({
 				? findTransformChain(transformsTrees, refFrame, targetFrame)
 				: [];
 
-		if (targetFrame && transformChain === null) {
-			return;
-		}
-
 		const transformMatrix = buildTransformMatrix(
 			transformChain ?? [],
 			"THREE",
@@ -194,9 +187,14 @@ export const PathLineRenderer = ({
 		for (let i = 0; i < usedPoseCount; i++) {
 			const pose = poses[startIndex + i]!;
 			const idx = i * 3;
-			positions[idx] = pose.position.x;
-			positions[idx + 1] = pose.position.y;
-			positions[idx + 2] = pose.position.z;
+			const convertedPosition = convertPosition(
+				pose.position,
+				sourceConvention,
+				"THREE",
+			);
+			positions[idx] = convertedPosition.x;
+			positions[idx + 1] = convertedPosition.y;
+			positions[idx + 2] = convertedPosition.z;
 		}
 
 		geometry.setPositions(positions.subarray(0, usedPoseCount * 3));

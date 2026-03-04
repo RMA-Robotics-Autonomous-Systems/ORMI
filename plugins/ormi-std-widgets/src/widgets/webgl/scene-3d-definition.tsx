@@ -344,6 +344,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 										{
 											type: "Control",
 											scope: "#/properties/customColor",
+											options: { color: true },
 										} as ControlElement,
 										{
 											type: "Control",
@@ -389,6 +390,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 										{
 											type: "Control",
 											scope: "#/properties/lineColor",
+											options: { color: true },
 										} as ControlElement,
 									],
 								},
@@ -453,6 +455,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						{
 							type: "Control",
 							scope: "#/properties/transformTree/properties/uniformColor",
+							options: { color: true },
 						} as ControlElement,
 						{
 							type: "Control",

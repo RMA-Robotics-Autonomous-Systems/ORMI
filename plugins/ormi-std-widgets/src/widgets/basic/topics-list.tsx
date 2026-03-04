@@ -10,15 +10,20 @@ import {
 	TableCell,
 	Table,
 } from "@workspace/ui/components/table";
+import { Input } from "@workspace/ui/components/input";
+import { Button } from "@workspace/ui/components/button";
 import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
 } from "@workspace/ui/components/hover-card";
 import { Badge } from "@workspace/ui/components/badge";
-import { ListIcon, Info } from "lucide-react";
-import { useState, useEffect, useCallback, memo } from "react";
+import { ListIcon, Info, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { useState, useEffect, useCallback, memo, useRef, useMemo } from "react";
 import { topicPreviewRegistry } from "./topic-preview-registry";
+
+type SortKey = "datasource" | "topic" | "type" | "rawType";
+type SortDirection = "asc" | "desc";
 
 /**
  * Lazy preview component - only renders when HoverCard is open
@@ -40,20 +45,52 @@ const TopicRow = memo(
 	function TopicRow({ topic }: { topic: DatasourceTopic }) {
 		const [showHoverCard, setShowHoverCard] = useState(false);
 		const [isHovering, setIsHovering] = useState(false);
+		const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+		const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+		useEffect(() => {
+			return () => {
+				if (showTimerRef.current) {
+					clearTimeout(showTimerRef.current);
+					showTimerRef.current = null;
+				}
+				if (hideTimerRef.current) {
+					clearTimeout(hideTimerRef.current);
+					hideTimerRef.current = null;
+				}
+			};
+		}, []);
 
 		// Only mount the HoverCard when user hovers over the trigger area
 		const handleMouseEnter = useCallback(() => {
+			if (hideTimerRef.current) {
+				clearTimeout(hideTimerRef.current);
+				hideTimerRef.current = null;
+			}
 			setIsHovering(true);
 			// Small delay before showing to avoid flash on quick mouse movements
-			const timer = setTimeout(() => setShowHoverCard(true), 100);
-			return () => clearTimeout(timer);
+			if (showTimerRef.current) {
+				clearTimeout(showTimerRef.current);
+			}
+			showTimerRef.current = setTimeout(() => {
+				setShowHoverCard(true);
+				showTimerRef.current = null;
+			}, 100);
 		}, []);
 
 		const handleMouseLeave = useCallback(() => {
 			setIsHovering(false);
+			if (showTimerRef.current) {
+				clearTimeout(showTimerRef.current);
+				showTimerRef.current = null;
+			}
 			// Keep HoverCard mounted briefly in case user hovers back
-			setTimeout(() => {
-				setShowHoverCard((prev) => prev && false);
+			if (hideTimerRef.current) {
+				clearTimeout(hideTimerRef.current);
+			}
+			hideTimerRef.current = setTimeout(() => {
+				setShowHoverCard(false);
+				hideTimerRef.current = null;
 			}, 500);
 		}, []);
 
@@ -64,7 +101,7 @@ const TopicRow = memo(
 				</TableCell>
 				<TableCell className="font-medium">
 					<div
-						className="flex items-center gap-2 cursor-pointer w-fit"
+						className="inline-flex items-center gap-2 cursor-pointer"
 						onMouseEnter={handleMouseEnter}
 						onMouseLeave={handleMouseLeave}
 					>
@@ -120,6 +157,9 @@ function TopicsList() {
 	const pluginsManager = usePluginsManager();
 
 	const [topics, setTopics] = useState<DatasourceTopic[]>([]);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [sortKey, setSortKey] = useState<SortKey>("topic");
+	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
 	useEffect(() => {
 		const interval = setInterval(async () => {
@@ -153,24 +193,162 @@ function TopicsList() {
 		};
 	}, [pluginsManager]);
 
+	const displayedTopics = useMemo(() => {
+		const normalizedQuery = searchQuery.trim().toLowerCase();
+
+		const filteredTopics = normalizedQuery
+			? topics.filter((topic) => {
+					return (
+						topic.source.title
+							.toLowerCase()
+							.includes(normalizedQuery) ||
+						topic.topic.toLowerCase().includes(normalizedQuery) ||
+						topic.type.toLowerCase().includes(normalizedQuery) ||
+						topic.rawType.toLowerCase().includes(normalizedQuery)
+					);
+				})
+			: topics;
+
+		const sortedTopics = [...filteredTopics].sort((a, b) => {
+			const extractValue = (topic: DatasourceTopic) => {
+				switch (sortKey) {
+					case "datasource":
+						return topic.source.title;
+					case "topic":
+						return topic.topic;
+					case "type":
+						return topic.type;
+					case "rawType":
+						return topic.rawType;
+				}
+			};
+
+			const left = extractValue(a);
+			const right = extractValue(b);
+
+			const result = left.localeCompare(right, undefined, {
+				numeric: true,
+				sensitivity: "base",
+			});
+
+			if (result === 0) {
+				return `${a.datasource_id}:${a.topic}`.localeCompare(
+					`${b.datasource_id}:${b.topic}`,
+				);
+			}
+
+			return sortDirection === "asc" ? result : -result;
+		});
+
+		return sortedTopics;
+	}, [topics, searchQuery, sortKey, sortDirection]);
+
+	const handleSort = useCallback((key: SortKey) => {
+		setSortKey((currentSortKey) => {
+			if (currentSortKey === key) {
+				setSortDirection((currentDirection) =>
+					currentDirection === "asc" ? "desc" : "asc",
+				);
+				return currentSortKey;
+			}
+
+			setSortDirection("asc");
+			return key;
+		});
+	}, []);
+
+	const renderSortIcon = useCallback(
+		(key: SortKey) => {
+			if (sortKey !== key) {
+				return (
+					<ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+				);
+			}
+
+			return sortDirection === "asc" ? (
+				<ArrowUp className="h-4 w-4" />
+			) : (
+				<ArrowDown className="h-4 w-4" />
+			);
+		},
+		[sortDirection, sortKey],
+	);
+
 	return (
 		<div style={{ width: "100%", height: "100%", overflow: "auto" }}>
+			<div className="p-2">
+				<div className="relative w-full max-w-md">
+					<Input
+						className="pl-9"
+						placeholder="Search topics, datasource, type..."
+						value={searchQuery}
+						onChange={(event) => setSearchQuery(event.target.value)}
+					/>
+				</div>
+			</div>
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Datasource</TableHead>
-						<TableHead>Topic</TableHead>
-						<TableHead>Type</TableHead>
-						<TableHead>RawType</TableHead>
+						<TableHead>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => handleSort("datasource")}
+							>
+								Datasource
+								{renderSortIcon("datasource")}
+							</Button>
+						</TableHead>
+						<TableHead>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => handleSort("topic")}
+							>
+								Topic
+								{renderSortIcon("topic")}
+							</Button>
+						</TableHead>
+						<TableHead>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => handleSort("type")}
+							>
+								Type
+								{renderSortIcon("type")}
+							</Button>
+						</TableHead>
+						<TableHead>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => handleSort("rawType")}
+							>
+								RawType
+								{renderSortIcon("rawType")}
+							</Button>
+						</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{topics.map((topic) => (
-						<TopicRow
-							key={`${topic.datasource_id}-${topic.topic}`}
-							topic={topic}
-						/>
-					))}
+					{displayedTopics.length === 0 ? (
+						<TableRow>
+							<TableCell
+								colSpan={4}
+								className="text-center text-muted-foreground"
+							>
+								No topics found.
+							</TableCell>
+						</TableRow>
+					) : (
+						displayedTopics.map((topic) => (
+							<TopicRow
+								key={`${topic.datasource_id}-${topic.topic}`}
+								topic={topic}
+							/>
+						))
+					)}
 				</TableBody>
 			</Table>
 		</div>

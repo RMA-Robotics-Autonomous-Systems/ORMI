@@ -91,6 +91,9 @@ export function PathViewerDefinition(): WidgetDefinition<PathViewerProps> {
 				{
 					type: "Control",
 					scope: "#/properties/lineColor",
+					options: {
+						color: true,
+					},
 				} as ControlElement,
 				{
 					type: "Control",

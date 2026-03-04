@@ -6,10 +6,66 @@
  */
 
 .flexlayout__layout {
+    /* Bridge FlexLayout base theme tokens to shadcn tokens */
+    --color-text: var(--foreground);
+    --color-background: var(--background);
+    --color-base: var(--card);
+    --color-1: var(--card);
+    --color-2: var(--muted);
+    --color-3: var(--accent);
+    --color-4: var(--border);
+    --color-5: var(--muted);
+    --color-6: var(--border);
+    --color-overflow: var(--muted-foreground);
+    --color-icon: var(--muted-foreground);
+
+    --color-tabset-background: var(--card);
+    --color-tabset-background-selected: var(--card);
+    --color-tabset-background-maximized: var(--muted);
+    --color-tabset-divider-line: var(--border);
+    --color-tabset-header-background: var(--muted);
+    --color-tabset-header: var(--foreground);
+
+    --color-border-tab-content: var(--card);
+    --color-border-background: var(--muted);
+    --color-border-divider-line: var(--border);
+
+    --color-tab-content: var(--card);
+    --color-tab-selected: var(--foreground);
+    --color-tab-selected-background: var(--secondary);
+    --color-tab-unselected: var(--muted-foreground);
+    --color-tab-unselected-background: transparent;
+    --color-tab-textbox: var(--foreground);
+    --color-tab-textbox-background: var(--muted);
+    --color-border-tab-selected: var(--foreground);
+    --color-border-tab-selected-background: var(--secondary);
+    --color-border-tab-unselected: var(--muted-foreground);
+    --color-border-tab-unselected-background: var(--muted);
+
+    --color-splitter: var(--border);
+    --color-splitter-hover: var(--ring);
+    --color-splitter-drag: var(--ring);
+
+    --color-drag-rect-border: var(--border);
+    --color-drag-rect-background: var(--card);
+    --color-drag-rect: var(--foreground);
+
+    --color-popup-border: var(--border);
+    --color-popup-unselected: var(--popover-foreground);
+    --color-popup-unselected-background: var(--popover);
+    --color-popup-selected: var(--primary-foreground);
+    --color-popup-selected-background: var(--primary);
+
+    --color-edge-marker: var(--ring);
+    --color-edge-icon: var(--foreground);
+    --color-mini-scroll-indicator: var(--muted-foreground);
+    --color-mini-scroll-indicator-hovered: var(--foreground);
+    --color-toolbar-button-hover: var(--accent);
+
     /* Base colors using shadcn design tokens */
     --primary-color: var(--primary);
-    --primary-color-light: oklch(from var(--primary) l c h / 0.8);
-    --primary-color-dark: oklch(from var(--primary) l c h / 0.9);
+    --primary-color-light: var(--accent);
+    --primary-color-dark: var(--primary);
 
     /* Background colors */
     --background-color: var(--background);
@@ -37,14 +93,14 @@
 
     /* Drop zones */
     --drop-indicator-color: var(--primary);
-    --drop-zone-background: oklch(from var(--primary) l c h / 0.1);
+    --drop-zone-background: var(--accent);
 
     /* Sizing and spacing */
     --border-radius: var(--radius);
     --border-width: 1px;
 
     /* Shadows */
-    --shadow-color: oklch(from var(--foreground) l c h / 0.1);
+    --shadow-color: color-mix(in srgb, var(--foreground) 10%, transparent);
     --panel-shadow: 0 1px 3px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
     --tab-shadow: 0 1px 2px 0 var(--shadow-color);
 
@@ -54,6 +110,13 @@
     line-height: 1.25rem;
     color: var(--text-color);
     background-color: var(--background-color);
+}
+
+.dark .flexlayout__layout {
+    color-scheme: dark;
+    --shadow-color: color-mix(in srgb, var(--foreground) 20%, transparent);
+    --primary-color-light: var(--primary);
+    --drop-zone-background: var(--secondary);
 }
 
 /* TabSet styling - the panel container */
@@ -346,7 +409,7 @@
 }
 
 .flexlayout__edge_rect {
-    background-color: oklch(from var(--primary) l c h / 0.2);
+    background-color: var(--drop-zone-background);
     border: 1px solid var(--drop-indicator-color);
     border-radius: var(--border-radius);
 }
@@ -443,7 +506,7 @@
 
 /* Dark mode adjustments */
 .dark .flexlayout__layout {
-    --shadow-color: oklch(0 0 0 / 0.3);
+    --shadow-color: color-mix(in srgb, black 30%, transparent);
     --panel-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
 }
 
