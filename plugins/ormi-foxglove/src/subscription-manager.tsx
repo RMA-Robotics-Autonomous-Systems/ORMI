@@ -32,6 +32,17 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// Initialization state
 	const [isInitialized, setIsInitialized] = useState(false);
 
+	// Stable refs for values used inside long-lived action closures.
+	// Using refs instead of closing over state prevents the hook-registration
+	// effect from re-running (and briefly removing/re-adding subscribe hooks)
+	// every time a channel is advertised.
+	// Assigned during render (not in a useEffect) so the ref is always
+	// current before any effect fires — the standard "latest ref" pattern.
+	const channelsRef = useRef(channels);
+	const clientRef = useRef(client);
+	channelsRef.current = channels;
+	clientRef.current = client;
+
 	// State management refs
 	const subscribersRef = useRef<Map<number, Subscriber>>(new Map());
 	const pendingSubscriptionsRef = useRef<Map<number, PendingSubscription>>(
@@ -487,11 +498,8 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				const errorKey = `${subscriber.topic}_parse_error`;
 				if (!(window as any)[errorKey]) {
 					(window as any)[errorKey] = true;
-					console.warn(
-						`Suppressing further parse errors for topic ${subscriber.topic}. Check message format and schema compatibility.`,
-					);
 
-					// Optional: Show toast for first occurrence only
+					// Show toast for first occurrence only
 					if (settings.toasts) {
 						toast(
 							`Message parsing error on topic ${subscriber.topic}. Check console for details.`,
@@ -520,7 +528,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			id: subscribe_hook,
 			action: async (topic: DatasourceTopic) => {
 				// Find the channel id
-				const channel = Array.from(channels.values()).find(
+				const channel = Array.from(channelsRef.current.values()).find(
 					(channel) => {
 						return channel.topic === topic.topic;
 					},
@@ -546,13 +554,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					}
 
 					// Check if client is available
-					if (!client) {
+					if (!clientRef.current) {
 						await addPendingSubscription(topic.topic);
 						return;
 					}
 
 					// Subscribe to the topic
-					const subscriptionId = client.subscribe(channelId);
+					const subscriptionId =
+						clientRef.current.subscribe(channelId);
 
 					if (
 						subscriptionId === undefined ||
@@ -603,7 +612,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				ignoreCount: boolean = false,
 			) => {
 				// Find the channel id
-				const channel = Array.from(channels.values()).find(
+				const channel = Array.from(channelsRef.current.values()).find(
 					(channel) => {
 						return channel.topic === topic.topic;
 					},
@@ -647,10 +656,6 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 				// If not a pending subscription and channel not found, handle gracefully
 				if (!channel) {
-					console.warn(
-						`Channel not found for topic ${topic.topic}. This can happen during cleanup or if the topic was never advertised.`,
-					);
-
 					// Try to find and remove any subscriber that might still exist for this topic
 					const orphanedSubscriber = Array.from(
 						subscribersRef.current.entries(),
@@ -659,14 +664,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 						const [subscriptionId, subscriber] = orphanedSubscriber;
 						subscribersRef.current.delete(subscriptionId);
 
-						try {
-							pluginsManager.removeAction(subscriber.hook);
-						} catch (error) {
-							console.warn(
-								`Error removing action hook for ${topic.topic}:`,
-								error,
-							);
-						}
+						pluginsManager.removeAction(subscriber.hook);
 					}
 
 					return; // Exit gracefully instead of throwing
@@ -692,8 +690,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					}
 
 					if (subscriber.count <= 0) {
-						if (client) {
-							client.unsubscribe(subscriber.subscriberId);
+						if (clientRef.current) {
+							clientRef.current.unsubscribe(
+								subscriber.subscriberId,
+							);
 						}
 						subscribersRef.current.delete(subscriber.subscriberId);
 					}
@@ -718,7 +718,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			pluginsManager.removeAction(subscribe_hook);
 			pluginsManager.removeAction(unsubscribe_hook);
 		};
-	}, [settings.enable, settings.id, pluginsManager, client, channels]);
+	}, [settings.enable, settings.id, pluginsManager]);
 
 	// Cleanup on unmount
 	useEffect(() => {
