@@ -1,6 +1,7 @@
 import { ControlElement, Categorization, Category } from "@jsonforms/core";
 import {
 	LocalDataSourcesProvider,
+	PublisherDataSourcesProvider,
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
 import {
@@ -266,6 +267,32 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						},
 					},
 				},
+				// Joint Controller
+				jointController: {
+					type: "object",
+					title: "Joint Controller",
+					properties: {
+						enabled: {
+							type: "boolean",
+							title: "Enabled",
+							default: false,
+						},
+						jointStateTopic: {
+							type: "object",
+							title: "Joint State Topic",
+						},
+						commandTopic: {
+							type: "object",
+							title: "Command Topic",
+						},
+						duration: {
+							type: "number",
+							title: "Duration (sec)",
+							minimum: 0.1,
+							default: 1,
+						},
+					},
+				},
 			},
 			required: ["title"],
 		},
@@ -516,6 +543,39 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						} as ControlElement,
 					],
 				} as Category,
+				// Tab 5: Joint Controller
+				{
+					type: "Category",
+					label: "Joint Controller",
+					elements: [
+						{
+							type: "Control",
+							scope: "#/properties/jointController/properties/enabled",
+						} as ControlElement,
+						{
+							type: "TopicSelect",
+							scope: "#/properties/jointController/properties/jointStateTopic",
+							options: {
+								dataRequirements: {
+									accepts: ["JointState"],
+								},
+							},
+						} as TopicSelectElement,
+						{
+							type: "TopicSelect",
+							scope: "#/properties/jointController/properties/commandTopic",
+							options: {
+								dataRequirements: {
+									accepts: ["JointTrajectory"],
+								},
+							},
+						} as TopicSelectElement,
+						{
+							type: "Control",
+							scope: "#/properties/jointController/properties/duration",
+						} as ControlElement,
+					],
+				} as Category,
 			],
 		} as Categorization,
 		data: {
@@ -541,6 +601,10 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 				initialShortcut: { type: "keyboard", key: "p" },
 				markerColor: "#ff4400",
 				markerSize: 0.5,
+			},
+			jointController: {
+				enabled: false,
+				duration: 1,
 			},
 		},
 		Component: (data: Scene3DProps) => {
@@ -574,13 +638,32 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 				}
 			}
 
+			// Subscribe to joint state topic for the joint controller
+			if (
+				data.jointController?.enabled &&
+				data.jointController.jointStateTopic
+			) {
+				allTopics.push(data.jointController.jointStateTopic);
+			}
+
+			// Collect publisher topics (command side)
+			const publisherTopics: SelectedTopic[] = [];
+			if (
+				data.jointController?.enabled &&
+				data.jointController.commandTopic
+			) {
+				publisherTopics.push(data.jointController.commandTopic);
+			}
+
 			return (
-				<LocalDataSourcesProvider
-					SelectedTopics={allTopics}
-					buffersSize={1}
-				>
-					<Scene3DComp {...data} />
-				</LocalDataSourcesProvider>
+				<PublisherDataSourcesProvider SelectedTopics={publisherTopics}>
+					<LocalDataSourcesProvider
+						SelectedTopics={allTopics}
+						buffersSize={1}
+					>
+						<Scene3DComp {...data} />
+					</LocalDataSourcesProvider>
+				</PublisherDataSourcesProvider>
 			);
 		},
 	};

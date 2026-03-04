@@ -97,6 +97,105 @@ export class UnifiedConverter {
 				},
 			},
 		},
+		JointTrajectory: {
+			conversions: {
+				"trajectory_msgs/msg/JointTrajectory": {
+					toRos2: (data: any) => ({
+						header: {
+							stamp: {
+								sec: data?.header?.stamp?.sec ?? 0,
+								nanosec: data?.header?.stamp?.nanosec ?? 0,
+							},
+							frame_id: data?.header?.frame_id ?? "",
+						},
+						joint_names: Array.isArray(data?.joint_names)
+							? data.joint_names
+							: [],
+						points: Array.isArray(data?.points)
+							? data.points.map((point: any) => ({
+									positions: Array.isArray(point?.positions)
+										? point.positions
+										: [],
+									velocities: Array.isArray(point?.velocities)
+										? point.velocities
+										: [],
+									accelerations: Array.isArray(
+										point?.accelerations,
+									)
+										? point.accelerations
+										: [],
+									effort: Array.isArray(point?.effort)
+										? point.effort
+										: [],
+									time_from_start: {
+										sec: point?.time_from_start?.sec ?? 0,
+										nanosec:
+											point?.time_from_start?.nanosec ??
+											0,
+									},
+								}))
+							: [],
+					}),
+					fromRos2: (data: any) => data,
+				},
+			},
+		},
+		/**
+		 * Joint state — passthrough.
+		 * Webapp format mirrors sensor_msgs/msg/JointState:
+		 *   { header, name: string[], position: number[], velocity: number[], effort: number[] }
+		 */
+		JointState: {
+			conversions: {
+				"sensor_msgs/msg/JointState": {
+					toRos2: (data: any) => data,
+					fromRos2: (data: any) => data,
+				},
+			},
+		},
+		JointVelocity: {
+			conversions: {
+				"control_msgs/msg/JointJog": {
+					toRos2: (data: any) => ({
+						header: {
+							stamp: {
+								sec: 0,
+								nanosec: 0,
+							},
+							frame_id: "",
+						},
+						joint_names: Array.isArray(data?.joint_names)
+							? data.joint_names
+							: [],
+						velocities: Array.isArray(data?.velocities)
+							? data.velocities
+							: [],
+						displacements: Array.isArray(data?.displacements)
+							? data.displacements
+							: [],
+						duration: Number(data?.duration ?? 0.1),
+					}),
+					fromRos2: (data: any) => data,
+				},
+				"std_msgs/msg/Float64MultiArray": {
+					toRos2: (data: any) => ({
+						layout: {
+							dim: [],
+							data_offset: 0,
+						},
+						data: Array.isArray(data?.velocities)
+							? data.velocities
+							: [],
+					}),
+					fromRos2: (data: any) => ({
+						joint_names: [],
+						velocities: Array.isArray(data?.data) ? data.data : [],
+						displacements: [],
+						duration: 0,
+					}),
+				},
+			},
+		},
 		GeolocationPosition: {
 			conversions: {
 				"sensor_msgs/msg/NavSatFix": {

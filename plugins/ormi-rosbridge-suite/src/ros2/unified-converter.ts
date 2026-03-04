@@ -563,6 +563,32 @@ export class UnifiedConverter {
 				},
 			},
 		},
+		/**
+		 * Joint state — passthrough.
+		 * Webapp format mirrors sensor_msgs/msg/JointState:
+		 *   { name: string[], position: number[], velocity: number[], effort: number[], header: ... }
+		 */
+		JointState: {
+			conversions: {
+				"sensor_msgs/msg/JointState": {
+					toRos2: (data: any) => data,
+					fromRos2: (data: any) => data,
+				},
+			},
+		},
+		/**
+		 * Joint trajectory command — passthrough.
+		 * Webapp format mirrors trajectory_msgs/msg/JointTrajectory:
+		 *   { joint_names: string[], points: [{ positions: number[], time_from_start: { sec, nanosec } }] }
+		 */
+		JointTrajectory: {
+			conversions: {
+				"trajectory_msgs/msg/JointTrajectory": {
+					toRos2: (data: any) => data,
+					fromRos2: (data: any) => data,
+				},
+			},
+		},
 	};
 
 	// Updated: loops through each ConverterEntry's conversion mapping.

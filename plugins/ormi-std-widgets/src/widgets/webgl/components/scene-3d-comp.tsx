@@ -23,6 +23,7 @@ import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { PathLineRenderer } from "./path-line-renderer";
+import { JointControllerLayer } from "./joint-controller-layer";
 
 // ============================================================================
 // Point Cloud Layer Renderer (uses data source context)
@@ -129,6 +130,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const posePublisherConfig = props.posePublisherConfig as
 		| PosePublisherConfig
 		| undefined;
+	const jointController = props.jointController;
 
 	const [poseMode, setPoseMode] = useState<PoseMode>("idle");
 	const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -231,6 +233,14 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 						onModeChange={handlePoseModeChange}
 					/>
 				)}
+
+				{/* Joint controller — PivotControls gizmos per revolute joint */}
+				{jointController?.enabled ? (
+					<JointControllerLayer
+						config={jointController}
+						controlsRef={controlsRef}
+					/>
+				) : null}
 			</Canvas>
 
 			{/* DOM overlay hints */}

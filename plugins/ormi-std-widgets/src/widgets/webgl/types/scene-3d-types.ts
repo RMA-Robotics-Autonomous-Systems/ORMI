@@ -97,6 +97,25 @@ export interface PosePublisherConfig {
 	markerSize?: number;
 }
 
+/**
+ * Joint controller layer configuration.
+ *
+ * Joints and their 3D positions are **auto-discovered**: joint names come from
+ * the first `sensor_msgs/JointState` message on `jointStateTopic`, and each
+ * gizmo is placed at the world position of the matching TF frame (looked up
+ * by name using exact match → `_joint`→`_link` heuristic → prefix search).
+ */
+export interface JointControllerConfig {
+	/** Enable the joint controller overlay. @default false */
+	enabled?: boolean;
+	/** Topic that publishes `sensor_msgs/msg/JointState` for feedback. */
+	jointStateTopic?: SelectedTopic;
+	/** Topic that accepts `trajectory_msgs/msg/JointTrajectory` commands. */
+	commandTopic?: SelectedTopic;
+	/** Trajectory execution duration in seconds. @default 1 */
+	duration?: number;
+}
+
 // Main props for the 3D Scene widget
 export interface Scene3DProps extends Record<string, unknown> {
 	title: string;
@@ -106,6 +125,8 @@ export interface Scene3DProps extends Record<string, unknown> {
 	transformTree?: TransformTreeConfig;
 	/** Unified pose publisher configuration (goal pose + initial pose estimate). */
 	posePublisherConfig?: PosePublisherConfig;
+	/** Joint controller — PivotControls gizmos per joint. */
+	jointController?: JointControllerConfig;
 	targetFrame?: string;
 	showGrid?: boolean;
 	showAxes?: boolean;
