@@ -282,6 +282,18 @@ const collectFrameNodes = (
 	return nodes;
 };
 
+const treeContainsFrame = (tree: TransformTree, frameId: string): boolean => {
+	if (tree.id === frameId) return true;
+
+	for (const [, child] of tree.children) {
+		if (treeContainsFrame(child, frameId)) {
+			return true;
+		}
+	}
+
+	return false;
+};
+
 interface FrameLabelProps {
 	nodeId: string;
 	position: [number, number, number];
@@ -382,7 +394,8 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 				targetFrame &&
 				targetFrame !== "" &&
 				treeId !== targetFrame &&
-				tree.id !== targetFrame
+				tree.id !== targetFrame &&
+				!treeContainsFrame(tree, targetFrame)
 			) {
 				return;
 			}
