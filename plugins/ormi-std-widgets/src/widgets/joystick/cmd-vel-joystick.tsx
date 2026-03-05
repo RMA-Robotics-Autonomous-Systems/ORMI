@@ -5,8 +5,6 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import {
 	SelectedTopic,
 	usePublisherDataSource,
-	DatasourceTopic,
-	DatasourceTopicFilter,
 	PublisherDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import {
@@ -15,14 +13,12 @@ import {
 } from "@workspace/ormi-core/widgets";
 import { Movement } from "@workspace/ormi-core/types";
 import { axisControlType, KeyControlType } from "@workspace/ormi-jsonforms";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	AnalogInput,
 	DigitalInput,
 	DigitalComponent,
 	AnalogComponent,
 } from "@workspace/ui/combined/triggers";
-import { Slider } from "@workspace/ui/components/slider";
 import { toast } from "sonner";
 
 /** Props for JoypadControls. */
@@ -99,7 +95,7 @@ export function JoypadControls(props: JoypadControlsProps) {
 		const selectedTopic = props.topic;
 
 		if (!selectedTopic?.topic) {
-			console.warn("JoypadControls: Topic not selected.");
+			toast.error("JoypadControls: Topic not selected.");
 			return;
 		}
 
@@ -386,8 +382,6 @@ export function JoypadControls(props: JoypadControlsProps) {
  * @returns Widget definition.
  */
 export function JoypadControlsDefinition(): WidgetDefinition<JoypadControlsProps> {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "joystick-cmd-vel-widget",
 		name: "Joystick control",
