@@ -161,9 +161,25 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 
 	return (
 		<div style={{ width: "100%", height: "100%", position: "relative" }}>
-			<Canvas frameloop={enableContinuousRender ? "always" : "demand"}>
+			<Canvas
+				shadows
+				frameloop={enableContinuousRender ? "always" : "demand"}
+			>
 				<PerspectiveCamera makeDefault position={[5, 5, 5]} />
-				<ambientLight intensity={1} />
+				<ambientLight intensity={0.4} />
+				<directionalLight
+					position={[10, 15, 10]}
+					intensity={1.2}
+					castShadow
+					shadow-mapSize-width={2048}
+					shadow-mapSize-height={2048}
+					shadow-camera-left={-20}
+					shadow-camera-right={20}
+					shadow-camera-top={20}
+					shadow-camera-bottom={-20}
+					shadow-camera-near={0.1}
+					shadow-camera-far={100}
+				/>
 
 				{showAxes && <primitive object={axesHelper} />}
 
@@ -176,11 +192,18 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 
 				<OrbitControls ref={controlsRef} makeDefault />
 				{showGrid && (
-					<Grid
-						cellSize={1}
-						infiniteGrid={true}
-						sectionColor="lightblue"
-					/>
+					<>
+						<Grid
+							cellSize={1}
+							infiniteGrid={true}
+							sectionColor="lightblue"
+						/>
+						{/* Transparent plane underneath the grid to receive shadows */}
+						<mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+							<planeGeometry args={[200, 200]} />
+							<shadowMaterial transparent opacity={0.25} />
+						</mesh>
+					</>
 				)}
 
 				{/* Render Point Cloud Layers */}

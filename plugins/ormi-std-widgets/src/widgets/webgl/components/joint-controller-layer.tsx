@@ -2,7 +2,7 @@
 /**
  * JointControllerLayer
  *
- * Renders one `PivotControls` gizmo per joint inside the R3F Canvas.
+ * Renders one rotation gizmo per joint inside the R3F Canvas.
  *
  * Auto-discovery:
  *  - Joint names are discovered from the first `sensor_msgs/JointState`
@@ -27,256 +27,29 @@ import React, {
 	useState,
 } from "react";
 import * as THREE from "three";
-import { PivotControls, Text } from "@react-three/drei";
+import { useThree, ThreeEvent } from "@react-three/fiber";
+import { Line } from "@react-three/drei";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
 	useLocalDataSource,
 	usePublisherDataSource,
 } from "@workspace/ormi-core/datasources";
-import {
-	useTransformSource,
-	convertPosition,
-	convertQuaternion,
-} from "@workspace/ormi-core/transforms";
-import {
-	TransformTree,
-	CoordinateConvention,
-} from "@workspace/ormi-core/types";
+import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { JointControllerConfig } from "../types/scene-3d-types";
+import {
+	FrameData,
+	collectFrameData,
+	collectSubtreeFrameIds,
+	collectTreeRelations,
+	extractJointStateMessage,
+	getJointAxis,
+	inferRotationalDof,
+	normalizeJointName,
+	resolveJointFrame,
+} from "../utils/joint-controller-utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TF helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Compute the world matrix for a TF node given its parent's world matrix. */
-const getWorldMatrix = (
-	node: TransformTree,
-	parentMatrix: THREE.Matrix4 = new THREE.Matrix4(),
-): THREE.Matrix4 => {
-	const convention =
-		(node.transform.convention as CoordinateConvention) ?? "THREE";
-	const pos = convertPosition(
-		{
-			x: node.transform.position.x,
-			y: node.transform.position.y,
-			z: node.transform.position.z,
-		},
-		convention,
-		"THREE",
-	);
-	const rot = convertQuaternion(node.transform.rotation, convention, "THREE");
-	const local = new THREE.Matrix4().compose(
-		new THREE.Vector3(pos.x, pos.y, pos.z),
-		new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w),
-		new THREE.Vector3(1, 1, 1),
-	);
-	return new THREE.Matrix4().multiplyMatrices(parentMatrix, local);
-};
-
-/** Recursively collect per-frame data: world position + frame's own world matrix. */
-interface FrameData {
-	worldPos: THREE.Vector3;
-	/**
-	 * World-space matrix of THIS frame (already in THREE convention).
-	 * Used to extract the joint rotation axis: ROS joints rotate around
-	 * Z=[0,0,1] in the joint's OWN coordinate frame.  Because Rz(θ)*Z = Z,
-	 * the Z column of the child frame's world matrix is invariant under the
-	 * joint's own rotation — it always points along the joint axis in world
-	 * space regardless of the current joint angle.
-	 */
-	worldMatrix: THREE.Matrix4;
-}
-
-interface JointStateMessage {
-	name: string[];
-	position: number[];
-}
-
-const readArrayLikeValues = (value: unknown): unknown[] => {
-	if (Array.isArray(value)) return value;
-	if (!value || typeof value !== "object") return [];
-
-	const entries = Object.entries(value as Record<string, unknown>)
-		.filter(([key]) => /^\d+$/.test(key))
-		.sort((a, b) => Number(a[0]) - Number(b[0]));
-
-	if (entries.length > 0) return entries.map(([, val]) => val);
-	return Object.values(value as Record<string, unknown>);
-};
-
-const toStringArray = (value: unknown): string[] =>
-	readArrayLikeValues(value).map((entry) => String(entry));
-
-const toNumberArray = (value: unknown): number[] =>
-	readArrayLikeValues(value).map((entry) => {
-		const n = Number(entry);
-		return Number.isFinite(n) ? n : 0;
-	});
-
-const collectFrameData = (
-	tree: TransformTree,
-	parentMatrix: THREE.Matrix4 = new THREE.Matrix4(),
-	result: Map<string, FrameData> = new Map(),
-): Map<string, FrameData> => {
-	const worldMatrix = getWorldMatrix(tree, parentMatrix);
-	result.set(tree.id, {
-		worldPos: new THREE.Vector3().setFromMatrixPosition(worldMatrix),
-		worldMatrix: worldMatrix.clone(),
-	});
-	tree.children.forEach((child) =>
-		collectFrameData(child, worldMatrix, result),
-	);
-	return result;
-};
-
-/**
- * Extract the joint rotation axis in THREE world space from the TF local Y axis.
- *
- * We align gizmos to TF's local Y (as used for local-frame joint interactions).
- * `worldMatrix` is already in THREE convention, so the local Y basis column
- * directly gives the axis in world space.
- */
-const getJointAxis = (data: FrameData): THREE.Vector3 => {
-	const yAxis = new THREE.Vector3();
-	data.worldMatrix.extractBasis(
-		new THREE.Vector3(),
-		yAxis,
-		new THREE.Vector3(),
-	);
-	if (
-		!Number.isFinite(yAxis.x) ||
-		!Number.isFinite(yAxis.y) ||
-		!Number.isFinite(yAxis.z)
-	) {
-		return new THREE.Vector3(0, 1, 0);
-	}
-	if (yAxis.lengthSq() < 1e-12) {
-		return new THREE.Vector3(0, 1, 0);
-	}
-	return yAxis.normalize();
-};
-
-/**
- * Resolve the best TF frame for a given joint name.
- * Strategy (in order):
- *  1. Exact frame name match
- *  2. Replace `_joint` suffix with `_link`
- *  3. Any frame whose name starts with the joint's prefix (before `_joint`)
- */
-const normalizeFrameName = (value: string): string =>
-	value
-		.trim()
-		.toLowerCase()
-		.replace(/^\/+/, "")
-		.split("/")
-		.filter(Boolean)
-		.pop() ?? "";
-
-const normalizeJointName = (value: string): string =>
-	normalizeFrameName(value)
-		.replace(/_joint$/, "")
-		.replace(/_motor$/, "")
-		.replace(/_actuator$/, "");
-
-const tokenize = (value: string): string[] =>
-	value
-		.split(/[_\-\s]+/g)
-		.map((token) => token.trim())
-		.filter(Boolean);
-
-const computeNameScore = (jointName: string, frameName: string): number => {
-	const jn = normalizeJointName(jointName);
-	const fn = normalizeFrameName(frameName);
-
-	if (!jn || !fn) return 0;
-	if (jn === fn) return 100;
-	if (`${jn}_link` === fn || `${jn}_frame` === fn) return 95;
-	if (fn.startsWith(jn) || jn.startsWith(fn)) return 80;
-
-	const jointTokens = tokenize(jn);
-	const frameTokens = tokenize(fn);
-	if (jointTokens.length === 0 || frameTokens.length === 0) return 0;
-
-	const overlap = jointTokens.filter((t) => frameTokens.includes(t)).length;
-	const union = new Set([...jointTokens, ...frameTokens]).size;
-	const ratio = union > 0 ? overlap / union : 0;
-
-	if (ratio <= 0) return 0;
-	return Math.round(ratio * 60);
-};
-
-const resolveJointFrame = (
-	frameData: Map<string, FrameData>,
-	jointName: string,
-	manualMap: Map<string, string>,
-): string | null => {
-	const normalizedJoint = normalizeJointName(jointName);
-	if (!normalizedJoint) return null;
-
-	const manualFrame = manualMap.get(normalizedJoint);
-	if (manualFrame) {
-		if (frameData.has(manualFrame)) {
-			return manualFrame;
-		}
-
-		const normalizedManualFrame = normalizeFrameName(manualFrame);
-		const normalizedMatch = [...frameData.keys()].find(
-			(frameId) => normalizeFrameName(frameId) === normalizedManualFrame,
-		);
-		if (normalizedMatch) {
-			return normalizedMatch;
-		}
-	}
-
-	if (frameData.has(jointName)) return jointName;
-
-	let bestMatch: string | null = null;
-	let bestScore = 0;
-
-	for (const frameId of frameData.keys()) {
-		const score = computeNameScore(jointName, frameId);
-		if (score > bestScore) {
-			bestScore = score;
-			bestMatch = frameId;
-		}
-	}
-
-	return bestScore >= 40 ? bestMatch : null;
-};
-
-const extractJointStateMessage = (value: unknown): JointStateMessage | null => {
-	if (!value || typeof value !== "object") return null;
-
-	const candidates: unknown[] = [
-		value,
-		(value as { data?: unknown }).data,
-		(value as { message?: unknown }).message,
-		(value as { payload?: unknown }).payload,
-		(value as { rosData?: unknown }).rosData,
-	].filter(Boolean);
-
-	for (const candidate of candidates) {
-		if (!candidate || typeof candidate !== "object") continue;
-		const data = candidate as Record<string, unknown>;
-		const names = data.name ?? data.joint_names;
-		const positions = data.position ?? data.positions;
-
-		const parsedNames = toStringArray(names);
-		const parsedPositions = toNumberArray(positions);
-
-		if (parsedNames.length > 0 && parsedPositions.length > 0) {
-			return {
-				name: parsedNames,
-				position: parsedPositions,
-			};
-		}
-	}
-
-	return null;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-joint PivotControls gizmo
+// Per-joint rotation gizmo (ray-plane drag)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface JointGizmoProps {
@@ -289,30 +62,36 @@ interface JointGizmoProps {
 	 * of the drag matrix equal to the joint angle delta.
 	 */
 	jointAxis: THREE.Vector3;
+	dof: number;
 	currentAngle: number;
 	onDragStart: () => void;
+	onDragPreview: (name: string, delta: number) => void;
 	/** Called with (jointName, rotationDelta) when the user releases the gizmo. */
 	onDragEnd: (name: string, delta: number) => void;
 }
 
-const RAD_TO_DEG = 180 / Math.PI;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const HINGE_HANDLE_DISTANCE = 0.14;
 
 const JointGizmo: React.FC<JointGizmoProps> = ({
 	name,
 	worldPos,
 	jointAxis,
+	dof,
 	currentAngle,
 	onDragStart,
+	onDragPreview,
 	onDragEnd,
 }) => {
-	// Increment key to remount PivotControls after each drag → fresh identity state.
-	// onDragEnd has no parameters in @react-three/drei v10, so we cache the
-	// accumulated matrix via onDrag and read it in the onDragEnd callback.
-	const [dragKey, setDragKey] = useState(0);
-	const dragMatrixRef = useRef(new THREE.Matrix4());
-	const dragStartAngleRef = useRef<number | null>(null);
-	const dragCurrentAngleRef = useRef<number | null>(null);
+	const { camera, gl } = useThree();
+	const dragMatrix = useMemo(() => new THREE.Matrix4(), []);
+	const latestDeltaRef = useRef(0);
+	/** Angle accumulated during the current drag session (radians). */
+	const accumDeltaRef = useRef(0);
+	/** Whether a drag is in progress. */
+	const isDraggingRef = useRef(false);
+	/** Angle on the rotation plane at the previous pointer-move frame. */
+	const prevPlaneAngleRef = useRef(0);
 	const axisHelper = useMemo(() => {
 		const helper = new THREE.AxesHelper(0.12);
 		helper.raycast = () => null;
@@ -369,16 +148,13 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 	/**
 	 * Orient the gizmo group so its local Y = joint axis in THREE world space.
 	 *
-	 * Why Y?
-	 *  - ROS joints rotate around local Z in the parent frame.
-	 *  - getWorldMatrix maps ROS→THREE, so that Z becomes the parent's
-	 *    local Z column in THREE space (extracted by getJointAxis).
-	 *  - We then align the gizmo group's Y with that axis.
-	 *  - PivotControls is configured with activeAxes={[false,true,false]},
-	 *    leaving only the Y rotation ring visible.
-	 *  - The Y ring lies in the group's XZ plane, which is now exactly the
-	 *    joint's rotation plane in world space.
-	 *  - euler.y of the drag matrix = delta around the joint axis. ✓
+	 * getJointAxis extracts the Y column of the TF world matrix (the joint rotation
+	 * axis after ROS→THREE conversion). We map WORLD_UP → that axis so the gizmo's
+	 * local Y aligns with the joint axis.
+	 *
+	 * The drag handle is constrained to the gizmo's XZ plane (perpendicular to
+	 * local Y), and getSignedDelta measures rotation around local Y using the
+	 * right-hand cross-product sign convention, giving the joint angle delta. ✓
 	 */
 	const gizmoOrient = useMemo(
 		() =>
@@ -386,52 +162,209 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 		[safeJointAxis],
 	);
 
-	// Inverse quaternion used to keep the Text label world-upright
-	// even though the parent group is rotated.
+	/**
+	 * Inverse quaternion: rotates world-space vectors into gizmo-local space.
+	 * Used to read the angle of a world-space intersection point on the XZ plane.
+	 */
 	const gizmoOrientInv = useMemo(
 		() => gizmoOrient.clone().invert(),
 		[gizmoOrient],
 	);
 
-	const getLocalYAngle = useCallback((matrix: THREE.Matrix4): number => {
-		const euler = new THREE.Euler().setFromRotationMatrix(matrix, "YXZ");
-		return Number.isFinite(euler.y) ? euler.y : 0;
-	}, []);
+	/**
+	 * The rotation plane for ray-intersection: normal = joint axis (world),
+	 * passes through worldPos. Updated whenever axis or pivot moves.
+	 */
+	const rotationPlane = useMemo(() => new THREE.Plane(), []);
+	useEffect(() => {
+		rotationPlane.setFromNormalAndCoplanarPoint(safeJointAxis, worldPos);
+	}, [rotationPlane, safeJointAxis, worldPos]);
 
-	const handleDragStartInternal = useCallback(() => {
-		dragStartAngleRef.current = null;
-		dragCurrentAngleRef.current = null;
-		onDragStart();
-	}, [onDragStart]);
-
-	const handleDrag = useCallback(
-		(local: THREE.Matrix4) => {
-			dragMatrixRef.current.copy(local);
-			const y = getLocalYAngle(local);
-			if (dragStartAngleRef.current === null) {
-				dragStartAngleRef.current = y;
-			}
-			dragCurrentAngleRef.current = y;
-		},
-		[getLocalYAngle],
-	);
-
-	const handleDragEnd = useCallback(() => {
-		const start = dragStartAngleRef.current;
-		const end =
-			dragCurrentAngleRef.current ??
-			getLocalYAngle(dragMatrixRef.current);
-		const delta = start === null ? 0 : end - start;
-		dragMatrixRef.current.identity();
-		dragStartAngleRef.current = null;
-		dragCurrentAngleRef.current = null;
-		onDragEnd(name, delta);
-		// Remount so the gizmo resets to identity for the next interaction
-		setDragKey((k) => k + 1);
-	}, [getLocalYAngle, name, onDragEnd]);
-
-	const angleDeg = (currentAngle * RAD_TO_DEG).toFixed(1);
 	const currentAngleSafe = Number.isFinite(currentAngle) ? currentAngle : 0;
+
+	/**
+	 * Right-hand rotation by angle θ around local +Y maps +X to
+	 * (cos θ, 0, −sin θ).  This matches getSignedDelta's atan2 convention so
+	 * the computed delta correctly represents the change in joint angle.
+	 */
+	const getCurrentAngleDirection = useCallback((): THREE.Vector3 => {
+		return new THREE.Vector3(
+			Math.cos(currentAngleSafe),
+			0,
+			-Math.sin(currentAngleSafe),
+		).normalize();
+	}, [currentAngleSafe]);
+
+	// Initialise dragMatrix to rest position whenever angle or dof changes.
+	useEffect(() => {
+		if (dof < 1) return;
+		dragMatrix.identity();
+		dragMatrix.setPosition(
+			getCurrentAngleDirection().multiplyScalar(HINGE_HANDLE_DISTANCE),
+		);
+	}, [dof, dragMatrix, getCurrentAngleDirection]);
+
+	// ── Stable callback refs so event listeners never capture stale closures ──
+	const worldPosRef = useRef(worldPos);
+	const currentAngleSafeRef = useRef(currentAngleSafe);
+	const gizmoOrientInvRef = useRef(gizmoOrientInv);
+	const rotationPlaneRef = useRef(rotationPlane);
+	const onDragPreviewRef = useRef(onDragPreview);
+	const onDragEndRef = useRef(onDragEnd);
+	const getCurrentAngleDirectionRef = useRef(getCurrentAngleDirection);
+	useEffect(() => {
+		worldPosRef.current = worldPos;
+	}, [worldPos]);
+	useEffect(() => {
+		currentAngleSafeRef.current = currentAngleSafe;
+	}, [currentAngleSafe]);
+	useEffect(() => {
+		gizmoOrientInvRef.current = gizmoOrientInv;
+	}, [gizmoOrientInv]);
+	useEffect(() => {
+		rotationPlaneRef.current = rotationPlane;
+	}, [rotationPlane]);
+	useEffect(() => {
+		onDragPreviewRef.current = onDragPreview;
+	}, [onDragPreview]);
+	useEffect(() => {
+		onDragEndRef.current = onDragEnd;
+	}, [onDragEnd]);
+	useEffect(() => {
+		getCurrentAngleDirectionRef.current = getCurrentAngleDirection;
+	}, [getCurrentAngleDirection]);
+
+	/**
+	 * Register pointermove and pointerup on the canvas element.
+	 * This ensures drag events keep firing even when the pointer leaves the sphere,
+	 * and removes any dependency on DragControls' internal state.
+	 *
+	 * Algorithm on each pointermove:
+	 *   1. Build a ray from the camera through the current NDC mouse position.
+	 *   2. Intersect with the joint's rotation plane
+	 *      (normal = joint axis, passing through worldPos).
+	 *   3. Convert the hit to gizmo-local space → atan2(-z, x) = angle on XZ plane.
+	 *   4. Accumulate delta with [-π, π] wrapping (handles multi-revolution drags).
+	 *   5. Write sphere position = (cos θ_total, 0, -sin θ_total) * radius into dragMatrix.
+	 */
+	useEffect(() => {
+		if (dof < 1) return;
+		const canvas = gl.domElement;
+		const raycaster = new THREE.Raycaster();
+		const hit = new THREE.Vector3();
+
+		const onMove = (e: PointerEvent) => {
+			if (!isDraggingRef.current) return;
+
+			// Build NDC ray
+			const rect = canvas.getBoundingClientRect();
+			const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+			const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+			raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+			if (!raycaster.ray.intersectPlane(rotationPlaneRef.current, hit))
+				return;
+
+			// Angle of the hit point in gizmo-local XZ space
+			const local = hit
+				.clone()
+				.sub(worldPosRef.current)
+				.applyQuaternion(gizmoOrientInvRef.current);
+			const angle = Math.atan2(-local.z, local.x);
+
+			// Accumulate with [-π, π] wrapping to survive full-circle drags
+			let delta = angle - prevPlaneAngleRef.current;
+			if (delta > Math.PI) delta -= 2 * Math.PI;
+			if (delta < -Math.PI) delta += 2 * Math.PI;
+			accumDeltaRef.current += delta;
+			latestDeltaRef.current = accumDeltaRef.current;
+			prevPlaneAngleRef.current = angle;
+
+			// Update sphere to the new absolute angle on the hinge circle
+			const totalAngle =
+				currentAngleSafeRef.current + accumDeltaRef.current;
+			dragMatrix.identity();
+			dragMatrix.setPosition(
+				new THREE.Vector3(
+					Math.cos(totalAngle),
+					0,
+					-Math.sin(totalAngle),
+				).multiplyScalar(HINGE_HANDLE_DISTANCE),
+			);
+
+			onDragPreviewRef.current(name, accumDeltaRef.current);
+		};
+
+		const onUp = (e: PointerEvent) => {
+			if (!isDraggingRef.current) return;
+			isDraggingRef.current = false;
+			canvas.releasePointerCapture(e.pointerId);
+
+			const delta = latestDeltaRef.current;
+			accumDeltaRef.current = 0;
+			latestDeltaRef.current = 0;
+
+			// Reset sphere to rest position at currentAngle
+			dragMatrix.identity();
+			dragMatrix.setPosition(
+				getCurrentAngleDirectionRef
+					.current()
+					.multiplyScalar(HINGE_HANDLE_DISTANCE),
+			);
+
+			onDragPreviewRef.current(name, 0);
+			onDragEndRef.current(name, delta);
+		};
+
+		canvas.addEventListener("pointermove", onMove);
+		canvas.addEventListener("pointerup", onUp);
+		return () => {
+			canvas.removeEventListener("pointermove", onMove);
+			canvas.removeEventListener("pointerup", onUp);
+		};
+	}, [camera, dof, dragMatrix, gl.domElement, name]);
+
+	/**
+	 * pointerdown on the drag sphere:
+	 *   - Capture the pointer so the canvas keeps receiving events during drag.
+	 *   - Intersect the click ray with the rotation plane to get the start angle,
+	 *     avoiding an initial jump on the first pointermove.
+	 */
+	const handlePointerDown = useCallback(
+		(e: ThreeEvent<PointerEvent>) => {
+			if (dof < 1) return;
+			e.stopPropagation();
+			gl.domElement.setPointerCapture(e.nativeEvent.pointerId);
+
+			isDraggingRef.current = true;
+			accumDeltaRef.current = 0;
+			latestDeltaRef.current = 0;
+
+			// Seed prevPlaneAngle from the actual click point so the first
+			// pointermove delta is correct (not relative to angle-0).
+			const hit = new THREE.Vector3();
+			if (e.ray.intersectPlane(rotationPlane, hit)) {
+				const local = hit
+					.clone()
+					.sub(worldPos)
+					.applyQuaternion(gizmoOrientInv);
+				prevPlaneAngleRef.current = Math.atan2(-local.z, local.x);
+			} else {
+				prevPlaneAngleRef.current = currentAngleSafe;
+			}
+
+			onDragStart();
+		},
+		[
+			currentAngleSafe,
+			dof,
+			gl.domElement,
+			gizmoOrientInv,
+			onDragStart,
+			rotationPlane,
+			worldPos,
+		],
+	);
 
 	return (
 		<>
@@ -439,58 +372,136 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 			<group position={pos} quaternion={gizmoOrient}>
 				<primitive object={axisHelper} renderOrder={30} />
 
-				<PivotControls
-					key={dragKey}
-					anchor={[0, 0, 0]}
-					scale={0.45}
-					lineWidth={4}
-					// Show rotation handle only.
-					disableAxes
-					disableSliders
-					disableRotations={false}
-					disableScaling
-					// Show ONLY the Y rotation ring.
-					// ROS Z (joint axis) was mapped to this group's local Y by
-					// gizmoOrient, so Y is the one and only valid rotation.
-					// activeAxes={[false, true, false]}
-					depthTest={false}
-					onDragStart={handleDragStartInternal}
-					onDrag={handleDrag}
-					onDragEnd={handleDragEnd}
-				>
-					{/* Rotate controlled object to current joint state so dragging starts from live pose */}
-					<group rotation={[0, currentAngleSafe, 0]}>
-						<mesh>
-							<sphereGeometry args={[0.04, 8, 8]} />
-							<meshStandardMaterial
-								color="#ff6600"
-								emissive="#ff3300"
-								emissiveIntensity={0.7}
-								depthTest={false}
-								depthWrite={false}
-							/>
-						</mesh>
-					</group>
-				</PivotControls>
-
-				{/* Label: counter-rotate to keep it world-upright */}
-				<group quaternion={gizmoOrientInv}>
-					<Text
-						position={[0, 0.22, 0]}
-						fontSize={0.07}
-						color="white"
-						anchorX="center"
-						anchorY="bottom"
-						outlineWidth={0.004}
-						outlineColor="#000"
+				{dof > 0 ? (
+					<mesh
+						ref={(mesh) => {
+							if (mesh) {
+								mesh.matrixAutoUpdate = false;
+								mesh.matrix = dragMatrix;
+							}
+						}}
+						onPointerDown={handlePointerDown}
 					>
-						{name}
-						{"\n"}
-						{`${angleDeg}°`}
-					</Text>
+						<sphereGeometry args={[0.03, 12, 12]} />
+						<meshStandardMaterial
+							color="#ff6600"
+							emissive="#ff3300"
+							emissiveIntensity={0.4}
+						/>
+					</mesh>
+				) : (
+					<mesh>
+						<sphereGeometry args={[0.025, 12, 12]} />
+						<meshStandardMaterial color="#666666" />
+					</mesh>
+				)}
+
+				{/* Live state marker on the current joint angle. */}
+				<group rotation={[0, currentAngleSafe, 0]}>
+					<mesh position={[HINGE_HANDLE_DISTANCE, 0, 0]}>
+						<sphereGeometry args={[0.015, 8, 8]} />
+						<meshStandardMaterial color="#ffffff" />
+					</mesh>
 				</group>
 			</group>
 		</>
+	);
+};
+
+interface GhostPreviewProps {
+	frameData: Map<string, FrameData>;
+	parentById: Map<string, string | null>;
+	frameIds: string[];
+	pivot: THREE.Vector3;
+	axis: THREE.Vector3;
+	delta: number;
+}
+
+const GhostPreview: React.FC<GhostPreviewProps> = ({
+	frameData,
+	parentById,
+	frameIds,
+	pivot,
+	axis,
+	delta,
+}) => {
+	const { points, edges } = useMemo(() => {
+		const safeAxis = axis.clone();
+		if (
+			!Number.isFinite(safeAxis.lengthSq()) ||
+			safeAxis.lengthSq() < 1e-12
+		) {
+			safeAxis.set(0, 1, 0);
+		}
+		safeAxis.normalize();
+
+		const rotation = new THREE.Quaternion().setFromAxisAngle(
+			safeAxis,
+			delta,
+		);
+		const transformed = new Map<string, THREE.Vector3>();
+		for (const frameId of frameIds) {
+			const original = frameData.get(frameId)?.worldPos;
+			if (!original) continue;
+			const moved = original
+				.clone()
+				.sub(pivot)
+				.applyQuaternion(rotation)
+				.add(pivot);
+			transformed.set(frameId, moved);
+		}
+
+		const lines: Array<[THREE.Vector3, THREE.Vector3]> = [];
+		for (const frameId of frameIds) {
+			const childPos = transformed.get(frameId);
+			if (!childPos) continue;
+			const parentId = parentById.get(frameId);
+			if (!parentId) continue;
+			const parentPos = transformed.get(parentId);
+			if (!parentPos) continue;
+			lines.push([parentPos, childPos]);
+		}
+
+		return {
+			points: transformed,
+			edges: lines,
+		};
+	}, [axis, delta, frameData, frameIds, parentById, pivot]);
+
+	return (
+		<group>
+			{edges.map(([from, to], index) => (
+				<Line
+					key={`ghost-edge-${index}`}
+					points={[
+						[from.x, from.y, from.z],
+						[to.x, to.y, to.z],
+					]}
+					color="#8fd3ff"
+					transparent
+					opacity={0.35}
+					depthWrite={false}
+					depthTest={false}
+				/>
+			))}
+
+			{[...points.entries()].map(([frameId, position]) => (
+				<mesh
+					key={`ghost-node-${frameId}`}
+					position={[position.x, position.y, position.z]}
+					renderOrder={6}
+				>
+					<sphereGeometry args={[0.02, 8, 8]} />
+					<meshBasicMaterial
+						color="#8fd3ff"
+						transparent
+						opacity={0.45}
+						depthWrite={false}
+						depthTest={false}
+					/>
+				</mesh>
+			))}
+		</group>
 	);
 };
 
@@ -513,6 +524,12 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 
 	const jointStateTopic = config.jointStateTopic;
 	const commandTopic = config.commandTopic;
+	const [ghostPreview, setGhostPreview] = useState<{
+		frameId: string;
+		pivot: THREE.Vector3;
+		axis: THREE.Vector3;
+		delta: number;
+	} | null>(null);
 
 	// ── Read buffered data from the local datasource (managed by LocalDataSourcesProvider) ──
 	const source = jointStateTopic ? getSource(jointStateTopic) : undefined;
@@ -588,11 +605,21 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 		return result;
 	}, [transformsTrees]);
 
+	const treeRelations = useMemo(
+		() => collectTreeRelations(transformsTrees),
+		[transformsTrees],
+	);
+
 	// ── For each known joint, resolve its TF world position and rotation axis ─
 	const jointResolvedData = useMemo(() => {
 		const result = new Map<
 			string,
-			{ position: THREE.Vector3; axis: THREE.Vector3 }
+			{
+				frameId: string;
+				position: THREE.Vector3;
+				axis: THREE.Vector3;
+				dof: number;
+			}
 		>();
 		for (const name of jointOrder) {
 			const frameId = resolveJointFrame(
@@ -613,9 +640,12 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 				continue;
 			}
 
+			const axis = getJointAxis(frameData.get(frameId)!);
 			result.set(name, {
+				frameId,
 				position: resolvedPos,
-				axis: getJointAxis(frameData.get(frameId)!),
+				axis,
+				dof: inferRotationalDof(axis),
 			});
 		}
 		return result;
@@ -695,18 +725,60 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 	const handleDragEnd = useCallback(
 		(name: string, delta: number) => {
 			enableOrbit();
+			setGhostPreview(null);
+			const resolved = jointResolvedData.get(name);
+			if (!resolved || resolved.dof < 1) return;
 			const baseAngle =
 				jointAngles.get(name) ??
 				commandedAnglesRef.current.get(name) ??
 				0;
+			// Send the same absolute angle the ghost preview visualises:
+			// current base angle + the relative drag delta. No wrapping — ROS
+			// joint angles are unbounded and the controller handles limits.
 			const nextAngle = baseAngle + delta;
 			publishCommand(name, nextAngle);
 		},
-		[enableOrbit, publishCommand, jointAngles],
+		[enableOrbit, publishCommand, jointAngles, jointResolvedData],
+	);
+
+	const handleDragPreview = useCallback(
+		(name: string, delta: number) => {
+			const resolved = jointResolvedData.get(name);
+			if (!resolved || resolved.dof < 1) {
+				setGhostPreview(null);
+				return;
+			}
+			setGhostPreview({
+				frameId: resolved.frameId,
+				pivot: resolved.position.clone(),
+				axis: resolved.axis.clone(),
+				delta,
+			});
+		},
+		[jointResolvedData],
 	);
 
 	return (
 		<>
+			{ghostPreview &&
+				(() => {
+					const frameIds = collectSubtreeFrameIds(
+						ghostPreview.frameId,
+						treeRelations.childrenById,
+					);
+					if (frameIds.length === 0) return null;
+					return (
+						<GhostPreview
+							frameData={frameData}
+							parentById={treeRelations.parentById}
+							frameIds={frameIds}
+							pivot={ghostPreview.pivot}
+							axis={ghostPreview.axis}
+							delta={ghostPreview.delta}
+						/>
+					);
+				})()}
+
 			{jointOrder.map((name) => {
 				const resolved = jointResolvedData.get(name);
 				if (!resolved) return null;
@@ -716,8 +788,10 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 						name={name}
 						worldPos={resolved.position}
 						jointAxis={resolved.axis}
+						dof={resolved.dof}
 						currentAngle={jointAngles.get(name) ?? 0}
 						onDragStart={disableOrbit}
+						onDragPreview={handleDragPreview}
 						onDragEnd={handleDragEnd}
 					/>
 				);

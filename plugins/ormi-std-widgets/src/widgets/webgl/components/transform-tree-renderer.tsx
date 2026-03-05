@@ -575,6 +575,8 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 							geometry={sphereGeometry}
 							position={node.worldPos}
 							scale={isHovered ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+							castShadow
+							receiveShadow
 							onPointerOver={(e: ThreeEvent<PointerEvent>) => {
 								e.stopPropagation();
 								setHoveredNodeId(node.id);
@@ -666,6 +668,8 @@ const CylinderBetweenPoints: React.FC<CylinderBetweenPointsProps> = ({
 			position={position}
 			quaternion={quaternion}
 			scale={[1, length, 1]}
+			castShadow
+			receiveShadow
 		>
 			<meshStandardMaterial color={color} opacity={0.6} transparent />
 		</mesh>
