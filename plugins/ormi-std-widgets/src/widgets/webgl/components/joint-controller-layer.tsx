@@ -43,7 +43,6 @@ import {
 	collectTreeRelations,
 	extractJointStateMessage,
 	getJointAxis,
-	inferRotationalDof,
 	normalizeJointName,
 	resolveJointFrame,
 } from "../utils/joint-controller-utils";
@@ -57,14 +56,14 @@ interface JointGizmoProps {
 	worldPos: THREE.Vector3;
 	/**
 	 * Joint rotation axis in THREE world space.
-	 * Derived from the parent TF frame's local Z column (ROS URDF default axis).
-	 * The gizmo group is oriented so its local Y = this axis, making `euler.y`
-	 * of the drag matrix equal to the joint angle delta.
+	 * The gizmo is oriented so its local Y = this axis.
+	 * Provided by the datasource via TF frame orientation
+	 * (see `getJointAxis` datasource contract).
 	 */
 	jointAxis: THREE.Vector3;
-	dof: number;
 	currentAngle: number;
-	onDragStart: () => void;
+	/** Called with the joint name when the user starts dragging. */
+	onDragStart: (name: string) => void;
 	onDragPreview: (name: string, delta: number) => void;
 	/** Called with (jointName, rotationDelta) when the user releases the gizmo. */
 	onDragEnd: (name: string, delta: number) => void;
@@ -72,12 +71,13 @@ interface JointGizmoProps {
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const HINGE_HANDLE_DISTANCE = 0.14;
+/** Tube radius of the always-visible rotation-ring torus. */
+const HINGE_RING_TUBE_RADIUS = 0.007;
 
 const JointGizmo: React.FC<JointGizmoProps> = ({
 	name,
 	worldPos,
 	jointAxis,
-	dof,
 	currentAngle,
 	onDragStart,
 	onDragPreview,
@@ -88,7 +88,6 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 	const latestDeltaRef = useRef(0);
 	/** Angle accumulated during the current drag session (radians). */
 	const accumDeltaRef = useRef(0);
-	/** Whether a drag is in progress. */
 	const isDraggingRef = useRef(false);
 	/** Angle on the rotation plane at the previous pointer-move frame. */
 	const prevPlaneAngleRef = useRef(0);
@@ -195,14 +194,13 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 		).normalize();
 	}, [currentAngleSafe]);
 
-	// Initialise dragMatrix to rest position whenever angle or dof changes.
+	// Initialise dragMatrix to rest position whenever angle changes.
 	useEffect(() => {
-		if (dof < 1) return;
 		dragMatrix.identity();
 		dragMatrix.setPosition(
 			getCurrentAngleDirection().multiplyScalar(HINGE_HANDLE_DISTANCE),
 		);
-	}, [dof, dragMatrix, getCurrentAngleDirection]);
+	}, [dragMatrix, getCurrentAngleDirection]);
 
 	// ── Stable callback refs so event listeners never capture stale closures ──
 	const worldPosRef = useRef(worldPos);
@@ -248,7 +246,6 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 	 *   5. Write sphere position = (cos θ_total, 0, -sin θ_total) * radius into dragMatrix.
 	 */
 	useEffect(() => {
-		if (dof < 1) return;
 		const canvas = gl.domElement;
 		const raycaster = new THREE.Raycaster();
 		const hit = new THREE.Vector3();
@@ -322,7 +319,7 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 			canvas.removeEventListener("pointermove", onMove);
 			canvas.removeEventListener("pointerup", onUp);
 		};
-	}, [camera, dof, dragMatrix, gl.domElement, name]);
+	}, [camera, dragMatrix, gl.domElement, name]);
 
 	/**
 	 * pointerdown on the drag sphere:
@@ -332,7 +329,6 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 	 */
 	const handlePointerDown = useCallback(
 		(e: ThreeEvent<PointerEvent>) => {
-			if (dof < 1) return;
 			e.stopPropagation();
 			gl.domElement.setPointerCapture(e.nativeEvent.pointerId);
 
@@ -353,16 +349,16 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 				prevPlaneAngleRef.current = currentAngleSafe;
 			}
 
-			onDragStart();
+			onDragStart(name);
 		},
 		[
 			currentAngleSafe,
-			dof,
 			gl.domElement,
 			gizmoOrientInv,
 			onDragStart,
 			rotationPlane,
 			worldPos,
+			name,
 		],
 	);
 
@@ -372,29 +368,43 @@ const JointGizmo: React.FC<JointGizmoProps> = ({
 			<group position={pos} quaternion={gizmoOrient}>
 				<primitive object={axisHelper} renderOrder={30} />
 
-				{dof > 0 ? (
-					<mesh
-						ref={(mesh) => {
-							if (mesh) {
-								mesh.matrixAutoUpdate = false;
-								mesh.matrix = dragMatrix;
-							}
-						}}
-						onPointerDown={handlePointerDown}
-					>
-						<sphereGeometry args={[0.03, 12, 12]} />
-						<meshStandardMaterial
-							color="#ff6600"
-							emissive="#ff3300"
-							emissiveIntensity={0.4}
-						/>
-					</mesh>
-				) : (
-					<mesh>
-						<sphereGeometry args={[0.025, 12, 12]} />
-						<meshStandardMaterial color="#666666" />
-					</mesh>
-				)}
+				{/* Rotation ring — always visible, shows the joint rotation plane.
+				    torusGeometry lies in XY; rotate -π/2 around X to lay it in XZ.
+				    Radius matches HINGE_HANDLE_DISTANCE so the drag sphere sits on the ring. */}
+				<mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+					<torusGeometry
+						args={[
+							HINGE_HANDLE_DISTANCE,
+							HINGE_RING_TUBE_RADIUS,
+							8,
+							64,
+						]}
+					/>
+					<meshBasicMaterial
+						color="#88ccff"
+						transparent
+						opacity={0.55}
+						depthTest={false}
+						depthWrite={false}
+					/>
+				</mesh>
+
+				<mesh
+					ref={(mesh) => {
+						if (mesh) {
+							mesh.matrixAutoUpdate = false;
+							mesh.matrix = dragMatrix;
+						}
+					}}
+					onPointerDown={handlePointerDown}
+				>
+					<sphereGeometry args={[0.03, 12, 12]} />
+					<meshStandardMaterial
+						color="#ff6600"
+						emissive="#ff3300"
+						emissiveIntensity={0.4}
+					/>
+				</mesh>
 
 				{/* Live state marker on the current joint angle. */}
 				<group rotation={[0, currentAngleSafe, 0]}>
@@ -575,6 +585,22 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 		return map;
 	}, [latestMsg, jointOrder]);
 	const commandedAnglesRef = useRef<Map<string, number>>(new Map());
+	/**
+	 * Snapshot of joint angles captured at drag-start.
+	 * Used to seed positions for all non-dragged joints in trajectory mode,
+	 * avoiding race conditions with live JointState updates mid-drag.
+	 */
+	const dragBaseAnglesRef = useRef<Map<string, number>>(new Map());
+
+	// ── Refs for jog mode streaming ──────────────────────────────────────────
+	/** Name of the joint currently being dragged (null when idle). */
+	const activeDragJointRef = useRef<string | null>(null);
+	/** Latest accumulated drag delta from handleDragPreview. */
+	const previewDeltaRef = useRef<number>(0);
+	/** Delta that was last published during jog streaming. */
+	const lastJogPublishedDeltaRef = useRef<number>(0);
+	/** Active jog interval handle. */
+	const jogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	useEffect(() => {
 		const next = new Map(commandedAnglesRef.current);
@@ -618,7 +644,6 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 				frameId: string;
 				position: THREE.Vector3;
 				axis: THREE.Vector3;
-				dof: number;
 			}
 		>();
 		for (const name of jointOrder) {
@@ -645,7 +670,6 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 				frameId,
 				position: resolvedPos,
 				axis,
-				dof: inferRotationalDof(axis),
 			});
 		}
 		return result;
@@ -659,22 +683,18 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 			const publisher = publishers.get(commandTopic.topic);
 			if (!publisher) return;
 
-			const updatedAngles = new Map(commandedAnglesRef.current);
-
-			if (latestMsg?.name && latestMsg.position) {
-				latestMsg.name.forEach((name, index) => {
-					updatedAngles.set(name, latestMsg.position[index] ?? 0);
-				});
-			}
-
-			updatedAngles.set(changedJointName, changedJointAngle);
-			commandedAnglesRef.current = updatedAngles;
-
-			const publishJointNames = [...jointOrder];
-			const positions = Array.from(
-				publishJointNames,
-				(name) => updatedAngles.get(name) ?? 0,
+			// Use the drag-base snapshot for positions of all other joints.
+			// This avoids overwriting non-dragged joints with stale live data
+			// that may have arrived mid-drag.
+			const baseAngles = dragBaseAnglesRef.current;
+			const positions = Array.from(jointOrder, (name) =>
+				name === changedJointName
+					? changedJointAngle
+					: (baseAngles.get(name) ??
+						commandedAnglesRef.current.get(name) ??
+						0),
 			);
+
 			const duration = Number(config.duration ?? 1);
 			const sec = Math.max(0, Math.floor(duration));
 			const nanosec = Math.max(
@@ -684,30 +704,76 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 
 			publisher.publish(
 				{
-					joint_names: publishJointNames,
+					joint_names: [...jointOrder],
 					points: [
 						{
 							positions,
 							velocities: [],
 							accelerations: [],
 							effort: [],
-							time_from_start: {
-								sec,
-								nanosec,
-							},
+							time_from_start: { sec, nanosec },
 						},
 					],
 				},
 				"JointTrajectory",
 			);
 		},
-		[commandTopic, jointOrder, config.duration, publishers, latestMsg],
+		[commandTopic, jointOrder, config.duration, publishers],
 	);
 
 	// ── OrbitControls: disable while dragging ──────────────────────────────
-	const disableOrbit = useCallback(() => {
-		if (controlsRef.current) controlsRef.current.enabled = false;
-	}, [controlsRef]);
+	/**
+	 * Called by a JointGizmo when the user starts dragging.
+	 * Disables orbit, snapshots current joint angles for race-free trajectory
+	 * publishing, and starts the jog streaming interval in jog mode.
+	 */
+	const handleDragStart = useCallback(
+		(name: string) => {
+			if (controlsRef.current) controlsRef.current.enabled = false;
+
+			// Snapshot angles at drag-start so publishCommand has a consistent
+			// base for all joints, regardless of live JointState updates.
+			dragBaseAnglesRef.current = new Map(jointAngles);
+			activeDragJointRef.current = name;
+			previewDeltaRef.current = 0;
+			lastJogPublishedDeltaRef.current = 0;
+
+			if (config.commandMode === "jog") {
+				const freq = Math.max(1, config.jogFrequency ?? 30);
+				const period = 1000 / freq;
+				jogIntervalRef.current = setInterval(() => {
+					const jointName = activeDragJointRef.current;
+					if (!jointName || !commandTopic) return;
+					const publisher = publishers.get(commandTopic.topic);
+					if (!publisher) return;
+
+					const current = previewDeltaRef.current;
+					const last = lastJogPublishedDeltaRef.current;
+					const displacement = current - last;
+					if (Math.abs(displacement) < 1e-6) return;
+
+					lastJogPublishedDeltaRef.current = current;
+					publisher.publish(
+						{
+							joint_names: [jointName],
+							velocities: [0],
+							displacements: [displacement],
+							duration: period / 1000,
+						},
+						"JointVelocity",
+					);
+				}, period);
+			}
+		},
+		[
+			controlsRef,
+			jointAngles,
+			config.commandMode,
+			config.jogFrequency,
+			commandTopic,
+			publishers,
+		],
+	);
 
 	const enableOrbit = useCallback(() => {
 		const controls = controlsRef.current;
@@ -718,6 +784,10 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 		const controls = controlsRef.current;
 		return () => {
 			if (controls) controls.enabled = true;
+			if (jogIntervalRef.current) {
+				clearInterval(jogIntervalRef.current);
+				jogIntervalRef.current = null;
+			}
 		};
 	}, [controlsRef]);
 
@@ -726,25 +796,60 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 		(name: string, delta: number) => {
 			enableOrbit();
 			setGhostPreview(null);
+
+			// Stop jog interval and clear drag state.
+			if (jogIntervalRef.current) {
+				clearInterval(jogIntervalRef.current);
+				jogIntervalRef.current = null;
+			}
+			activeDragJointRef.current = null;
+
+			if (config.commandMode === "jog") {
+				// Send a zero-displacement stop command so the servo controller
+				// does not keep moving after the pointer is released.
+				if (commandTopic) {
+					const publisher = publishers.get(commandTopic.topic);
+					if (publisher) {
+						publisher.publish(
+							{
+								joint_names: [name],
+								velocities: [0],
+								displacements: [0],
+								duration: 0,
+							},
+							"JointVelocity",
+						);
+					}
+				}
+				return;
+			}
+
+			// Trajectory mode: publish the absolute target angle.
 			const resolved = jointResolvedData.get(name);
-			if (!resolved || resolved.dof < 1) return;
-			const baseAngle =
-				jointAngles.get(name) ??
-				commandedAnglesRef.current.get(name) ??
-				0;
+			if (!resolved) return;
+			const baseAngle = dragBaseAnglesRef.current.get(name) ?? 0;
 			// Send the same absolute angle the ghost preview visualises:
-			// current base angle + the relative drag delta. No wrapping — ROS
+			// drag-base angle + relative drag delta. No wrapping — ROS
 			// joint angles are unbounded and the controller handles limits.
-			const nextAngle = baseAngle + delta;
-			publishCommand(name, nextAngle);
+			publishCommand(name, baseAngle + delta);
 		},
-		[enableOrbit, publishCommand, jointAngles, jointResolvedData],
+		[
+			enableOrbit,
+			publishCommand,
+			jointResolvedData,
+			config.commandMode,
+			commandTopic,
+			publishers,
+		],
 	);
 
 	const handleDragPreview = useCallback(
 		(name: string, delta: number) => {
+			// Keep the jog interval up-to-date with the latest accumulated delta.
+			previewDeltaRef.current = delta;
+
 			const resolved = jointResolvedData.get(name);
-			if (!resolved || resolved.dof < 1) {
+			if (!resolved) {
 				setGhostPreview(null);
 				return;
 			}
@@ -788,9 +893,8 @@ export const JointControllerLayer: React.FC<JointControllerLayerProps> = ({
 						name={name}
 						worldPos={resolved.position}
 						jointAxis={resolved.axis}
-						dof={resolved.dof}
 						currentAngle={jointAngles.get(name) ?? 0}
-						onDragStart={disableOrbit}
+						onDragStart={handleDragStart}
 						onDragPreview={handleDragPreview}
 						onDragEnd={handleDragEnd}
 					/>

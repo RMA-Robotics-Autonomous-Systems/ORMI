@@ -104,13 +104,16 @@ export interface PosePublisherConfig {
  * the first `sensor_msgs/JointState` message on `jointStateTopic`, and each
  * gizmo is placed at the world position of the matching TF frame (looked up
  * by name using exact match → `_joint`→`_link` heuristic → prefix search).
+ *
+ * The datasource is responsible for orienting TF frames so that the local Y
+ * axis of each joint frame equals its rotation axis in world space.
  */
 export interface JointControllerConfig {
 	/** Enable the joint controller overlay. @default false */
 	enabled?: boolean;
 	/** Topic that publishes `sensor_msgs/msg/JointState` for feedback. */
 	jointStateTopic?: SelectedTopic;
-	/** Topic that accepts `trajectory_msgs/msg/JointTrajectory` commands. */
+	/** Topic to publish joint commands on. The message type depends on `commandMode`. */
 	commandTopic?: SelectedTopic;
 	/**
 	 * Optional manual joint→frame mapping used before auto-discovery.
@@ -120,8 +123,26 @@ export interface JointControllerConfig {
 		jointName: string;
 		frameId: string;
 	}>;
-	/** Trajectory execution duration in seconds. @default 1 */
+	/**
+	 * Command mode for joint control.
+	 *
+	 * - `"trajectory"` — publishes a full `trajectory_msgs/msg/JointTrajectory` on drag
+	 *   release. Compatible with MoveIt motion planners and position-based controllers.
+	 * - `"jog"` — streams incremental `control_msgs/msg/JointJog` displacements during a
+	 *   drag at `jogFrequency` Hz. Compatible with MoveIt Servo and ros2_control
+	 *   velocity/displacement controllers.
+	 *
+	 * @default "trajectory"
+	 */
+	commandMode?: "trajectory" | "jog";
+	/** Trajectory execution duration in seconds (`trajectory` mode only). @default 1 */
 	duration?: number;
+	/**
+	 * Jog publish frequency in Hz (`jog` mode only).
+	 * Each tick publishes the angular displacement accumulated since the previous tick.
+	 * @default 30
+	 */
+	jogFrequency?: number;
 }
 
 // Main props for the 3D Scene widget

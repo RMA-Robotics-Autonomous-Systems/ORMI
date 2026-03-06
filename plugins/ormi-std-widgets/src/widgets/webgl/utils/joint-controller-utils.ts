@@ -17,6 +17,7 @@ import {
 import {
 	TransformTree,
 	CoordinateConvention,
+	JointState,
 } from "@workspace/ormi-core/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,16 +28,16 @@ export interface FrameData {
 	worldPos: THREE.Vector3;
 	/**
 	 * World-space matrix of THIS frame (already in THREE convention).
-	 * The Y column gives the joint rotation axis in world space
-	 * (ROS joints rotate around local Y after ROS→THREE conversion).
+	 * The local Y column gives the joint rotation axis in world space.
+	 * The datasource is responsible for orienting TF frames so that
+	 * local Y = rotation axis (this is the default after ROS→THREE conversion
+	 * for standard URDF `<axis xyz="0 0 1"/>` joints).
 	 */
 	worldMatrix: THREE.Matrix4;
 }
 
-export interface JointStateMessage {
-	name: string[];
-	position: number[];
-}
+/** Re-export for convenience inside this module. */
+export type { JointState };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TF / world-matrix helpers
@@ -85,10 +86,16 @@ export const collectFrameData = (
 };
 
 /**
- * Extract the joint rotation axis in THREE world space from the TF local Y axis.
+ * Extract the joint rotation axis in THREE world space from the TF frame's local Y column.
  *
- * After getWorldMatrix converts ROS→THREE, the Y column (second basis vector)
- * of the world matrix gives the joint rotation axis in world space.
+ * **Datasource contract**: the datasource must orient every joint TF frame so
+ * that its local Y axis (after ROS→THREE conversion) equals the joint's
+ * rotation axis in world space.  Standard URDF `<axis xyz="0 0 1"/>` joints
+ * satisfy this automatically; non-standard axes require the datasource to
+ * pre-rotate the frame accordingly.
+ *
+ * Falls back to world Y `(0,1,0)` only as a null-safety guard for
+ * degenerate/uninitialised matrices — not as a default axis assumption.
  */
 export const getJointAxis = (data: FrameData): THREE.Vector3 => {
 	const yAxis = new THREE.Vector3();
@@ -106,18 +113,6 @@ export const getJointAxis = (data: FrameData): THREE.Vector3 => {
 		return new THREE.Vector3(0, 1, 0);
 	}
 	return yAxis.normalize();
-};
-
-/** Returns 1 if the axis is a valid rotation axis, 0 otherwise. */
-export const inferRotationalDof = (axis: THREE.Vector3): number => {
-	if (
-		!Number.isFinite(axis.x) ||
-		!Number.isFinite(axis.y) ||
-		!Number.isFinite(axis.z)
-	) {
-		return 0;
-	}
-	return axis.lengthSq() < 1e-12 ? 0 : 1;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -225,9 +220,7 @@ const toNumberArray = (value: unknown): number[] =>
 		return Number.isFinite(n) ? n : 0;
 	});
 
-export const extractJointStateMessage = (
-	value: unknown,
-): JointStateMessage | null => {
+export const extractJointStateMessage = (value: unknown): JointState | null => {
 	if (!value || typeof value !== "object") return null;
 
 	const candidates: unknown[] = [
