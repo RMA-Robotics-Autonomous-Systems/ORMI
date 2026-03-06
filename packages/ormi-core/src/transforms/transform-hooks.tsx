@@ -11,6 +11,7 @@ import { TransformTree } from "../types";
 import {
 	transformTreesAtom,
 	transformFrameCountAtom,
+	transformFrameIdsAtom,
 	transformStore,
 } from "./transform-atoms";
 
@@ -35,4 +36,14 @@ export function useTransformSource(): {
 /** Get the total number of frames across all transform trees. */
 export function useTransformFrameCount(): number {
 	return useAtomValue(transformFrameCountAtom, { store: transformStore });
+}
+
+/**
+ * Hook to get the sorted list of all transform frame ids.
+ * Only triggers a re-render when the frame list changes, not on every TF
+ * value update — safe to use in UI components at high-frequency update rates.
+ */
+/** Sorted frame id list; stable across high-frequency TF value updates. */
+export function useTransformFrameIds(): string[] {
+	return useAtomValue(transformFrameIdsAtom, { store: transformStore });
 }

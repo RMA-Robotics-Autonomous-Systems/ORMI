@@ -12,6 +12,7 @@
  */
 
 import { atom, createStore } from "jotai";
+import { selectAtom } from "jotai/utils";
 import { CoordinateConvention, TransformTree } from "../types";
 
 // Create a single shared store instance for transforms
@@ -45,6 +46,31 @@ export const transformSourcesAtom = atom<Set<string>>(new Set<string>());
 /**
  * Derived atom that returns the number of frames in the transform tree
  */
+/**
+ * Derived atom that returns the sorted list of all frame ids.
+ * Uses selectAtom with an equality check so subscribers only re-render
+ * when the frame list actually changes, not on every TF value update.
+ */
+/** Atom computing sorted frame id list; stable across TF value-only updates. */
+const collectFrameIds = (trees: Map<string, TransformTree>): string[] => {
+	const frames: string[] = [];
+	const walk = (node: TransformTree) => {
+		frames.push(node.id);
+		node.children.forEach(walk);
+	};
+	trees.forEach((tree) => walk(tree));
+	return Array.from(new Set(frames)).sort();
+};
+
+const frameIdsEqual = (a: string[], b: string[]): boolean =>
+	a.length === b.length && a.every((id, i) => id === b[i]);
+
+export const transformFrameIdsAtom = selectAtom(
+	transformTreesAtom,
+	collectFrameIds,
+	frameIdsEqual,
+);
+
 /** Atom computing total frame count across all trees. */
 export const transformFrameCountAtom = atom((get) => {
 	const trees = get(transformTreesAtom);

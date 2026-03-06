@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import {
 	ControlProps,
@@ -17,26 +17,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@workspace/ui/components/select";
-import { TransformTree } from "@workspace/ormi-core/types";
-import { useTransformSource } from "@workspace/ormi-core/transforms";
-
-/**
- * Collect frame ids from transform trees.
- * @param trees - Transform trees map.
- * @returns Sorted frame id list.
- */
-const collectFrames = (trees: Map<string, TransformTree>): string[] => {
-	const frames: string[] = [];
-
-	const walk = (node: TransformTree) => {
-		frames.push(node.id);
-		node.children.forEach(walk);
-	};
-
-	trees.forEach((tree) => walk(tree));
-
-	return Array.from(new Set(frames)).sort();
-};
+import { useTransformFrameIds } from "@workspace/ormi-core/transforms";
 
 /**
  * JsonForms renderer for selecting a transform frame.
@@ -45,19 +26,10 @@ const collectFrames = (trees: Map<string, TransformTree>): string[] => {
  */
 const FrameSelectRenderer = (props: ControlProps) => {
 	const { data, handleChange, path, uischema, label } = props;
-	const { transformsTrees } = useTransformSource();
+	const frames = useTransformFrameIds();
 
 	const placeholder = uischema.options?.placeholder || "Select frame";
-
-	const frames = useMemo(
-		() => collectFrames(transformsTrees),
-		[transformsTrees],
-	);
-
-	const currentValue = useMemo(
-		() => (typeof data === "string" ? data : ""),
-		[data],
-	);
+	const currentValue = typeof data === "string" ? data : "";
 
 	return (
 		<div className="space-y-2">
