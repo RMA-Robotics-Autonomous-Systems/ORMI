@@ -1289,6 +1289,14 @@ export class UnifiedConverter {
 		return conv ? Object.keys(conv.conversions)[0] : undefined;
 	}
 
+	// Returns all ros2 types for a given webapp type.
+	static getAllROSTypesFromWebappType(webappType: string): string[] {
+		const allConverters = this.getConverters();
+
+		const conv = allConverters[webappType];
+		return conv ? Object.keys(conv.conversions) : [];
+	}
+
 	// Converts a ros2 object to a webapp object using conversion identified by originalRos2Type.
 	static convertToWebapp(
 		rosData: any,

@@ -926,11 +926,9 @@ const server = createRpcServer<
 			if (webtypes && webtypes.length > 0) {
 				const compatibleTypes = new Set<string>();
 				webtypes.forEach((webtype) => {
-					const rosType =
-						UnifiedConverter.getROSTypeFromWebappType(webtype);
-					if (rosType) {
-						compatibleTypes.add(rosType);
-					}
+					const rosTypes =
+						UnifiedConverter.getAllROSTypesFromWebappType(webtype);
+					rosTypes.forEach((t) => compatibleTypes.add(t));
 					if (uniqueSchemas.includes(webtype)) {
 						compatibleTypes.add(webtype);
 					}
