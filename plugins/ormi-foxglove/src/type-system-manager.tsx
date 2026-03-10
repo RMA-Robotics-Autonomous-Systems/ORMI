@@ -133,13 +133,11 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 					if (webtypes.length > 0) {
 						const compatibleTypes = new Set<string>();
 						webtypes.forEach((webtype) => {
-							const rosType =
-								UnifiedConverter.getROSTypeFromWebappType(
+							const rosTypes =
+								UnifiedConverter.getAllROSTypesFromWebappType(
 									webtype,
 								);
-							if (rosType) {
-								compatibleTypes.add(rosType);
-							}
+							rosTypes.forEach((t) => compatibleTypes.add(t));
 							// Also consider direct matches
 							if (uniqueSet.has(webtype)) {
 								compatibleTypes.add(webtype);
