@@ -7,6 +7,18 @@ import type {
 	MADConfig,
 	RSDConfig,
 } from "../../algorithms/detection-types";
+import { Slider } from "@workspace/ui/components/slider";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@workspace/ui/components/select";
+import { Card, CardContent } from "@workspace/ui/components/card";
+import { Checkbox } from "@workspace/ui/components/checkbox";
+import { Switch } from "@workspace/ui/components/switch";
+import { Label } from "@workspace/ui/components/label";
 
 interface SliderRowProps {
 	label: string;
@@ -30,22 +42,20 @@ function SliderRow({
 	fmt,
 }: SliderRowProps) {
 	return (
-		<label className="flex flex-col gap-0.5">
-			<span className="flex justify-between text-xs">
+		<div className="flex flex-col gap-1">
+			<div className="flex justify-between text-xs">
 				<span className="text-muted-foreground">{label}</span>
 				<span className="font-mono">{fmt ? fmt(value) : value}</span>
-			</span>
-			<input
-				type="range"
+			</div>
+			<Slider
+				value={[value]}
 				min={min}
 				max={max}
 				step={step}
-				value={value}
 				disabled={disabled}
-				onChange={(e) => onChange(Number(e.target.value))}
-				className="accent-blue-500 disabled:opacity-40"
+				onValueChange={([v]) => onChange(v!)}
 			/>
-		</label>
+		</div>
 	);
 }
 
@@ -63,21 +73,21 @@ function SelectRow({
 	disabled?: boolean;
 }) {
 	return (
-		<label className="flex items-center gap-2 text-xs">
+		<div className="flex items-center gap-2 text-xs">
 			<span className="w-24 shrink-0 text-muted-foreground">{label}</span>
-			<select
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
-				disabled={disabled}
-				className="flex-1 rounded border bg-background px-1 py-0.5 text-xs disabled:opacity-40"
-			>
-				{options.map((o) => (
-					<option key={o} value={o}>
-						{o}
-					</option>
-				))}
-			</select>
-		</label>
+			<Select value={value} onValueChange={onChange} disabled={disabled}>
+				<SelectTrigger className="h-7 flex-1 text-xs">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					{options.map((o) => (
+						<SelectItem key={o} value={o}>
+							{o}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
 	);
 }
 
@@ -93,89 +103,101 @@ function AlgoSection({
 	enabled: boolean;
 }) {
 	return (
-		<div className="rounded border p-2 flex flex-col gap-1">
-			<label className="flex items-center gap-2 text-sm font-medium">
-				<input
-					type="checkbox"
-					checked={config.enabled}
-					onChange={(e) => onChange({ enabled: e.target.checked })}
-					className="accent-blue-500"
-					disabled={!enabled}
-				/>
-				{title}
-			</label>
-			{config.enabled && enabled && (
-				<>
-					<SliderRow
-						label="Baseline"
-						value={config.baselineSize}
-						min={64}
-						max={2048}
-						step={64}
-						onChange={(v) => onChange({ baselineSize: v })}
+		<Card>
+			<CardContent className="pt-4 flex flex-col gap-2">
+				<div className="flex items-center gap-2">
+					<Switch
+						checked={config.enabled}
+						onCheckedChange={(v) => onChange({ enabled: v })}
+						disabled={!enabled}
+						id={`algo-${title}`}
 					/>
-					<SliderRow
-						label="Window"
-						value={config.detectionSize}
-						min={4}
-						max={128}
-						step={4}
-						onChange={(v) => onChange({ detectionSize: v })}
-					/>
-					<SliderRow
-						label="Threshold"
-						value={config.threshold}
-						min={0.1}
-						max={100}
-						step={0.1}
-						onChange={(v) => onChange({ threshold: v })}
-						fmt={(v) => v.toFixed(1)}
-					/>
-					<SliderRow
-						label="Min samples"
-						value={config.minSamples}
-						min={32}
-						max={512}
-						step={32}
-						onChange={(v) => onChange({ minSamples: v })}
-					/>
-					<SliderRow
-						label="Cooldown (samples)"
-						value={config.cooldownSamples}
-						min={0}
-						max={300}
-						step={5}
-						onChange={(v) => onChange({ cooldownSamples: v })}
-					/>
-					{"detectionPercentile" in config && (
+					<Label
+						htmlFor={`algo-${title}`}
+						className="text-sm font-medium"
+					>
+						{title}
+					</Label>
+				</div>
+				{config.enabled && enabled && (
+					<>
 						<SliderRow
-							label="Detection pctile"
-							value={(config as MADConfig).detectionPercentile}
-							min={0.5}
-							max={1}
-							step={0.05}
-							onChange={(v) =>
-								onChange({
-									detectionPercentile: v,
-								} as Partial<MADConfig>)
-							}
-							fmt={(v) => `${Math.round(v * 100)}%`}
+							label="Baseline"
+							value={config.baselineSize}
+							min={64}
+							max={2048}
+							step={64}
+							onChange={(v) => onChange({ baselineSize: v })}
 						/>
-					)}
-					<label className="flex items-center gap-2 text-xs text-muted-foreground">
-						<input
-							type="checkbox"
-							checked={config.showInternals}
-							onChange={(e) =>
-								onChange({ showInternals: e.target.checked })
-							}
-							className="accent-blue-500"
+						<SliderRow
+							label="Window"
+							value={config.detectionSize}
+							min={4}
+							max={128}
+							step={4}
+							onChange={(v) => onChange({ detectionSize: v })}
 						/>
-						Show threshold / deviation
-					</label>
-				</>
-			)}
-		</div>
+						<SliderRow
+							label="Threshold"
+							value={config.threshold}
+							min={0.1}
+							max={100}
+							step={0.1}
+							onChange={(v) => onChange({ threshold: v })}
+							fmt={(v) => v.toFixed(1)}
+						/>
+						<SliderRow
+							label="Min samples"
+							value={config.minSamples}
+							min={32}
+							max={512}
+							step={32}
+							onChange={(v) => onChange({ minSamples: v })}
+						/>
+						<SliderRow
+							label="Cooldown (samples)"
+							value={config.cooldownSamples}
+							min={0}
+							max={300}
+							step={5}
+							onChange={(v) => onChange({ cooldownSamples: v })}
+						/>
+						{"detectionPercentile" in config && (
+							<SliderRow
+								label="Detection pctile"
+								value={
+									(config as MADConfig).detectionPercentile
+								}
+								min={0.5}
+								max={1}
+								step={0.05}
+								onChange={(v) =>
+									onChange({
+										detectionPercentile: v,
+									} as Partial<MADConfig>)
+								}
+								fmt={(v) => `${Math.round(v * 100)}%`}
+							/>
+						)}
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id={`show-internals-${title}`}
+								checked={config.showInternals}
+								onCheckedChange={(v) =>
+									onChange({ showInternals: Boolean(v) })
+								}
+							/>
+							<Label
+								htmlFor={`show-internals-${title}`}
+								className="text-xs text-muted-foreground"
+							>
+								Show threshold / deviation
+							</Label>
+						</div>
+					</>
+				)}
+			</CardContent>
+		</Card>
 	);
 }
 
@@ -211,94 +233,106 @@ export function DetectionPanel({ config, onChange }: DetectionPanelProps) {
 	return (
 		<div className="flex flex-col gap-3">
 			{/* Master toggle */}
-			<label className="flex items-center gap-2 font-medium text-sm">
-				<input
-					type="checkbox"
+			<div className="flex items-center gap-2">
+				<Switch
+					id="enable-detection"
 					checked={enabled}
-					onChange={(e) => onChange({ enabled: e.target.checked })}
-					className="accent-blue-500"
+					onCheckedChange={(v) => onChange({ enabled: v })}
 				/>
-				Enable detection
-			</label>
+				<Label
+					htmlFor="enable-detection"
+					className="font-medium text-sm"
+				>
+					Enable detection
+				</Label>
+			</div>
 
 			{/* Pre-processing filter */}
-			<div className="rounded border p-2 flex flex-col gap-1.5">
-				<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-					Pre-processing filter
-				</p>
-				<SelectRow
-					label="Filter"
-					value={filterType}
-					options={FILTER_TYPES}
-					onChange={(v) =>
-						onChange({
-							filterType: v as DetectionConfig["filterType"],
-						})
-					}
-					disabled={!enabled}
-				/>
-				{enabled && filterType === "lowpass" && (
-					<SliderRow
-						label="Alpha"
-						value={filterParams.lowpassAlpha}
-						min={0.01}
-						max={1}
-						step={0.01}
-						onChange={(v) => patchFilter({ lowpassAlpha: v })}
-						fmt={(v) => v.toFixed(2)}
+			<Card>
+				<CardContent className="pt-4 flex flex-col gap-2">
+					<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+						Pre-processing filter
+					</p>
+					<SelectRow
+						label="Filter"
+						value={filterType}
+						options={FILTER_TYPES}
+						onChange={(v) =>
+							onChange({
+								filterType: v as DetectionConfig["filterType"],
+							})
+						}
+						disabled={!enabled}
 					/>
-				)}
-				{enabled && filterType === "kalman" && (
-					<>
+					{enabled && filterType === "lowpass" && (
 						<SliderRow
-							label="Process noise"
-							value={filterParams.kalmanProcessNoise}
-							min={0.1}
-							max={100}
-							step={0.1}
-							onChange={(v) =>
-								patchFilter({ kalmanProcessNoise: v })
-							}
-							fmt={(v) => v.toFixed(1)}
+							label="Alpha"
+							value={filterParams.lowpassAlpha}
+							min={0.01}
+							max={1}
+							step={0.01}
+							onChange={(v) => patchFilter({ lowpassAlpha: v })}
+							fmt={(v) => v.toFixed(2)}
 						/>
+					)}
+					{enabled && filterType === "kalman" && (
+						<>
+							<SliderRow
+								label="Process noise"
+								value={filterParams.kalmanProcessNoise}
+								min={0.1}
+								max={100}
+								step={0.1}
+								onChange={(v) =>
+									patchFilter({ kalmanProcessNoise: v })
+								}
+								fmt={(v) => v.toFixed(1)}
+							/>
+							<SliderRow
+								label="Meas. noise"
+								value={filterParams.kalmanMeasurementNoise}
+								min={0.1}
+								max={100}
+								step={0.1}
+								onChange={(v) =>
+									patchFilter({ kalmanMeasurementNoise: v })
+								}
+								fmt={(v) => v.toFixed(1)}
+							/>
+						</>
+					)}
+					{enabled && filterType === "dezerolizer" && (
 						<SliderRow
-							label="Meas. noise"
-							value={filterParams.kalmanMeasurementNoise}
-							min={0.1}
-							max={100}
-							step={0.1}
+							label="Decay"
+							value={filterParams.dezeroliserDecay}
+							min={0.8}
+							max={1}
+							step={0.01}
 							onChange={(v) =>
-								patchFilter({ kalmanMeasurementNoise: v })
+								patchFilter({ dezeroliserDecay: v })
 							}
-							fmt={(v) => v.toFixed(1)}
+							fmt={(v) => v.toFixed(2)}
 						/>
-					</>
-				)}
-				{enabled && filterType === "dezerolizer" && (
-					<SliderRow
-						label="Decay"
-						value={filterParams.dezeroliserDecay}
-						min={0.8}
-						max={1}
-						step={0.01}
-						onChange={(v) => patchFilter({ dezeroliserDecay: v })}
-						fmt={(v) => v.toFixed(2)}
-					/>
-				)}
-				{enabled && filterType !== "none" && (
-					<label className="flex items-center gap-2 text-xs text-muted-foreground">
-						<input
-							type="checkbox"
-							checked={showFiltered}
-							onChange={(e) =>
-								onChange({ showFiltered: e.target.checked })
-							}
-							className="accent-blue-500"
-						/>
-						Show filtered signal
-					</label>
-				)}
-			</div>
+					)}
+					{enabled && filterType !== "none" && (
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id="show-filtered"
+								checked={showFiltered}
+								onCheckedChange={(v) =>
+									onChange({ showFiltered: Boolean(v) })
+								}
+							/>
+							<Label
+								htmlFor="show-filtered"
+								className="text-xs text-muted-foreground"
+							>
+								Show filtered signal
+							</Label>
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			{/* Algorithms */}
 			<AlgoSection
@@ -315,120 +349,138 @@ export function DetectionPanel({ config, onChange }: DetectionPanelProps) {
 			/>
 
 			{/* CUSUM */}
-			<div className="rounded border p-2 flex flex-col gap-1">
-				<label className="flex items-center gap-2 text-sm font-medium">
-					<input
-						type="checkbox"
-						checked={config.cusum.enabled}
-						onChange={(e) =>
-							patchCusum({ enabled: e.target.checked })
-						}
-						className="accent-blue-500"
-						disabled={!enabled}
-					/>
-					CUSUM
-				</label>
-				{config.cusum.enabled && enabled && (
-					<>
-						<SliderRow
-							label="Baseline"
-							value={config.cusum.baselineSize}
-							min={64}
-							max={1024}
-							step={32}
-							onChange={(v) => patchCusum({ baselineSize: v })}
+			<Card>
+				<CardContent className="pt-4 flex flex-col gap-2">
+					<div className="flex items-center gap-2">
+						<Switch
+							id="cusum-enabled"
+							checked={config.cusum.enabled}
+							onCheckedChange={(v) => patchCusum({ enabled: v })}
+							disabled={!enabled}
 						/>
-						<SliderRow
-							label="Min samples"
-							value={config.cusum.minSamples}
-							min={32}
-							max={512}
-							step={32}
-							onChange={(v) => patchCusum({ minSamples: v })}
-						/>
-						<SliderRow
-							label="Slack factor"
-							value={config.cusum.slackFactor}
-							min={0.1}
-							max={2}
-							step={0.1}
-							onChange={(v) => patchCusum({ slackFactor: v })}
-							fmt={(v) => v.toFixed(1)}
-						/>
-						<SliderRow
-							label="Threshold (σ)"
-							value={config.cusum.threshold}
-							min={0.5}
-							max={20}
-							step={0.5}
-							onChange={(v) => patchCusum({ threshold: v })}
-							fmt={(v) => v.toFixed(1)}
-						/>
-						<SliderRow
-							label="Cooldown (samples)"
-							value={config.cusum.cooldownSamples}
-							min={0}
-							max={300}
-							step={5}
-							onChange={(v) => patchCusum({ cooldownSamples: v })}
-						/>
-						<label className="flex items-center gap-2 text-xs text-muted-foreground">
-							<input
-								type="checkbox"
-								checked={config.cusum.showInternals}
-								onChange={(e) =>
-									patchCusum({
-										showInternals: e.target.checked,
-									})
+						<Label
+							htmlFor="cusum-enabled"
+							className="text-sm font-medium"
+						>
+							CUSUM
+						</Label>
+					</div>
+					{config.cusum.enabled && enabled && (
+						<>
+							<SliderRow
+								label="Baseline"
+								value={config.cusum.baselineSize}
+								min={64}
+								max={1024}
+								step={32}
+								onChange={(v) =>
+									patchCusum({ baselineSize: v })
 								}
-								className="accent-blue-500"
 							/>
-							Show accumulator / threshold
-						</label>
-					</>
-				)}
-			</div>
+							<SliderRow
+								label="Min samples"
+								value={config.cusum.minSamples}
+								min={32}
+								max={512}
+								step={32}
+								onChange={(v) => patchCusum({ minSamples: v })}
+							/>
+							<SliderRow
+								label="Slack factor"
+								value={config.cusum.slackFactor}
+								min={0.1}
+								max={2}
+								step={0.1}
+								onChange={(v) => patchCusum({ slackFactor: v })}
+								fmt={(v) => v.toFixed(1)}
+							/>
+							<SliderRow
+								label="Threshold (σ)"
+								value={config.cusum.threshold}
+								min={0.5}
+								max={20}
+								step={0.5}
+								onChange={(v) => patchCusum({ threshold: v })}
+								fmt={(v) => v.toFixed(1)}
+							/>
+							<SliderRow
+								label="Cooldown (samples)"
+								value={config.cusum.cooldownSamples}
+								min={0}
+								max={300}
+								step={5}
+								onChange={(v) =>
+									patchCusum({ cooldownSamples: v })
+								}
+							/>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="show-cusum-internals"
+									checked={config.cusum.showInternals}
+									onCheckedChange={(v) =>
+										patchCusum({
+											showInternals: Boolean(v),
+										})
+									}
+								/>
+								<Label
+									htmlFor="show-cusum-internals"
+									className="text-xs text-muted-foreground"
+								>
+									Show accumulator / threshold
+								</Label>
+							</div>
+						</>
+					)}
+				</CardContent>
+			</Card>
 
 			{/* Clustering */}
-			<div className="rounded border p-2 flex flex-col gap-1.5">
-				<label className="flex items-center gap-2 text-xs font-semibold">
-					<input
-						type="checkbox"
-						checked={clustering.enabled}
-						onChange={(e) =>
-							patchCluster({ enabled: e.target.checked })
-						}
-						className="accent-blue-500"
-						disabled={!enabled}
-					/>
-					Event clustering
-				</label>
-				{clustering.enabled && enabled && (
-					<>
-						<SliderRow
-							label="Time gap (s)"
-							value={clustering.timeThresholdMs / 1000}
-							min={0.5}
-							max={30}
-							step={0.5}
-							onChange={(v) =>
-								patchCluster({ timeThresholdMs: v * 1000 })
+			<Card>
+				<CardContent className="pt-4 flex flex-col gap-2">
+					<div className="flex items-center gap-2">
+						<Switch
+							id="clustering-enabled"
+							checked={clustering.enabled}
+							onCheckedChange={(v) =>
+								patchCluster({ enabled: v })
 							}
-							fmt={(v) => v.toFixed(1)}
+							disabled={!enabled}
 						/>
-						<SliderRow
-							label="Distance (m)"
-							value={clustering.distanceThresholdM}
-							min={1}
-							max={100}
-							step={1}
-							onChange={(v) =>
-								patchCluster({ distanceThresholdM: v })
-							}
-						/>
-					</>
-				)}
-			</div>
+						<Label
+							htmlFor="clustering-enabled"
+							className="text-xs font-semibold"
+						>
+							Event clustering
+						</Label>
+					</div>
+					{clustering.enabled && enabled && (
+						<>
+							<SliderRow
+								label="Time gap (s)"
+								value={clustering.timeThresholdMs / 1000}
+								min={0.5}
+								max={30}
+								step={0.5}
+								onChange={(v) =>
+									patchCluster({ timeThresholdMs: v * 1000 })
+								}
+								fmt={(v) => v.toFixed(1)}
+							/>
+							<SliderRow
+								label="Distance (m)"
+								value={clustering.distanceThresholdM}
+								min={1}
+								max={100}
+								step={1}
+								onChange={(v) =>
+									patchCluster({ distanceThresholdM: v })
+								}
+							/>
+						</>
+					)}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

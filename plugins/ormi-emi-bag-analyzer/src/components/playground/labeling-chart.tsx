@@ -8,6 +8,8 @@ import React, {
 	useState,
 } from "react";
 import type { TimeSeriesPoint } from "../../bag-reader/bag-types";
+import { Button } from "@workspace/ui/components/button";
+import { Badge } from "@workspace/ui/components/badge";
 
 type PlotlyModule = typeof import("plotly.js-dist-min");
 
@@ -26,11 +28,16 @@ export interface LabelingChartProps {
 	filteredSeries?: TimeSeriesPoint[];
 	/** Extra series interpolated and appended as columns in the CSV export */
 	extraCsvSeries?: { label: string; points: TimeSeriesPoint[] }[];
+	/** User-drawn simplified signal — displayed as an orange dashed overlay. */
+	sketchSeries?: { tsNs: number; value: number }[];
 	duration: number;
 	timeRange?: [number, number];
 	controlPoints: ConfidencePoint[];
 	onChange: (pts: ConfidencePoint[]) => void;
 	onSeedFromDetections?: () => void;
+	/** Called when the user clicks "Auto-label". The callback should run
+	 *  runAutoLabel on the full series and call onChange with the result. */
+	onAutoLabel?: () => void;
 	height?: number;
 }
 
@@ -47,6 +54,7 @@ const CONF_STROKE = "#6366f1";
 const CONF_FILL = "rgba(99,102,241,0.12)";
 const SIG_STROKE = "rgba(120,120,140,0.55)";
 const FILT_STROKE = "rgba(234,179,8,0.85)";
+const SKETCH_STROKE = "rgba(249,115,22,0.9)";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -184,6 +192,7 @@ function buildTraces(
 	filteredSeries: TimeSeriesPoint[] | undefined,
 	sorted: ConfidencePoint[],
 	duration: number,
+	sketchSeries?: { tsNs: number; value: number }[],
 ): object[] {
 	const sigPts = downsample(series, MAX_SIG_POINTS);
 	const filtPts = filteredSeries
@@ -231,6 +240,17 @@ function buildTraces(
 			fill: "tozeroy",
 			fillcolor: CONF_FILL,
 			line: { color: CONF_STROKE, width: 2 },
+			showlegend: false,
+		},
+		// 3 — user sketch (simplified signal polyline)
+		{
+			type: "scatter",
+			mode: "lines",
+			name: "Sketch",
+			x: (sketchSeries ?? []).map((p) => p.tsNs / 1e9),
+			y: (sketchSeries ?? []).map((p) => p.value),
+			yaxis: "y",
+			line: { color: SKETCH_STROKE, width: 2, dash: "dot" },
 			showlegend: false,
 		},
 	];
@@ -285,11 +305,13 @@ export function LabelingChart({
 	series,
 	filteredSeries,
 	extraCsvSeries,
+	sketchSeries,
 	duration,
 	timeRange,
 	controlPoints,
 	onChange,
 	onSeedFromDetections,
+	onAutoLabel,
 	height = 200,
 }: LabelingChartProps) {
 	const Plotly = usePlotly();
@@ -341,7 +363,13 @@ export function LabelingChart({
 	// Does NOT include viewStart/viewEnd — timeRange is handled by the fast path below.
 	useEffect(() => {
 		if (!Plotly || !plotDivRef.current) return;
-		const traces = buildTraces(series, filteredSeries, sorted, duration);
+		const traces = buildTraces(
+			series,
+			filteredSeries,
+			sorted,
+			duration,
+			sketchSeries,
+		);
 		const layout = buildLayout(viewStart, viewEnd, height);
 
 		if (!initializedRef.current) {
@@ -496,9 +524,12 @@ export function LabelingChart({
 						click to add · drag to adjust · double-click to remove
 					</span>
 				</span>
-				<div className="flex gap-3">
+				<div className="flex gap-3 items-center">
 					{filteredSeries && filteredSeries.length > 0 && (
-						<span className="flex items-center gap-1 text-[10px] text-amber-500">
+						<Badge
+							variant="secondary"
+							className="gap-1 text-[10px] text-amber-500"
+						>
 							<span
 								style={{
 									display: "inline-block",
@@ -509,37 +540,51 @@ export function LabelingChart({
 								}}
 							/>
 							filtered
-						</span>
+						</Badge>
+					)}
+					{onAutoLabel && (
+						<Button
+							variant="link"
+							size="sm"
+							onClick={onAutoLabel}
+							disabled={series.length === 0}
+							className="h-auto p-0 text-xs text-emerald-600 hover:text-emerald-800"
+						>
+							Auto-label
+						</Button>
 					)}
 					{onSeedFromDetections && (
-						<button
-							type="button"
+						<Button
+							variant="link"
+							size="sm"
 							onClick={onSeedFromDetections}
-							className="text-xs text-indigo-500 hover:text-indigo-700 underline"
+							className="h-auto p-0 text-xs text-indigo-500 hover:text-indigo-700"
 						>
 							Seed from detections
-						</button>
+						</Button>
 					)}
-					<button
-						type="button"
+					<Button
+						variant="link"
+						size="sm"
 						onClick={() =>
 							exportCsv(series, sorted, extraCsvSeries)
 						}
 						disabled={
 							controlPoints.length === 0 || series.length === 0
 						}
-						className="text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:cursor-not-allowed"
+						className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
 					>
 						Export CSV
-					</button>
-					<button
-						type="button"
+					</Button>
+					<Button
+						variant="link"
+						size="sm"
 						onClick={() => onChange([])}
 						disabled={controlPoints.length === 0}
-						className="text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:cursor-not-allowed"
+						className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
 					>
 						Clear
-					</button>
+					</Button>
 				</div>
 			</div>
 

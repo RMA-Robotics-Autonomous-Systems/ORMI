@@ -2,6 +2,8 @@
 
 import React, { lazy, Suspense } from "react";
 import type { TimeSeriesPoint } from "../bag-reader/bag-types";
+import { Card, CardContent } from "@workspace/ui/components/card";
+import { Skeleton } from "@workspace/ui/components/skeleton";
 
 // Lazy-load Plotly to avoid SSR issues and keep initial bundle small
 const Plot = lazy(() => import("react-plotly.js"));
@@ -56,22 +58,18 @@ export function SignalPlot({ series }: SignalPlotProps) {
 	};
 
 	return (
-		<div className="rounded-lg border p-2">
-			<Suspense
-				fallback={
-					<div className="p-8 text-center text-muted-foreground text-sm">
-						Loading chart…
-					</div>
-				}
-			>
-				<Plot
-					data={data}
-					layout={layout}
-					style={{ width: "100%" }}
-					config={{ responsive: true, displayModeBar: true }}
-					useResizeHandler
-				/>
-			</Suspense>
-		</div>
+		<Card>
+			<CardContent className="p-2">
+				<Suspense fallback={<Skeleton className="h-[420px] w-full" />}>
+					<Plot
+						data={data}
+						layout={layout}
+						style={{ width: "100%" }}
+						config={{ responsive: true, displayModeBar: true }}
+						useResizeHandler
+					/>
+				</Suspense>
+			</CardContent>
+		</Card>
 	);
 }
