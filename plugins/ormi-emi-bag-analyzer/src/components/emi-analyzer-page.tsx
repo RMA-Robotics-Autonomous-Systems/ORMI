@@ -13,7 +13,11 @@ import type {
 	PlaygroundData,
 	PlaygroundLineSeries,
 } from "../bag-reader/bag-types";
-import { DEFAULT_DETECTION_CONFIG, clusterDetections } from "../algorithms";
+import {
+	DEFAULT_DETECTION_CONFIG,
+	clusterDetections,
+	runAutoLabel,
+} from "../algorithms";
 import type { DetectionConfig, DetectionRunResult } from "../algorithms";
 import { BagUpload } from "./bag-upload";
 import { TopicPanel } from "./playground/topic-panel";
@@ -26,6 +30,18 @@ import { TimelineScrubber } from "./playground/timeline-scrubber";
 import type { TimelineEvent } from "./playground/timeline-scrubber";
 import { LabelingChart } from "./playground/labeling-chart";
 import type { ConfidencePoint } from "./playground/labeling-chart";
+import { BaselineSketchDialog } from "./playground/baseline-sketch-dialog";
+import type { DrawnBaselinePoint } from "../algorithms";
+import { Alert, AlertDescription } from "@workspace/ui/components/alert";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@workspace/ui/components/card";
+import { Badge } from "@workspace/ui/components/badge";
+import { Spinner } from "@workspace/ui/components/spinner";
+import { ScrollArea } from "@workspace/ui/components/scroll-area";
 
 const MAD_COLOR = "#f97316";
 const RSD_COLOR = "#a855f7";
@@ -35,6 +51,29 @@ const EVENT_COLOR = "#64748b";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Linearly interpolate the confidence curve (sorted ConfidencePoint[]) at a
+ * given timestamp in nanoseconds. Clamps to the nearest endpoint outside range.
+ */
+function lerpConfidence(pts: ConfidencePoint[], tsNs: number): number {
+	if (pts.length === 0) return 0;
+	if (pts.length === 1) return pts[0]!.confidence;
+	if (tsNs <= pts[0]!.tsNs) return pts[0]!.confidence;
+	if (tsNs >= pts[pts.length - 1]!.tsNs)
+		return pts[pts.length - 1]!.confidence;
+	let lo = 0;
+	let hi = pts.length - 1;
+	while (hi - lo > 1) {
+		const mid = (lo + hi) >> 1;
+		if (pts[mid]!.tsNs <= tsNs) lo = mid;
+		else hi = mid;
+	}
+	const a = pts[lo]!;
+	const b = pts[hi]!;
+	const t = (tsNs - a.tsNs) / (b.tsNs - a.tsNs);
+	return a.confidence + t * (b.confidence - a.confidence);
+}
 
 function smartDefault(items: { name: string }[], preferred: string[]): string {
 	for (const p of preferred) {
@@ -450,6 +489,106 @@ export function EmiAnalyzerPage() {
 		]);
 	}, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+	const [sketchOpen, setSketchOpen] = useState(false);
+	const [sketchSeries, setSketchSeries] = useState<
+		typeof data extends null
+			? never
+			: NonNullable<typeof data>["lineSeries"][0]["points"]
+	>([]);
+	const [sketchHandles, setSketchHandles] = useState<DrawnBaselinePoint[]>(
+		[],
+	);
+
+	/**
+	 * For each active algorithm, classify each detection as TP (confidence ≥ 0.5
+	 * at that timestamp) or FP (confidence < 0.5). Also compute the fraction of
+	 * bag duration covered by the labeled region (confidence ≥ 0.5).
+	 */
+	const detectionQuality = useMemo(() => {
+		const CONF_THRESHOLD = 0.5;
+		const sorted = [...confidencePoints].sort((a, b) => a.tsNs - b.tsNs);
+		const hasLabels = sorted.length >= 2;
+
+		const classify = (timestamps: number[]) => {
+			let tp = 0;
+			for (const tsNs of timestamps) {
+				if (lerpConfidence(sorted, tsNs) >= CONF_THRESHOLD) tp++;
+			}
+			return { total: timestamps.length, tp, fp: timestamps.length - tp };
+		};
+
+		// Approximate labeled-region coverage: integrate segments where conf ≥ 0.5
+		let labeledNs = 0;
+		if (hasLabels) {
+			for (let i = 0; i < sorted.length - 1; i++) {
+				const a = sorted[i]!;
+				const b = sorted[i + 1]!;
+				const segLen = b.tsNs - a.tsNs;
+				if (
+					a.confidence >= CONF_THRESHOLD &&
+					b.confidence >= CONF_THRESHOLD
+				) {
+					labeledNs += segLen;
+				} else if (
+					a.confidence >= CONF_THRESHOLD ||
+					b.confidence >= CONF_THRESHOLD
+				) {
+					const crossT =
+						(CONF_THRESHOLD - a.confidence) /
+						(b.confidence - a.confidence);
+					labeledNs +=
+						segLen *
+						(a.confidence < CONF_THRESHOLD ? 1 - crossT : crossT);
+				}
+			}
+		}
+		const totalNs =
+			sorted.length >= 2
+				? sorted[sorted.length - 1]!.tsNs - sorted[0]!.tsNs
+				: 0;
+		const labelCoverage = totalNs > 0 ? labeledNs / totalNs : 0;
+
+		return {
+			hasLabels,
+			labelCoverage,
+			mad: detectionConfig.mad.enabled ? classify(clusteredMad) : null,
+			rsd: detectionConfig.rsd.enabled ? classify(clusteredRsd) : null,
+			cusum: detectionConfig.cusum.enabled
+				? classify(clusteredCusum)
+				: null,
+		};
+	}, [
+		confidencePoints,
+		clusteredMad,
+		clusteredRsd,
+		clusteredCusum,
+		detectionConfig,
+	]);
+
+	const handleAutoLabel = useCallback(() => {
+		const pts = detectionSource?.points ?? data?.lineSeries[0]?.points;
+		if (!pts || pts.length === 0) return;
+		setSketchSeries(pts);
+		setSketchOpen(true);
+	}, [detectionSource, data]);
+
+	const handleSketchConfirm = useCallback(
+		(baseline: DrawnBaselinePoint[]) => {
+			setSketchOpen(false);
+			setSketchHandles(baseline);
+			if (sketchSeries.length === 0) return;
+			const raw = runAutoLabel(sketchSeries, { drawnBaseline: baseline });
+			setConfidencePoints(
+				raw.map((p) => ({
+					id: Math.random().toString(36).slice(2, 10),
+					tsNs: p.tsNs,
+					confidence: p.confidence,
+				})),
+			);
+		},
+		[sketchSeries],
+	);
+
 	const handleSeedFromDetections = useCallback(() => {
 		const mkPt = (tsNs: number): ConfidencePoint => ({
 			id: Math.random().toString(36).slice(2, 10),
@@ -508,9 +647,9 @@ export function EmiAnalyzerPage() {
 			</div>
 
 			{error && (
-				<div className="shrink-0 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-					{error}
-				</div>
+				<Alert variant="destructive" className="shrink-0">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 
 			{/* Two-column layout — shown once a bag is opened */}
@@ -519,153 +658,282 @@ export function EmiAnalyzerPage() {
 					{/* ── Left 1/3: settings ─────────────────────────────── */}
 					<div className="col-span-1 flex flex-col gap-3">
 						{/* 1. Detection algorithms */}
-						<div className="rounded border p-3">
-							<div className="mb-2 flex items-center gap-2">
-								<p className="text-sm font-semibold">
-									Detection algorithms
-								</p>
-								{detectionStatus === "computing" && (
-									<span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-										<svg
-											className="h-3 w-3 animate-spin"
-											viewBox="0 0 24 24"
-											fill="none"
+						<Card>
+							<CardHeader className="pb-2">
+								<div className="flex items-center gap-2">
+									<CardTitle className="text-sm">
+										Detection algorithms
+									</CardTitle>
+									{detectionStatus === "computing" && (
+										<Badge
+											variant="secondary"
+											className="gap-1"
 										>
-											<circle
-												className="opacity-25"
-												cx="12"
-												cy="12"
-												r="10"
-												stroke="currentColor"
-												strokeWidth="4"
-											/>
-											<path
-												className="opacity-75"
-												fill="currentColor"
-												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-											/>
-										</svg>
-										Computing…
-									</span>
-								)}
-								{detectionStatus === "done" && (
-									<span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-										Done
-									</span>
-								)}
-							</div>
-							<DetectionPanel
-								config={detectionConfig}
-								onChange={patchDetection}
-							/>
-						</div>
+											<Spinner className="size-3" />
+											Computing…
+										</Badge>
+									)}
+									{detectionStatus === "done" && (
+										<Badge variant="outline">Done</Badge>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+								<DetectionPanel
+									config={detectionConfig}
+									onChange={patchDetection}
+								/>
+							</CardContent>
+						</Card>
 
 						{/* 2. Statistics */}
-						<div className="rounded border p-3">
-							<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-								Statistics
-							</p>
-							<div className="space-y-1 rounded bg-muted/40 p-2 text-xs">
-								<p>
-									Messages:{" "}
-									<span className="font-mono">
-										{summary.messageCount}
-									</span>
-								</p>
-								<p>
-									Duration:{" "}
-									<span className="font-mono">
-										{(duration / 1e9).toFixed(1)}s
-									</span>
-								</p>
-							</div>
-							{detectionConfig.enabled &&
-								(clusteredMad.length > 0 ||
-									clusteredRsd.length > 0 ||
-									clusteredCusum.length > 0) && (
-									<div className="mt-2 space-y-1 rounded bg-muted/40 p-2 text-xs">
-										{clusteredMad.length > 0 && (
-											<p>
-												<span
-													style={{ color: MAD_COLOR }}
-												>
-													●
-												</span>{" "}
-												MAD:{" "}
-												<span className="font-mono">
-													{clusteredMad.length}
-												</span>{" "}
-												events
-											</p>
-										)}
-										{clusteredRsd.length > 0 && (
-											<p>
-												<span
-													style={{ color: RSD_COLOR }}
-												>
-													●
-												</span>{" "}
-												RSD:{" "}
-												<span className="font-mono">
-													{clusteredRsd.length}
-												</span>{" "}
-												events
-											</p>
-										)}
-										{clusteredCusum.length > 0 && (
-											<p>
-												<span
-													style={{
-														color: CUSUM_COLOR,
-													}}
-												>
-													●
-												</span>{" "}
-												CUSUM:{" "}
-												<span className="font-mono">
-													{clusteredCusum.length}
-												</span>{" "}
-												events
-											</p>
-										)}
-									</div>
-								)}
-							<div className="mt-2 max-h-48 space-y-0.5 overflow-y-auto text-xs">
-								{summary.topics.map((t) => (
-									<div
-										key={t.name}
-										className="flex justify-between gap-2"
-									>
-										<span className="truncate font-mono text-muted-foreground">
-											{t.name}
+						<Card>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-xs uppercase tracking-wide text-muted-foreground">
+									Statistics
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="flex flex-col gap-2">
+								<div className="space-y-1 rounded bg-muted/40 p-2 text-xs">
+									<p>
+										Messages:{" "}
+										<span className="font-mono">
+											{summary.messageCount}
 										</span>
-										<span className="shrink-0">
-											{t.messageCount}
+									</p>
+									<p>
+										Duration:{" "}
+										<span className="font-mono">
+											{(duration / 1e9).toFixed(1)}s
 										</span>
+									</p>
+								</div>
+								{detectionConfig.enabled &&
+									(clusteredMad.length > 0 ||
+										clusteredRsd.length > 0 ||
+										clusteredCusum.length > 0) && (
+										<div className="mt-2 space-y-1 rounded bg-muted/40 p-2 text-xs">
+											{clusteredMad.length > 0 && (
+												<p>
+													<span
+														style={{
+															color: MAD_COLOR,
+														}}
+													>
+														●
+													</span>{" "}
+													MAD:{" "}
+													<span className="font-mono">
+														{clusteredMad.length}
+													</span>{" "}
+													events
+												</p>
+											)}
+											{clusteredRsd.length > 0 && (
+												<p>
+													<span
+														style={{
+															color: RSD_COLOR,
+														}}
+													>
+														●
+													</span>{" "}
+													RSD:{" "}
+													<span className="font-mono">
+														{clusteredRsd.length}
+													</span>{" "}
+													events
+												</p>
+											)}
+											{clusteredCusum.length > 0 && (
+												<p>
+													<span
+														style={{
+															color: CUSUM_COLOR,
+														}}
+													>
+														●
+													</span>{" "}
+													CUSUM:{" "}
+													<span className="font-mono">
+														{clusteredCusum.length}
+													</span>{" "}
+													events
+												</p>
+											)}
+										</div>
+									)}
+								{detectionQuality.hasLabels &&
+									detectionConfig.enabled && (
+										<div className="mt-2 space-y-1 rounded bg-muted/40 p-2 text-xs">
+											<p className="mb-1 font-medium text-muted-foreground">
+												vs. confidence labels
+											</p>
+											<p>
+												Labeled region:{" "}
+												<span className="font-mono">
+													{(
+														detectionQuality.labelCoverage *
+														100
+													).toFixed(1)}
+													%
+												</span>{" "}
+												of bag
+											</p>
+											{detectionQuality.mad && (
+												<>
+													<p
+														className="mt-1 font-medium"
+														style={{
+															color: MAD_COLOR,
+														}}
+													>
+														MAD
+													</p>
+													<p className="pl-2">
+														TP:{" "}
+														<span className="font-mono text-green-600">
+															{
+																detectionQuality
+																	.mad.tp
+															}
+														</span>
+														{" / FP: "}
+														<span className="font-mono text-red-500">
+															{
+																detectionQuality
+																	.mad.fp
+															}
+														</span>
+														{" / Total: "}
+														<span className="font-mono">
+															{
+																detectionQuality
+																	.mad.total
+															}
+														</span>
+													</p>
+												</>
+											)}
+											{detectionQuality.rsd && (
+												<>
+													<p
+														className="mt-1 font-medium"
+														style={{
+															color: RSD_COLOR,
+														}}
+													>
+														RSD
+													</p>
+													<p className="pl-2">
+														TP:{" "}
+														<span className="font-mono text-green-600">
+															{
+																detectionQuality
+																	.rsd.tp
+															}
+														</span>
+														{" / FP: "}
+														<span className="font-mono text-red-500">
+															{
+																detectionQuality
+																	.rsd.fp
+															}
+														</span>
+														{" / Total: "}
+														<span className="font-mono">
+															{
+																detectionQuality
+																	.rsd.total
+															}
+														</span>
+													</p>
+												</>
+											)}
+											{detectionQuality.cusum && (
+												<>
+													<p
+														className="mt-1 font-medium"
+														style={{
+															color: CUSUM_COLOR,
+														}}
+													>
+														CUSUM
+													</p>
+													<p className="pl-2">
+														TP:{" "}
+														<span className="font-mono text-green-600">
+															{
+																detectionQuality
+																	.cusum.tp
+															}
+														</span>
+														{" / FP: "}
+														<span className="font-mono text-red-500">
+															{
+																detectionQuality
+																	.cusum.fp
+															}
+														</span>
+														{" / Total: "}
+														<span className="font-mono">
+															{
+																detectionQuality
+																	.cusum.total
+															}
+														</span>
+													</p>
+												</>
+											)}
+										</div>
+									)}
+								<ScrollArea className="mt-2 max-h-48">
+									<div className="space-y-0.5 text-xs">
+										{summary.topics.map((t) => (
+											<div
+												key={t.name}
+												className="flex justify-between gap-2"
+											>
+												<span className="truncate font-mono text-muted-foreground">
+													{t.name}
+												</span>
+												<span className="shrink-0">
+													{t.messageCount}
+												</span>
+											</div>
+										))}
 									</div>
-								))}
-							</div>
-						</div>
+								</ScrollArea>
+							</CardContent>
+						</Card>
 
 						{/* 3. Topics */}
-						<div className="rounded border p-3">
-							<p className="mb-2 text-sm font-semibold">Topics</p>
-							<TopicPanel
-								topics={summary.topics}
-								selectedNumeric={selectedNumeric}
-								selectedEvents={selectedEvents}
-								gpsTopic={gpsTopic}
-								detectionTopic={detectionConfig.detectionTopic}
-								onNumericChange={setSelectedNumeric}
-								onEventsChange={setSelectedEvents}
-								onGpsTopicChange={setGpsTopic}
-								onDetectionTopicChange={(t) =>
-									patchDetection({ detectionTopic: t })
-								}
-								onLoad={handleLoad}
-								loading={loading}
-							/>
-						</div>
+						<Card>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">
+									Topics
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<TopicPanel
+									topics={summary.topics}
+									selectedNumeric={selectedNumeric}
+									selectedEvents={selectedEvents}
+									gpsTopic={gpsTopic}
+									detectionTopic={
+										detectionConfig.detectionTopic
+									}
+									onNumericChange={setSelectedNumeric}
+									onEventsChange={setSelectedEvents}
+									onGpsTopicChange={setGpsTopic}
+									onDetectionTopicChange={(t) =>
+										patchDetection({ detectionTopic: t })
+									}
+									onLoad={handleLoad}
+									loading={loading}
+								/>
+							</CardContent>
+						</Card>
 					</div>
 
 					{/* ── Right 2/3: visualisation ───────────────────────── */}
@@ -673,116 +941,140 @@ export function EmiAnalyzerPage() {
 						{data ? (
 							<>
 								{/* Signal plot — 1/3 height */}
-								<div className="rounded border p-1">
-									<SignalsChart
-										lineSeries={data.lineSeries}
-										eventSeries={data.eventSeries}
-										detectionEvents={detectionChartEvents}
-										extraSeries={extraSeries}
-										timeRange={timeRange}
-										duration={duration}
-										onRangeChange={setTimeRange}
-										height={300}
-									/>
-								</div>
+								<Card>
+									<CardContent className="p-1">
+										<SignalsChart
+											lineSeries={data.lineSeries}
+											eventSeries={data.eventSeries}
+											detectionEvents={
+												detectionChartEvents
+											}
+											extraSeries={extraSeries}
+											timeRange={timeRange}
+											duration={duration}
+											onRangeChange={setTimeRange}
+											height={300}
+										/>
+									</CardContent>
+								</Card>
 
 								{/* Confidence labeling — full width row below both columns */}
 								{data && (
-									<div className="rounded border p-3">
-										<LabelingChart
-											series={
+									<Card>
+										<CardContent className="p-3">
+											<LabelingChart
+												series={
+													detectionSource?.points ??
+													data.lineSeries[0]
+														?.points ??
+													[]
+												}
+												filteredSeries={
+													madResult?.filteredSeries ??
+													rsdResult?.filteredSeries ??
+													cusumResult?.filteredSeries
+												}
+												duration={duration}
+												timeRange={timeRange}
+												controlPoints={confidencePoints}
+												onChange={setConfidencePoints}
+												extraCsvSeries={[
+													...data.lineSeries
+														.filter(
+															(s) =>
+																s.name ===
+																	"/cmd_vel linear.x" ||
+																s.name ===
+																	"/cmd_vel angular.z",
+														)
+														.map((s) => ({
+															label:
+																s.name ===
+																"/cmd_vel linear.x"
+																	? "cmd_vel_linear_x"
+																	: "cmd_vel_angular_z",
+															points: s.points,
+														})),
+													...(data.gps.length > 0
+														? [
+																{
+																	label: "gps_latitude",
+																	points: data.gps.map(
+																		(
+																			p,
+																		) => ({
+																			timestamp:
+																				p.timestamp,
+																			value: p.latitude,
+																		}),
+																	),
+																},
+																{
+																	label: "gps_longitude",
+																	points: data.gps.map(
+																		(
+																			p,
+																		) => ({
+																			timestamp:
+																				p.timestamp,
+																			value: p.longitude,
+																		}),
+																	),
+																},
+															]
+														: []),
+												]}
+												onSeedFromDetections={
+													handleSeedFromDetections
+												}
+												onAutoLabel={handleAutoLabel}
+												sketchSeries={sketchHandles}
+												height={200}
+											/>
+										</CardContent>
+									</Card>
+								)}
+
+								<BaselineSketchDialog
+									open={sketchOpen}
+									series={sketchSeries}
+									initialHandles={sketchHandles}
+									onConfirm={handleSketchConfirm}
+									onCancel={() => setSketchOpen(false)}
+								/>
+								{/* Timeline scrubber — top */}
+								<Card>
+									<CardContent className="px-3 py-2">
+										<TimelineScrubber
+											duration={duration}
+											value={timeRange}
+											onChange={setTimeRange}
+											events={timelineEvents}
+										/>
+									</CardContent>
+								</Card>
+
+								{/* Map — 2/3 height */}
+								<Card>
+									<CardContent className="p-1">
+										<GpsMapAdvanced
+											gps={gps}
+											valueSeries={
 												detectionSource?.points ??
-												data.lineSeries[0]?.points ??
-												[]
+												data.lineSeries[0]?.points
 											}
-											filteredSeries={
+											filteredValueSeries={
 												madResult?.filteredSeries ??
 												rsdResult?.filteredSeries ??
 												cusumResult?.filteredSeries
 											}
-											duration={duration}
+											detectionGroups={gpsDetectionGroups}
 											timeRange={timeRange}
-											controlPoints={confidencePoints}
-											onChange={setConfidencePoints}
-											extraCsvSeries={[
-												...data.lineSeries
-													.filter(
-														(s) =>
-															s.name ===
-																"/cmd_vel linear.x" ||
-															s.name ===
-																"/cmd_vel angular.z",
-													)
-													.map((s) => ({
-														label:
-															s.name ===
-															"/cmd_vel linear.x"
-																? "cmd_vel_linear_x"
-																: "cmd_vel_angular_z",
-														points: s.points,
-													})),
-												...(data.gps.length > 0
-													? [
-															{
-																label: "gps_latitude",
-																points: data.gps.map(
-																	(p) => ({
-																		timestamp:
-																			p.timestamp,
-																		value: p.latitude,
-																	}),
-																),
-															},
-															{
-																label: "gps_longitude",
-																points: data.gps.map(
-																	(p) => ({
-																		timestamp:
-																			p.timestamp,
-																		value: p.longitude,
-																	}),
-																),
-															},
-														]
-													: []),
-											]}
-											onSeedFromDetections={
-												handleSeedFromDetections
-											}
-											height={200}
+											height={600}
+											onSeek={handleMapSeek}
 										/>
-									</div>
-								)}
-
-								{/* Timeline scrubber — top */}
-								<div className="rounded border px-3 py-2">
-									<TimelineScrubber
-										duration={duration}
-										value={timeRange}
-										onChange={setTimeRange}
-										events={timelineEvents}
-									/>
-								</div>
-
-								{/* Map — 2/3 height */}
-								<div className="rounded border p-1">
-									<GpsMapAdvanced
-										gps={gps}
-										valueSeries={
-											detectionSource?.points ??
-											data.lineSeries[0]?.points
-										}
-										filteredValueSeries={
-											madResult?.filteredSeries ??
-											rsdResult?.filteredSeries ??
-											cusumResult?.filteredSeries
-										}
-										detectionGroups={gpsDetectionGroups}
-										timeRange={timeRange}
-										height={600}
-										onSeek={handleMapSeek}
-									/>
-								</div>
+									</CardContent>
+								</Card>
 							</>
 						) : (
 							<div className="flex h-64 items-center justify-center rounded border text-sm text-muted-foreground">

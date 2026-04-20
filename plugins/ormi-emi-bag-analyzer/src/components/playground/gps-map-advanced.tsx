@@ -18,6 +18,9 @@ import Map, {
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { GpsPoint, TimeSeriesPoint } from "../../bag-reader/bag-types";
 import { gpsAtTimestamp } from "../../algorithms/clustering";
+import { Card, CardContent } from "@workspace/ui/components/card";
+import { Checkbox } from "@workspace/ui/components/checkbox";
+import { Label } from "@workspace/ui/components/label";
 
 export interface GpsDetectionGroup {
 	name: string;
@@ -466,135 +469,104 @@ export function GpsMapAdvanced({
 			</Map>
 
 			{/* Layer toggles panel */}
-			<div
+			<Card
+				className="z-10 min-w-[140px] text-xs shadow"
 				style={{
 					position: "absolute",
-					top: 8,
-					left: 8,
-					background: "rgba(255,255,255,0.92)",
-					borderRadius: 6,
-					padding: "6px 10px",
-					fontSize: 12,
-					display: "flex",
-					flexDirection: "column",
-					gap: 4,
-					boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+					top: "var(--spacing)",
+					left: "var(--spacing)",
 				}}
 			>
-				<label
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: 6,
-						cursor: "pointer",
-					}}
-				>
-					<input
-						type="checkbox"
-						checked={showTrack}
-						onChange={(e) => setShowTrack(e.target.checked)}
-					/>
-					Track
-				</label>
-				{hasHeatline && (
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							gap: 3,
-						}}
-					>
-						<label
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 6,
-								cursor: "pointer",
-							}}
-						>
-							<input
-								type="checkbox"
-								checked={showHeatline}
-								onChange={(e) =>
-									setShowHeatline(e.target.checked)
-								}
-							/>
-							EMI heatline
-						</label>
-						{filteredValueSeries &&
-							filteredValueSeries.length > 0 &&
-							showHeatline && (
-								<label
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: 6,
-										cursor: "pointer",
-										paddingLeft: 18,
-										fontSize: 11,
-									}}
-								>
-									<input
-										type="checkbox"
-										checked={useFiltered}
-										onChange={(e) =>
-											setUseFiltered(e.target.checked)
-										}
-									/>
-									Use filtered
-								</label>
-							)}
-					</div>
-				)}
-				{detectionGroups.map((g) => (
-					<label
-						key={g.name}
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 6,
-							cursor: "pointer",
-						}}
-					>
-						<input
-							type="checkbox"
-							checked={!hiddenGroups.has(g.name)}
-							onChange={() => toggleGroup(g.name)}
+				<CardContent className="p-2 flex flex-col gap-1.5">
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id="layer-track"
+							checked={showTrack}
+							onCheckedChange={(v) => setShowTrack(Boolean(v))}
 						/>
-						<span
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 4,
-							}}
+						<Label
+							htmlFor="layer-track"
+							className="text-xs cursor-pointer"
 						>
-							{g.fromAlgo ? (
-								<span
-									style={{
-										fontSize: 12,
-										color: g.color,
-										lineHeight: 1,
-									}}
-								>
-									▲
-								</span>
-							) : (
-								<span
-									style={{
-										width: 10,
-										height: 10,
-										borderRadius: "50%",
-										background: g.color,
-										display: "inline-block",
-										flexShrink: 0,
-									}}
+							Track
+						</Label>
+					</div>
+					{hasHeatline && (
+						<div className="flex flex-col gap-1.5">
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="layer-heatline"
+									checked={showHeatline}
+									onCheckedChange={(v) =>
+										setShowHeatline(Boolean(v))
+									}
 								/>
-							)}
-							{g.name}
-						</span>
-					</label>
-				))}
-			</div>
+								<Label
+									htmlFor="layer-heatline"
+									className="text-xs cursor-pointer"
+								>
+									EMI heatline
+								</Label>
+							</div>
+							{filteredValueSeries &&
+								filteredValueSeries.length > 0 &&
+								showHeatline && (
+									<div className="flex items-center gap-2 pl-5">
+										<Checkbox
+											id="layer-filtered"
+											checked={useFiltered}
+											onCheckedChange={(v) =>
+												setUseFiltered(Boolean(v))
+											}
+										/>
+										<Label
+											htmlFor="layer-filtered"
+											className="text-[11px] cursor-pointer"
+										>
+											Use filtered
+										</Label>
+									</div>
+								)}
+						</div>
+					)}
+					{detectionGroups.map((g) => (
+						<div key={g.name} className="flex items-center gap-2">
+							<Checkbox
+								id={`layer-group-${g.name}`}
+								checked={!hiddenGroups.has(g.name)}
+								onCheckedChange={() => toggleGroup(g.name)}
+							/>
+							<Label
+								htmlFor={`layer-group-${g.name}`}
+								className="flex items-center gap-1 text-xs cursor-pointer"
+							>
+								{g.fromAlgo ? (
+									<span
+										style={{
+											color: g.color,
+											lineHeight: 1,
+										}}
+									>
+										▲
+									</span>
+								) : (
+									<span
+										style={{
+											width: 10,
+											height: 10,
+											borderRadius: "50%",
+											background: g.color,
+											display: "inline-block",
+											flexShrink: 0,
+										}}
+									/>
+								)}
+								{g.name}
+							</Label>
+						</div>
+					))}
+				</CardContent>
+			</Card>
 
 			{/* EMI legend */}
 			{hasHeatline && showHeatline && (

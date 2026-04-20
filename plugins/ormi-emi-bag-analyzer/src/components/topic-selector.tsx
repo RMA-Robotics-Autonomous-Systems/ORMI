@@ -6,6 +6,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Label } from "@workspace/ui/components/label";
 import { Input } from "@workspace/ui/components/input";
+import { ScrollArea } from "@workspace/ui/components/scroll-area";
 
 interface TopicSelectorProps {
 	topics: BagTopicInfo[];
@@ -37,26 +38,28 @@ export function TopicSelector({
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border p-4">
 			<h2 className="text-sm font-semibold">Topics</h2>
-			<div className="max-h-64 overflow-y-auto flex flex-col gap-1">
-				{topics.map((t) => (
-					<div key={t.name} className="flex items-center gap-2">
-						<Checkbox
-							id={`topic-${t.id}`}
-							checked={selected.includes(t.name)}
-							onCheckedChange={() => toggle(t.name)}
-						/>
-						<Label
-							htmlFor={`topic-${t.id}`}
-							className="flex flex-1 cursor-pointer items-center justify-between text-xs"
-						>
-							<span className="truncate">{t.name}</span>
-							<span className="ml-2 shrink-0 text-muted-foreground">
-								{t.messageCount.toLocaleString()} msgs
-							</span>
-						</Label>
-					</div>
-				))}
-			</div>
+			<ScrollArea className="max-h-64">
+				<div className="flex flex-col gap-1 p-1">
+					{topics.map((t) => (
+						<div key={t.name} className="flex items-center gap-2">
+							<Checkbox
+								id={`topic-${t.id}`}
+								checked={selected.includes(t.name)}
+								onCheckedChange={() => toggle(t.name)}
+							/>
+							<Label
+								htmlFor={`topic-${t.id}`}
+								className="flex flex-1 cursor-pointer items-center justify-between text-xs"
+							>
+								<span className="truncate">{t.name}</span>
+								<span className="ml-2 shrink-0 text-muted-foreground">
+									{t.messageCount.toLocaleString()} msgs
+								</span>
+							</Label>
+						</div>
+					))}
+				</div>
+			</ScrollArea>
 
 			<div className="flex flex-col gap-1">
 				<Label className="text-xs text-muted-foreground">

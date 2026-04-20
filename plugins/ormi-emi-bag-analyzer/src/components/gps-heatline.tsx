@@ -2,6 +2,13 @@
 
 import React, { lazy, Suspense, useMemo } from "react";
 import type { GpsPoint, TimeSeriesPoint } from "../bag-reader/bag-types";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@workspace/ui/components/card";
+import { Skeleton } from "@workspace/ui/components/skeleton";
 
 const Plot = lazy(() => import("react-plotly.js"));
 
@@ -71,24 +78,22 @@ export function GpsHeatline({ track, emiSeries }: GpsHeatlineProps) {
 	};
 
 	return (
-		<div className="rounded-lg border p-2">
-			<h2 className="mb-2 px-2 text-sm font-semibold">GPS Heatline</h2>
-			<Suspense
-				fallback={
-					<div className="p-8 text-center text-muted-foreground text-sm">
-						Loading chart…
-					</div>
-				}
-			>
-				<Plot
-					data={data}
-					layout={layout}
-					style={{ width: "100%" }}
-					config={{ responsive: true }}
-					useResizeHandler
-				/>
-			</Suspense>
-		</div>
+		<Card>
+			<CardHeader className="pb-0">
+				<CardTitle className="text-sm">GPS Heatline</CardTitle>
+			</CardHeader>
+			<CardContent className="p-2">
+				<Suspense fallback={<Skeleton className="h-[420px] w-full" />}>
+					<Plot
+						data={data}
+						layout={layout}
+						style={{ width: "100%" }}
+						config={{ responsive: true }}
+						useResizeHandler
+					/>
+				</Suspense>
+			</CardContent>
+		</Card>
 	);
 }
 

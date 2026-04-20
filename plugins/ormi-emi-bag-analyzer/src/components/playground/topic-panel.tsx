@@ -2,6 +2,17 @@
 
 import React from "react";
 import type { BagTopicInfo } from "../../bag-reader/bag-types";
+import { Button } from "@workspace/ui/components/button";
+import { Checkbox } from "@workspace/ui/components/checkbox";
+import { Label } from "@workspace/ui/components/label";
+import { ScrollArea } from "@workspace/ui/components/scroll-area";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@workspace/ui/components/select";
 
 const NUMERIC_TYPES = new Set([
 	"std_msgs/msg/Float32",
@@ -32,22 +43,24 @@ function Toggle({
 	onChange,
 	label,
 	secondary,
+	id,
 }: {
 	checked: boolean;
 	onChange: (v: boolean) => void;
 	label: string;
 	secondary?: string;
+	id: string;
 }) {
 	return (
-		<label className="flex cursor-pointer items-start gap-2 py-0.5">
-			<input
-				type="checkbox"
+		<div className="flex items-start gap-2 py-0.5">
+			<Checkbox
+				id={id}
 				checked={checked}
-				onChange={(e) => onChange(e.target.checked)}
-				className="mt-0.5 shrink-0 accent-blue-500"
+				onCheckedChange={(v) => onChange(Boolean(v))}
+				className="mt-0.5 shrink-0"
 			/>
-			<span className="min-w-0">
-				<span className="block truncate text-sm font-mono text-xs">
+			<Label htmlFor={id} className="cursor-pointer min-w-0">
+				<span className="block truncate font-mono text-xs">
 					{label}
 				</span>
 				{secondary && (
@@ -55,8 +68,8 @@ function Toggle({
 						{secondary}
 					</span>
 				)}
-			</span>
-		</label>
+			</Label>
+		</div>
 	);
 }
 
@@ -100,22 +113,25 @@ export function TopicPanel({
 				<p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
 					Numeric topics
 				</p>
-				<div className="max-h-48 overflow-y-auto rounded border p-2 flex flex-col gap-0.5">
-					{numericTopics.length === 0 && (
-						<p className="text-xs text-muted-foreground">
-							No numeric topics found
-						</p>
-					)}
-					{numericTopics.map((t) => (
-						<Toggle
-							key={t.name}
-							checked={selectedNumeric.includes(t.name)}
-							onChange={(on) => toggleNumeric(t.name, on)}
-							label={t.name}
-							secondary={t.type.split("/").pop()}
-						/>
-					))}
-				</div>
+				<ScrollArea className="h-48 rounded border p-2">
+					<div className="flex flex-col gap-0.5">
+						{numericTopics.length === 0 && (
+							<p className="text-xs text-muted-foreground">
+								No numeric topics found
+							</p>
+						)}
+						{numericTopics.map((t) => (
+							<Toggle
+								key={t.name}
+								id={`num-${t.name}`}
+								checked={selectedNumeric.includes(t.name)}
+								onChange={(on) => toggleNumeric(t.name, on)}
+								label={t.name}
+								secondary={t.type.split("/").pop()}
+							/>
+						))}
+					</div>
+				</ScrollArea>
 			</div>
 
 			{/* Event / fix topics */}
@@ -123,22 +139,25 @@ export function TopicPanel({
 				<p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
 					Event topics (vertical lines)
 				</p>
-				<div className="max-h-32 overflow-y-auto rounded border p-2 flex flex-col gap-0.5">
-					{eventTopics.length === 0 && (
-						<p className="text-xs text-muted-foreground">
-							No NavSatFix topics found
-						</p>
-					)}
-					{eventTopics.map((t) => (
-						<Toggle
-							key={t.name}
-							checked={selectedEvents.includes(t.name)}
-							onChange={(on) => toggleEvent(t.name, on)}
-							label={t.name}
-							secondary={`${t.messageCount} msgs`}
-						/>
-					))}
-				</div>
+				<ScrollArea className="h-32 rounded border p-2">
+					<div className="flex flex-col gap-0.5">
+						{eventTopics.length === 0 && (
+							<p className="text-xs text-muted-foreground">
+								No NavSatFix topics found
+							</p>
+						)}
+						{eventTopics.map((t) => (
+							<Toggle
+								key={t.name}
+								id={`evt-${t.name}`}
+								checked={selectedEvents.includes(t.name)}
+								onChange={(on) => toggleEvent(t.name, on)}
+								label={t.name}
+								secondary={`${t.messageCount} msgs`}
+							/>
+						))}
+					</div>
+				</ScrollArea>
 			</div>
 
 			{/* GPS topic */}
@@ -146,18 +165,24 @@ export function TopicPanel({
 				<p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
 					GPS track topic
 				</p>
-				<select
-					value={gpsTopic}
-					onChange={(e) => onGpsTopicChange(e.target.value)}
-					className="w-full rounded border bg-background px-2 py-1 text-xs"
+				<Select
+					value={gpsTopic || "__none__"}
+					onValueChange={(v) =>
+						onGpsTopicChange(v === "__none__" ? "" : v)
+					}
 				>
-					<option value="">(none)</option>
-					{gpsTopics.map((t) => (
-						<option key={t.name} value={t.name}>
-							{t.name}
-						</option>
-					))}
-				</select>
+					<SelectTrigger className="h-7 text-xs">
+						<SelectValue placeholder="(none)" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="__none__">(none)</SelectItem>
+						{gpsTopics.map((t) => (
+							<SelectItem key={t.name} value={t.name}>
+								{t.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			{/* Detection source topic */}
@@ -165,27 +190,30 @@ export function TopicPanel({
 				<p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
 					Detection source topic
 				</p>
-				<select
+				<Select
 					value={detectionTopic}
-					onChange={(e) => onDetectionTopicChange(e.target.value)}
-					className="w-full rounded border bg-background px-2 py-1 text-xs"
+					onValueChange={onDetectionTopicChange}
 				>
-					{numericTopics.map((t) => (
-						<option key={t.name} value={t.name}>
-							{t.name}
-						</option>
-					))}
-				</select>
+					<SelectTrigger className="h-7 text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{numericTopics.map((t) => (
+							<SelectItem key={t.name} value={t.name}>
+								{t.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
-			<button
-				type="button"
+			<Button
+				className="mt-1 w-full"
 				disabled={loading || selectedNumeric.length === 0}
 				onClick={onLoad}
-				className="mt-1 w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
 			>
 				{loading ? "Loading…" : "Load data"}
-			</button>
+			</Button>
 		</div>
 	);
 }
