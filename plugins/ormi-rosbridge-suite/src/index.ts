@@ -1,7 +1,6 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
-import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 
-import { dataSourceExport, widgetFilters, widgetsExport } from "./export";
+import { datasourceDefinition } from "./export";
 
 class RosBridgeSuitePlugin extends Plugin {
 	constructor() {
@@ -17,33 +16,13 @@ class RosBridgeSuitePlugin extends Plugin {
 		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
 			id: "ros-2-datasources",
 			priority: 12,
-			filter: dataSourceExport,
-		});
-
-		this.addFilter(PluginsHooks.WIDGETS_LIST, {
-			id: "ros-2-widgets",
-			priority: 12,
-			filter: widgetsExport,
-		});
-
-		this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
-			id: "ros-2-widgets-with-datasource",
-			priority: 12,
-			filter: widgetFilters,
+			filter: (datasources) => {
+				datasources.push(datasourceDefinition);
+				return datasources;
+			},
 		});
 	}
 }
-
-interface RandomDataSourceTopicDefinition {
-	topic: string;
-	frequency: number;
-}
-
-interface RandomDataSourceSettings extends DatasourceProviderSettings {
-	topics: RandomDataSourceTopicDefinition[];
-}
-
-export type { RandomDataSourceSettings, RandomDataSourceTopicDefinition };
 
 export default RosBridgeSuitePlugin;
 

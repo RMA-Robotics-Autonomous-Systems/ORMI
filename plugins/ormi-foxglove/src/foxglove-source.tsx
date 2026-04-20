@@ -28,6 +28,24 @@ const isInsecureWebSocketUrl = (url: string) =>
 	url.trim().toLowerCase().startsWith("ws://");
 
 /**
+ * Returns true for localhost / loopback addresses.
+ * These are exempt from mixed-content blocking, so a Web Worker can use
+ * ws://localhost even when the page is served over https://.
+ */
+const isLocalhostUrl = (url: string): boolean => {
+	try {
+		const { hostname } = new URL(url);
+		return (
+			hostname === "localhost" ||
+			hostname === "127.0.0.1" ||
+			hostname === "::1"
+		);
+	} catch {
+		return false;
+	}
+};
+
+/**
  * Hook to manage Foxglove connection status.
  * @param toasts - Whether to show toast notifications.
  * @returns Connection status and handlers.
@@ -109,7 +127,11 @@ const FoxgloveSourceProvider = (props: FoxgloveDataSourceSettings) => {
 		setReconnectAttempt,
 	} = useConnectionStatus(props.toasts);
 
-	const useMainThread = isInsecureWebSocketUrl(props.url);
+	// Use the main thread only for insecure (ws://) connections to non-localhost
+	// hosts, where mixed-content rules would block a Worker anyway.
+	// ws://localhost and all wss:// connections run in a Worker.
+	const useMainThread =
+		isInsecureWebSocketUrl(props.url) && !isLocalhostUrl(props.url);
 
 	const content = useMainThread
 		? initialized &&

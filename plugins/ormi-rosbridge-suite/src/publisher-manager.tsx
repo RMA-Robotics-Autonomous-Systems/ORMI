@@ -1,0 +1,68 @@
+"use client";
+
+import React, { ReactNode, useEffect, useRef } from "react";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { useRosbridgeData } from "./rosbridge-data-handler";
+import { RosbridgePublisherService } from "./publisher-service";
+import type { RosBridgeSuiteDataSourceSettings } from "./types";
+import type {
+	DatasourceTopic,
+	SelectedTopic,
+} from "@workspace/ormi-core/datasources";
+
+interface PublisherManagerProps {
+	children: ReactNode;
+	settings: RosBridgeSuiteDataSourceSettings;
+}
+
+/**
+ * PublisherManager registers the advertise/unadvertise filter and action hooks,
+ * delegating all publisher lifecycle management to RosbridgePublisherService.
+ */
+const PublisherManager: React.FC<PublisherManagerProps> = ({
+	children,
+	settings,
+}) => {
+	const { ros } = useRosbridgeData();
+	const pluginsManager = usePluginsManager();
+	const serviceRef = useRef<RosbridgePublisherService | null>(null);
+
+	const advertiseHook = `${settings.id}-advertise`;
+	const unadvertiseHook = `${settings.id}-unadvertise`;
+
+	useEffect(() => {
+		const service = new RosbridgePublisherService(
+			ros,
+			pluginsManager,
+			settings,
+		);
+		serviceRef.current = service;
+
+		pluginsManager.addFilter(advertiseHook, {
+			id: advertiseHook,
+			filter: async (topic: SelectedTopic): Promise<boolean> => {
+				return await service.advertise(topic);
+			},
+			priority: 100,
+		});
+
+		pluginsManager.addAction(unadvertiseHook, {
+			id: unadvertiseHook,
+			action: async (topic: DatasourceTopic, ignoreCount = false) => {
+				await service.unadvertise(topic, ignoreCount);
+			},
+			priority: 100,
+		});
+
+		return () => {
+			pluginsManager.removeFilter(advertiseHook);
+			pluginsManager.removeAction(unadvertiseHook);
+			service.cleanup();
+			serviceRef.current = null;
+		};
+	}, [ros, advertiseHook, unadvertiseHook, settings, pluginsManager]);
+
+	return <>{children}</>;
+};
+
+export { PublisherManager };
