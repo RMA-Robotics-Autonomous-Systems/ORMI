@@ -3,7 +3,12 @@
 import React, { ReactNode, useRef, useEffect } from "react";
 // import PluginsLoader from './plugins-loader';
 import { PluginsManager } from "../plugins-manager";
-import { PluginsHooks, Plugin, PluginRegistry } from "../plugins-types";
+import {
+	PluginsHooks,
+	Plugin,
+	PluginRegistry,
+	PageDefinition,
+} from "../plugins-types";
 import { createSafeContext } from "@workspace/utils";
 
 /**
@@ -93,6 +98,15 @@ const usePluginsManager = () => {
 };
 
 /**
+ * Returns all page definitions registered by plugins.
+ * @returns Array of PageDefinition.
+ */
+const usePluginPages = (): PageDefinition[] => {
+	const manager = usePluginsContext();
+	return manager.applyFilter<PageDefinition[]>(PluginsHooks.PAGES_LIST, []);
+};
+
+/**
  * Exported components and hooks for plugin system.
  */
-export { PluginsProvider, usePluginsManager };
+export { PluginsProvider, usePluginsManager, usePluginPages };

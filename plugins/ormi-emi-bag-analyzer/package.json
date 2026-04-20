@@ -1,0 +1,48 @@
+{
+	"name": "ormi-emi-bag-analyzer",
+	"version": "1.0.0",
+	"description": "Client-side EMI ROS2 bag analyzer — visualize, filter, and inspect .db3 bags in the browser",
+	"private": true,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "eslint .",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist build .turbo node_modules"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.8",
+		"@types/node": "^25.2.1",
+		"@types/react": "^19.2.13",
+		"@workspace/eslint-config": "workspace:*",
+		"@workspace/typescript-config": "workspace:*",
+		"react": "^19.2.4",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"@foxglove/cdr": "^3.5.0",
+		"@foxglove/rosmsg2-serialization": "^3.0.3",
+		"@workspace/ormi-core": "workspace:*",
+		"@workspace/ormi-plugins": "workspace:*",
+		"@workspace/ui": "workspace:*",
+		"@workspace/utils": "workspace:*",
+		"lucide-react": "^0.563.0",
+		"maplibre-gl": "^5.17.0",
+		"react-map-gl": "^8.1.0",
+		"plotly.js-dist-min": "^3.0.1",
+		"react-plotly.js": "^2.6.0",
+		"@types/react-plotly.js": "^2.6.3",
+		"sql.js": "^1.12.0",
+		"@types/sql.js": "^1.4.9",
+		"tsc-alias": "1.8.16"
+	},
+	"ormi_plugin": true
+}

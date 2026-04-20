@@ -1,3 +1,5 @@
+import type React from "react";
+
 /**
  * Plugin system hooks for extending ORMI functionality.
  */
@@ -52,6 +54,13 @@ enum PluginsHooks {
 	 * @param callName - Remote call name.
 	 */
 	REMOTE_CALL_DEFINITION = "plugins-remote-call-definition",
+
+	/**
+	 * Filter that returns all plugin-registered page definitions.
+	 * Plugins push a PageDefinition to add new pages to the app.
+	 * @param pages - Array of PageDefinition.
+	 */
+	PAGES_LIST = "plugins-pages-list",
 }
 
 /**
@@ -174,6 +183,34 @@ export class Plugin {
 			);
 		}
 	}
+}
+
+/**
+ * Defines a page registered by a plugin.
+ */
+export interface PageDefinition {
+	/** URL slug appended after /plugin-pages/, e.g. "emi-bag" → /plugin-pages/emi-bag */
+	slug: string;
+	/** Human-readable page title shown in the navbar. */
+	title: string;
+	/** React component rendered as the full page. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	component: React.ComponentType<any>;
+	/**
+	 * Optional navbar entry. When present the page appears inside the Apps
+	 * dropdown in the navbar. Omit to keep the page hidden from navigation.
+	 */
+	navItem?: {
+		position: "left" | "right";
+		priority?: number;
+		/**
+		 * Groups related pages under a labelled section inside the dropdown.
+		 * Pages sharing the same group string are listed together.
+		 */
+		group?: string;
+		/** Short description shown below the title in the Apps dropdown. */
+		description?: string;
+	};
 }
 
 /**

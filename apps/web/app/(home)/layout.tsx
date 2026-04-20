@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { UserAccountNav } from "@/components/user/user-home-nav";
+import { PluginPagesNav } from "@/components/plugin-pages-nav";
 
 import { User } from "next-auth";
 import { useSession } from "next-auth/react";
@@ -17,6 +18,13 @@ interface HomeLayoutProps {
 export default function HomeLayout({ children }: HomeLayoutProps) {
 	const { data: session, status } = useSession();
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
+
+	// Register a single Apps dropdown that lists all plugin pages with navItem.
+	// PluginPagesNav handles its own data fetching and returns null when empty.
+	useEffect(() => {
+		setNavbarItem("left", "plugin-pages-nav", <PluginPagesNav />, 5);
+		return () => removeNavbarItem("left", "plugin-pages-nav");
+	}, []);
 
 	useEffect(() => {
 		if (status === "authenticated") {
