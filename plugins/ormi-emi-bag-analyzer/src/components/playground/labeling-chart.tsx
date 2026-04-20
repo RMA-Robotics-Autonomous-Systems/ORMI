@@ -110,6 +110,35 @@ function downsample<T extends { timestamp: number }>(
 	return out;
 }
 
+/** Compute the visible Y range for the left EMI axis from points inside [lo, hi] ns. */
+function yRangeForWindow(
+	series: TimeSeriesPoint[],
+	filteredSeries: TimeSeriesPoint[] | undefined,
+	lo: number,
+	hi: number,
+): [number, number] | null {
+	let min = Infinity,
+		max = -Infinity;
+	for (const p of series) {
+		if (p.timestamp >= lo && p.timestamp <= hi) {
+			if (p.value < min) min = p.value;
+			if (p.value > max) max = p.value;
+		}
+	}
+	if (filteredSeries) {
+		for (const p of filteredSeries) {
+			if (p.timestamp >= lo && p.timestamp <= hi) {
+				if (p.value < min) min = p.value;
+				if (p.value > max) max = p.value;
+			}
+		}
+	}
+	if (!isFinite(min) || !isFinite(max)) return null;
+	const span = max - min;
+	const pad = span > 0 ? span * 0.08 : Math.abs(max) * 0.08 || 1;
+	return [min - pad, max + pad];
+}
+
 function exportCsv(
 	series: TimeSeriesPoint[],
 	sorted: ConfidencePoint[],
@@ -277,6 +306,12 @@ export function LabelingChart({
 	const controlPointsRef = useRef(controlPoints);
 	controlPointsRef.current = controlPoints;
 
+	// Series refs — read in the fast-path effect without adding to its deps
+	const seriesRef = useRef(series);
+	seriesRef.current = series;
+	const filteredSeriesRef = useRef(filteredSeries);
+	filteredSeriesRef.current = filteredSeries;
+
 	// ── Layout geometry ────────────────────────────────────────────────────
 	const innerW = svgWidth - ML - MR;
 	const innerH = height - MT - MB;
@@ -324,18 +359,39 @@ export function LabelingChart({
 				layout as unknown as Plotly.Layout,
 			);
 		}
+		// Sync left Y axis to the current window after data updates
+		const yr = yRangeForWindow(series, filteredSeries, viewStart, viewEnd);
+		if (yr) {
+			Plotly.relayout(plotDivRef.current, {
+				"yaxis.autorange": false,
+				"yaxis.range[0]": yr[0],
+				"yaxis.range[1]": yr[1],
+			});
+		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [Plotly, series, filteredSeries, sorted, duration, height]);
 
-	// ── Plotly: fast path — slider moves only update xaxis range ──────────
+	// ── Plotly: fast path — slider moves update x range + left Y range ────
 	useEffect(() => {
 		if (!Plotly || !plotDivRef.current || !initializedRef.current) return;
-		Plotly.relayout(plotDivRef.current, {
+		const yr = yRangeForWindow(
+			seriesRef.current,
+			filteredSeriesRef.current,
+			viewStart,
+			viewEnd,
+		);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const update: Record<string, any> = {
 			"xaxis.range[0]": viewStart / 1e9,
 			"xaxis.range[1]": viewEnd / 1e9,
-		});
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [viewStart, viewEnd]);
+		};
+		if (yr) {
+			update["yaxis.autorange"] = false;
+			update["yaxis.range[0]"] = yr[0];
+			update["yaxis.range[1]"] = yr[1];
+		}
+		Plotly.relayout(plotDivRef.current, update);
+	}, [Plotly, viewStart, viewEnd]);
 
 	// ── Coordinate helpers (SVG overlay space, mirrors Plotly margins) ─────
 	const xOf = (tsNs: number) => ML + ((tsNs - viewStart) / viewSpan) * innerW;

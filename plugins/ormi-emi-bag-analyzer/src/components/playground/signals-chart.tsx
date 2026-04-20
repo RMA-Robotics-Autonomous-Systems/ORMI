@@ -49,6 +49,38 @@ function nsToSec(ns: number): number {
 	return ns / 1e9;
 }
 
+/** Compute visible Y range per axis key from data in [lo, hi] ns. */
+function axisRangesForWindow(
+	allSeries: {
+		axisKey: string;
+		points: { timestamp: number; value: number }[];
+	}[],
+	axisKeys: string[],
+	lo: number,
+	hi: number,
+): Record<string, [number, number]> {
+	const acc: Record<string, { min: number; max: number }> = {};
+	for (const key of axisKeys) acc[key] = { min: Infinity, max: -Infinity };
+	for (const s of allSeries) {
+		const r = acc[s.axisKey];
+		if (!r) continue;
+		for (const p of s.points) {
+			if (p.timestamp >= lo && p.timestamp <= hi) {
+				if (p.value < r.min) r.min = p.value;
+				if (p.value > r.max) r.max = p.value;
+			}
+		}
+	}
+	const result: Record<string, [number, number]> = {};
+	for (const [key, { min, max }] of Object.entries(acc)) {
+		if (!isFinite(min) || !isFinite(max)) continue;
+		const span = max - min;
+		const pad = span > 0 ? span * 0.08 : Math.abs(max) * 0.08 || 1;
+		result[key] = [min - pad, max + pad];
+	}
+	return result;
+}
+
 function usePlotly(): PlotlyModule | null {
 	const [plotly, setPlotly] = useState<PlotlyModule | null>(null);
 	useEffect(() => {
@@ -146,6 +178,7 @@ export function SignalsChart({
 			axisKeys: string[],
 			eventAxisRef: string,
 			axisRef: (i: number) => string,
+			yRanges: Record<string, [number, number]> = {},
 		) => {
 			const [t0, t1] = timeRange;
 			const layout: Record<string, unknown> = {
@@ -168,16 +201,23 @@ export function SignalsChart({
 
 			for (let i = 0; i < axisKeys.length; i++) {
 				const key = i === 0 ? "yaxis" : `yaxis${i + 1}`;
+				const axisKey = axisKeys[i]!;
+				const range = yRanges[axisKey];
 				if (i === 0) {
-					layout[key] = { title: axisKeys[i], uirevision: "signals" };
+					layout[key] = {
+						title: axisKey,
+						uirevision: "signals",
+						...(range ? { autorange: false, range } : {}),
+					};
 				} else {
 					layout[key] = {
-						title: axisKeys[i],
+						title: axisKey,
 						overlaying: "y",
 						side: i % 2 === 0 ? "left" : "right",
 						anchor: "free",
 						autoshift: true,
 						uirevision: "signals",
+						...(range ? { autorange: false, range } : {}),
 					};
 				}
 			}
@@ -191,7 +231,13 @@ export function SignalsChart({
 	useEffect(() => {
 		if (!divRef.current || !Plotly) return;
 		const { traces, axisKeys, eventAxisRef, axisRef } = buildTraces();
-		const layout = buildLayout(axisKeys, eventAxisRef, axisRef);
+		const yRanges = axisRangesForWindow(
+			[...lineSeries, ...extraSeries],
+			axisKeys,
+			timeRange[0],
+			timeRange[1],
+		);
+		const layout = buildLayout(axisKeys, eventAxisRef, axisRef, yRanges);
 
 		if (!initializedRef.current) {
 			Plotly.newPlot(
@@ -228,6 +274,7 @@ export function SignalsChart({
 				layout as unknown as Plotly.Layout,
 			);
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [Plotly, buildTraces, buildLayout, onRangeChange, duration]);
 
 	// Sync x-axis range from external timeRange changes (from timeline scrubber)
