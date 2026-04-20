@@ -31,6 +31,7 @@ import type {
 } from "../algorithms/detection-types";
 import { runMAD } from "../algorithms/mad";
 import { runRSD } from "../algorithms/rsd";
+import { runCUSUM } from "../algorithms/cusum";
 
 let db: Database | null = null;
 
@@ -487,10 +488,15 @@ function handleDetect(
 		config.enabled && config.rsd.enabled
 			? runRSD(points, config.rsd, config)
 			: null;
-	self.postMessage({ type: "detectionResult", mad, rsd } as {
+	const cusum =
+		config.enabled && config.cusum.enabled
+			? runCUSUM(points, config.cusum, config)
+			: null;
+	self.postMessage({ type: "detectionResult", mad, rsd, cusum } as {
 		type: "detectionResult";
 		mad: DetectionRunResult | null;
 		rsd: DetectionRunResult | null;
+		cusum: DetectionRunResult | null;
 	});
 }
 

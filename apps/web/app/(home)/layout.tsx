@@ -3,13 +3,13 @@
 import Link from "next/link";
 
 import { UserAccountNav } from "@/components/user/user-home-nav";
+import { PluginPagesNav } from "@/components/plugin-pages-nav";
 
 import { User } from "next-auth";
 import { useSession } from "next-auth/react";
 import { useEffect } from "react";
 import { useNavbar } from "@workspace/ui/combined/navbar/navbar-provider";
 import { Button } from "@workspace/ui/components/button";
-import { usePluginPages } from "@workspace/ormi-plugins";
 
 interface HomeLayoutProps {
 	children: React.ReactNode;
@@ -18,30 +18,13 @@ interface HomeLayoutProps {
 export default function HomeLayout({ children }: HomeLayoutProps) {
 	const { data: session, status } = useSession();
 	const { setNavbarItem, removeNavbarItem } = useNavbar();
-	const pluginPages = usePluginPages();
 
-	// Register plugin page nav items (any plugin page that declares navItem)
+	// Register a single Apps dropdown that lists all plugin pages with navItem.
+	// PluginPagesNav handles its own data fetching and returns null when empty.
 	useEffect(() => {
-		const withNav = pluginPages.filter((p) => p.navItem);
-		for (const page of withNav) {
-			setNavbarItem(
-				page.navItem!.position,
-				`plugin-page-${page.slug}`,
-				<Link href={`/plugin-pages/${page.slug}`} passHref>
-					<Button variant="ghost">{page.title}</Button>
-				</Link>,
-				page.navItem!.priority ?? 10,
-			);
-		}
-		return () => {
-			for (const page of withNav) {
-				removeNavbarItem(
-					page.navItem!.position,
-					`plugin-page-${page.slug}`,
-				);
-			}
-		};
-	}, [pluginPages]);
+		setNavbarItem("left", "plugin-pages-nav", <PluginPagesNav />, 5);
+		return () => removeNavbarItem("left", "plugin-pages-nav");
+	}, []);
 
 	useEffect(() => {
 		if (status === "authenticated") {

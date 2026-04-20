@@ -28,6 +28,8 @@ interface SignalsChartProps {
 	/** Total bag duration in nanoseconds */
 	duration: number;
 	onRangeChange: (range: [number, number]) => void;
+	/** Chart height in pixels. Defaults to 340 */
+	height?: number;
 }
 
 function downsample(
@@ -65,6 +67,7 @@ export function SignalsChart({
 	timeRange,
 	duration,
 	onRangeChange,
+	height = 340,
 }: SignalsChartProps) {
 	const Plotly = usePlotly();
 	const divRef = useRef<HTMLDivElement>(null);
@@ -146,7 +149,7 @@ export function SignalsChart({
 		) => {
 			const [t0, t1] = timeRange;
 			const layout: Record<string, unknown> = {
-				height: 400,
+				height,
 				margin: { l: 50, r: 50, t: 20, b: 40 },
 				legend: { orientation: "h", y: -0.15 },
 				uirevision: "signals",
@@ -181,7 +184,7 @@ export function SignalsChart({
 
 			return layout;
 		},
-		[timeRange],
+		[timeRange, height],
 	);
 
 	// Re-initialize when Plotly changes (first load). Update traces on every other dep change.
@@ -239,5 +242,5 @@ export function SignalsChart({
 		});
 	}, [timeRange[0], timeRange[1]]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	return <div ref={divRef} style={{ width: "100%", height: 400 }} />;
+	return <div ref={divRef} style={{ width: "100%", height }} />;
 }

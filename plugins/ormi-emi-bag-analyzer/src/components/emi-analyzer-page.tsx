@@ -24,9 +24,12 @@ import { GpsMapAdvanced } from "./playground/gps-map-advanced";
 import type { GpsDetectionGroup } from "./playground/gps-map-advanced";
 import { TimelineScrubber } from "./playground/timeline-scrubber";
 import type { TimelineEvent } from "./playground/timeline-scrubber";
+import { LabelingChart } from "./playground/labeling-chart";
+import type { ConfidencePoint } from "./playground/labeling-chart";
 
 const MAD_COLOR = "#f97316";
 const RSD_COLOR = "#a855f7";
+const CUSUM_COLOR = "#22c55e";
 const EVENT_COLOR = "#64748b";
 
 // ---------------------------------------------------------------------------
@@ -76,7 +79,12 @@ export function EmiAnalyzerPage() {
 	const [detectionResult, setDetectionResult] = useState<{
 		mad: DetectionRunResult | null;
 		rsd: DetectionRunResult | null;
-	}>({ mad: null, rsd: null });
+		cusum: DetectionRunResult | null;
+	}>({ mad: null, rsd: null, cusum: null });
+
+	const [detectionStatus, setDetectionStatus] = useState<
+		"idle" | "computing" | "done"
+	>("idle");
 
 	// ──────────────────────────────────────────────────────────────────────
 	// Bag upload handler
@@ -192,29 +200,36 @@ export function EmiAnalyzerPage() {
 	// Debounced detection: runs in the worker 350ms after the last config change
 	useEffect(() => {
 		if (!readerRef.current || !detectionSource) {
-			setDetectionResult({ mad: null, rsd: null });
+			setDetectionResult({ mad: null, rsd: null, cusum: null });
+			setDetectionStatus("idle");
 			return;
 		}
 		const reader = readerRef.current;
 		const pts = detectionSource.points;
 		const cfg = detectionConfig;
 		let cancelled = false;
+		setDetectionStatus("idle");
 		const timer = setTimeout(() => {
+			if (cancelled) return;
+			setDetectionStatus("computing");
 			reader.runDetection(pts, cfg).then((res) => {
-				if (!cancelled) setDetectionResult(res);
+				if (!cancelled) {
+					setDetectionResult(res);
+					setDetectionStatus("done");
+				}
 			});
 		}, 350);
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [detectionConfig, detectionSource]);
 
 	const madResult = detectionResult.mad;
 	const rsdResult = detectionResult.rsd;
+	const cusumResult = detectionResult.cusum;
 
-	const gps = data?.gps ?? [];
+	const gps = useMemo(() => data?.gps ?? [], [data]);
 
 	const clusteredMad = useMemo(() => {
 		if (!madResult) return [];
@@ -237,6 +252,17 @@ export function EmiAnalyzerPage() {
 				)
 			: rsdResult.detectedTimestamps;
 	}, [rsdResult, gps, detectionConfig.clustering]);
+
+	const clusteredCusum = useMemo(() => {
+		if (!cusumResult) return [];
+		return detectionConfig.clustering.enabled
+			? clusterDetections(
+					cusumResult.detectedTimestamps,
+					gps,
+					detectionConfig.clustering,
+				)
+			: cusumResult.detectedTimestamps;
+	}, [cusumResult, gps, detectionConfig.clustering]);
 
 	// ──────────────────────────────────────────────────────────────────────
 	// Computed: extra internal series for chart
@@ -274,12 +300,28 @@ export function EmiAnalyzerPage() {
 				points: rsdResult.deviationSeries,
 			});
 		}
+		if (cusumResult && detectionConfig.cusum.showInternals) {
+			out.push({
+				name: "CUSUM threshold",
+				topic,
+				axisKey,
+				points: cusumResult.thresholdSeries,
+			});
+			out.push({
+				name: "CUSUM accumulator",
+				topic,
+				axisKey,
+				points: cusumResult.deviationSeries,
+			});
+		}
 		if (
 			detectionConfig.showFiltered &&
 			detectionConfig.filterType !== "none"
 		) {
 			const filtered =
-				madResult?.filteredSeries ?? rsdResult?.filteredSeries;
+				madResult?.filteredSeries ??
+				rsdResult?.filteredSeries ??
+				cusumResult?.filteredSeries;
 			if (filtered) {
 				out.push({
 					name: `Filtered (${detectionConfig.filterType})`,
@@ -290,7 +332,7 @@ export function EmiAnalyzerPage() {
 			}
 		}
 		return out;
-	}, [detectionConfig, detectionSource, madResult, rsdResult]);
+	}, [detectionConfig, detectionSource, madResult, rsdResult, cusumResult]);
 
 	// ──────────────────────────────────────────────────────────────────────
 	// Chart + map + timeline derived props
@@ -309,8 +351,14 @@ export function EmiAnalyzerPage() {
 				timestamps: clusteredRsd,
 				color: RSD_COLOR,
 			});
+		if (clusteredCusum.length)
+			groups.push({
+				name: "CUSUM",
+				timestamps: clusteredCusum,
+				color: CUSUM_COLOR,
+			});
 		return groups;
-	}, [clusteredMad, clusteredRsd]);
+	}, [clusteredMad, clusteredRsd, clusteredCusum]);
 
 	const gpsDetectionGroups = useMemo((): GpsDetectionGroup[] => {
 		const groups: GpsDetectionGroup[] = [];
@@ -323,7 +371,9 @@ export function EmiAnalyzerPage() {
 					? MAD_COLOR
 					: lc.includes("rsd")
 						? RSD_COLOR
-						: EVENT_COLOR;
+						: lc.includes("cusum")
+							? CUSUM_COLOR
+							: EVENT_COLOR;
 				groups.push({
 					name: es.name,
 					timestamps: es.timestamps,
@@ -337,15 +387,24 @@ export function EmiAnalyzerPage() {
 				name: "MAD (algo)",
 				timestamps: clusteredMad,
 				color: MAD_COLOR,
+				fromAlgo: true,
 			});
 		if (clusteredRsd.length)
 			groups.push({
 				name: "RSD (algo)",
 				timestamps: clusteredRsd,
 				color: RSD_COLOR,
+				fromAlgo: true,
+			});
+		if (clusteredCusum.length)
+			groups.push({
+				name: "CUSUM (algo)",
+				timestamps: clusteredCusum,
+				color: CUSUM_COLOR,
+				fromAlgo: true,
 			});
 		return groups;
-	}, [data, clusteredMad, clusteredRsd]);
+	}, [data, clusteredMad, clusteredRsd, clusteredCusum]);
 
 	const timelineEvents = useMemo((): TimelineEvent[] => {
 		const evs: TimelineEvent[] = [];
@@ -357,18 +416,86 @@ export function EmiAnalyzerPage() {
 		}
 		for (const t of clusteredMad) evs.push({ t, color: MAD_COLOR });
 		for (const t of clusteredRsd) evs.push({ t, color: RSD_COLOR });
+		for (const t of clusteredCusum) evs.push({ t, color: CUSUM_COLOR });
 		return evs;
-	}, [data, clusteredMad, clusteredRsd]);
+	}, [data, clusteredMad, clusteredRsd, clusteredCusum]);
 
 	const duration = data?.duration ?? 0;
+
+	// ── Confidence labels ─────────────────────────────────────────────────
+	const [confidencePoints, setConfidencePoints] = useState<ConfidencePoint[]>(
+		[],
+	);
+
+	// Seed two default endpoints (first/last timestamp) whenever a new bag loads
+	useEffect(() => {
+		const pts = detectionSource?.points ?? data?.lineSeries[0]?.points;
+		if (!pts || pts.length === 0) {
+			setConfidencePoints([]);
+			return;
+		}
+		const first = pts[0]!.timestamp;
+		const last = pts[pts.length - 1]!.timestamp;
+		setConfidencePoints([
+			{
+				id: Math.random().toString(36).slice(2, 10),
+				tsNs: first,
+				confidence: 0,
+			},
+			{
+				id: Math.random().toString(36).slice(2, 10),
+				tsNs: last,
+				confidence: 0,
+			},
+		]);
+	}, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	const handleSeedFromDetections = useCallback(() => {
+		const mkPt = (tsNs: number): ConfidencePoint => ({
+			id: Math.random().toString(36).slice(2, 10),
+			tsNs,
+			confidence: 1.0,
+		});
+		const detectionPts = [
+			...clusteredMad,
+			...clusteredRsd,
+			...clusteredCusum,
+		]
+			.filter((t, i, arr) => arr.indexOf(t) === i) // deduplicate
+			.map(mkPt);
+		const endpoints: ConfidencePoint[] = [
+			{
+				id: Math.random().toString(36).slice(2, 10),
+				tsNs: 0,
+				confidence: 0,
+			},
+			{
+				id: Math.random().toString(36).slice(2, 10),
+				tsNs: duration,
+				confidence: 0,
+			},
+		];
+		setConfidencePoints([...endpoints, ...detectionPts]);
+	}, [clusteredMad, clusteredRsd, clusteredCusum, duration]);
+
+	const handleMapSeek = useCallback(
+		(tsNs: number) => {
+			const window = 10_000_000_000; // ±10 s in nanoseconds
+			setTimeRange([
+				Math.max(0, tsNs - window),
+				Math.min(duration, tsNs + window),
+			]);
+		},
+		[duration],
+	);
 
 	// ──────────────────────────────────────────────────────────────────────
 	// Render
 	// ──────────────────────────────────────────────────────────────────────
 	return (
-		<div className="container mx-auto mt-6 flex flex-col gap-4 pb-12">
+		<div className="flex w-full flex-col gap-3 px-4 pt-4 pb-12">
 			{/* Header */}
-			<div>
+			<div className="shrink-0">
 				<h1 className="text-2xl font-semibold">EMI Bag Analyzer</h1>
 				<p className="text-muted-foreground text-sm">
 					Load a ROS2 .db3 bag — everything runs in your browser.
@@ -376,160 +503,292 @@ export function EmiAnalyzerPage() {
 			</div>
 
 			{/* Upload */}
-			<BagUpload onFileLoaded={handleFileLoaded} loading={loading} />
+			<div className="shrink-0">
+				<BagUpload onFileLoaded={handleFileLoaded} loading={loading} />
+			</div>
 
 			{error && (
-				<div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+				<div className="shrink-0 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
 					{error}
 				</div>
 			)}
 
-			{/* Charts row */}
-			{data && (
-				<>
-					<div className="rounded border p-1">
-						<SignalsChart
-							lineSeries={data.lineSeries}
-							eventSeries={data.eventSeries}
-							detectionEvents={detectionChartEvents}
-							extraSeries={extraSeries}
-							timeRange={timeRange}
-							duration={duration}
-							onRangeChange={setTimeRange}
-						/>
-					</div>
-
-					<div className="rounded border p-1">
-						<GpsMapAdvanced
-							gps={gps}
-							valueSeries={
-								detectionSource?.points ??
-								data.lineSeries[0]?.points
-							}
-							detectionGroups={gpsDetectionGroups}
-						/>
-					</div>
-
-					{/* Timeline */}
-					<div className="rounded border px-3 py-2">
-						<TimelineScrubber
-							duration={duration}
-							value={timeRange}
-							onChange={setTimeRange}
-							events={timelineEvents}
-						/>
-					</div>
-				</>
-			)}
-
-			{/* Controls row */}
+			{/* Two-column layout — shown once a bag is opened */}
 			{summary && (
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-					{/* Topics */}
-					<div className="rounded border p-3">
-						<p className="mb-2 text-sm font-semibold">Topics</p>
-						<TopicPanel
-							topics={summary.topics}
-							selectedNumeric={selectedNumeric}
-							selectedEvents={selectedEvents}
-							gpsTopic={gpsTopic}
-							detectionTopic={detectionConfig.detectionTopic}
-							onNumericChange={setSelectedNumeric}
-							onEventsChange={setSelectedEvents}
-							onGpsTopicChange={setGpsTopic}
-							onDetectionTopicChange={(t) =>
-								patchDetection({ detectionTopic: t })
-							}
-							onLoad={handleLoad}
-							loading={loading}
-						/>
-					</div>
-
-					{/* Detection + bag info */}
-					<div className="rounded border p-3 lg:col-span-2">
-						<p className="mb-2 text-sm font-semibold">
-							Detection algorithms
-						</p>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div className="grid grid-cols-3 items-start gap-4">
+					{/* ── Left 1/3: settings ─────────────────────────────── */}
+					<div className="col-span-1 flex flex-col gap-3">
+						{/* 1. Detection algorithms */}
+						<div className="rounded border p-3">
+							<div className="mb-2 flex items-center gap-2">
+								<p className="text-sm font-semibold">
+									Detection algorithms
+								</p>
+								{detectionStatus === "computing" && (
+									<span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+										<svg
+											className="h-3 w-3 animate-spin"
+											viewBox="0 0 24 24"
+											fill="none"
+										>
+											<circle
+												className="opacity-25"
+												cx="12"
+												cy="12"
+												r="10"
+												stroke="currentColor"
+												strokeWidth="4"
+											/>
+											<path
+												className="opacity-75"
+												fill="currentColor"
+												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+											/>
+										</svg>
+										Computing…
+									</span>
+								)}
+								{detectionStatus === "done" && (
+									<span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+										Done
+									</span>
+								)}
+							</div>
 							<DetectionPanel
 								config={detectionConfig}
 								onChange={patchDetection}
 							/>
+						</div>
 
-							{/* Bag info */}
-							<div className="flex flex-col gap-2 text-sm">
-								<p className="text-xs font-semibold uppercase text-muted-foreground">
-									Bag info
+						{/* 2. Statistics */}
+						<div className="rounded border p-3">
+							<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+								Statistics
+							</p>
+							<div className="space-y-1 rounded bg-muted/40 p-2 text-xs">
+								<p>
+									Messages:{" "}
+									<span className="font-mono">
+										{summary.messageCount}
+									</span>
 								</p>
-								<div className="space-y-1 rounded bg-muted/40 p-2 text-xs">
-									<p>
-										Messages:{" "}
-										<span className="font-mono">
-											{summary.messageCount}
+								<p>
+									Duration:{" "}
+									<span className="font-mono">
+										{(duration / 1e9).toFixed(1)}s
+									</span>
+								</p>
+							</div>
+							{detectionConfig.enabled &&
+								(clusteredMad.length > 0 ||
+									clusteredRsd.length > 0 ||
+									clusteredCusum.length > 0) && (
+									<div className="mt-2 space-y-1 rounded bg-muted/40 p-2 text-xs">
+										{clusteredMad.length > 0 && (
+											<p>
+												<span
+													style={{ color: MAD_COLOR }}
+												>
+													●
+												</span>{" "}
+												MAD:{" "}
+												<span className="font-mono">
+													{clusteredMad.length}
+												</span>{" "}
+												events
+											</p>
+										)}
+										{clusteredRsd.length > 0 && (
+											<p>
+												<span
+													style={{ color: RSD_COLOR }}
+												>
+													●
+												</span>{" "}
+												RSD:{" "}
+												<span className="font-mono">
+													{clusteredRsd.length}
+												</span>{" "}
+												events
+											</p>
+										)}
+										{clusteredCusum.length > 0 && (
+											<p>
+												<span
+													style={{
+														color: CUSUM_COLOR,
+													}}
+												>
+													●
+												</span>{" "}
+												CUSUM:{" "}
+												<span className="font-mono">
+													{clusteredCusum.length}
+												</span>{" "}
+												events
+											</p>
+										)}
+									</div>
+								)}
+							<div className="mt-2 max-h-48 space-y-0.5 overflow-y-auto text-xs">
+								{summary.topics.map((t) => (
+									<div
+										key={t.name}
+										className="flex justify-between gap-2"
+									>
+										<span className="truncate font-mono text-muted-foreground">
+											{t.name}
 										</span>
-									</p>
-									<p>
-										Duration:{" "}
-										<span className="font-mono">
-											{(duration / 1e9).toFixed(1)}s
+										<span className="shrink-0">
+											{t.messageCount}
 										</span>
-									</p>
-								</div>
-								<div className="max-h-48 space-y-0.5 overflow-y-auto text-xs">
-									{summary.topics.map((t) => (
-										<div
-											key={t.name}
-											className="flex justify-between gap-2"
-										>
-											<span className="truncate font-mono text-muted-foreground">
-												{t.name}
-											</span>
-											<span className="shrink-0">
-												{t.messageCount}
-											</span>
-										</div>
-									))}
-								</div>
-								{detectionConfig.enabled &&
-									(clusteredMad.length > 0 ||
-										clusteredRsd.length > 0) && (
-										<div className="space-y-1 rounded bg-muted/40 p-2 text-xs">
-											{clusteredMad.length > 0 && (
-												<p>
-													<span
-														style={{
-															color: MAD_COLOR,
-														}}
-													>
-														●
-													</span>{" "}
-													MAD:{" "}
-													<span className="font-mono">
-														{clusteredMad.length}
-													</span>{" "}
-													events
-												</p>
-											)}
-											{clusteredRsd.length > 0 && (
-												<p>
-													<span
-														style={{
-															color: RSD_COLOR,
-														}}
-													>
-														●
-													</span>{" "}
-													RSD:{" "}
-													<span className="font-mono">
-														{clusteredRsd.length}
-													</span>{" "}
-													events
-												</p>
-											)}
-										</div>
-									)}
+									</div>
+								))}
 							</div>
 						</div>
+
+						{/* 3. Topics */}
+						<div className="rounded border p-3">
+							<p className="mb-2 text-sm font-semibold">Topics</p>
+							<TopicPanel
+								topics={summary.topics}
+								selectedNumeric={selectedNumeric}
+								selectedEvents={selectedEvents}
+								gpsTopic={gpsTopic}
+								detectionTopic={detectionConfig.detectionTopic}
+								onNumericChange={setSelectedNumeric}
+								onEventsChange={setSelectedEvents}
+								onGpsTopicChange={setGpsTopic}
+								onDetectionTopicChange={(t) =>
+									patchDetection({ detectionTopic: t })
+								}
+								onLoad={handleLoad}
+								loading={loading}
+							/>
+						</div>
+					</div>
+
+					{/* ── Right 2/3: visualisation ───────────────────────── */}
+					<div className="col-span-2 flex flex-col gap-2">
+						{data ? (
+							<>
+								{/* Signal plot — 1/3 height */}
+								<div className="rounded border p-1">
+									<SignalsChart
+										lineSeries={data.lineSeries}
+										eventSeries={data.eventSeries}
+										detectionEvents={detectionChartEvents}
+										extraSeries={extraSeries}
+										timeRange={timeRange}
+										duration={duration}
+										onRangeChange={setTimeRange}
+										height={300}
+									/>
+								</div>
+
+								{/* Confidence labeling — full width row below both columns */}
+								{data && (
+									<div className="rounded border p-3">
+										<LabelingChart
+											series={
+												detectionSource?.points ??
+												data.lineSeries[0]?.points ??
+												[]
+											}
+											filteredSeries={
+												madResult?.filteredSeries ??
+												rsdResult?.filteredSeries ??
+												cusumResult?.filteredSeries
+											}
+											duration={duration}
+											timeRange={timeRange}
+											controlPoints={confidencePoints}
+											onChange={setConfidencePoints}
+											extraCsvSeries={[
+												...data.lineSeries
+													.filter(
+														(s) =>
+															s.name ===
+																"/cmd_vel linear.x" ||
+															s.name ===
+																"/cmd_vel angular.z",
+													)
+													.map((s) => ({
+														label:
+															s.name ===
+															"/cmd_vel linear.x"
+																? "cmd_vel_linear_x"
+																: "cmd_vel_angular_z",
+														points: s.points,
+													})),
+												...(data.gps.length > 0
+													? [
+															{
+																label: "gps_latitude",
+																points: data.gps.map(
+																	(p) => ({
+																		timestamp:
+																			p.timestamp,
+																		value: p.latitude,
+																	}),
+																),
+															},
+															{
+																label: "gps_longitude",
+																points: data.gps.map(
+																	(p) => ({
+																		timestamp:
+																			p.timestamp,
+																		value: p.longitude,
+																	}),
+																),
+															},
+														]
+													: []),
+											]}
+											onSeedFromDetections={
+												handleSeedFromDetections
+											}
+											height={200}
+										/>
+									</div>
+								)}
+
+								{/* Timeline scrubber — top */}
+								<div className="rounded border px-3 py-2">
+									<TimelineScrubber
+										duration={duration}
+										value={timeRange}
+										onChange={setTimeRange}
+										events={timelineEvents}
+									/>
+								</div>
+
+								{/* Map — 2/3 height */}
+								<div className="rounded border p-1">
+									<GpsMapAdvanced
+										gps={gps}
+										valueSeries={
+											detectionSource?.points ??
+											data.lineSeries[0]?.points
+										}
+										filteredValueSeries={
+											madResult?.filteredSeries ??
+											rsdResult?.filteredSeries ??
+											cusumResult?.filteredSeries
+										}
+										detectionGroups={gpsDetectionGroups}
+										timeRange={timeRange}
+										height={600}
+										onSeek={handleMapSeek}
+									/>
+								</div>
+							</>
+						) : (
+							<div className="flex h-64 items-center justify-center rounded border text-sm text-muted-foreground">
+								Select topics and press Load to view data.
+							</div>
+						)}
 					</div>
 				</div>
 			)}

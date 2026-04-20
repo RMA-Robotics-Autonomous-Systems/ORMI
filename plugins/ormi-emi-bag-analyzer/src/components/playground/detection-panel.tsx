@@ -2,6 +2,7 @@
 
 import React from "react";
 import type {
+	CUSUMConfig,
 	DetectionConfig,
 	MADConfig,
 	RSDConfig,
@@ -138,6 +139,29 @@ function AlgoSection({
 						step={32}
 						onChange={(v) => onChange({ minSamples: v })}
 					/>
+					<SliderRow
+						label="Cooldown (samples)"
+						value={config.cooldownSamples}
+						min={0}
+						max={300}
+						step={5}
+						onChange={(v) => onChange({ cooldownSamples: v })}
+					/>
+					{"detectionPercentile" in config && (
+						<SliderRow
+							label="Detection pctile"
+							value={(config as MADConfig).detectionPercentile}
+							min={0.5}
+							max={1}
+							step={0.05}
+							onChange={(v) =>
+								onChange({
+									detectionPercentile: v,
+								} as Partial<MADConfig>)
+							}
+							fmt={(v) => `${Math.round(v * 100)}%`}
+						/>
+					)}
 					<label className="flex items-center gap-2 text-xs text-muted-foreground">
 						<input
 							type="checkbox"
@@ -177,6 +201,8 @@ export function DetectionPanel({ config, onChange }: DetectionPanelProps) {
 		onChange({ mad: { ...mad, ...patch } });
 	const patchRsd = (patch: Partial<RSDConfig>) =>
 		onChange({ rsd: { ...rsd, ...patch } });
+	const patchCusum = (patch: Partial<CUSUMConfig>) =>
+		onChange({ cusum: { ...config.cusum, ...patch } });
 	const patchFilter = (patch: Partial<typeof filterParams>) =>
 		onChange({ filterParams: { ...filterParams, ...patch } });
 	const patchCluster = (patch: Partial<typeof clustering>) =>
@@ -287,6 +313,81 @@ export function DetectionPanel({ config, onChange }: DetectionPanelProps) {
 				onChange={patchRsd}
 				enabled={enabled}
 			/>
+
+			{/* CUSUM */}
+			<div className="rounded border p-2 flex flex-col gap-1">
+				<label className="flex items-center gap-2 text-sm font-medium">
+					<input
+						type="checkbox"
+						checked={config.cusum.enabled}
+						onChange={(e) =>
+							patchCusum({ enabled: e.target.checked })
+						}
+						className="accent-blue-500"
+						disabled={!enabled}
+					/>
+					CUSUM
+				</label>
+				{config.cusum.enabled && enabled && (
+					<>
+						<SliderRow
+							label="Baseline"
+							value={config.cusum.baselineSize}
+							min={64}
+							max={1024}
+							step={32}
+							onChange={(v) => patchCusum({ baselineSize: v })}
+						/>
+						<SliderRow
+							label="Min samples"
+							value={config.cusum.minSamples}
+							min={32}
+							max={512}
+							step={32}
+							onChange={(v) => patchCusum({ minSamples: v })}
+						/>
+						<SliderRow
+							label="Slack factor"
+							value={config.cusum.slackFactor}
+							min={0.1}
+							max={2}
+							step={0.1}
+							onChange={(v) => patchCusum({ slackFactor: v })}
+							fmt={(v) => v.toFixed(1)}
+						/>
+						<SliderRow
+							label="Threshold (σ)"
+							value={config.cusum.threshold}
+							min={0.5}
+							max={20}
+							step={0.5}
+							onChange={(v) => patchCusum({ threshold: v })}
+							fmt={(v) => v.toFixed(1)}
+						/>
+						<SliderRow
+							label="Cooldown (samples)"
+							value={config.cusum.cooldownSamples}
+							min={0}
+							max={300}
+							step={5}
+							onChange={(v) => patchCusum({ cooldownSamples: v })}
+						/>
+						<label className="flex items-center gap-2 text-xs text-muted-foreground">
+							<input
+								type="checkbox"
+								checked={config.cusum.showInternals}
+								onChange={(e) =>
+									patchCusum({
+										showInternals: e.target.checked,
+									})
+								}
+								className="accent-blue-500"
+							/>
+							Show accumulator / threshold
+						</label>
+					</>
+				)}
+			</div>
 
 			{/* Clustering */}
 			<div className="rounded border p-2 flex flex-col gap-1.5">

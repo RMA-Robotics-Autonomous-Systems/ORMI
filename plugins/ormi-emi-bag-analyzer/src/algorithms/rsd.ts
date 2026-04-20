@@ -26,16 +26,24 @@ export function runRSD(
 	const thresholdSeries: TimeSeriesPoint[] = [];
 	const deviationSeries: TimeSeriesPoint[] = [];
 
-	for (const pt of filteredPoints) {
-		baseline.push(pt.value);
-		detection.push(pt.value);
+	let cooldownRemaining = 0;
 
-		if (baseline.length > config.baselineSize) baseline.shift();
+	for (const pt of filteredPoints) {
+		// Detection window always updates
+		detection.push(pt.value);
 		if (detection.length > config.detectionSize) detection.shift();
+
+		if (cooldownRemaining > 0) cooldownRemaining--;
+		const inCooldown = cooldownRemaining > 0;
+
+		// Baseline frozen during cooldown
+		if (!inCooldown) {
+			baseline.push(pt.value);
+			if (baseline.length > config.baselineSize) baseline.shift();
+		}
 
 		if (baseline.length < config.minSamples) continue;
 
-		// Running mean and std
 		let sum = 0;
 		for (const v of baseline) sum += v;
 		const mean = sum / baseline.length;
@@ -43,20 +51,22 @@ export function runRSD(
 		let variance = 0;
 		for (const v of baseline) variance += (v - mean) ** 2;
 		const std = Math.sqrt(variance / baseline.length);
-
-		const threshold = config.threshold * std;
+		const effectiveStd = Math.max(std, config.minStd);
+		const threshold = config.threshold * effectiveStd;
 
 		let detSum = 0;
 		for (const v of detection) detSum += v;
 		const current = detSum / detection.length;
-		const deviation = Math.abs(current - mean);
-		const detected = threshold > 0 && deviation > threshold;
+		// Rising-edge only: signed deviation
+		const deviation = current - mean;
+		const detected = !inCooldown && threshold > 0 && deviation > threshold;
 
 		thresholdSeries.push({ timestamp: pt.timestamp, value: threshold });
 		deviationSeries.push({ timestamp: pt.timestamp, value: deviation });
 
 		if (detected) {
 			detectedTimestamps.push(pt.timestamp);
+			cooldownRemaining = config.cooldownSamples;
 		}
 	}
 

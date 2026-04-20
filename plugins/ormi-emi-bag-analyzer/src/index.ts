@@ -22,7 +22,12 @@ class EmiBagAnalyzerPlugin extends Plugin {
 					slug: "emi-bag",
 					title: "EMI Bag Analyzer",
 					component: EmiAnalyzerPage,
-					navItem: { position: "left", priority: 5 },
+					navItem: {
+						position: "left",
+						priority: 5,
+						description:
+							"Load a ROS2 .db3 bag file, visualize EMI signals, apply filters, and label confidence.",
+					},
 				});
 				return pages;
 			},

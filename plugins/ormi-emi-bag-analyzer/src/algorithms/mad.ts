@@ -27,12 +27,22 @@ export function runMAD(
 	const thresholdSeries: TimeSeriesPoint[] = [];
 	const deviationSeries: TimeSeriesPoint[] = [];
 
-	for (const pt of filteredPoints) {
-		baseline.push(pt.value);
-		detection.push(pt.value);
+	let cooldownRemaining = 0;
 
-		if (baseline.length > config.baselineSize) baseline.shift();
+	for (const pt of filteredPoints) {
+		// Detection window always updates (we need to see the current signal)
+		detection.push(pt.value);
 		if (detection.length > config.detectionSize) detection.shift();
+
+		if (cooldownRemaining > 0) cooldownRemaining--;
+		const inCooldown = cooldownRemaining > 0;
+
+		// Baseline frozen during cooldown — prevents event from contaminating
+		// its own reference and corrupting the next detection
+		if (!inCooldown) {
+			baseline.push(pt.value);
+			if (baseline.length > config.baselineSize) baseline.shift();
+		}
 
 		if (baseline.length < config.minSamples) continue;
 
@@ -42,18 +52,25 @@ export function runMAD(
 			.map((v) => Math.abs(v - median))
 			.sort((a, b) => a - b);
 		const mad = absDev[Math.floor(absDev.length / 2)]!;
-		const threshold = config.threshold * mad;
+		const effectiveMAD = Math.max(mad, config.minMAD);
+		const threshold = config.threshold * effectiveMAD;
 
 		const detSorted = detection.slice().sort((a, b) => a - b);
-		const current = detSorted[Math.floor(detSorted.length / 2)]!;
-		const deviation = Math.abs(current - median);
-		const detected = threshold > 0 && deviation > threshold;
+		const pctIdx = Math.min(
+			Math.floor(detSorted.length * config.detectionPercentile),
+			detSorted.length - 1,
+		);
+		const current = detSorted[pctIdx]!;
+		// Rising-edge only: signed deviation (ignores post-event undershoot)
+		const deviation = current - median;
+		const detected = !inCooldown && threshold > 0 && deviation > threshold;
 
 		thresholdSeries.push({ timestamp: pt.timestamp, value: threshold });
 		deviationSeries.push({ timestamp: pt.timestamp, value: deviation });
 
 		if (detected) {
 			detectedTimestamps.push(pt.timestamp);
+			cooldownRemaining = config.cooldownSamples;
 		}
 	}
 

@@ -22,6 +22,7 @@ type WorkerResponse =
 			type: "detectionResult";
 			mad: DetectionRunResult | null;
 			rsd: DetectionRunResult | null;
+			cusum: DetectionRunResult | null;
 	  }
 	| { type: "error"; message: string };
 
@@ -146,6 +147,7 @@ export class Db3ReaderHost {
 	): Promise<{
 		mad: DetectionRunResult | null;
 		rsd: DetectionRunResult | null;
+		cusum: DetectionRunResult | null;
 	}> {
 		return new Promise((resolve) => {
 			this.pending.set(

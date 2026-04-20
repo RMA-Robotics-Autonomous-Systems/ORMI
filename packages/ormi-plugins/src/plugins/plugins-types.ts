@@ -196,10 +196,20 @@ export interface PageDefinition {
 	/** React component rendered as the full page. */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	component: React.ComponentType<any>;
-	/** Optional navbar entry created automatically for this page. */
+	/**
+	 * Optional navbar entry. When present the page appears inside the Apps
+	 * dropdown in the navbar. Omit to keep the page hidden from navigation.
+	 */
 	navItem?: {
 		position: "left" | "right";
 		priority?: number;
+		/**
+		 * Groups related pages under a labelled section inside the dropdown.
+		 * Pages sharing the same group string are listed together.
+		 */
+		group?: string;
+		/** Short description shown below the title in the Apps dropdown. */
+		description?: string;
 	};
 }
 
