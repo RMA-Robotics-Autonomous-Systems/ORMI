@@ -132,6 +132,7 @@ export function EmiAnalyzerPage() {
 		setError(null);
 		setSummary(null);
 		setData(null);
+		setSketchHandles([]);
 
 		readerRef.current?.terminate();
 		const reader = new Db3ReaderHost();
