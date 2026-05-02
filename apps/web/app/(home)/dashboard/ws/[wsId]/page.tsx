@@ -15,6 +15,7 @@ import {
 	handleUpdate as tu,
 } from "@/lib/data/prisma-templates";
 import { handleLoad, handleSave } from "@/lib/data/prisma-dashboard";
+import { workspaceApi } from "@/lib/api/workspace-api";
 import { useParams } from "next/navigation";
 
 export default function Page() {
@@ -30,10 +31,11 @@ export default function Page() {
 				return;
 			}
 			try {
-				const response = await fetch(`/api/workspaces/${workspaceId}`);
-				if (response.ok) {
-					const workspace = await response.json();
-					setDashboardType(workspace?.dashboardType || "GRID");
+				const result = await workspaceApi.getById(Number(workspaceId));
+				if (result.ok) {
+					setDashboardType(
+						(result.data as any)?.dashboardType || "GRID",
+					);
 				}
 			} catch (e) {
 				setDashboardType("GRID");

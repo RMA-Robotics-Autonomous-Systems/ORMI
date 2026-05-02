@@ -33,10 +33,15 @@ export const workspaceApi = {
 	/**
 	 * Create new workspace
 	 */
-	async create(title: string, userId: string): Promise<ApiResult<Workspace>> {
+	async create(
+		title: string,
+		userId: string,
+		dashboardType?: string,
+	): Promise<ApiResult<Workspace>> {
 		return httpClient.post<Workspace>("/api/workspaces", {
 			title,
 			userId,
+			...(dashboardType ? { dashboardType } : {}),
 		});
 	},
 
@@ -51,6 +56,17 @@ export const workspaceApi = {
 			`/api/workspaces/${workspaceId}`,
 			data,
 		);
+	},
+
+	/**
+	 * Bulk reorder workspaces (update order and categoryId)
+	 */
+	async reorder(
+		updates: { id: number; order: number; categoryId?: number | null }[],
+	): Promise<ApiResult<{ success: boolean }>> {
+		return httpClient.patch<{ success: boolean }>("/api/workspaces", {
+			updates,
+		});
 	},
 
 	/**

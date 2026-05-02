@@ -25,6 +25,7 @@ import {
 	CardTitle,
 } from "@workspace/ui/components/card";
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import { workspaceApi } from "@/lib/api/workspace-api";
 
 interface CreateWSButtonProps {
 	onWorkspaceCreated?: (workspaceId: number) => void;
@@ -75,29 +76,19 @@ export function CreateWSButton({
 		setIsLoading(true);
 
 		try {
-			const response = await fetch("/api/workspaces", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					title: workspaceName.trim(),
-					userId: session!.user.id,
-					dashboardType,
-				}),
-			});
+			const result = await workspaceApi.create(
+				workspaceName.trim(),
+				session!.user.id,
+				dashboardType,
+			);
 
-			const workspace = (await response.json()) as any;
-
-			if (!workspace) {
-				throw new Error("Failed to create workspace");
-			}
+			if (!result.ok) throw new Error(result.error);
 
 			toast(`Workspace "${workspaceName}" created successfully!`);
 			handleDialogChange(false);
 			router.refresh();
-			router.push(`/dashboard/ws/${workspace.id}`);
-			onWorkspaceCreated?.(workspace.id);
+			router.push(`/dashboard/ws/${result.data.id}`);
+			onWorkspaceCreated?.(result.data.id);
 		} catch (error) {
 			toast(
 				error instanceof Error
