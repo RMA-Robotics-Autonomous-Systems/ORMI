@@ -72,7 +72,6 @@ postgres/                - Database initialization
 ### Prerequisites
 
 - Docker and Docker Compose
-- Git
 
 ### Installation with Docker
 
@@ -85,16 +84,7 @@ git clone <repository-url>
 cd ORMI-CORE
 ```
 
-2. Set up environment variables by creating a `.env` file in `apps/web`:
-
-```env
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=__YOUR__SUPER__MAGNIFICIENT__SECRET__
-DATABASE_URL=postgresql://ormi_user:ormi_password@postgres:5432/ormi_db
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-3. Start the application with Docker Compose:
+2. Start the application with Docker Compose:
 
 ```bash
 docker-compose up -d
@@ -102,119 +92,12 @@ docker-compose up -d
 
 The application will be available at `http://localhost:3000` and PostgreSQL will be running on `localhost:5432`.
 
-5. Stop the application:
+> **Note:** For production, set a strong `NEXTAUTH_SECRET` in `docker-compose.yml`.
+
+3. Stop the application:
 
 ```bash
 docker-compose down
-```
-
-### Local Development (Without Docker)
-
-For development without Docker, you need Bun and PostgreSQL installed locally.
-
-1. Install dependencies:
-
-```bash
-bun install
-```
-
-2. Set up environment variables in `apps/web/.env`:
-
-```env
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=__YOUR__SUPER__MAGNIFICIENT__SECRET__
-DATABASE_URL=postgresql://USER_DB:USER_PSW@localhost:5432/ORMI_DATABASE_NAME
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-3. Initialize the database:
-
-```bash
-cd apps/web
-bun run db-generate
-bun run db-migrate
-```
-
-### Development
-
-Start the development server with Turbo:
-
-```bash
-bun run dev
-```
-
-The application will be available at `http://localhost:3000`.
-
-#### Linux file watch limits (Turbopack)
-
-If you hit an error like "OS file watch limit reached", increase the inotify
-limits:
-
-```bash
-sudo sysctl -w fs.inotify.max_user_watches=524288
-sudo sysctl -w fs.inotify.max_user_instances=1024
-```
-
-To make it persistent:
-
-```bash
-sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null <<'EOF'
-fs.inotify.max_user_watches=524288
-fs.inotify.max_user_instances=1024
-EOF
-sudo sysctl --system
-```
-
-Individual package development:
-
-```bash
-cd packages/ormi-core
-bun run dev
-```
-
-### Building
-
-Build all packages:
-
-```bash
-bun run build
-```
-
-Build specific package:
-
-```bash
-cd packages/ormi-core
-bun run build
-```
-
-### Database Management
-
-Generate Prisma client:
-
-```bash
-cd apps/web
-bun run db-generate
-```
-
-Run migrations:
-
-```bash
-cd apps/web
-bun run db-migrate
-```
-
-Open Prisma Studio for database inspection:
-
-```bash
-cd apps/web
-bun run db-studio
-```
-
-Reset database:
-
-```bash
-cd apps/web
-bun run db-reset
 ```
 
 ## Creating Custom Plugins
@@ -233,30 +116,11 @@ A basic plugin structure includes:
 
 Plugins are automatically discovered and loaded into the plugin manager at runtime.
 
-## Code Quality
-
-Lint code across all packages:
-
-```bash
-bun run lint
-```
-
-Format code with Prettier:
-
-```bash
-bun run format
-```
-
 ## Configuration
 
 ### Environment Variables
 
-Critical variables for `apps/web/.env.local`:
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `NEXTAUTH_SECRET`: Authentication secret
-- `NEXTAUTH_URL`: Application URL for OAuth callbacks
-- `NEXT_PUBLIC_APP_URL`: Public application URL
+All required environment variables are pre-configured in `docker-compose.yml`. For production deployments, set a strong value for `NEXTAUTH_SECRET`.
 
 ### Theme and Site Configuration
 
