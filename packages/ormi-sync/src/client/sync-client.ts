@@ -57,8 +57,8 @@ export class SyncClient {
 	/** External message handlers registered via onMessage(). */
 	private _handlers: MessageHandler[] = [];
 
-	constructor(workerUrl: string | URL, options: SyncClientOptions = {}) {
-		this._worker = new Worker(workerUrl, { type: "module" });
+	constructor(worker: Worker, options: SyncClientOptions = {}) {
+		this._worker = worker;
 
 		this._ready = new Promise<void>((resolve) => {
 			this._resolveReady = resolve;
@@ -83,10 +83,10 @@ export class SyncClient {
 
 	/** Preferred construction path. Waits for worker ready + registry re-hydration. */
 	static async init(
-		workerUrl: string | URL,
+		worker: Worker,
 		options: SyncClientOptions = {},
 	): Promise<SyncClient> {
-		const client = new SyncClient(workerUrl, options);
+		const client = new SyncClient(worker, options);
 		await client._ready;
 		await client._rehydratePendingCreates();
 		if (navigator.onLine) {

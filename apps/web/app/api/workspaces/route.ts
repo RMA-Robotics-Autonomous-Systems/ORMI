@@ -19,6 +19,8 @@ export const GET = withAuth(async (_req, session) => {
 				name: true,
 				createdAT: true,
 				updatedAT: true,
+				dashboardType: true,
+				content: true,
 				categoryId: true,
 				order: true,
 				category: {

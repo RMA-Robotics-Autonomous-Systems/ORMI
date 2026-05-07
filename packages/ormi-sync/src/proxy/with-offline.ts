@@ -102,6 +102,14 @@ export function withOffline<T extends ApiObject>(
 			const methodName = prop as string;
 
 			return async (...args: unknown[]): Promise<ApiResult<unknown>> => {
+				// If the SyncClient hasn't initialised yet (startup window before
+				// the worker sends WORKER_READY), fall through to the original API.
+				// We are online during this window so data will be fresh, and the
+				// response will be cached once the client is ready.
+				if (!_syncClient) {
+					return original(...args) as Promise<ApiResult<unknown>>;
+				}
+
 				const client = getSyncClient();
 				const online = navigator.onLine;
 				const pk = config.primaryKey ?? "id";
@@ -114,10 +122,17 @@ export function withOffline<T extends ApiObject>(
 				// READ path
 				// ------------------------------------------------------------------
 				if (isReadMethod(methodName, config)) {
+					const readDescriptor = config.reads?.[methodName];
 					if (!online) {
-						// Serve from local cache
-						const result = await client.read(config.resource, {});
-						return { ok: true, data: result };
+						const query = readDescriptor?.query?.(...args) ?? {};
+						const rawResult = await client.read(
+							config.resource,
+							query,
+						);
+						const data = readDescriptor?.select
+							? readDescriptor.select(rawResult, ...args)
+							: rawResult;
+						return { ok: true, data };
 					}
 
 					// Online read — call original, cache result
@@ -130,13 +145,37 @@ export function withOffline<T extends ApiObject>(
 						const data = result.data;
 						if (Array.isArray(data)) {
 							for (const record of data) {
-								client.postMessage({
-									type: "LOCAL_WRITE",
-									resource: config.resource,
-									record,
-									primaryKey: pk,
-									versionKey: vk,
-								});
+								const recordId =
+									record && typeof record === "object"
+										? (record as Record<string, unknown>)[
+												pk
+											]
+										: undefined;
+
+								if (
+									readDescriptor?.mergeOnWrite &&
+									recordId !== undefined
+								) {
+									client.postMessage({
+										type: "LOCAL_MERGE",
+										resource: config.resource,
+										id: String(recordId),
+										partial: record as Record<
+											string,
+											unknown
+										>,
+										primaryKey: pk,
+										versionKey: vk,
+									});
+								} else {
+									client.postMessage({
+										type: "LOCAL_WRITE",
+										resource: config.resource,
+										record,
+										primaryKey: pk,
+										versionKey: vk,
+									});
+								}
 							}
 						} else if (data && typeof data === "object") {
 							client.postMessage({

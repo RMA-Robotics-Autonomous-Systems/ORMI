@@ -25,10 +25,10 @@ import {
 	CardTitle,
 } from "@workspace/ui/components/card";
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
-import { workspaceApi } from "@/lib/api/workspace-api";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 interface CreateWSButtonProps {
-	onWorkspaceCreated?: (workspaceId: number) => void;
+	onWorkspaceCreated?: (workspaceId: number | string) => void;
 }
 
 export function CreateWSButton({
@@ -84,11 +84,24 @@ export function CreateWSButton({
 
 			if (!result.ok) throw new Error(result.error);
 
+			const workspaceId = String(result.data.id);
+			window.sessionStorage.setItem(
+				`workspace-draft:${workspaceId}`,
+				JSON.stringify({ dashboardType }),
+			);
+
 			toast(`Workspace "${workspaceName}" created successfully!`);
 			handleDialogChange(false);
-			router.refresh();
-			router.push(`/dashboard/ws/${result.data.id}`);
 			onWorkspaceCreated?.(result.data.id);
+
+			if (!navigator.onLine) {
+				toast(
+					"Workspace saved locally. Reconnect or reopen it after the route has been cached.",
+				);
+				return;
+			}
+
+			router.push(`/dashboard/ws/${workspaceId}`);
 		} catch (error) {
 			toast(
 				error instanceof Error

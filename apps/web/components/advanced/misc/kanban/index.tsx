@@ -38,7 +38,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { categoriesApi } from "@/lib/api/categories-api";
-import { workspaceApi } from "@/lib/api/workspace-api";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 import { WorkspaceItem } from "../workspace-item";
 import { KanbanColumn } from "./column";
@@ -87,9 +87,21 @@ export function KanbanView({
 				categoriesApi.getAll(),
 			]);
 
-			if (wsResult.ok && catResult.ok) {
+			if (wsResult.ok) {
 				setWorkspaces(wsResult.data as WorkspaceWithCategory[]);
+			} else {
+				console.error("Failed to fetch workspaces", wsResult.error);
+				setWorkspaces([]);
+			}
+
+			if (catResult.ok) {
 				setCategories(catResult.data as Category[]);
+			} else {
+				console.warn(
+					"Failed to fetch categories, rendering uncategorized workspaces only",
+					catResult.error,
+				);
+				setCategories([]);
 			}
 		} catch (error) {
 			console.error("Failed to fetch data", error);

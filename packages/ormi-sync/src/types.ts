@@ -92,6 +92,11 @@ export interface SyncConfig {
 	 */
 	mutateMethods?: string[];
 	/**
+	 * Optional per-read descriptors for methods that need argument-aware local
+	 * queries, such as getById(id).
+	 */
+	reads?: Record<string, ReadDescriptor>;
+	/**
 	 * Per-method action descriptors for mutating methods.
 	 * Required for any method that will be queued offline.
 	 * Read methods (get*, load*) do not need descriptors.
@@ -142,6 +147,25 @@ export interface ActionDescriptor {
 	 * Omit for methods with no body (e.g. DELETE).
 	 */
 	payload?: (...args: unknown[]) => unknown;
+}
+
+export interface ReadDescriptor {
+	/**
+	 * Builds the local worker query from the method's positional arguments.
+	 * Omit to use the default full-resource read.
+	 */
+	query?: (...args: unknown[]) => LocalQuery;
+	/**
+	 * Maps the raw local read result back into the method's expected return shape.
+	 * Omit to return the worker result as-is.
+	 */
+	select?: (result: unknown, ...args: unknown[]) => unknown;
+	/**
+	 * When true, successful online array reads are cached with LOCAL_MERGE instead
+	 * of LOCAL_WRITE so richer locally cached records are not overwritten by
+	 * list-shaped responses.
+	 */
+	mergeOnWrite?: boolean;
 }
 
 // ---------------------------------------------------------------------------

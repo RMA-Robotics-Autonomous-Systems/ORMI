@@ -39,6 +39,7 @@ import {
 	resolveConflict,
 	runReplay,
 } from "./replay-engine.js";
+import { error as logError, log, summarizeMessage } from "./logger.js";
 
 // ---------------------------------------------------------------------------
 // Worker state
@@ -53,6 +54,7 @@ const _backoffBase = 1000;
 // ---------------------------------------------------------------------------
 
 async function boot(): Promise<void> {
+	log("boot:start");
 	const mode = await initDb();
 
 	// Wire raw query accessor for action-queue (_sync_actions SQL access)
@@ -61,6 +63,11 @@ async function boot(): Promise<void> {
 	// Configure replay engine
 	configureReplayEngine({
 		workerHeaders: _workerHeaders,
+		maxRetries: _maxRetries,
+		backoffBase: _backoffBase,
+	});
+	log("boot:ready", {
+		mode,
 		maxRetries: _maxRetries,
 		backoffBase: _backoffBase,
 	});
@@ -74,11 +81,13 @@ async function boot(): Promise<void> {
 
 self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 	const msg = event.data;
+	log("message:received", summarizeMessage(msg));
 
 	switch (msg.type) {
 		case "SET_HEADERS": {
 			_workerHeaders = { ..._workerHeaders, ...msg.headers };
 			updateHeaders(msg.headers);
+			log("headers:updated", { keys: Object.keys(msg.headers) });
 			break;
 		}
 
@@ -92,13 +101,18 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 				const result = await find(msg.resource, msg.query, {
 					primaryKey: "id",
 				});
+				log("db:read:done", {
+					resource: msg.resource,
+					requestId: msg.requestId,
+					count: Array.isArray(result) ? result.length : 0,
+				});
 				postMessage({
 					type: "LOCAL_READ_RESULT",
 					requestId: msg.requestId,
 					result,
 				} satisfies WorkerOutMessage);
 			} catch (err) {
-				console.error("ormi-sync LOCAL_READ error:", err);
+				logError("db:read:error", err);
 				postMessage({
 					type: "LOCAL_READ_RESULT",
 					requestId: msg.requestId,
@@ -119,6 +133,11 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 					},
 					msg.isTemp,
 				);
+				log("db:write:done", {
+					resource: msg.resource,
+					requestId: msg.requestId,
+					isTemp: msg.isTemp,
+				});
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -127,7 +146,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 					} satisfies WorkerOutMessage);
 				}
 			} catch (err) {
-				console.error("ormi-sync LOCAL_WRITE error:", err);
+				logError("db:write:error", err);
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -145,6 +164,11 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 					primaryKey: msg.primaryKey,
 					versionKey: msg.versionKey,
 				});
+				log("db:merge:done", {
+					resource: msg.resource,
+					id: msg.id,
+					requestId: msg.requestId,
+				});
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -153,7 +177,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 					} satisfies WorkerOutMessage);
 				}
 			} catch (err) {
-				console.error("ormi-sync LOCAL_MERGE error:", err);
+				logError("db:merge:error", err);
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -168,6 +192,11 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 		case "LOCAL_DELETE": {
 			try {
 				await remove(msg.resource, msg.id);
+				log("db:delete:done", {
+					resource: msg.resource,
+					id: msg.id,
+					requestId: msg.requestId,
+				});
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -176,7 +205,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 					} satisfies WorkerOutMessage);
 				}
 			} catch (err) {
-				console.error("ormi-sync LOCAL_DELETE error:", err);
+				logError("db:delete:error", err);
 				if (msg.requestId) {
 					postMessage({
 						type: "LOCAL_WRITE_RESULT",
@@ -190,6 +219,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 
 		case "GET_PENDING_CREATES": {
 			const creates = await getPendingCreates();
+			log("queue:pending-creates", { count: creates.length });
 			postMessage({
 				type: "PENDING_CREATES_RESULT",
 				requestId: msg.requestId,
@@ -205,6 +235,10 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 
 		case "RESOLVE_CONFLICT": {
 			resolveConflict(msg.resolution);
+			log("conflict:resolved", {
+				actionId: msg.actionId,
+				resolution: msg.resolution,
+			});
 			break;
 		}
 	}
@@ -215,6 +249,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
 // ---------------------------------------------------------------------------
 
 async function handleTriggerReplay(): Promise<void> {
+	log("replay:start");
 	// 1. Reset stuck actions from a previous interrupted session.
 	await withDbLock(() =>
 		rawQuery(
@@ -258,6 +293,10 @@ async function handleTriggerReplay(): Promise<void> {
 			}
 		}
 	}
+	log("replay:resolved-ids-preseeded", {
+		count: resolvedIds.size,
+		fromDoneCreates: (doneCreates as unknown[]).length,
+	});
 
 	// 3. Short-circuit if nothing to replay.
 	const { rows: countRows } = await withDbLock(() =>
@@ -267,6 +306,7 @@ async function handleTriggerReplay(): Promise<void> {
 	);
 	const count = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
 	if (count === 0) {
+		log("replay:skipped", { reason: "queue-empty" });
 		postMessage({
 			type: "REPLAY_DONE",
 			resolved: 0,
@@ -278,6 +318,10 @@ async function handleTriggerReplay(): Promise<void> {
 
 	// 4. Load, sort, and collapse pending actions.
 	const actions: Action[] = await loadPending();
+	log("replay:loaded-actions", {
+		pendingCount: count,
+		replayCount: actions.length,
+	});
 
 	// 5. Run replay.
 	const result = await runReplay(
@@ -287,6 +331,7 @@ async function handleTriggerReplay(): Promise<void> {
 		/* primaryKey */ "id",
 		(msg) => postMessage(msg as WorkerOutMessage),
 	);
+	log("replay:done", result);
 
 	postMessage({
 		type: "REPLAY_DONE",
@@ -298,5 +343,5 @@ async function handleTriggerReplay(): Promise<void> {
 
 // Kick off boot immediately on worker instantiation.
 boot().catch((err: unknown) => {
-	console.error("ormi-sync: worker boot failed:", err);
+	logError("boot:error", err);
 });

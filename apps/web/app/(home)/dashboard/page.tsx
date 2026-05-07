@@ -9,7 +9,7 @@ import { DashboardHeader } from "@/components/advanced/misc/dashboard-header";
 import { CreateWSButton } from "@/components/advanced/misc/workspace-button";
 import { DashboardShell } from "@/components/advanced/misc/dashboard-shell";
 import { KanbanView } from "@/components/advanced/misc/kanban";
-import { workspaceApi } from "@/lib/api/workspace-api";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 export default function DashboardPage() {
 	const { data: session, status } = useSession();

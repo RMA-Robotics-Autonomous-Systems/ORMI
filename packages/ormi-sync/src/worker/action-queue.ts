@@ -10,6 +10,7 @@
 
 import type { Action, TempId } from "../types.js";
 import { withDbLock } from "./local-db.js";
+import { log, summarizeAction, warn } from "./logger.js";
 
 // ---------------------------------------------------------------------------
 // Type for a raw _sync_actions row from the DB
@@ -26,7 +27,7 @@ interface ActionRow {
 	temp_id_slot: string | null;
 	resolved_real_id: string | null;
 	base_version: string | null;
-	enqueued_at: number;
+	enqueued_at: string | number;
 	status: string;
 }
 
@@ -69,7 +70,7 @@ function rowToAction(row: ActionRow): Action {
 		baseVersion: row.base_version
 			? JSON.parse(row.base_version)
 			: undefined,
-		enqueuedAt: row.enqueued_at,
+		enqueuedAt: Number(row.enqueued_at),
 		status: row.status as Action["status"],
 	};
 }
@@ -105,6 +106,7 @@ export async function enqueue(action: Action): Promise<void> {
 			],
 		),
 	);
+	log("queue:enqueue", summarizeAction(action));
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +122,13 @@ export async function loadPending(): Promise<Action[]> {
 	);
 	const actions = (rows as ActionRow[]).map(rowToAction);
 	const sorted = topologicalSort(actions);
-	return collapse(sorted);
+	const collapsed = collapse(sorted);
+	log("queue:load-pending", {
+		loaded: actions.length,
+		sorted: sorted.length,
+		collapsed: collapsed.length,
+	});
+	return collapsed;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +145,7 @@ export async function setStatus(
 			id,
 		]),
 	);
+	log("queue:set-status", { id, status });
 }
 
 export async function setResolvedRealId(
@@ -149,6 +158,7 @@ export async function setResolvedRealId(
 			id,
 		]),
 	);
+	log("queue:set-resolved-real-id", { id, realId });
 }
 
 // ---------------------------------------------------------------------------
@@ -226,9 +236,10 @@ function topologicalSort(actions: Action[]): Action[] {
 	if (cycleIds.size > 0) {
 		// Mark cycle members as failed — should never happen in normal usage
 		void Promise.all([...cycleIds].map((id) => setStatus(id, "failed")));
-		console.error(
-			`ormi-sync: cycle detected in action queue — ${cycleIds.size} action(s) marked failed`,
-		);
+		warn("queue:cycle-detected", {
+			count: cycleIds.size,
+			ids: [...cycleIds],
+		});
 	}
 
 	return sorted;
@@ -257,6 +268,11 @@ function collapse(actions: Action[]): Action[] {
 			if (!hasOtherDependents) {
 				removed.add(actionA.id);
 				removed.add(actionC.id);
+				log("queue:collapse-noop", {
+					createActionId: actionC.id,
+					deleteActionId: actionA.id,
+					tempIdSlot: actionC.tempIdSlot,
+				});
 				// Mark as done in DB (no-op — never sent)
 				void setStatus(actionA.id, "done");
 				void setStatus(actionC.id, "done");

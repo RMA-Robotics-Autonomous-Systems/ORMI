@@ -8,6 +8,7 @@ import { PluginsProvider } from "@workspace/ormi-plugins";
 import { NavbarProvider } from "@workspace/ui/combined/navbar/navbar-provider";
 import registry from "../ormi-plugins";
 import { transformStore } from "@workspace/ormi-core/transforms";
+import { SyncProvider } from "@/components/sync-provider";
 
 interface ClientProvidersProps {
 	children: ReactNode;
@@ -25,9 +26,14 @@ export function ClientProviders({
 			<ThemeProvider>
 				<AuthProvider>
 					<PluginsProvider PluginsInfo={registry}>
-						<NavbarProvider left={navbarLeft} right={navbarRight}>
-							{children}
-						</NavbarProvider>
+						<SyncProvider>
+							<NavbarProvider
+								left={navbarLeft}
+								right={navbarRight}
+							>
+								{children}
+							</NavbarProvider>
+						</SyncProvider>
 					</PluginsProvider>
 				</AuthProvider>
 			</ThemeProvider>

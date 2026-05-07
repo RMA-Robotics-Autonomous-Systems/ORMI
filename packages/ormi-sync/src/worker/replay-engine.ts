@@ -14,6 +14,7 @@ import type { Action, TempId } from "../types.js";
 import { isTempId } from "../types.js";
 import { upsert, findById, withDbLock } from "./local-db.js";
 import { setStatus, setResolvedRealId } from "./action-queue.js";
+import { log, summarizeAction, warn } from "./logger.js";
 
 // ---------------------------------------------------------------------------
 // Config (injected by sync-worker at init)
@@ -86,9 +87,14 @@ export async function runReplay(
 	const permanentFailedIds = new Set<string>();
 
 	for (const action of actions) {
+		log("replay:action:start", summarizeAction(action));
 		// Skip if any dependency permanently failed
 		if (action.dependsOn.some((d) => permanentFailedIds.has(d))) {
 			await setStatus(action.id, "failed");
+			warn("replay:action:skipped-dependency-failed", {
+				actionId: action.id,
+				dependsOn: action.dependsOn,
+			});
 			permanentFailedIds.add(action.id);
 			permanentFailures.push(action);
 			failed++;
@@ -108,11 +114,12 @@ export async function runReplay(
 		let url: string;
 		try {
 			url = resolveUrl(action.urlTemplate, rewrittenParams);
+			log("replay:action:url-resolved", { actionId: action.id, url });
 		} catch (err) {
-			console.error(
-				`ormi-sync: URL resolution failed for action ${action.id}:`,
-				err,
-			);
+			warn("replay:action:url-resolution-failed", {
+				actionId: action.id,
+				error: err,
+			});
 			await setStatus(action.id, "failed");
 			permanentFailedIds.add(action.id);
 			permanentFailures.push(action);
@@ -142,6 +149,11 @@ export async function runReplay(
 					: undefined;
 
 			if (localVer !== baseVer) {
+				warn("replay:conflict:local-version-mismatch", {
+					actionId: action.id,
+					localVer,
+					baseVer,
+				});
 				// Local diverged — conflict without network round-trip
 				const conflictResolution = await pauseForConflict(
 					action,
@@ -172,6 +184,11 @@ export async function runReplay(
 						effectiveVk
 					];
 					if (serverVer !== baseVer) {
+						warn("replay:conflict:server-version-mismatch", {
+							actionId: action.id,
+							serverVer,
+							baseVer,
+						});
 						const conflictResolution = await pauseForConflict(
 							action,
 							serverRecord,
@@ -206,6 +223,10 @@ export async function runReplay(
 		);
 
 		if (dispatchResult.ok) {
+			log("replay:action:dispatch-succeeded", {
+				actionId: action.id,
+				status: dispatchResult.status,
+			});
 			const serverRecord = dispatchResult.data as Record<string, unknown>;
 
 			// Write to local DB
@@ -229,6 +250,10 @@ export async function runReplay(
 			await setStatus(action.id, "done");
 			resolved++;
 		} else {
+			warn("replay:action:dispatch-failed", {
+				actionId: action.id,
+				status: dispatchResult.status,
+			});
 			await setStatus(action.id, "failed");
 			permanentFailedIds.add(action.id);
 			permanentFailures.push(action);
@@ -275,6 +300,13 @@ async function dispatchWithRetry(
 			await sleep(_backoffBase * Math.pow(2, attempt - 1));
 		}
 		attempt++;
+		log("replay:dispatch:attempt", {
+			actionId: action.id,
+			attempt,
+			maxRetries: _maxRetries,
+			method: httpMethod,
+			url,
+		});
 
 		let res: Response;
 		try {
@@ -290,6 +322,10 @@ async function dispatchWithRetry(
 			});
 		} catch {
 			// Network error — retry if retries remain
+			warn("replay:dispatch:network-error", {
+				actionId: action.id,
+				attempt,
+			});
 			if (attempt > _maxRetries) {
 				return { ok: false };
 			}
@@ -303,16 +339,26 @@ async function dispatchWithRetry(
 			} catch {
 				// 204 No Content or similar — fine
 			}
-			return { ok: true, data: data ?? {} };
+			return { ok: true, data: data ?? {}, status: res.status };
 		}
 
 		// Permanent 4xx (not 409)
 		if (res.status >= 400 && res.status < 500 && res.status !== 409) {
+			warn("replay:dispatch:permanent-failure", {
+				actionId: action.id,
+				attempt,
+				status: res.status,
+			});
 			return { ok: false, status: res.status };
 		}
 
 		// 409 conflict — caller handles separately (shouldn't reach here normally)
 		if (res.status === 409) {
+			warn("replay:dispatch:conflict-response", {
+				actionId: action.id,
+				attempt,
+				status: res.status,
+			});
 			return { ok: false, status: 409 };
 		}
 
@@ -351,6 +397,11 @@ async function pauseForConflict(
 	onPostMessage: (msg: unknown) => void,
 ): Promise<ConflictResolution> {
 	await setStatus(action.id, "conflict");
+	log("replay:conflict:waiting", {
+		actionId: action.id,
+		hasServerValue: serverValue !== null && serverValue !== undefined,
+		hasLocalValue: localValue !== null && localValue !== undefined,
+	});
 	onPostMessage({
 		type: "CONFLICT",
 		action,
@@ -375,12 +426,14 @@ async function handleConflictResolution(
 	versionKey: string | null,
 ): Promise<boolean> {
 	if (resolution === "use-server") {
+		log("replay:conflict:use-server", { actionId: action.id });
 		if (serverRecord) {
 			await upsert(resource, serverRecord, { primaryKey, versionKey });
 		}
 		return true; // skip dispatch
 	}
 	// keep-local: reset to pending and fall through to dispatch
+	log("replay:conflict:keep-local", { actionId: action.id });
 	await setStatus(action.id, "pending");
 	return false;
 }

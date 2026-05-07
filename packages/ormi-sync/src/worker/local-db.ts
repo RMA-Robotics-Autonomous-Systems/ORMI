@@ -13,17 +13,82 @@
 
 import { PGlite, IdbFs } from "@electric-sql/pglite";
 import type { LocalQuery, SyncConfig } from "../types.js";
+import { log } from "./logger.js";
+
+const PGLITE_WASM_URL = new URL(
+	"../../../../node_modules/@electric-sql/pglite/dist/pglite.wasm",
+	import.meta.url,
+);
+const PGLITE_DATA_URL = new URL(
+	"../../../../node_modules/@electric-sql/pglite/dist/pglite.data",
+	import.meta.url,
+);
 
 // ---------------------------------------------------------------------------
 // PGlite instance (lazily set by init)
 // ---------------------------------------------------------------------------
 
 let _db: PGlite | null = null;
+let _pgliteAssetsPromise: Promise<{
+	wasmModule: WebAssembly.Module;
+	fsBundle: Blob;
+}> | null = null;
 
 function db(): PGlite {
 	if (!_db)
 		throw new Error("local-db: not initialised — call initDb() first");
 	return _db;
+}
+
+async function loadPGliteAssets(): Promise<{
+	wasmModule: WebAssembly.Module;
+	fsBundle: Blob;
+}> {
+	if (_pgliteAssetsPromise) return _pgliteAssetsPromise;
+
+	_pgliteAssetsPromise = (async () => {
+		const wasmUrl = resolveWorkerAssetUrl(PGLITE_WASM_URL);
+		const dataUrl = resolveWorkerAssetUrl(PGLITE_DATA_URL);
+		log("assets:load:start", { wasmUrl, dataUrl });
+		const wasmResponse = await fetch(wasmUrl);
+		if (!wasmResponse.ok) {
+			throw new Error(
+				`ormi-sync: failed to fetch PGlite wasm (${wasmResponse.status})`,
+			);
+		}
+
+		const dataResponse = await fetch(dataUrl);
+		if (!dataResponse.ok) {
+			throw new Error(
+				`ormi-sync: failed to fetch PGlite fs bundle (${dataResponse.status})`,
+			);
+		}
+
+		const wasmModule = await WebAssembly.compile(
+			await wasmResponse.arrayBuffer(),
+		);
+		const fsBundle = new Blob([await dataResponse.arrayBuffer()], {
+			type: "application/octet-stream",
+		});
+		log("assets:load:done", {
+			wasmBytes: Number(wasmResponse.headers.get("content-length") ?? 0),
+			dataBytes: Number(dataResponse.headers.get("content-length") ?? 0),
+		});
+
+		return { wasmModule, fsBundle };
+	})();
+
+	return _pgliteAssetsPromise;
+}
+
+function resolveWorkerAssetUrl(url: URL): string {
+	const value = url.toString();
+
+	try {
+		return new URL(value).toString();
+	} catch {
+		return new URL(value, self.location.origin).toString();
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +137,7 @@ async function ensureResourceTable(resource: string): Promise<void> {
       )
     `),
 	);
+	log("db:table-ready", { resource, table: `sync_${resource}` });
 	_createdTables.add(resource);
 }
 
@@ -84,16 +150,27 @@ async function ensureResourceTable(resource: string): Promise<void> {
  * Returns the storage mode used.
  */
 export async function initDb(): Promise<"persistent" | "memory-only"> {
+	const { wasmModule, fsBundle } = await loadPGliteAssets();
+
 	try {
-		_db = new PGlite({ fs: new IdbFs("ormi-local-db") });
+		_db = new PGlite({
+			fs: new IdbFs("ormi-local-db"),
+			wasmModule,
+			fsBundle,
+		});
 		await _db.waitReady;
 		await bootstrapSyncActions();
+		log("db:init:done", {
+			mode: "persistent",
+			database: "idb://ormi-local-db",
+		});
 		return "persistent";
 	} catch {
 		// PGlite failed to open with IndexedDB — fall back to transient in-memory instance.
-		_db = new PGlite();
+		_db = new PGlite({ wasmModule, fsBundle });
 		await _db.waitReady;
 		await bootstrapSyncActions();
+		log("db:init:done", { mode: "memory-only", database: ":memory:" });
 		return "memory-only";
 	}
 }
@@ -112,11 +189,25 @@ async function bootstrapSyncActions(): Promise<void> {
         temp_id_slot     TEXT,
         resolved_real_id TEXT,
         base_version     TEXT,
-        enqueued_at      INTEGER NOT NULL,
+        enqueued_at      BIGINT NOT NULL,
         status           TEXT NOT NULL DEFAULT 'pending'
       )
     `),
 	);
+	await migrateSyncActionsSchema();
+}
+
+async function migrateSyncActionsSchema(): Promise<void> {
+	await withDbLock(() =>
+		db().query(
+			"ALTER TABLE _sync_actions ALTER COLUMN enqueued_at TYPE BIGINT",
+		),
+	);
+	log("db:migrate-sync-actions", {
+		table: "_sync_actions",
+		column: "enqueued_at",
+		type: "BIGINT",
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +246,7 @@ export async function upsert(
 			[id, data, version, tempFlag],
 		),
 	);
+	log("db:upsert", { resource, id, isTemp: Boolean(isTemp), version });
 }
 
 /**
@@ -182,6 +274,7 @@ export async function merge(
 			[data, version, id],
 		),
 	);
+	log("db:merge", { resource, id, keys: Object.keys(partial), version });
 }
 
 /** Delete a record from the local cache table. */
@@ -190,6 +283,7 @@ export async function remove(resource: string, id: string): Promise<void> {
 	await withDbLock(() =>
 		db().query(`DELETE FROM sync_${resource} WHERE id = $1`, [id]),
 	);
+	log("db:remove", { resource, id });
 }
 
 /** Query the local cache table, returning deserialized records. */
@@ -226,6 +320,13 @@ export async function find(
 			params,
 		),
 	);
+	log("db:find", {
+		resource,
+		count: rows.length,
+		filter: query.filter,
+		orderBy: query.orderBy,
+		limit: query.limit,
+	});
 	return (rows as Array<{ data: string }>).map((r) => JSON.parse(r.data));
 }
 
@@ -239,6 +340,7 @@ export async function findById(
 		db().query(`SELECT data FROM sync_${resource} WHERE id = $1`, [id]),
 	);
 	const first = (rows as Array<{ data: string }>)[0];
+	log("db:findById", { resource, id, found: Boolean(first) });
 	return first ? JSON.parse(first.data) : null;
 }
 

@@ -9,6 +9,9 @@ export interface Workspace {
 	name: string;
 	createdAT: Date;
 	updatedAT?: Date;
+	dashboardType?: string;
+	categoryId?: number | null;
+	order?: number;
 	content?: unknown;
 }
 
