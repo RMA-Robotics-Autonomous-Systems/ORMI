@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { FoxgloveClient } from "@foxglove/ws-protocol";
 import type { PluginsManager } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
@@ -162,6 +162,30 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 	onConnectionStatus,
 	onInitialized,
 }) => {
+	const onConnectionStatusRef = useRef(onConnectionStatus);
+	const onInitializedRef = useRef(onInitialized);
+	const transformTreeTopicsKey = settings.transformTreeTopics.join("\0");
+	const workerSettings = useMemo(
+		() => ({
+			...settings,
+			transformTreeTopics: [...settings.transformTreeTopics],
+		}),
+		[
+			settings.enable,
+			settings.id,
+			settings.reconnectTimeout,
+			settings.title,
+			settings.toasts,
+			settings.url,
+			transformTreeTopicsKey,
+		],
+	);
+
+	useEffect(() => {
+		onConnectionStatusRef.current = onConnectionStatus;
+		onInitializedRef.current = onInitialized;
+	}, [onConnectionStatus, onInitialized]);
+
 	useEffect(() => {
 		let disposed = false;
 		let host: FoxgloveWorkerHost<FoxgloveDataSourceSettings> | null = null;
@@ -171,14 +195,14 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 			new URL("./foxglove-source.worker.js", import.meta.url),
 			{
 				type: "module",
-				name: `datasource:${settings.id}`,
+				name: `datasource:${workerSettings.id}`,
 			},
 		);
 
 		host = new FoxgloveWorkerHost({
 			worker,
-			datasourceId: settings.id,
-			settings,
+			datasourceId: workerSettings.id,
+			settings: workerSettings,
 			pluginsManager,
 		});
 
@@ -186,13 +210,13 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 
 		unsubscribe = host.onConnectionStatus((status) => {
 			if (disposed) return;
-			onConnectionStatus(status);
+			onConnectionStatusRef.current(status);
 		});
 
 		host.init()
 			.then(() => {
 				if (!disposed) {
-					onInitialized(true);
+					onInitializedRef.current(true);
 				}
 			})
 			.catch((error) => {
@@ -208,8 +232,8 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 						error: errorMessage,
 						reconnectAttempt: 0,
 					});
-					onInitialized(false);
-					if (settings.toasts) {
+					onInitializedRef.current(false);
+					if (workerSettings.toasts) {
 						toast.error("Failed to initialize Foxglove datasource");
 					}
 				}
@@ -219,9 +243,9 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 			disposed = true;
 			if (unsubscribe) unsubscribe();
 			if (host) host.dispose();
-			onInitialized(false);
+			onInitializedRef.current(false);
 		};
-	}, [settings, pluginsManager, onConnectionStatus, onInitialized]);
+	}, [workerSettings, pluginsManager]);
 
 	return null;
 };

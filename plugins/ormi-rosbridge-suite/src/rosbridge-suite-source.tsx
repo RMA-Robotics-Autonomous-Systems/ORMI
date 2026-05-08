@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, {
+	useState,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+} from "react";
 import * as ROSLIB from "roslib";
 
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
@@ -65,6 +71,27 @@ const RosbridgeWorkerConnection: React.FC<WorkerConnectionProps> = ({
 	onConnectionStatus,
 }) => {
 	const pluginsManager = usePluginsManager();
+	const onInitializedRef = useRef(onInitialized);
+	const onConnectionStatusRef = useRef(onConnectionStatus);
+	const transformTreeTopicsKey = settings.transformTreeTopics.join("\0");
+	const workerSettings = useMemo(
+		() => ({
+			...settings,
+			transformTreeTopics: [...settings.transformTreeTopics],
+		}),
+		[
+			settings.enable,
+			settings.id,
+			settings.reconnectTimeout,
+			settings.title,
+			settings.toasts,
+			settings.url,
+			transformTreeTopicsKey,
+		],
+	);
+
+	onInitializedRef.current = onInitialized;
+	onConnectionStatusRef.current = onConnectionStatus;
 
 	useEffect(() => {
 		let disposed = false;
@@ -73,13 +100,13 @@ const RosbridgeWorkerConnection: React.FC<WorkerConnectionProps> = ({
 
 		const worker = new Worker(
 			new URL("./rosbridge-source.worker.js", import.meta.url),
-			{ type: "module", name: `rosbridge:${settings.id}` },
+			{ type: "module", name: `rosbridge:${workerSettings.id}` },
 		);
 
 		host = new RosbridgeWorkerHost({
 			worker,
-			datasourceId: settings.id,
-			settings,
+			datasourceId: workerSettings.id,
+			settings: workerSettings,
 			pluginsManager,
 		});
 
@@ -87,22 +114,22 @@ const RosbridgeWorkerConnection: React.FC<WorkerConnectionProps> = ({
 
 		unsubscribe = host.onConnectionStatus((status) => {
 			if (disposed) return;
-			onConnectionStatus(status);
+			onConnectionStatusRef.current(status);
 			if (status.connected) {
 				pluginsManager.doAction(
 					PluginsHooks.DATASOURCE_READY,
-					settings.id,
+					workerSettings.id,
 				);
 			}
 		});
 
 		host.init()
 			.then(() => {
-				if (!disposed) onInitialized(true);
+				if (!disposed) onInitializedRef.current(true);
 			})
 			.catch((error) => {
 				if (!disposed) {
-					onConnectionStatus({
+					onConnectionStatusRef.current({
 						connected: false,
 						error:
 							error instanceof Error
@@ -119,10 +146,9 @@ const RosbridgeWorkerConnection: React.FC<WorkerConnectionProps> = ({
 			host?.dispose();
 			// host.dispose() already fires DATASOURCE_DISPOSED via the worker shutdown;
 			// calling it here too would double-fire setDatasourceStatuses.
-			onInitialized(false);
+			onInitializedRef.current(false);
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [settings.id, settings.url]);
+	}, [workerSettings, pluginsManager]);
 
 	return null;
 };
