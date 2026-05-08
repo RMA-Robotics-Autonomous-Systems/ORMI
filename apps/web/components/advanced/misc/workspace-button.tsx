@@ -25,9 +25,10 @@ import {
 	CardTitle,
 } from "@workspace/ui/components/card";
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 interface CreateWSButtonProps {
-	onWorkspaceCreated?: (workspaceId: number) => void;
+	onWorkspaceCreated?: (workspaceId: number | string) => void;
 }
 
 export function CreateWSButton({
@@ -75,29 +76,32 @@ export function CreateWSButton({
 		setIsLoading(true);
 
 		try {
-			const response = await fetch("/api/workspaces", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					title: workspaceName.trim(),
-					userId: session!.user.id,
-					dashboardType,
-				}),
-			});
+			const result = await workspaceApi.create(
+				workspaceName.trim(),
+				session!.user.id,
+				dashboardType,
+			);
 
-			const workspace = (await response.json()) as any;
+			if (!result.ok) throw new Error(result.error);
 
-			if (!workspace) {
-				throw new Error("Failed to create workspace");
-			}
+			const workspaceId = String(result.data.id);
+			window.sessionStorage.setItem(
+				`workspace-draft:${workspaceId}`,
+				JSON.stringify({ dashboardType }),
+			);
 
 			toast(`Workspace "${workspaceName}" created successfully!`);
 			handleDialogChange(false);
-			router.refresh();
-			router.push(`/dashboard/ws/${workspace.id}`);
-			onWorkspaceCreated?.(workspace.id);
+			onWorkspaceCreated?.(result.data.id);
+
+			if (!navigator.onLine) {
+				toast(
+					"Workspace saved locally. Reconnect or reopen it after the route has been cached.",
+				);
+				return;
+			}
+
+			router.push(`/dashboard/ws/${workspaceId}`);
 		} catch (error) {
 			toast(
 				error instanceof Error

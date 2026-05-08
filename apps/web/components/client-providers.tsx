@@ -9,6 +9,8 @@ import { NavbarProvider } from "@workspace/ui/combined/navbar/navbar-provider";
 import registry from "../ormi-plugins";
 import { transformStore } from "@workspace/ormi-core/transforms";
 import { DevlogDialog } from "@/components/devlogs/devlog-dialog";
+import { SyncProvider } from "@/components/sync-provider";
+
 
 interface ClientProvidersProps {
 	children: ReactNode;
@@ -26,10 +28,15 @@ export function ClientProviders({
 			<ThemeProvider>
 				<AuthProvider>
 					<PluginsProvider PluginsInfo={registry}>
-						<NavbarProvider left={navbarLeft} right={navbarRight}>
-							{children}
-							<DevlogDialog />
-						</NavbarProvider>
+						<SyncProvider>
+							<NavbarProvider
+								left={navbarLeft}
+								right={navbarRight}
+							>
+								{children}
+                <DevlogDialog />
+							</NavbarProvider>
+						</SyncProvider>
 					</PluginsProvider>
 				</AuthProvider>
 			</ThemeProvider>

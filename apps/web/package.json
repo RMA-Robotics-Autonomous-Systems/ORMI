@@ -31,6 +31,7 @@
 		"@types/pg": "^8.16.0",
 		"@workspace/ormi-core": "workspace:*",
 		"@workspace/ormi-plugins": "workspace:*",
+		"@workspace/ormi-sync": "workspace:*",
 		"@workspace/ui": "workspace:*",
 		"@workspace/utils": "workspace:*",
 		"highlight.js": "^11.11.1",

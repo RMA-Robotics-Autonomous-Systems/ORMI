@@ -9,6 +9,7 @@ import { DashboardHeader } from "@/components/advanced/misc/dashboard-header";
 import { CreateWSButton } from "@/components/advanced/misc/workspace-button";
 import { DashboardShell } from "@/components/advanced/misc/dashboard-shell";
 import { KanbanView } from "@/components/advanced/misc/kanban";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 export default function DashboardPage() {
 	const { data: session, status } = useSession();
@@ -33,17 +34,9 @@ export default function DashboardPage() {
 			}[],
 		) => {
 			try {
-				const response = await fetch("/api/workspaces", {
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({ updates }),
-				});
+				const result = await workspaceApi.reorder(updates);
 
-				if (!response.ok) {
-					throw new Error("Failed to update workspaces");
-				}
+				if (!result.ok) throw new Error(result.error);
 
 				toast("Workspaces updated");
 			} catch (error) {

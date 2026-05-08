@@ -30,6 +30,7 @@ import { MoreVertical, Loader2, Trash } from "lucide-react";
 import WorkspaceImport from "./workspace-import";
 
 import { handleDelete } from "@/lib/data/prisma-workspaces";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 
 async function deleteWorkspace(wsId: number) {
 	return await handleDelete(wsId);
@@ -37,16 +38,14 @@ async function deleteWorkspace(wsId: number) {
 
 async function exportWorkspace(wsId: number) {
 	// download the workspace as a json file
-	const response = await fetch(`/api/workspaces/${wsId}`, {
-		method: "GET",
-	});
+	const result = await workspaceApi.getById(wsId);
 
-	if (!response.ok) {
+	if (!result.ok) {
 		toast("Your workspace was not exported. Please try again.");
 		return false;
 	}
 
-	const workspace = (await response.json()) as any;
+	const workspace = result.data as any;
 	if (!workspace) {
 		toast("Failed to export workspace. Please try again.");
 		return false;

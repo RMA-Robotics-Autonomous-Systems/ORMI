@@ -96,9 +96,12 @@ export function BaselineSketchDialog({
 		}
 		const t0 = series[0]!.timestamp;
 		const duration = series[series.length - 1]!.timestamp - t0;
-		const vals = series.map((p) => p.value);
-		const vmin_raw = Math.min(...vals);
-		const vmax_raw = Math.max(...vals);
+		let vmin_raw = series[0]!.value;
+		let vmax_raw = series[0]!.value;
+		for (const p of series) {
+			if (p.value < vmin_raw) vmin_raw = p.value;
+			if (p.value > vmax_raw) vmax_raw = p.value;
+		}
 		const vpad = Math.max((vmax_raw - vmin_raw) * 0.05, 1);
 		return { t0, duration, vmin: vmin_raw - vpad, vmax: vmax_raw + vpad };
 	}, [series]);

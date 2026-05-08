@@ -1,6 +1,5 @@
-import { httpClient } from "../http/client";
 import type { ApiResult } from "../http/client";
-import type { Workspace } from "./workspace-api";
+import { syncedWorkspaceApi as workspaceApi } from "../sync/workspace-api";
 
 /**
  * Dashboard state structure
@@ -31,6 +30,11 @@ export const dashboardApi = {
 		workspaceId: string,
 		dashboardState: DashboardState,
 	): Promise<ApiResult<void>> {
+		const parsedWorkspaceId = Number(workspaceId);
+		if (!Number.isFinite(parsedWorkspaceId)) {
+			return { ok: false, error: "Invalid workspace ID" };
+		}
+
 		// Convert Maps to objects for serialization
 		const dataToSave = {
 			...dashboardState,
@@ -38,24 +42,36 @@ export const dashboardApi = {
 			datasources: Object.fromEntries(dashboardState.datasources),
 		};
 
-		return httpClient.patch<void>(`/api/workspaces/${workspaceId}`, {
+		const result = await workspaceApi.patch(parsedWorkspaceId, {
 			content: dataToSave,
 		});
+
+		if (!result.ok) {
+			return result;
+		}
+
+		return { ok: true, data: undefined };
 	},
 
 	/**
 	 * Load dashboard state from workspace
 	 */
 	async load(workspaceId: string): Promise<ApiResult<DashboardState>> {
-		const result = await httpClient.get<Workspace>(
-			`/api/workspaces/${workspaceId}`,
-		);
+		const parsedWorkspaceId = Number(workspaceId);
+		if (!Number.isFinite(parsedWorkspaceId)) {
+			return { ok: false, error: "Invalid workspace ID" };
+		}
+
+		const result = await workspaceApi.getById(parsedWorkspaceId);
 
 		if (!result.ok) {
 			return result;
 		}
 
 		const workspace = result.data;
+		if (!workspace) {
+			return { ok: false, error: "Workspace not found" };
+		}
 
 		// If there's no content, use default empty dashboard
 		const dashboardDefinition = workspace.content

@@ -37,6 +37,9 @@ import { Input } from "@workspace/ui/components/input";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
+import { categoriesApi } from "@/lib/api/categories-api";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
+
 import { WorkspaceItem } from "../workspace-item";
 import { KanbanColumn } from "./column";
 import { WorkspaceWithCategory, WorkspaceUpdate } from "./types";
@@ -79,16 +82,26 @@ export function KanbanView({
 
 	const fetchData = useCallback(async () => {
 		try {
-			const [wsRes, catRes] = await Promise.all([
-				fetch("/api/workspaces"),
-				fetch("/api/categories"),
+			const [wsResult, catResult] = await Promise.all([
+				workspaceApi.getAll(),
+				categoriesApi.getAll(),
 			]);
 
-			if (wsRes.ok && catRes.ok) {
-				const wsData = await wsRes.json();
-				const catData = await catRes.json();
-				setWorkspaces(wsData);
-				setCategories(catData);
+			if (wsResult.ok) {
+				setWorkspaces(wsResult.data as WorkspaceWithCategory[]);
+			} else {
+				console.error("Failed to fetch workspaces", wsResult.error);
+				setWorkspaces([]);
+			}
+
+			if (catResult.ok) {
+				setCategories(catResult.data as Category[]);
+			} else {
+				console.warn(
+					"Failed to fetch categories, rendering uncategorized workspaces only",
+					catResult.error,
+				);
+				setCategories([]);
 			}
 		} catch (error) {
 			console.error("Failed to fetch data", error);
@@ -105,16 +118,11 @@ export function KanbanView({
 		if (!newCategoryName.trim()) return;
 
 		try {
-			const response = await fetch("/api/categories", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: newCategoryName }),
-			});
+			const result = await categoriesApi.create(newCategoryName);
 
-			if (!response.ok) throw new Error("Failed to create category");
+			if (!result.ok) throw new Error(result.error);
 
-			const newCategory = await response.json();
-			setCategories([...categories, newCategory]);
+			setCategories([...categories, result.data as Category]);
 			setNewCategoryName("");
 			setIsCreateDialogOpen(false);
 			toast("Category created");
@@ -128,21 +136,16 @@ export function KanbanView({
 		if (!editingCategory || !editCategoryName.trim()) return;
 
 		try {
-			const response = await fetch(
-				`/api/categories/${editingCategory.id}`,
-				{
-					method: "PUT",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ name: editCategoryName }),
-				},
+			const result = await categoriesApi.update(
+				editingCategory.id,
+				editCategoryName,
 			);
 
-			if (!response.ok) throw new Error("Failed to update category");
+			if (!result.ok) throw new Error(result.error);
 
-			const updatedCategory = await response.json();
 			setCategories(
 				categories.map((c) =>
-					c.id === updatedCategory.id ? updatedCategory : c,
+					c.id === result.data.id ? (result.data as Category) : c,
 				),
 			);
 			setEditingCategory(null);
@@ -156,11 +159,9 @@ export function KanbanView({
 
 	const handleDeleteCategory = async (categoryId: number) => {
 		try {
-			const response = await fetch(`/api/categories/${categoryId}`, {
-				method: "DELETE",
-			});
+			const result = await categoriesApi.delete(categoryId);
 
-			if (!response.ok) throw new Error("Failed to delete category");
+			if (!result.ok) throw new Error(result.error);
 
 			setCategories(categories.filter((c) => c.id !== categoryId));
 			// Move workspaces to uncategorized locally
@@ -297,11 +298,8 @@ export function KanbanView({
 							order: index,
 						}));
 
-						await fetch("/api/categories", {
-							method: "PATCH",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ updates }),
-						});
+						const result = await categoriesApi.reorder(updates);
+						if (!result.ok) throw new Error(result.error);
 					} catch (error) {
 						console.error("Failed to update category order", error);
 						toast("Failed to save category order");

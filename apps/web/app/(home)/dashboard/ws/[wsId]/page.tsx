@@ -15,6 +15,7 @@ import {
 	handleUpdate as tu,
 } from "@/lib/data/prisma-templates";
 import { handleLoad, handleSave } from "@/lib/data/prisma-dashboard";
+import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
 import { useParams } from "next/navigation";
 
 export default function Page() {
@@ -29,11 +30,39 @@ export default function Page() {
 				setLoading(false);
 				return;
 			}
+
+			const parsedWorkspaceId = Number(workspaceId);
+			if (!Number.isFinite(parsedWorkspaceId)) {
+				if (typeof window !== "undefined") {
+					const draft = window.sessionStorage.getItem(
+						`workspace-draft:${workspaceId}`,
+					);
+
+					if (draft) {
+						try {
+							const parsedDraft = JSON.parse(draft) as {
+								dashboardType?: string;
+							};
+
+							setDashboardType(
+								parsedDraft.dashboardType || "GRID",
+							);
+						} catch {
+							setDashboardType("GRID");
+						}
+					}
+				}
+
+				setLoading(false);
+				return;
+			}
+
 			try {
-				const response = await fetch(`/api/workspaces/${workspaceId}`);
-				if (response.ok) {
-					const workspace = await response.json();
-					setDashboardType(workspace?.dashboardType || "GRID");
+				const result = await workspaceApi.getById(parsedWorkspaceId);
+				if (result.ok) {
+					setDashboardType(
+						(result.data as any)?.dashboardType || "GRID",
+					);
 				}
 			} catch (e) {
 				setDashboardType("GRID");
