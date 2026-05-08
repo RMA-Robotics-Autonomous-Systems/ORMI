@@ -9,8 +9,6 @@ import {
 	DatasourceTemplate,
 	TemplateType,
 } from "./templates-types";
-
-import { useNavbar } from "@workspace/ui/combined/navbar";
 import { createSafeContext } from "@workspace/utils";
 
 /** Templates provider context value. */
@@ -50,8 +48,6 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 	const [templates, setTemplates] = useState<Map<string, Template>>(
 		new Map<string, Template>(),
 	);
-
-	const { setNavbarItem, removeNavbarItem } = useNavbar();
 
 	const addTemplate = async (template: Template, key?: string) => {
 		const template_id = await props.addTemplate(template);

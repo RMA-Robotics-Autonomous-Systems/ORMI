@@ -86,7 +86,7 @@ export default function TopicMarker(props: {
 					<Image
 						width={32}
 						height={32}
-						src={`https://api.dicebear.com/9.x/bottts/svg?seed=${getSourceId(props.topic)}`}
+						src={`/api/dicebear/9.x/bottts/svg?seed=${getSourceId(props.topic)}`}
 						alt={`Marker for ${props.name}`}
 					/>
 					<p style={{ textAlign: "center" }}>{props.name}</p>

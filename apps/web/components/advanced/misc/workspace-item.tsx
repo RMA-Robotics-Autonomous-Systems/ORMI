@@ -24,7 +24,7 @@ export function WorkspaceItem({
 }: WorkspaceItemProps) {
 	// Encode workspace name for use in URL
 	const encodedName = encodeURIComponent(workspace.name);
-	const avatarUrl = `https://api.dicebear.com/9.x/identicon/svg?seed=${encodedName}`;
+	const avatarUrl = `/api/dicebear/9.x/identicon/svg?seed=${encodedName}`;
 
 	return (
 		<Card>

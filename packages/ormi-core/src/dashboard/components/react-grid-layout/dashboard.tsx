@@ -23,11 +23,7 @@ import {
 } from "lucide-react";
 import React from "react";
 
-import {
-	NavbarItem,
-	NavbarProvider,
-	useNavbar,
-} from "@workspace/ui/combined/navbar";
+import { NavbarItem } from "@workspace/ui/combined/navbar";
 import {
 	ButtonHolderProvider,
 	ButtonHolder,
@@ -381,8 +377,6 @@ const Dashboard = () => {
 
 	const { templates, removeTemplate, updateTemplate } = useTemplates();
 
-	const { setNavbarItem, removeNavbarItem } = useNavbar();
-
 	const handleLayoutChange = useCallback(
 		(currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
 			if (JSON.stringify(gridLayouts) !== JSON.stringify(allLayouts)) {
@@ -416,158 +410,6 @@ const Dashboard = () => {
 		},
 		[updateWidget],
 	);
-
-	const onLockToggleRef = useRef(toggleLock);
-	const onSaveRef = useRef(save);
-
-	useEffect(() => {
-		onLockToggleRef.current = toggleLock;
-		onSaveRef.current = save;
-	}, [toggleLock, save]);
-
-	useEffect(() => {
-		setNavbarItem(
-			"right",
-			"template_drawer",
-			<WidgetTemplateDrawer
-				templates={templates}
-				addWidget={addWidget}
-				addDatasource={addDatasource}
-				removeTemplate={removeTemplate}
-				updateTemplate={updateTemplate}
-				widgetDefinitions={widgetDefinitions}
-				datasourceDefinitions={datasourceDefinitions}
-			/>,
-		);
-
-		return () => {
-			removeNavbarItem("right", "template_drawer");
-		};
-	}, [
-		templates,
-		addWidget,
-		addDatasource,
-		removeTemplate,
-		updateTemplate,
-		setNavbarItem,
-		removeNavbarItem,
-		widgetDefinitions,
-		datasourceDefinitions,
-	]);
-
-	useEffect(() => {
-		setNavbarItem(
-			"center",
-			"widgets_combo",
-			<WidgetsCombo
-				widgetDefinitions={widgetDefinitions}
-				onValidate={handleValidate}
-			/>,
-		);
-
-		setNavbarItem(
-			"center",
-			"lock_unlock",
-			<Button
-				variant={"ghost"}
-				onClick={() => {
-					onLockToggleRef.current();
-				}}
-			>
-				{!locked ? <LockIcon /> : <LockOpenIcon />}
-			</Button>,
-		);
-
-		setNavbarItem(
-			"center",
-			"moveToHorizontal",
-			<Button variant={"ghost"} onClick={moveToHorizontal}>
-				<ArrowLeftFromLine />
-			</Button>,
-		);
-
-		setNavbarItem(
-			"center",
-			"moveToVertical",
-			<Button variant={"ghost"} onClick={moveToVertical}>
-				<ArrowUpFromLine />
-			</Button>,
-		);
-
-		setNavbarItem(
-			"center",
-			"exploseLayout",
-			<ContextMenu>
-				<ContextMenuTrigger>
-					<Button variant={"ghost"} onClick={() => exploseLayout()}>
-						<BombIcon />
-					</Button>
-				</ContextMenuTrigger>
-				<ContextMenuContent>
-					<ContextMenuItem onClick={() => exploseLayout("custom")}>
-						<Grid3X3 size={16} className="mr-2" />
-						Custom
-					</ContextMenuItem>
-					<ContextMenuItem onClick={() => exploseLayout("rows")}>
-						<Rows3 size={16} className="mr-2" />
-						Row Layout
-					</ContextMenuItem>
-					<ContextMenuItem onClick={() => exploseLayout("columns")}>
-						<Columns3 size={16} className="mr-2" />
-						Column Layout
-					</ContextMenuItem>
-					<ContextMenuItem onClick={() => exploseLayout("masonry")}>
-						<LayoutGrid size={16} className="mr-2" />
-						Masonry Layout
-					</ContextMenuItem>
-					<ContextMenuItem onClick={() => exploseLayout("single")}>
-						<Square size={16} className="mr-2" />
-						Single Layout
-					</ContextMenuItem>
-				</ContextMenuContent>
-			</ContextMenu>,
-		);
-		setNavbarItem(
-			"center",
-			"save",
-			<Button
-				variant={"ghost"}
-				className={hasChanged ? "animate-pulse" : ""}
-				style={
-					hasChanged
-						? {
-								animation:
-									"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-								boxShadow: "0 0 0 0 hsl(var(--primary))",
-							}
-						: {}
-				}
-				onClick={() => {
-					onSaveRef.current();
-				}}
-			>
-				{hasChanged ? <Save /> : <Check />}
-			</Button>,
-		);
-
-		return () => {
-			removeNavbarItem("center", "widgets_combo");
-			removeNavbarItem("center", "lock_unlock");
-			removeNavbarItem("center", "moveToHorizontal");
-			removeNavbarItem("center", "moveToVertical");
-			removeNavbarItem("center", "exploseLayout");
-			removeNavbarItem("center", "save");
-		};
-	}, [
-		locked,
-		hasChanged,
-		moveToHorizontal,
-		moveToVertical,
-		exploseLayout,
-		handleValidate,
-		setNavbarItem,
-		removeNavbarItem,
-	]);
 
 	const widgets_elements = useMemo(() => {
 		return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
@@ -633,33 +475,133 @@ const Dashboard = () => {
 	]);
 
 	return (
-		<div ref={containerRef} style={{ width: "100%", height: "100%" }}>
-			<ResponsiveGridLayout
-				width={containerWidth}
-				className="layout"
-				margin={[2, 2]}
-				layouts={gridLayouts}
-				breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-				cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-				dragConfig={{
-					enabled: !locked,
-					handle: `.drag-handle`,
-				}}
-				resizeConfig={{
-					enabled: !locked,
-				}}
-				onLayoutChange={handleLayoutChange}
-				compactor={{
-					type: compactType,
-					allowOverlap: false,
-					preventCollision: true,
-					compact: (layout, cols) => layout, // Placeholder
-				}}
-				rowHeight={30}
-			>
-				{widgets_elements}
-			</ResponsiveGridLayout>
-		</div>
+		<>
+			<NavbarItem id="template_drawer" zone="right">
+				<WidgetTemplateDrawer
+					templates={templates}
+					addWidget={addWidget}
+					addDatasource={addDatasource}
+					removeTemplate={removeTemplate}
+					updateTemplate={updateTemplate}
+					widgetDefinitions={widgetDefinitions}
+					datasourceDefinitions={datasourceDefinitions}
+				/>
+			</NavbarItem>
+			<NavbarItem id="widgets_combo" zone="center">
+				<WidgetsCombo
+					widgetDefinitions={widgetDefinitions}
+					onValidate={handleValidate}
+				/>
+			</NavbarItem>
+			<NavbarItem id="lock_unlock" zone="center">
+				<Button variant={"ghost"} onClick={toggleLock}>
+					{!locked ? <LockIcon /> : <LockOpenIcon />}
+				</Button>
+			</NavbarItem>
+			<NavbarItem id="moveToHorizontal" zone="center">
+				<Button variant={"ghost"} onClick={moveToHorizontal}>
+					<ArrowLeftFromLine />
+				</Button>
+			</NavbarItem>
+			<NavbarItem id="moveToVertical" zone="center">
+				<Button variant={"ghost"} onClick={moveToVertical}>
+					<ArrowUpFromLine />
+				</Button>
+			</NavbarItem>
+			<NavbarItem id="exploseLayout" zone="center">
+				<ContextMenu>
+					<ContextMenuTrigger>
+						<Button
+							variant={"ghost"}
+							onClick={() => exploseLayout()}
+						>
+							<BombIcon />
+						</Button>
+					</ContextMenuTrigger>
+					<ContextMenuContent>
+						<ContextMenuItem
+							onClick={() => exploseLayout("custom")}
+						>
+							<Grid3X3 size={16} className="mr-2" />
+							Custom
+						</ContextMenuItem>
+						<ContextMenuItem onClick={() => exploseLayout("rows")}>
+							<Rows3 size={16} className="mr-2" />
+							Row Layout
+						</ContextMenuItem>
+						<ContextMenuItem
+							onClick={() => exploseLayout("columns")}
+						>
+							<Columns3 size={16} className="mr-2" />
+							Column Layout
+						</ContextMenuItem>
+						<ContextMenuItem
+							onClick={() => exploseLayout("masonry")}
+						>
+							<LayoutGrid size={16} className="mr-2" />
+							Masonry Layout
+						</ContextMenuItem>
+						<ContextMenuItem
+							onClick={() => exploseLayout("single")}
+						>
+							<Square size={16} className="mr-2" />
+							Single Layout
+						</ContextMenuItem>
+					</ContextMenuContent>
+				</ContextMenu>
+			</NavbarItem>
+			<NavbarItem id="save" zone="center">
+				<Button
+					variant={"ghost"}
+					className={hasChanged ? "animate-pulse" : ""}
+					style={
+						hasChanged
+							? {
+									animation:
+										"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+									boxShadow: "0 0 0 0 hsl(var(--primary))",
+								}
+							: {}
+					}
+					onClick={save}
+				>
+					{hasChanged ? <Save /> : <Check />}
+				</Button>
+			</NavbarItem>
+			<div ref={containerRef} style={{ width: "100%", height: "100%" }}>
+				<ResponsiveGridLayout
+					width={containerWidth}
+					className="layout"
+					margin={[2, 2]}
+					layouts={gridLayouts}
+					breakpoints={{
+						lg: 1200,
+						md: 996,
+						sm: 768,
+						xs: 480,
+						xxs: 0,
+					}}
+					cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+					dragConfig={{
+						enabled: !locked,
+						handle: `.drag-handle`,
+					}}
+					resizeConfig={{
+						enabled: !locked,
+					}}
+					onLayoutChange={handleLayoutChange}
+					compactor={{
+						type: compactType,
+						allowOverlap: false,
+						preventCollision: true,
+						compact: (layout, cols) => layout,
+					}}
+					rowHeight={30}
+				>
+					{widgets_elements}
+				</ResponsiveGridLayout>
+			</div>
+		</>
 	);
 };
 

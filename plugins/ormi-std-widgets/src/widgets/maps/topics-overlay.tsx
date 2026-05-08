@@ -127,7 +127,7 @@ export function TopicListOverlay({
 								<Image
 									width={32}
 									height={32}
-									src={`https://api.dicebear.com/9.x/bottts/svg?seed=${topicKey}`}
+									src={`/api/dicebear/9.x/bottts/svg?seed=${topicKey}`}
 									alt={`Marker for ${topic.name}`}
 								/>
 							</Button>

@@ -11,30 +11,20 @@ import { transformStore } from "@workspace/ormi-core/transforms";
 import { DevlogDialog } from "@/components/devlogs/devlog-dialog";
 import { SyncProvider } from "@/components/sync-provider";
 
-
 interface ClientProvidersProps {
 	children: ReactNode;
-	navbarLeft: any;
-	navbarRight: any;
 }
 
-export function ClientProviders({
-	children,
-	navbarLeft,
-	navbarRight,
-}: ClientProvidersProps) {
+export function ClientProviders({ children }: ClientProvidersProps) {
 	return (
 		<JotaiProvider store={transformStore}>
 			<ThemeProvider>
 				<AuthProvider>
 					<PluginsProvider PluginsInfo={registry}>
 						<SyncProvider>
-							<NavbarProvider
-								left={navbarLeft}
-								right={navbarRight}
-							>
+							<NavbarProvider>
 								{children}
-                <DevlogDialog />
+								<DevlogDialog />
 							</NavbarProvider>
 						</SyncProvider>
 					</PluginsProvider>

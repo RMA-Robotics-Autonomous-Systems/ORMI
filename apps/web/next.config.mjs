@@ -13,6 +13,14 @@ const nextConfig = {
 	// Cross-Origin isolation — required for WebAssembly (PGlite) in DedicatedWorkers.
 	// COOP: same-origin prevents cross-origin windows sharing a browsing context group.
 	// COEP: require-corp ensures all subresources declare cross-origin permissions.
+	async rewrites() {
+		return [
+			{
+				source: "/api/dicebear/:path*",
+				destination: "https://api.dicebear.com/:path*",
+			},
+		];
+	},
 	async headers() {
 		return [
 			{
