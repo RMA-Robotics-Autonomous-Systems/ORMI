@@ -51,6 +51,11 @@ const nextConfig = {
 		return config;
 	},
 	images: {
+		localPatterns: [
+			{
+				pathname: "/api/dicebear/**",
+			},
+		],
 		remotePatterns: [
 			{
 				protocol: "https",
