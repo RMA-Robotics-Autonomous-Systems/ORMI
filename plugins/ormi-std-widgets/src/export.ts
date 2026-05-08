@@ -24,6 +24,7 @@ import { PathViewerDefinition } from "./widgets/webgl/path-viewer";
 import { Scene3DDefinition } from "./widgets/webgl/scene-3d-definition";
 import { ImageViewerDefinition } from "./widgets/basic/image";
 import { MapGridViewerDefinition } from "./widgets/basic/map-grid-viewer";
+import { WebRtcViewerDefinition } from "./widgets/basic/webrtc-viewer";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
 /**
@@ -49,6 +50,7 @@ const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(TopicsListDefinition());
 	widgets.push(ImageViewerDefinition());
 	widgets.push(MapGridViewerDefinition());
+	widgets.push(WebRtcViewerDefinition());
 
 	// widgets.push(PointsCloudDreiDefinition());
 	// widgets.push(PathViewerDefinition());
