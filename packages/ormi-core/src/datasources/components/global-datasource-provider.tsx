@@ -19,8 +19,7 @@ import {
 	PluginsManager,
 	usePluginsManager,
 } from "@workspace/ormi-plugins";
-
-import { useNavbar } from "@workspace/ui/combined/navbar";
+import { NavbarItem } from "@workspace/ui/combined/navbar";
 
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -84,9 +83,25 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		Map<string, DatasourceStatus>
 	>(new Map());
 
-	const { setNavbarItem, removeNavbarItem } = useNavbar();
-
 	const { addTemplate } = useTemplates();
+
+	function getDatasourceDef(
+		datasource_id: string,
+	): DatasourceDefinition<DatasourceProviderSettings> {
+		if (!dataSourcesTypes.has(datasource_id)) {
+			console.error(`Datasource ${datasource_id} not found`);
+			throw new Error(`Datasource ${datasource_id} not found`);
+		}
+		return dataSourcesTypes.get(datasource_id)!;
+	}
+
+	function handleAdd(datasource_id: string) {
+		addDatasource(datasource_id);
+	}
+
+	function handleRemove(source_id: string) {
+		removeDatasource(source_id);
+	}
 
 	useEffect(() => {
 		const dataSourcesTypes_array = pluginsManager.applyFilter<
@@ -187,108 +202,6 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	useEffect(() => {
 		if (!initialized) return;
 
-		function getDatasourceDef(
-			datasource_id: string,
-		): DatasourceDefinition<DatasourceProviderSettings> {
-			if (!dataSourcesTypes.has(datasource_id)) {
-				console.error(`Datasource ${datasource_id} not found`);
-				throw new Error(`Datasource ${datasource_id} not found`);
-			}
-			return dataSourcesTypes.get(datasource_id)!;
-		}
-
-		function handleAdd(datasource_id: string) {
-			addDatasource(datasource_id);
-		}
-
-		function handleRemove(source_id: string) {
-			removeDatasource(source_id);
-		}
-
-		// Inject datasource status badges into navbar
-		setNavbarItem(
-			"center",
-			"datasources_status",
-			<DatasourceStatusBadges
-				datasources={Array.from(datasources.values())}
-				datasourceStatuses={datasourceStatuses}
-			/>,
-			0,
-		);
-
-		setNavbarItem(
-			"center",
-			"datasources_combo",
-			<Dialog>
-				<DialogTrigger asChild>
-					<Button
-						variant={"ghost"}
-						className={
-							datasources.size === 0 ? "animate-pulse" : ""
-						}
-						style={
-							datasources.size === 0
-								? {
-										animation:
-											"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-										boxShadow:
-											"0 0 0 0 hsl(var(--primary))",
-									}
-								: {}
-						}
-					>
-						Datasources <CloudCogIcon />
-					</Button>
-				</DialogTrigger>
-				<DialogContent size="large">
-					<DialogHeader>
-						<DialogTitle>Datasources</DialogTitle>
-						<DialogDescription>
-							Setup the different datasources used in this
-							workspace.
-						</DialogDescription>
-						<div>
-							<div>
-								{Array.from(datasources.values()).map(
-									(datasource) => {
-										return (
-											<DatasourceCard
-												addTemplate={addTemplate}
-												onRemove={handleRemove}
-												data={datasource.settings}
-												key={datasource.settings.id}
-												definition={getDatasourceDef(
-													datasource.datasource_id,
-												)}
-												onValidate={function (
-													datasource_def,
-													settings: DatasourceProviderSettings,
-												): void {
-													updateDatasource(settings);
-												}}
-											/>
-										);
-									},
-								)}
-							</div>
-							<div
-								className="flex justify-end mt-1.5 gap-3"
-								style={{ justifyContent: "flex-end" }}
-							>
-								<DatasourceAdder handleAdd={handleAdd} />
-								<DialogClose className="float-end" asChild>
-									<Button onClick={() => {}}>
-										<CheckIcon />
-									</Button>
-								</DialogClose>
-							</div>
-						</div>
-					</DialogHeader>
-				</DialogContent>
-			</Dialog>,
-			0,
-		);
-
 		pluginsManager.addFilter(PluginsHooks.AVAILABLE_DATASOURCES, {
 			id: "available_datasources",
 			priority: 10,
@@ -298,23 +211,9 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		});
 
 		return () => {
-			removeNavbarItem("center", "datasources_combo");
-			removeNavbarItem("center", "datasources_status");
 			pluginsManager.removeFilter("available_datasources");
 		};
-	}, [
-		initialized,
-		addDatasource,
-		removeDatasource,
-		updateDatasource,
-		dataSourcesTypes,
-		datasources,
-		datasourceStatuses,
-		pluginsManager,
-		addTemplate,
-		setNavbarItem,
-		removeNavbarItem,
-	]);
+	}, [initialized, datasources, pluginsManager]);
 
 	useEffect(() => {
 		if (!initialized) return;
@@ -388,6 +287,101 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 				allDatasourcesReady,
 			}}
 		>
+			{initialized && (
+				<NavbarItem id="datasources_status" zone="center" priority={0}>
+					<DatasourceStatusBadges
+						datasources={Array.from(datasources.values())}
+						datasourceStatuses={datasourceStatuses}
+					/>
+				</NavbarItem>
+			)}
+			{initialized && (
+				<NavbarItem id="datasources_combo" zone="center" priority={0}>
+					<Dialog>
+						<DialogTrigger asChild>
+							<Button
+								variant={"ghost"}
+								className={
+									datasources.size === 0
+										? "animate-pulse"
+										: ""
+								}
+								style={
+									datasources.size === 0
+										? {
+												animation:
+													"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+												boxShadow:
+													"0 0 0 0 hsl(var(--primary))",
+											}
+										: {}
+								}
+							>
+								Datasources <CloudCogIcon />
+							</Button>
+						</DialogTrigger>
+						<DialogContent size="large">
+							<DialogHeader>
+								<DialogTitle>Datasources</DialogTitle>
+								<DialogDescription>
+									Setup the different datasources used in this
+									workspace.
+								</DialogDescription>
+								<div>
+									<div>
+										{Array.from(datasources.values()).map(
+											(datasource) => {
+												return (
+													<DatasourceCard
+														addTemplate={
+															addTemplate
+														}
+														onRemove={handleRemove}
+														data={
+															datasource.settings
+														}
+														key={
+															datasource.settings
+																.id
+														}
+														definition={getDatasourceDef(
+															datasource.datasource_id,
+														)}
+														onValidate={function (
+															datasource_def,
+															settings: DatasourceProviderSettings,
+														): void {
+															updateDatasource(
+																settings,
+															);
+														}}
+													/>
+												);
+											},
+										)}
+									</div>
+									<div
+										className="flex justify-end mt-1.5 gap-3"
+										style={{ justifyContent: "flex-end" }}
+									>
+										<DatasourceAdder
+											handleAdd={handleAdd}
+										/>
+										<DialogClose
+											className="float-end"
+											asChild
+										>
+											<Button onClick={() => {}}>
+												<CheckIcon />
+											</Button>
+										</DialogClose>
+									</div>
+								</div>
+							</DialogHeader>
+						</DialogContent>
+					</Dialog>
+				</NavbarItem>
+			)}
 			{datasourceComponents}
 			{allDatasourcesReady && children}
 		</GlobalDataSourcesContextProvider>

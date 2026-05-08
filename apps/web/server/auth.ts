@@ -81,7 +81,7 @@ export const authOptions: NextAuthOptions = {
 					data: {
 						name: credentials.username,
 						email: credentials.username,
-						image: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodedName}`,
+						image: `/api/dicebear/9.x/identicon/svg?seed=${encodedName}`,
 						//role: "guest"
 					},
 				});

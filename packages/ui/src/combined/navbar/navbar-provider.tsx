@@ -1,149 +1,184 @@
 "use client";
-/*
-    The goal of this component is to provide a context for the navbar, so that the navbar can be controlled from anywhere in the app.
-    It allows components to register themselves as a navbar item, and to update the navbar title and actions.
 
-
-    there is 3 zones in the navbar:
-        - left zone
-        - center zone
-        - right zone
-
-    The left zone is for the logo and the title,
-    The center zone is for the main actions,
-    The right zone is for the secondary actions.
-
-    The component takes a title, a zone, and a react components as children.
-*/
-
-import React, { JSX, useState } from "react";
+import React, {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { createSafeContext } from "@workspace/utils";
 
 export type NavbarZone = "left" | "center" | "right";
 
-// each zone iz an array of react components
-export interface NavbarItem {
-	component: JSX.Element;
+export interface NavbarRegistration {
+	id: string;
+	zone: NavbarZone;
 	priority: number;
+	sequence: number;
 }
 
-interface NavbarContextType {
-	left: Map<string, NavbarItem>;
-	center: Map<string, NavbarItem>;
-	right: Map<string, NavbarItem>;
-	setNavbarItem: (
-		zone: NavbarZone,
-		key: string,
-		component: JSX.Element,
-		priority?: number,
-	) => void;
-	removeNavbarItem: (zone: NavbarZone, key: string) => void;
+interface NavbarRegistryContextType {
+	registrations: NavbarRegistration[];
+	registerItem: (item: Omit<NavbarRegistration, "sequence">) => void;
+	unregisterItem: (id: string) => void;
+	setHostNode: (id: string, node: HTMLDivElement | null) => void;
+	hostNodes: Map<string, HTMLDivElement>;
 }
 
-const [NavbarContextProvider, useNavbarContext] =
-	createSafeContext<NavbarContextType>("Navbar");
+const [NavbarRegistryContextProvider, useNavbarRegistryContext] =
+	createSafeContext<NavbarRegistryContextType>("NavbarRegistry");
 
 interface NavbarProviderProps {
 	children: React.ReactNode;
-	left?: Map<string, NavbarItem>;
-	center?: Map<string, NavbarItem>;
-	right?: Map<string, NavbarItem>;
 }
 
-export const NavbarProvider = (props: NavbarProviderProps) => {
-	const { children } = props;
+export interface NavbarItemProps {
+	id: string;
+	zone: NavbarZone;
+	priority?: number;
+	children: React.ReactNode;
+	className?: string;
+}
 
-	const [left, setLeft] = useState<Map<string, NavbarItem>>(
-		props.left || new Map(),
+export const NavbarProvider = ({ children }: NavbarProviderProps) => {
+	const sequenceRef = useRef(0);
+	const [registrationsById, setRegistrationsById] = useState<
+		Map<string, NavbarRegistration>
+	>(new Map());
+	const [hostNodes, setHostNodes] = useState<Map<string, HTMLDivElement>>(
+		new Map(),
 	);
-	const [center, setCenter] = useState<Map<string, NavbarItem>>(
-		props.center || new Map(),
+
+	const registerItem = useCallback(
+		(item: Omit<NavbarRegistration, "sequence">) => {
+			setRegistrationsById((prev) => {
+				const current = prev.get(item.id);
+				if (
+					current &&
+					current.zone === item.zone &&
+					current.priority === item.priority
+				) {
+					return prev;
+				}
+
+				const next = new Map(prev);
+				next.set(item.id, {
+					...item,
+					sequence: current?.sequence ?? sequenceRef.current++,
+				});
+				return next;
+			});
+		},
+		[],
 	);
-	const [right, setRight] = useState<Map<string, NavbarItem>>(
-		props.right || new Map(),
+
+	const unregisterItem = useCallback((id: string) => {
+		setRegistrationsById((prev) => {
+			if (!prev.has(id)) {
+				return prev;
+			}
+
+			const next = new Map(prev);
+			next.delete(id);
+			return next;
+		});
+		setHostNodes((prev) => {
+			if (!prev.has(id)) {
+				return prev;
+			}
+
+			const next = new Map(prev);
+			next.delete(id);
+			return next;
+		});
+	}, []);
+
+	const setHostNode = useCallback(
+		(id: string, node: HTMLDivElement | null) => {
+			setHostNodes((prev) => {
+				const current = prev.get(id) ?? null;
+				if (current === node) {
+					return prev;
+				}
+
+				const next = new Map(prev);
+				if (node) {
+					next.set(id, node);
+				} else {
+					next.delete(id);
+				}
+				return next;
+			});
+		},
+		[],
 	);
 
-	const setNavbarItem = (
-		zone: NavbarZone,
-		key: string,
-		component: JSX.Element,
-		priority: number = 5,
-	) => {
-		/*
-            This function is used to register a component in the navbar.
-            It takes a zone, a key, and a component.
-            The zone is the zone where the component will be displayed.
-            The key is the unique identifier of the component.
-            The component is the react component to display.
+	const registrations = useMemo(() => {
+		return Array.from(registrationsById.values()).sort((left, right) => {
+			if (left.zone !== right.zone) {
+				return left.zone.localeCompare(right.zone);
+			}
 
-            if the key is already used, the component will be replaced.
-            
-            the priority is used to sort the components in the zone.
-            lower priority means the component will be displayed first.
-        */
+			if (left.priority !== right.priority) {
+				return left.priority - right.priority;
+			}
 
-		const item: NavbarItem = { component, priority };
+			return left.sequence - right.sequence;
+		});
+	}, [registrationsById]);
 
-		switch (zone) {
-			case "left":
-				setLeft((prev) => {
-					const newMap = new Map(prev);
-					newMap.set(key, item);
-					return newMap;
-				});
-				break;
-			case "center":
-				setCenter((prev) => {
-					const newMap = new Map(prev);
-					newMap.set(key, item);
-					return newMap;
-				});
-				break;
-			case "right":
-				setRight((prev) => {
-					const newMap = new Map(prev);
-					newMap.set(key, item);
-					return newMap;
-				});
-				break;
-		}
-	};
-
-	const removeNavbarItem = (zone: NavbarZone, key: string) => {
-		switch (zone) {
-			case "left":
-				setLeft((prev) => {
-					const newMap = new Map(prev);
-					newMap.delete(key);
-					return newMap;
-				});
-				break;
-			case "center":
-				setCenter((prev) => {
-					const newMap = new Map(prev);
-					newMap.delete(key);
-					return newMap;
-				});
-				break;
-			case "right":
-				setRight((prev) => {
-					const newMap = new Map(prev);
-					newMap.delete(key);
-					return newMap;
-				});
-				break;
-		}
-	};
+	const value = useMemo(
+		() => ({
+			registrations,
+			registerItem,
+			unregisterItem,
+			setHostNode,
+			hostNodes,
+		}),
+		[registrations, registerItem, unregisterItem, setHostNode, hostNodes],
+	);
 
 	return (
-		<NavbarContextProvider
-			value={{ left, center, right, setNavbarItem, removeNavbarItem }}
-		>
+		<NavbarRegistryContextProvider value={value}>
 			{children}
-		</NavbarContextProvider>
+		</NavbarRegistryContextProvider>
 	);
 };
 
-export const useNavbar = () => {
-	return useNavbarContext();
+export const NavbarItem = ({
+	id,
+	zone,
+	priority = 5,
+	children,
+	className,
+}: NavbarItemProps) => {
+	const { registerItem, unregisterItem, hostNodes } =
+		useNavbarRegistryContext();
+
+	useEffect(() => {
+		registerItem({ id, zone, priority });
+		return () => unregisterItem(id);
+	}, [id, zone, priority, registerItem, unregisterItem]);
+
+	const hostNode = hostNodes.get(id);
+	if (!hostNode) {
+		return null;
+	}
+
+	return createPortal(
+		<div
+			className={className}
+			data-navbar-item={id}
+			style={{ height: "100%" }}
+		>
+			{children}
+		</div>,
+		hostNode,
+	);
+};
+
+export const useNavbarRegistry = () => {
+	return useNavbarRegistryContext();
 };

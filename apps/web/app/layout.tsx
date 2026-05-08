@@ -11,8 +11,7 @@ import { Button } from "@workspace/ui/components/button";
 import { ModeToggle } from "@workspace/ui/combined/themes/darkmode-toggle";
 import { ThemeConfigurator } from "@workspace/ui/combined/themes/theme-configurator";
 import { Toaster } from "@workspace/ui/components/sonner";
-import { NavbarItem } from "@workspace/ui/combined/navbar/navbar-provider";
-import { NavBar } from "@workspace/ui/combined/navbar/navbar";
+import { NavbarItem, NavBar } from "@workspace/ui/combined/navbar";
 import { cn } from "@workspace/ui/lib/utils";
 import { ClientProviders } from "@/components/client-providers";
 
@@ -66,59 +65,6 @@ export const viewport: Viewport = {
 	themeColor: "#ffffff",
 };
 
-const default_left: Map<string, NavbarItem> = new Map([
-	[
-		"home",
-		{
-			component: (
-				<Link href="/" passHref>
-					<Button variant="ghost">Home</Button>
-				</Link>
-			),
-			priority: 1,
-		},
-	],
-	[
-		"plugins",
-		{
-			component: (
-				<Link href="/plugins" passHref>
-					<Button variant="ghost">Plugins</Button>
-				</Link>
-			),
-			priority: 1,
-		},
-	],
-	[
-		"docs",
-		{
-			component: (
-				<Link href="/docs" passHref>
-					<Button variant="ghost">Docs</Button>
-				</Link>
-			),
-			priority: 1,
-		},
-	],
-]);
-
-const default_right: Map<string, NavbarItem> = new Map([
-	[
-		"modetoggle",
-		{
-			component: <ModeToggle />,
-			priority: 1,
-		},
-	],
-	[
-		"themeconfig",
-		{
-			component: <ThemeConfigurator />,
-			priority: 1,
-		},
-	],
-]);
-
 export default function RootLayout({
 	children,
 }: Readonly<{
@@ -134,10 +80,28 @@ export default function RootLayout({
 					fontHeading.variable,
 				)}
 			>
-				<ClientProviders
-					navbarLeft={default_left}
-					navbarRight={default_right}
-				>
+				<ClientProviders>
+					<NavbarItem id="home" zone="left" priority={1}>
+						<Link href="/" passHref>
+							<Button variant="ghost">Home</Button>
+						</Link>
+					</NavbarItem>
+					<NavbarItem id="plugins" zone="left" priority={1}>
+						<Link href="/plugins" passHref>
+							<Button variant="ghost">Plugins</Button>
+						</Link>
+					</NavbarItem>
+					<NavbarItem id="docs" zone="left" priority={1}>
+						<Link href="/docs" passHref>
+							<Button variant="ghost">Docs</Button>
+						</Link>
+					</NavbarItem>
+					<NavbarItem id="modetoggle" zone="right" priority={1}>
+						<ModeToggle />
+					</NavbarItem>
+					<NavbarItem id="themeconfig" zone="right" priority={1}>
+						<ThemeConfigurator />
+					</NavbarItem>
 					<NavBar />
 					{children}
 					<Toaster />

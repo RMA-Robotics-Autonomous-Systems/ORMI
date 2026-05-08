@@ -22,7 +22,7 @@ export interface LayoutEngineDefinition {
 	 * Self-contained layout component.
 	 * Reads state via atoms (widgetsAtom, layoutsAtom, lockedAtom, hasChangedAtom).
 	 * Writes state via useDashboardActions().
-	 * Registers its own navbar items via useNavbar().
+	 * Contributes its own navbar items declaratively via NavbarItem portals.
 	 */
 	Component: React.ComponentType;
 }

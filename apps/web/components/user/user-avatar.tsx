@@ -12,11 +12,21 @@ interface UserAvatarProps extends AvatarProps {
 	user: Pick<User, "image" | "name">;
 }
 
+function normalizeAvatarSrc(src: string): string {
+	if (src.startsWith("https://api.dicebear.com/")) {
+		return src.replace("https://api.dicebear.com/", "/api/dicebear/");
+	}
+	return src;
+}
+
 export function UserAvatar({ user, ...props }: UserAvatarProps) {
 	return (
 		<Avatar {...props}>
 			{user.image ? (
-				<AvatarImage alt="Picture" src={user.image} />
+				<AvatarImage
+					alt="Picture"
+					src={normalizeAvatarSrc(user.image)}
+				/>
 			) : (
 				<AvatarFallback>
 					<span className="sr-only">{user.name}</span>
