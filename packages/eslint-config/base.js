@@ -10,23 +10,25 @@ import tseslint from "typescript-eslint"
  * @type {import("eslint").Linter.Config}
  * */
 export const config = [
-  js.configs.recommended,
-  eslintConfigPrettier,
-  ...tseslint.configs.recommended,
-  {
-    plugins: {
-      turbo: turboPlugin,
-    },
-    rules: {
-      "turbo/no-undeclared-env-vars": "warn",
-    },
-  },
-  {
-    plugins: {
-      onlyWarn,
-    },
-  },
-  {
-    ignores: ["dist/**"],
-  },
+	js.configs.recommended,
+	eslintConfigPrettier,
+	...tseslint.configs.recommended,
+	{
+		plugins: {
+			turbo: turboPlugin,
+		},
+		rules: {
+			"turbo/no-undeclared-env-vars": "warn",
+		},
+	},
+	{
+		plugins: {
+			onlyWarn,
+		},
+	},
+	{
+		ignores: ["dist/**"],
+	},
 ]
+
+export default config;
