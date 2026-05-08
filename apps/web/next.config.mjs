@@ -1,15 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	reactCompiler: true,
-	turbopack: {
-		// Disable CSS Modules "pure" mode — Tailwind preflight element selectors
-		// (small, svg, ul, etc.) are valid in global CSS but fail the purity check
-		// when bundled alongside CSS module files in the import chain.
-		cssModules: {
-			pure: false,
-		},
-	},
 	transpilePackages: ["@workspace/ui"],
+	// Explicitly opt into Turbopack for production builds on Next 16.
+	// Our worker assets are loaded via URL + fetch, so we do not need the
+	// webpack-only asyncWebAssembly experiment here.
+	turbopack: {},
 	// Cross-Origin isolation — required for WebAssembly (PGlite) in DedicatedWorkers.
 	// COOP: same-origin prevents cross-origin windows sharing a browsing context group.
 	// COEP: require-corp ensures all subresources declare cross-origin permissions.
@@ -42,16 +38,11 @@ const nextConfig = {
 			},
 		];
 	},
-	// Webpack WASM support (production builds — Turbopack handles dev differently).
-	webpack(config) {
-		config.experiments = {
-			...config.experiments,
-			asyncWebAssembly: true,
-		};
-		return config;
-	},
 	images: {
 		localPatterns: [
+			{
+				pathname: "/icon/**",
+			},
 			{
 				pathname: "/api/dicebear/**",
 			},

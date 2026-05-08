@@ -14,6 +14,7 @@ import { Toaster } from "@workspace/ui/components/sonner";
 import { NavbarItem, NavBar } from "@workspace/ui/combined/navbar";
 import { cn } from "@workspace/ui/lib/utils";
 import { ClientProviders } from "@/components/client-providers";
+import { getThemePresets } from "@/server/theme-presets";
 
 const fontSans = FontSans({
 	subsets: ["latin"],
@@ -65,11 +66,13 @@ export const viewport: Viewport = {
 	themeColor: "#ffffff",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
+	const themes = await getThemePresets();
+
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head />
@@ -100,7 +103,10 @@ export default function RootLayout({
 						<ModeToggle />
 					</NavbarItem>
 					<NavbarItem id="themeconfig" zone="right" priority={1}>
-						<ThemeConfigurator />
+						<ThemeConfigurator
+							themes={themes}
+							defaultThemeId="amber"
+						/>
 					</NavbarItem>
 					<NavBar />
 					{children}
