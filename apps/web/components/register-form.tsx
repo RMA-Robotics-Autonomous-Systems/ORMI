@@ -16,6 +16,14 @@ import { Label } from "@workspace/ui/components/label";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { Spinner } from "@workspace/ui/components/spinner";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@workspace/ui/components/card";
 import { cn } from "@workspace/ui/lib/utils";
 
 type FormData = z.infer<typeof userAuthSchema>;
@@ -49,54 +57,65 @@ export function RegisterForm({
 		setIsLoading(false);
 
 		if (!signInResult?.ok) {
-			return toast("Your sign in request failed. Please try again.");
+			return toast("Your registration request failed. Please try again.");
 		}
 
 		router.push(callbackUrl);
 
-		return toast("Logged in successfully");
+		return toast("Account created successfully");
 	}
 
 	return (
-		<form
-			onSubmit={handleSubmit(onSubmit)}
-			className={cn("flex flex-col gap-6", className)}
-			{...props}
-		>
-			<div className="grid gap-2">
-				{errors?.user && (
-					<div className="text-sm text-destructive">
-						{errors.user.message}
-					</div>
-				)}
-			</div>
-			<div className="flex flex-col items-center gap-2 text-center">
-				<h1 className="text-2xl font-bold">Register your account</h1>
-				<p className="text-balance text-sm text-muted-foreground">
-					Enter your username below to create your account
+		<Card className="bg-card/95 shadow-lg backdrop-blur-sm">
+			<CardHeader className="gap-2 text-center">
+				<p className="text-sm font-medium text-muted-foreground">
+					Create account
 				</p>
-			</div>
-			<div className="grid gap-6">
-				<div className="grid gap-2">
-					<Label htmlFor="user">User</Label>
-					<Input
-						id="user"
-						type="text"
-						placeholder="Username"
-						required
-						{...register("user")}
-					/>
-				</div>
-				<Button type="submit" className="w-full">
-					{isLoading ? <Spinner /> : "Register"}
-				</Button>
-			</div>
-			<div className="text-center text-sm">
+				<CardTitle className="text-2xl">Register for ORMI</CardTitle>
+				<CardDescription className="text-balance">
+					Choose a username to create your ORMI account.
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<form
+					onSubmit={handleSubmit(onSubmit)}
+					className={cn("flex flex-col gap-6", className)}
+					{...props}
+				>
+					<div className="grid gap-2">
+						{errors?.user && (
+							<div className="text-sm text-destructive">
+								{errors.user.message}
+							</div>
+						)}
+					</div>
+					<div className="grid gap-6">
+						<div className="grid gap-2">
+							<Label htmlFor="user">Username</Label>
+							<Input
+								id="user"
+								type="text"
+								placeholder="john.doe"
+								required
+								autoComplete="username"
+								{...register("user")}
+							/>
+						</div>
+						<Button type="submit" className="w-full">
+							{isLoading ? <Spinner /> : "Create account"}
+						</Button>
+					</div>
+				</form>
+			</CardContent>
+			<CardFooter className="justify-center border-t text-sm text-muted-foreground">
 				Already have an account?{" "}
-				<Link href="/signin" className="underline underline-offset-4">
+				<Link
+					href="/signin"
+					className="font-medium text-foreground underline underline-offset-4"
+				>
 					Sign in
 				</Link>
-			</div>
-		</form>
+			</CardFooter>
+		</Card>
 	);
 }

@@ -13,7 +13,8 @@
 				"NEXTAUTH_URL",
 				"NEXTAUTH_SECRET",
 				"DATABASE_URL",
-				"NEXT_PUBLIC_APP_URL"
+				"NEXT_PUBLIC_APP_URL",
+				"NEXT_PUBLIC_ENABLE_OFFLINE_MODE"
 			]
 		},
 		"lint": {
@@ -50,7 +51,8 @@
 				"NEXTAUTH_URL",
 				"NEXTAUTH_SECRET",
 				"DATABASE_URL",
-				"NEXT_PUBLIC_APP_URL"
+				"NEXT_PUBLIC_APP_URL",
+				"NEXT_PUBLIC_ENABLE_OFFLINE_MODE"
 			]
 		},
 		"clean": {

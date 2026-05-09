@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Workspace } from "@prisma/client";
 
+import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import { Badge } from "@workspace/ui/components/badge";
 import { Skeleton } from "@workspace/ui/components/skeleton";
 import {
 	Card,
@@ -14,7 +16,7 @@ import { WorkspaceOperations } from "@/components/advanced/misc/workspace-operat
 import moment from "moment";
 
 interface WorkspaceItemProps {
-	workspace: Pick<Workspace, "id" | "name" | "createdAT">;
+	workspace: Pick<Workspace, "id" | "name" | "createdAT" | "dashboardType">;
 	onWorkspaceDeleted?: () => void;
 }
 
@@ -25,6 +27,10 @@ export function WorkspaceItem({
 	// Encode workspace name for use in URL
 	const encodedName = encodeURIComponent(workspace.name);
 	const avatarUrl = `/api/dicebear/9.x/identicon/svg?seed=${encodedName}`;
+	const dashboardType =
+		DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType) ??
+		DASHBOARD_TYPES[0];
+	const DashboardTypeIcon = dashboardType.icon;
 
 	return (
 		<Card>
@@ -44,10 +50,18 @@ export function WorkspaceItem({
 						/>
 					</div>
 
-					{workspace.name}
+					<div className="mt-3 flex items-center justify-between gap-3">
+						<span className="truncate">{workspace.name}</span>
+						<div
+							className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground"
+							title={dashboardType.name}
+						>
+							<DashboardTypeIcon className="size-4" />
+						</div>
+					</div>
 				</Link>
 			</CardHeader>
-			<CardContent className="py-1">
+			<CardContent className="flex items-center justify-between gap-3 py-1">
 				<p className="text-sm text-muted-foreground">
 					{workspace.createdAT
 						? moment(workspace.createdAT).format("MMMM D, YYYY")

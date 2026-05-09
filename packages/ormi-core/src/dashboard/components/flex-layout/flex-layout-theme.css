@@ -1,590 +1,596 @@
 /**
  * FlexLayout shadcn/ui Theme
- * 
+ *
  * Modern theme for FlexLayout that integrates seamlessly with shadcn/ui design system
  * Following the successful RC-Dock theme patterns with proper design token integration
  */
 
 .flexlayout__layout {
-    /* Bridge FlexLayout base theme tokens to shadcn tokens */
-    --color-text: var(--foreground);
-    --color-background: var(--background);
-    --color-base: var(--card);
-    --color-1: var(--card);
-    --color-2: var(--muted);
-    --color-3: var(--accent);
-    --color-4: var(--border);
-    --color-5: var(--muted);
-    --color-6: var(--border);
-    --color-overflow: var(--muted-foreground);
-    --color-icon: var(--muted-foreground);
+	/* Bridge FlexLayout base theme tokens to shadcn tokens */
+	--color-text: var(--foreground);
+	--color-background: var(--background);
+	--color-base: var(--card);
+	--color-1: var(--card);
+	--color-2: var(--muted);
+	--color-3: var(--accent);
+	--color-4: var(--border);
+	--color-5: var(--muted);
+	--color-6: var(--border);
+	--color-overflow: var(--muted-foreground);
+	--color-icon: var(--muted-foreground);
 
-    --color-tabset-background: var(--card);
-    --color-tabset-background-selected: var(--card);
-    --color-tabset-background-maximized: var(--muted);
-    --color-tabset-divider-line: var(--border);
-    --color-tabset-header-background: var(--muted);
-    --color-tabset-header: var(--foreground);
+	--color-tabset-background: var(--card);
+	--color-tabset-background-selected: var(--card);
+	--color-tabset-background-maximized: var(--muted);
+	--color-tabset-divider-line: var(--border);
+	--color-tabset-header-background: var(--muted);
+	--color-tabset-header: var(--foreground);
 
-    --color-border-tab-content: var(--card);
-    --color-border-background: var(--muted);
-    --color-border-divider-line: var(--border);
+	--color-border-tab-content: var(--card);
+	--color-border-background: var(--muted);
+	--color-border-divider-line: var(--border);
 
-    --color-tab-content: var(--card);
-    --color-tab-selected: var(--foreground);
-    --color-tab-selected-background: var(--secondary);
-    --color-tab-unselected: var(--muted-foreground);
-    --color-tab-unselected-background: transparent;
-    --color-tab-textbox: var(--foreground);
-    --color-tab-textbox-background: var(--muted);
-    --color-border-tab-selected: var(--foreground);
-    --color-border-tab-selected-background: var(--secondary);
-    --color-border-tab-unselected: var(--muted-foreground);
-    --color-border-tab-unselected-background: var(--muted);
+	--color-tab-content: var(--card);
+	--color-tab-selected: var(--foreground);
+	--color-tab-selected-background: var(--secondary);
+	--color-tab-unselected: var(--muted-foreground);
+	--color-tab-unselected-background: transparent;
+	--color-tab-textbox: var(--foreground);
+	--color-tab-textbox-background: var(--muted);
+	--color-border-tab-selected: var(--foreground);
+	--color-border-tab-selected-background: var(--secondary);
+	--color-border-tab-unselected: var(--muted-foreground);
+	--color-border-tab-unselected-background: var(--muted);
 
-    --color-splitter: var(--border);
-    --color-splitter-hover: var(--ring);
-    --color-splitter-drag: var(--ring);
+	--color-splitter: var(--border);
+	--color-splitter-hover: var(--ring);
+	--color-splitter-drag: var(--ring);
 
-    --color-drag-rect-border: var(--border);
-    --color-drag-rect-background: var(--card);
-    --color-drag-rect: var(--foreground);
+	--color-drag-rect-border: var(--border);
+	--color-drag-rect-background: var(--card);
+	--color-drag-rect: var(--foreground);
 
-    --color-popup-border: var(--border);
-    --color-popup-unselected: var(--popover-foreground);
-    --color-popup-unselected-background: var(--popover);
-    --color-popup-selected: var(--primary-foreground);
-    --color-popup-selected-background: var(--primary);
+	--color-popup-border: var(--border);
+	--color-popup-unselected: var(--popover-foreground);
+	--color-popup-unselected-background: var(--popover);
+	--color-popup-selected: var(--primary-foreground);
+	--color-popup-selected-background: var(--primary);
 
-    --color-edge-marker: var(--ring);
-    --color-edge-icon: var(--foreground);
-    --color-mini-scroll-indicator: var(--muted-foreground);
-    --color-mini-scroll-indicator-hovered: var(--foreground);
-    --color-toolbar-button-hover: var(--accent);
+	--color-edge-marker: var(--ring);
+	--color-edge-icon: var(--foreground);
+	--color-mini-scroll-indicator: var(--muted-foreground);
+	--color-mini-scroll-indicator-hovered: var(--foreground);
+	--color-toolbar-button-hover: var(--accent);
 
-    /* Base colors using shadcn design tokens */
-    --primary-color: var(--primary);
-    --primary-color-light: var(--accent);
-    --primary-color-dark: var(--primary);
+	/* Base colors using shadcn design tokens */
+	--primary-color: var(--primary);
+	--primary-color-light: var(--accent);
+	--primary-color-dark: var(--primary);
 
-    /* Background colors */
-    --background-color: var(--background);
-    --panel-background: var(--card);
-    --tab-background: var(--muted);
-    --tab-active-background: var(--card);
-    --tab-hover-background: var(--accent);
+	/* Background colors */
+	--background-color: var(--background);
+	--panel-background: var(--card);
+	--tab-background: var(--muted);
+	--tab-active-background: var(--card);
+	--tab-hover-background: var(--accent);
 
-    /* Text colors */
-    --text-color: var(--foreground);
-    --text-color-secondary: var(--muted-foreground);
-    --tab-text-color: var(--card-foreground);
-    --tab-active-text-color: var(--foreground);
+	/* Text colors */
+	--text-color: var(--foreground);
+	--text-color-secondary: var(--muted-foreground);
+	--tab-text-color: var(--card-foreground);
+	--tab-active-text-color: var(--foreground);
 
-    /* Border colors */
-    --border-color: var(--border);
-    --tab-border-color: var(--border);
-    --panel-border-color: var(--border);
-    --divider-color: var(--border);
+	/* Border colors */
+	--border-color: var(--border);
+	--tab-border-color: var(--border);
+	--panel-border-color: var(--border);
+	--divider-color: var(--border);
 
-    /* Interactive states */
-    --hover-color: var(--accent);
-    --active-color: var(--primary);
-    --focus-color: var(--ring);
+	/* Interactive states */
+	--hover-color: var(--accent);
+	--active-color: var(--secondary);
+	--active-foreground-color: var(--secondary-foreground);
+	--focus-color: var(--ring);
+	--surface-selected-border: color-mix(in srgb, var(--border-color) 80%, transparent);
+	--interactive-transition:
+		background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+		color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+		border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	--focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-color) 35%, transparent);
 
-    /* Drop zones */
-    --drop-indicator-color: var(--primary);
-    --drop-zone-background: var(--accent);
+	/* Drop zones */
+	--drop-indicator-color: var(--primary);
+	--drop-zone-background: var(--accent);
 
-    /* Sizing and spacing */
-    --border-radius: var(--radius);
-    --border-width: 1px;
+	/* Sizing and spacing */
+	--border-radius: var(--radius);
+	--border-width: 1px;
 
-    /* Shadows */
-    --shadow-color: color-mix(in srgb, var(--foreground) 10%, transparent);
-    --panel-shadow: 0 1px 3px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
-    --tab-shadow: 0 1px 2px 0 var(--shadow-color);
+	/* Shadows */
+	--shadow-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+	--panel-shadow: 0 1px 3px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
+	--tab-shadow: 0 1px 2px 0 var(--shadow-color);
 
-    /* Typography */
-    font-family: inherit;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    color: var(--text-color);
-    background-color: var(--background-color);
+	/* Typography */
+	font-family: inherit;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	color: var(--text-color);
+	background-color: var(--background-color);
 }
 
 .dark .flexlayout__layout {
-    color-scheme: dark;
-    --shadow-color: color-mix(in srgb, var(--foreground) 20%, transparent);
-    --primary-color-light: var(--primary);
-    --drop-zone-background: var(--secondary);
+	color-scheme: dark;
+	--shadow-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+	--primary-color-light: var(--accent);
+	--drop-zone-background: var(--secondary);
 }
 
 /* TabSet styling - the panel container */
 .flexlayout__tabset {
-    background-color: var(--panel-background);
-    border: var(--border-width) solid var(--panel-border-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--panel-shadow);
+	background-color: var(--panel-background);
+	border: var(--border-width) solid var(--panel-border-color);
+	border-radius: var(--border-radius);
+	box-shadow: var(--panel-shadow);
+	overflow: hidden;
+	transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .flexlayout__tabset_header {
-    background-color: var(--tab-background);
-    border-bottom: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius) var(--border-radius) 0 0;
-    padding: 0.125rem;
+	background-color: var(--tab-background);
+	border-bottom: 0;
+	border-radius: var(--border-radius) var(--border-radius) 0 0;
+	padding: 3px;
 }
 
 .flexlayout__tab_button {
-    /* Base shadcn button styling */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-    border-radius: var(--border-radius);
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.2s ease-in-out;
-    outline: none;
-    cursor: pointer;
+	/* Base shadcn button styling */
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	white-space: nowrap;
+	border-radius: calc(var(--border-radius) - 2px);
+	font-size: 0.875rem;
+	font-weight: 500;
+	transition: var(--interactive-transition);
+	outline: none;
+	cursor: pointer;
 
-    /* Size similar to shadcn button sm */
-    height: 2rem;
-    padding: 0.25rem 0.75rem;
+	/* Size similar to shadcn button sm */
+	height: 2rem;
+	padding: 0.25rem 0.5rem;
 
-    /* Ghost variant styling for unselected tabs */
-    background-color: transparent;
-    color: var(--text-color-secondary);
-    border: var(--border-width) solid transparent;
+	/* Ghost variant styling for unselected tabs */
+	background-color: transparent;
+	color: var(--text-color-secondary);
+	border: var(--border-width) solid transparent;
+	box-shadow: none;
 
-    /* Hover state */
+	/* Hover state */
 }
 
-.flexlayout__tab_button:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-foreground);
-}
-
-.flexlayout__tab:hover {
-    background-color: var(--background);
-    color: var(--text-color);
-}
+/* .flexlayout__tab_button:hover {
+	background-color: var(--hover-color);
+	color: var(--accent-foreground);
+} */
 
 .flexlayout__tab_button--selected {
-    /* Secondary variant styling for selected tabs */
-    background-color: var(--secondary);
-    color: var(--secondary-foreground);
-    border-color: var(--border-color);
-    box-shadow: 0 1px 2px 0 var(--shadow-color);
+	background-color: var(--tab-active-background);
+	color: var(--text-color);
+	border-color: var(--surface-selected-border);
+	box-shadow: var(--tab-shadow);
 }
 
 .flexlayout__tab_button:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
+	outline: none;
+	box-shadow: var(--tab-shadow), var(--focus-ring-shadow);
 }
 
 .flexlayout__tab_button:disabled {
-    pointer-events: none;
-    opacity: 0.5;
+	pointer-events: none;
+	opacity: 0.5;
 }
 
 /* Tab styling */
 .flexlayout__tab {
-    color: var(--tab-text-color);
-    border: var(--border-width) solid var(--tab-border-color);
-    border-radius: var(--border-radius) var(--border-radius) 0 0;
-    transition: all 0.2s ease-in-out;
-    box-shadow: var(--tab-shadow);
-    margin-right: 2px;
-    padding: 0.375rem 0.75rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    align-items: center;
-    gap: 0.5rem;
+	color: var(--tab-text-color);
+	background-color: transparent;
+	border: var(--border-width) solid transparent;
+	border-radius: calc(var(--border-radius) - 2px);
+	transition: var(--interactive-transition);
+	box-shadow: none;
+	margin-right: 0;
+	padding: 0;
+	font-weight: 500;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	align-items: center;
+	gap: 0.5rem;
 }
 
 .flexlayout__tab_selected {
-    background-color: var(--tab-active-background);
-    color: var(--tab-active-text-color);
-    border-bottom-color: var(--tab-active-background);
-    z-index: 1;
-    box-shadow: var(--panel-shadow);
+	background-color: transparent;
+	color: var(--text-color);
+	border-color: transparent;
+	z-index: 1;
+	box-shadow: none;
 }
 
 .flexlayout__tab_selected:hover {
-    background-color: var(--tab-active-background);
-    color: var(--tab-active-text-color);
+	background-color: var(--tab-active-background);
+	color: var(--tab-active-text-color);
 }
 
 /* Tab toolbar buttons (close, custom buttons) */
 .flexlayout__tab_toolbar_button {
-    color: var(--text-color-secondary);
-    background: transparent;
-    border: var(--border-width) solid transparent;
-    border-radius: calc(var(--border-radius) - 2px);
-    transition: all 0.2s ease-in-out;
-    padding: 0.125rem;
-    height: 1.5rem;
-    width: 1.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+	color: var(--text-color-secondary);
+	background: transparent;
+	border: var(--border-width) solid transparent;
+	border-radius: calc(var(--border-radius) - 2px);
+	transition: var(--interactive-transition);
+	padding: 0.125rem;
+	height: 1.5rem;
+	width: 1.5rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .flexlayout__tab_toolbar_button:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-foreground);
-    border-color: var(--hover-color);
+	background-color: var(--hover-color);
+	color: var(--accent-foreground);
+	border-color: transparent;
 }
 
 .flexlayout__tab_toolbar_button:active {
-    background-color: var(--active-color);
-    color: var(--primary-foreground);
-    border-color: var(--active-color);
+	background-color: var(--active-color);
+	color: var(--active-foreground-color);
+	border-color: transparent;
 }
 
 /* Tab bar styling */
 .flexlayout__tabset_tabbar_outer {
-    background-color: transparent;
+	background-color: transparent;
 }
 
 .flexlayout__tabset_tabbar_inner {
-    padding: 0.125rem;
+	padding: 0;
 }
 
 /* Scrollbar styling for tab overflow */
 .flexlayout__tabset_tabbar_inner::-webkit-scrollbar {
-    height: 4px;
+	height: 4px;
 }
 
 .flexlayout__tabset_tabbar_inner::-webkit-scrollbar-track {
-    background-color: var(--tab-background);
+	background-color: var(--tab-background);
 }
 
 .flexlayout__tabset_tabbar_inner::-webkit-scrollbar-thumb {
-    background-color: var(--text-color-secondary);
-    border-radius: 2px;
+	background-color: var(--text-color-secondary);
+	border-radius: 2px;
 }
 
 .flexlayout__tabset_tabbar_inner::-webkit-scrollbar-thumb:hover {
-    background-color: var(--text-color);
+	background-color: var(--text-color);
 }
 
 /* Content area */
 .flexlayout__tabset_content {
-    background-color: var(--panel-background);
-    color: var(--text-color);
+	background-color: var(--panel-background);
+	color: var(--text-color);
 }
 
 /* Splitter (divider) styling */
 .flexlayout__splitter {
-    background-color: var(--divider-color);
-    transition: background-color 0.2s ease-in-out;
+	background-color: var(--divider-color);
+	transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .flexlayout__splitter:hover {
-    background-color: var(--primary-color-light);
+	background-color: var(--primary-color-light);
 }
 
 .flexlayout__splitter_drag {
-    background-color: var(--primary-color) !important;
+	background-color: var(--primary-color) !important;
 }
 
 .flexlayout__splitter_vertical {
-    width: 1px;
-    cursor: col-resize;
+	width: 1px;
+	cursor: col-resize;
 }
 
 .flexlayout__splitter_horizontal {
-    height: 1px;
-    cursor: row-resize;
+	height: 1px;
+	cursor: row-resize;
 }
 
 /* Border areas - optimized for ~30px width */
 .flexlayout__border {
-    box-sizing: border-box;
-    font-size: 0.75rem;
-    font-family: inherit;
-    color: var(--muted-foreground);
-    background-color: var(--muted);
-    display: flex;
-    overflow: hidden;
-    width: 30px;
-    /* Match the available budget */
+	box-sizing: border-box;
+	font-size: 0.6875rem;
+	font-family: inherit;
+	color: var(--muted-foreground);
+	background-color: var(--muted);
+	display: flex;
+	overflow: hidden;
+	width: 32px;
+	/* Match the available budget */
 }
 
 .flexlayout__border_button {
-    /* Base shadcn button styling - consistent with tab_button */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.125rem;
-    white-space: nowrap;
-    border-radius: var(--border-radius);
-    font-size: 0.625rem;
-    font-weight: 500;
-    transition: all 0.2s ease-in-out;
-    outline: none;
-    cursor: pointer;
+	/* Base shadcn button styling - consistent with tab_button */
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.1875rem;
+	white-space: nowrap;
+	border-radius: calc(var(--border-radius) - 2px);
+	font-size: 0.6875rem;
+	font-weight: 500;
+	transition: var(--interactive-transition);
+	outline: none;
+	cursor: pointer;
 
-    /* Compact sizing for narrow borders */
-    max-height: 29px;
-    padding: 0.25rem 0.125rem;
-    width: 100%;
+	/* Compact sizing for narrow borders */
+	max-height: 31px;
+	padding: 0.25rem 0.125rem;
+	width: 100%;
 
-    /* Ghost variant styling for unselected border buttons */
-    background-color: transparent;
-    color: var(--text-color-secondary);
-    border: var(--border-width) solid transparent;
+	/* Ghost variant styling for unselected border buttons */
+	background-color: transparent;
+	color: var(--text-color-secondary);
+	border: var(--border-width) solid transparent;
 }
 
 .flexlayout__border_button:hover {
-    background-color: var(--accent);
-    color: var(--accent-foreground);
-    border-color: var(--border-color);
+	background-color: var(--accent);
+	color: var(--accent-foreground);
+	border-color: transparent;
 }
 
 .flexlayout__border_button--selected {
-    background-color: var(--secondary);
-    color: var(--secondary-foreground);
-    border-color: var(--border-color);
+	background-color: var(--tab-active-background);
+	color: var(--text-color);
+	border-color: var(--surface-selected-border);
+	box-shadow: var(--tab-shadow);
 }
 
 /* Border trailing buttons (close buttons) - match tab toolbar buttons */
 .flexlayout__border_button_trailing {
-    color: var(--text-color-secondary);
-    background: transparent;
-    border: var(--border-width) solid transparent;
-    border-radius: calc(var(--border-radius) - 2px);
-    transition: all 0.2s ease-in-out;
-    padding: 0.125rem;
-    height: 1rem;
-    width: 1rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-sizing: border-box;
+	color: var(--text-color-secondary);
+	background: transparent;
+	border: var(--border-width) solid transparent;
+	border-radius: calc(var(--border-radius) - 2px);
+	transition: var(--interactive-transition);
+	padding: 0.125rem;
+	height: 1rem;
+	width: 1rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	box-sizing: border-box;
 }
 
 .flexlayout__border_button_trailing:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-foreground);
-    border-color: var(--hover-color);
+	background-color: var(--hover-color);
+	color: var(--accent-foreground);
+	border-color: transparent;
 }
 
 .flexlayout__border_button_trailing:active {
-    background-color: var(--active-color);
-    color: var(--primary-foreground);
-    border-color: var(--active-color);
+	background-color: var(--active-color);
+	color: var(--active-foreground-color);
+	border-color: transparent;
 }
 
 .flexlayout__border_inner_tab_container {
-    white-space: nowrap;
-    box-sizing: border-box;
-    padding-left: 2px;
-    padding-right: 2px;
-    display: flex;
-    position: absolute;
+	white-space: nowrap;
+	box-sizing: border-box;
+	padding-left: 2px;
+	padding-right: 2px;
+	display: flex;
+	position: absolute;
 }
 
 .flexlayout__border_inner {
-    box-sizing: border-box;
-    scrollbar-width: none;
-    flex-grow: 1;
-    display: flex;
-    position: relative;
-    align-items: center;
+	box-sizing: border-box;
+	scrollbar-width: none;
+	flex-grow: 1;
+	display: flex;
+	position: relative;
+	align-items: center;
 }
 
 /* Drop zones and drag indicators */
 .flexlayout__outline_rect {
-    border: 2px dashed var(--drop-indicator-color);
-    background-color: var(--drop-zone-background);
-    border-radius: var(--border-radius);
-    opacity: 0.8;
-    box-shadow: 0 0 4px var(--border-color);
-    transition: all 0.1s ease-out;
+	border: 2px dashed var(--drop-indicator-color);
+	background-color: var(--drop-zone-background);
+	border-radius: var(--border-radius);
+	opacity: 0.8;
+	box-shadow: 0 0 4px var(--border-color);
+	transition: background-color 0.1s ease-out, border-color 0.1s ease-out, box-shadow 0.1s ease-out;
 }
 
 .flexlayout__edge_rect {
-    background-color: var(--drop-zone-background);
-    border: 1px solid var(--drop-indicator-color);
-    border-radius: var(--border-radius);
+	background-color: var(--drop-zone-background);
+	border: 1px solid var(--drop-indicator-color);
+	border-radius: var(--border-radius);
 }
 
 /* Drag overlay */
 .flexlayout__drag_rect {
-    background-color: var(--panel-background);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    box-shadow: 0 8px 32px var(--shadow-color), 0 4px 16px var(--shadow-color);
-    color: var(--text-color);
-    padding: 0.5rem 0.75rem;
-    font-weight: 500;
-    opacity: 0.9;
+	background-color: var(--panel-background);
+	border: var(--border-width) solid var(--border-color);
+	border-radius: var(--border-radius);
+	box-shadow: 0 6px 20px var(--shadow-color), 0 2px 8px var(--shadow-color);
+	color: var(--text-color);
+	padding: 0.5rem 0.75rem;
+	font-weight: 500;
+	opacity: 0.9;
 }
 
 /* Popup menu */
 .flexlayout__popup_menu {
-    background-color: var(--popover);
-    border: var(--border-width) solid var(--border-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--panel-shadow);
-    padding: 0.25rem;
-    min-width: 8rem;
+	background-color: var(--popover);
+	border: var(--border-width) solid var(--border-color);
+	border-radius: var(--border-radius);
+	box-shadow: var(--panel-shadow);
+	padding: 0.25rem;
+	min-width: 8rem;
 }
 
 .flexlayout__popup_menu_item {
-    background-color: transparent;
-    color: var(--popover-foreground);
-    border-radius: calc(var(--border-radius) - 2px);
-    padding: 0.375rem 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    font-size: 0.875rem;
-    font-weight: 400;
-    line-height: 1.25rem;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
+	background-color: transparent;
+	color: var(--popover-foreground);
+	border-radius: calc(var(--border-radius) - 2px);
+	padding: 0.375rem 0.5rem;
+	cursor: pointer;
+	transition: var(--interactive-transition);
+	font-size: 0.875rem;
+	font-weight: 400;
+	line-height: 1.25rem;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .flexlayout__popup_menu_item:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-foreground);
+	background-color: var(--hover-color);
+	color: var(--accent-foreground);
 }
 
 .flexlayout__popup_menu_item_selected {
-    background-color: var(--active-color);
-    color: var(--primary-foreground);
+	background-color: var(--secondary);
+	color: var(--secondary-foreground);
 }
 
 /* Custom classes for our portal containers */
 .flexlayout__tab [data-widget-id] {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-left: auto;
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	margin-left: auto;
 }
 
 /* Ensure buttons in portal containers match our theme */
 .flexlayout__tab [data-widget-id] button {
-    background-color: transparent;
-    border: var(--border-width) solid transparent;
-    border-radius: calc(var(--border-radius) - 2px);
-    color: var(--text-color-secondary);
-    padding: 0.125rem;
-    transition: all 0.2s ease-in-out;
-    height: 1.5rem;
-    width: 1.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+	background-color: transparent;
+	border: var(--border-width) solid transparent;
+	border-radius: calc(var(--border-radius) - 2px);
+	color: var(--text-color-secondary);
+	padding: 0.125rem;
+	transition: var(--interactive-transition);
+	height: 1.5rem;
+	width: 1.5rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .flexlayout__tab [data-widget-id] button:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-foreground);
-    border-color: var(--hover-color);
+	background-color: var(--hover-color);
+	color: var(--accent-foreground);
+	border-color: transparent;
 }
 
 .flexlayout__tab [data-widget-id] button:active {
-    background-color: var(--active-color);
-    color: var(--primary-foreground);
-    border-color: var(--active-color);
+	background-color: var(--active-color);
+	color: var(--active-foreground-color);
+	border-color: transparent;
 }
 
 /* Focus states */
 .flexlayout__tab:focus-visible,
 .flexlayout__tab_toolbar_button:focus-visible,
 .flexlayout__tab [data-widget-id] button:focus-visible {
-    outline: 2px solid var(--focus-color);
-    outline-offset: 2px;
+	outline: none;
+	box-shadow: var(--focus-ring-shadow);
 }
 
 /* Dark mode adjustments */
 .dark .flexlayout__layout {
-    --shadow-color: color-mix(in srgb, black 30%, transparent);
-    --panel-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+	--shadow-color: color-mix(in srgb, black 22%, transparent);
+	--panel-shadow: 0 2px 4px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
 }
 
 .dark .flexlayout__drag_rect {
-    box-shadow: 0 8px 32px var(--shadow-color), 0 4px 16px var(--shadow-color);
+	box-shadow: 0 6px 18px var(--shadow-color), 0 2px 8px var(--shadow-color);
 }
 
 /* Animation improvements */
 .flexlayout__tab,
-.flexlayout__tabset,
 .flexlayout__splitter,
 .flexlayout__tab_toolbar_button {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: var(--interactive-transition);
 }
 
 /* Responsive adjustments for smaller screens */
 @media (max-width: 768px) {
-    .flexlayout__tab {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8125rem;
-        gap: 0.375rem;
-    }
+	.flexlayout__tab {
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8125rem;
+		gap: 0.375rem;
+	}
 
-    .flexlayout__tab_toolbar_button,
-    .flexlayout__tab [data-widget-id] button {
-        width: 1.25rem;
-        height: 1.25rem;
-    }
+	.flexlayout__tab_toolbar_button,
+	.flexlayout__tab [data-widget-id] button {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
-    .flexlayout__layout {
-        --border-width: 2px;
-    }
+	.flexlayout__layout {
+		--border-width: 2px;
+	}
 
-    .flexlayout__tab_selected {
-        border-width: 2px;
-    }
+	.flexlayout__tab_selected {
+		border-width: 2px;
+	}
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
 
-    .flexlayout__tab,
-    .flexlayout__tabset,
-    .flexlayout__splitter,
-    .flexlayout__tab_toolbar_button,
-    .flexlayout__outline_rect {
-        transition: none;
-    }
+	.flexlayout__tab,
+	.flexlayout__tabset,
+	.flexlayout__splitter,
+	.flexlayout__tab_toolbar_button,
+	.flexlayout__outline_rect {
+		transition: none;
+	}
 }
 
 /* Container query utilities for responsive design in small panels */
 @container (max-width: 300px) {
-    .flexlayout__tab {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-        gap: 0.25rem;
-    }
+	.flexlayout__tab {
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
+		gap: 0.25rem;
+	}
 
-    .flexlayout__tab_toolbar_button,
-    .flexlayout__tab [data-widget-id] button {
-        width: 1.25rem;
-        height: 1.25rem;
-    }
+	.flexlayout__tab_toolbar_button,
+	.flexlayout__tab [data-widget-id] button {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
 }
 
 @container (max-width: 200px) {
-    .flexlayout__tab {
-        padding: 0.125rem 0.375rem;
-        font-size: 0.625rem;
-        gap: 0.125rem;
-    }
+	.flexlayout__tab {
+		padding: 0.125rem 0.375rem;
+		font-size: 0.625rem;
+		gap: 0.125rem;
+	}
 
-    .flexlayout__tab_toolbar_button,
-    .flexlayout__tab [data-widget-id] button {
-        width: 1rem;
-        height: 1rem;
-    }
+	.flexlayout__tab_toolbar_button,
+	.flexlayout__tab [data-widget-id] button {
+		width: 1rem;
+		height: 1rem;
+	}
 }

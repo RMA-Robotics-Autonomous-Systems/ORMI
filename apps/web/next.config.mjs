@@ -44,6 +44,12 @@ const nextConfig = {
 				pathname: "/icon/**",
 			},
 			{
+				pathname: "/logo/**",
+			},
+			{
+				pathname: "/wallpaper/**",
+			},
+			{
 				pathname: "/api/dicebear/**",
 			},
 		],
