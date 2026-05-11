@@ -26,6 +26,7 @@ import type {
 	RosbridgeWorkerMethods,
 	RosbridgeWorkerEvents,
 } from "./rosbridge-worker-protocol";
+import { RefCountedSubscriptionRegistry } from "./ref-counted-subscription-registry";
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -41,18 +42,16 @@ let lastError: string | undefined;
 /** Cached topic → JsonSchema map, invalidated on reconnect. */
 let definitionCache: Map<string, JsonSchema> | null = null;
 
-interface SubscriberEntry {
-	subscriber: ROSLIB.Topic<any>;
-	count: number;
-}
-
 interface PublisherEntry {
 	publisher: ROSLIB.Topic<any>;
 	count: number;
 	rawType: string;
 }
 
-const subscriptions = new Map<string, SubscriberEntry>();
+const subscriptions = new RefCountedSubscriptionRegistry<
+	ROSLIB.Topic<any>,
+	{ webType: string; rawType: string }
+>();
 const publishers = new Map<string, PublisherEntry>();
 
 // ---------------------------------------------------------------------------
@@ -96,7 +95,7 @@ const scheduleReconnect = (error?: string) => {
 /** Re-subscribe all tracked topics on a fresh ROSLIB.Ros instance. */
 const resubscribeAll = () => {
 	if (!ros) return;
-	for (const [topicName, entry] of subscriptions) {
+	for (const [topicName, entry] of subscriptions.entries()) {
 		// Replace the ROSLIB.Topic instance with a new one on the new ros object.
 		// The subscriber callback closure still refs `emit` via module scope.
 		const oldSubscriber = entry.subscriber;
@@ -109,15 +108,15 @@ const resubscribeAll = () => {
 		const newSubscriber = new ROSLIB.Topic<any>({
 			ros,
 			name: topicName,
-			messageType: (oldSubscriber as any).messageType,
+			messageType: entry.metadata.rawType,
 		});
 
-		entry.subscriber = newSubscriber;
+		subscriptions.replaceSubscriber(topicName, newSubscriber);
 		attachSubscriberCallback(
 			topicName,
 			newSubscriber,
-			(oldSubscriber as any)._webType,
-			(oldSubscriber as any)._rawType,
+			entry.metadata.webType,
+			entry.metadata.rawType,
 		);
 	}
 };
@@ -215,10 +214,6 @@ const attachSubscriberCallback = (
 			referenceFrameId: frameId,
 		});
 	});
-
-	// Store web/raw type on the instance so resubscribeAll can recover them.
-	(subscriber as any)._webType = webType;
-	(subscriber as any)._rawType = rawType;
 };
 
 const connect = () => {
@@ -305,46 +300,32 @@ const server = createRpcServer<RosbridgeWorkerMethods, RosbridgeWorkerEvents>(
 
 		subscribe: async (topic: SelectedTopic) => {
 			if (!ros) return;
+			const activeRos = ros;
 
-			const existing = subscriptions.get(topic.topic);
-			if (existing) {
-				existing.count++;
-				return;
-			}
-
-			const subscriber = new ROSLIB.Topic<any>({
-				ros,
-				name: topic.topic,
-				messageType: topic.rawType,
+			subscriptions.subscribe(topic.topic, () => {
+				const subscriber = new ROSLIB.Topic<any>({
+					ros: activeRos,
+					name: topic.topic,
+					messageType: topic.rawType,
+				});
+				attachSubscriberCallback(
+					topic.topic,
+					subscriber,
+					topic.type,
+					topic.rawType,
+				);
+				return {
+					subscriber,
+					metadata: {
+						webType: topic.type,
+						rawType: topic.rawType,
+					},
+				};
 			});
-
-			subscriptions.set(topic.topic, { subscriber, count: 1 });
-			attachSubscriberCallback(
-				topic.topic,
-				subscriber,
-				topic.type,
-				topic.rawType,
-			);
 		},
 
 		unsubscribe: async (topic: SelectedTopic, ignoreCount = false) => {
-			const entry = subscriptions.get(topic.topic);
-			if (!entry) return;
-
-			if (ignoreCount) {
-				entry.count = 0;
-			} else {
-				entry.count -= 1;
-			}
-
-			if (entry.count <= 0) {
-				try {
-					entry.subscriber.unsubscribe();
-				} catch {
-					// ignore
-				}
-				subscriptions.delete(topic.topic);
-			}
+			subscriptions.unsubscribe(topic.topic, ignoreCount);
 		},
 
 		// No services in rosbridge plugin for now.

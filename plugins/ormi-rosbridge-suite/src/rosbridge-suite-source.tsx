@@ -218,6 +218,11 @@ const RosBridgeSuiteSourceProvider = (
 
 	if (useMainThread) {
 		// --- Original manager-component tree ---
+		// TransformTreeManager is intentionally rendered as a sibling AFTER the
+		// RosbridgeDataHandler subtree, not as a descendant of SubscriptionManager.
+		// React runs useEffect callbacks children-first; placing TransformTreeManager
+		// inside SubscriptionManager would cause its subscribe call to fire before
+		// SubscriptionManager has registered the subscribe hook.
 		return (
 			<>
 				<RosbridgeConnection
@@ -229,13 +234,12 @@ const RosBridgeSuiteSourceProvider = (
 					<RosbridgeDataHandler ros={ros}>
 						<TypeSystemManager settings={props}>
 							<SubscriptionManager settings={props}>
-								<PublisherManager settings={props}>
-									<TransformTreeManager settings={props} />
-								</PublisherManager>
+								<PublisherManager settings={props} />
 							</SubscriptionManager>
 						</TypeSystemManager>
 					</RosbridgeDataHandler>
 				)}
+				{ros && <TransformTreeManager settings={props} />}
 			</>
 		);
 	}

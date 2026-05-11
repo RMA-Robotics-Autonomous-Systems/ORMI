@@ -11,7 +11,7 @@ import type {
 } from "@workspace/ormi-core/datasources";
 
 interface PublisherManagerProps {
-	children: ReactNode;
+	children?: ReactNode;
 	settings: RosBridgeSuiteDataSourceSettings;
 }
 
@@ -31,10 +31,6 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 	const unadvertiseHook = `${settings.id}-unadvertise`;
 
 	useEffect(() => {
-		if (serviceRef.current) {
-			return;
-		}
-
 		serviceRef.current = new RosbridgePublisherService(
 			ros,
 			pluginsManager,

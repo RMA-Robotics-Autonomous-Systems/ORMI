@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { ReactNode, useEffect } from "react";
+import React, { ReactNode, useEffect, useRef } from "react";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { useRosbridgeData } from "./rosbridge-data-handler";
 import {
@@ -12,6 +12,7 @@ import {
 import { UnifiedConverter } from "./ros2/unified-converter";
 import type { RosBridgeSuiteDataSourceSettings } from "./types";
 import type { DatasourceTopic } from "@workspace/ormi-core/datasources";
+import type { JsonSchema } from "@jsonforms/core";
 
 interface TypeSystemManagerProps {
 	children: ReactNode;
@@ -38,30 +39,55 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 	const definition_hook = `${datasource_id}-definition`;
 	const available_types_hook = `${datasource_id}-available-types`;
 
+	// Topic cache — populated once per ROS connection, read by the filter.
+	// Using a ref means the filter closure always sees the latest value without
+	// being re-registered every time the cache updates.
+	const topicCacheRef = useRef<DatasourceTopic[]>([]);
+
+	// Schema cache — populated on the first definition request per connection,
+	// then reused for all subsequent calls. Matches the caching strategy used
+	// by the worker path (getDefinition in rosbridge-source.worker.ts).
+	const definitionCacheRef = useRef<Map<string, JsonSchema> | null>(null);
+
+	// Keep a stable ref to settings so the fetch effect does not re-run when
+	// non-id settings fields change (e.g. display name).
+	const settingsRef = useRef(settings);
+	settingsRef.current = settings;
+
+	// Fetch the topic list ONCE per ROS (re)connection.
+	// RosbridgeDataHandler only renders this tree while the connection is
+	// active, so `ros` changing is the connection event — no polling needed.
 	useEffect(() => {
-		// Available topics filter — appends this datasource's topics to the list.
+		const fetchTopics = async () => {
+			try {
+				const rosTopics = await getTopicsList(ros);
+				topicCacheRef.current = rosTopics.map((t) => ({
+					topic: t.topic,
+					datasource_id,
+					source: settingsRef.current,
+					type:
+						UnifiedConverter.getWebappTypeFromROSType(t.type) || "",
+					rawType: t.type,
+				}));
+			} catch {
+				topicCacheRef.current = [];
+			}
+		};
+
+		fetchTopics();
+
+		return () => {
+			topicCacheRef.current = [];
+			definitionCacheRef.current = null;
+		};
+	}, [ros, datasource_id]);
+
+	// Register plugin filters. The AVAILABLE_TOPICS filter reads from the
+	// cache ref — it never makes a live bridge call.
+	useEffect(() => {
 		pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 			id: available_topics_id,
-			filter: async (topics: any[]) => {
-				try {
-					const rosTopics = await getTopicsList(ros);
-					return [
-						...topics,
-						...rosTopics.map((t) => ({
-							topic: t.topic,
-							datasource_id,
-							source: settings,
-							type:
-								UnifiedConverter.getWebappTypeFromROSType(
-									t.type,
-								) || "",
-							rawType: t.type,
-						})),
-					];
-				} catch {
-					return topics;
-				}
-			},
+			filter: (topics: any[]) => [...topics, ...topicCacheRef.current],
 			priority: 100,
 		});
 
@@ -73,8 +99,14 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 				const converter = UnifiedConverter.converters[topic.type];
 				if (converter?.isPrimitive) return definition;
 				try {
-					const topicsAndTypes = await getTopicsAndRawTypes(ros);
-					return topicsAndTypes.get(topic.topic) ?? definition;
+					if (!definitionCacheRef.current) {
+						definitionCacheRef.current =
+							await getTopicsAndRawTypes(ros);
+					}
+					return (
+						definitionCacheRef.current.get(topic.topic) ??
+						definition
+					);
 				} catch {
 					return definition;
 				}
@@ -106,7 +138,6 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 		available_topics_id,
 		definition_hook,
 		available_types_hook,
-		settings,
 		pluginsManager,
 	]);
 

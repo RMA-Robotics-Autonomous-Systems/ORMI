@@ -215,10 +215,11 @@ function messageDefinitionToJsonSchema(
 
 		if (def.constants) {
 			for (const [name, value] of Object.entries(def.constants)) {
+				// Constants are compile-time values, not wire-level fields; do not
+				// add them to `required` or validation will reject received messages.
 				defSchema.properties[name] = {
 					const: value,
 				};
-				defSchema.required.push(name);
 			}
 		}
 	}

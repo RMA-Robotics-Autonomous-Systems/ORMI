@@ -115,8 +115,12 @@ const RosbridgeConnection: React.FC<RosbridgeConnectionProps> = ({
 			clearTimeout(waitTimeout);
 			clearReconnect();
 			pluginsManager.removeFilter(`${settings.id}-ros-2-connection`);
-			if (rosRef.current && (rosRef.current as any).isConnected) {
-				rosRef.current.close();
+			if (rosRef.current) {
+				try {
+					rosRef.current.close();
+				} catch {
+					// ignore close errors during cleanup
+				}
 			}
 			rosRef.current = null;
 		};

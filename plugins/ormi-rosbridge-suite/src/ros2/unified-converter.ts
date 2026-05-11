@@ -15,6 +15,15 @@ interface ConverterEntry {
 	isPrimitive?: boolean;
 }
 
+/**
+ * Decodes a base64 string to a Uint8Array.
+ * Replaces manual charCodeAt loops to reduce boilerplate.
+ */
+function decodeBase64(b64: string): Uint8Array {
+	const binaryString = atob(b64);
+	return Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
+}
+
 export class UnifiedConverter {
 	// Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
 	static converters: { [webType: string]: ConverterEntry } = {
@@ -192,6 +201,10 @@ export class UnifiedConverter {
 		PointsCloud: {
 			conversions: {
 				"sensor_msgs/msg/PointCloud2": {
+					/**
+					 * Publishing PointCloud2 back to ROS is not implemented.
+					 * Returns an empty object to satisfy the interface contract.
+					 */
 					toRos2: (data: PointsCloud) => ({}),
 					fromRos2: (data): PointsCloud => {
 						const fields = data.fields;
@@ -200,28 +213,31 @@ export class UnifiedConverter {
 						const height = data.height;
 						const width = data.width;
 
-						// Create field lookup map
+						// Build field lookup map
 						const fieldMap: Record<
 							string,
 							{ offset: number; datatype: number }
 						> = {};
-						fields.forEach(
-							(field: {
-								name: string | number;
-								offset: any;
-								datatype: any;
-							}) => {
-								fieldMap[field.name] = {
-									offset: field.offset,
-									datatype: field.datatype,
-								};
-							},
-						);
+						for (const field of fields) {
+							fieldMap[field.name] = {
+								offset: field.offset,
+								datatype: field.datatype,
+							};
+						}
 
-						// Get important field offsets
 						const xOffset = fieldMap.x?.offset;
 						const yOffset = fieldMap.y?.offset;
 						const zOffset = fieldMap.z?.offset;
+						const intensityOffset =
+							fieldMap.intensity?.offset ??
+							fieldMap.reflectivity?.offset;
+						const intensityDatatype =
+							fieldMap.intensity?.datatype ??
+							fieldMap.reflectivity?.datatype;
+						const rgbOffset =
+							fieldMap.rgb?.offset ?? fieldMap.rgba?.offset;
+						const rgbDatatype =
+							fieldMap.rgb?.datatype ?? fieldMap.rgba?.datatype;
 
 						if (
 							xOffset === undefined ||
@@ -237,92 +253,204 @@ export class UnifiedConverter {
 							};
 						}
 
-						// Handle the binary data properly
-						let buffer: ArrayBuffer;
-						let totalPoints: number;
+						// Resolve to a Uint8Array — rosbridge may deliver binary data
+						// as a base64 string (JSON transport) or a Uint8Array (binary transport).
+						const rawData: Uint8Array =
+							typeof data.data === "string"
+								? decodeBase64(data.data)
+								: data.data;
 
-						// Check if data is already a buffer or needs conversion
-						if (data.data.buffer) {
-							// Use the buffer directly
-							buffer = data.data.buffer.slice(
-								0,
-								data.data.byteLength,
-							);
-							totalPoints = Math.min(
-								width * height,
-								Math.floor(buffer.byteLength / point_step),
-							);
-						} else if (typeof data.data === "string") {
-							// Convert from base64 if needed
-							const binaryString = atob(data.data);
-							buffer = new ArrayBuffer(binaryString.length);
-							const bufferView = new Uint8Array(buffer);
-							for (let i = 0; i < binaryString.length; i++) {
-								bufferView[i] = binaryString.charCodeAt(i);
-							}
-							totalPoints = Math.min(
-								width * height,
-								Math.floor(buffer.byteLength / point_step),
-							);
-						} else {
-							console.error(
-								"Unsupported point cloud data format",
-							);
-							return {
-								points: new Float32Array(0),
-								convention: "THREE",
-							};
-						}
-
-						// Create a data view for efficient access
-						const dataView = new DataView(buffer);
+						// Zero-copy DataView — no slice/copy of the underlying buffer.
+						const dataView = new DataView(
+							rawData.buffer,
+							rawData.byteOffset,
+							rawData.byteLength,
+						);
 						const littleEndian = !is_bigendian;
+						const totalPoints = Math.min(
+							width * height,
+							Math.floor(rawData.byteLength / point_step),
+						);
 
 						const packedPoints = new Float32Array(totalPoints * 3);
+						const packedColors = new Float32Array(totalPoints * 3);
+						const intensities = new Float32Array(totalPoints);
 						let validPointCount = 0;
 
-						// Process all points
-						for (let i = 0; i < totalPoints; i++) {
-							const baseOffset = i * point_step;
-
-							// Get x, y, z values directly
-							try {
-								const x = dataView.getFloat32(
-									baseOffset + xOffset,
-									littleEndian,
-								);
-								const y = dataView.getFloat32(
-									baseOffset + yOffset,
-									littleEndian,
-								);
-								const z = dataView.getFloat32(
-									baseOffset + zOffset,
-									littleEndian,
-								);
-
-								// Add valid points (could add filtering here if needed)
-								if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-									const idx = validPointCount * 3;
-									// Convert ROS -> THREE
-									packedPoints[idx] = -y;
-									packedPoints[idx + 1] = z;
-									packedPoints[idx + 2] = -x;
-									validPointCount++;
-								}
-							} catch (e) {
-								// Skip points that can't be properly read
-								continue;
+						// Reads a field value using its ROS datatype code.
+						const readFieldValue = (
+							offset: number,
+							datatype: number,
+						): number => {
+							switch (datatype) {
+								case 1:
+									return dataView.getInt8(offset);
+								case 2:
+									return dataView.getUint8(offset);
+								case 3:
+									return dataView.getInt16(
+										offset,
+										littleEndian,
+									);
+								case 4:
+									return dataView.getUint16(
+										offset,
+										littleEndian,
+									);
+								case 5:
+									return dataView.getInt32(
+										offset,
+										littleEndian,
+									);
+								case 6:
+									return dataView.getUint32(
+										offset,
+										littleEndian,
+									);
+								case 7:
+									return dataView.getFloat32(
+										offset,
+										littleEndian,
+									);
+								case 8:
+									return dataView.getFloat64(
+										offset,
+										littleEndian,
+									);
+								default:
+									return NaN;
 							}
+						};
+
+						// Normalises intensity to [0, 1] based on its datatype range.
+						const normalizeIntensity = (
+							value: number,
+							datatype: number,
+						): number => {
+							if (isNaN(value)) return NaN;
+							let max = 1;
+							switch (datatype) {
+								case 1:
+								case 2:
+									max = 255;
+									break;
+								case 3:
+								case 4:
+									max = 65535;
+									break;
+								case 5:
+								case 6:
+									max = 4294967295;
+									break;
+								case 7:
+								case 8:
+									max = value > 1 ? 255 : 1;
+									break;
+							}
+							return Math.min(Math.max(value / max, 0), 1);
+						};
+
+						// Unpacks a packed RGB(A) integer into normalised [0,1] components.
+						const unpackRgb = (value: number) => ({
+							r: ((value >> 16) & 0xff) / 255,
+							g: ((value >> 8) & 0xff) / 255,
+							b: (value & 0xff) / 255,
+						});
+
+						for (let i = 0; i < totalPoints; i++) {
+							const base = i * point_step;
+
+							const x = dataView.getFloat32(
+								base + xOffset,
+								littleEndian,
+							);
+							const y = dataView.getFloat32(
+								base + yOffset,
+								littleEndian,
+							);
+							const z = dataView.getFloat32(
+								base + zOffset,
+								littleEndian,
+							);
+
+							if (isNaN(x) || isNaN(y) || isNaN(z)) continue;
+
+							const idx = validPointCount * 3;
+							// ROS (X-forward, Y-left, Z-up) → THREE (X-right, Y-up, Z-back)
+							packedPoints[idx] = -y;
+							packedPoints[idx + 1] = z;
+							packedPoints[idx + 2] = -x;
+
+							if (
+								rgbOffset !== undefined &&
+								rgbDatatype !== undefined
+							) {
+								// RGB is packed as a float32 reinterpreted as uint32, or as uint32 directly.
+								let packed: number;
+								if (rgbDatatype === 7) {
+									const f = dataView.getFloat32(
+										base + rgbOffset,
+										littleEndian,
+									);
+									packed =
+										new Uint32Array(
+											new Float32Array([f]).buffer,
+										)[0] ?? 0;
+								} else {
+									packed = dataView.getUint32(
+										base + rgbOffset,
+										littleEndian,
+									);
+								}
+								const c = unpackRgb(packed);
+								packedColors[idx] = c.r;
+								packedColors[idx + 1] = c.g;
+								packedColors[idx + 2] = c.b;
+							}
+
+							if (
+								intensityOffset !== undefined &&
+								intensityDatatype !== undefined
+							) {
+								intensities[validPointCount] =
+									normalizeIntensity(
+										readFieldValue(
+											base + intensityOffset,
+											intensityDatatype,
+										),
+										intensityDatatype,
+									);
+							}
+
+							validPointCount++;
 						}
+
 						const finalPoints = packedPoints.subarray(
 							0,
 							validPointCount * 3,
 						);
+						const finalColors =
+							validPointCount > 0 && rgbOffset !== undefined
+								? packedColors.subarray(0, validPointCount * 3)
+								: undefined;
+						const finalIntensities =
+							validPointCount > 0 && intensityOffset !== undefined
+								? intensities.subarray(0, validPointCount)
+								: undefined;
 
-						return { points: finalPoints, convention: "THREE" };
+						return {
+							points: finalPoints,
+							colors: finalColors,
+							intensities: finalIntensities,
+							convention: "THREE",
+						};
 					},
 				},
 				"livox_ros_driver2/msg/CustomMsg": {
+					/**
+					 * Publishing Livox CustomMsg back to ROS is not implemented.
+					 * Returns an empty object to satisfy the interface contract.
+					 */
 					toRos2: (data: PointsCloud) => ({}),
 					fromRos2: (data): PointsCloud => {
 						const pointsInput = data.points as any[] | undefined;
@@ -434,11 +562,7 @@ export class UnifiedConverter {
 						// Decode base64 if data is a string (rosbridge sends as base64)
 						let rawData: Uint8Array;
 						if (typeof data.data === "string") {
-							const binaryString = atob(data.data);
-							rawData = new Uint8Array(binaryString.length);
-							for (let i = 0; i < binaryString.length; i++) {
-								rawData[i] = binaryString.charCodeAt(i);
-							}
+							rawData = decodeBase64(data.data);
 						} else if (data.data instanceof Uint8Array) {
 							rawData = data.data;
 						} else if (Array.isArray(data.data)) {
@@ -542,11 +666,7 @@ export class UnifiedConverter {
 						// Return compressed data for async conversion to ImageBitmap
 						let rawData: Uint8Array;
 						if (typeof data.data === "string") {
-							const binaryString = atob(data.data);
-							rawData = new Uint8Array(binaryString.length);
-							for (let i = 0; i < binaryString.length; i++) {
-								rawData[i] = binaryString.charCodeAt(i);
-							}
+							rawData = decodeBase64(data.data);
 						} else if (data.data instanceof Uint8Array) {
 							rawData = data.data;
 						} else if (Array.isArray(data.data)) {

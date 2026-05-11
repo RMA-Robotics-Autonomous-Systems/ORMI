@@ -2,10 +2,10 @@
 "use client";
 
 import React, { ReactNode, useEffect, useLayoutEffect, useRef } from "react";
-import * as ROSLIB from "roslib";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
 import { useRosbridgeData } from "./rosbridge-data-handler";
+import { SubscriberService } from "./subscriber-service";
 import { UnifiedConverter } from "./ros2/unified-converter";
 import type { RosBridgeSuiteDataSourceSettings } from "./types";
 import type { DatasourceTopic } from "@workspace/ormi-core/datasources";
@@ -27,8 +27,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	const { ros } = useRosbridgeData();
 	const pluginsManager = usePluginsManager();
 
-	const subscribersRef = useRef(new Map<string, ROSLIB.Topic<any>>());
-	const countsRef = useRef(new Map<string, number>());
+	const serviceRef = useRef<SubscriberService | null>(null);
 	const settingsRef = useRef(settings);
 	useLayoutEffect(() => {
 		settingsRef.current = settings;
@@ -39,26 +38,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	const unsubscribe_hook = `${datasource_id}-unsubscribe`;
 
 	useEffect(() => {
+		const service = new SubscriberService();
+		serviceRef.current = service;
+
 		pluginsManager.addAction(subscribe_hook, {
 			id: subscribe_hook,
 			action: async (topic: DatasourceTopic) => {
 				try {
-					// Increment ref-count if already subscribed.
-					if (subscribersRef.current.has(topic.topic)) {
-						countsRef.current.set(
-							topic.topic,
-							(countsRef.current.get(topic.topic) ?? 0) + 1,
-						);
-						return;
-					}
-
-					const subscriber = new ROSLIB.Topic<any>({
-						ros,
-						name: topic.topic,
-						messageType: topic.rawType,
-					});
-
-					subscriber.subscribe((message: any) => {
+					service.subscribe(ros, topic, (message: any) => {
 						const frameId =
 							(message as any)?.header?.frame_id ?? "unknown";
 						const convertedMessage =
@@ -118,9 +105,6 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 							frameId,
 						);
 					});
-
-					subscribersRef.current.set(topic.topic, subscriber);
-					countsRef.current.set(topic.topic, 1);
 				} catch (error) {
 					if (settingsRef.current.toasts) {
 						toast(
@@ -144,16 +128,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				ignoreCount: boolean = false,
 			) => {
 				try {
-					if (!subscribersRef.current.has(topic.topic)) return;
-
-					const count = countsRef.current.get(topic.topic) ?? 0;
-					countsRef.current.set(topic.topic, count - 1);
-
-					if (count <= 1 || ignoreCount) {
-						subscribersRef.current.get(topic.topic)!.unsubscribe();
-						subscribersRef.current.delete(topic.topic);
-						countsRef.current.delete(topic.topic);
-					}
+					service.unsubscribe(topic, ignoreCount);
 				} catch (error) {
 					if (settingsRef.current.toasts) {
 						toast(
@@ -170,23 +145,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			priority: 100,
 		});
 
-		const subscribersSnapshot = subscribersRef.current;
-		const countsSnapshot = countsRef.current;
-
 		return () => {
 			pluginsManager.removeAction(subscribe_hook);
 			pluginsManager.removeAction(unsubscribe_hook);
-
-			// Unsubscribe all active ROSLIB.Topic subscribers.
-			subscribersSnapshot.forEach((subscriber) => {
-				try {
-					subscriber.unsubscribe();
-				} catch {
-					// ignore unsubscribe errors on cleanup
-				}
-			});
-			subscribersSnapshot.clear();
-			countsSnapshot.clear();
+			service.cleanup();
+			serviceRef.current = null;
 		};
 	}, [ros, datasource_id, subscribe_hook, unsubscribe_hook, pluginsManager]);
 

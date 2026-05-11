@@ -105,7 +105,7 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 		});
 
 		// Subscribe to each transform topic via the datasource's subscribe hook.
-		transformTopics.forEach(async (topic) => {
+		transformTopics.forEach((topic) => {
 			const datasourceTopic = {
 				topic,
 				datasource_id,
@@ -113,23 +113,18 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 				type: TF_MESSAGE_TYPE,
 				rawType: TF_MESSAGE_TYPE,
 			};
-			try {
-				await pluginsManager.doAction(
-					`${datasource_id}-subscribe`,
-					datasourceTopic,
-				);
-			} catch (error) {
-				console.error(
-					`TransformTreeManager: Failed to subscribe to ${topic}:`,
-					error,
-				);
-			}
+			pluginsManager.doAction(
+				`${datasource_id}-subscribe`,
+				datasourceTopic,
+			);
 		});
 
 		return () => {
 			actionIds.forEach((id) => pluginsManager.removeAction(id));
 
-			transformTopics.forEach(async (topic) => {
+			// Fire unsubscribe requests without awaiting — the action hooks above
+			// are already removed so no new TF messages will be processed.
+			transformTopics.forEach((topic) => {
 				const datasourceTopic = {
 					topic,
 					datasource_id,
@@ -137,18 +132,11 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 					type: TF_MESSAGE_TYPE,
 					rawType: TF_MESSAGE_TYPE,
 				};
-				try {
-					await pluginsManager.doAction(
-						`${datasource_id}-unsubscribe`,
-						datasourceTopic,
-						true,
-					);
-				} catch (error) {
-					console.error(
-						`TransformTreeManager: Failed to unsubscribe from ${topic}:`,
-						error,
-					);
-				}
+				pluginsManager.doAction(
+					`${datasource_id}-unsubscribe`,
+					datasourceTopic,
+					true,
+				);
 			});
 
 			clearTransformsFromDatasource(datasource_id);
