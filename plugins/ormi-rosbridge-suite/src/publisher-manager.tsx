@@ -31,17 +31,21 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 	const unadvertiseHook = `${settings.id}-unadvertise`;
 
 	useEffect(() => {
-		const service = new RosbridgePublisherService(
+		if (serviceRef.current) {
+			return;
+		}
+
+		serviceRef.current = new RosbridgePublisherService(
 			ros,
 			pluginsManager,
 			settings,
 		);
-		serviceRef.current = service;
 
 		pluginsManager.addFilter(advertiseHook, {
 			id: advertiseHook,
 			filter: async (topic: SelectedTopic): Promise<boolean> => {
-				return await service.advertise(topic);
+				if (!serviceRef.current) return false;
+				return await serviceRef.current.advertise(topic);
 			},
 			priority: 100,
 		});
@@ -49,7 +53,8 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 		pluginsManager.addAction(unadvertiseHook, {
 			id: unadvertiseHook,
 			action: async (topic: DatasourceTopic, ignoreCount = false) => {
-				await service.unadvertise(topic, ignoreCount);
+				if (!serviceRef.current) return;
+				await serviceRef.current.unadvertise(topic, ignoreCount);
 			},
 			priority: 100,
 		});
@@ -57,10 +62,10 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 		return () => {
 			pluginsManager.removeFilter(advertiseHook);
 			pluginsManager.removeAction(unadvertiseHook);
-			service.cleanup();
+			serviceRef.current?.cleanup();
 			serviceRef.current = null;
 		};
-	}, [ros, advertiseHook, unadvertiseHook, settings, pluginsManager]);
+	}, [ros, advertiseHook, unadvertiseHook, settings.id, pluginsManager]);
 
 	return <>{children}</>;
 };
