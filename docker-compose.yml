@@ -1,10 +1,11 @@
 services:
     core:
         container_name: ormi_core
+        image: ghcr.io/rma-robotics-autonomous-systems/ormi:latest
         network_mode: host
-        build:
-            context: .
-            dockerfile: Dockerfile.ormi_core
+        # build:
+        # context: .
+        # dockerfile: Dockerfile.ormi_core
         restart: unless-stopped
         environment:
             DATABASE_URL: postgresql://rasappdbuser:rasappdbpwd@localhost:5432/rasapppostgresqldb
