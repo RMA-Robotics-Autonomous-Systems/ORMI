@@ -1,8 +1,9 @@
 import { SiteConfig } from "@/types/index";
-import { env } from "./env.js";
 
 /**
  * Site configuration for ORMI application.
+ * This object is safe to import in both server and client components.
+ * Server-only values (e.g. APP_URL) are NOT included here.
  */
 export const siteConfig: SiteConfig = {
 	name: "ORMI",
@@ -21,7 +22,6 @@ export const siteConfig: SiteConfig = {
 		"RAS Lab",
 		"Department of Mechanics of Belgian Royal Military Academy",
 	],
-	url: env.APP_URL,
 	icon: "/icon/ormi.svg",
 	ogImage: "opengraph-image.png",
 	manifest: "/manifest.webmanifest",

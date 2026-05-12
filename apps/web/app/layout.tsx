@@ -7,6 +7,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
 import { siteConfig } from "@/config/site";
+import { env } from "@/config/env.js";
 import { Button } from "@workspace/ui/components/button";
 import { ModeToggle } from "@workspace/ui/combined/themes/darkmode-toggle";
 import { ThemeConfigurator } from "@workspace/ui/combined/themes/theme-configurator";
@@ -27,7 +28,7 @@ const fontHeading = localFont({
 });
 
 export const metadata: Metadata = {
-	metadataBase: siteConfig.url ? new URL(siteConfig.url) : undefined,
+	metadataBase: env.APP_URL ? new URL(env.APP_URL) : undefined,
 	applicationName: siteConfig.name,
 	title: {
 		default: siteConfig.name,
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
 	},
 	openGraph: {
 		type: "website",
-		url: siteConfig.url,
+		url: env.APP_URL,
 		title: siteConfig.name,
 		description: siteConfig.description,
 		siteName: siteConfig.name,
