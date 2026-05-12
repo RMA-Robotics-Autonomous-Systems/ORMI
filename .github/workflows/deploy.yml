@@ -1,13 +1,15 @@
 name: Deploy
 
 on:
-    push:
-        branches:
-            - Master
+    workflow_run:
+        workflows: [CI]
+        branches: [Master]
+        types: [completed]
 
 jobs:
     push-image:
         name: Build and Push Docker Image
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         runs-on: ubuntu-latest
         permissions:
             contents: read
