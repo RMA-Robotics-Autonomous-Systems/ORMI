@@ -27,7 +27,7 @@ const fontHeading = localFont({
 });
 
 export const metadata: Metadata = {
-	metadataBase: new URL(siteConfig.url),
+	metadataBase: siteConfig.url ? new URL(siteConfig.url) : undefined,
 	applicationName: siteConfig.name,
 	title: {
 		default: siteConfig.name,

@@ -4,7 +4,7 @@
 export type SiteConfig = {
 	name: string;
 	description: string;
-	url: string;
+	url: string | undefined;
 	keywords: string[];
 	icon: string;
 	ogImage: string;
