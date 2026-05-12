@@ -125,10 +125,12 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	// Initialize datasources as connecting when they're added
 	useEffect(() => {
 		setDatasourceStatuses((prev) => {
+			let changed = false;
 			const next = new Map(prev);
 			datasources.forEach((ds) => {
 				if (!next.has(ds.settings.id)) {
 					next.set(ds.settings.id, "connecting");
+					changed = true;
 				}
 			});
 			// Remove statuses for deleted datasources
@@ -139,9 +141,10 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 					)
 				) {
 					next.delete(id);
+					changed = true;
 				}
 			});
-			return next;
+			return changed ? next : prev;
 		});
 	}, [datasources]);
 
@@ -195,7 +198,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	// Clear readiness tracking when not initialized
 	useEffect(() => {
 		if (!initialized) {
-			setReadyDatasources(new Set());
+			setReadyDatasources((prev) => (prev.size === 0 ? prev : new Set()));
 		}
 	}, [initialized]);
 

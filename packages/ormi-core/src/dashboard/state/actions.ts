@@ -150,14 +150,17 @@ export function updateDatasource(
 
 /**
  * Replace the layouts object.
- * @param _current - Unused; exists for API symmetry with other action functions.
+ * Returns `current` unchanged when the serialized content is identical,
+ * preventing downstream atom subscribers from seeing a spurious reference change.
+ * @param current - Current layouts object.
  * @param next - New layouts object.
- * @returns The new layouts object.
+ * @returns The new layouts object, or `current` if nothing changed.
  */
 export function updateLayouts(
-	_current: Record<string, unknown>,
+	current: Record<string, unknown>,
 	next: Record<string, unknown>,
 ): Record<string, unknown> {
+	if (JSON.stringify(current) === JSON.stringify(next)) return current;
 	return next;
 }
 

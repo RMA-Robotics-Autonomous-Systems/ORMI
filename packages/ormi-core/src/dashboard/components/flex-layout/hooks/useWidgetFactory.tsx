@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { TabNode } from "flexlayout-react";
 import { Widget, WidgetDefinition } from "../../../../widgets/widget-interface";
 import { WidgetRenderer } from "../components/WidgetRenderer";
@@ -19,6 +19,15 @@ export const useWidgetFactory = ({
 	getDefinition,
 }: UseWidgetFactoryProps) => {
 	const contentCacheRef = useRef<Map<string, React.ReactNode>>(new Map());
+
+	// Prune removed widgets from the cache so entries don't accumulate indefinitely.
+	useEffect(() => {
+		contentCacheRef.current.forEach((_, id) => {
+			if (!widgets.has(id)) {
+				contentCacheRef.current.delete(id);
+			}
+		});
+	}, [widgets]);
 
 	const factory = useCallback(
 		(node: TabNode) => {

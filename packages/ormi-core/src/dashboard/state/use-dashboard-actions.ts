@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useSetAtom } from "jotai";
 import {
 	widgetsAtom,
@@ -27,7 +27,9 @@ export interface DashboardActions {
 		boxId: string,
 		settings: TSettings,
 	) => void;
-	updateLayouts: (layouts: Record<string, unknown>) => void;
+	updateLayouts: (
+		updater: (prev: Record<string, unknown>) => Record<string, unknown>,
+	) => void;
 	addDatasource: (
 		datasourceId: string,
 		settings?: DatasourceProviderSettings,
@@ -52,12 +54,24 @@ export function useDashboardActions(): DashboardActions {
 
 	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
+	// widgetDefinitions is a new array on every DashboardShell render because
+	// pluginsManager.applyFilter() is called in the render body (intentional —
+	// hooks call order constraint). Closing over the array would make
+	// getDefinition a new reference on every render, propagating through
+	// updateWidget → handleSaveWidget → widgets_elements useMemo → all tiles.
+	// Instead, write to a ref during render (parent always renders before
+	// children so GridWidgetTile reads the latest value).
+	const widgetDefinitionsRef = useRef(widgetDefinitions);
+	widgetDefinitionsRef.current = widgetDefinitions;
+
 	const getDefinition = useCallback(
 		(widgetId: string): WidgetDefinition => {
-			const found = widgetDefinitions.find((w) => w.id === widgetId);
+			const found = widgetDefinitionsRef.current.find(
+				(w) => w.id === widgetId,
+			);
 			return found ?? widgetNotFound;
 		},
-		[widgetDefinitions],
+		[], // stable: always reads latest definitions via ref
 	);
 
 	const addWidget = useCallback(
@@ -90,8 +104,10 @@ export function useDashboardActions(): DashboardActions {
 	);
 
 	const updateLayouts = useCallback(
-		(layouts: Record<string, unknown>) => {
-			setLayouts((prev) => actions.updateLayouts(prev, layouts));
+		(
+			updater: (prev: Record<string, unknown>) => Record<string, unknown>,
+		) => {
+			setLayouts((prev) => actions.updateLayouts(prev, updater(prev)));
 		},
 		[setLayouts],
 	);
