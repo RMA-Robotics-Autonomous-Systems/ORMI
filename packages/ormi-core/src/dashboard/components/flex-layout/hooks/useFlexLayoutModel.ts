@@ -15,7 +15,9 @@ interface UseFlexLayoutModelProps {
 	locked: boolean;
 	getDefinition: (widget_id: string) => any;
 	removeWidget: (box_id: string) => void;
-	updateLayouts: (newLayouts: Record<string, unknown>) => void;
+	updateLayouts: (
+		updater: (prev: Record<string, unknown>) => Record<string, unknown>,
+	) => void;
 }
 
 /**
@@ -191,7 +193,10 @@ export const useFlexLayoutModel = ({
 			if (updatedModel) {
 				const serializedModel = serializeFlexLayoutModel(updatedModel);
 				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
-				updateLayouts({ ...layouts, flex: serializedModel });
+				updateLayouts((prev: Record<string, unknown>) => ({
+					...prev,
+					flex: serializedModel,
+				}));
 			}
 		}
 	}, [layouts, widgets, locked, getDefinition, model, updateLayouts]);
@@ -219,7 +224,10 @@ export const useFlexLayoutModel = ({
 			if (serializedString !== lastSerializedRef.current) {
 				lastSerializedRef.current = serializedString;
 				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
-				updateLayouts({ ...layouts, flex: serializedModel });
+				updateLayouts((prev: Record<string, unknown>) => ({
+					...prev,
+					flex: serializedModel,
+				}));
 			}
 		}
 	};

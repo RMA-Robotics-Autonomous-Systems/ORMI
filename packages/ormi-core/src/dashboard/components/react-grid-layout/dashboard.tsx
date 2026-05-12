@@ -1,7 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ResponsiveGridLayout } from "react-grid-layout";
+import {
+	ResponsiveGridLayout,
+	noCompactor,
+	verticalCompactor,
+	horizontalCompactor,
+} from "react-grid-layout";
 import type { LayoutItem, Layout, ResponsiveLayouts } from "react-grid-layout";
 
 import "react-grid-layout/css/styles.css";
@@ -40,7 +45,7 @@ import { WidgetTemplateDrawer } from "../../../templates/components/templates-dr
 import { useTemplates } from "../../../templates/templates-provider";
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
 import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
-import { WidgetDefinition, Widget } from "../../../widgets/widget-interface";
+import { WidgetDefinition } from "../../../widgets/widget-interface";
 import { LayoutEngineDefinition } from "../../layout/layout-engine";
 import { WidgetHost } from "../../layout/widget-host";
 import { useDashboardActions } from "../../state/use-dashboard-actions";
@@ -56,6 +61,98 @@ import {
 	hasChangedAtom,
 	widgetAtomFamily,
 } from "../../atoms";
+
+/** Cols per breakpoint — mirrors the cols prop on ResponsiveGridLayout. */
+const COLS_MAP = {
+	lg: 12,
+	md: 10,
+	sm: 6,
+	xs: 4,
+	xxs: 2,
+} as const;
+type Breakpoint = keyof typeof COLS_MAP;
+
+/**
+ * Stable free-positioning compactor: items stay exactly where dropped,
+ * overlapping drops are prevented, but nothing is auto-compacted.
+ * Created at module level so the reference never changes between renders —
+ * a new object each render would cause RGL to reset its internal drag state.
+ */
+const freePositionCompactor = {
+	...noCompactor,
+	preventCollision: true,
+} as const;
+
+/** Props for the individual grid tile. */
+interface GridWidgetTileProps {
+	widgetId: string;
+	locked: boolean;
+	getDefinition: (widgetId: string) => WidgetDefinition;
+	onSave: (boxId: string, settings: Record<string, unknown>) => void;
+	onRemove: (boxId: string) => void;
+}
+
+/**
+ * Renders the inner content of a single GRID tile — header + widget body.
+ * The outer positioning div is owned by ResponsiveGridLayout (via cloneElement)
+ * and rendered directly in widgets_elements, not here.
+ * Reads its own widget data from the atom family so that a settings change
+ * on one widget does not propagate to other tiles.
+ * Memoised — only rerenders when its own props or atom value change.
+ */
+const GridWidgetTileComponent: React.FC<GridWidgetTileProps> = ({
+	widgetId,
+	locked,
+	getDefinition,
+	onSave,
+	onRemove,
+}) => {
+	const widget = useAtomValue(widgetAtomFamily(widgetId));
+
+	if (!widget) return null;
+
+	return (
+		<ButtonHolderProvider>
+			<div
+				className="flex flex-row content-between gap-1"
+				style={{ padding: "0.25rem" }}
+			>
+				<div className="p-2 text-center text-sm text-muted-foreground cursor-move w-full overflow-x-hidden drag-handle">
+					{widget.title}
+				</div>
+
+				<ButtonHolder />
+
+				{!locked && (
+					<WidgetCard
+						fromLoaded={true}
+						data={widget.settings}
+						definition={getDefinition(widget.widget_id)}
+						displayType="gear"
+						onValidate={(_widget_def, settings) => {
+							onSave(widget.box_id, settings);
+						}}
+					/>
+				)}
+
+				{!locked && (
+					<Button
+						variant="destructive"
+						onClick={() => onRemove(widget.box_id)}
+					>
+						<XIcon />
+					</Button>
+				)}
+			</div>
+			<div className="flex-grow overflow-hidden">
+				<WidgetHost widgetId={widgetId} getDefinition={getDefinition} />
+			</div>
+		</ButtonHolderProvider>
+	);
+};
+
+const GridWidgetTile = React.memo(GridWidgetTileComponent);
+GridWidgetTile.displayName = "GridWidgetTile";
 
 /**
  * React-grid-layout dashboard implementation.
@@ -103,32 +200,46 @@ const Dashboard = () => {
 	// Grid engine stores its layout state under the "grid" key
 	const gridLayouts = (layouts["grid"] as ResponsiveLayouts) || {};
 
-	// Local state for compactType (vertical/horizontal)
-	const [compactType, setCompactType] = useState<
-		"vertical" | "horizontal" | null
-	>(null);
+	// Tracks the last serialized grid layout written to the atom.
+	// Null until the first write so we don't pay JSON.stringify on every render
+	// just to initialize the ref.
+	const lastGridLayoutRef = useRef<string | null>(null);
 
 	// Type-specific layout functions
 	const layoutsChanged = useCallback(
 		(newLayouts: ResponsiveLayouts) => {
-			// Update only the grid key, preserve other engines' layouts
-			updateLayouts({ ...layouts, grid: newLayouts });
+			// Functional updater: prev is read atomically inside the setter so
+			// this callback never needs to close over the layouts atom value.
+			updateLayouts((prev) => ({ ...prev, grid: newLayouts }));
 		},
-		[updateLayouts, layouts],
+		[updateLayouts],
 	);
 
+	// Immediately apply vertical compaction to the current layouts and persist.
+	// Using the v2 built-in compactor directly avoids the old setTimeout/state
+	// trick that never actually compacted anything (compact fn was a no-op).
 	const moveToVertical = useCallback(() => {
-		setCompactType("vertical");
-		setTimeout(() => setCompactType(null), 500);
-	}, []);
+		const compacted: ResponsiveLayouts = {};
+		for (const [bp, bpLayout] of Object.entries(gridLayouts)) {
+			const cols = COLS_MAP[bp as Breakpoint] ?? 12;
+			compacted[bp] = verticalCompactor.compact(bpLayout as Layout, cols);
+		}
+		layoutsChanged(compacted);
+	}, [gridLayouts, layoutsChanged]);
 
 	const moveToHorizontal = useCallback(() => {
-		setCompactType("horizontal");
-		setTimeout(() => setCompactType(null), 500);
-	}, []);
+		const compacted: ResponsiveLayouts = {};
+		for (const [bp, bpLayout] of Object.entries(gridLayouts)) {
+			const cols = COLS_MAP[bp as Breakpoint] ?? 12;
+			compacted[bp] = horizontalCompactor.compact(
+				bpLayout as Layout,
+				cols,
+			);
+		}
+		layoutsChanged(compacted);
+	}, [gridLayouts, layoutsChanged]);
 
 	// Improved exploseLayout supporting multiple types
-	type Breakpoint = "lg" | "md" | "sm" | "xs" | "xxs";
 	type LayoutMatrix = { cols: number; rows: number };
 
 	const exploseLayout = useCallback(
@@ -379,11 +490,13 @@ const Dashboard = () => {
 
 	const handleLayoutChange = useCallback(
 		(currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
-			if (JSON.stringify(gridLayouts) !== JSON.stringify(allLayouts)) {
-				layoutsChanged({ ...allLayouts });
+			const serialized = JSON.stringify(allLayouts);
+			if (serialized !== lastGridLayoutRef.current) {
+				lastGridLayoutRef.current = serialized;
+				layoutsChanged(allLayouts);
 			}
 		},
-		[gridLayouts, layoutsChanged],
+		[layoutsChanged],
 	);
 
 	const handleRemoveBoxClick = useCallback(
@@ -401,71 +514,31 @@ const Dashboard = () => {
 	);
 
 	const handleSaveWidget = useCallback(
-		(
-			box_id: string,
-			widget: WidgetDefinition,
-			settings: Record<string, unknown>,
-		) => {
-			updateWidget(box_id, settings);
+		(boxId: string, settings: Record<string, unknown>) => {
+			updateWidget(boxId, settings);
 		},
 		[updateWidget],
 	);
 
 	const widgets_elements = useMemo(() => {
-		return Array.from(widgets).map(([key, widget]: [string, Widget]) => {
-			return (
-				<div
-					key={key}
-					className="flex flex-col overflow-hidden border border-border rounded-[var(--radius)] bg-background shadow-md"
-				>
-					<ButtonHolderProvider>
-						<div
-							className="flex flex-row content-between gap-1"
-							style={{ padding: "0.25rem" }}
-						>
-							<div className="p-2 text-center text-sm text-muted-foreground cursor-move w-full overflow-x-hidden drag-handle">
-								{widget.title}
-							</div>
-
-							<ButtonHolder />
-
-							{!locked && (
-								<WidgetCard
-									fromLoaded={true}
-									data={widget.settings}
-									definition={getDefinition(widget.widget_id)}
-									displayType="gear"
-									onValidate={(widget_def, settings) => {
-										handleSaveWidget(
-											widget.box_id,
-											widget_def,
-											settings,
-										);
-									}}
-								/>
-							)}
-
-							{!locked && (
-								<Button
-									variant="destructive"
-									onClick={() =>
-										handleRemoveBoxClick(widget.box_id)
-									}
-								>
-									<XIcon />
-								</Button>
-							)}
-						</div>
-						<div className="flex-grow overflow-hidden">
-							<WidgetHost
-								widgetId={widget.box_id}
-								getDefinition={getDefinition}
-							/>
-						</div>
-					</ButtonHolderProvider>
-				</div>
-			);
-		});
+		return Array.from(widgets.keys()).map((widgetId) => (
+			// This plain div is the direct child of ResponsiveGridLayout.
+			// RGL uses cloneElement to inject style (absolute position/size),
+			// className (drag/resize states), and ref onto it.
+			// GridWidgetTile is nested inside and owns only the header + body.
+			<div
+				key={widgetId}
+				className="flex flex-col overflow-hidden border border-border rounded-[var(--radius)] bg-background shadow-md"
+			>
+				<GridWidgetTile
+					widgetId={widgetId}
+					locked={locked}
+					getDefinition={getDefinition}
+					onSave={handleSaveWidget}
+					onRemove={handleRemoveBoxClick}
+				/>
+			</div>
+		));
 	}, [
 		widgets,
 		locked,
@@ -581,7 +654,7 @@ const Dashboard = () => {
 						xs: 480,
 						xxs: 0,
 					}}
-					cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+					cols={COLS_MAP}
 					dragConfig={{
 						enabled: !locked,
 						handle: `.drag-handle`,
@@ -590,12 +663,7 @@ const Dashboard = () => {
 						enabled: !locked,
 					}}
 					onLayoutChange={handleLayoutChange}
-					compactor={{
-						type: compactType,
-						allowOverlap: false,
-						preventCollision: true,
-						compact: (layout, cols) => layout,
-					}}
+					compactor={freePositionCompactor}
 					rowHeight={30}
 				>
 					{widgets_elements}
