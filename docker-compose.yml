@@ -12,9 +12,24 @@ services:
             NEXTAUTH_URL: http://localhost:3000
             NEXTAUTH_SECRET: change-me-in-production
             APP_URL: http://localhost:3000
+        labels:
+            - com.centurylinklabs.watchtower.scope=ormi
         depends_on:
             postgres:
                 condition: service_healthy
+
+    watchtower:
+        image: containrrr/watchtower
+        restart: unless-stopped
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        environment:
+            WATCHTOWER_POLL_INTERVAL: 30
+            WATCHTOWER_CLEANUP: true
+            WATCHTOWER_SCOPE: ormi
+        command: --scope ormi
+        labels:
+            - com.centurylinklabs.watchtower.scope=ormi
 
     postgres:
         image: postgres:17.0-alpine
