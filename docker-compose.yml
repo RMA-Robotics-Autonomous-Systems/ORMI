@@ -5,15 +5,12 @@ services:
         build:
             context: .
             dockerfile: Dockerfile.ormi_core
-            args:
-                # Override to bake a different public URL into the client bundle
-                NEXT_PUBLIC_APP_URL: http://localhost:3000
         restart: unless-stopped
         environment:
             DATABASE_URL: postgresql://rasappdbuser:rasappdbpwd@localhost:5432/rasapppostgresqldb
             NEXTAUTH_URL: http://localhost:3000
             NEXTAUTH_SECRET: change-me-in-production
-            NEXT_PUBLIC_APP_URL: http://localhost:3000
+            APP_URL: http://localhost:3000
         depends_on:
             postgres:
                 condition: service_healthy
@@ -31,7 +28,11 @@ services:
         volumes:
             - ./postgres:/var/lib/postgresql/data
         healthcheck:
-            test: [ "CMD-SHELL", "pg_isready -U rasappdbuser -d rasapppostgresqldb" ]
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U rasappdbuser -d rasapppostgresqldb",
+                ]
             interval: 5s
             timeout: 5s
             retries: 5

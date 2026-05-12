@@ -8,8 +8,8 @@ ENV LANG=C.UTF-8
 
 # Install Bun
 RUN curl -fsSL https://bun.sh/install | bash && \
-	mv /root/.bun/bin/bun /usr/local/bin/bun && \
-	rm -rf /root/.bun
+    mv /root/.bun/bin/bun /usr/local/bin/bun && \
+    rm -rf /root/.bun
 # Set working directory
 WORKDIR /ORMI-CORE
 # Copy all folders from the host to the container
@@ -17,9 +17,8 @@ COPY . .
 
 RUN bun install
 
-# NEXT_PUBLIC_APP_URL is inlined into the client bundle by Next.js at build time
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+# APP_URL is a server-only variable; it is NOT baked into the client bundle.
+# It is injected at container start via docker-compose environment.
 # Skip runtime env validation during build; server vars are injected at container start
 ENV SKIP_ENV_VALIDATION=1
 RUN bun run build

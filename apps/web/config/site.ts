@@ -21,7 +21,7 @@ export const siteConfig: SiteConfig = {
 		"RAS Lab",
 		"Department of Mechanics of Belgian Royal Military Academy",
 	],
-	url: env.NEXT_PUBLIC_APP_URL,
+	url: env.APP_URL,
 	icon: "/icon/ormi.svg",
 	ogImage: "opengraph-image.png",
 	manifest: "/manifest.webmanifest",

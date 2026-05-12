@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+    push:
+        branches:
+            - Master
+
+jobs:
+    push-image:
+        name: Build and Push Docker Image
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: Dockerfile.ormi_core
+                  push: true
+                  tags: ghcr.io/rma-robotics-autonomous-systems/ormi:latest
