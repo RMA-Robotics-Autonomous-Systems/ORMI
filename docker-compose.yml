@@ -19,7 +19,7 @@ services:
                 condition: service_healthy
 
     watchtower:
-        image: containrrr/watchtower
+        image: containrrr/watchtower:1.7.1
         restart: unless-stopped
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -27,6 +27,7 @@ services:
             WATCHTOWER_POLL_INTERVAL: 30
             WATCHTOWER_CLEANUP: true
             WATCHTOWER_SCOPE: ormi
+            DOCKER_API_VERSION: "1.45"
         command: --scope ormi
         labels:
             - com.centurylinklabs.watchtower.scope=ormi
