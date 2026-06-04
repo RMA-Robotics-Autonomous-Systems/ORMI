@@ -17,6 +17,7 @@ import type {
 	WorkerOutMessage,
 } from "../types.js";
 import { emitTempIdResolved } from "./sync-event-bus.js";
+import { v4 as uuidv4 } from "uuid";
 
 // ---------------------------------------------------------------------------
 // SyncClient options
@@ -141,7 +142,7 @@ export class SyncClient {
 		resource: string,
 		query: import("../types.js").LocalQuery,
 	): Promise<unknown> {
-		const requestId = crypto.randomUUID();
+		const requestId = uuidv4();
 		return new Promise<unknown>((resolve) => {
 			this._pendingRequests.set(requestId, resolve as RequestResolver);
 			this._post({ type: "LOCAL_READ", resource, query, requestId });
@@ -205,7 +206,7 @@ export class SyncClient {
 	}
 
 	private async _rehydratePendingCreates(): Promise<void> {
-		const requestId = crypto.randomUUID();
+		const requestId = uuidv4();
 		const creates = await new Promise<
 			Array<{ tempIdSlot: TempId; actionId: string }>
 		>((resolve) => {

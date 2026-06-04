@@ -4,6 +4,7 @@ import {
 	DatasourceDefinition,
 	DatasourceProviderSettings,
 } from "../../datasources/datasource-interface";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * Add a widget to the widgets map.
@@ -18,7 +19,7 @@ export function addWidget<TSettings extends Record<string, unknown>>(
 	widget: WidgetDefinition<TSettings>,
 	settings: TSettings,
 ): Map<string, Widget> {
-	const box_id = `component_${crypto.randomUUID()}`;
+	const box_id = `component_${uuidv4()}`;
 	let widget_title = widget.name;
 	if (widget.titleProp) {
 		widget_title = String(settings[widget.titleProp]);
@@ -98,7 +99,7 @@ export function addDatasource(
 	if (!datasourceDef) {
 		throw new Error(`Datasource ${datasourceId} not found`);
 	}
-	const id = `datasource_${crypto.randomUUID()}`;
+	const id = `datasource_${uuidv4()}`;
 	const datasource: Datasource = {
 		datasource_id: datasourceId,
 		title: settings?.title || "New Datasource",

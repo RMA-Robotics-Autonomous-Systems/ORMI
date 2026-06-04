@@ -9,6 +9,7 @@
 import type { ApiResult, Action, SyncConfig, TempId } from "../types.js";
 import { isTempId, makeTempId } from "../types.js";
 import type { SyncClient } from "../client/sync-client.js";
+import { v4 as uuidv4 } from "uuid";
 
 // ---------------------------------------------------------------------------
 // Re-export contract type for consumers
@@ -361,7 +362,7 @@ async function offlineMutation(
 	}
 
 	// Step 8: metadata
-	action.id = crypto.randomUUID();
+	action.id = uuidv4();
 	action.resource = config.resource;
 	action.enqueuedAt = Date.now();
 	action.status = "pending";

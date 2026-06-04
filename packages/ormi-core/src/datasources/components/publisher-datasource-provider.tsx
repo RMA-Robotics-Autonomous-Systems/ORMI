@@ -3,7 +3,7 @@
  * Publisher datasource provider for advertising and publishing topics.
  */
 
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { SelectedTopic } from "../datasource-interface";
 import { Spinner } from "@workspace/ui/components/spinner";
@@ -69,7 +69,18 @@ const PublisherDataSourcesProvider = (
 
 	const pluginsManager = usePluginsManager();
 
-	const Topics = SelectedTopics;
+	// Always keep a ref in sync so the effect closure reads the current topics
+	// without needing the array itself as a dependency.
+	const selectedTopicsRef = useRef(SelectedTopics);
+	selectedTopicsRef.current = SelectedTopics;
+
+	// Stable key: only changes when the actual topic set changes.
+	// Prevents the effect from re-running (and tearing down publishers) when
+	// a parent re-render passes a new array with the same topics.
+	const topicsKey = useMemo(
+		() => SelectedTopics.map((t) => `${t.source.id}:${t.topic}`).join(","),
+		[SelectedTopics],
+	);
 
 	const [publishers, setPublishers] = useState<Map<string, Publisher>>(
 		new Map(),
@@ -78,6 +89,8 @@ const PublisherDataSourcesProvider = (
 	const [initialized, setInitialized] = useState(false);
 
 	useEffect(() => {
+		const Topics = selectedTopicsRef.current;
+
 		// Differential update: only change what's actually different
 		const currentTopicKeys = new Set(
 			Array.from(publishersRef.current.keys()),
@@ -261,8 +274,8 @@ const PublisherDataSourcesProvider = (
 			setInitialized(false);
 		};
 
-		// Rerun effect if SelectedTopics change
-	}, [SelectedTopics, pluginsManager]);
+		// Rerun effect only when the topic set content changes, not on array reference churn.
+	}, [topicsKey, pluginsManager]);
 
 	return (
 		<PublisherDataSourcesContextProvider value={{ publishers }}>
