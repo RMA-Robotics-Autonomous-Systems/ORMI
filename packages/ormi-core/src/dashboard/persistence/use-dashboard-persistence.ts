@@ -13,7 +13,7 @@ import { DashboardInterface } from "../dashboard-interface";
 import { Widget } from "../../widgets/widget-interface";
 import { Datasource } from "../../datasources/datasource-interface";
 import { toast } from "sonner";
-
+import SHA256 from "crypto-js/sha256";
 // ---------------------------------------------------------------------------
 // Hash helper
 // ---------------------------------------------------------------------------
@@ -52,11 +52,7 @@ async function hashDashboardState(
 		},
 	);
 
-	const encoded = new TextEncoder().encode(stateString);
-	const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-	return Array.from(new Uint8Array(hashBuffer))
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("");
+	return SHA256(stateString).toString();
 }
 
 // ---------------------------------------------------------------------------
