@@ -8,12 +8,12 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"development": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsc --watch",
 		"lint": "eslint .",
 		"typecheck": "tsc --noEmit",
 		"clean": "rm -rf dist build .turbo node_modules"

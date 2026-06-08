@@ -25,7 +25,7 @@ import {
 	CardTitle,
 } from "@workspace/ui/components/card";
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
-import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
+import { workspaceApi } from "@/lib/api/workspace-api";
 
 interface CreateWSButtonProps {
 	onWorkspaceCreated?: (workspaceId: number | string) => void;

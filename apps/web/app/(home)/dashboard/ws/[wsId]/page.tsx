@@ -15,7 +15,7 @@ import {
 	handleUpdate as tu,
 } from "@/lib/data/prisma-templates";
 import { handleLoad, handleSave } from "@/lib/data/prisma-dashboard";
-import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
+import { workspaceApi } from "@/lib/api/workspace-api";
 import { useParams } from "next/navigation";
 
 export default function Page() {

@@ -30,7 +30,7 @@ import { MoreVertical, Loader2, Trash } from "lucide-react";
 import WorkspaceImport from "./workspace-import";
 
 import { handleDelete } from "@/lib/data/prisma-workspaces";
-import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
+import { workspaceApi } from "@/lib/api/workspace-api";
 
 async function deleteWorkspace(wsId: number) {
 	return await handleDelete(wsId);

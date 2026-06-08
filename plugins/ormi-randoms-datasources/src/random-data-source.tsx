@@ -35,7 +35,7 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 		let host: WorkerDatasourceHost<RandomDataSourceSettings> | null = null;
 
 		const worker = new Worker(
-			new URL("./random-data-source.worker.js", import.meta.url),
+			new URL("./random-data-source.worker", import.meta.url),
 			{
 				type: "module",
 				name: `datasource:${props.id}`,
