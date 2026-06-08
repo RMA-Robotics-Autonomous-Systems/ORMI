@@ -230,7 +230,9 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
 					{status}
 				</Badge>
 
-				{error && <span className="text-red-500 text-xs">{error}</span>}
+				{error && (
+					<span className="text-destructive text-xs">{error}</span>
+				)}
 
 				<div className="flex gap-1 ml-auto">
 					{!playId ? (

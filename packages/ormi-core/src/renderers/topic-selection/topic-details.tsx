@@ -94,9 +94,9 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 							<span>{topic.topic}</span>
 							{analysis &&
 								(analysis.isCompatible ? (
-									<CheckCircle2 className="w-5 h-5 text-green-500" />
+									<CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
 								) : (
-									<XCircle className="w-5 h-5 text-red-500" />
+									<XCircle className="w-5 h-5 text-destructive" />
 								))}
 						</CardTitle>
 					</CardHeader>
@@ -140,22 +140,22 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 									className={cn(
 										"p-3 rounded-lg border",
 										analysis.isCompatible
-											? "bg-green-50 border-green-200"
-											: "bg-red-50 border-red-200",
+											? "bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-800"
+											: "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800",
 									)}
 								>
 									<div className="flex items-center gap-2 mb-1">
 										{analysis.isCompatible ? (
-											<CheckCircle2 className="w-4 h-4 text-green-600" />
+											<CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
 										) : (
-											<XCircle className="w-4 h-4 text-red-600" />
+											<XCircle className="w-4 h-4 text-destructive" />
 										)}
 										<span
 											className={cn(
 												"text-sm font-medium",
 												analysis.isCompatible
-													? "text-green-700"
-													: "text-red-700",
+													? "text-green-600 dark:text-green-400"
+													: "text-destructive",
 											)}
 										>
 											{analysis.isCompatible
@@ -165,14 +165,14 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 									</div>
 
 									{analysis.directMatch && (
-										<p className="text-xs text-green-600">
+										<p className="text-xs text-green-600 dark:text-green-400">
 											Direct type match with requirements
 										</p>
 									)}
 
 									{analysis.compatibleProperties.length > 0 &&
 										!analysis.directMatch && (
-											<p className="text-xs text-green-600">
+											<p className="text-xs text-green-600 dark:text-green-400">
 												{
 													analysis
 														.compatibleProperties
@@ -183,7 +183,7 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 										)}
 
 									{analysis.reason && (
-										<p className="text-xs text-red-600">
+										<p className="text-xs text-destructive">
 											{analysis.reason}
 										</p>
 									)}
@@ -349,7 +349,8 @@ const PropertyTree: React.FC<PropertyTreeProps> = ({
 					className={cn(
 						"flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-muted/50",
 						isSelected && "bg-primary/10 border border-primary",
-						node.isCompatible && "text-green-700",
+						node.isCompatible &&
+							"text-green-600 dark:text-green-400",
 						depth > 0 && "ml-4",
 					)}
 					onClick={() => {
@@ -384,7 +385,7 @@ const PropertyTree: React.FC<PropertyTreeProps> = ({
 					)}
 
 					{node.isCompatible && (
-						<CheckCircle2 className="w-3 h-3 text-green-500" />
+						<CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" />
 					)}
 				</div>
 

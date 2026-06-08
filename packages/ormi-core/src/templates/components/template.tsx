@@ -81,14 +81,14 @@ export const TemplateComponent = (props: TemplateProps) => {
 	if (!template.widget || !template.widget.settings) {
 		return (
 			<div>
-				<p className="text-red-500">Invalid template data</p>
+				<p className="text-destructive">Invalid template data</p>
 				<Button
 					variant="destructive"
 					onClick={() => props.removeTemplate(templateId)}
 				>
 					Remove Template
 				</Button>
-				<p className="text-sm text-gray-500">
+				<p className="text-sm text-muted-foreground">
 					This template is missing widget settings or widget
 					definition.
 				</p>
@@ -99,7 +99,7 @@ export const TemplateComponent = (props: TemplateProps) => {
 	return (
 		<div
 			key={templateId}
-			className="flex items-center justify-between p-2 border-b border-gray-200"
+			className="flex items-center justify-between p-2 border-b border-border"
 		>
 			<div className="flex gap-2">
 				{template.name}

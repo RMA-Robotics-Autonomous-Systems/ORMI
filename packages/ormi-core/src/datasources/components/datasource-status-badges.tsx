@@ -48,26 +48,25 @@ export const DatasourceStatusBadges = (props: DatasourceStatusBadgesProps) => {
 	const statusConfig = {
 		connecting: {
 			icon: Loader2,
-			variant: "secondary" as const,
-			color: "text-blue-600",
+			className:
+				"border-transparent bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
 			label: "Connecting",
 		},
 		ready: {
 			icon: CheckIcon,
-			variant: "default" as const,
-			color: "text-green-600",
+			className:
+				"border-transparent bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
 			label: "Ready",
 		},
 		error: {
 			icon: AlertCircle,
-			variant: "destructive" as const,
-			color: "text-red-600",
+			className:
+				"border-transparent bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 			label: "Error",
 		},
 		disposed: {
 			icon: XCircle,
-			variant: "outline" as const,
-			color: "text-gray-600",
+			className: "border-transparent bg-muted text-muted-foreground",
 			label: "Disposed",
 		},
 	};
@@ -85,15 +84,13 @@ export const DatasourceStatusBadges = (props: DatasourceStatusBadgesProps) => {
 						<Tooltip key={ds.settings.id}>
 							<TooltipTrigger asChild>
 								<Badge
-									variant={config.variant}
-									className="gap-1"
+									variant="secondary"
+									className={`gap-1 ${config.className}`}
 								>
 									<Icon
-										className={`h-3 w-3 ${config.color} ${status === "connecting" ? "animate-spin" : ""}`}
+										className={`h-3 w-3 ${status === "connecting" ? "animate-spin" : ""}`}
 									/>
-									<span className={config.color}>
-										{ds.settings.title}
-									</span>
+									<span>{ds.settings.title}</span>
 								</Badge>
 							</TooltipTrigger>
 							<TooltipContent>

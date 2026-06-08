@@ -1,5 +1,5 @@
 import type { ApiResult } from "../http/client";
-import { syncedWorkspaceApi as workspaceApi } from "../sync/workspace-api";
+import { workspaceApi } from "./workspace-api";
 
 /**
  * Dashboard state structure
@@ -35,11 +35,18 @@ export const dashboardApi = {
 			return { ok: false, error: "Invalid workspace ID" };
 		}
 
-		// Convert Maps to objects for serialization
+		// Convert Maps to objects for serialization. Tolerate plain objects too:
+		// imported dashboards arrive as plain objects (the serialized shape), not Maps,
+		// and Object.fromEntries() throws on a non-iterable plain object.
+		const toRecord = (value: unknown): Record<string, unknown> =>
+			value instanceof Map
+				? (Object.fromEntries(value) as Record<string, unknown>)
+				: ((value as Record<string, unknown>) ?? {});
+
 		const dataToSave = {
 			...dashboardState,
-			widgets: Object.fromEntries(dashboardState.widgets),
-			datasources: Object.fromEntries(dashboardState.datasources),
+			widgets: toRecord(dashboardState.widgets),
+			datasources: toRecord(dashboardState.datasources),
 		};
 
 		const result = await workspaceApi.patch(parsedWorkspaceId, {

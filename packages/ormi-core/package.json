@@ -7,49 +7,53 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"development": "./src/index.ts",
 			"import": "./dist/index.js"
-		},
-		"./plugins": {
-			"types": "./dist/plugins/index.d.ts",
-			"import": "./dist/plugins/index.js"
 		},
 		"./datasources": {
 			"types": "./dist/datasources/index.d.ts",
+			"development": "./src/datasources/index.ts",
 			"import": "./dist/datasources/index.js"
 		},
 		"./datasources/worker": {
 			"types": "./dist/datasources/worker/index.d.ts",
+			"development": "./src/datasources/worker/index.ts",
 			"import": "./dist/datasources/worker/index.js"
 		},
 		"./widgets": {
 			"types": "./dist/widgets/index.d.ts",
+			"development": "./src/widgets/index.ts",
 			"import": "./dist/widgets/index.js"
 		},
 		"./dashboard": {
 			"types": "./dist/dashboard/index.d.ts",
+			"development": "./src/dashboard/index.ts",
 			"import": "./dist/dashboard/index.js"
 		},
 		"./templates": {
 			"types": "./dist/templates/index.d.ts",
+			"development": "./src/templates/index.ts",
 			"import": "./dist/templates/index.js"
 		},
 		"./types": {
 			"types": "./dist/types/index.d.ts",
+			"development": "./src/types/index.ts",
 			"import": "./dist/types/index.js"
 		},
 		"./renderers": {
 			"types": "./dist/renderers/index.d.ts",
+			"development": "./src/renderers/index.ts",
 			"import": "./dist/renderers/index.js"
 		},
 		"./transforms": {
 			"types": "./dist/transforms/index.d.ts",
+			"development": "./src/transforms/index.ts",
 			"import": "./dist/transforms/index.js"
 		},
 		"./flex-layout-theme.css": "./src/dashboard/components/flex-layout/flex-layout-theme.css"
 	},
 	"scripts": {
 		"build": "tsc && copyfiles -u 1 \"src/**/*.css\" dist && tsc-alias -p tsconfig.json",
-		"dev": "concurrently \"tsc --watch\" \"copyfiles -u 1 -w src/**/*.css dist\" \"tsc-alias -p tsconfig.json --watch\"",
 		"lint": "eslint .",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",

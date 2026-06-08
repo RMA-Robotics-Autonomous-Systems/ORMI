@@ -36,7 +36,7 @@ export class Db3ReaderHost {
 
 	constructor() {
 		this.worker = new Worker(
-			new URL("./db3-reader.worker.js", import.meta.url),
+			new URL("./db3-reader.worker", import.meta.url),
 			{ type: "module" },
 		);
 

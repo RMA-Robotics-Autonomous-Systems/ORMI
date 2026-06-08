@@ -38,7 +38,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { categoriesApi } from "@/lib/api/categories-api";
-import { syncedWorkspaceApi as workspaceApi } from "@/lib/sync/workspace-api";
+import { workspaceApi } from "@/lib/api/workspace-api";
 
 import { WorkspaceItem } from "../workspace-item";
 import { KanbanColumn } from "./column";

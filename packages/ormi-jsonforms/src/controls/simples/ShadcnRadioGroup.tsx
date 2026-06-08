@@ -84,7 +84,7 @@ export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 			<Label
 				className={cn(
 					"text-sm font-medium leading-none",
-					required && "after:text-red-500 after:content-['*']",
+					required && "after:text-destructive after:content-['*']",
 					!isValid && "text-destructive",
 				)}
 			>

@@ -73,7 +73,7 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 				htmlFor={id}
 				className={cn(
 					"text-sm font-medium leading-none",
-					required && "after:text-red-500 after:content-['*']",
+					required && "after:text-destructive after:content-['*']",
 				)}
 			>
 				{label}
@@ -89,7 +89,7 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 					step={schema.multipleOf || 1}
 					disabled={!enabled}
 					onValueChange={([value]) => handleChange(path, value)}
-					className={cn("flex-1", !isValid && "border-red-500")}
+					className={cn("flex-1", !isValid && "border-destructive")}
 				/>
 				<span className="text-sm">{schema.maximum || 100}</span>
 			</div>

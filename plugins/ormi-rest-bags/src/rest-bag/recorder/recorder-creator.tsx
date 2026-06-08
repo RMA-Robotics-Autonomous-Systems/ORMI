@@ -251,9 +251,9 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
 
 						{/* Success message */}
 						{success && (
-							<Alert className="mb-4 border-green-500 bg-green-50 text-green-800">
+							<Alert className="mb-4 border-green-500 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/40 dark:text-green-400">
 								<div className="flex items-start">
-									<CheckCircle className="h-5 w-5 mr-2 text-green-600 flex-shrink-0" />
+									<CheckCircle className="h-5 w-5 mr-2 text-green-600 dark:text-green-400 flex-shrink-0" />
 									<div>
 										<AlertTitle className="font-semibold mb-1">
 											Success

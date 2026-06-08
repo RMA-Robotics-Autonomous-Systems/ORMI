@@ -117,18 +117,23 @@ function createRGBATexture(
 	opacity: number,
 	showUnknown: boolean,
 ): Uint8ClampedArray {
-	const rgba = new Uint8ClampedArray(data.length * 4);
+	// Rotate 90° clockwise: a width×height grid becomes a height×width image.
+	// The destination stride is the rotated row length (= height), and the
+	// caller sizes the canvas height×width to match. Using `width` as the
+	// stride (the previous behaviour) overflowed and scrambled non-square grids.
+	const outWidth = height;
+	const outHeight = width;
+	const rgba = new Uint8ClampedArray(outWidth * outHeight * 4);
 
-	// Rotate 90 degrees clockwise
 	for (let row = 0; row < height; row++) {
 		for (let col = 0; col < width; col++) {
 			const srcIdx = row * width + col;
 
-			// After 90 degrees clockwise: (col, height-1-row)
-			const newRow = col;
-			const newCol = height - 1 - row;
+			// Destination pixel in the rotated (height×width) image.
+			const dstCol = height - 1 - row;
+			const dstRow = col;
+			const dstIdx = dstRow * outWidth + dstCol;
 
-			const dstIdx = newRow * width + newCol;
 			const cell = data[srcIdx] ?? 255;
 			const [r, g, b, a] = toRgba(cell, mode, opacity, showUnknown);
 			rgba[dstIdx * 4 + 0] = r;
@@ -224,18 +229,20 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 			gridState.resolution !== resolution
 		) {
 			geometryRef.current?.dispose();
-			// Create plane in XZ plane
+			// Create plane in XZ plane. The upstream ROS→Three conversion swaps
+			// ROS x↔Three z and ROS y↔Three x, so the grid width spans Three-Z
+			// and the grid height spans Three-X (the plane is transposed).
 			const geo = new THREE.PlaneGeometry(
-				width * resolution,
 				height * resolution,
+				width * resolution,
 			);
 			// Rotate to lay flat in XZ plane
 			geo.rotateX(Math.PI / 2);
 			// Move corner (0,0) to world origin: offset by half the plane size
 			geo.translate(
-				-(width * resolution) / 2,
-				0,
 				-(height * resolution) / 2,
+				0,
+				-(width * resolution) / 2,
 			);
 			geometryRef.current = geo;
 			setGridState({ width, height, resolution });
@@ -260,12 +267,12 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 				showUnknown,
 			);
 			const canvas = document.createElement("canvas");
-			canvas.width = width;
-			canvas.height = height;
+			canvas.width = height;
+			canvas.height = width;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) throw new Error("Could not get canvas context");
 
-			const imageData = ctx.createImageData(width, height);
+			const imageData = ctx.createImageData(height, width);
 			imageData.data.set(rgbaData);
 			ctx.putImageData(imageData, 0, 0);
 

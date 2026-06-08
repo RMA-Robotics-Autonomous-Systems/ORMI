@@ -168,7 +168,7 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 		let unsubscribe: (() => void) | null = null;
 
 		const worker = new Worker(
-			new URL("./foxglove-source.worker.js", import.meta.url),
+			new URL("./foxglove-source.worker", import.meta.url),
 			{
 				type: "module",
 				name: `datasource:${settings.id}`,

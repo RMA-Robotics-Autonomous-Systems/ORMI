@@ -793,14 +793,14 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600">
+														<span className="font-mono text-green-600 dark:text-green-400">
 															{
 																detectionQuality
 																	.mad.tp
 															}
 														</span>
 														{" / FP: "}
-														<span className="font-mono text-red-500">
+														<span className="font-mono text-destructive">
 															{
 																detectionQuality
 																	.mad.fp
@@ -828,14 +828,14 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600">
+														<span className="font-mono text-green-600 dark:text-green-400">
 															{
 																detectionQuality
 																	.rsd.tp
 															}
 														</span>
 														{" / FP: "}
-														<span className="font-mono text-red-500">
+														<span className="font-mono text-destructive">
 															{
 																detectionQuality
 																	.rsd.fp
@@ -863,14 +863,14 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600">
+														<span className="font-mono text-green-600 dark:text-green-400">
 															{
 																detectionQuality
 																	.cusum.tp
 															}
 														</span>
 														{" / FP: "}
-														<span className="font-mono text-red-500">
+														<span className="font-mono text-destructive">
 															{
 																detectionQuality
 																	.cusum.fp

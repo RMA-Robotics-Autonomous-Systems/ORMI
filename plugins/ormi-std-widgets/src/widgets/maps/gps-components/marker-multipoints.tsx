@@ -246,7 +246,7 @@ export default function MultiPoints(props: {
 					anchor="bottom"
 					offset={[0, -10]}
 				>
-					<div className="rounded-lg shadow-md p-3 bg-white text-gray-800">
+					<div className="rounded-lg shadow-md p-3 bg-card text-card-foreground">
 						<h3 className="font-semibold text-sm mb-1">
 							Data Point
 						</h3>

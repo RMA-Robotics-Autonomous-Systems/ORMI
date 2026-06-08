@@ -50,7 +50,7 @@ export const TopicsList = ({
 			<div className="space-y-3 flex gap-3 flex-col">
 				{topics.length === 0 ? (
 					<div className="text-center py-3 border border-dashed rounded-md">
-						<p className="text-sm text-gray-500">
+						<p className="text-sm text-muted-foreground">
 							No topics added.
 						</p>
 					</div>

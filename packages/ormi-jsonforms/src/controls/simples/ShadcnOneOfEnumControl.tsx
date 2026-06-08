@@ -78,7 +78,7 @@ const ShadcnSelect = ({
 		disabled={!enabled}
 	>
 		<SelectTrigger
-			className={cn("w-full", errors.length > 0 && "border-red-500")}
+			className={cn("w-full", errors.length > 0 && "border-destructive")}
 		>
 			<SelectValue placeholder={label} />
 		</SelectTrigger>
@@ -112,7 +112,7 @@ const ShadcnCombobox = ({
 					aria-expanded={open}
 					className={cn(
 						"w-full justify-between",
-						errors.length > 0 && "border-red-500",
+						errors.length > 0 && "border-destructive",
 					)}
 					disabled={!enabled}
 				>

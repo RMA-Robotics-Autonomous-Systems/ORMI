@@ -17,12 +17,12 @@ export default async function Page() {
 						<div className="flex justify-between items-center">
 							<div className="flex gap-3 items-center">
 								<h3 className="font-medium">{value.name}</h3>
-								<span className="text-sm text-gray-500">
+								<span className="text-sm text-muted-foreground">
 									{value.version}
 								</span>
 							</div>
 						</div>
-						<p className="mt-2 text-gray-700">
+						<p className="mt-2 text-foreground">
 							{value.description}
 						</p>
 					</div>

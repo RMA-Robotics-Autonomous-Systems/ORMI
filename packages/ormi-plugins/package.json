@@ -7,12 +7,12 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
+			"development": "./src/index.ts",
 			"import": "./dist/index.js"
 		}
 	},
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsc --watch",
 		"lint": "eslint .",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",
