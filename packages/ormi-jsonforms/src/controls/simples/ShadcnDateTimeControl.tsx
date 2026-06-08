@@ -109,7 +109,7 @@ const ShadcnDateTimeControl = ({
 							className={cn(
 								"w-[260px] justify-start text-left font-normal",
 								!date && "text-muted-foreground",
-								!isValid && "border-red-500",
+								!isValid && "border-destructive",
 							)}
 							disabled={!enabled}
 						>
@@ -134,7 +134,10 @@ const ShadcnDateTimeControl = ({
 
 				<Input
 					type="time"
-					className={cn("w-[140px]", !isValid && "border-red-500")}
+					className={cn(
+						"w-[140px]",
+						!isValid && "border-destructive",
+					)}
 					value={date ? format(date, "HH:mm") : ""}
 					onChange={handleTimeChange}
 					disabled={!enabled || !date}

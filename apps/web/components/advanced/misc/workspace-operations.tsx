@@ -159,7 +159,7 @@ export function WorkspaceOperations({
 									router.refresh();
 								}
 							}}
-							className="bg-red-600 focus:ring-red-600"
+							className="bg-destructive focus:ring-destructive"
 						>
 							{isDeleteLoading ? (
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />

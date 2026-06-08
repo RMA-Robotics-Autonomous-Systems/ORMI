@@ -263,7 +263,7 @@ export function JoypadControls(props: JoypadControlsProps) {
                             bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
-                            data-[active=true]:bg-green-600/20
+                            data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
                         "
 						onMouseUp={handleUnlockInactive}
@@ -271,9 +271,9 @@ export function JoypadControls(props: JoypadControlsProps) {
 						style={{ padding: "0.25rem 0.5rem", cursor: "pointer" }}
 					>
 						{isLocked ? (
-							<LockIcon className="text-red-500 w-4 h-4 sm:w-5 sm:h-5" />
+							<LockIcon className="text-destructive w-4 h-4 sm:w-5 sm:h-5" />
 						) : (
-							<UnlockIcon className="text-green-500 w-4 h-4 sm:w-5 sm:h-5" />
+							<UnlockIcon className="text-green-600 dark:text-green-400 w-4 h-4 sm:w-5 sm:h-5" />
 						)}
 					</div>
 
@@ -283,7 +283,7 @@ export function JoypadControls(props: JoypadControlsProps) {
                             bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
                             flex justify-center items-center select-none cursor-pointer
                             hover:bg-black/20 transition-all duration-100
-                            data-[active=true]:bg-green-600/20
+                            data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
                         "
 						style={{ padding: "0.25rem 0.5rem" }}
@@ -354,7 +354,7 @@ export function JoypadControls(props: JoypadControlsProps) {
 											/>
 										</div>
 									</div>
-									<div className="mt-1 sm:mt-2 h-1 sm:h-2 w-full bg-gray-200 rounded">
+									<div className="mt-1 sm:mt-2 h-1 sm:h-2 w-full bg-muted rounded">
 										<div
 											className="h-full bg-blue-500 rounded transition-all duration-150"
 											style={{

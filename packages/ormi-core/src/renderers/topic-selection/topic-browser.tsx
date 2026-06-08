@@ -64,13 +64,15 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	const getCompatibilityIcon = (status: string) => {
 		switch (status) {
 			case "compatible":
-				return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+				return (
+					<CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+				);
 			case "incompatible":
-				return <XCircle className="w-4 h-4 text-red-500" />;
+				return <XCircle className="w-4 h-4 text-destructive" />;
 			case "analyzing":
 				return <Spinner className="w-4 h-4" />;
 			default:
-				return <Info className="w-4 h-4 text-gray-400" />;
+				return <Info className="w-4 h-4 text-muted-foreground" />;
 		}
 	};
 
@@ -108,7 +110,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	const getConnectionStatus = (topic: DatasourceTopic) => {
 		// This could be enhanced to show actual connection status
 		// For now, assume all topics are connected if they're in the list
-		return <Wifi className="w-3 h-3 text-green-500" />;
+		return <Wifi className="w-3 h-3 text-green-600 dark:text-green-400" />;
 	};
 
 	if (isLoading) {
@@ -246,7 +248,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 								{requirements &&
 									compatibilityStatus === "compatible" && (
 										<div className="mt-2 pt-2 border-t">
-											<div className="text-xs text-green-600">
+											<div className="text-xs text-green-600 dark:text-green-400">
 												✓ Compatible with requirements
 											</div>
 										</div>
@@ -255,7 +257,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 								{requirements &&
 									compatibilityStatus === "incompatible" && (
 										<div className="mt-2 pt-2 border-t">
-											<div className="text-xs text-red-600">
+											<div className="text-xs text-destructive">
 												✗ Not compatible
 											</div>
 										</div>

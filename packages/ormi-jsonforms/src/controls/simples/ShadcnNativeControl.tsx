@@ -82,7 +82,7 @@ export const ShadcnNativeControl = (props: ControlProps) => {
 				htmlFor={id + "-input"}
 				className={cn(
 					"text-sm font-medium leading-none",
-					required && "after:text-red-500 after:content-['*']",
+					required && "after:text-destructive after:content-['*']",
 				)}
 			>
 				{label}
@@ -93,7 +93,7 @@ export const ShadcnNativeControl = (props: ControlProps) => {
 				disabled={!enabled}
 				className={cn(
 					"w-full",
-					!isValid && "border-red-500",
+					!isValid && "border-destructive",
 					!appliedUiSchemaOptions.trim && "w-full",
 				)}
 				value={inputValue}

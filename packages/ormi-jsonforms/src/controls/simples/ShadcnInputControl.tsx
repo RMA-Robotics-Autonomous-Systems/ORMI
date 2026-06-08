@@ -76,14 +76,14 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 				htmlFor={id}
 				className={cn(
 					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-					required && "after:text-red-500 after:content-['*']",
+					required && "after:text-destructive after:content-['*']",
 				)}
 			>
 				{label}
 			</Label>
 
 			<InnerComponent
-				className={cn("w-full", !isValid && "border-red-500")}
+				className={cn("w-full", !isValid && "border-destructive")}
 				{...props}
 			/>
 

@@ -80,7 +80,7 @@ export const ShadcnDateControl = ({
 						className={cn(
 							"w-full justify-start text-left font-normal",
 							!data && "text-muted-foreground",
-							!isValid && "border-red-500",
+							!isValid && "border-destructive",
 						)}
 						disabled={!enabled}
 					>

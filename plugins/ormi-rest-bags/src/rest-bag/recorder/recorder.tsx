@@ -150,7 +150,7 @@ export const Recorder = (props: RecorderProps) => {
 				)}
 
 				{stopError && (
-					<div className="text-red-500 text-xs">{stopError}</div>
+					<div className="text-destructive text-xs">{stopError}</div>
 				)}
 
 				<Dialog>

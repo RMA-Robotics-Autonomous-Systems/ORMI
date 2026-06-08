@@ -95,7 +95,7 @@ export const TopicSelector = ({
 	};
 
 	return (
-		<div className="grid grid-cols-12 gap-2 p-3 border rounded-md bg-gray-50">
+		<div className="grid grid-cols-12 gap-2 p-3 border rounded-md bg-muted">
 			{/* Topic Name Field with Autocomplete */}
 			<div className="col-span-5">
 				<Label htmlFor={`topic-name-${index}`} className="text-xs">
@@ -150,7 +150,7 @@ export const TopicSelector = ({
 							>
 								{getFilteredTopics().length === 0 ? (
 									<div className="py-6 text-center">
-										<p className="text-sm text-gray-500">
+										<p className="text-sm text-muted-foreground">
 											No topics found
 										</p>
 									</div>
@@ -159,9 +159,9 @@ export const TopicSelector = ({
 										<div
 											key={t.name}
 											className={cn(
-												"flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-gray-100",
+												"flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
 												topic.name === t.name
-													? "bg-gray-100"
+													? "bg-accent"
 													: "",
 											)}
 											onClick={() => {
@@ -248,7 +248,7 @@ export const TopicSelector = ({
 							>
 								{getFilteredTypes().length === 0 ? (
 									<div className="py-6 text-center">
-										<p className="text-sm text-gray-500">
+										<p className="text-sm text-muted-foreground">
 											No types found
 										</p>
 									</div>
@@ -257,9 +257,9 @@ export const TopicSelector = ({
 										<div
 											key={type}
 											className={cn(
-												"flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-gray-100",
+												"flex items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
 												topic.type === type
-													? "bg-gray-100"
+													? "bg-accent"
 													: "",
 											)}
 											onClick={() => {
@@ -297,7 +297,7 @@ export const TopicSelector = ({
 					variant="ghost"
 					size="icon"
 					onClick={() => onRemoveTopic(index)}
-					className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+					className="h-8 w-8 text-destructive hover:bg-destructive/10"
 				>
 					<TrashIcon className="h-4 w-4" />
 				</Button>

@@ -318,7 +318,9 @@ const BagList = (props: BagListProps) => {
 				/>
 			</div>
 
-			{loading && <p className="text-gray-500">Loading bags...</p>}
+			{loading && (
+				<p className="text-muted-foreground">Loading bags...</p>
+			)}
 
 			{error && (
 				<Alert
@@ -333,7 +335,7 @@ const BagList = (props: BagListProps) => {
 			)}
 
 			{!loading && filteredBags.length === 0 && !error && (
-				<p className="text-gray-500">
+				<p className="text-muted-foreground">
 					{bags.length === 0
 						? "No bags found."
 						: "No bags match your search."}
@@ -355,7 +357,7 @@ const BagList = (props: BagListProps) => {
 								<div className="flex flex-wrap gap-1 sm:gap-2">
 									{deleteConfirm === bag.name ? (
 										<div className="flex items-center space-x-1 sm:space-x-2">
-											<span className="text-xs sm:text-sm text-red-500">
+											<span className="text-xs sm:text-sm text-destructive">
 												Confirm?
 											</span>
 											<Button
@@ -459,7 +461,7 @@ const BagList = (props: BagListProps) => {
 												}
 												variant="outline"
 												size="sm"
-												className="text-red-600 hover:bg-red-100 h-7 w-7 sm:h-8 sm:w-8 p-0"
+												className="text-destructive hover:bg-destructive/10 h-7 w-7 sm:h-8 sm:w-8 p-0"
 												title="Delete bag"
 											>
 												<Trash2 size={14} />
@@ -502,7 +504,7 @@ const BagList = (props: BagListProps) => {
 								<div className="text-xs sm:text-sm min-w-0 flex-1">
 									<div className="flex flex-col gap-1">
 										<div className="truncate">
-											<span className="font-medium text-gray-600">
+											<span className="font-medium text-muted-foreground">
 												Path:
 											</span>{" "}
 											<span className="break-all">
@@ -510,7 +512,7 @@ const BagList = (props: BagListProps) => {
 											</span>
 										</div>
 										<div>
-											<span className="font-medium text-gray-600">
+											<span className="font-medium text-muted-foreground">
 												Start:
 											</span>{" "}
 											<span className="break-all">

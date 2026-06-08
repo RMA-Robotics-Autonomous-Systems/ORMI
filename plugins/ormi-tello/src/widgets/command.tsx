@@ -129,7 +129,7 @@ export function TelloCommandsControl(props: TelloCommandsControlData) {
 	};
 
 	const keyStyleNames =
-		"bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 flex justify-center items-center select-none hover:bg-black/20 hover:scale-110 hover:cursor-pointer data-[active=true]:bg-green-600/20 data-[active=true]:scale-110 transition-all duration-100";
+		"bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 flex justify-center items-center select-none hover:bg-black/20 hover:scale-110 hover:cursor-pointer data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20 data-[active=true]:scale-110 transition-all duration-100";
 
 	return (
 		<div

@@ -354,13 +354,13 @@ export default function TeodorEmiMap(props: {
 					anchor="bottom"
 					offset={[0, -10]}
 				>
-					<div className="rounded-lg shadow-md p-3 bg-white text-gray-800">
+					<div className="rounded-lg shadow-md p-3 bg-card text-card-foreground">
 						<h3 className="font-semibold text-sm mb-1">
 							EMI Sensor {hoveredPoint.sensorId}
 						</h3>
 						{hoveredPoint.alert && (
 							<div className="flex items-center space-x-2 mb-2">
-								<span className="text-xs font-bold text-red-600">
+								<span className="text-xs font-bold text-destructive">
 									⚠️ ALERT
 								</span>
 							</div>

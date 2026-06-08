@@ -83,7 +83,7 @@ export const DatasourceTemplateComponent = (props: DatasourceTemplateProps) => {
 	return (
 		<div
 			key={templateId}
-			className="flex items-center justify-between p-2 border-b border-gray-200"
+			className="flex items-center justify-between p-2 border-b border-border"
 		>
 			<div className="flex gap-2">
 				{template.name}

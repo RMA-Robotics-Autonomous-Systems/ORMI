@@ -368,14 +368,14 @@ const WebSocketStatusOverlay: React.FC<WebSocketStatusOverlayProps> = ({
 	const isError = status === WebSocketStatus.ERROR;
 
 	return (
-		<div className="inset-0 z-50 flex items-center justify-center bg-white/90">
+		<div className="inset-0 z-50 flex items-center justify-center bg-background/90">
 			<div className="flex flex-col items-center gap-3">
 				{isError ? (
-					<div className="text-red-500 text-2xl">⚠️</div>
+					<div className="text-destructive text-2xl">⚠️</div>
 				) : (
 					<Spinner size={24} />
 				)}
-				<p className="text-sm font-medium text-gray-700">
+				<p className="text-sm font-medium text-foreground">
 					{getStatusMessage()}
 				</p>
 			</div>
