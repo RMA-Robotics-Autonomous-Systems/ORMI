@@ -32,6 +32,18 @@ interface PathLineRendererProps extends Record<string, unknown> {
 	lineColor: string;
 }
 
+/**
+ * three.js latches an instanced geometry's draw cap (`_maxInstanceCount`) on its
+ * first render and never grows it afterwards. This `LineGeometry` is created once
+ * and reused across path updates, and its first render is the cleared/short line —
+ * so without clearing the cap the path stays permanently truncated to those initial
+ * few segments. Resetting it lets the renderer redraw the full current path.
+ */
+function resetInstanceCap(geometry: LineGeometry): void {
+	(geometry as unknown as { _maxInstanceCount?: number })._maxInstanceCount =
+		undefined;
+}
+
 const buildTransformMatrix = (
 	transformChain: Transform[] | undefined,
 	fallbackConvention: CoordinateConvention,
@@ -198,6 +210,9 @@ export const PathLineRenderer = ({
 		}
 
 		geometry.setPositions(positions.subarray(0, usedPoseCount * 3));
+		// The point count changes every update; clear the latched instance cap so the
+		// full current path renders instead of being truncated to the initial segments.
+		resetInstanceCap(geometry);
 		geometry.setDrawRange(0, usedPoseCount);
 		geometry.computeBoundingSphere();
 	}, [source, targetFrame, transformsTrees, geometry, material]);
