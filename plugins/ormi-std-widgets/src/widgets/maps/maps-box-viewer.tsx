@@ -670,9 +670,12 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 			def: WidgetDefinition<MapsViewerSettings>,
 			pluginsManager: PluginsManager,
 		) => {
+			// Seed with a fresh copy: "std-widgets-map-type" filters mutate the array
+			// in place (per the plugin filter contract), so passing the shared
+			// `defaultMapTypes` would accumulate duplicates across every hook run.
 			const mapTypes = pluginsManager.applyFilter<string[]>(
 				"std-widgets-map-type",
-				defaultMapTypes,
+				[...defaultMapTypes],
 			);
 
 			// Update the makerType enum in topics items schema
@@ -718,7 +721,8 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 										string,
 										unknown
 									>;
-								makerType.enum = mapTypes;
+								// Dedupe defensively in case two plugins register the same type.
+								makerType.enum = [...new Set(mapTypes)];
 							}
 						}
 					}
