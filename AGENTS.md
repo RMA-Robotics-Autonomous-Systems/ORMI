@@ -287,9 +287,9 @@ const data = await res.json();
 
 ## Reference Docs (review before changes)
 
-- Data flow: [apps/web/content/docs/v1/core/data-flow.md](apps/web/content/docs/v1/core/data-flow.md)
-- Plugin system: [apps/web/content/docs/v1/core/plugin-system.md](apps/web/content/docs/v1/core/plugin-system.md)
-- Widgets system: [apps/web/content/docs/v1/core/widgets.md](apps/web/content/docs/v1/core/widgets.md)
+- Data flow: [apps/web/content/docs/Data-Flow.md](apps/web/content/docs/Data-Flow.md)
+- Plugin system: [apps/web/content/docs/Plugin-System.md](apps/web/content/docs/Plugin-System.md)
+- Widgets system: [apps/web/content/docs/Widgets.md](apps/web/content/docs/Widgets.md)
 - Harmonization report: [HARMONIZATION_REPORT.md](HARMONIZATION_REPORT.md)
 
 ## Workflow

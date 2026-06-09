@@ -29,7 +29,7 @@ Configuration comes from `docker-compose.yml` / env vars. Never hardcode secrets
 Before writing code:
 
 1. Read `AGENTS.md` — especially the 9 implementation patterns and the Core Immutability Rule.
-2. Read the relevant docs in `apps/web/content/docs/v1/core/` when touching the data-flow, plugin, or widget systems.
+2. Read the relevant docs in `apps/web/content/docs/` (the GitHub-wiki submodule) when touching the data-flow, plugin, or widget systems.
 3. Read nearby existing code (a sibling plugin, the target route, the relevant server helper) to follow local conventions.
 4. Decide whether the task is already fully specified by existing rules and code.
 
