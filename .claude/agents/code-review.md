@@ -21,7 +21,7 @@ Follow in order before writing any findings:
 
 1. **Read `AGENTS.md` in full** (the imported engineering rulebook) before reviewing any file — especially the 9 implementation patterns, the Core Immutability Rule, and the placement rules.
 2. Read every target file completely before forming conclusions.
-3. Read relevant core docs when the change touches the pipeline: `apps/web/content/docs/v1/core/{data-flow,plugin-system,widgets}.md`.
+3. Read relevant core docs when the change touches the pipeline: `apps/web/content/docs/{Data-Flow,Plugin-System,Widgets}.md`.
 4. If the review spans multiple files, compare implementations of the same concern across all files in scope before concluding.
 5. Only report findings you can support with direct evidence from code in scope.
 

@@ -31,7 +31,7 @@ ORMI is a plugin-based robotics dashboard: a Next.js app renders customizable wi
 
 1. Read the relevant context first:
     - `AGENTS.md` — always (monorepo rules, the 9 patterns, placement, Core Immutability, workflow).
-    - `apps/web/content/docs/v1/core/data-flow.md`, `plugin-system.md`, `widgets.md` — for anything touching the plugin/widget/datasource pipeline.
+    - `apps/web/content/docs/Data-Flow.md`, `Plugin-System.md`, `Widgets.md` — for anything touching the plugin/widget/datasource pipeline.
     - Nearby existing plugins/packages for established conventions (e.g. `plugins/ormi-std-widgets`, `plugins/ormi-rosbridge-suite`).
 2. Determine correct placement (apps vs packages vs plugins) and whether any core change is implied.
 3. Identify conflicts with existing patterns or the 9 implementation patterns.
@@ -42,7 +42,7 @@ ORMI is a plugin-based robotics dashboard: a Next.js app renders customizable wi
 ## Decision Ownership
 
 - **`AGENTS.md`** — new mandatory patterns/anti-patterns, placement rules, conventions, Definition-of-Done changes.
-- **`apps/web/content/docs/v1/core/*`** — core architecture, data flow, plugin-system, and widget-system documentation. Update these when a core change is approved.
+- **`apps/web/content/docs/*`** (the GitHub-wiki submodule) — core architecture, data flow, plugin-system, and widget-system documentation. Update these when a core change is approved.
 - **Plugin/package READMEs** — feature-local decisions scoped to one extension.
 
 ## ORMI Design Principles
