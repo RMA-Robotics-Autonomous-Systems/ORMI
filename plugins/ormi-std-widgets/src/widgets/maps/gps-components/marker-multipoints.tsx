@@ -81,15 +81,17 @@ export default function MultiPoints(props: {
 		setButtonItem(
 			getSourceId(props.topic),
 			<Button
-				variant={"ghost"}
+				variant="ghost"
+				size="icon"
+				className="h-6 w-6"
 				onClick={() => {
 					setShow(!show);
 				}}
 			>
 				{show ? (
-					<EyeIcon className="h-4 w-4" />
+					<EyeIcon className="h-3 w-3" />
 				) : (
-					<EyeClosedIcon className="h-4 w-4" />
+					<EyeClosedIcon className="h-3 w-3" />
 				)}
 			</Button>,
 			1,

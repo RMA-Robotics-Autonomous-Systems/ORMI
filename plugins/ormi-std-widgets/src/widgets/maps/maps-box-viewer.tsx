@@ -4,7 +4,6 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import MapLibreMap, { MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ControlElement, Categorization } from "@jsonforms/core";
-import { CustomLayersOverlay } from "./layers-overlay";
 import MapsGrid, { useMapGrid } from "./gps-components/maps-grid";
 
 import { MapIcon } from "lucide-react";
@@ -159,10 +158,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					{/* Grid overlay */}
 					<MapsGrid mapRef={mapRef} showGrid={showGrid} />
 
-					{/* GPS Topics Layer */}
+					{/* GPS Topics Layer (also hosts the consolidated control panel) */}
 					<GpsTopicsLayer
 						topics={props.topics || []}
 						mapRef={mapRef}
+						customLayers={customLayersState}
+						onLayerVisibilityChange={handleLayerVisibilityChange}
+						onLayerOpacityChange={handleLayerOpacityChange}
 					/>
 
 					{/* Local Topics Layer */}
@@ -171,14 +173,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 							...(props.localTopics?.pathTopics || []),
 							...(props.localTopics?.imuTopics || []),
 						]}
-					/>
-
-					{/* Custom Layers Overlay */}
-					<CustomLayersOverlay
-						customLayers={customLayersState}
-						mapRef={mapRef}
-						onLayerVisibilityChange={handleLayerVisibilityChange}
-						onLayerOpacityChange={handleLayerOpacityChange}
 					/>
 				</MapLibreMap>
 			</WidgetScopeProvider>

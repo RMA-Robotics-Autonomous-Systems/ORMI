@@ -21,14 +21,6 @@ const nextConfig = {
 	// Our worker assets are loaded via URL + fetch, so we do not need the
 	// webpack-only asyncWebAssembly experiment here.
 	turbopack: {},
-	async rewrites() {
-		return [
-			{
-				source: "/api/dicebear/:path*",
-				destination: "https://api.dicebear.com/:path*",
-			},
-		];
-	},
 	images: {
 		localPatterns: [
 			{
@@ -39,17 +31,6 @@ const nextConfig = {
 			},
 			{
 				pathname: "/wallpaper/**",
-			},
-			{
-				pathname: "/api/dicebear/**",
-			},
-		],
-		remotePatterns: [
-			{
-				protocol: "https",
-				hostname: "api.dicebear.com",
-				port: "",
-				pathname: "/9.x/**",
 			},
 		],
 		dangerouslyAllowSVG: true,
