@@ -9,6 +9,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
@@ -29,7 +30,7 @@ interface IntStatusIndicatorProps extends Record<string, unknown> {
  * @returns React element.
  */
 function IntStatusIndicator(props: IntStatusIndicatorProps) {
-	const { sources } = useLocalDataSource();
+	const { sources, health } = useLocalDataSource();
 
 	const sources_keys = Array.from(sources.keys());
 	const value =
@@ -56,27 +57,29 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
 	};
 
 	return (
-		<div
-			style={{
-				backgroundColor: statu.color,
-				color: "white",
-				height: "100%",
-				width: "100%",
-				display: "grid",
-				alignItems: "center",
-				justifyContent: "center",
-				fontSize: "xxx-large",
-				transition: "all 0.5s ease",
-			}}
-		>
-			<TypeAnimation
-				speed={75}
-				cursor={false}
-				key={statu.name}
-				sequence={[statu.name]}
-				repeat={1}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				style={{
+					backgroundColor: statu.color,
+					color: "white",
+					height: "100%",
+					width: "100%",
+					display: "grid",
+					alignItems: "center",
+					justifyContent: "center",
+					fontSize: "xxx-large",
+					transition: "all 0.5s ease",
+				}}
+			>
+				<TypeAnimation
+					speed={75}
+					cursor={false}
+					key={statu.name}
+					sequence={[statu.name]}
+					repeat={1}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 

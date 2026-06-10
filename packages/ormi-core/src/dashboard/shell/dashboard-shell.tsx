@@ -10,7 +10,7 @@ import {
 	useDashboardPersistence,
 	PersistenceOptions,
 } from "../persistence/use-dashboard-persistence";
-import { Spinner } from "@workspace/ui/components/spinner";
+import { DashboardSkeleton } from "@workspace/ui/components/dashboard-skeleton";
 import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
 import { createSafeContext } from "@workspace/utils";
 import {
@@ -74,6 +74,14 @@ export interface DashboardShellProps {
 	onLoad: PersistenceOptions["onLoad"];
 	/** Save callback from the page. Receives the current state and returns success. */
 	onSave: PersistenceOptions["onSave"];
+	/**
+	 * Set by the page while its own initial fetch (e.g. workspace metadata that
+	 * resolves `dashboardType`) is still pending. The shell keeps showing the
+	 * loading skeleton until this is false AND persistence has initialized, so
+	 * the two fetches resolve in parallel behind a single, continuous skeleton.
+	 * Defaults to false (no external pending work).
+	 */
+	loading?: boolean;
 	/** Page-level providers (TemplatesProvider, GlobalDataSourcesProvider, WidgetsDialog, etc.). Can be ReactNode or render function. */
 	children:
 		| ReactNode
@@ -94,6 +102,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	dashboardType,
 	onLoad,
 	onSave,
+	loading = false,
 	children,
 }) => {
 	const pluginsManager = usePluginsManager() as PluginsManager;
@@ -181,12 +190,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 		engineDefinitions,
 	};
 
-	if (!initialized) {
-		return (
-			<div className="w-full h-full flex items-center justify-center">
-				<Spinner />
-			</div>
-		);
+	// One continuous skeleton until everything needed to render the dashboard is
+	// ready: the page's initial fetch has settled AND persistence has loaded.
+	// Persistence loading runs while `loading` is still true, so the two waits
+	// overlap instead of stacking.
+	if (loading || !initialized) {
+		return <DashboardSkeleton />;
 	}
 
 	return (

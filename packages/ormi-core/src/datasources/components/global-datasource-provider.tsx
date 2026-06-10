@@ -9,6 +9,7 @@ import {
 	Datasource,
 	DatasourceDefinition,
 	DatasourceProviderSettings,
+	DatasourceStatus,
 } from "../datasource-interface";
 import { useDashboardActions } from "../../dashboard";
 import { useAtomValue } from "jotai";
@@ -39,9 +40,6 @@ import { DatasourceStatusBadges } from "./datasource-status-badges";
 import { CheckIcon, CloudCogIcon, XCircle } from "lucide-react";
 import { Template, useTemplates } from "../../templates";
 import { createSafeContext } from "@workspace/utils";
-
-/** Datasource connection status. */
-type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
 
 /** Global datasource context value — exposed for external consumers. */
 interface GlobalDataSources {
@@ -255,7 +253,12 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		};
 	}, [datasources, initialized, pluginsManager]);
 
-	// Determine if all datasources are ready
+	// Determine if all datasources are ready.
+	// NOTE: this value is intentionally still computed and exposed on the
+	// context (see `allDatasourcesReady` below). It no longer GATES
+	// rendering of `children` —
+	// the dashboard and widgets mount immediately and degrade per-datasource —
+	// but consumers may still read it for global health affordances.
 	const allDatasourcesReady =
 		datasources.size === 0 || readyDatasources.size === datasources.size;
 
@@ -386,7 +389,17 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 				</NavbarItem>
 			)}
 			{datasourceComponents}
-			{allDatasourcesReady && children}
+			{/*
+			 * Children render unconditionally: the dashboard and all widgets
+			 * mount immediately, regardless of datasource connection state, so
+			 * one unready or offline datasource never hides the whole dashboard.
+			 * Per-datasource degradation is communicated through
+			 * `datasourceStatuses` (status badges, the `DatasourceOffline` widget
+			 * affordance) rather than by withholding `children`.
+			 * `allDatasourcesReady` remains computed and exposed on the context
+			 * above for any consumer that still reads it.
+			 */}
+			{children}
 		</GlobalDataSourcesContextProvider>
 	);
 };

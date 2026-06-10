@@ -6,6 +6,7 @@ import { widgetAtomFamily } from "../atoms";
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import { widgetNotFound } from "../../widgets/components/widget-not-found";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
+import { WidgetErrorBoundary } from "./widget-error-boundary";
 
 /** Props for WidgetHost. */
 export interface WidgetHostProps {
@@ -52,7 +53,20 @@ const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	return (
 		<WidgetScopeProvider value={widgetId}>
 			<div className={className ?? "w-full h-full overflow-hidden"}>
-				<WidgetComponent {...widget.settings} />
+				{/*
+				 * Isolate the widget body so a throw (e.g. on data briefly
+				 * absent now that widgets mount before their datasource is
+				 * ready) renders a localized fallback instead of crashing the
+				 * whole layout. The boundary wraps the body only — the host
+				 * chrome stays usable. resetKeys is the widget id, so a fresh
+				 * widget identity clears a prior error; the fallback also
+				 * offers a manual retry. Pattern 10: definition.Component
+				 * stays the stable module-level reference (WidgetComponent),
+				 * the boundary only wraps it.
+				 */}
+				<WidgetErrorBoundary resetKeys={[widgetId]}>
+					<WidgetComponent {...widget.settings} />
+				</WidgetErrorBoundary>
 			</div>
 		</WidgetScopeProvider>
 	);

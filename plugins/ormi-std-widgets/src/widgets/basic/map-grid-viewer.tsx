@@ -9,6 +9,7 @@ import {
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { MapGrid } from "@workspace/ormi-core/types";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { MapIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
@@ -103,14 +104,16 @@ interface MapGridViewerBodyProps {
 	colorMode: ColorMode;
 	opacity: number;
 	showUnknown: boolean;
+	sourceTitle: string;
 }
 
 function MapGridViewerBody({
 	colorMode,
 	opacity,
 	showUnknown,
+	sourceTitle,
 }: MapGridViewerBodyProps) {
-	const { sources } = useLocalDataSource();
+	const { sources, health } = useLocalDataSource();
 	const firstKey = Array.from(sources.keys())[0];
 	const grid: MapGrid | undefined = firstKey
 		? (sources.get(firstKey)?.data[0] as MapGrid)
@@ -154,54 +157,50 @@ function MapGridViewerBody({
 		ctx.putImageData(imageData, 0, 0);
 	}, [grid, colorMode, opacity, showUnknown]);
 
-	if (!grid) {
-		return (
-			<div
-				style={{
-					height: "100%",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					color: "#666",
-					flexDirection: "column",
-					gap: 8,
-				}}
-			>
-				<MapIcon size={48} />
-				<span>No map data</span>
-			</div>
-		);
-	}
-
 	return (
-		<div
-			style={{
-				height: "100%",
-				width: "100%",
-				overflow: "auto",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				padding: 8,
-				background: "#1a1a2e",
-			}}
-		>
-			<canvas
-				ref={canvasRef}
-				style={{
-					width: "100%",
-					height: "100%",
-					objectFit: "contain",
-					imageRendering: "pixelated",
-					border: "1px solid #333",
-				}}
-				title={
-					grid
-						? `${grid.width}×${grid.height} | res ${grid.resolution}m/cell | frame: ${grid.frameId}`
-						: undefined
-				}
-			/>
-		</div>
+		<DatasourceGate health={health} title={sourceTitle}>
+			{!grid ? (
+				<div
+					style={{
+						height: "100%",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						color: "#666",
+						flexDirection: "column",
+						gap: 8,
+					}}
+				>
+					<MapIcon size={48} />
+					<span>No map data</span>
+				</div>
+			) : (
+				<div
+					style={{
+						height: "100%",
+						width: "100%",
+						overflow: "auto",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						padding: 8,
+						background: "#1a1a2e",
+					}}
+				>
+					<canvas
+						ref={canvasRef}
+						style={{
+							width: "100%",
+							height: "100%",
+							objectFit: "contain",
+							imageRendering: "pixelated",
+							border: "1px solid #333",
+						}}
+						title={`${grid.width}×${grid.height} | res ${grid.resolution}m/cell | frame: ${grid.frameId}`}
+					/>
+				</div>
+			)}
+		</DatasourceGate>
 	);
 }
 
@@ -233,6 +232,7 @@ function MapGridViewerWidget(data: MapGridViewerProps) {
 				colorMode={data.colorMode ?? "costmap"}
 				opacity={data.opacity ?? 0.95}
 				showUnknown={data.showUnknown ?? true}
+				sourceTitle={data.topic.source.title}
 			/>
 		</LocalDataSourcesProvider>
 	);

@@ -7,15 +7,17 @@ import {
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { Image } from "@workspace/ormi-core/types";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { CameraIcon, FileIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 /**
  * Image viewer widget body.
+ * @param props - Component props.
  * @returns React element.
  */
-function ImageViewer() {
-	const { sources } = useLocalDataSource();
+function ImageViewer(props: { sourceTitle: string }) {
+	const { sources, health } = useLocalDataSource();
 	const firstKey = Array.from(sources.keys())[0];
 	const imageBitmap: Image | undefined = firstKey
 		? (sources.get(firstKey)?.data[0] as Image)
@@ -41,46 +43,46 @@ function ImageViewer() {
 		}
 	}, [imageBitmap]);
 
-	if (!imageBitmap) {
-		return (
-			<div
-				style={{
-					height: "100%",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					color: "#666",
-				}}
-			>
-				<div style={{ textAlign: "center" }}>
-					<FileIcon size={48} style={{ marginBottom: "8px" }} />
-					<div>No image data available</div>
-				</div>
-			</div>
-		);
-	}
-
 	return (
-		<div
-			style={{
-				height: "100%",
-				overflow: "auto",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				padding: "8px",
-			}}
-		>
-			<canvas
-				ref={canvasRef}
-				style={{
-					maxWidth: "100%",
-					maxHeight: "100%",
-					objectFit: "contain",
-					border: "1px solid #ddd",
-				}}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.sourceTitle}>
+			{!imageBitmap ? (
+				<div
+					style={{
+						height: "100%",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						color: "#666",
+					}}
+				>
+					<div style={{ textAlign: "center" }}>
+						<FileIcon size={48} style={{ marginBottom: "8px" }} />
+						<div>No image data available</div>
+					</div>
+				</div>
+			) : (
+				<div
+					style={{
+						height: "100%",
+						overflow: "auto",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						padding: "8px",
+					}}
+				>
+					<canvas
+						ref={canvasRef}
+						style={{
+							maxWidth: "100%",
+							maxHeight: "100%",
+							objectFit: "contain",
+							border: "1px solid #ddd",
+						}}
+					/>
+				</div>
+			)}
+		</DatasourceGate>
 	);
 }
 
@@ -97,7 +99,7 @@ interface ImageViewerProps extends Record<string, unknown> {
 function ImageViewerWidget(data: ImageViewerProps) {
 	return (
 		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
-			<ImageViewer />
+			<ImageViewer sourceTitle={data.topic.source.title} />
 		</LocalDataSourcesProvider>
 	);
 }

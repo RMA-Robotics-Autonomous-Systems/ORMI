@@ -9,6 +9,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
@@ -31,7 +32,7 @@ interface ConditionStatusIndicatorProps extends Record<string, unknown> {
  * @returns React element.
  */
 function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
-	const { sources } = useLocalDataSource();
+	const { sources, health } = useLocalDataSource();
 
 	const sources_keys = Array.from(sources.keys());
 	const value =
@@ -68,27 +69,29 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
 	}) || { name: "Undefined", color: "gray" };
 
 	return (
-		<div
-			style={{
-				backgroundColor: status.color,
-				color: "white",
-				height: "100%",
-				width: "100%",
-				display: "grid",
-				alignItems: "center",
-				justifyContent: "center",
-				fontSize: "xxx-large",
-				transition: "all 0.5s ease",
-			}}
-		>
-			<TypeAnimation
-				speed={75}
-				cursor={false}
-				key={status.name}
-				sequence={[status.name]}
-				repeat={1}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				style={{
+					backgroundColor: status.color,
+					color: "white",
+					height: "100%",
+					width: "100%",
+					display: "grid",
+					alignItems: "center",
+					justifyContent: "center",
+					fontSize: "xxx-large",
+					transition: "all 0.5s ease",
+				}}
+			>
+				<TypeAnimation
+					speed={75}
+					cursor={false}
+					key={status.name}
+					sequence={[status.name]}
+					repeat={1}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 

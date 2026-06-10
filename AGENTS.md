@@ -79,6 +79,8 @@ All other sections reference this rule. Do not modify core without satisfying al
 - Avoid anti-patterns: implicit shared mutable state, side effects in render, heavy logic inside components, and overly broad context providers.
 - Keep public APIs typed and stable; add JSDoc for exported or shared modules.
 - Respect existing repo formats, linting, and TypeScript configs.
+- Datasource subscribe idempotency: Datasource `-subscribe`/`-advertise` actions must be idempotent under re-flush — re-issuing subscribe for an already-subscribed topic must dedupe via refcount, and the action must tolerate an unsubscribe for an in-flight subscribe (the subscription registry re-issues subscribe on reconnect).
+- Widget offline gating: Single-topic data-display widgets gate their body with `DatasourceGate` (`@workspace/ui`) so an offline datasource shows a clear offline card, not a misleading empty/zero value. Multi-topic widgets degrade per-series via `getTopicHealth`; control/publisher and last-known-value widgets do not blank on offline.
 
 ## Implementation Patterns
 

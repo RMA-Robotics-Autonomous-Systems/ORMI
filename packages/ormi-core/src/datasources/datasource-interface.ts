@@ -106,11 +106,70 @@ interface DatasourceProviderSettings {
 	enable: boolean;
 }
 
-export { DatasourceTopicFilter };
+/**
+ * Raw per-datasource connection status as tracked by the global provider.
+ *
+ * Single source of truth for the status union (logic-only, no React) so
+ * {@link deriveHealth} can be unit tested in isolation and so consumers
+ * (e.g. the global datasource provider and its status badges) import one
+ * shared definition rather than re-declaring it. The authoritative status
+ * map lives on the global datasource provider.
+ */
+type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
+
+/**
+ * Widget-facing datasource health.
+ *
+ * A deliberately small, derived view of the raw {@link DatasourceStatus} for
+ * widgets to gate their UI on:
+ *
+ * - `connecting` — coming up, or not yet observed (unknown is treated as still
+ *   connecting; a never-connected datasource currently stays `connecting`).
+ * - `online` — the datasource is ready and data can flow.
+ * - `offline` — the datasource was disposed or errored.
+ *
+ * There is intentionally no `stale` state and no connect-timeout: true-offline
+ * detection for a never-connected datasource is not currently implemented.
+ */
+type DatasourceHealth = "connecting" | "online" | "offline";
+
+/**
+ * Derive widget-facing {@link DatasourceHealth} from a raw
+ * {@link DatasourceStatus}.
+ *
+ * Pure function — safe to call anywhere and unit-testable in isolation.
+ *
+ * Mapping:
+ * - `"ready"` → `online`
+ * - `"connecting"` → `connecting`
+ * - `"disposed"` → `offline`
+ * - `"error"` → `offline`
+ * - `undefined` / missing → `connecting` (unknown is treated as still coming up)
+ *
+ * @param status - Raw datasource status, or `undefined` when not yet tracked.
+ * @returns The derived widget-facing health.
+ */
+function deriveHealth(status: DatasourceStatus | undefined): DatasourceHealth {
+	switch (status) {
+		case "ready":
+			return "online";
+		case "disposed":
+		case "error":
+			return "offline";
+		case "connecting":
+		case undefined:
+		default:
+			return "connecting";
+	}
+}
+
+export { DatasourceTopicFilter, deriveHealth };
 export type {
 	DatasourceDefinition,
 	Datasource,
 	DatasourceTopic,
 	DatasourceProviderSettings,
+	DatasourceStatus,
+	DatasourceHealth,
 	SelectedTopic,
 };

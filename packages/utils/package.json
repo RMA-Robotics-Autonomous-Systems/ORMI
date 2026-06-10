@@ -33,6 +33,7 @@
 	"scripts": {
 		"build": "tsc && bun link",
 		"lint": "eslint .",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit",
 		"clean": "rm -rf dist build .turbo node_modules"
 	},

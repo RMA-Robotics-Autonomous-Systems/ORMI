@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { Datasource } from "../datasource-interface";
+import { Datasource, DatasourceStatus } from "../datasource-interface";
 import { Badge } from "@workspace/ui/components/badge";
 import {
 	Tooltip,
@@ -15,9 +15,6 @@ import {
 	TooltipProvider,
 } from "@workspace/ui/components/tooltip";
 import { CheckIcon, Loader2, AlertCircle, XCircle } from "lucide-react";
-
-/** Datasource connection status. */
-type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
 
 interface DatasourceStatusBadgesProps {
 	/** Datasources to display badges for. */
