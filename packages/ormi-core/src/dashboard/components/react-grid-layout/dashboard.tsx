@@ -29,10 +29,7 @@ import {
 import React from "react";
 
 import { NavbarItem } from "@workspace/ui/combined/navbar";
-import {
-	ButtonHolderProvider,
-	ButtonHolder,
-} from "@workspace/ui/combined/ButtonHolder";
+import { ButtonHolderHost } from "@workspace/ui/combined/ButtonHolder";
 
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -112,7 +109,7 @@ const GridWidgetTileComponent: React.FC<GridWidgetTileProps> = ({
 	if (!widget) return null;
 
 	return (
-		<ButtonHolderProvider>
+		<>
 			<div
 				className="flex flex-row content-between gap-1"
 				style={{ padding: "0.25rem" }}
@@ -121,7 +118,7 @@ const GridWidgetTileComponent: React.FC<GridWidgetTileProps> = ({
 					{widget.title}
 				</div>
 
-				<ButtonHolder />
+				<ButtonHolderHost widgetId={widgetId} />
 
 				{!locked && (
 					<WidgetCard
@@ -147,7 +144,7 @@ const GridWidgetTileComponent: React.FC<GridWidgetTileProps> = ({
 			<div className="flex-grow overflow-hidden">
 				<WidgetHost widgetId={widgetId} getDefinition={getDefinition} />
 			</div>
-		</ButtonHolderProvider>
+		</>
 	);
 };
 

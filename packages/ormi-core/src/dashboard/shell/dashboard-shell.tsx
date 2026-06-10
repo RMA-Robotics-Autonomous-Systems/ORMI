@@ -11,6 +11,7 @@ import {
 	PersistenceOptions,
 } from "../persistence/use-dashboard-persistence";
 import { Spinner } from "@workspace/ui/components/spinner";
+import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
 import { createSafeContext } from "@workspace/utils";
 import {
 	DatasourceDefinition,
@@ -191,9 +192,14 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	return (
 		<DashboardShellContextProvider value={shellValue}>
 			<DashboardRegistryContextProvider value={registryValue}>
-				{typeof children === "function"
-					? children(registryValue)
-					: children}
+				{/* Single ButtonHolder registry above both layout engines and
+				    all widget hosts — the source of truth for contributed
+				    toolbar buttons, keyed by widget id. */}
+				<ButtonHolderProvider>
+					{typeof children === "function"
+						? children(registryValue)
+						: children}
+				</ButtonHolderProvider>
 			</DashboardRegistryContextProvider>
 		</DashboardShellContextProvider>
 	);

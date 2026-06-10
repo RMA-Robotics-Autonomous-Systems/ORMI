@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from "react";
 import { TabNode, ITabRenderValues } from "flexlayout-react";
 import { Widget, WidgetDefinition } from "../../../../widgets/widget-interface";
 import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonHolderHost } from "@workspace/ui/combined/ButtonHolder";
 import { SettingsIcon } from "lucide-react";
 
 /** Props for renderTab. */
@@ -14,28 +14,6 @@ interface TabRendererProps {
 	locked: boolean;
 	onUpdateWidget: (box_id: string, settings: any) => void;
 }
-
-/**
- * Portal container for ButtonHolder rendering.
- * @param props - Component props.
- * @returns React element.
- */
-const PortalContainer: React.FC<{ widgetId: string }> = ({ widgetId }) => {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const { registerPortal, unregisterPortal } = useFlexLayoutPortal();
-
-	useEffect(() => {
-		if (containerRef.current) {
-			registerPortal(widgetId, containerRef.current);
-		}
-
-		return () => {
-			unregisterPortal(widgetId);
-		};
-	}, [widgetId, registerPortal, unregisterPortal]);
-
-	return <div ref={containerRef} className="flex flex-row space-x-2" />;
-};
 
 /**
  * Render a FlexLayout tab with widget actions.
@@ -69,9 +47,11 @@ export const renderTab = ({
 		);
 	}
 
-	// Add portal container for ButtonHolder
+	// Render the widget's contributed buttons directly in the tab strip.
+	// Reads the reactive registry by widgetId — survives FlexLayout tab
+	// remounts (maximize/restore) without portals or DOM-identity coupling.
 	renderValues.buttons.push(
-		<PortalContainer key={`portal-${widgetId}`} widgetId={widgetId} />,
+		<ButtonHolderHost key={`bh-${widgetId}`} widgetId={widgetId} />,
 	);
 
 	// Add settings button when not locked
