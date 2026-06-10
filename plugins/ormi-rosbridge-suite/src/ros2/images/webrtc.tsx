@@ -147,10 +147,13 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 			pcRef.current = null;
 		}
 
+		// LAN-first: with no ICE servers the peer gathers only host candidates,
+		// which complete in milliseconds. A public STUN server adds a reflexive
+		// candidate that's useless on a LAN and stalls gathering on the STUN
+		// round-trip (or the timeout below). Leave the list empty unless the user
+		// explicitly configures STUN/TURN for a NAT-traversal scenario.
 		const pc = new RTCPeerConnection({
-			iceServers: iceServersUrls?.map((url) => ({ urls: url })) || [
-				{ urls: "stun:stun.l.google.com:19302" },
-			],
+			iceServers: iceServersUrls?.map((url) => ({ urls: url })) ?? [],
 		});
 		pcRef.current = pc;
 		pc.addTransceiver("video", { direction: "recvonly" });
@@ -588,7 +591,7 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 					items: {
 						type: "string",
 					},
-					default: ["stun:stun.l.google.com:19302"],
+					default: [],
 				},
 			},
 			required: ["title", "topic"],
@@ -596,7 +599,7 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 		uischema: layout,
 		data: {
 			title: "WebRTC viewer",
-			iceServersUrls: ["stun:stun.l.google.com:19302"],
+			iceServersUrls: [],
 		},
 		// Stable, module-level component reference. The definition factory is
 		// re-invoked on every dashboard render, so an inline arrow here would
