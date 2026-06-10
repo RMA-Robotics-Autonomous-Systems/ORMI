@@ -74,14 +74,14 @@ export const authOptions: NextAuthOptions = {
 					throw new Error("User already exists");
 				}
 
-				const encodedName = encodeURIComponent(credentials.username);
-
-				// If no error and we have user data, return it
+				// No default image is stored. A deterministic identicon avatar is
+				// generated locally at render time (see UserAvatar) so it works
+				// fully offline; the seed is derived from the user's name/email.
 				const newUser = await db.user.create({
 					data: {
 						name: credentials.username,
 						email: credentials.username,
-						image: `/api/dicebear/9.x/identicon/svg?seed=${encodedName}`,
+						image: null,
 						//role: "guest"
 					},
 				});

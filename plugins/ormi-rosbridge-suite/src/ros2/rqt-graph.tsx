@@ -421,6 +421,6 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 			],
 		} as VerticalLayout,
 		data: { title: "RQT Graph", poolingRateHz: 5 },
-		Component: (data: RQTGraphProps) => <RQTGraph {...data} />,
+		Component: RQTGraph,
 	};
 }

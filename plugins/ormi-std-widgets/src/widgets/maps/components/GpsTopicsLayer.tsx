@@ -8,7 +8,8 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 
-import { TopicListOverlay } from "../topics-overlay";
+import { MapControlPanel } from "../topics-overlay";
+import { CustomLayer } from "../layers-overlay";
 import TopicMarker from "../gps-components/marker-simple";
 import HeatMarker from "../gps-components/marker-heat";
 import PathMarker from "../gps-components/marker-path";
@@ -30,6 +31,10 @@ interface GpsTopicConfig {
 interface GpsTopicsLayerProps extends Record<string, unknown> {
 	topics: GpsTopicConfig[];
 	mapRef?: React.RefObject<MapRef | null>;
+	/** Custom raster layers rendered in the consolidated control panel. */
+	customLayers: CustomLayer[];
+	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
+	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
 }
 
 /**
@@ -37,7 +42,13 @@ interface GpsTopicsLayerProps extends Record<string, unknown> {
  * @param props - Component props.
  * @returns React element or null when there is nothing to render.
  */
-export function GpsTopicsLayer({ topics, mapRef }: GpsTopicsLayerProps) {
+export function GpsTopicsLayer({
+	topics,
+	mapRef,
+	customLayers,
+	onLayerVisibilityChange,
+	onLayerOpacityChange,
+}: GpsTopicsLayerProps) {
 	const pluginsManager = usePluginsManager();
 
 	// Memoize all topics to prevent unnecessary re-computation
@@ -67,7 +78,11 @@ export function GpsTopicsLayer({ topics, mapRef }: GpsTopicsLayerProps) {
 		);
 	}, [topics]);
 
-	if (!topics || topics.length === 0) {
+	// Render nothing only when there is neither a topic nor a layer to control.
+	if (
+		(!topics || topics.length === 0) &&
+		(!customLayers || customLayers.length === 0)
+	) {
 		return null;
 	}
 
@@ -119,7 +134,13 @@ export function GpsTopicsLayer({ topics, mapRef }: GpsTopicsLayerProps) {
 				);
 			})}
 
-			<TopicListOverlay topics={topics} mapRef={mapRef} />
+			<MapControlPanel
+				topics={topics}
+				customLayers={customLayers}
+				mapRef={mapRef}
+				onLayerVisibilityChange={onLayerVisibilityChange}
+				onLayerOpacityChange={onLayerOpacityChange}
+			/>
 		</LocalDataSourcesProvider>
 	);
 }

@@ -49,11 +49,18 @@ export const workspaceApi = {
 	},
 
 	/**
-	 * Update workspace
+	 * Update workspace via `PUT`. All fields optional; only the provided ones
+	 * are persisted. Powers Rename (`name`), layout-engine switching
+	 * (`dashboardType`), category reassignment, and full-content saves.
 	 */
 	async update(
 		workspaceId: number,
-		data: { name?: string; content?: unknown },
+		data: {
+			name?: string;
+			content?: unknown;
+			categoryId?: number | null;
+			dashboardType?: "GRID" | "FLEX";
+		},
 	): Promise<ApiResult<Workspace>> {
 		return httpClient.put<Workspace>(
 			`/api/workspaces/${workspaceId}`,

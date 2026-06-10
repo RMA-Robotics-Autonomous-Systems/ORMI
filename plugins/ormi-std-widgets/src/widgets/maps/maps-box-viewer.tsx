@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import MapLibreMap, { MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ControlElement, Categorization } from "@jsonforms/core";
-import { CustomLayersOverlay } from "./layers-overlay";
 import MapsGrid, { useMapGrid } from "./gps-components/maps-grid";
 
 import { MapIcon } from "lucide-react";
@@ -18,7 +17,7 @@ import {
 } from "@workspace/ormi-core/widgets";
 import { PluginsManager } from "@workspace/ormi-plugins";
 import { Spinner } from "@workspace/ui/components/spinner";
-import { ButtonHolderProvider } from "@workspace/ui/combined/ButtonHolder";
+import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
 // Import new sub-components and hooks
 import { useMapStyle } from "./hooks/useMapStyle";
@@ -74,6 +73,14 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 
 	// Refs
 	const mapRef = useRef<MapRef>(null);
+
+	// Private, per-instance ButtonHolder scope for the in-map keyed bus between
+	// markers and the topic/layer overlays. Isolated from the widget-level
+	// bucket (used by MapToolbar, which is rendered outside this scope), so
+	// marker toggles never leak into the tile header / tab strip. Placed
+	// OUTSIDE the keyed <MapLibreMap> below, so it stays stable across the
+	// key={`map-${refreshCounter}`} remount.
+	const localScopeId = `maps-${useId()}`;
 
 	// Custom hooks
 	const { startingLocation, isLoading } = useMapInitialization();
@@ -132,7 +139,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 				onToggleGrid={handleToggleGrid}
 				onRefresh={handleRefresh}
 			/>
-			<ButtonHolderProvider>
+			<WidgetScopeProvider value={localScopeId}>
 				<MapLibreMap
 					key={`map-${refreshCounter}`}
 					initialViewState={{
@@ -151,10 +158,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					{/* Grid overlay */}
 					<MapsGrid mapRef={mapRef} showGrid={showGrid} />
 
-					{/* GPS Topics Layer */}
+					{/* GPS Topics Layer (also hosts the consolidated control panel) */}
 					<GpsTopicsLayer
 						topics={props.topics || []}
 						mapRef={mapRef}
+						customLayers={customLayersState}
+						onLayerVisibilityChange={handleLayerVisibilityChange}
+						onLayerOpacityChange={handleLayerOpacityChange}
 					/>
 
 					{/* Local Topics Layer */}
@@ -164,16 +174,8 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 							...(props.localTopics?.imuTopics || []),
 						]}
 					/>
-
-					{/* Custom Layers Overlay */}
-					<CustomLayersOverlay
-						customLayers={customLayersState}
-						mapRef={mapRef}
-						onLayerVisibilityChange={handleLayerVisibilityChange}
-						onLayerOpacityChange={handleLayerOpacityChange}
-					/>
 				</MapLibreMap>
-			</ButtonHolderProvider>
+			</WidgetScopeProvider>
 		</div>
 	);
 }
@@ -660,7 +662,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				imuTopics: [],
 			},
 		},
-		Component: (data: MapsViewerSettings) => <MapsBoxViewer {...data} />,
+		Component: MapsBoxViewer,
 
 		/**
 		 * Extensibility hook to allow plugins to extend available map types.

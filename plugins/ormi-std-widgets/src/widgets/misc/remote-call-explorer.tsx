@@ -669,8 +669,6 @@ export function RemoteCallExplorerDefinition(): WidgetDefinition<RemoteCallWidge
 			title: "Remote Calls",
 		},
 
-		Component: (data: RemoteCallWidgetProps) => (
-			<RemoteCallExplorer {...data} />
-		),
+		Component: RemoteCallExplorer,
 	} as WidgetDefinition<RemoteCallWidgetProps>;
 }

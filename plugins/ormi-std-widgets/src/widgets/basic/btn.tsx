@@ -62,6 +62,18 @@ export function BtnControl(props: BtnControlData) {
  * Widget definition for BtnControl.
  * @returns Widget definition.
  */
+function BtnWidget(data: BtnControlData) {
+	return data.topic ? (
+		<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+			<BtnControl {...data} />
+		</PublisherDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
+}
+
 export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 	return {
 		id: "btn-cmd-vel-widget",
@@ -121,15 +133,6 @@ export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 		data: {
 			title: "Btn Control",
 		},
-		Component: (data: BtnControlData) =>
-			data.topic ? (
-				<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-					<BtnControl {...data} />
-				</PublisherDataSourcesProvider>
-			) : (
-				<div className="flex justify-center items-center h-full text-muted-foreground">
-					Please select a topic in the widget configuration.
-				</div>
-			),
+		Component: BtnWidget,
 	};
 }

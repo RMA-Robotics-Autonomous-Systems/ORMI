@@ -11,19 +11,21 @@ import React, {
 	useCallback,
 	useMemo,
 } from "react";
-import { SelectedTopic } from "../datasource-interface";
-
-import { toast } from "sonner";
-import { Spinner } from "@workspace/ui/components/spinner";
+import {
+	SelectedTopic,
+	DatasourceHealth,
+	deriveHealth,
+} from "../datasource-interface";
+import { useGlobalDataSources } from "./global-datasource-provider";
 
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { atom, useAtom } from "jotai";
-import { createSafeContext } from "@workspace/utils";
-
-/** Create a stable key for a selected topic. */
-const createTopicKey = (selectedTopic: SelectedTopic): string => {
-	return `${selectedTopic.source.id}::${selectedTopic.topic}${selectedTopic.property ? "::" + selectedTopic.property : ""}`;
-};
+import {
+	createSafeContext,
+	createTopicKey,
+	getDatasourceSubscriptionRegistry,
+	type SubscriptionHandle,
+} from "@workspace/utils";
 
 /** Local datasource context value. */
 interface LocalDataSources {
@@ -31,6 +33,19 @@ interface LocalDataSources {
 	version: number; // Increment on every update to force re-renders
 	getSource: (topic: SelectedTopic) => Source | undefined;
 	getSourceId: (topic: SelectedTopic) => string;
+	/**
+	 * Widget-facing health of a single topic's backing datasource, derived from
+	 * the global per-datasource status. Returns `connecting` when the datasource
+	 * is not yet tracked.
+	 */
+	getTopicHealth: (topic: SelectedTopic) => DatasourceHealth;
+	/**
+	 * Aggregate worst-case health across all of this provider's selected topics,
+	 * ordered `offline > connecting > online` (any topic offline → `offline`;
+	 * else any connecting → `connecting`; else `online`). For a single-topic
+	 * widget this is just that topic's health. `online` when there are no topics.
+	 */
+	health: DatasourceHealth;
 }
 
 /** Buffered source data. */
@@ -93,6 +108,34 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 		return createTopicKey(topic);
 	}, []);
 
+	// Read the raw per-datasource statuses from the always-present global
+	// provider so widgets can gate on derived health. Status changes flow through
+	// this map identity, so getTopicHealth/health stay current.
+	const { datasourceStatuses } = useGlobalDataSources();
+
+	const getTopicHealth = useCallback(
+		(topic: SelectedTopic): DatasourceHealth =>
+			deriveHealth(datasourceStatuses.get(topic.source.id)),
+		[datasourceStatuses],
+	);
+
+	const pluginsManager = usePluginsManager();
+	const Topics = SelectedTopics;
+
+	// Aggregate worst-case health across this provider's topics:
+	// offline > connecting > online.
+	const health = useMemo<DatasourceHealth>(() => {
+		let sawConnecting = false;
+		for (const topic of Topics) {
+			const topicHealth = deriveHealth(
+				datasourceStatuses.get(topic.source.id),
+			);
+			if (topicHealth === "offline") return "offline";
+			if (topicHealth === "connecting") sawConnecting = true;
+		}
+		return sawConnecting ? "connecting" : "online";
+	}, [Topics, datasourceStatuses]);
+
 	// Context value only includes version (changes) and stable functions
 	const contextValue = useMemo(
 		() => ({
@@ -100,14 +143,18 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 			version: sources.size, // Just a value to indicate change, though sources itself changes
 			getSource,
 			getSourceId,
+			getTopicHealth,
+			health,
 		}),
-		[sources, getSource, getSourceId],
+		[sources, getSource, getSourceId, getTopicHealth, health],
 	);
-
-	const pluginsManager = usePluginsManager();
-	const Topics = SelectedTopics;
-	const local_id = useRef(Math.random().toString(36).substring(7)).current;
 	const [initialized, setInitialized] = useState(false);
+
+	// One subscription registry per PluginsManager instance (memoized off it).
+	const registry = useMemo(
+		() => getDatasourceSubscriptionRegistry(pluginsManager),
+		[pluginsManager],
+	);
 
 	useEffect(() => {
 		// Clear any pending updates
@@ -192,105 +239,58 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 			});
 		}, updateInterval);
 
-		// Initialize all subscriptions in parallel using Promise.all
-		Promise.all(
-			Topics.map(async (topic) => {
-				const sourceId = createTopicKey(topic);
+		// Declare a subscribe intent per topic. The registry owns all wire
+		// traffic: it waits for DATASOURCE_READY (no polling/timeout), refcounts
+		// per wire key, re-flushes on reconnect, and is StrictMode/unmount-safe.
+		// Each intent's onData runs the existing propertiesGetter then writes the
+		// last value into pendingUpdatesRef (drained by the 30 Hz pump above).
+		const handles: SubscriptionHandle[] = Topics.map((topic) => {
+			const sourceId = createTopicKey(topic);
+			return registry.subscribe({
+				topic,
+				onData: (
+					value: any,
+					time: number,
+					referenceFrameId: string,
+				) => {
+					if (!isMounted) return;
 
-				try {
-					// subscribe to the topic, this starts the data flow inside the datasource
-					const result = await pluginsManager.WaitAndDoAction(
-						`${topic.source.id}-subscribe`,
-						1,
-						topic,
-					);
-
-					if (result === false) {
-						return { sourceId, topic, success: false };
+					let processedValue = value;
+					if (topic.property && topic.property !== "") {
+						processedValue = propertiesGetter(
+							value,
+							topic.property,
+						);
 					}
 
-					// add an action on the data hook of the topic, will only be triggered when the data is published, and if the topic is subscribed
-					pluginsManager.addAction(
-						`${topic.source.id}-${topic.topic}-published`,
-						{
-							id: `${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
-							priority: 10,
-							action: (
-								value: any,
-								time: number,
-								referenceFrameId: string,
-							) => {
-								if (!isMounted) return;
-
-								let processedValue = value;
-								if (topic.property && topic.property !== "") {
-									processedValue = propertiesGetter(
-										value,
-										topic.property,
-									);
-								}
-
-								// Store in pendingUpdates
-								pendingUpdatesRef.current.set(sourceId, {
-									value: processedValue,
-									time,
-									referenceFrameId:
-										referenceFrameId || "unknown",
-								});
-							},
-						},
-					);
-
-					return { sourceId, topic, success: true };
-				} catch (error) {
-					console.error(
-						`Failed to subscribe to topic ${topic.topic}:`,
-						error,
-					);
-					return { sourceId, topic, success: false };
-				}
-			}),
-		).then((subscriptionResults) => {
-			if (!isMounted) return;
-
-			// Check for failed subscriptions
-			const failedSubscriptions = subscriptionResults.filter(
-				(result) => !result.success,
-			);
-
-			if (failedSubscriptions.length > 0) {
-				toast.error(
-					"Failed to initialize topics: " +
-						failedSubscriptions
-							.map((result) => result.topic.topic)
-							.join(", "),
-				);
-			}
-
-			// Mark as initialized only after all subscriptions complete
-			setInitialized(true);
+					pendingUpdatesRef.current.set(sourceId, {
+						value: processedValue,
+						time,
+						referenceFrameId: referenceFrameId || "unknown",
+					});
+				},
+			});
 		});
+
+		// `initialized` now means "intents registered" — set synchronously,
+		// no await. The registry establishes the real wire subscribe when the
+		// datasource is (or becomes) READY.
+		setInitialized(true);
 
 		return () => {
 			isMounted = false;
 			clearInterval(intervalId);
 
-			// Clean up subscriptions
-			Topics.forEach(async (topic) => {
-				// unsubscribe from the topic, if no other widget is subscribed to the topic, the data flow will stop
-				await pluginsManager.WaitAndDoAction(
-					`${topic.source.id}-unsubscribe`,
-					1,
-					topic,
-				);
-
-				// remove the action that was added to the data hook of the topic,
-				pluginsManager.removeAction(
-					`${local_id}-${topic.source.id}-${topic.topic}_${topic.property}-published`,
-				);
-			});
+			// Release every intent; the registry handles wire unsubscribe/cleanup.
+			handles.forEach((handle) => handle.unsubscribe());
 		};
-	}, [SelectedTopics, buffersSize, updateFrequency, pluginsManager]);
+	}, [
+		SelectedTopics,
+		buffersSize,
+		updateFrequency,
+		pluginsManager,
+		registry,
+	]);
 	// Note: Removed datasources from deps - it's only used for subscription lifecycle
 	// which is controlled by SelectedTopics. Including it causes unnecessary re-subscriptions
 	// when dashboard layout changes.
@@ -298,16 +298,6 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	return (
 		<LocalDataSourcesContextProvider value={contextValue}>
 			{initialized && children}
-			{!initialized && (
-				<>
-					<h1>Waiting for subscriptions</h1>
-					<p>
-						Please wait while we establish connections to the data
-						sources.
-					</p>
-					<Spinner />
-				</>
-			)}
 		</LocalDataSourcesContextProvider>
 	);
 };

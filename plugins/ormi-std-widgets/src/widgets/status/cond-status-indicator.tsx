@@ -9,6 +9,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
@@ -31,7 +32,7 @@ interface ConditionStatusIndicatorProps extends Record<string, unknown> {
  * @returns React element.
  */
 function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
-	const { sources } = useLocalDataSource();
+	const { sources, health } = useLocalDataSource();
 
 	const sources_keys = Array.from(sources.keys());
 	const value =
@@ -68,27 +69,29 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
 	}) || { name: "Undefined", color: "gray" };
 
 	return (
-		<div
-			style={{
-				backgroundColor: status.color,
-				color: "white",
-				height: "100%",
-				width: "100%",
-				display: "grid",
-				alignItems: "center",
-				justifyContent: "center",
-				fontSize: "xxx-large",
-				transition: "all 0.5s ease",
-			}}
-		>
-			<TypeAnimation
-				speed={75}
-				cursor={false}
-				key={status.name}
-				sequence={[status.name]}
-				repeat={1}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				style={{
+					backgroundColor: status.color,
+					color: "white",
+					height: "100%",
+					width: "100%",
+					display: "grid",
+					alignItems: "center",
+					justifyContent: "center",
+					fontSize: "xxx-large",
+					transition: "all 0.5s ease",
+				}}
+			>
+				<TypeAnimation
+					speed={75}
+					cursor={false}
+					key={status.name}
+					sequence={[status.name]}
+					repeat={1}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 
@@ -96,6 +99,14 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
  * Widget definition for conditional status indicator.
  * @returns Widget definition.
  */
+function CondStatusIndicatorWidget(data: ConditionStatusIndicatorProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<ConditionStatusIndicator {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatusIndicatorProps> {
 	return {
 		id: "cond-status-indicator",
@@ -223,13 +234,6 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 			title: "Status",
 			use3D: false,
 		},
-		Component: (data: ConditionStatusIndicatorProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<ConditionStatusIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: CondStatusIndicatorWidget,
 	};
 }

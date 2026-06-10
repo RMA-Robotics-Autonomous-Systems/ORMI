@@ -112,6 +112,17 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
 	);
 }
 
+/**
+ * Heading widget wrapper providing the local datasource for the indicator.
+ * @param data - Widget props.
+ * @returns React element.
+ */
+const HeadingWidget: React.FC<HeadingProps> = (data) => (
+	<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+		<WidgetHeadingIndicator {...data} />
+	</LocalDataSourcesProvider>
+);
+
 /** Settings for Heading widget. */
 
 /**
@@ -180,13 +191,6 @@ export function HeadingDefinition(): WidgetDefinition<HeadingProps> {
 		data: {
 			title: "Heading Indicator",
 		},
-		Component: (data: HeadingProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<WidgetHeadingIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: HeadingWidget,
 	};
 }

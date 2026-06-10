@@ -79,6 +79,8 @@ All other sections reference this rule. Do not modify core without satisfying al
 - Avoid anti-patterns: implicit shared mutable state, side effects in render, heavy logic inside components, and overly broad context providers.
 - Keep public APIs typed and stable; add JSDoc for exported or shared modules.
 - Respect existing repo formats, linting, and TypeScript configs.
+- Datasource subscribe idempotency: Datasource `-subscribe`/`-advertise` actions must be idempotent under re-flush — re-issuing subscribe for an already-subscribed topic must dedupe via refcount, and the action must tolerate an unsubscribe for an in-flight subscribe (the subscription registry re-issues subscribe on reconnect).
+- Widget offline gating: Single-topic data-display widgets gate their body with `DatasourceGate` (`@workspace/ui`) so an offline datasource shows a clear offline card, not a misleading empty/zero value. Multi-topic widgets degrade per-series via `getTopicHealth`; control/publisher and last-known-value widgets do not blank on offline.
 
 ## Implementation Patterns
 
@@ -284,6 +286,33 @@ const data = await res.json();
 - All API wrappers return `ApiResult<T>` for consistent error handling.
 - Test API wrappers with Bun test using mocked `httpClient`.
 - Route handlers remain independent; this pattern is for client-side code only.
+
+### 10. Widget `Component` — Stable module-level reference
+
+A `WidgetDefinition.Component` must be a **stable, module-level function reference**. The dashboard re-invokes every widget definition factory on each render (intentionally not memoized, since factories may call hooks), and the widget host uses `definition.Component` **directly as the React component type**. An inline arrow in the factory's return produces a new component identity on every render, so React remounts the widget — resetting state, re-running effects, and tearing down any connections/timers it holds.
+
+```typescript
+// ✅ Correct — hoisted component, identity stable across factory calls
+const MyWidget: React.FC<MyWidgetProps> = (props) => {
+	/* ... */
+};
+
+export function MyWidgetDefinition(): WidgetDefinition<MyWidgetProps> {
+	return {
+		id: "my-widget",
+		/* ...schema, uischema, data... */
+		Component: MyWidget,
+	};
+}
+```
+
+```typescript
+// ❌ Wrong — new function identity every render → remounts the widget
+Component: (data: MyWidgetProps) => <MyWidget {...data} />;
+```
+
+- If props need remapping, do it inside the hoisted component or a module-scope wrapper — never an inline arrow in the factory.
+- Rule of thumb: nothing inside a definition factory's `return { … }` may create a new function/component identity per call.
 
 ## Reference Docs (review before changes)
 

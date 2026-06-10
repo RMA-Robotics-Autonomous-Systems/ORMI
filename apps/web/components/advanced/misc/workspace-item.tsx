@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
-import { Workspace } from "@prisma/client";
+import { Workspace, Category } from "@prisma/client";
+import { createAvatarDataUri } from "@workspace/utils";
 
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
 import { Badge } from "@workspace/ui/components/badge";
@@ -16,17 +16,34 @@ import { WorkspaceOperations } from "@/components/advanced/misc/workspace-operat
 import moment from "moment";
 
 interface WorkspaceItemProps {
-	workspace: Pick<Workspace, "id" | "name" | "createdAT" | "dashboardType">;
+	workspace: Pick<
+		Workspace,
+		"id" | "name" | "createdAT" | "dashboardType" | "categoryId"
+	> & { order?: number | null };
+	/** Categories for the operations menu's "Change category" submenu. */
+	categories?: Category[];
+	/** Apply an optimistic local patch (rename / category / type switch). */
+	onWorkspacePatch?: (
+		id: number,
+		patch: Partial<
+			Pick<Workspace, "name" | "categoryId" | "dashboardType">
+		>,
+	) => void;
+	/** Persist a reorder/recategorize (shared with drag-and-drop). */
+	onWorkspaceReorder?: (
+		updates: { id: number; order: number; categoryId?: number | null }[],
+	) => Promise<void>;
 	onWorkspaceDeleted?: () => void;
 }
 
 export function WorkspaceItem({
 	workspace,
+	categories,
+	onWorkspacePatch,
+	onWorkspaceReorder,
 	onWorkspaceDeleted,
 }: WorkspaceItemProps) {
-	// Encode workspace name for use in URL
-	const encodedName = encodeURIComponent(workspace.name);
-	const avatarUrl = `/api/dicebear/9.x/identicon/svg?seed=${encodedName}`;
+	const avatarUrl = createAvatarDataUri("identicon", workspace.name);
 	const dashboardType =
 		DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType) ??
 		DASHBOARD_TYPES[0];
@@ -40,13 +57,12 @@ export function WorkspaceItem({
 					className="font-semibold hover:underline"
 				>
 					<div className="w-full h-32 relative overflow-hidden rounded-t-lg">
-						<Image
+						{/* eslint-disable-next-line @next/next/no-img-element */}
+						<img
 							src={avatarUrl}
 							alt={`${workspace.name} avatar`}
-							fill
+							className="absolute inset-0 h-full w-full"
 							style={{ objectFit: "contain" }}
-							sizes="100"
-							priority
 						/>
 					</div>
 
@@ -70,7 +86,16 @@ export function WorkspaceItem({
 			</CardContent>
 			<CardFooter className="pt-1 flex justify-end">
 				<WorkspaceOperations
-					workspace={{ id: workspace.id, name: workspace.name }}
+					workspace={{
+						id: workspace.id,
+						name: workspace.name,
+						categoryId: workspace.categoryId,
+						dashboardType: workspace.dashboardType,
+						order: workspace.order,
+					}}
+					categories={categories}
+					onWorkspacePatch={onWorkspacePatch}
+					onWorkspaceReorder={onWorkspaceReorder}
 					onWorkspaceDeleted={onWorkspaceDeleted}
 				/>
 			</CardFooter>

@@ -6,6 +6,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { FileIcon } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 
@@ -14,10 +15,11 @@ const MAX_JSON_LENGTH = 10000;
 
 /**
  * JSON viewer widget body.
+ * @param props - Component props.
  * @returns React element.
  */
-function JsonViewer() {
-	const { sources } = useLocalDataSource();
+function JsonViewer(props: { sourceTitle: string }) {
+	const { sources, health } = useLocalDataSource();
 	const [displayData, setDisplayData] = useState<string>("");
 	const lastUpdateRef = useRef<number>(0);
 
@@ -50,18 +52,20 @@ function JsonViewer() {
 	}, [sources]);
 
 	return (
-		<div style={{ height: "100%", overflow: "auto", display: "grid" }}>
-			<pre
-				className="shadow-inner-md rounded-md m-3 p-1"
-				style={{
-					boxShadow: "5px 5px 16px 0px rgba(0,0,0,0.1) inset",
-					backgroundColor: "darkslategrey",
-					color: "white",
-				}}
-			>
-				{displayData}
-			</pre>
-		</div>
+		<DatasourceGate health={health} title={props.sourceTitle}>
+			<div style={{ height: "100%", overflow: "auto", display: "grid" }}>
+				<pre
+					className="shadow-inner-md rounded-md m-3 p-1"
+					style={{
+						boxShadow: "5px 5px 16px 0px rgba(0,0,0,0.1) inset",
+						backgroundColor: "darkslategrey",
+						color: "white",
+					}}
+				>
+					{displayData}
+				</pre>
+			</div>
+		</DatasourceGate>
 	);
 }
 
@@ -75,6 +79,14 @@ interface JsonViewerProps extends Record<string, unknown> {
  * Widget definition for JsonViewer.
  * @returns Widget definition.
  */
+function JsonViewerWidget(data: JsonViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<JsonViewer sourceTitle={data.topic.source.title} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 	return {
 		id: "json-viewer-widget",
@@ -114,13 +126,6 @@ export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 		data: {
 			title: "Json viewer",
 		},
-		Component: (data: JsonViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<JsonViewer />
-			</LocalDataSourcesProvider>
-		),
+		Component: JsonViewerWidget,
 	} as WidgetDefinition<JsonViewerProps>;
 }

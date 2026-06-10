@@ -238,6 +238,17 @@ export function ChartEchartsWidget(props: ChartEchartsSettings) {
  * Widget definition for the ECharts chart.
  * @returns Widget definition.
  */
+function ChartEchartsWidgetWrapper(data: ChartEchartsSettings) {
+	return (
+		<LocalDataSourcesProvider
+			SelectedTopics={data.series.map((s) => s.topic)}
+			buffersSize={2000}
+		>
+			<ChartEchartsWidget {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function ChartEchartsWidgetDefinition(): WidgetDefinition<ChartEchartsSettings> {
 	const title: ControlElement = {
 		type: "Control",
@@ -514,13 +525,6 @@ export function ChartEchartsWidgetDefinition(): WidgetDefinition<ChartEchartsSet
 		},
 		uischema: layout,
 		data: { title: "ECharts Chart" },
-		Component: (data: ChartEchartsSettings) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={data.series.map((s) => s.topic)}
-				buffersSize={2000}
-			>
-				<ChartEchartsWidget {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: ChartEchartsWidgetWrapper,
 	};
 }

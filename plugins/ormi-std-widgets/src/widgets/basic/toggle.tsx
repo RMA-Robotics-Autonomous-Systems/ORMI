@@ -141,6 +141,18 @@ export function ToggleControl(props: ToggleControlData) {
  * Widget definition for ToggleControl.
  * @returns Widget definition.
  */
+function ToggleWidget(data: ToggleControlData) {
+	return data.topic ? (
+		<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+			<ToggleControl {...data} />
+		</PublisherDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
+}
+
 export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 	return {
 		id: "toggle-cmd-vel-widget",
@@ -228,15 +240,6 @@ export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 		data: {
 			title: "Toggle Control",
 		},
-		Component: (data: ToggleControlData) =>
-			data.topic ? (
-				<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-					<ToggleControl {...data} />
-				</PublisherDataSourcesProvider>
-			) : (
-				<div className="flex justify-center items-center h-full text-muted-foreground">
-					Please select a topic in the widget configuration.
-				</div>
-			),
+		Component: ToggleWidget,
 	};
 }

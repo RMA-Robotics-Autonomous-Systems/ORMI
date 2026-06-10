@@ -8,16 +8,18 @@ import {
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { TreeDataItem, TreeView } from "@workspace/ui/components/tree-view";
 import { ListTreeIcon } from "lucide-react";
 
 /**
  * Tree viewer widget body.
+ * @param props - Component props.
  * @returns React element.
  */
-export function TreeViewer() {
-	const { sources } = useLocalDataSource();
+export function TreeViewer(props: { sourceTitle: string }) {
+	const { sources, health } = useLocalDataSource();
 	// const animationFrameId = useRef<number>();
 
 	function generateTreeView(obj: any, parentId: string = ""): TreeDataItem[] {
@@ -54,13 +56,15 @@ export function TreeViewer() {
 	const treeData = generateTreeView(Array.from(sources.values())[0]?.data[0]);
 
 	return (
-		<div style={{ height: "100%", overflow: "auto" }}>
-			{treeData && treeData.length > 0 ? (
-				<TreeView data={treeData} />
-			) : (
-				<Spinner />
-			)}
-		</div>
+		<DatasourceGate health={health} title={props.sourceTitle}>
+			<div style={{ height: "100%", overflow: "auto" }}>
+				{treeData && treeData.length > 0 ? (
+					<TreeView data={treeData} />
+				) : (
+					<Spinner />
+				)}
+			</div>
+		</DatasourceGate>
 	);
 }
 
@@ -74,6 +78,14 @@ interface TreeViewerProps extends Record<string, unknown> {
  * Widget definition for TreeViewer.
  * @returns Widget definition.
  */
+function TreeViewerWidget(data: TreeViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<TreeViewer sourceTitle={data.topic.source.title} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 	const pluginsManager = usePluginsManager();
 
@@ -114,13 +126,6 @@ export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 		data: {
 			title: "Tree viewer",
 		},
-		Component: (data: TreeViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<TreeViewer />
-			</LocalDataSourcesProvider>
-		),
+		Component: TreeViewerWidget,
 	} as WidgetDefinition<TreeViewerProps>;
 }

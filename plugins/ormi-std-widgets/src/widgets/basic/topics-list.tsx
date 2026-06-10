@@ -395,6 +395,6 @@ export function TopicsListDefinition(): WidgetDefinition<TopicsListProps> {
 		data: {
 			title: "Topics List",
 		},
-		Component: () => <TopicsList />,
+		Component: TopicsList,
 	};
 }

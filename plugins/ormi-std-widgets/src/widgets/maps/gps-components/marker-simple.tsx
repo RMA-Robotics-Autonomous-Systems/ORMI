@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Marker } from "react-map-gl/maplibre";
-import Image from "next/image";
+import { createAvatarDataUri } from "@workspace/utils";
 import {
 	SelectedTopic,
 	useLocalDataSource,
@@ -57,15 +57,17 @@ export default function TopicMarker(props: {
 			setButtonItem(
 				buttonKey,
 				<Button
-					variant={"ghost"}
+					variant="ghost"
+					size="icon"
+					className="h-6 w-6"
 					onClick={() => {
 						setShow(!show);
 					}}
 				>
 					{show ? (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="h-3 w-3" />
 					) : (
-						<EyeClosedIcon className="h-4 w-4" />
+						<EyeClosedIcon className="h-3 w-3" />
 					)}
 				</Button>,
 				1,
@@ -83,10 +85,14 @@ export default function TopicMarker(props: {
 		show && (
 			<Marker longitude={location[1]} latitude={location[0]}>
 				<div>
-					<Image
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img
 						width={32}
 						height={32}
-						src={`/api/dicebear/9.x/bottts/svg?seed=${getSourceId(props.topic)}`}
+						src={createAvatarDataUri(
+							"bottts",
+							getSourceId(props.topic),
+						)}
 						alt={`Marker for ${props.name}`}
 					/>
 					<p style={{ textAlign: "center" }}>{props.name}</p>

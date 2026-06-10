@@ -609,6 +609,6 @@ export function BagListDefinition(): WidgetDefinition<BagListProps> {
 			],
 		} as VerticalLayout,
 		data: { title: "ROS2 Bag List" },
-		Component: (data: BagListProps) => <BagList {...data} />,
+		Component: BagList,
 	};
 }

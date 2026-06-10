@@ -242,6 +242,17 @@ function JsonList(props: JsonListProps) {
  * Widget definition for JsonList.
  * @returns Widget definition.
  */
+function JsonListWidget(data: JsonListProps) {
+	return (
+		<LocalDataSourcesProvider
+			SelectedTopics={[data.topic]}
+			buffersSize={1000}
+		>
+			<JsonList {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function JsonListDefinition(): WidgetDefinition<JsonListProps> {
 	return {
 		id: "json-List-widget",
@@ -281,13 +292,6 @@ export function JsonListDefinition(): WidgetDefinition<JsonListProps> {
 		data: {
 			title: "Json List",
 		},
-		Component: (data: JsonListProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1000}
-			>
-				<JsonList {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: JsonListWidget,
 	};
 }

@@ -82,11 +82,14 @@ export default function Page() {
 		return handleSave(dashboardState, workspaceId);
 	};
 
-	if (loading) return <div>Loading workspace...</div>;
-
+	// The shell mounts immediately so its persistence load runs in parallel with
+	// the workspace fetch above; both feed the shell's single loading skeleton
+	// (max of the two waits, not the sum). `dashboardType` is only read once the
+	// skeleton clears, by which point the fetch has resolved the real value.
 	return (
 		<DashboardShell
 			dashboardType={dashboardType}
+			loading={loading}
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>

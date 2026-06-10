@@ -386,11 +386,16 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
 		// Add visibility toggle button
 		setButtonItem(
 			uniqueTopicId,
-			<Button variant={"ghost"} onClick={() => setShow(!show)}>
+			<Button
+				variant="ghost"
+				size="icon"
+				className="h-6 w-6"
+				onClick={() => setShow(!show)}
+			>
 				{show ? (
-					<EyeIcon className="h-4 w-4" />
+					<EyeIcon className="h-3 w-3" />
 				) : (
-					<EyeClosedIcon className="h-4 w-4" />
+					<EyeClosedIcon className="h-3 w-3" />
 				)}
 			</Button>,
 			1,

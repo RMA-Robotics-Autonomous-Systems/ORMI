@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import {
 	DndContext,
 	DragOverlay,
@@ -22,7 +22,7 @@ import {
 	rectSortingStrategy,
 	arrayMove,
 } from "@dnd-kit/sortable";
-import { Category } from "@prisma/client";
+import { Workspace, Category } from "@prisma/client";
 import { createPortal } from "react-dom";
 import {
 	Dialog,
@@ -34,40 +34,59 @@ import {
 } from "@workspace/ui/components/dialog";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
-import { Plus } from "lucide-react";
+import { Skeleton } from "@workspace/ui/components/skeleton";
 import { toast } from "sonner";
 
 import { categoriesApi } from "@/lib/api/categories-api";
-import { workspaceApi } from "@/lib/api/workspace-api";
+import type { WorkspaceViewProps } from "@/components/advanced/workspace-views/types";
 
 import { WorkspaceItem } from "../workspace-item";
 import { KanbanColumn } from "./column";
 import { WorkspaceWithCategory, WorkspaceUpdate } from "./types";
 
-interface KanbanViewProps {
-	onWorkspaceDeleted: () => void;
-	onWorkspaceUpdate: (updates: WorkspaceUpdate[]) => Promise<void>;
-}
-
-export function KanbanView({
+/**
+ * BOARD workspace browser view. Presentational with respect to fetching — it
+ * receives workspaces/categories via {@link WorkspaceViewProps} and applies
+ * optimistic updates through the provided setters. It owns its own
+ * drag-and-drop reordering (dnd-kit) and category rename/delete dialogs.
+ *
+ * Category *creation* lives in the page toolbar (BOARD-only); this component no
+ * longer renders an "Add Category" tile.
+ */
+const KanbanView: React.FC<WorkspaceViewProps> = ({
+	workspaces,
+	categories,
+	setWorkspaces,
+	setCategories,
 	onWorkspaceDeleted,
 	onWorkspaceUpdate,
-}: KanbanViewProps) {
-	const [workspaces, setWorkspaces] = useState<WorkspaceWithCategory[]>([]);
-	const [categories, setCategories] = useState<Category[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
+}) => {
 	const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 	const [activeColumn, setActiveColumn] = useState<Category | null>(null);
 	const [originalActiveContainer, setOriginalActiveContainer] =
 		useState<UniqueIdentifier | null>(null);
 
-	// Category management state
-	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [newCategoryName, setNewCategoryName] = useState("");
+	// Category edit state (rename/delete are handled here; create is in toolbar)
 	const [editingCategory, setEditingCategory] = useState<Category | null>(
 		null,
 	);
 	const [editCategoryName, setEditCategoryName] = useState("");
+
+	/**
+	 * Apply an optimistic local patch to a single workspace (rename, category,
+	 * or layout-type switch from the operations menu). The page owns the
+	 * canonical state; `router.refresh()` in the menu reconciles on next load.
+	 */
+	const handleWorkspacePatch = (
+		id: number,
+		patch: Partial<
+			Pick<Workspace, "name" | "categoryId" | "dashboardType">
+		>,
+	) => {
+		setWorkspaces((prev) =>
+			prev.map((w) => (w.id === id ? { ...w, ...patch } : w)),
+		);
+	};
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -80,58 +99,6 @@ export function KanbanView({
 		}),
 	);
 
-	const fetchData = useCallback(async () => {
-		try {
-			const [wsResult, catResult] = await Promise.all([
-				workspaceApi.getAll(),
-				categoriesApi.getAll(),
-			]);
-
-			if (wsResult.ok) {
-				setWorkspaces(wsResult.data as WorkspaceWithCategory[]);
-			} else {
-				console.error("Failed to fetch workspaces", wsResult.error);
-				setWorkspaces([]);
-			}
-
-			if (catResult.ok) {
-				setCategories(catResult.data as Category[]);
-			} else {
-				console.warn(
-					"Failed to fetch categories, rendering uncategorized workspaces only",
-					catResult.error,
-				);
-				setCategories([]);
-			}
-		} catch (error) {
-			console.error("Failed to fetch data", error);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
-
-	useEffect(() => {
-		fetchData();
-	}, [fetchData]);
-
-	const handleCreateCategory = async () => {
-		if (!newCategoryName.trim()) return;
-
-		try {
-			const result = await categoriesApi.create(newCategoryName);
-
-			if (!result.ok) throw new Error(result.error);
-
-			setCategories([...categories, result.data as Category]);
-			setNewCategoryName("");
-			setIsCreateDialogOpen(false);
-			toast("Category created");
-		} catch (error) {
-			console.error(error);
-			toast("Failed to create category");
-		}
-	};
-
 	const handleUpdateCategory = async () => {
 		if (!editingCategory || !editCategoryName.trim()) return;
 
@@ -143,8 +110,8 @@ export function KanbanView({
 
 			if (!result.ok) throw new Error(result.error);
 
-			setCategories(
-				categories.map((c) =>
+			setCategories((prev) =>
+				prev.map((c) =>
 					c.id === result.data.id ? (result.data as Category) : c,
 				),
 			);
@@ -163,10 +130,10 @@ export function KanbanView({
 
 			if (!result.ok) throw new Error(result.error);
 
-			setCategories(categories.filter((c) => c.id !== categoryId));
+			setCategories((prev) => prev.filter((c) => c.id !== categoryId));
 			// Move workspaces to uncategorized locally
-			setWorkspaces(
-				workspaces.map((w) =>
+			setWorkspaces((prev) =>
+				prev.map((w) =>
 					w.categoryId === categoryId
 						? { ...w, categoryId: null }
 						: w,
@@ -208,6 +175,16 @@ export function KanbanView({
 
 		return cols;
 	}, [workspaces, categories]);
+
+	const findContainer = (id: UniqueIdentifier) => {
+		if (id in columns) {
+			return id;
+		}
+
+		return Object.keys(columns).find((key) =>
+			columns[key]?.find((w) => `workspace-${w.id}` === id),
+		);
+	};
 
 	const handleDragStart = (event: DragStartEvent) => {
 		if (event.active.data.current?.type === "Column") {
@@ -449,16 +426,6 @@ export function KanbanView({
 		setOriginalActiveContainer(null);
 	};
 
-	const findContainer = (id: UniqueIdentifier) => {
-		if (id in columns) {
-			return id;
-		}
-
-		return Object.keys(columns).find((key) =>
-			columns[key]?.find((w) => `workspace-${w.id}` === id),
-		);
-	};
-
 	const dropAnimation: DropAnimation = {
 		sideEffects: defaultDropAnimationSideEffects({
 			styles: {
@@ -468,10 +435,6 @@ export function KanbanView({
 			},
 		}),
 	};
-
-	if (isLoading) {
-		return <div>Loading...</div>;
-	}
 
 	return (
 		<DndContext
@@ -496,6 +459,9 @@ export function KanbanView({
 								items={columns[colId] || []}
 								onWorkspaceDeleted={onWorkspaceDeleted}
 								categoryId={category.id}
+								categories={categories}
+								onWorkspacePatch={handleWorkspacePatch}
+								onWorkspaceReorder={onWorkspaceUpdate}
 								onEdit={(cat) => {
 									setEditingCategory(
 										categories.find(
@@ -519,53 +485,12 @@ export function KanbanView({
 							items={columns["category-uncategorized"]}
 							onWorkspaceDeleted={onWorkspaceDeleted}
 							categoryId={-1}
+							categories={categories}
+							onWorkspacePatch={handleWorkspacePatch}
+							onWorkspaceReorder={onWorkspaceUpdate}
 						/>
 					)}
-
-				<div className="min-w-[350px]">
-					<Button
-						variant="outline"
-						className="h-[50px] w-full border-dashed"
-						onClick={() => setIsCreateDialogOpen(true)}
-					>
-						<Plus className="mr-2 h-4 w-4" />
-						Add Category
-					</Button>
-				</div>
 			</div>
-
-			<Dialog
-				open={isCreateDialogOpen}
-				onOpenChange={setIsCreateDialogOpen}
-			>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Create Category</DialogTitle>
-						<DialogDescription>
-							Add a new category to organize your workspaces.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="py-4">
-						<Input
-							placeholder="Category name"
-							value={newCategoryName}
-							onChange={(e) => setNewCategoryName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") handleCreateCategory();
-							}}
-						/>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsCreateDialogOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button onClick={handleCreateCategory}>Create</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 
 			<Dialog
 				open={!!editingCategory}
@@ -628,4 +553,26 @@ export function KanbanView({
 			)}
 		</DndContext>
 	);
-}
+};
+
+/**
+ * Loading skeleton matching the BOARD view's layout: a row of placeholder
+ * columns, each holding a couple of card-shaped placeholders that mirror
+ * {@link WorkspaceItem.Skeleton}. Stable module-level reference (Pattern 10).
+ */
+const KanbanViewSkeleton: React.FC = () => {
+	return (
+		<div className="flex flex-wrap gap-4 pb-4">
+			{Array.from({ length: 3 }).map((_, col) => (
+				<div key={col} className="w-[300px] space-y-3">
+					<Skeleton className="h-6 w-2/5" />
+					<WorkspaceItem.Skeleton />
+					<WorkspaceItem.Skeleton />
+				</div>
+			))}
+		</div>
+	);
+};
+
+export { KanbanView, KanbanViewSkeleton };
+export default KanbanView;

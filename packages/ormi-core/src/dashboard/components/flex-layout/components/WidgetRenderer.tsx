@@ -1,7 +1,6 @@
 import React from "react";
 import { WidgetDefinition } from "../../../../widgets/widget-interface";
 import { WidgetHost } from "../../../../dashboard/layout/widget-host";
-import { useFlexLayoutPortal } from "./FlexLayoutPortalContext";
 
 /** Props for WidgetRenderer. */
 interface WidgetRendererProps {
@@ -11,8 +10,9 @@ interface WidgetRendererProps {
 
 /**
  * Widget renderer for FlexLayout.
- * Uses canonical WidgetHost and integrates with FlexLayoutPortalContext
- * to pass the portal target for tab title button rendering.
+ * Uses the canonical WidgetHost. Contributed buttons are rendered directly in
+ * the tab strip via <ButtonHolderHost> (see TabRenderer) reading the shared
+ * registry — no portal target is needed here.
  * @param props - Component props.
  * @returns React element.
  */
@@ -20,9 +20,6 @@ const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
 	widgetId,
 	definition,
 }) => {
-	const { getPortalContainer } = useFlexLayoutPortal();
-	const portalTarget = getPortalContainer(widgetId);
-
 	if (!definition) {
 		return (
 			<div className="flex items-center justify-center h-full text-muted-foreground">
@@ -31,14 +28,7 @@ const WidgetRendererComponent: React.FC<WidgetRendererProps> = ({
 		);
 	}
 
-	// Use canonical WidgetHost with portal target from FlexLayoutPortalContext
-	return (
-		<WidgetHost
-			widgetId={widgetId}
-			getDefinition={() => definition}
-			portalTarget={portalTarget || undefined}
-		/>
-	);
+	return <WidgetHost widgetId={widgetId} getDefinition={() => definition} />;
 };
 
 /** Memoized widget renderer for FlexLayout. */

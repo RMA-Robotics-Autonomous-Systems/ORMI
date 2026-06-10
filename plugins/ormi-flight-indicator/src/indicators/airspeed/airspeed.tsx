@@ -100,6 +100,17 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 
 // a few lines later ...
 
+/**
+ * Airspeed widget wrapper providing the local datasource for the indicator.
+ * @param data - Widget props.
+ * @returns React element.
+ */
+const AirspeedWidget: React.FC<AirSpeedProps> = (data) => (
+	<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+		<WidgetAirspeedIndicator {...data} />
+	</LocalDataSourcesProvider>
+);
+
 /** Settings for Airspeed widget. */
 
 /**
@@ -166,13 +177,6 @@ export function AirspeedDefinition(): WidgetDefinition<AirSpeedProps> {
 		data: {
 			title: "Speed Indicator",
 		},
-		Component: (data: AirSpeedProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<WidgetAirspeedIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: AirspeedWidget,
 	};
 }

@@ -1,15 +1,12 @@
 "use client";
 
 import React from "react";
-import ReactDOM from "react-dom";
 import { useAtomValue } from "jotai";
 import { widgetAtomFamily } from "../atoms";
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import { widgetNotFound } from "../../widgets/components/widget-not-found";
-import {
-	ButtonHolder,
-	ButtonHolderProvider,
-} from "@workspace/ui/combined/ButtonHolder";
+import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
+import { WidgetErrorBoundary } from "./widget-error-boundary";
 
 /** Props for WidgetHost. */
 export interface WidgetHostProps {
@@ -23,42 +20,21 @@ export interface WidgetHostProps {
 	getDefinition: (widgetId: string) => WidgetDefinition;
 	/** Optional class name applied to the wrapper div. */
 	className?: string;
-	/**
-	 * Optional target element for ButtonHolder portal (Flex layout only).
-	 * If provided, ButtonHolder will be rendered into this target via portal.
-	 * Used for tab title button integration in FlexLayout.
-	 */
-	portalTarget?: HTMLElement;
 }
-
-/**
- * Portal ButtonHolder into a target element (Flex layout tab titles).
- * @param props - Component props.
- * @returns React element or null.
- */
-const ButtonHolderPortal: React.FC<{ portalTarget: HTMLElement }> = ({
-	portalTarget,
-}) => {
-	// Verify target is still in DOM before creating portal
-	if (!portalTarget.isConnected) {
-		return null;
-	}
-
-	// Portal the ButtonHolder component into the tab title container
-	// This preserves the React context and event handlers from the content area
-	return ReactDOM.createPortal(<ButtonHolder />, portalTarget);
-};
 
 /**
  * Renders a single widget instance.
  * Subscribes to widgetAtomFamily so only the affected host re-renders
  * when settings change — not the entire widget list.
+ *
+ * Wraps the widget body in a WidgetScopeProvider so the widget's
+ * useButtonHolder() resolves to this widget's bucket in the single
+ * shell-level ButtonHolder registry.
  */
 const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	widgetId,
 	getDefinition,
 	className,
-	portalTarget,
 }) => {
 	const widget = useAtomValue(widgetAtomFamily(widgetId));
 
@@ -75,15 +51,24 @@ const WidgetHostComponent: React.FC<WidgetHostProps> = ({
 	const WidgetComponent = definition.Component;
 
 	return (
-		<ButtonHolderProvider>
+		<WidgetScopeProvider value={widgetId}>
 			<div className={className ?? "w-full h-full overflow-hidden"}>
-				{/* Portal ButtonHolder to tab title (Flex only) */}
-				{portalTarget && (
-					<ButtonHolderPortal portalTarget={portalTarget} />
-				)}
-				<WidgetComponent {...widget.settings} />
+				{/*
+				 * Isolate the widget body so a throw (e.g. on data briefly
+				 * absent now that widgets mount before their datasource is
+				 * ready) renders a localized fallback instead of crashing the
+				 * whole layout. The boundary wraps the body only — the host
+				 * chrome stays usable. resetKeys is the widget id, so a fresh
+				 * widget identity clears a prior error; the fallback also
+				 * offers a manual retry. Pattern 10: definition.Component
+				 * stays the stable module-level reference (WidgetComponent),
+				 * the boundary only wraps it.
+				 */}
+				<WidgetErrorBoundary resetKeys={[widgetId]}>
+					<WidgetComponent {...widget.settings} />
+				</WidgetErrorBoundary>
 			</div>
-		</ButtonHolderProvider>
+		</WidgetScopeProvider>
 	);
 };
 

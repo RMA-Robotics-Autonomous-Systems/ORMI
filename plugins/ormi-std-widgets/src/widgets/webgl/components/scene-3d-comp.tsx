@@ -1,4 +1,10 @@
-import React, { useRef, useMemo, useState, useCallback } from "react";
+import React, {
+	useRef,
+	useMemo,
+	useState,
+	useCallback,
+	useEffect,
+} from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
@@ -23,6 +29,7 @@ import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { PathLineRenderer } from "./path-line-renderer";
+import { Scene3DControlPanel, SceneLayerEntry } from "./scene-3d-controls";
 
 // ============================================================================
 // Point Cloud Layer Renderer (uses data source context)
@@ -157,13 +164,128 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 
 	const axesHelper = useMemo(() => new THREE.AxesHelper(5), []);
 
+	// ------------------------------------------------------------------
+	// Runtime layer visibility (button-holder style controls).
+	//
+	// Toggling a layer is runtime-only state — it never writes back to the
+	// saved widget config. Each entry's default comes from its config flag;
+	// user overrides live in `overrides` and are reset whenever the configured
+	// layer set / defaults change (i.e. the user edits the widget settings).
+	// ------------------------------------------------------------------
+	const visibilityConfig = useMemo(() => {
+		const list: {
+			key: string;
+			label: string;
+			kind: SceneLayerEntry["kind"];
+			defaultVisible: boolean;
+		}[] = [];
+
+		pointCloudLayers.forEach((layer, index) => {
+			list.push({
+				key: `pc:${layer.id ?? index}`,
+				label: layer.topic?.topic ?? `Point cloud ${index + 1}`,
+				kind: "pointcloud",
+				defaultVisible: layer.enabled !== false,
+			});
+		});
+		pathLayers.forEach((layer, index) => {
+			list.push({
+				key: `path:${layer.id ?? index}`,
+				label: layer.topic?.topic ?? `Path ${index + 1}`,
+				kind: "path",
+				defaultVisible: layer.enabled !== false,
+			});
+		});
+		mapGridLayers.forEach((layer, index) => {
+			list.push({
+				key: `mapgrid:${layer.id ?? index}`,
+				label: layer.topic?.topic ?? `Map grid ${index + 1}`,
+				kind: "mapgrid",
+				defaultVisible: layer.enabled !== false,
+			});
+		});
+		if (props.transformTree !== undefined) {
+			list.push({
+				key: "scene:tf",
+				label: "Transform tree",
+				kind: "transformTree",
+				defaultVisible: transformTree.enabled === true,
+			});
+		}
+		list.push({
+			key: "scene:grid",
+			label: "Grid",
+			kind: "grid",
+			defaultVisible: showGrid,
+		});
+		list.push({
+			key: "scene:axes",
+			label: "Axes",
+			kind: "axes",
+			defaultVisible: showAxes,
+		});
+
+		return list;
+	}, [
+		pointCloudLayers,
+		pathLayers,
+		mapGridLayers,
+		transformTree.enabled,
+		props.transformTree,
+		showGrid,
+		showAxes,
+	]);
+
+	const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+	const configSignature = useMemo(
+		() =>
+			visibilityConfig
+				.map((c) => `${c.key}=${c.defaultVisible}`)
+				.join("|"),
+		[visibilityConfig],
+	);
+	useEffect(() => {
+		setOverrides({});
+	}, [configSignature]);
+
+	const isVisible = useCallback(
+		(key: string, defaultVisible: boolean) =>
+			overrides[key] ?? defaultVisible,
+		[overrides],
+	);
+	const handleToggle = useCallback(
+		(key: string, visible: boolean) =>
+			setOverrides((prev) => ({ ...prev, [key]: visible })),
+		[],
+	);
+
+	const layerEntries: SceneLayerEntry[] = visibilityConfig
+		.filter((c) => c.kind !== "grid" && c.kind !== "axes")
+		.map((c) => ({
+			key: c.key,
+			label: c.label,
+			kind: c.kind,
+			visible: isVisible(c.key, c.defaultVisible),
+		}));
+	const sceneEntries: SceneLayerEntry[] = visibilityConfig
+		.filter((c) => c.kind === "grid" || c.kind === "axes")
+		.map((c) => ({
+			key: c.key,
+			label: c.label,
+			kind: c.kind,
+			visible: isVisible(c.key, c.defaultVisible),
+		}));
+
 	return (
 		<div style={{ width: "100%", height: "100%", position: "relative" }}>
 			<Canvas frameloop={enableContinuousRender ? "always" : "demand"}>
 				<PerspectiveCamera makeDefault position={[5, 5, 5]} />
 				<ambientLight intensity={1} />
 
-				{showAxes && <primitive object={axesHelper} />}
+				{isVisible("scene:axes", showAxes) && (
+					<primitive object={axesHelper} />
+				)}
 
 				<GizmoHelper alignment="bottom-right" margin={[80, 80]}>
 					<GizmoViewport
@@ -173,7 +295,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 				</GizmoHelper>
 
 				<OrbitControls ref={controlsRef} makeDefault />
-				{showGrid && (
+				{isVisible("scene:grid", showGrid) && (
 					<Grid
 						cellSize={1}
 						infiniteGrid={true}
@@ -182,41 +304,47 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 				)}
 
 				{/* Render Point Cloud Layers */}
-				{pointCloudLayers
-					.filter((layer) => layer.enabled !== false)
-					.map((layer, index) => (
+				{pointCloudLayers.map((layer, index) => {
+					const key = `pc:${layer.id ?? index}`;
+					if (!isVisible(key, layer.enabled !== false)) return null;
+					return (
 						<PointCloudLayerRenderer
-							key={layer.id ?? `pc-${index}`}
+							key={key}
 							config={layer}
 							targetFrame={targetFrame}
 						/>
-					))}
+					);
+				})}
 
 				{/* Render Path Layers */}
-				{pathLayers
-					.filter((layer) => layer.enabled !== false)
-					.map((layer, index) => (
+				{pathLayers.map((layer, index) => {
+					const key = `path:${layer.id ?? index}`;
+					if (!isVisible(key, layer.enabled !== false)) return null;
+					return (
 						<PathLayerRenderer
-							key={layer.id ?? `path-${index}`}
+							key={key}
 							config={layer}
 							targetFrame={targetFrame}
 						/>
-					))}
+					);
+				})}
 
 				{/* Render Map Grid Layers */}
-				{mapGridLayers
-					.filter((layer) => layer.enabled !== false)
-					.map((layer, index) => (
+				{mapGridLayers.map((layer, index) => {
+					const key = `mapgrid:${layer.id ?? index}`;
+					if (!isVisible(key, layer.enabled !== false)) return null;
+					return (
 						<MapGridLayerRenderer
-							key={layer.id ?? `mapgrid-${index}`}
+							key={key}
 							config={layer}
 							targetFrame={targetFrame}
 							layerIndex={index}
 						/>
-					))}
+					);
+				})}
 
 				{/* Render Transform Tree */}
-				{transformTree.enabled && (
+				{isVisible("scene:tf", transformTree.enabled === true) && (
 					<TransformTreeFollowLayer
 						controlsRef={controlsRef}
 						config={transformTree}
@@ -232,6 +360,13 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					/>
 				)}
 			</Canvas>
+
+			{/* Runtime layer controls (top-right) */}
+			<Scene3DControlPanel
+				layers={layerEntries}
+				scene={sceneEntries}
+				onToggle={handleToggle}
+			/>
 
 			{/* DOM overlay hints */}
 			{posePublisherConfig?.enabled && (

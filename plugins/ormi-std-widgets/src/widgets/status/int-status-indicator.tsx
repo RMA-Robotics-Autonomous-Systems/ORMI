@@ -9,6 +9,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { CircleAlertIcon } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 
@@ -29,7 +30,7 @@ interface IntStatusIndicatorProps extends Record<string, unknown> {
  * @returns React element.
  */
 function IntStatusIndicator(props: IntStatusIndicatorProps) {
-	const { sources } = useLocalDataSource();
+	const { sources, health } = useLocalDataSource();
 
 	const sources_keys = Array.from(sources.keys());
 	const value =
@@ -56,27 +57,29 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
 	};
 
 	return (
-		<div
-			style={{
-				backgroundColor: statu.color,
-				color: "white",
-				height: "100%",
-				width: "100%",
-				display: "grid",
-				alignItems: "center",
-				justifyContent: "center",
-				fontSize: "xxx-large",
-				transition: "all 0.5s ease",
-			}}
-		>
-			<TypeAnimation
-				speed={75}
-				cursor={false}
-				key={statu.name}
-				sequence={[statu.name]}
-				repeat={1}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				style={{
+					backgroundColor: statu.color,
+					color: "white",
+					height: "100%",
+					width: "100%",
+					display: "grid",
+					alignItems: "center",
+					justifyContent: "center",
+					fontSize: "xxx-large",
+					transition: "all 0.5s ease",
+				}}
+			>
+				<TypeAnimation
+					speed={75}
+					cursor={false}
+					key={statu.name}
+					sequence={[statu.name]}
+					repeat={1}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 
@@ -84,6 +87,14 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
  * Widget definition for integer status indicator.
  * @returns Widget definition.
  */
+function IntStatusIndicatorWidget(data: IntStatusIndicatorProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<IntStatusIndicator {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndicatorProps> {
 	return {
 		id: "int-status-indicator",
@@ -168,13 +179,6 @@ export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndica
 			title: "Status",
 			use3D: false,
 		},
-		Component: (data: IntStatusIndicatorProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<IntStatusIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: IntStatusIndicatorWidget,
 	};
 }

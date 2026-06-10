@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, ReactNode, useState, useCallback } from "react";
+import React, { ReactNode, useState, useCallback } from "react";
 import { WidgetCard } from "../../../../widgets/components/widget-card/widget-card";
 import { createSafeContext } from "@workspace/utils";
 
@@ -13,11 +13,8 @@ interface DialogState {
 	onUpdateWidget: (box_id: string, settings: any) => void;
 }
 
-/** FlexLayout portal context value. */
+/** FlexLayout widget-config dialog context value. */
 interface FlexLayoutPortalContextType {
-	registerPortal: (widgetId: string, container: HTMLElement) => void;
-	unregisterPortal: (widgetId: string) => void;
-	getPortalContainer: (widgetId: string) => HTMLElement | null;
 	openDialog: (
 		widgetId: string,
 		widget: any,
@@ -37,27 +34,14 @@ interface FlexLayoutPortalProviderProps {
 }
 
 /**
- * Provide portal containers and widget dialog state for FlexLayout.
+ * Provide widget config dialog state for FlexLayout.
  * @param props - Component props.
  * @returns React element.
  */
 export const FlexLayoutPortalProvider: React.FC<
 	FlexLayoutPortalProviderProps
 > = ({ children }) => {
-	const portalContainers = useRef<Map<string, HTMLElement>>(new Map());
 	const [dialogState, setDialogState] = useState<DialogState | null>(null);
-
-	const registerPortal = (widgetId: string, container: HTMLElement) => {
-		portalContainers.current.set(widgetId, container);
-	};
-
-	const unregisterPortal = (widgetId: string) => {
-		portalContainers.current.delete(widgetId);
-	};
-
-	const getPortalContainer = (widgetId: string): HTMLElement | null => {
-		return portalContainers.current.get(widgetId) || null;
-	};
 
 	const openDialog = useCallback(
 		(
@@ -82,9 +66,6 @@ export const FlexLayoutPortalProvider: React.FC<
 	}, []);
 
 	const contextValue: FlexLayoutPortalContextType = {
-		registerPortal,
-		unregisterPortal,
-		getPortalContainer,
 		openDialog,
 		closeDialog,
 		dialogState,
@@ -117,8 +98,8 @@ export const FlexLayoutPortalProvider: React.FC<
 };
 
 /**
- * Access the FlexLayout portal context.
- * @returns FlexLayout portal context value.
+ * Access the FlexLayout widget-config dialog context.
+ * @returns FlexLayout dialog context value.
  */
 export const useFlexLayoutPortal = (): FlexLayoutPortalContextType => {
 	return useFlexLayoutPortalContext();

@@ -29,6 +29,7 @@ Widgets
 - **Responsive Design**: Works across desktop and mobile devices with theme customization
 - **3D Visualization**: Native Three.js integration for spatial data representation
 - **Dashboard Customization**: Drag-and-drop interface to create tailored monitoring layouts
+- **Workspace Management**: A single Edit dialog (from each workspace's actions menu) to rename, recategorize, and migrate a workspace's layout type; switching type keeps widgets and datasources while resetting the arrangement to the new engine's default
 - **Database Integration**: Prisma ORM with PostgreSQL for persistent data storage
 
 ## Project Structure

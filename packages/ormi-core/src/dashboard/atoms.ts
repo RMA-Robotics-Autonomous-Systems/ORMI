@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { atomFamily } from "jotai/utils";
+import { atomFamily } from "jotai-family";
 import { Widget } from "../widgets/widget-interface";
 import { Datasource } from "../datasources/datasource-interface";
 

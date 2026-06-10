@@ -1,2 +1,9 @@
-export * from "./button-holder-provider";
-export * from "./button-holder";
+export {
+	ButtonHolderProvider,
+	WidgetScopeProvider,
+	useWidgetScope,
+	useButtonHolder,
+	useButtonHolderRegistryContext,
+	type ButtonItem,
+} from "./button-holder-provider";
+export { ButtonHolderHost } from "./button-holder";
