@@ -74,6 +74,14 @@ interface TreeViewerProps extends Record<string, unknown> {
  * Widget definition for TreeViewer.
  * @returns Widget definition.
  */
+function TreeViewerWidget(data: TreeViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<TreeViewer />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 	const pluginsManager = usePluginsManager();
 
@@ -114,13 +122,6 @@ export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 		data: {
 			title: "Tree viewer",
 		},
-		Component: (data: TreeViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<TreeViewer />
-			</LocalDataSourcesProvider>
-		),
+		Component: TreeViewerWidget,
 	} as WidgetDefinition<TreeViewerProps>;
 }

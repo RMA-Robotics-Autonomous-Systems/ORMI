@@ -8,6 +8,18 @@ interface IFrameProps extends Record<string, unknown> {
 	url: string;
 }
 
+/** Renders the iframe widget. */
+function IframeWidget(props: IFrameProps) {
+	return (
+		<div style={{ width: "100%", height: "100%" }}>
+			<iframe
+				style={{ width: "100%", height: "100%" }}
+				src={props.url}
+			></iframe>
+		</div>
+	);
+}
+
 /**
  * Widget definition for iframe viewer.
  * @returns Widget definition.
@@ -49,13 +61,6 @@ export function IframeDefinition(): WidgetDefinition<IFrameProps> {
 		data: {
 			title: "Plugins viewer",
 		},
-		Component: (props: IFrameProps) => (
-			<div style={{ width: "100%", height: "100%" }}>
-				<iframe
-					style={{ width: "100%", height: "100%" }}
-					src={props.url}
-				></iframe>
-			</div>
-		),
+		Component: IframeWidget,
 	} as WidgetDefinition<IFrameProps>;
 }

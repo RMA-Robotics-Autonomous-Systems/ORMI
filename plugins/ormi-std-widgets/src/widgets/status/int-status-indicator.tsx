@@ -84,6 +84,14 @@ function IntStatusIndicator(props: IntStatusIndicatorProps) {
  * Widget definition for integer status indicator.
  * @returns Widget definition.
  */
+function IntStatusIndicatorWidget(data: IntStatusIndicatorProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<IntStatusIndicator {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndicatorProps> {
 	return {
 		id: "int-status-indicator",
@@ -168,13 +176,6 @@ export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndica
 			title: "Status",
 			use3D: false,
 		},
-		Component: (data: IntStatusIndicatorProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<IntStatusIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: IntStatusIndicatorWidget,
 	};
 }

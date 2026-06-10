@@ -385,6 +385,14 @@ export function JoypadControls(props: JoypadControlsProps) {
  * Widget definition for joystick control.
  * @returns Widget definition.
  */
+function CmdVelJoystickWidget(data: JoypadControlsProps) {
+	return (
+		<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+			<JoypadControls {...data} />
+		</PublisherDataSourcesProvider>
+	);
+}
+
 export function JoypadControlsDefinition(): WidgetDefinition<JoypadControlsProps> {
 	const pluginsManager = usePluginsManager();
 
@@ -557,10 +565,6 @@ export function JoypadControlsDefinition(): WidgetDefinition<JoypadControlsProps
 		data: {
 			title: "Control the robot",
 		},
-		Component: (data: JoypadControlsProps) => (
-			<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-				<JoypadControls {...data} />
-			</PublisherDataSourcesProvider>
-		),
+		Component: CmdVelJoystickWidget,
 	};
 }

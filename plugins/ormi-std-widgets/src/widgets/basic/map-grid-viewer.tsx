@@ -226,6 +226,18 @@ interface MapGridViewerProps extends Record<string, unknown> {
  * Accepts topics of web-type `MapGrid` (mapped from `nav_msgs/OccupancyGrid`
  * or `nav2_msgs/Costmap`).
  */
+function MapGridViewerWidget(data: MapGridViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<MapGridViewerBody
+				colorMode={data.colorMode ?? "costmap"}
+				opacity={data.opacity ?? 0.95}
+				showUnknown={data.showUnknown ?? true}
+			/>
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function MapGridViewerDefinition(): WidgetDefinition<MapGridViewerProps> {
 	return {
 		id: "map-grid-viewer",
@@ -295,17 +307,6 @@ export function MapGridViewerDefinition(): WidgetDefinition<MapGridViewerProps> 
 			opacity: 0.95,
 			showUnknown: true,
 		},
-		Component: (data: MapGridViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<MapGridViewerBody
-					colorMode={data.colorMode ?? "costmap"}
-					opacity={data.opacity ?? 0.95}
-					showUnknown={data.showUnknown ?? true}
-				/>
-			</LocalDataSourcesProvider>
-		),
+		Component: MapGridViewerWidget,
 	};
 }

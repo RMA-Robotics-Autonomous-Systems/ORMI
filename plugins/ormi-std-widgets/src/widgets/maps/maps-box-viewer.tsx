@@ -660,7 +660,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				imuTopics: [],
 			},
 		},
-		Component: (data: MapsViewerSettings) => <MapsBoxViewer {...data} />,
+		Component: MapsBoxViewer,
 
 		/**
 		 * Extensibility hook to allow plugins to extend available map types.

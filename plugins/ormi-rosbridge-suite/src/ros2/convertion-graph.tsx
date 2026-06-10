@@ -113,6 +113,6 @@ export function Ros2ConvertionGraphDefinition(): WidgetDefinition<Ros2Convertion
 			],
 		} as VerticalLayout,
 		data: { title: "ROS2 Conversion Graph" },
-		Component: () => <Ros2ConvertionGraph />,
+		Component: Ros2ConvertionGraph,
 	};
 }

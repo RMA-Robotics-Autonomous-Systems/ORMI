@@ -285,6 +285,33 @@ const data = await res.json();
 - Test API wrappers with Bun test using mocked `httpClient`.
 - Route handlers remain independent; this pattern is for client-side code only.
 
+### 10. Widget `Component` — Stable module-level reference
+
+A `WidgetDefinition.Component` must be a **stable, module-level function reference**. The dashboard re-invokes every widget definition factory on each render (intentionally not memoized, since factories may call hooks), and the widget host uses `definition.Component` **directly as the React component type**. An inline arrow in the factory's return produces a new component identity on every render, so React remounts the widget — resetting state, re-running effects, and tearing down any connections/timers it holds.
+
+```typescript
+// ✅ Correct — hoisted component, identity stable across factory calls
+const MyWidget: React.FC<MyWidgetProps> = (props) => {
+	/* ... */
+};
+
+export function MyWidgetDefinition(): WidgetDefinition<MyWidgetProps> {
+	return {
+		id: "my-widget",
+		/* ...schema, uischema, data... */
+		Component: MyWidget,
+	};
+}
+```
+
+```typescript
+// ❌ Wrong — new function identity every render → remounts the widget
+Component: (data: MyWidgetProps) => <MyWidget {...data} />;
+```
+
+- If props need remapping, do it inside the hoisted component or a module-scope wrapper — never an inline arrow in the factory.
+- Rule of thumb: nothing inside a definition factory's `return { … }` may create a new function/component identity per call.
+
 ## Reference Docs (review before changes)
 
 - Data flow: [apps/web/content/docs/Data-Flow.md](apps/web/content/docs/Data-Flow.md)

@@ -598,12 +598,11 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 			title: "WebRTC viewer",
 			iceServersUrls: ["stun:stun.l.google.com:19302"],
 		},
-		Component: (data: WebrtcRos2VideoStreamProps) => (
-			<WebrtcRos2VideoStream
-				title={data.title}
-				topic={data.topic}
-				iceServersUrls={data.iceServersUrls}
-			/>
-		),
+		// Stable, module-level component reference. The definition factory is
+		// re-invoked on every dashboard render, so an inline arrow here would
+		// produce a new Component identity each time and make React remount the
+		// widget — tearing down and reconnecting the WebRTC stream (e.g. on every
+		// rotation re-render). Referencing the hoisted component keeps it mounted.
+		Component: WebrtcRos2VideoStream,
 	};
 }

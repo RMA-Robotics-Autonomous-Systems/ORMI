@@ -94,6 +94,14 @@ interface ImageViewerProps extends Record<string, unknown> {
  * Widget definition for ImageViewer.
  * @returns Widget definition.
  */
+function ImageViewerWidget(data: ImageViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<ImageViewer />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function ImageViewerDefinition(): WidgetDefinition<ImageViewerProps> {
 	return {
 		id: "image-viewer-widget",
@@ -138,13 +146,6 @@ export function ImageViewerDefinition(): WidgetDefinition<ImageViewerProps> {
 		data: {
 			title: "Image viewer",
 		},
-		Component: (data: ImageViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<ImageViewer />
-			</LocalDataSourcesProvider>
-		),
+		Component: ImageViewerWidget,
 	} as WidgetDefinition<ImageViewerProps>;
 }

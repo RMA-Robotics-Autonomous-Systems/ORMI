@@ -136,6 +136,17 @@ const LevelIcon = () => {
 	);
 };
 
+/**
+ * Level widget wrapper providing the local datasource for the indicator.
+ * @param data - Widget props.
+ * @returns React element.
+ */
+const LevelWidget: React.FC<LevelProps> = (data) => (
+	<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+		<WidgetLevelIndicator {...data} />
+	</LocalDataSourcesProvider>
+);
+
 /** Settings for Level widget. */
 
 /**
@@ -214,13 +225,6 @@ export function LevelDefinition(): WidgetDefinition<LevelProps> {
 		data: {
 			title: "Level Indicator",
 		},
-		Component: (data: LevelProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<WidgetLevelIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: LevelWidget,
 	};
 }

@@ -269,6 +269,17 @@ function showErrorToast(notFoundTopics: string[]) {
  * Widget definition for the time series chart.
  * @returns Widget definition.
  */
+function TimeSeriesChartWidget(data: TimeSeriesSettings) {
+	return (
+		<LocalDataSourcesProvider
+			SelectedTopics={data.topics.map((t) => t.topic)}
+			buffersSize={2000}
+		>
+			<TimeChartComponent {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function TimeSeriesChartDefinition(): WidgetDefinition<TimeSeriesSettings> {
 	const title: ControlElement = {
 		type: "Control",
@@ -419,13 +430,6 @@ export function TimeSeriesChartDefinition(): WidgetDefinition<TimeSeriesSettings
 		data: {
 			title: "Time Series Chart",
 		},
-		Component: (data: TimeSeriesSettings) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={data.topics.map((t) => t.topic)}
-				buffersSize={2000}
-			>
-				<TimeChartComponent {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: TimeSeriesChartWidget,
 	};
 }

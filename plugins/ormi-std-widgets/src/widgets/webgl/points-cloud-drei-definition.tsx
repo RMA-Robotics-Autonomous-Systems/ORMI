@@ -11,6 +11,21 @@ import {
 /**
  * Definition for the PointsCloudDrei widget with schema configuration
  */
+function PointsCloudDreiWidget(data: PointsCloudProps) {
+	return (
+		<LocalDataSourcesProvider
+			SelectedTopics={
+				data.topics && data.topics.length > 0
+					? data.topics.map((entry) => entry.topic)
+					: []
+			}
+			buffersSize={1}
+		>
+			<PointsCloudComp {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> {
 	return {
 		id: "std-points-cloud-drei",
@@ -184,17 +199,6 @@ export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> 
 			targetFrame: "",
 			topics: [],
 		},
-		Component: (data: PointsCloudProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={
-					data.topics && data.topics.length > 0
-						? data.topics.map((entry) => entry.topic)
-						: []
-				}
-				buffersSize={1}
-			>
-				<PointsCloudComp {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: PointsCloudDreiWidget,
 	};
 }

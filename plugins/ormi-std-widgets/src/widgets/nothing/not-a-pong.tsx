@@ -454,6 +454,6 @@ export function NotAPongDefinition() {
 		data: {
 			title: "Ooops",
 		},
-		Component: (data: NotAPongProps) => <NotAPong {...data} />,
+		Component: NotAPong,
 	};
 }

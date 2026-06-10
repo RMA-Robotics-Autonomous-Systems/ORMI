@@ -162,6 +162,18 @@ export function CycleControl(props: CycleControlData) {
  * Widget definition for CycleControl.
  * @returns Widget definition.
  */
+function CycleWidget(data: CycleControlData) {
+	return data.topic ? (
+		<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+			<CycleControl {...data} />
+		</PublisherDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
+}
+
 export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 	return {
 		id: "cycle-cmd-vel-widget",
@@ -269,15 +281,6 @@ export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 		data: {
 			title: "Cycle Control",
 		},
-		Component: (data: CycleControlData) =>
-			data.topic ? (
-				<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-					<CycleControl {...data} />
-				</PublisherDataSourcesProvider>
-			) : (
-				<div className="flex justify-center items-center h-full text-muted-foreground">
-					Please select a topic in the widget configuration.
-				</div>
-			),
+		Component: CycleWidget,
 	};
 }

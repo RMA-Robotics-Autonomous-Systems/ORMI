@@ -17,6 +17,44 @@ import { Scene3DProps } from "./types/scene-3d-types";
  * Unified 3D Scene widget definition
  * Combines Point Cloud and Path visualization in a single 3D canvas
  */
+function Scene3DWidget(data: Scene3DProps) {
+	// Collect all topics from all layers for the data source provider
+	const allTopics: SelectedTopic[] = [];
+
+	if (data.pointCloudLayers) {
+		for (const layer of data.pointCloudLayers) {
+			if (layer.enabled === false) continue;
+			if (layer.topic) {
+				allTopics.push(layer.topic);
+			}
+		}
+	}
+
+	if (data.pathLayers) {
+		for (const layer of data.pathLayers) {
+			if (layer.enabled === false) continue;
+			if (layer.topic) {
+				allTopics.push(layer.topic);
+			}
+		}
+	}
+
+	if (data.mapGridLayers) {
+		for (const layer of data.mapGridLayers) {
+			if (layer.enabled === false) continue;
+			if (layer.topic) {
+				allTopics.push(layer.topic);
+			}
+		}
+	}
+
+	return (
+		<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={1}>
+			<Scene3DComp {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 	return {
 		id: "std-scene-3d",
@@ -543,45 +581,6 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 				markerSize: 0.5,
 			},
 		},
-		Component: (data: Scene3DProps) => {
-			// Collect all topics from all layers for the data source provider
-			const allTopics: SelectedTopic[] = [];
-
-			if (data.pointCloudLayers) {
-				for (const layer of data.pointCloudLayers) {
-					if (layer.enabled === false) continue;
-					if (layer.topic) {
-						allTopics.push(layer.topic);
-					}
-				}
-			}
-
-			if (data.pathLayers) {
-				for (const layer of data.pathLayers) {
-					if (layer.enabled === false) continue;
-					if (layer.topic) {
-						allTopics.push(layer.topic);
-					}
-				}
-			}
-
-			if (data.mapGridLayers) {
-				for (const layer of data.mapGridLayers) {
-					if (layer.enabled === false) continue;
-					if (layer.topic) {
-						allTopics.push(layer.topic);
-					}
-				}
-			}
-
-			return (
-				<LocalDataSourcesProvider
-					SelectedTopics={allTopics}
-					buffersSize={1}
-				>
-					<Scene3DComp {...data} />
-				</LocalDataSourcesProvider>
-			);
-		},
+		Component: Scene3DWidget,
 	};
 }

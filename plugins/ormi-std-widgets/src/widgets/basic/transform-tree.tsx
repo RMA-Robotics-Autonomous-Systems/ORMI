@@ -268,8 +268,6 @@ export function TransformTreeWidgetDefinition(): WidgetDefinition<TransformTreeV
 			title: "Transform Tree Viewer",
 			showCoordinates: true,
 		},
-		Component: (data: TransformTreeViewerProps) => (
-			<TransformTreeViewer {...data} />
-		),
+		Component: TransformTreeViewer,
 	};
 }

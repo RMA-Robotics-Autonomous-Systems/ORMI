@@ -96,6 +96,14 @@ function ConditionStatusIndicator(props: ConditionStatusIndicatorProps) {
  * Widget definition for conditional status indicator.
  * @returns Widget definition.
  */
+function CondStatusIndicatorWidget(data: ConditionStatusIndicatorProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<ConditionStatusIndicator {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatusIndicatorProps> {
 	return {
 		id: "cond-status-indicator",
@@ -223,13 +231,6 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 			title: "Status",
 			use3D: false,
 		},
-		Component: (data: ConditionStatusIndicatorProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<ConditionStatusIndicator {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: CondStatusIndicatorWidget,
 	};
 }

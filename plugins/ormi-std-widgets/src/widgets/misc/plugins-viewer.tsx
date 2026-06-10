@@ -138,6 +138,6 @@ export function PluginsViewerDefinition(): WidgetDefinition<PluginsViewerProps> 
 		data: {
 			title: "Plugins viewer",
 		},
-		Component: () => <PluginViewer />,
+		Component: PluginViewer,
 	};
 }

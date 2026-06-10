@@ -17,6 +17,17 @@ export interface PathViewerProps extends Record<string, unknown> {
 	targetFrame?: string;
 }
 
+function PathViewerWidget(data: PathViewerProps) {
+	return (
+		<LocalDataSourcesProvider
+			SelectedTopics={data.topic ? [data.topic] : []}
+			buffersSize={1}
+		>
+			<PathViewerComp {...data} />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function PathViewerDefinition(): WidgetDefinition<PathViewerProps> {
 	return {
 		id: "std-path-viewer",
@@ -109,13 +120,6 @@ export function PathViewerDefinition(): WidgetDefinition<PathViewerProps> {
 			lineColor: "#3b82f6",
 			targetFrame: "",
 		},
-		Component: (data: PathViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={data.topic ? [data.topic] : []}
-				buffersSize={1}
-			>
-				<PathViewerComp {...data} />
-			</LocalDataSourcesProvider>
-		),
+		Component: PathViewerWidget,
 	};
 }

@@ -75,6 +75,14 @@ interface JsonViewerProps extends Record<string, unknown> {
  * Widget definition for JsonViewer.
  * @returns Widget definition.
  */
+function JsonViewerWidget(data: JsonViewerProps) {
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<JsonViewer />
+		</LocalDataSourcesProvider>
+	);
+}
+
 export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 	return {
 		id: "json-viewer-widget",
@@ -114,13 +122,6 @@ export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 		data: {
 			title: "Json viewer",
 		},
-		Component: (data: JsonViewerProps) => (
-			<LocalDataSourcesProvider
-				SelectedTopics={[data.topic]}
-				buffersSize={1}
-			>
-				<JsonViewer />
-			</LocalDataSourcesProvider>
-		),
+		Component: JsonViewerWidget,
 	} as WidgetDefinition<JsonViewerProps>;
 }

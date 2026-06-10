@@ -454,6 +454,18 @@ export function KeyBoardControl(props: KeyboardControlData) {
  * Widget definition for keyboard control.
  * @returns Widget definition.
  */
+function CmdVelKeyboardWidget(data: KeyboardControlData) {
+	return data.topic ? (
+		<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
+			<KeyBoardControl {...data} />
+		</PublisherDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
+}
+
 export function KeyboardControlDefinition(): WidgetDefinition<KeyboardControlData> {
 	return {
 		id: "keyboard-cmd-vel-widget",
@@ -642,15 +654,6 @@ export function KeyboardControlDefinition(): WidgetDefinition<KeyboardControlDat
 			decSpeed: { type: "keyboard", key: "-" },
 			unlock: { type: "keyboard", key: " " },
 		},
-		Component: (data: KeyboardControlData) =>
-			data.topic ? (
-				<PublisherDataSourcesProvider SelectedTopics={[data.topic]}>
-					<KeyBoardControl {...data} />
-				</PublisherDataSourcesProvider>
-			) : (
-				<div className="flex justify-center items-center h-full text-muted-foreground">
-					Please select a topic in the widget configuration.
-				</div>
-			),
+		Component: CmdVelKeyboardWidget,
 	};
 }

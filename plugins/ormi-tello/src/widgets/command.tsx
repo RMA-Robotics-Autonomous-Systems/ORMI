@@ -471,8 +471,6 @@ export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommands
 		data: {
 			title: "TelloCommands Control",
 		},
-		Component: (data: TelloCommandsControlData) => (
-			<TelloCommandsControl {...data} />
-		),
+		Component: TelloCommandsControl,
 	};
 }
