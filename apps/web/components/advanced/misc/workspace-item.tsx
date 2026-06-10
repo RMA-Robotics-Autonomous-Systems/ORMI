@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Workspace } from "@prisma/client";
+import { Workspace, Category } from "@prisma/client";
 import { createAvatarDataUri } from "@workspace/utils";
 
 import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
@@ -16,12 +16,31 @@ import { WorkspaceOperations } from "@/components/advanced/misc/workspace-operat
 import moment from "moment";
 
 interface WorkspaceItemProps {
-	workspace: Pick<Workspace, "id" | "name" | "createdAT" | "dashboardType">;
+	workspace: Pick<
+		Workspace,
+		"id" | "name" | "createdAT" | "dashboardType" | "categoryId"
+	> & { order?: number | null };
+	/** Categories for the operations menu's "Change category" submenu. */
+	categories?: Category[];
+	/** Apply an optimistic local patch (rename / category / type switch). */
+	onWorkspacePatch?: (
+		id: number,
+		patch: Partial<
+			Pick<Workspace, "name" | "categoryId" | "dashboardType">
+		>,
+	) => void;
+	/** Persist a reorder/recategorize (shared with drag-and-drop). */
+	onWorkspaceReorder?: (
+		updates: { id: number; order: number; categoryId?: number | null }[],
+	) => Promise<void>;
 	onWorkspaceDeleted?: () => void;
 }
 
 export function WorkspaceItem({
 	workspace,
+	categories,
+	onWorkspacePatch,
+	onWorkspaceReorder,
 	onWorkspaceDeleted,
 }: WorkspaceItemProps) {
 	const avatarUrl = createAvatarDataUri("identicon", workspace.name);
@@ -67,7 +86,16 @@ export function WorkspaceItem({
 			</CardContent>
 			<CardFooter className="pt-1 flex justify-end">
 				<WorkspaceOperations
-					workspace={{ id: workspace.id, name: workspace.name }}
+					workspace={{
+						id: workspace.id,
+						name: workspace.name,
+						categoryId: workspace.categoryId,
+						dashboardType: workspace.dashboardType,
+						order: workspace.order,
+					}}
+					categories={categories}
+					onWorkspacePatch={onWorkspacePatch}
+					onWorkspaceReorder={onWorkspaceReorder}
 					onWorkspaceDeleted={onWorkspaceDeleted}
 				/>
 			</CardFooter>

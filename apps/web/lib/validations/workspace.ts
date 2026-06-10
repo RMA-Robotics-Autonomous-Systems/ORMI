@@ -32,4 +32,27 @@ export const workspaceUpdateSchema = z
 		},
 	);
 
+/**
+ * Body schema for the workspace `PUT` route. All fields are optional; the
+ * handler persists only the ones provided. Powers Rename (`name`), layout
+ * engine switching (`dashboardType`), and full-content/category saves.
+ */
+export const workspacePutSchema = z
+	.object({
+		name: z.string().min(1).max(255).optional(),
+		content: z.any().optional(),
+		categoryId: z.number().nullable().optional(),
+		dashboardType: z.enum(["GRID", "FLEX"]).optional(),
+	})
+	.refine(
+		(data) =>
+			data.name !== undefined ||
+			data.content !== undefined ||
+			data.categoryId !== undefined ||
+			data.dashboardType !== undefined,
+		{
+			message: "No update fields provided",
+		},
+	);
+
 export const emptyBodySchema = z.object({}).catchall(z.unknown());

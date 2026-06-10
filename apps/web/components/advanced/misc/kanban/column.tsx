@@ -15,6 +15,7 @@ import {
 	DropdownMenuItem,
 } from "@workspace/ui/components/dropdown-menu";
 import { MoreHorizontal, Pencil, Trash } from "lucide-react";
+import { Workspace, Category } from "@prisma/client";
 import { SortableWorkspaceItem } from "./item";
 import { WorkspaceWithCategory } from "./types";
 
@@ -26,6 +27,19 @@ interface KanbanColumnProps {
 	categoryId?: number;
 	onEdit?: (category: { id: number; name: string }) => void;
 	onDelete?: (id: number) => void;
+	/** Categories for each item's operations menu "Change category" submenu. */
+	categories?: Category[];
+	/** Apply an optimistic local patch (rename / category / type switch). */
+	onWorkspacePatch?: (
+		id: number,
+		patch: Partial<
+			Pick<Workspace, "name" | "categoryId" | "dashboardType">
+		>,
+	) => void;
+	/** Persist a reorder/recategorize (shared with drag-and-drop). */
+	onWorkspaceReorder?: (
+		updates: { id: number; order: number; categoryId?: number | null }[],
+	) => Promise<void>;
 }
 
 export function KanbanColumn({
@@ -36,6 +50,9 @@ export function KanbanColumn({
 	categoryId,
 	onEdit,
 	onDelete,
+	categories,
+	onWorkspacePatch,
+	onWorkspaceReorder,
 }: KanbanColumnProps) {
 	const {
 		setNodeRef,
@@ -117,6 +134,9 @@ export function KanbanColumn({
 							<SortableWorkspaceItem
 								key={workspace.id}
 								workspace={workspace}
+								categories={categories}
+								onWorkspacePatch={onWorkspacePatch}
+								onWorkspaceReorder={onWorkspaceReorder}
 								onWorkspaceDeleted={onWorkspaceDeleted}
 							/>
 						))}
