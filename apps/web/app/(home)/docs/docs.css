@@ -1,32 +1,52 @@
-/* Syntax highlighting with Chalk-inspired theme */
-@layer highlights {
-	@import 'highlight.js/styles/atom-one-dark.css';
+/* Syntax highlighting structure (token classes only — no color theme imported) */
+@import 'highlight.js/styles/atom-one-dark.css' layer(highlights.base);
+
+/*
+ * Theme-aware syntax colors.
+ * Light defaults below; the `.dark` block overrides them. Colors are chosen to
+ * stay legible against the app's `--card` surface in both modes, instead of the
+ * previous hardcoded Dracula palette that only worked on a purple-black block.
+ */
+.docs-content {
+	--code-fg: var(--card-foreground);
+	--code-keyword: oklch(0.55 0.2 295);
+	--code-string: oklch(0.5 0.13 150);
+	--code-comment: var(--muted-foreground);
+	--code-number: oklch(0.6 0.17 35);
+	--code-attr: oklch(0.55 0.13 75);
+	--code-builtin: oklch(0.55 0.13 230);
 }
 
-/* Override code block styles with better contrast and Chalk theme */
+.dark .docs-content {
+	--code-fg: var(--card-foreground);
+	--code-keyword: oklch(0.78 0.13 320);
+	--code-string: oklch(0.82 0.16 145);
+	--code-comment: var(--muted-foreground);
+	--code-number: oklch(0.78 0.13 300);
+	--code-attr: oklch(0.88 0.15 100);
+	--code-builtin: oklch(0.82 0.1 220);
+}
+
 .hljs {
 	background: transparent !important;
 	padding: 0;
-	color: #e6edf3;
+	color: var(--code-fg);
 }
 
-/* Chalk-inspired color overrides */
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal,
 .hljs-section,
 .hljs-link {
-	color: #ff79c6;
-	/* Bright pink */
+	color: var(--code-keyword);
 }
 
 .hljs-function .hljs-keyword {
-	color: #8be9fd;
-	/* Cyan */
+	color: var(--code-builtin);
 }
 
 .hljs-subst {
-	color: #f8f8f2;
+	color: var(--code-fg);
 }
 
 .hljs-string,
@@ -40,16 +60,14 @@
 .hljs-variable,
 .hljs-template-tag,
 .hljs-template-variable {
-	color: #50fa7b;
-	/* Green */
+	color: var(--code-string);
 }
 
 .hljs-comment,
 .hljs-quote,
 .hljs-deletion,
 .hljs-meta {
-	color: #6272a4;
-	/* Muted purple */
+	color: var(--code-comment);
 }
 
 .hljs-keyword,
@@ -67,19 +85,16 @@
 .hljs-number,
 .hljs-regexp,
 .hljs-link {
-	color: #bd93f9;
-	/* Purple */
+	color: var(--code-number);
 }
 
 .hljs-attr {
-	color: #f1fa8c;
-	/* Yellow */
+	color: var(--code-attr);
 }
 
 .hljs-built_in,
 .hljs-builtin-name {
-	color: #8be9fd;
-	/* Cyan */
+	color: var(--code-builtin);
 }
 
 .hljs-emphasis {
@@ -92,7 +107,7 @@ pre code.hljs {
 	padding: 1.5rem;
 	font-size: 0.875rem;
 	line-height: 1.7;
-	background: #1e1e2e !important;
+	background: transparent !important;
 }
 
 /* Plain code blocks without language specification */
@@ -102,40 +117,38 @@ pre code:not(.hljs) {
 	padding: 1.5rem;
 	font-size: 0.875rem;
 	line-height: 1.7;
-	background: #1e1e2e;
-	color: #e6edf3;
+	background: transparent;
+	color: var(--card-foreground);
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-/* Inline code with better contrast */
+/* Inline code */
 :not(pre)>code {
 	position: relative;
 	border-radius: calc(var(--radius) - 2px);
-	background-color: hsl(var(--muted));
+	background-color: var(--muted);
 	padding: 0.2rem 0.4rem;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	font-size: 0.85em;
 	line-height: 1.25rem;
 	font-weight: 600;
-	color: hsl(var(--foreground));
-	border: 1px solid hsl(var(--border));
+	color: var(--foreground);
+	border: 1px solid var(--border);
 }
 
-/* Code block container with dark background, padding, and inner shadow */
+/* Code block container — solid, token-driven surface (no inset gradient) */
 pre {
 	margin-bottom: 1.5rem;
 	margin-top: 1.5rem;
 	overflow-x: auto;
 	border-radius: calc(var(--radius) + 2px);
-	border: 1px solid hsl(var(--border) / 0.5);
-	background: linear-gradient(to bottom, #1a1a2e, #16162a);
+	border: 1px solid var(--border);
+	background: var(--card);
 	padding: 0;
-	box-shadow:
-		inset 0 2px 8px rgba(0, 0, 0, 0.3),
-		0 1px 3px rgba(0, 0, 0, 0.2);
+	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
-/* Add line numbers styling (optional) */
+/* Line numbers */
 pre code.hljs {
 	counter-reset: line;
 }
@@ -147,15 +160,15 @@ pre code.hljs .line::before {
 	width: 2.5rem;
 	margin-right: 1rem;
 	text-align: right;
-	color: #6272a4;
+	color: var(--muted-foreground);
 	user-select: none;
 }
 
-/* Table of contents styling */
+/* Table of contents */
 .toc {
 	border-radius: var(--radius);
-	border: 1px solid hsl(var(--border));
-	background-color: hsl(var(--muted) / 0.5);
+	border: 1px solid var(--border);
+	background-color: var(--muted);
 	padding: 1rem;
 	margin-bottom: 1.5rem;
 }
@@ -169,25 +182,6 @@ pre code.hljs .line::before {
 
 .toc li {
 	margin-top: 0.25rem;
-}
-
-/* Custom scrollbar for code blocks */
-pre::-webkit-scrollbar {
-	height: 0.5rem;
-}
-
-pre::-webkit-scrollbar-track {
-	background-color: rgba(0, 0, 0, 0.2);
-	border-radius: var(--radius);
-}
-
-pre::-webkit-scrollbar-thumb {
-	background-color: rgba(255, 255, 255, 0.2);
-	border-radius: var(--radius);
-}
-
-pre::-webkit-scrollbar-thumb:hover {
-	background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Mermaid diagrams */

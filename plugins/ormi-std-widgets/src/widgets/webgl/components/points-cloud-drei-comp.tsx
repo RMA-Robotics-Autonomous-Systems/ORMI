@@ -13,7 +13,7 @@ import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { PointsCloud, Transform } from "@workspace/ormi-core/types";
 import {
 	findTransformChain,
-	useTransformSource,
+	useTransformTable,
 	convertPosition,
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
@@ -83,7 +83,7 @@ const buildTransformMatrix = (
 type PointsSourceRendererProps = {
 	sourceId: string;
 	source: any;
-	transformsTrees: any;
+	table: any;
 	settings: PointsRendererProps;
 	frameTimeRef: React.MutableRefObject<number>;
 };
@@ -91,7 +91,7 @@ type PointsSourceRendererProps = {
 const PointsSourceRenderer = ({
 	sourceId,
 	source,
-	transformsTrees,
+	table,
 	settings,
 	frameTimeRef,
 }: PointsSourceRendererProps) => {
@@ -192,16 +192,10 @@ const PointsSourceRenderer = ({
 		) {
 			transformChain = [];
 		} else {
+			// Target-frame fallback: if the target isn't reachable from this layer's frame,
+			// render it in its own root (identity) instead of hiding it.
 			transformChain =
-				findTransformChain(
-					transformsTrees,
-					refFrame,
-					settings.targetFrame,
-				) ?? null;
-		}
-
-		if (settings.targetFrame && transformChain === null) {
-			return;
+				findTransformChain(table, refFrame, settings.targetFrame) ?? [];
 		}
 
 		transformRef.current = buildTransformMatrix(
@@ -366,7 +360,7 @@ const PointsSourceRenderer = ({
 
 		needsUpdateRef.current = true;
 		invalidate();
-	}, [source, sourceId, settings, transformsTrees, invalidate]);
+	}, [source, sourceId, settings, table, invalidate]);
 
 	const updateGeometry = useCallback(() => {
 		if (!geometryRef.current || !needsUpdateRef.current) return;
@@ -510,7 +504,7 @@ const PointsSourceRenderer = ({
  */
 const PointsRenderer = (props: PointsRendererProps) => {
 	const { sources } = useLocalDataSource();
-	const { transformsTrees } = useTransformSource();
+	const table = useTransformTable();
 	const sharedFrameTimeRef = useRef<number>(Date.now());
 
 	// Update shared frame time once per frame for all sources
@@ -525,7 +519,7 @@ const PointsRenderer = (props: PointsRendererProps) => {
 					key={sourceId}
 					sourceId={sourceId}
 					source={source}
-					transformsTrees={transformsTrees}
+					table={table}
 					settings={props}
 					frameTimeRef={sharedFrameTimeRef}
 				/>

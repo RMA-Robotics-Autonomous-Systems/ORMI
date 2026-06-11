@@ -56,7 +56,7 @@ export function createMarkdownComponents() {
 							: "mt-6";
 			const border = level <= 2 ? "border-b pb-2" : "";
 			const weight = level === 1 ? "font-bold" : "font-semibold";
-			return `<h${level}${idAttr} class="scroll-m-20 ${sizeClass} ${weight} tracking-tight ${marginTop} mb-4 ${border}">${children}</h${level}>`;
+			return `<h${level}${idAttr} class="font-heading scroll-m-20 ${sizeClass} ${weight} tracking-tight ${marginTop} mb-4 ${border}">${children}</h${level}>`;
 		},
 		paragraph: (children: string) =>
 			`<p class="leading-7 [&:not(:first-child)]:mt-6">${children}</p>`,

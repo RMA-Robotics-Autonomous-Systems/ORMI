@@ -15,7 +15,6 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible";
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { Separator } from "@workspace/ui/components/separator";
 import {
 	Tooltip,
@@ -61,7 +60,7 @@ export function MapControlPanel({
 	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
 	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
 }) {
-	const [open, setOpen] = useState(true);
+	const [open, setOpen] = useState(false);
 
 	const hasTopics = topics.length > 0;
 	const hasLayers = customLayers.length > 0;
@@ -72,9 +71,13 @@ export function MapControlPanel({
 	}
 
 	return (
-		<div className="absolute top-2 right-2 z-10 w-64 max-w-[calc(100%-1rem)]">
-			<Card className="bg-card/90 supports-[backdrop-filter]:bg-card/80 gap-0 rounded-lg border py-0 shadow-sm backdrop-blur-sm">
-				<Collapsible open={open} onOpenChange={setOpen}>
+		<div className="absolute top-2 right-2 z-10 flex max-h-[calc(100%-1rem)] w-64 max-w-[calc(100%-1rem)] flex-col">
+			<Card className="bg-popover text-popover-foreground min-h-0 flex-1 gap-0 overflow-hidden rounded-md border py-0 shadow-md">
+				<Collapsible
+					open={open}
+					onOpenChange={setOpen}
+					className="flex min-h-0 flex-1 flex-col"
+				>
 					<CollapsibleTrigger asChild>
 						<Button
 							variant="ghost"
@@ -89,9 +92,9 @@ export function MapControlPanel({
 						</Button>
 					</CollapsibleTrigger>
 
-					<CollapsibleContent>
+					<CollapsibleContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<Separator />
-						<ScrollArea className="max-h-80">
+						<div className="max-h-80 min-h-0 flex-1 overflow-y-auto">
 							<div className="flex flex-col gap-3 p-2">
 								{hasTopics && (
 									<TopicsSection
@@ -115,7 +118,7 @@ export function MapControlPanel({
 									/>
 								)}
 							</div>
-						</ScrollArea>
+						</div>
 					</CollapsibleContent>
 				</Collapsible>
 			</Card>

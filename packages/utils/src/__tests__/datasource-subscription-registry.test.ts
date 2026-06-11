@@ -47,6 +47,8 @@ class MockManager implements SubscriptionManagerLike {
 	/** Optional deferred mode for advertise filters (B-style async). */
 	private deferAdvertise = false;
 	private pendingAdvertise: Array<() => void> = [];
+	/** Datasources whose `-advertise` filter is NOT yet registered (returns input, not `true`). */
+	private advertiseFilterMissing = new Set<string>();
 
 	addAction(name: string, action: ManagerAction): void {
 		this.addActionLog.push(action.id);
@@ -69,10 +71,11 @@ class MockManager implements SubscriptionManagerLike {
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	doAction(name: string, ...args: any[]): void {
+	doAction(name: string, ...args: any[]): boolean {
 		this.doActionCalls.push({ name, args });
 		const bucket = this.actions.get(name);
 		bucket?.forEach((a) => a.action(...args));
+		return bucket !== undefined && bucket.size > 0;
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,7 +86,21 @@ class MockManager implements SubscriptionManagerLike {
 				this.pendingAdvertise.push(resolve),
 			);
 		}
+		// Model the real `-advertise` filter: it returns `true` once registered, and when no
+		// filter is registered `applyFilterAsync` passes the input through unchanged.
+		if (name.endsWith("-advertise")) {
+			const dsId = name.slice(0, -"-advertise".length);
+			return (
+				this.advertiseFilterMissing.has(dsId) ? args[0] : true
+			) as T;
+		}
 		return args[0] as T;
+	}
+
+	/** Toggle whether a datasource's `-advertise` filter is registered yet. */
+	setAdvertiseFilterMissing(dsId: string, missing: boolean): void {
+		if (missing) this.advertiseFilterMissing.add(dsId);
+		else this.advertiseFilterMissing.delete(dsId);
 	}
 
 	// --- test helpers ---
@@ -170,6 +187,38 @@ describe("datasource-subscription-registry", () => {
 
 		manager.emitReady("ds1");
 		expect(manager.countDoActions(subscribeHook("ds1"))).toBe(1);
+
+		reg.dispose();
+	});
+
+	test("`-subscribe` action registered AFTER READY: wire parked (not falsely subscribed), retried once the action re-fires READY", () => {
+		// The foxglove TF manager mounts as a child of SubscriptionManager (child effect before
+		// parent), and the wss worker registers its subscribe action after an async handshake —
+		// so `-subscribe` can be absent when the registry fires it on READY. The wire must stay
+		// retryable, not be falsely marked subscribed (which would strand TF forever).
+		const reg = getDatasourceSubscriptionRegistry(manager);
+
+		const received: unknown[] = [];
+		reg.subscribe({
+			topic: topic("ds1", "/tf"),
+			onData: (v) => received.push(v),
+		});
+
+		// READY fires while no `-subscribe` action exists yet → one attempt, but not subscribed.
+		manager.emitReady("ds1");
+		expect(manager.countDoActions(subscribeHook("ds1"))).toBe(1);
+
+		// The SubscriptionManager registers its `-subscribe` action and re-fires READY.
+		manager.registerSubscribeHook("ds1");
+		manager.emitReady("ds1");
+		// The re-flush retried against the live action and it took.
+		expect(manager.countDoActions(subscribeHook("ds1"))).toBe(2);
+
+		// Now genuinely subscribed: a further READY does not re-subscribe, and data flows.
+		manager.emitReady("ds1");
+		expect(manager.countDoActions(subscribeHook("ds1"))).toBe(2);
+		manager.emitPublished("ds1", "/tf", { transforms: [] }, 1, "map");
+		expect(received).toEqual([{ transforms: [] }]);
 
 		reg.dispose();
 	});
@@ -422,6 +471,47 @@ describe("datasource-subscription-registry", () => {
 
 		h.unadvertise();
 		expect(manager.countDoActions(unadvertiseHook("ds1"))).toBe(1);
+
+		reg.dispose();
+	});
+
+	test("Publisher — `-advertise` filter registered AFTER READY: parked (not falsely subscribed), retried once the filter re-fires READY", async () => {
+		// Reproduces the keyboard-publisher failure: DATASOURCE_READY fires (connection) BEFORE
+		// the PublisherManager registers its `-advertise` filter. The first advertise attempt
+		// finds no filter (applyFilterAsync returns the input, not `true`) and must NOT be left
+		// falsely "subscribed" — otherwise the READY re-flush never retries and publish() dies.
+		const reg = getDatasourceSubscriptionRegistry(manager);
+		manager.setAdvertiseFilterMissing("ds1", true);
+
+		reg.advertise(topic("ds1", "/cmd_vel"));
+		manager.emitReady("ds1");
+		await Promise.resolve();
+		// One attempt, but the filter wasn't there → entry stays retryable.
+		expect(
+			manager.applyFilterAsyncCalls.filter(
+				(c) => c.name === advertiseHook("ds1"),
+			).length,
+		).toBe(1);
+
+		// PublisherManager registers its `-advertise` filter and re-fires READY.
+		manager.setAdvertiseFilterMissing("ds1", false);
+		manager.emitReady("ds1");
+		await Promise.resolve();
+		// The re-flush retried against the live filter and it took.
+		expect(
+			manager.applyFilterAsyncCalls.filter(
+				(c) => c.name === advertiseHook("ds1"),
+			).length,
+		).toBe(2);
+
+		// Now genuinely subscribed: a further READY does not re-advertise (no infinite re-flush).
+		manager.emitReady("ds1");
+		await Promise.resolve();
+		expect(
+			manager.applyFilterAsyncCalls.filter(
+				(c) => c.name === advertiseHook("ds1"),
+			).length,
+		).toBe(2);
 
 		reg.dispose();
 	});

@@ -7,10 +7,15 @@ import {
 } from "@workspace/ormi-core/types";
 import {
 	findTransformChain,
-	useTransformSource,
 	convertPosition,
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
+import {
+	useSceneTransforms,
+	useTransformStatusReporter,
+	qualifyFrame,
+} from "./scene-transform-context";
+import type { LayerTransformStatus } from "../types/scene-3d-types";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -26,10 +31,14 @@ type PathSource = {
 
 interface PathLineRendererProps extends Record<string, unknown> {
 	source?: PathSource;
+	/** Datasource id of this layer's topic, used to qualify the reference frame. */
+	datasourceId?: string;
 	targetFrame?: string;
 	lineWidth?: number;
 	lineOpacity?: number;
 	lineColor: string;
+	/** Reports how the layer resolved its transform (for the scene status overlay). */
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
 /**
@@ -92,14 +101,17 @@ const buildTransformMatrix = (
 
 export const PathLineRenderer = ({
 	source,
+	datasourceId,
 	targetFrame,
 	lineWidth = 0.02,
 	lineOpacity = 1,
 	lineColor,
+	onTransformStatus,
 }: PathLineRendererProps) => {
 	const lineRef = useRef<Line2>(null);
 	const linePositionsRef = useRef<Float32Array | null>(null);
-	const { transformsTrees } = useTransformSource();
+	const { table } = useSceneTransforms();
+	const reportStatus = useTransformStatusReporter(onTransformStatus);
 	const { size } = useThree();
 
 	const geometry = useMemo(() => new LineGeometry(), []);
@@ -153,6 +165,7 @@ export const PathLineRenderer = ({
 
 		if (!source || !source.data || source.data.length === 0) {
 			clearLine();
+			reportStatus("no-data");
 			return;
 		}
 
@@ -160,6 +173,7 @@ export const PathLineRenderer = ({
 
 		if (!pathData || !pathData.poses || pathData.poses.length === 0) {
 			clearLine();
+			reportStatus("no-data");
 			return;
 		}
 
@@ -170,6 +184,7 @@ export const PathLineRenderer = ({
 		const usedPoseCount = Math.min(totalPoseCount, MAX_PATH_POINTS);
 		if (usedPoseCount < 2) {
 			clearLine();
+			reportStatus("no-data");
 			return;
 		}
 		const startIndex = Math.max(0, totalPoseCount - usedPoseCount);
@@ -180,11 +195,16 @@ export const PathLineRenderer = ({
 			linePositionsRef.current = positions;
 		}
 
-		const refFrame = source.referenceFrameId;
+		const refFrame = qualifyFrame(datasourceId, source.referenceFrameId);
+		const hasTarget = Boolean(targetFrame && targetFrame.trim() !== "");
 		const transformChain =
-			targetFrame && targetFrame.trim() !== "" && transformsTrees.size > 0
-				? findTransformChain(transformsTrees, refFrame, targetFrame)
+			hasTarget && table.size > 0
+				? findTransformChain(table, refFrame, targetFrame!)
 				: [];
+		// `null` chain = target unreachable → identity fallback (renders in own root frame).
+		reportStatus(
+			hasTarget && transformChain === null ? "fallback" : "resolved",
+		);
 
 		const transformMatrix = buildTransformMatrix(
 			transformChain ?? [],
@@ -215,7 +235,15 @@ export const PathLineRenderer = ({
 		resetInstanceCap(geometry);
 		geometry.setDrawRange(0, usedPoseCount);
 		geometry.computeBoundingSphere();
-	}, [source, targetFrame, transformsTrees, geometry, material]);
+	}, [
+		source,
+		datasourceId,
+		targetFrame,
+		table,
+		geometry,
+		material,
+		reportStatus,
+	]);
 
 	const lineObject = useMemo(
 		() => new Line2(geometry, material),

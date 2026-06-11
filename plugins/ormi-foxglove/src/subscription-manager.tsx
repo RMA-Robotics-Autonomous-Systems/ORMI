@@ -13,7 +13,7 @@ import {
 	PendingSubscription,
 	DatasourceTopic,
 } from "./types";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { useFoxgloveData } from "./foxglove-data-handler";
 import { toast } from "sonner";
 
@@ -711,6 +711,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 		// Mark as initialized after successful registration
 		setIsInitialized(true);
+
+		// The `-subscribe` action is now live. DATASOURCE_READY was already fired (by the
+		// connection) before this manager's effect ran — and child subscribers (e.g. the TF
+		// manager, mounted as our child → child effect first) subscribed against the registry
+		// when no `-subscribe` action existed yet, leaving those intents parked. Re-fire READY so
+		// the registry re-flushes them against the live action. Idempotent for other listeners.
+		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, datasource_id);
 
 		// Cleanup function
 		return () => {

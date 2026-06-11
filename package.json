@@ -60,7 +60,7 @@
 		"*.{ts,tsx}": [
 			"prettier --write",
 			"bash -c 'if grep -nE \"(console\\.(log|debug|info|warn)|debugger)\" \"$0\"; then echo \"❌ Error: Found console statements or debugger in $0\" >&2 && exit 1; fi'",
-			"bash -c 'if grep -nE \"\\.only\\(|fdescribe|fit\" \"$0\"; then echo \"❌ Error: Found .only() or focused tests in $0\" >&2 && exit 1; fi'",
+			"bash -c 'if grep -nE \"\\.only\\(|\\bfdescribe\\(|\\bfit\\(\" \"$0\"; then echo \"❌ Error: Found .only() or focused tests in $0\" >&2 && exit 1; fi'",
 			"bash -c 'if grep -nE \"^(<{7}|>{7}|={7})\" \"$0\"; then echo \"❌ Error: Found merge conflict markers in $0\" >&2 && exit 1; fi'"
 		],
 		"*.{json,md}": [

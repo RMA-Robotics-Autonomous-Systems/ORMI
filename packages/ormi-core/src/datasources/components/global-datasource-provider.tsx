@@ -14,6 +14,7 @@ import {
 import { useDashboardActions } from "../../dashboard";
 import { useAtomValue } from "jotai";
 import { datasourcesAtom } from "../../dashboard";
+import { reconcileTransformSources } from "../../transforms";
 
 import {
 	PluginsHooks,
@@ -144,6 +145,17 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 			});
 			return changed ? next : prev;
 		});
+	}, [datasources]);
+
+	// Automatic TF disposal: drop transforms for any datasource that is no longer configured
+	// (dashboard switch, datasource removed) — including its static frames, so they don't leak
+	// or collide with a later datasource reusing the same frame names. Datasource plugins do not
+	// clear their own transforms; this is the single, core-owned cleanup path. A transiently
+	// disconnected but still-configured datasource keeps its frames (its id stays live).
+	useEffect(() => {
+		const liveSourceIds = new Set<string>();
+		datasources.forEach((ds) => liveSourceIds.add(ds.settings.id));
+		reconcileTransformSources(liveSourceIds);
 	}, [datasources]);
 
 	// Track datasource readiness via lifecycle actions

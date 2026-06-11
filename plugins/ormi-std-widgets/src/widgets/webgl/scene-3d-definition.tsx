@@ -83,6 +83,86 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 					title: "Show Axes",
 					default: true,
 				},
+				worldFrame: {
+					type: "string",
+					title: "World Frame",
+					description:
+						"Shared frame that source anchors are placed into",
+					default: "world",
+				},
+				autoAnchor: {
+					type: "boolean",
+					title: "Auto-anchor source roots",
+					description:
+						"Place every source's root frame at the world origin automatically",
+					default: true,
+				},
+				anchors: {
+					type: "array",
+					title: "Source Anchors",
+					description:
+						"Co-visualize multiple datasources by placing each source's root frame into the world frame",
+					items: {
+						type: "object",
+						properties: {
+							source: {
+								type: "string",
+								title: "Datasource ID",
+							},
+							rootFrame: {
+								type: "string",
+								title: "Root Frame (e.g. map)",
+							},
+							position: {
+								type: "object",
+								title: "Position",
+								properties: {
+									x: {
+										type: "number",
+										title: "X",
+										default: 0,
+									},
+									y: {
+										type: "number",
+										title: "Y",
+										default: 0,
+									},
+									z: {
+										type: "number",
+										title: "Z",
+										default: 0,
+									},
+								},
+							},
+							rotation: {
+								type: "object",
+								title: "Rotation (quaternion)",
+								properties: {
+									x: {
+										type: "number",
+										title: "X",
+										default: 0,
+									},
+									y: {
+										type: "number",
+										title: "Y",
+										default: 0,
+									},
+									z: {
+										type: "number",
+										title: "Z",
+										default: 0,
+									},
+									w: {
+										type: "number",
+										title: "W",
+										default: 1,
+									},
+								},
+							},
+						},
+					},
+				},
 				// Point Cloud Layers
 				pointCloudLayers: {
 					type: "array",
@@ -339,6 +419,18 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 							scope: "#/properties/transformTree/properties/enabled",
 							label: "Show Transform Tree",
 						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/worldFrame",
+						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/autoAnchor",
+						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/anchors",
+						} as ControlElement,
 					],
 				} as Category,
 				// Tab 2: Topics
@@ -559,6 +651,8 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 		data: {
 			title: "3D Scene",
 			targetFrame: "",
+			worldFrame: "world",
+			autoAnchor: true,
 			showGrid: true,
 			showAxes: true,
 			pointCloudLayers: [],

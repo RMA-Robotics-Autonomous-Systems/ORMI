@@ -1,6 +1,6 @@
 "use client";
 
-import { JSX, useMemo } from "react";
+import { Fragment, JSX, useMemo } from "react";
 import { MapRef } from "react-map-gl/maplibre";
 import {
 	SelectedTopic,
@@ -88,11 +88,16 @@ export function GpsTopicsLayer({
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
-			{topics.map((t) => {
+			{topics.map((t, i) => {
+				// Unique, stable key per entry: a topic name can be empty or shared across
+				// entries, so compose it with the topic identity and the list index.
+				const key = t.topic
+					? `${t.topic.source.id}::${t.topic.topic}::${t.topic.property ?? ""}::${i}`
+					: `gps-topic-${i}`;
 				if (t.makerType === "simple") {
 					return (
 						<TopicMarker
-							key={t.name}
+							key={key}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -101,7 +106,7 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "heatmap") {
 					return (
 						<HeatMarker
-							key={t.name}
+							key={key}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -111,7 +116,7 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "path") {
 					return (
 						<PathMarker
-							key={t.name}
+							key={key}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -120,17 +125,23 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "multipoints") {
 					return (
 						<MultiPoints
-							key={t.name}
+							key={key}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
 						/>
 					);
 				}
-				return pluginsManager.applyFilter<JSX.Element | null>(
-					"std-widgets-map-components",
-					null,
-					t,
+				// Plugin-provided marker: wrap in a keyed Fragment — the returned element
+				// is arbitrary JSX we cannot attach a key to directly.
+				return (
+					<Fragment key={key}>
+						{pluginsManager.applyFilter<JSX.Element | null>(
+							"std-widgets-map-components",
+							null,
+							t,
+						)}
+					</Fragment>
 				);
 			})}
 

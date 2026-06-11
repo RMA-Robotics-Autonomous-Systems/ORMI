@@ -19,9 +19,17 @@ import {
 	convertPosition,
 	convertQuaternion,
 	findTransformChain,
-	useTransformSource,
 } from "@workspace/ormi-core/transforms";
-import { MapGridColorMode, MapGridLayerConfig } from "../types/scene-3d-types";
+import {
+	LayerTransformStatus,
+	MapGridColorMode,
+	MapGridLayerConfig,
+} from "../types/scene-3d-types";
+import {
+	useSceneTransforms,
+	useTransformStatusReporter,
+	qualifyFrame,
+} from "./scene-transform-context";
 
 // ---------------------------------------------------------------------------
 // Color mapping helpers (aligned with the 2D map grid widget)
@@ -185,19 +193,26 @@ function buildTransformMatrix(
 
 interface MapGridRendererProps extends Record<string, unknown> {
 	source?: { data: unknown[]; times: number[]; referenceFrameId: string };
+	/** Datasource id of this layer's topic, used to qualify the reference frame. */
+	datasourceId?: string;
 	targetFrame: string;
 	config: MapGridLayerConfig;
 	layerIndex?: number;
+	/** Reports how the layer resolved its transform (for the scene status overlay). */
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
 export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 	source,
+	datasourceId,
 	targetFrame,
 	config,
 	layerIndex = 0,
+	onTransformStatus,
 }) => {
 	const { invalidate } = useThree();
-	const { transformsTrees } = useTransformSource();
+	const { table } = useSceneTransforms();
+	const reportStatus = useTransformStatusReporter(onTransformStatus);
 
 	// Track current grid state
 	const [gridState, setGridState] = useState<{
@@ -214,10 +229,16 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 
 	// ── Update on incoming data ───────────────────────────────────────────────
 	useEffect(() => {
-		if (!source?.data.length) return;
+		if (!source?.data.length) {
+			reportStatus("no-data");
+			return;
+		}
 
 		const grid = source.data[source.data.length - 1] as MapGrid;
-		if (!grid?.data || grid.width === 0 || grid.height === 0) return;
+		if (!grid?.data || grid.width === 0 || grid.height === 0) {
+			reportStatus("no-data");
+			return;
+		}
 
 		const { width, height, resolution, data, origin, frameId } = grid;
 
@@ -298,16 +319,21 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 		if (!meshRef.current) return;
 
 		// Apply transform tree first, then map origin transform
-		const refFrame = source.referenceFrameId || frameId;
+		const refFrame = qualifyFrame(
+			datasourceId,
+			source.referenceFrameId || frameId,
+		);
+		const hasTarget = Boolean(targetFrame && targetFrame.trim() !== "");
 		const transformChain =
-			targetFrame && targetFrame.trim() !== "" && transformsTrees.size > 0
-				? findTransformChain(transformsTrees, refFrame, targetFrame)
+			hasTarget && table.size > 0
+				? findTransformChain(table, refFrame, targetFrame)
 				: [];
+		reportStatus(
+			hasTarget && transformChain === null ? "fallback" : "resolved",
+		);
 
-		if (targetFrame && transformChain === null) {
-			return;
-		}
-
+		// Target-frame fallback: if this layer's frame can't reach the target frame (the target
+		// doesn't exist in its tree), render it in its own root (identity) instead of hiding it.
 		const frameToTarget = buildTransformMatrix(transformChain ?? []);
 
 		const layerYOffset = 0.01 + layerIndex * 0.01;
@@ -336,12 +362,14 @@ export const MapGridRenderer: React.FC<MapGridRendererProps> = ({
 		invalidate();
 	}, [
 		source,
+		datasourceId,
 		targetFrame,
-		transformsTrees,
+		table,
 		gridState,
 		layerIndex,
 		config,
 		invalidate,
+		reportStatus,
 	]);
 
 	// ── Create basic material once ────────────────────────────────────────────

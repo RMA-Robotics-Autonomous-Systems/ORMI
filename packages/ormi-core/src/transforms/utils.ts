@@ -1,183 +1,179 @@
-import { Transform, TransformTree, Vector3, Quaternion } from "../types";
+import {
+	CoordinateConvention,
+	Transform,
+	TransformTable,
+	Vector3,
+	Quaternion,
+} from "../types";
+import { frameRawName } from "./frame-namespace";
+
+/** Internal flattened node used for chain resolution. */
+interface ChainNode {
+	id: string;
+	parentId: string;
+	transform: Transform;
+	convention?: CoordinateConvention;
+	rawFrameId?: string;
+}
+
+const IDENTITY_TRANSFORM: Transform = {
+	position: { x: 0, y: 0, z: 0, w: 1 },
+	rotation: { x: 0, y: 0, z: 0, w: 1 },
+	convention: "THREE",
+};
 
 /**
- * Get a transform tree node by id within a tree.
- * @param tree - Root tree.
- * @param id - Frame id to search for.
- * @returns Matching node or null.
+ * Build an id→node index over the table, augmented with identity virtual roots for any parent
+ * that is referenced but never observed as a child (e.g. a fixed `map`), plus a raw-name index
+ * for resolving legacy bare references.
  */
-export function getTransformTreeFromTreeId(
-	tree: TransformTree,
-	id: string,
-): TransformTree | null {
-	if (tree.id === id) {
-		return tree;
+function buildChainIndex(table: TransformTable): {
+	byId: Map<string, ChainNode>;
+	byRaw: Map<string, ChainNode[]>;
+} {
+	const byId = new Map<string, ChainNode>();
+	for (const edge of table.values()) {
+		byId.set(edge.frameId, {
+			id: edge.frameId,
+			parentId: edge.parentId,
+			transform: edge.transform,
+			convention: edge.transform.convention,
+			rawFrameId: edge.rawFrameId,
+		});
 	}
 
-	let result: TransformTree | null = null;
-	tree.children.forEach((child) => {
-		if (!result) {
-			const found = getTransformTreeFromTreeId(child, id);
-			if (found) {
-				result = found;
-			}
+	const virtuals = new Map<string, ChainNode>();
+	byId.forEach((node) => {
+		const pid = node.parentId;
+		if (pid && pid !== "" && !byId.has(pid) && !virtuals.has(pid)) {
+			virtuals.set(pid, {
+				id: pid,
+				parentId: "",
+				transform: IDENTITY_TRANSFORM,
+				convention: node.convention ?? "THREE",
+				rawFrameId: frameRawName(pid),
+			});
 		}
 	});
+	virtuals.forEach((node, id) => byId.set(id, node));
 
-	return result;
+	const byRaw = new Map<string, ChainNode[]>();
+	byId.forEach((node) => {
+		const raw = node.rawFrameId ?? node.id;
+		const list = byRaw.get(raw);
+		if (list) list.push(node);
+		else byRaw.set(raw, [node]);
+	});
+
+	return { byId, byRaw };
 }
 
 /**
- * Get a transform tree node by id across multiple tree roots.
- * @param treeMap - Map of root trees.
- * @param id - Frame id to search for.
- * @returns Matching node or null.
+ * Resolve a (possibly legacy bare) frame reference: prefer an exact key, else a uniquely
+ * matching raw frame name. Ambiguous bare names resolve to null — qualify them by source.
  */
-export function getTransformTreeFromTreeIdInMaps(
-	treeMap: Map<string, TransformTree>,
-	id: string,
-): TransformTree | null {
-	let result: TransformTree | null = null;
-
-	treeMap.forEach((tree, key) => {
-		if (!result) {
-			// Only continue searching if we haven't found a result yet
-			const found = getTransformTreeFromTreeId(tree, id);
-			if (found) {
-				result = found;
-			}
-		}
-	});
-
-	return result;
+function resolveChainNode(
+	index: { byId: Map<string, ChainNode>; byRaw: Map<string, ChainNode[]> },
+	ref: string,
+): ChainNode | null {
+	const exact = index.byId.get(ref);
+	if (exact) return exact;
+	const raw = index.byRaw.get(ref);
+	return raw && raw.length === 1 ? raw[0]! : null;
 }
 
 /**
- * Find a transform chain between two frames.
- * @param treeMap - Map of transform trees.
- * @param sourceFrameId - Source frame id.
- * @param targetFrameId - Target frame id.
- * @returns Ordered transforms or null if no path exists.
+ * Find a transform chain between two frames over the transform table.
+ * @param table - The transform table.
+ * @param sourceFrameId - Source frame id (exact namespaced key or legacy bare name).
+ * @param targetFrameId - Target frame id (exact namespaced key or legacy bare name).
+ * @returns Ordered transforms (source → target), `[]` for identical frames, or null if no path.
  */
 export function findTransformChain(
-	treeMap: Map<string, TransformTree>,
+	table: TransformTable,
 	sourceFrameId: string,
 	targetFrameId: string,
 ): Transform[] | null {
-	// If source and target are the same, return identity transform
 	if (sourceFrameId === targetFrameId) {
 		return [];
 	}
 
-	// Find both nodes in the tree
-	const sourceNode = getTransformTreeFromTreeIdInMaps(treeMap, sourceFrameId);
-	const targetNode = getTransformTreeFromTreeIdInMaps(treeMap, targetFrameId);
+	const index = buildChainIndex(table);
+
+	const sourceNode = resolveChainNode(index, sourceFrameId);
+	const targetNode = resolveChainNode(index, targetFrameId);
 
 	if (!sourceNode || !targetNode) {
-		return null; // One or both frames not found
+		return null; // one or both frames not found / ambiguous
 	}
 
-	const sourceConvention =
-		sourceNode.convention ?? sourceNode.transform.convention ?? "THREE";
-	const targetConvention =
-		targetNode.convention ?? targetNode.transform.convention ?? "THREE";
+	const sourceConvention = sourceNode.convention ?? "THREE";
+	const targetConvention = targetNode.convention ?? "THREE";
 	if (sourceConvention !== targetConvention) {
 		return null;
 	}
 
-	// Build path from source to root
-	const sourceToRoot: TransformTree[] = [];
-	let current: TransformTree | null = sourceNode;
-
+	// Path from source up to its root.
+	const sourceToRoot: ChainNode[] = [];
+	let current: ChainNode | null = sourceNode;
 	while (current) {
 		sourceToRoot.push(current);
-		if (current.parentId === "") {
-			break; // Reached root
-		}
-		current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+		if (current.parentId === "") break;
+		current = index.byId.get(current.parentId) ?? null;
 	}
 
-	// Build path from target to root
-	const targetToRoot: TransformTree[] = [];
+	// Path from target up to its root.
+	const targetToRoot: ChainNode[] = [];
 	current = targetNode;
-
 	while (current) {
 		targetToRoot.push(current);
-		if (current.parentId === "") {
-			break; // Reached root
-		}
-		current = getTransformTreeFromTreeIdInMaps(treeMap, current.parentId);
+		if (current.parentId === "") break;
+		current = index.byId.get(current.parentId) ?? null;
 	}
 
-	// Check if both frames are in the same tree (have the same root)
+	// Different roots → disconnected.
 	const sourceRoot = sourceToRoot[sourceToRoot.length - 1];
 	const targetRoot = targetToRoot[targetToRoot.length - 1];
-
 	if (sourceRoot && targetRoot && sourceRoot.id !== targetRoot.id) {
-		// Frames are in different trees - no transform chain possible
 		return null;
 	}
 
-	// Find common ancestor
+	// Common ancestor.
 	let commonAncestorIndex = -1;
 	for (let i = sourceToRoot.length - 1; i >= 0; i--) {
-		const sourceNode = sourceToRoot[i];
-		if (!sourceNode) continue;
-
+		const s = sourceToRoot[i];
+		if (!s) continue;
 		for (let j = targetToRoot.length - 1; j >= 0; j--) {
-			const targetNode = targetToRoot[j];
-			if (!targetNode) continue;
-
-			if (sourceNode.id === targetNode.id) {
+			const t = targetToRoot[j];
+			if (t && s.id === t.id) {
 				commonAncestorIndex = i;
 				break;
 			}
 		}
 		if (commonAncestorIndex !== -1) break;
 	}
-
 	if (commonAncestorIndex === -1) {
-		return null; // No common ancestor, disconnected trees
+		return null; // no common ancestor, disconnected
 	}
 
-	// Build transform chain: source -> common ancestor -> target
 	const transforms: Transform[] = [];
 
-	// In ROS TF, the transform stored at a node describes:
-	// "The position and orientation of THIS frame (child) expressed in the PARENT frame"
-	//
-	// This means the stored transform IS the child-to-parent transform.
-	// To transform a point from child to parent: P_parent = R * P_child + T
-	//
-	// So when going UP the tree (child -> parent), we use the transform DIRECTLY.
-	// When going DOWN the tree (parent -> child), we need to INVERT it.
-
-	// Transforms from source up to common ancestor (use directly - child to parent)
+	// Source → common ancestor: child-to-parent transforms, used directly.
 	for (let i = 0; i < commonAncestorIndex; i++) {
 		const node = sourceToRoot[i];
-		if (node) {
-			// The node's transform is child-to-parent, which is what we need
-			transforms.push(node.transform);
-		}
+		if (node) transforms.push(node.transform);
 	}
 
-	// Transforms from common ancestor down to target (inverted - parent to child)
+	// Common ancestor → target: inverted (parent-to-child).
 	const commonNode = sourceToRoot[commonAncestorIndex];
-	if (!commonNode) {
-		return null;
-	}
-
+	if (!commonNode) return null;
 	const commonId = commonNode.id;
 	const targetAncestorIndex = targetToRoot.findIndex(
-		(node) => node.id === commonId,
+		(n) => n.id === commonId,
 	);
-
 	for (let i = targetAncestorIndex - 1; i >= 0; i--) {
 		const node = targetToRoot[i];
-		if (node) {
-			// Going down the tree: need to invert (parent to child)
-			transforms.push(invertTransform(node.transform));
-		}
+		if (node) transforms.push(invertTransform(node.transform));
 	}
 
 	return transforms;
@@ -257,6 +253,21 @@ export function rotateVectorByQuaternion(v: Vector3, q: Quaternion): Vector3 {
 		x: ix * qw + iw * -qx + iy * -qz - iz * -qy,
 		y: iy * qw + iw * -qy + iz * -qx - ix * -qz,
 		z: iz * qw + iw * -qz + ix * -qy - iy * -qx,
+	};
+}
+
+/**
+ * Multiply two quaternions (`a * b`), matching `THREE.Quaternion.multiplyQuaternions`.
+ * @param a - Left quaternion.
+ * @param b - Right quaternion.
+ * @returns The product `a * b`.
+ */
+export function multiplyQuaternions(a: Quaternion, b: Quaternion): Quaternion {
+	return {
+		x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+		y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+		z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+		w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
 	};
 }
 

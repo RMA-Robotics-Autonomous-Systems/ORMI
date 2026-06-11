@@ -81,6 +81,7 @@ All other sections reference this rule. Do not modify core without satisfying al
 - Respect existing repo formats, linting, and TypeScript configs.
 - Datasource subscribe idempotency: Datasource `-subscribe`/`-advertise` actions must be idempotent under re-flush — re-issuing subscribe for an already-subscribed topic must dedupe via refcount, and the action must tolerate an unsubscribe for an in-flight subscribe (the subscription registry re-issues subscribe on reconnect).
 - Widget offline gating: Single-topic data-display widgets gate their body with `DatasourceGate` (`@workspace/ui`) so an offline datasource shows a clear offline card, not a misleading empty/zero value. Multi-topic widgets degrade per-series via `getTopicHealth`; control/publisher and last-known-value widgets do not blank on offline.
+- React Compiler + external mutable stores: the web app builds with `reactCompiler: true`, which infers memo dependencies from the callback **body** and drops no-op reads. Never key a `useMemo` on a version counter while the body reads a module-level store (`void version; …, [version]`) — the compiler strips the dead read and freezes the memo on its first result (this stranded every TF widget on stale data in production while the store was fully populated). Hooks over external mutable state must use `useSyncExternalStore` with an identity-stable, change-fresh snapshot, and derived memos must consume that snapshot as a real dependency (reference: `packages/ormi-core/src/transforms/transform-hooks.tsx`).
 
 ## Implementation Patterns
 

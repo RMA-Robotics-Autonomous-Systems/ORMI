@@ -2,15 +2,16 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
-	clearTransformsFromDatasource,
-} from "@workspace/ormi-core/transforms";
-import {
 	convertPosition,
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
+import {
+	isTransientLocalTopic,
+	getDatasourceSubscriptionRegistry,
+} from "@workspace/utils";
 import { FoxgloveDataSourceSettings } from "./types";
 
 interface TransformTreeManagerProps {
@@ -18,147 +19,118 @@ interface TransformTreeManagerProps {
 }
 
 /**
- * TransformTreeManager - Manages transform tree updates for a Foxglove datasource
+ * Convert a raw ROS `TFMessage` to THREE convention and push it into the shared transform
+ * table. Exported so the full pipeline (subscribe → published hook → table) is testable.
  *
- * Now uses an event-driven approach with Jotai atoms:
- * - Subscribes to /tf and /tf_static topics
- * - On each message, pushes transforms directly to the global atom
- * - Widgets automatically re-render when atoms update
+ * @param datasourceId - Datasource id (namespaces the frames).
+ * @param message - Raw TF message (`{ transforms: [...] }`) as delivered to the published hook.
+ * @param isStatic - Whether this came from a latched (`/tf_static`) topic.
+ */
+export function applyFoxgloveTransformMessage(
+	datasourceId: string,
+	message: { transforms?: any[] } | null | undefined,
+	isStatic: boolean,
+): void {
+	if (!message?.transforms) return;
+
+	const convertedMessage = {
+		...message,
+		transforms: message.transforms.map((tf: any) => {
+			const translation = tf.transform?.translation ?? {
+				x: 0,
+				y: 0,
+				z: 0,
+			};
+			const rotation = tf.transform?.rotation ?? {
+				x: 0,
+				y: 0,
+				z: 0,
+				w: 1,
+			};
+			return {
+				...tf,
+				transform: {
+					...tf.transform,
+					translation: convertPosition(translation, "ROS", "THREE"),
+					rotation: convertQuaternion(rotation, "ROS", "THREE"),
+					convention: "THREE",
+				},
+			};
+		}),
+	};
+
+	processTFMessage(datasourceId, convertedMessage, { isStatic });
+}
+
+/**
+ * Wire a Foxglove datasource's transform topics into the shared table through the datasource
+ * subscription registry (the shared bookkeeper): it waits for `DATASOURCE_READY`, refcounts,
+ * re-subscribes on reconnect, and is StrictMode-safe — so the mount-order race that previously
+ * needed a hand-rolled `WaitForActionToExist` is handled centrally. Each message is converted
+ * ROS → THREE and pushed via `processTFMessage`. Returns a cleanup that releases the registry
+ * intents only — the table is cleared automatically by the core datasource provider when the
+ * datasource leaves the dashboard (a transient remount keeps its frames; see
+ * `reconcileTransformSources`).
+ *
+ * Exported so the full pipeline can be integration-tested without rendering the component.
+ *
+ * @param pluginsManager - The plugins manager.
+ * @param settings - Foxglove datasource settings (id + `transformTreeTopics`).
+ * @returns Cleanup function.
+ */
+export function setupFoxgloveTransformManager(
+	pluginsManager: PluginsManager,
+	settings: FoxgloveDataSourceSettings,
+): () => void {
+	const datasource_id = settings.id;
+	const topics = settings.transformTreeTopics || [];
+	const registry = getDatasourceSubscriptionRegistry(pluginsManager);
+
+	const handles = topics.map((topic) => {
+		const isStatic = isTransientLocalTopic(topic);
+		// `type`/`rawType` map to no webapp converter, so the source passes the raw ROS
+		// `TFMessage` straight through to `onData`.
+		const datasourceTopic = {
+			topic,
+			datasource_id,
+			source: settings,
+			type: "tf2_msgs/msg/TFMessage",
+			rawType: "tf2_msgs/msg/TFMessage",
+		};
+		return registry.subscribe({
+			topic: datasourceTopic,
+			onData: (message: any) =>
+				applyFoxgloveTransformMessage(datasource_id, message, isStatic),
+		});
+	});
+
+	// Release the registry intents only. Clearing the table is the core provider's job
+	// (reconcileTransformSources) so a transient remount doesn't drop frames.
+	return () => handles.forEach((handle) => handle.unsubscribe());
+}
+
+/**
+ * TransformTreeManager - subscribes a Foxglove datasource's `/tf` and `/tf_static` topics and
+ * feeds them into the shared transform table; widgets re-render reactively.
  */
 const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 	settings,
 }) => {
 	const pluginsManager = usePluginsManager();
-
 	const datasource_id = settings.id;
+	const enable = settings.enable;
+	// Stable signature so the effect re-runs only when the topic set actually changes — not on
+	// every parent re-render (e.g. connection-status updates).
+	const topicsKey = (settings.transformTreeTopics || []).join("|");
 
-	// Register message handlers and subscribe to transform topics
 	useEffect(() => {
-		if (!settings.enable) {
+		if (!enable) {
 			return;
 		}
-
-		// Register message handlers for transform tree topics
-		const actionIds: string[] = [];
-		(settings.transformTreeTopics || []).forEach((topic) => {
-			const messageHook = `${datasource_id}-${topic}-published`;
-			const actionId = `${datasource_id}-transform-${topic}`;
-			actionIds.push(actionId);
-
-			pluginsManager.addAction(messageHook, {
-				id: actionId,
-				action: (
-					message: any,
-					_timestamp: number,
-					_frameId: string,
-				) => {
-					// Convert TF to THREE convention once at the datasource boundary
-					const convertedMessage = {
-						...message,
-						transforms: (message.transforms || []).map(
-							(tf: any) => {
-								const translation = tf.transform
-									?.translation ?? { x: 0, y: 0, z: 0 };
-								const rotation = tf.transform?.rotation ?? {
-									x: 0,
-									y: 0,
-									z: 0,
-									w: 1,
-								};
-
-								const convertedTranslation = convertPosition(
-									translation,
-									"ROS",
-									"THREE",
-								);
-								const convertedRotation = convertQuaternion(
-									rotation,
-									"ROS",
-									"THREE",
-								);
-
-								return {
-									...tf,
-									transform: {
-										...tf.transform,
-										translation: convertedTranslation,
-										rotation: convertedRotation,
-										convention: "THREE",
-									},
-								};
-							},
-						),
-					};
-
-					processTFMessage(datasource_id, convertedMessage);
-				},
-				priority: 100,
-			});
-		});
-
-		// Subscribe to transform tree topics
-		(settings.transformTreeTopics || []).forEach(async (topic) => {
-			const datasourceTopic = {
-				topic: topic,
-				datasource_id: datasource_id,
-				source: settings,
-				type: "tf2_msgs/TFMessage",
-				rawType: "tf2_msgs/TFMessage",
-			};
-
-			try {
-				await pluginsManager.doAction(
-					`${datasource_id}-subscribe`,
-					datasourceTopic,
-				);
-			} catch (error) {
-				console.error(
-					`TransformTreeManager: Failed to subscribe to transform topic ${topic}:`,
-					error,
-				);
-			}
-		});
-
-		return () => {
-			// Remove message handlers
-			actionIds.forEach((actionId) => {
-				pluginsManager.removeAction(actionId);
-			});
-
-			// Unsubscribe from transform tree topics
-			(settings.transformTreeTopics || []).forEach(async (topic) => {
-				const datasourceTopic = {
-					topic: topic,
-					datasource_id: datasource_id,
-					source: settings,
-					type: "tf2_msgs/TFMessage",
-					rawType: "tf2_msgs/TFMessage",
-				};
-
-				try {
-					await pluginsManager.doAction(
-						`${datasource_id}-unsubscribe`,
-						datasourceTopic,
-						true,
-					);
-				} catch (error) {
-					console.error(
-						`TransformTreeManager: Failed to unsubscribe from transform topic ${topic}:`,
-						error,
-					);
-				}
-			});
-
-			// Clear transforms from this datasource
-			clearTransformsFromDatasource(datasource_id);
-		};
-	}, [
-		settings.enable,
-		settings.id,
-		settings.transformTreeTopics,
-		pluginsManager,
-		datasource_id,
-	]);
+		return setupFoxgloveTransformManager(pluginsManager, settings);
+		// `settings` is read inside but intentionally excluded; id/enable/topics cover it.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [enable, datasource_id, topicsKey, pluginsManager]);
 
 	return null;
 };

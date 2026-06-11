@@ -96,7 +96,7 @@ export default async function DocPage({ params }: PageProps) {
 		<>
 			<MermaidBlocks selector=".docs-content" />
 			<article
-				className="docs-content max-w-none prose prose-slate dark:prose-invert"
+				className="docs-content max-w-none"
 				dangerouslySetInnerHTML={{ __html: content }}
 			/>
 		</>

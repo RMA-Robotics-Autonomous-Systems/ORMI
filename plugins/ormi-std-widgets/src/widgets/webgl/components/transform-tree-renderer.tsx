@@ -17,15 +17,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { ThreeEvent } from "@react-three/fiber";
-import { useTransformSource } from "@workspace/ormi-core/transforms";
-import {
-	TransformTree,
-	CoordinateConvention,
-} from "@workspace/ormi-core/types";
-import {
-	convertPosition,
-	convertQuaternion,
-} from "@workspace/ormi-core/transforms";
+import { useWorldFrames } from "@workspace/ormi-core/transforms";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -44,6 +36,13 @@ interface TransformTreeRendererConfig {
 	uniformColor?: string;
 	/** Show frame labels. @default true */
 	showLabels?: boolean;
+	/** Staleness threshold in ms (forwarded to the world-frame selector). @default 1000 */
+	staleThresholdMs?: number;
+	/**
+	 * Render inferred roots (frames whose parent was never observed) with a distinct
+	 * (wireframe) marker. The node is always shown either way. @default true
+	 */
+	showInferredRoots?: boolean;
 }
 
 interface TransformTreeRendererProps {
@@ -212,87 +211,19 @@ const oklchToRgbString = (value: string): string | null => {
 };
 
 /**
- * Convert a TransformTree node's transform into a THREE.js transformation matrix.
- */
-const getWorldMatrix = (
-	node: TransformTree,
-	parentMatrix: THREE.Matrix4 = new THREE.Matrix4(),
-): THREE.Matrix4 => {
-	const convention: CoordinateConvention =
-		(node.transform.convention as CoordinateConvention) ?? "THREE";
-
-	const pos = convertPosition(
-		{
-			x: node.transform.position.x,
-			y: node.transform.position.y,
-			z: node.transform.position.z,
-		},
-		convention,
-		"THREE",
-	);
-
-	const rot = convertQuaternion(node.transform.rotation, convention, "THREE");
-
-	const localMatrix = new THREE.Matrix4().compose(
-		new THREE.Vector3(pos.x, pos.y, pos.z),
-		new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w),
-		new THREE.Vector3(1, 1, 1),
-	);
-
-	return new THREE.Matrix4().multiplyMatrices(parentMatrix, localMatrix);
-};
-
-/**
- * Recursively collect all frame nodes with their world positions and depths.
+ * A frame resolved to world space, in THREE types, ready to render.
+ *
+ * World-space geometry is computed once in core (`selectWorldFrames` via `useWorldFrames`);
+ * this is just the THREE-typed projection of that result.
  */
 interface FrameNode {
 	id: string;
 	worldPos: THREE.Vector3;
 	parentPos: THREE.Vector3 | null;
 	depth: number;
+	/** Parent was never observed — render with a distinct marker. */
+	inferred: boolean;
 }
-
-const collectFrameNodes = (
-	tree: TransformTree,
-	parentMatrix: THREE.Matrix4 = new THREE.Matrix4(),
-	depth: number = 0,
-	nodes: FrameNode[] = [],
-): FrameNode[] => {
-	const worldMatrix = getWorldMatrix(tree, parentMatrix);
-	const worldPos = new THREE.Vector3();
-	worldPos.setFromMatrixPosition(worldMatrix);
-
-	const parentPos =
-		depth === 0
-			? null
-			: new THREE.Vector3().setFromMatrixPosition(parentMatrix);
-
-	nodes.push({
-		id: tree.id,
-		worldPos,
-		parentPos,
-		depth,
-	});
-
-	// Recurse into children
-	tree.children.forEach((child) => {
-		collectFrameNodes(child, worldMatrix, depth + 1, nodes);
-	});
-
-	return nodes;
-};
-
-const treeContainsFrame = (tree: TransformTree, frameId: string): boolean => {
-	if (tree.id === frameId) return true;
-
-	for (const [, child] of tree.children) {
-		if (treeContainsFrame(child, frameId)) {
-			return true;
-		}
-	}
-
-	return false;
-};
 
 interface FrameLabelProps {
 	nodeId: string;
@@ -369,7 +300,6 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	trackedNodeId = null,
 	onTrackedNodePositionChange,
 }) => {
-	const { transformsTrees } = useTransformSource();
 	const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 	const [hoverColor, setHoverColor] = useState<string>("#ffcc00");
 
@@ -380,30 +310,36 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 		colorScheme = "depth",
 		uniformColor = "#00ff88",
 		showLabels = true,
+		staleThresholdMs,
+		showInferredRoots = true,
 	} = config;
 
-	// Collect all frame nodes from all transform trees
+	// World-space geometry is resolved once in core; project it into THREE types here.
+	const worldFrames = useWorldFrames(
+		enabled ? targetFrame : "",
+		staleThresholdMs,
+	);
+
 	const frameNodes = useMemo<FrameNode[]>(() => {
-		if (!enabled || transformsTrees.size === 0) return [];
-
-		const allNodes: FrameNode[] = [];
-
-		transformsTrees.forEach((tree, treeId) => {
-			// If targetFrame is specified, only show that tree
-			if (
-				targetFrame &&
-				targetFrame !== "" &&
-				treeId !== targetFrame &&
-				tree.id !== targetFrame &&
-				!treeContainsFrame(tree, targetFrame)
-			) {
-				return;
-			}
-			collectFrameNodes(tree, new THREE.Matrix4(), 0, allNodes);
-		});
-
-		return allNodes;
-	}, [transformsTrees, enabled, targetFrame]);
+		if (!enabled) return [];
+		return worldFrames.map((wf) => ({
+			id: wf.rawFrameId,
+			worldPos: new THREE.Vector3(
+				wf.worldPosition.x,
+				wf.worldPosition.y,
+				wf.worldPosition.z,
+			),
+			parentPos: wf.parentWorldPosition
+				? new THREE.Vector3(
+						wf.parentWorldPosition.x,
+						wf.parentWorldPosition.y,
+						wf.parentWorldPosition.z,
+					)
+				: null,
+			depth: wf.depth,
+			inferred: wf.inferred,
+		}));
+	}, [worldFrames, enabled]);
 
 	// Geometry primitives (reused for all instances)
 	const sphereGeometry = useMemo(
@@ -506,7 +442,10 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 								onNodeClick?.(node.id, node.worldPos.clone());
 							}}
 						>
-							<meshStandardMaterial color={color} />
+							<meshStandardMaterial
+								color={color}
+								wireframe={showInferredRoots && node.inferred}
+							/>
 						</mesh>
 
 						{/* Frame label */}

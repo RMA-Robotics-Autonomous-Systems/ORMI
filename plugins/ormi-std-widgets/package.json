@@ -15,6 +15,7 @@
 	"scripts": {
 		"build": "tsc",
 		"lint": "eslint .",
+		"test": "bun test src",
 		"typecheck": "tsc --noEmit",
 		"clean": "rm -rf dist build .turbo node_modules"
 	},
@@ -42,7 +43,7 @@
 		"copyfiles": "^2.4.1",
 		"d3": "^7.9.0",
 		"echarts": "^6.0.0",
-		"force-graph": "^1.51.1",
+		"jotai": "^2.17.1",
 		"lucide-react": "^0.563.0",
 		"maplibre-gl": "^5.17.0",
 		"next": "^16.1.6",

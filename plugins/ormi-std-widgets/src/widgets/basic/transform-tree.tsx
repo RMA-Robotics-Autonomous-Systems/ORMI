@@ -1,210 +1,358 @@
 "use client";
-import React, { JSX, useEffect, useRef } from "react";
+import React, { JSX, useEffect, useMemo, useRef, useState } from "react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import * as d3 from "d3";
-import { useTheme } from "next-themes";
-import { TransformTree } from "@workspace/ormi-core/types";
-import { useTransformSource } from "@workspace/ormi-core/transforms";
+import {
+	select,
+	zoom,
+	zoomIdentity,
+	type D3ZoomEvent,
+	type HierarchyPointNode,
+	type ZoomBehavior,
+} from "d3";
+import { useAtomValue } from "jotai";
+import {
+	useTransformEdges,
+	frameRawName,
+	frameSource,
+} from "@workspace/ormi-core/transforms";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import { datasourcesAtom } from "@workspace/ormi-core/dashboard";
+import {
+	SUPER_ROOT,
+	type StratifyNode,
+	type TfNodeInput,
+	buildStratifyNodes,
+	computeTreeLayout,
+	filterByTree,
+	topologySignature,
+	translationMagnitude,
+} from "./transform-tree-layout";
 
 /** Props for TransformTreeViewer. */
 interface TransformTreeViewerProps extends Record<string, unknown> {
 	title: string;
+	/** Show translation magnitude on edges. (Legacy name retained for config back-compat.) */
 	showCoordinates: boolean;
 	treeId?: string;
 }
 
+const STALE_MS = 1000;
+const AGING_MS = 500;
+const NODE_RADIUS = 5;
+
+type Staleness = "fresh" | "aging" | "stale";
+
+/** Monotonic clock matching `TransformEdge.receivedAt`. */
+function monotonicNow(): number {
+	return typeof performance !== "undefined" && performance.now
+		? performance.now()
+		: Date.now();
+}
+
+function stalenessOf(data: TfNodeInput, now: number): Staleness {
+	if (data.isStatic) return "fresh";
+	const age = now - data.receivedAt;
+	if (age > STALE_MS) return "stale";
+	if (age > AGING_MS) return "aging";
+	return "fresh";
+}
+
+/** CSS-variable color tokens (no hardcoded hex). */
+function nodeColor(node: StratifyNode, now: number): string {
+	if (node.isVirtual || !node.data) return "var(--muted-foreground)";
+	switch (stalenessOf(node.data, now)) {
+		case "stale":
+			return "var(--destructive)";
+		case "aging":
+			return "var(--chart-4)";
+		default:
+			return "var(--primary)";
+	}
+}
+
+/** Hover/title text for a node. `nameOf` maps a datasource id to its display title. */
+function nodeTitle(
+	node: StratifyNode,
+	now: number,
+	nameOf: (id: string) => string,
+): string {
+	if (node.isVirtual || !node.data) {
+		const src = frameSource(node.id);
+		return `${frameRawName(node.id)}${src ? `\nsource: ${nameOf(src)}` : ""}\n(inferred parent — never observed)`;
+	}
+	const d = node.data;
+	const age = Math.max(0, Math.round(now - d.receivedAt));
+	const lines = [
+		d.rawFrameId,
+		`source: ${nameOf(d.source)}`,
+		`translation: ${d.magnitude.toFixed(3)} m`,
+		d.isStatic ? "static (/tf_static)" : `age: ${age} ms`,
+	];
+	return lines.join("\n");
+}
+
+/** Left-to-right link path between two laid-out nodes (node.y = depth axis, node.x = cross). */
+function linkPath(
+	source: HierarchyPointNode<StratifyNode>,
+	target: HierarchyPointNode<StratifyNode>,
+): string {
+	const sx = source.y;
+	const sy = source.x;
+	const tx = target.y;
+	const ty = target.x;
+	const mx = (sx + tx) / 2;
+	return `M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+}
+
 /**
- * Transform tree viewer widget body.
- * @param props - Component props.
- * @returns React element.
+ * Transform tree viewer — a deterministic `rqt_tf_tree`-style hierarchy.
+ *
+ * Reads the flat transform edges, lays them out once per *topology* change with d3-hierarchy,
+ * and renders them as React SVG. Pose updates only recolor/relabel; they never reflow. Pan/zoom
+ * is a single d3-zoom binding with proper cleanup. No physics, no per-message teardown.
  */
 function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
-	const { resolvedTheme } = useTheme();
-	const { transformsTrees } = useTransformSource();
-	const divRef = useRef<HTMLDivElement>(null);
+	const edges = useTransformEdges();
+	// Map datasource ids → display titles so node labels/tooltips show the configured
+	// datasource name, not the opaque instance id.
+	const datasources = useAtomValue(datasourcesAtom);
+	const nameOf = useMemo(() => {
+		const titles = new Map<string, string>();
+		for (const [key, ds] of datasources) {
+			titles.set(key, ds.title);
+			if (ds.settings?.id) titles.set(ds.settings.id, ds.title);
+		}
+		return (id: string) => titles.get(id) ?? id;
+	}, [datasources]);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const svgRef = useRef<SVGSVGElement>(null);
+	const gRef = useRef<SVGGElement>(null);
+	const didFitRef = useRef(false);
 
+	const [now, setNow] = useState(0);
+	const [size, setSize] = useState({ width: 0, height: 0 });
+
+	// Map edges → layout inputs (carries magnitude; topology comes from frameId/parentId).
+	const inputs = useMemo<TfNodeInput[]>(
+		() =>
+			edges.map((e) => ({
+				frameId: e.frameId,
+				parentId: e.parentId,
+				rawFrameId: e.rawFrameId,
+				source: e.source,
+				isStatic: e.isStatic,
+				parentObserved: e.parentObserved,
+				receivedAt: e.receivedAt,
+				magnitude: translationMagnitude(e.transform.position),
+			})),
+		[edges],
+	);
+
+	const treeId = props.treeId;
+
+	// Relayout only when topology changes (sorted child→parent pairs), not on pose updates.
+	const topoSig = useMemo(
+		() => topologySignature(inputs, treeId),
+		[inputs, treeId],
+	);
+
+	const layout = useMemo(() => {
+		const scoped = filterByTree(inputs, treeId);
+		if (scoped.length === 0) return { root: null, ok: true } as const;
+		return computeTreeLayout(buildStratifyNodes(scoped));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [topoSig]);
+
+	// A magnitude lookup keyed by frame id, refreshed on every pose update (cheap, no relayout).
+	const magnitudeByFrame = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const input of inputs) map.set(input.frameId, input.magnitude);
+		return map;
+	}, [inputs]);
+
+	// Tick the clock so staleness advances even when no transforms arrive.
 	useEffect(() => {
-		// Early exit if no data or container
-		if (!transformsTrees || transformsTrees.size === 0 || !divRef.current)
-			return;
+		const hasDynamic = inputs.some((n) => !n.isStatic);
+		setNow(monotonicNow());
+		if (!hasDynamic) return;
+		const id = setInterval(() => setNow(monotonicNow()), 500);
+		return () => clearInterval(id);
+	}, [inputs]);
 
-		(async () => {
-			const { default: ForceGraph } = await import("force-graph");
+	// Track container size for centering.
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver((entries) => {
+			const rect = entries[0]?.contentRect;
+			if (rect) setSize({ width: rect.width, height: rect.height });
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
 
-			// Prepare nodes and links
-			const nodes: { id: string }[] = [];
-			const links: { source: string; target: string; value: string }[] =
-				[];
-			const nodesMap: { [key: string]: boolean } = {};
+	// Reset the auto-fit when data drains (so a reconnect re-centers).
+	useEffect(() => {
+		if (inputs.length === 0) didFitRef.current = false;
+	}, [inputs.length]);
 
-			// Check if we should display all trees or just a specific one
-			if (props.treeId && transformsTrees.has(props.treeId)) {
-				// If a specific valid treeId is provided, display only that tree
-				const selectedTree = transformsTrees.get(props.treeId);
+	const nodes = layout.ok && layout.root ? layout.root.descendants() : [];
+	const links = layout.ok && layout.root ? layout.root.links() : [];
+	const visibleNodes = nodes.filter((d) => d.data.id !== SUPER_ROOT);
+	const visibleLinks = links.filter((l) => l.source.data.id !== SUPER_ROOT);
+	const isEmpty = visibleNodes.length === 0;
 
-				// Function to recursively process nodes
-				const processNode = (nodeId: string, node: TransformTree) => {
-					// Add the current node if not already added
-					if (!nodesMap[nodeId]) {
-						nodes.push({ id: nodeId });
-						nodesMap[nodeId] = true;
-					}
+	// Attach pan/zoom whenever the SVG exists. The SVG is unmounted while the widget is empty,
+	// so this must re-run on the empty↔data transition — an attach-once (empty deps) effect runs
+	// before the first data arrives, finds no SVG, and never attaches: pan/zoom dead.
+	const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+	useEffect(() => {
+		const svgEl = svgRef.current;
+		const gEl = gRef.current;
+		if (isEmpty || !svgEl || !gEl) return;
+		const svgSel = select(svgEl);
+		const zoomBehavior = zoom<SVGSVGElement, unknown>()
+			.scaleExtent([0.1, 4])
+			.on("zoom", (event: D3ZoomEvent<SVGSVGElement, unknown>) => {
+				select(gEl).attr("transform", event.transform.toString());
+			});
+		svgSel.call(zoomBehavior);
+		zoomRef.current = zoomBehavior;
+		return () => {
+			svgSel.on(".zoom", null);
+			zoomRef.current = null;
+		};
+	}, [isEmpty]);
 
-					// Process all children and create links
-					if (node.children && node.children.size > 0) {
-						node.children.forEach((childNode, childId) => {
-							// Add child node if not already added
-							if (!nodesMap[childId]) {
-								nodes.push({ id: childId });
-								nodesMap[childId] = true;
-							}
+	// One-time fit: center the laid-out tree once data + size are available. Applied THROUGH the
+	// zoom behavior (never a raw `transform` attr write) so d3-zoom's internal state matches the
+	// screen — a raw write leaves d3 at identity and the first drag snaps the view back.
+	useEffect(() => {
+		const svgEl = svgRef.current;
+		const zoomBehavior = zoomRef.current;
+		if (!svgEl || !zoomBehavior || didFitRef.current) return;
+		if (!layout.ok || !layout.root || size.height === 0) return;
 
-							// Add link from current node to child
-							const linkValue = props.showCoordinates
-								? `${childNode.transform.position.x.toFixed(2)},${childNode.transform.position.y.toFixed(2)},${childNode.transform.position.z.toFixed(2)}`
-								: "";
-
-							links.push({
-								source: nodeId,
-								target: childId,
-								value: linkValue,
-							});
-
-							// Recursively process the child
-							processNode(childId, childNode);
-						});
-					}
-				};
-
-				// Process just the selected tree
-				processNode(props.treeId, selectedTree!);
-			} else {
-				// If no valid treeId is specified or it doesn't exist, display ALL trees
-
-				// Add all trees to the graph
-				transformsTrees.forEach((tree, treeId) => {
-					// Add root node if not already added
-					if (!nodesMap[treeId]) {
-						nodes.push({ id: treeId });
-						nodesMap[treeId] = true;
-					}
-
-					// Process each tree's children
-					const processNode = (
-						nodeId: string,
-						node: TransformTree,
-					) => {
-						// Process all children and create links
-						if (node.children && node.children.size > 0) {
-							node.children.forEach((childNode, childId) => {
-								// Add child node if not already added
-								if (!nodesMap[childId]) {
-									nodes.push({ id: childId });
-									nodesMap[childId] = true;
-								}
-
-								// Add link from current node to child
-								const linkValue = props.showCoordinates
-									? `${childNode.transform.position.x.toFixed(2)},${childNode.transform.position.y.toFixed(2)},${childNode.transform.position.z.toFixed(2)}`
-									: "";
-
-								links.push({
-									source: nodeId,
-									target: childId,
-									value: linkValue,
-								});
-
-								// Recursively process the child
-								processNode(childId, childNode);
-							});
-						}
-					};
-
-					// Process this tree
-					processNode(treeId, tree);
-				});
-			}
-
-			const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
-			const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
-
-			// Clear previous graph instance if any
-			divRef.current!.innerHTML = "";
-
-			const fg = new ForceGraph(divRef.current!)
-				.graphData({ nodes, links })
-				.linkColor(() => arrowColor)
-				.linkDirectionalArrowLength(2)
-				.linkDirectionalArrowRelPos(1)
-				.linkCanvasObjectMode(() => "after")
-				// Add center-gravity force to keep disconnected nodes from drifting too far apart
-				.d3Force("center", d3.forceCenter())
-				// Adjust charge force (repulsion) to be less aggressive
-				.d3Force("charge", d3.forceManyBody().strength(-30))
-				// Add a boundary force to keep nodes within a reasonable area
-				.d3Force("x", d3.forceX().strength(0.05))
-				.d3Force("y", d3.forceY().strength(0.05))
-				.linkCanvasObject((link: any, ctx, globalScale) => {
-					const { source, target, value } = link;
-					if (!value) return; // Only draw if we have a value
-
-					const x = (source.x + target.x) / 2;
-					const y = (source.y + target.y) / 2;
-					ctx.font = `${10 / globalScale}px Sans-Serif`;
-					ctx.fillStyle = arrowColor;
-					ctx.strokeStyle = arrowColor;
-					ctx.textAlign = "center";
-					ctx.fillText(value, x, y);
-				})
-				.nodeCanvasObject((node: any, ctx, globalScale) => {
-					// Use different colors for root nodes vs child nodes
-					const isRoot = transformsTrees.has(node.id);
-					const color = isRoot ? "#f97315" : "#1f77b4";
-
-					const r = 5;
-					ctx.beginPath();
-					ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-					ctx.fillStyle = color;
-					ctx.fill();
-					ctx.font = `${12 / globalScale}px Sans-Serif`;
-					ctx.textAlign = "center";
-					ctx.textBaseline = "bottom";
-					ctx.fillStyle = lineColor;
-					ctx.fillText(node.id, node.x, node.y - r - 2);
-				});
-
-			// Auto-zoom to fit the graph
-			setTimeout(() => {
-				fg.zoomToFit(400);
-			}, 500);
-		})();
-	}, [
-		transformsTrees,
-		props.treeId,
-		props.showCoordinates,
-		resolvedTheme,
-		divRef.current,
-	]);
+		const treeNodes = layout.root.descendants();
+		const xs = treeNodes.map((d) => d.x);
+		const minX = Math.min(...xs);
+		const maxX = Math.max(...xs);
+		const treeCenterY = (minX + maxX) / 2;
+		const transform = zoomIdentity.translate(
+			48,
+			size.height / 2 - treeCenterY,
+		);
+		select(svgEl).call(zoomBehavior.transform, transform);
+		didFitRef.current = true;
+	}, [layout, size.height, isEmpty]);
 
 	return (
 		<div
+			ref={containerRef}
 			style={{
 				width: "100%",
 				height: "100%",
-				display: "flex",
-				flexDirection: "column",
+				position: "relative",
+				overflow: "hidden",
 			}}
 		>
-			<div
-				ref={divRef}
-				style={{
-					width: "100%",
-					height: "100%",
-					overflow: "hidden",
-					position: "relative",
-				}}
-			/>
+			{isEmpty ? (
+				<div
+					style={{
+						width: "100%",
+						height: "100%",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						color: "var(--muted-foreground)",
+						fontSize: 13,
+					}}
+				>
+					{layout.ok
+						? "No transforms received"
+						: "Unable to render transform tree"}
+				</div>
+			) : (
+				<svg
+					ref={svgRef}
+					width="100%"
+					height="100%"
+					role="img"
+					aria-label={`Transform tree with ${visibleNodes.length} frames`}
+					style={{ display: "block", cursor: "grab" }}
+				>
+					<g ref={gRef}>
+						{visibleLinks.map((link) => (
+							<path
+								key={`${link.source.data.id}->${link.target.data.id}`}
+								d={linkPath(link.source, link.target)}
+								fill="none"
+								stroke="var(--border)"
+								strokeWidth={1.5}
+							/>
+						))}
+						{visibleNodes.map((node) => {
+							const data = node.data;
+							const color = nodeColor(data, now);
+							const isInferred = data.isVirtual || !data.data;
+							const magnitude = data.data
+								? magnitudeByFrame.get(data.id)
+								: undefined;
+							return (
+								<g
+									key={data.id}
+									transform={`translate(${node.y},${node.x})`}
+								>
+									<title>
+										{nodeTitle(data, now, nameOf)}
+									</title>
+									<circle
+										r={NODE_RADIUS}
+										fill={isInferred ? "none" : color}
+										stroke={color}
+										strokeWidth={isInferred ? 1.5 : 1}
+										strokeDasharray={
+											isInferred ? "3 2" : undefined
+										}
+									/>
+									<text
+										x={NODE_RADIUS + 4}
+										y={3}
+										fontSize={11}
+										fill="var(--foreground)"
+									>
+										{data.data
+											? data.data.rawFrameId
+											: frameRawName(data.id)}
+									</text>
+									{isInferred && frameSource(data.id) && (
+										<text
+											x={NODE_RADIUS + 4}
+											y={14}
+											fontSize={9}
+											fill="var(--muted-foreground)"
+										>
+											{nameOf(frameSource(data.id)!)}
+										</text>
+									)}
+									{!isInferred &&
+										props.showCoordinates &&
+										magnitude !== undefined && (
+											<text
+												x={NODE_RADIUS + 4}
+												y={14}
+												fontSize={9}
+												fill="var(--muted-foreground)"
+											>
+												{magnitude.toFixed(2)} m
+											</text>
+										)}
+								</g>
+							);
+						})}
+					</g>
+				</svg>
+			)}
 		</div>
 	);
 }
@@ -242,7 +390,10 @@ export function TransformTreeWidgetDefinition(): WidgetDefinition<TransformTreeV
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				showCoordinates: { type: "boolean", title: "Show Coordinates" },
+				showCoordinates: {
+					type: "boolean",
+					title: "Show translation magnitude",
+				},
 				treeId: { type: "string", title: "Tree ID (optional)" },
 			},
 			required: ["title"],

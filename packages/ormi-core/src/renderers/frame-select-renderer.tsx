@@ -17,24 +17,30 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@workspace/ui/components/select";
-import { TransformTree } from "@workspace/ormi-core/types";
-import { useTransformSource } from "@workspace/ormi-core/transforms";
+import type { TransformEdge } from "@workspace/ormi-core/types";
+import {
+	useTransformEdges,
+	frameRawName,
+} from "@workspace/ormi-core/transforms";
 
 /**
- * Collect frame ids from transform trees.
- * @param trees - Transform trees map.
- * @returns Sorted frame id list.
+ * Collect selectable (bare) frame names from the transform edges.
+ *
+ * Keys are namespaced `${source}::${frame}`, but the picker shows/stores bare names; a bare
+ * selection resolves back to the right edge via raw-name matching. Unobserved parents
+ * (e.g. a fixed "map" root) are included so they remain selectable.
+ *
+ * @param edges - Transform edges.
+ * @returns Sorted, de-duplicated bare frame names.
  */
-const collectFrames = (trees: Map<string, TransformTree>): string[] => {
+const collectFrames = (edges: TransformEdge[]): string[] => {
 	const frames: string[] = [];
-
-	const walk = (node: TransformTree) => {
-		frames.push(node.id);
-		node.children.forEach(walk);
-	};
-
-	trees.forEach((tree) => walk(tree));
-
+	for (const edge of edges) {
+		frames.push(edge.rawFrameId);
+		if (edge.parentId && edge.parentId !== "") {
+			frames.push(frameRawName(edge.parentId));
+		}
+	}
 	return Array.from(new Set(frames)).sort();
 };
 
@@ -45,14 +51,11 @@ const collectFrames = (trees: Map<string, TransformTree>): string[] => {
  */
 const FrameSelectRenderer = (props: ControlProps) => {
 	const { data, handleChange, path, uischema, label } = props;
-	const { transformsTrees } = useTransformSource();
+	const edges = useTransformEdges();
 
 	const placeholder = uischema.options?.placeholder || "Select frame";
 
-	const frames = useMemo(
-		() => collectFrames(transformsTrees),
-		[transformsTrees],
-	);
+	const frames = useMemo(() => collectFrames(edges), [edges]);
 
 	const currentValue = useMemo(
 		() => (typeof data === "string" ? data : ""),

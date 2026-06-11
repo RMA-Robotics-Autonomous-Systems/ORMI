@@ -68,6 +68,10 @@ export interface TransformTreeConfig {
 	/** Base color when using uniform scheme. @default "#00ff88" */
 	uniformColor?: string; /** Show frame labels. @default true */
 	showLabels?: boolean;
+	/** Staleness threshold in ms (forwarded to the world-frame selector). @default 1000 */
+	staleThresholdMs?: number;
+	/** Render inferred roots (unobserved parent) with a distinct marker. @default true */
+	showInferredRoots?: boolean;
 }
 
 /**
@@ -97,7 +101,31 @@ export interface PosePublisherConfig {
 	markerSize?: number;
 }
 
+/**
+ * How a data layer resolved its transform on the last render:
+ * - `resolved` — a chain from the layer's reference frame to the target frame was found.
+ * - `fallback` — no chain to the target; the layer renders in its own root frame (identity).
+ * - `no-data` — the layer has no (usable) data yet, so nothing is rendered.
+ */
+export type LayerTransformStatus = "resolved" | "fallback" | "no-data";
+
 // Main props for the 3D Scene widget
+/**
+ * Places one datasource's root frame into the scene's shared world, so multiple sources can be
+ * co-visualized. Anchors are overlaid at read time onto an effective transform table; they are
+ * never written to the global core table.
+ */
+export interface SceneAnchor {
+	/** Datasource id whose tree is being anchored. */
+	source: string;
+	/** Raw root frame of that source to anchor (e.g. `"map"`). */
+	rootFrame: string;
+	/** Placement of `rootFrame` within the scene world. */
+	position: { x: number; y: number; z: number };
+	/** Orientation of `rootFrame` within the scene world. */
+	rotation: { x: number; y: number; z: number; w: number };
+}
+
 export interface Scene3DProps extends Record<string, unknown> {
 	title: string;
 	pointCloudLayers?: PointCloudLayerConfig[];
@@ -107,6 +135,15 @@ export interface Scene3DProps extends Record<string, unknown> {
 	/** Unified pose publisher configuration (goal pose + initial pose estimate). */
 	posePublisherConfig?: PosePublisherConfig;
 	targetFrame?: string;
+	/** Name of the scene's shared world frame (anchor parent). @default "world" */
+	worldFrame?: string;
+	/**
+	 * Automatically place every source's root frame at the world origin, so multiple sources
+	 * share a common origin without manual anchors. @default true
+	 */
+	autoAnchor?: boolean;
+	/** Manual anchors co-locating specific source roots at given poses (override auto-anchor). */
+	anchors?: SceneAnchor[];
 	showGrid?: boolean;
 	showAxes?: boolean;
 	backgroundColor?: string;

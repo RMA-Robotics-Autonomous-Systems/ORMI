@@ -28,6 +28,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
+import { TransformTreeManager } from "./transform-tree-manager";
 
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
@@ -898,7 +899,9 @@ const RosBridgeSuiteSourceProvider = (
 		};
 	}, [retry, props, pluginsManager]); // Add pluginsManager dependency
 
-	return null;
+	// Mount the transform manager once connected, so its subscribe runs after this provider has
+	// registered the subscribe action. It feeds /tf and /tf_static into the shared table.
+	return connected ? <TransformTreeManager settings={props} /> : null;
 };
 
 export { RosBridgeSuiteSourceProvider };

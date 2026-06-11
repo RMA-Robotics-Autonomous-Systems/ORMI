@@ -82,7 +82,7 @@ export const NavBar = () => {
 	);
 
 	return (
-		<div className="relative">
+		<div className="relative z-30">
 			<NavigationMenu className="shadow-md w-full p-1">
 				{isMobile ? (
 					<div className="p-2">
