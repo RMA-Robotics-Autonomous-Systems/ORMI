@@ -20,7 +20,6 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible";
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { Separator } from "@workspace/ui/components/separator";
 import { Toggle } from "@workspace/ui/components/toggle";
 import {
@@ -145,7 +144,7 @@ export function Scene3DControlPanel({
 
 	return (
 		<div
-			className="w-64 max-w-[calc(100%-1rem)]"
+			className="flex max-h-[calc(100%-1rem)] w-64 max-w-[calc(100%-1rem)] flex-col"
 			style={{
 				position: "absolute",
 				top: "8px",
@@ -153,8 +152,12 @@ export function Scene3DControlPanel({
 				zIndex: 10,
 			}}
 		>
-			<Card className="bg-card/90 supports-[backdrop-filter]:bg-card/80 gap-0 rounded-lg border py-0 shadow-sm backdrop-blur-sm">
-				<Collapsible open={open} onOpenChange={setOpen}>
+			<Card className="bg-card/90 supports-[backdrop-filter]:bg-card/80 min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border py-0 shadow-sm backdrop-blur-sm">
+				<Collapsible
+					open={open}
+					onOpenChange={setOpen}
+					className="flex min-h-0 flex-1 flex-col"
+				>
 					<CollapsibleTrigger asChild>
 						<Button
 							variant="ghost"
@@ -169,9 +172,9 @@ export function Scene3DControlPanel({
 						</Button>
 					</CollapsibleTrigger>
 
-					<CollapsibleContent>
+					<CollapsibleContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<Separator />
-						<ScrollArea className="max-h-80">
+						<div className="max-h-80 min-h-0 flex-1 overflow-y-auto">
 							<div className="flex flex-col gap-3 p-2">
 								{hasLayers && (
 									<div className="flex flex-col gap-1">
@@ -205,7 +208,7 @@ export function Scene3DControlPanel({
 									</div>
 								)}
 							</div>
-						</ScrollArea>
+						</div>
 					</CollapsibleContent>
 				</Collapsible>
 			</Card>
