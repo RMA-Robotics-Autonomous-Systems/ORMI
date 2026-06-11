@@ -183,7 +183,7 @@ export function Scene3DControlPanel({
 	scene: SceneLayerEntry[];
 	onToggle: (key: string, visible: boolean) => void;
 }) {
-	const [open, setOpen] = useState(true);
+	const [open, setOpen] = useState(false);
 
 	const hasLayers = layers.length > 0;
 	const hasScene = scene.length > 0;
@@ -203,7 +203,7 @@ export function Scene3DControlPanel({
 				zIndex: 10,
 			}}
 		>
-			<Card className="bg-card/90 supports-[backdrop-filter]:bg-card/80 min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border py-0 shadow-sm backdrop-blur-sm">
+			<Card className="bg-popover text-popover-foreground min-h-0 flex-1 gap-0 overflow-hidden rounded-md border py-0 shadow-md">
 				<Collapsible
 					open={open}
 					onOpenChange={setOpen}

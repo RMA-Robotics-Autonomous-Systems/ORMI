@@ -60,7 +60,7 @@ export function MapControlPanel({
 	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
 	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
 }) {
-	const [open, setOpen] = useState(true);
+	const [open, setOpen] = useState(false);
 
 	const hasTopics = topics.length > 0;
 	const hasLayers = customLayers.length > 0;
@@ -72,7 +72,7 @@ export function MapControlPanel({
 
 	return (
 		<div className="absolute top-2 right-2 z-10 flex max-h-[calc(100%-1rem)] w-64 max-w-[calc(100%-1rem)] flex-col">
-			<Card className="bg-card/90 supports-[backdrop-filter]:bg-card/80 min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border py-0 shadow-sm backdrop-blur-sm">
+			<Card className="bg-popover text-popover-foreground min-h-0 flex-1 gap-0 overflow-hidden rounded-md border py-0 shadow-md">
 				<Collapsible
 					open={open}
 					onOpenChange={setOpen}
