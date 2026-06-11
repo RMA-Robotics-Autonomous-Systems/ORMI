@@ -28,6 +28,7 @@ import {
 	TooltipTrigger,
 } from "@workspace/ui/components/tooltip";
 import { cn } from "@workspace/ui/lib/utils";
+import type { LayerTransformStatus } from "../types/scene-3d-types";
 
 /** Kind of toggleable element in the 3D scene. */
 export type SceneLayerKind =
@@ -50,6 +51,53 @@ export interface SceneLayerEntry {
 	label: string;
 	kind: SceneLayerKind;
 	visible: boolean;
+	/** Transform status reported by the layer's renderer (data layers only). */
+	status?: LayerTransformStatus;
+}
+
+/**
+ * Badge color + description per transform status. Colors are inline (not Tailwind palette
+ * classes): the app's Tailwind v4 `@theme` does not emit the default `emerald`/`amber`
+ * utilities, so class-based dots render with no background. `--muted-foreground` is a theme token.
+ */
+const STATUS_META: Record<
+	LayerTransformStatus,
+	{ color: string; label: string; description: string }
+> = {
+	resolved: {
+		color: "#22c55e",
+		label: "TF ok",
+		description: "Transform to the target frame resolved.",
+	},
+	fallback: {
+		color: "#f59e0b",
+		label: "TF fallback",
+		description:
+			"Target frame unreachable — rendering in the layer's own root frame.",
+	},
+	"no-data": {
+		color: "var(--muted-foreground)",
+		label: "no data",
+		description: "No data received on this layer's topic yet.",
+	},
+};
+
+/** Small colored status dot with a tooltip, shown for data layers. */
+function StatusDot({ status }: { status: LayerTransformStatus }) {
+	const meta = STATUS_META[status];
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					role="status"
+					aria-label={meta.label}
+					className="ring-border/50 h-2.5 w-2.5 shrink-0 rounded-full ring-1"
+					style={{ backgroundColor: meta.color }}
+				/>
+			</TooltipTrigger>
+			<TooltipContent>{meta.description}</TooltipContent>
+		</Tooltip>
+	);
 }
 
 const KIND_ICON: Record<
@@ -84,6 +132,9 @@ function LayerRow({
 			<span className="min-w-0 flex-1 truncate text-sm">
 				{entry.label}
 			</span>
+			{entry.status && entry.visible && (
+				<StatusDot status={entry.status} />
+			)}
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Toggle

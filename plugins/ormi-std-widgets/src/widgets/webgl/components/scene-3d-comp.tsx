@@ -21,15 +21,20 @@ import {
 	PathLayerConfig,
 	MapGridLayerConfig,
 	PosePublisherConfig,
+	LayerTransformStatus,
 } from "../types/scene-3d-types";
 import { GoalPoseOverlay, PoseMode } from "./goal-pose-overlay";
 import { MapGridRenderer } from "./map-grid-renderer";
 import { TransformTreeFollowLayer } from "./transform-tree-follow-layer";
 import { PointCloudSourceRenderer } from "./point-cloud-source-renderer";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
-import { useTransformSource } from "@workspace/ormi-core/transforms";
 import { PathLineRenderer } from "./path-line-renderer";
 import { Scene3DControlPanel, SceneLayerEntry } from "./scene-3d-controls";
+import {
+	SceneTransformProvider,
+	useSceneTransforms,
+	useSceneTransformTable,
+} from "./scene-transform-context";
 
 // ============================================================================
 // Point Cloud Layer Renderer (uses data source context)
@@ -37,14 +42,16 @@ import { Scene3DControlPanel, SceneLayerEntry } from "./scene-3d-controls";
 interface PointCloudLayerRendererProps extends Record<string, unknown> {
 	config: PointCloudLayerConfig;
 	targetFrame: string;
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
 const PointCloudLayerRenderer = ({
 	config,
 	targetFrame,
+	onTransformStatus,
 }: PointCloudLayerRendererProps) => {
 	const { getSource, getSourceId } = useLocalDataSource();
-	const { transformsTrees } = useTransformSource();
+	const { table } = useSceneTransforms();
 	const sharedFrameTimeRef = useRef<number>(0);
 
 	useFrame(() => {
@@ -61,10 +68,12 @@ const PointCloudLayerRenderer = ({
 					key={getSourceId(topic)}
 					sourceId={getSourceId(topic)}
 					source={getSource(topic)}
-					transformsTrees={transformsTrees}
+					table={table}
+					datasourceId={topic.datasource_id}
 					config={config}
 					targetFrame={targetFrame}
 					frameTimeRef={sharedFrameTimeRef}
+					onTransformStatus={onTransformStatus}
 				/>
 			) : null}
 		</>
@@ -77,19 +86,26 @@ const PointCloudLayerRenderer = ({
 interface PathLayerRendererProps extends Record<string, unknown> {
 	config: PathLayerConfig;
 	targetFrame: string;
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
-const PathLayerRenderer = ({ config, targetFrame }: PathLayerRendererProps) => {
+const PathLayerRenderer = ({
+	config,
+	targetFrame,
+	onTransformStatus,
+}: PathLayerRendererProps) => {
 	const { getSource } = useLocalDataSource();
 	const source = config.topic ? getSource(config.topic) : undefined;
 
 	return (
 		<PathLineRenderer
 			source={source}
+			datasourceId={config.topic?.datasource_id}
 			targetFrame={targetFrame}
 			lineWidth={config.lineWidth ?? 0.02}
 			lineOpacity={0.7}
 			lineColor={config.lineColor ?? "#3b82f6"}
+			onTransformStatus={onTransformStatus}
 		/>
 	);
 };
@@ -101,12 +117,14 @@ interface MapGridLayerRendererProps extends Record<string, unknown> {
 	config: MapGridLayerConfig;
 	targetFrame: string;
 	layerIndex: number;
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
 const MapGridLayerRenderer = ({
 	config,
 	targetFrame,
 	layerIndex,
+	onTransformStatus,
 }: MapGridLayerRendererProps) => {
 	const { getSource } = useLocalDataSource();
 	const source = config.topic ? getSource(config.topic) : undefined;
@@ -115,9 +133,11 @@ const MapGridLayerRenderer = ({
 		<MapGridRenderer
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			source={source as any}
+			datasourceId={config.topic?.datasource_id}
 			targetFrame={targetFrame}
 			config={config}
 			layerIndex={layerIndex}
+			onTransformStatus={onTransformStatus}
 		/>
 	);
 };
@@ -127,6 +147,25 @@ const MapGridLayerRenderer = ({
 // ============================================================================
 export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const targetFrame = props.targetFrame ?? "";
+	const worldFrame = props.worldFrame ?? "world";
+	const anchors = props.anchors;
+	const autoAnchor = props.autoAnchor ?? true;
+	// Effective (anchored) table provided to the data layers. With autoAnchor each source root
+	// sits at the world origin; manual anchors override per source.
+	const effectiveTable = useSceneTransformTable(
+		anchors,
+		worldFrame,
+		autoAnchor,
+	);
+	// Zero-config target for the DATA layers: with autoAnchor on and no explicit targetFrame,
+	// resolve layers into the shared anchored world. Without this, an empty targetFrame renders
+	// every layer in its own root frame (identity chain) — a map in `map` and a path in `odom`
+	// end up mutually misaligned until the user manually types the world frame. An explicit
+	// targetFrame always wins. The TF-tree renderer keeps the raw targetFrame: it reads the core
+	// table, where the scene-local world frame doesn't exist, and its roots already coincide
+	// with the identity auto-anchors.
+	const dataTargetFrame =
+		targetFrame.trim() !== "" ? targetFrame : autoAnchor ? worldFrame : "";
 	const showGrid = props.showGrid ?? true;
 	const showAxes = props.showAxes ?? true;
 	const pointCloudLayers = props.pointCloudLayers ?? [];
@@ -260,6 +299,23 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 		[],
 	);
 
+	// Per-layer transform status, reported by each data renderer after it resolves its chain.
+	// Runtime-only: shown as a badge in the control panel so a layer silently rendering in its
+	// own root (fallback) or with no data yet is visible at a glance.
+	const [layerStatuses, setLayerStatuses] = useState<
+		Map<string, LayerTransformStatus>
+	>(new Map());
+	const handleLayerStatus = useCallback(
+		(key: string, status: LayerTransformStatus) =>
+			setLayerStatuses((prev) => {
+				if (prev.get(key) === status) return prev;
+				const next = new Map(prev);
+				next.set(key, status);
+				return next;
+			}),
+		[],
+	);
+
 	const layerEntries: SceneLayerEntry[] = visibilityConfig
 		.filter((c) => c.kind !== "grid" && c.kind !== "axes")
 		.map((c) => ({
@@ -267,6 +323,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 			label: c.label,
 			kind: c.kind,
 			visible: isVisible(c.key, c.defaultVisible),
+			status: layerStatuses.get(c.key),
 		}));
 	const sceneEntries: SceneLayerEntry[] = visibilityConfig
 		.filter((c) => c.kind === "grid" || c.kind === "axes")
@@ -303,54 +360,68 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					/>
 				)}
 
-				{/* Render Point Cloud Layers */}
-				{pointCloudLayers.map((layer, index) => {
-					const key = `pc:${layer.id ?? index}`;
-					if (!isVisible(key, layer.enabled !== false)) return null;
-					return (
-						<PointCloudLayerRenderer
-							key={key}
-							config={layer}
+				<SceneTransformProvider value={{ table: effectiveTable }}>
+					{/* Render Point Cloud Layers */}
+					{pointCloudLayers.map((layer, index) => {
+						const key = `pc:${layer.id ?? index}`;
+						if (!isVisible(key, layer.enabled !== false))
+							return null;
+						return (
+							<PointCloudLayerRenderer
+								key={key}
+								config={layer}
+								targetFrame={dataTargetFrame}
+								onTransformStatus={(status) =>
+									handleLayerStatus(key, status)
+								}
+							/>
+						);
+					})}
+
+					{/* Render Path Layers */}
+					{pathLayers.map((layer, index) => {
+						const key = `path:${layer.id ?? index}`;
+						if (!isVisible(key, layer.enabled !== false))
+							return null;
+						return (
+							<PathLayerRenderer
+								key={key}
+								config={layer}
+								targetFrame={dataTargetFrame}
+								onTransformStatus={(status) =>
+									handleLayerStatus(key, status)
+								}
+							/>
+						);
+					})}
+
+					{/* Render Map Grid Layers */}
+					{mapGridLayers.map((layer, index) => {
+						const key = `mapgrid:${layer.id ?? index}`;
+						if (!isVisible(key, layer.enabled !== false))
+							return null;
+						return (
+							<MapGridLayerRenderer
+								key={key}
+								config={layer}
+								targetFrame={dataTargetFrame}
+								layerIndex={index}
+								onTransformStatus={(status) =>
+									handleLayerStatus(key, status)
+								}
+							/>
+						);
+					})}
+
+					{/* Render Transform Tree */}
+					{isVisible("scene:tf", transformTree.enabled === true) && (
+						<TransformTreeFollowLayer
+							controlsRef={controlsRef}
+							config={transformTree}
 							targetFrame={targetFrame}
 						/>
-					);
-				})}
-
-				{/* Render Path Layers */}
-				{pathLayers.map((layer, index) => {
-					const key = `path:${layer.id ?? index}`;
-					if (!isVisible(key, layer.enabled !== false)) return null;
-					return (
-						<PathLayerRenderer
-							key={key}
-							config={layer}
-							targetFrame={targetFrame}
-						/>
-					);
-				})}
-
-				{/* Render Map Grid Layers */}
-				{mapGridLayers.map((layer, index) => {
-					const key = `mapgrid:${layer.id ?? index}`;
-					if (!isVisible(key, layer.enabled !== false)) return null;
-					return (
-						<MapGridLayerRenderer
-							key={key}
-							config={layer}
-							targetFrame={targetFrame}
-							layerIndex={index}
-						/>
-					);
-				})}
-
-				{/* Render Transform Tree */}
-				{isVisible("scene:tf", transformTree.enabled === true) && (
-					<TransformTreeFollowLayer
-						controlsRef={controlsRef}
-						config={transformTree}
-						targetFrame={targetFrame}
-					/>
-				)}
+					)}
+				</SceneTransformProvider>
 
 				{/* Unified pose overlay — handles goal pose (G) and initial pose (P) */}
 				{posePublisherConfig?.enabled && (

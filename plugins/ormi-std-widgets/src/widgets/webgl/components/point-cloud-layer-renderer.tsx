@@ -11,14 +11,14 @@ interface PointCloudLayerRendererProps extends Record<string, unknown> {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sourcesData: any;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	transformsTrees: any;
+	table: any;
 	targetFrame: string;
 	frameTimeRef: React.MutableRefObject<number>;
 }
 
 export const PointCloudLayerRenderer: React.FC<
 	PointCloudLayerRendererProps
-> = ({ layer, sourcesData, transformsTrees, targetFrame, frameTimeRef }) => {
+> = ({ layer, sourcesData, table, targetFrame, frameTimeRef }) => {
 	if (!layer.enabled) {
 		return null;
 	}
@@ -53,7 +53,7 @@ export const PointCloudLayerRenderer: React.FC<
 				key={sourceId}
 				sourceId={sourceId}
 				source={source}
-				transformsTrees={transformsTrees}
+				table={table}
 				config={layer}
 				targetFrame={targetFrame}
 				frameTimeRef={frameTimeRef}

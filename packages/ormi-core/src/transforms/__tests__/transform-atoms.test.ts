@@ -1,117 +1,91 @@
 /**
- * Tests for transform system - race conditions and edge cases
+ * Tests for the transform system - edge-table model, namespacing, races, chain resolution.
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
 import {
 	transformStore,
-	transformTreesAtom,
 	transformSourcesAtom,
 	transformFrameCountAtom,
+	transformVersionAtom,
 	processTFMessage,
 	clearTransformsFromDatasource,
 	clearAllTransforms,
+	getTransformTable,
 	type TFMessage,
 } from "../transform-atoms";
-import type { TransformTree } from "../../types";
+import { findTransformChain } from "../utils";
+
+/** Namespaced table key for a datasource + raw frame name. */
+function K(source: string, frame: string): string {
+	return `${source}::${frame}`;
+}
+
+/** Build a one-transform message helper. */
+function tf(
+	frameId: string,
+	childId: string,
+	pos: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 },
+): TFMessage {
+	return {
+		transforms: [
+			{
+				header: { frame_id: frameId },
+				child_frame_id: childId,
+				transform: {
+					translation: pos,
+					rotation: { x: 0, y: 0, z: 0, w: 1 },
+				},
+			},
+		],
+	};
+}
+
+/** Multi-transform message helper. */
+function tfs(...pairs: [string, string][]): TFMessage {
+	return {
+		transforms: pairs.map(([frame_id, child_frame_id]) => ({
+			header: { frame_id },
+			child_frame_id,
+			transform: {
+				translation: { x: 0, y: 0, z: 0 },
+				rotation: { x: 0, y: 0, z: 0, w: 1 },
+			},
+		})),
+	};
+}
 
 describe("Transform Atoms - Basic Functionality", () => {
 	beforeEach(() => {
-		// Clear the shared store state before each test
-		transformStore.set(transformTreesAtom, new Map());
-		transformStore.set(transformSourcesAtom, new Set());
+		clearAllTransforms();
 	});
 
-	test("should create a simple transform tree", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 1, y: 2, z: 3 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("creates a namespaced edge (no phantom parent)", () => {
+		processTFMessage("ds1", tf("map", "odom", { x: 1, y: 2, z: 3 }));
 
-		processTFMessage("datasource-1", message);
+		const table = getTransformTable();
+		expect(table.size).toBe(1);
+		expect(table.has(K("ds1", "map"))).toBe(false);
 
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(1);
-		expect(trees.has("map")).toBe(true);
-
-		const mapFrame = trees.get("map");
-		expect(mapFrame?.id).toBe("map");
-		expect(mapFrame?.children.size).toBe(1);
-		expect(mapFrame?.children.has("odom")).toBe(true);
+		const odom = table.get(K("ds1", "odom"));
+		expect(odom?.frameId).toBe(K("ds1", "odom"));
+		expect(odom?.rawFrameId).toBe("odom");
+		expect(odom?.parentId).toBe(K("ds1", "map"));
 	});
 
-	test("should handle hierarchical transform chains", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 1, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-				{
-					header: { frame_id: "odom" },
-					child_frame_id: "base_link",
-					transform: {
-						translation: { x: 0, y: 1, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-				{
-					header: { frame_id: "base_link" },
-					child_frame_id: "camera",
-					transform: {
-						translation: { x: 0, y: 0, z: 1 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("handles hierarchical chains", () => {
+		processTFMessage("ds1", tfs(["map", "odom"], ["odom", "base_link"]));
 
-		processTFMessage("datasource-1", message);
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(1);
-
-		const mapFrame = trees.get("map");
-		expect(mapFrame?.id).toBe("map");
-
-		const odomFrame = mapFrame?.children.get("odom");
-		expect(odomFrame?.id).toBe("odom");
-
-		const baseLinkFrame = odomFrame?.children.get("base_link");
-		expect(baseLinkFrame?.id).toBe("base_link");
-
-		const cameraFrame = baseLinkFrame?.children.get("camera");
-		expect(cameraFrame?.id).toBe("camera");
+		const table = getTransformTable();
+		expect(table.get(K("ds1", "odom"))?.parentId).toBe(K("ds1", "map"));
+		expect(table.get(K("ds1", "base_link"))?.parentId).toBe(
+			K("ds1", "odom"),
+		);
 	});
 
-	test("should track datasource contributions", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message);
-		processTFMessage("datasource-2", message);
+	test("tracks datasource contributions", () => {
+		processTFMessage("datasource-1", tf("map", "odom"));
+		processTFMessage("datasource-2", tf("map", "odom"));
 
 		const sources = transformStore.get(transformSourcesAtom);
 		expect(sources.size).toBe(2);
@@ -119,442 +93,329 @@ describe("Transform Atoms - Basic Functionality", () => {
 		expect(sources.has("datasource-2")).toBe(true);
 	});
 
-	test("should count frames correctly", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-				{
-					header: { frame_id: "odom" },
-					child_frame_id: "base_link",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("counts frames (edges)", () => {
+		processTFMessage("ds1", tfs(["map", "odom"], ["odom", "base_link"]));
+		expect(transformStore.get(transformFrameCountAtom)).toBe(2);
+	});
 
-		processTFMessage("datasource-1", message);
+	test("tags each edge with its source and keeps the raw name", () => {
+		processTFMessage("dsX", tf("map", "odom"));
+		const edge = getTransformTable().get(K("dsX", "odom"));
+		expect(edge?.source).toBe("dsX");
+		expect(edge?.rawFrameId).toBe("odom");
+	});
 
-		const count = transformStore.get(transformFrameCountAtom);
-		expect(count).toBe(3); // map, odom, base_link
+	test("captures stamp and isStatic", () => {
+		processTFMessage(
+			"ds",
+			{
+				transforms: [
+					{
+						header: {
+							frame_id: "map",
+							stamp: { sec: 5, nsec: 500_000_000 },
+						},
+						child_frame_id: "odom",
+						transform: {
+							translation: { x: 0, y: 0, z: 0 },
+							rotation: { x: 0, y: 0, z: 0, w: 1 },
+						},
+					},
+				],
+			},
+			{ isStatic: true },
+		);
+
+		const edge = getTransformTable().get(K("ds", "odom"));
+		expect(edge?.stamp).toBeCloseTo(5.5, 6);
+		expect(edge?.isStatic).toBe(true);
+		expect(edge?.receivedAt).toBeGreaterThan(0);
+	});
+
+	test("flags parentObserved per edge", () => {
+		processTFMessage("ds", tfs(["map", "odom"], ["odom", "base_link"]));
+		const table = getTransformTable();
+		expect(table.get(K("ds", "odom"))?.parentObserved).toBe(false);
+		expect(table.get(K("ds", "base_link"))?.parentObserved).toBe(true);
+	});
+});
+
+describe("Transform Atoms - Namespacing (multi-source)", () => {
+	beforeEach(() => {
+		clearAllTransforms();
+	});
+
+	test("two sources with identical frame names do not collide", () => {
+		processTFMessage("robotA", tf("map", "odom", { x: 1, y: 0, z: 0 }));
+		processTFMessage("robotB", tf("map", "odom", { x: 9, y: 0, z: 0 }));
+
+		const table = getTransformTable();
+		expect(table.size).toBe(2);
+		expect(table.get(K("robotA", "odom"))?.transform.position.x).toBe(1);
+		expect(table.get(K("robotB", "odom"))?.transform.position.x).toBe(9);
+	});
+
+	test("clearing one source leaves the other intact", () => {
+		processTFMessage("robotA", tf("map", "odom"));
+		processTFMessage("robotB", tf("map", "odom"));
+
+		clearTransformsFromDatasource("robotA");
+
+		const table = getTransformTable();
+		expect(table.has(K("robotA", "odom"))).toBe(false);
+		expect(table.has(K("robotB", "odom"))).toBe(true);
+	});
+});
+
+describe("Transform Atoms - Re-parenting & cycles", () => {
+	beforeEach(() => {
+		clearAllTransforms();
+	});
+
+	test("re-parents a frame when its parent changes", () => {
+		processTFMessage("ds", tf("A", "C", { x: 1, y: 0, z: 0 }));
+		expect(getTransformTable().get(K("ds", "C"))?.parentId).toBe(
+			K("ds", "A"),
+		);
+
+		processTFMessage("ds", tf("B", "C", { x: 2, y: 0, z: 0 }));
+		const c = getTransformTable().get(K("ds", "C"));
+		expect(c?.parentId).toBe(K("ds", "B"));
+		expect(c?.transform.position.x).toBe(2);
+		expect(getTransformTable().size).toBe(1);
+	});
+
+	test("rejects a direct cycle (A->B then B->A)", () => {
+		processTFMessage("ds", tf("A", "B"));
+		processTFMessage("ds", tf("B", "A"));
+
+		const table = getTransformTable();
+		expect(table.size).toBe(1);
+		expect(table.has(K("ds", "B"))).toBe(true);
+		expect(table.has(K("ds", "A"))).toBe(false);
+	});
+
+	test("rejects a deep cycle (A->B->C then C->A)", () => {
+		processTFMessage("ds", tfs(["A", "B"], ["B", "C"]));
+		processTFMessage("ds", tf("C", "A"));
+
+		const table = getTransformTable();
+		expect(table.size).toBe(2);
+		expect(table.has(K("ds", "A"))).toBe(false);
+	});
+
+	test("rejects self-loops", () => {
+		processTFMessage("ds", tf("A", "A"));
+		expect(getTransformTable().size).toBe(0);
+	});
+});
+
+describe("Transform Atoms - Reactivity (version coalescing)", () => {
+	beforeEach(() => {
+		clearAllTransforms();
+	});
+
+	test("a sub-epsilon update does not bump the version", () => {
+		processTFMessage("ds", tf("map", "odom", { x: 1, y: 2, z: 3 }));
+		const v1 = transformStore.get(transformVersionAtom);
+
+		processTFMessage(
+			"ds",
+			tf("map", "odom", { x: 1.00001, y: 2.00001, z: 3.00001 }),
+		);
+		expect(transformStore.get(transformVersionAtom)).toBe(v1);
+	});
+
+	test("a material change bumps the version", () => {
+		processTFMessage("ds", tf("map", "odom", { x: 1, y: 0, z: 0 }));
+		const v1 = transformStore.get(transformVersionAtom);
+
+		processTFMessage("ds", tf("map", "odom", { x: 5, y: 0, z: 0 }));
+		expect(transformStore.get(transformVersionAtom)).not.toBe(v1);
+		expect(
+			getTransformTable().get(K("ds", "odom"))?.transform.position.x,
+		).toBe(5);
 	});
 });
 
 describe("Transform Atoms - Race Conditions", () => {
 	beforeEach(() => {
-		transformStore.set(transformTreesAtom, new Map());
-		transformStore.set(transformSourcesAtom, new Set());
+		clearAllTransforms();
 	});
 
-	test("should handle out-of-order transform messages", () => {
-		// Send child before parent
-		const childFirst: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "odom" },
-					child_frame_id: "base_link",
-					transform: {
-						translation: { x: 1, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("handles out-of-order transform messages", () => {
+		processTFMessage("ds", tf("odom", "base_link", { x: 1, y: 0, z: 0 }));
 
-		processTFMessage("datasource-1", childFirst);
+		let table = getTransformTable();
+		expect(table.size).toBe(1);
+		expect(table.get(K("ds", "base_link"))?.parentId).toBe(K("ds", "odom"));
 
-		let trees = transformStore.get(transformTreesAtom);
-		// Should create both as root initially
-		expect(trees.size).toBe(1);
-		expect(trees.has("odom")).toBe(true);
+		processTFMessage("ds", tf("map", "odom", { x: 0, y: 1, z: 0 }));
 
-		// Now send parent
-		const parentAfter: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 1, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", parentAfter);
-
-		trees = transformStore.get(transformTreesAtom);
-		// Should consolidate into single tree with map as root
-		expect(trees.size).toBe(1);
-		expect(trees.has("map")).toBe(true);
-
-		const mapFrame = trees.get("map");
-		expect(mapFrame?.children.has("odom")).toBe(true);
-
-		const odomFrame = mapFrame?.children.get("odom");
-		expect(odomFrame?.children.has("base_link")).toBe(true);
+		table = getTransformTable();
+		expect(table.get(K("ds", "odom"))?.parentId).toBe(K("ds", "map"));
+		expect(table.get(K("ds", "base_link"))?.parentId).toBe(K("ds", "odom"));
 	});
 
-	test("should update transform without creating duplicates", () => {
-		const message1: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("updates a transform without creating duplicates", () => {
+		processTFMessage("ds", tf("map", "odom", { x: 0, y: 0, z: 0 }));
+		processTFMessage("ds", tf("map", "odom", { x: 1, y: 2, z: 3 }));
 
-		processTFMessage("datasource-1", message1);
-
-		const message2: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 1, y: 2, z: 3 }, // Changed
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message2);
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(1);
-
-		const mapFrame = trees.get("map");
-		expect(mapFrame?.children.size).toBe(1);
-
-		const odomFrame = mapFrame?.children.get("odom");
-		expect(odomFrame?.transform.position.x).toBe(1);
-		expect(odomFrame?.transform.position.y).toBe(2);
-		expect(odomFrame?.transform.position.z).toBe(3);
+		const table = getTransformTable();
+		expect(table.size).toBe(1);
+		const odom = table.get(K("ds", "odom"));
+		expect(odom?.transform.position.x).toBe(1);
+		expect(odom?.transform.position.z).toBe(3);
 	});
 
-	test("should not update if transform hasn't changed (epsilon check)", () => {
-		const message1: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 1.0, y: 2.0, z: 3.0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("handles concurrent updates from multiple datasources", () => {
+		processTFMessage("ds1", tf("map", "robot1", { x: 1, y: 0, z: 0 }));
+		processTFMessage("ds2", tf("map", "robot2", { x: 0, y: 1, z: 0 }));
 
-		processTFMessage("datasource-1", message1);
-
-		const treesRef1 = transformStore.get(transformTreesAtom);
-
-		// Send same transform with tiny difference (below epsilon)
-		const message2: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 1.00001, y: 2.00001, z: 3.00001 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message2);
-
-		const treesRef2 = transformStore.get(transformTreesAtom);
-
-		// Reference should be same (no update triggered)
-		expect(treesRef1).toBe(treesRef2);
-	});
-
-	test("should handle concurrent updates from multiple datasources", () => {
-		const message1: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "robot1",
-					transform: {
-						translation: { x: 1, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		const message2: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "robot2",
-					transform: {
-						translation: { x: 0, y: 1, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		// Simulate concurrent updates
-		processTFMessage("datasource-1", message1);
-		processTFMessage("datasource-2", message2);
-
-		const trees = transformStore.get(transformTreesAtom);
-		const mapFrame = trees.get("map");
-
-		expect(mapFrame?.children.size).toBe(2);
-		expect(mapFrame?.children.has("robot1")).toBe(true);
-		expect(mapFrame?.children.has("robot2")).toBe(true);
+		const table = getTransformTable();
+		expect(table.size).toBe(2);
+		expect(table.get(K("ds1", "robot1"))?.source).toBe("ds1");
+		expect(table.get(K("ds2", "robot2"))?.source).toBe("ds2");
 	});
 });
 
 describe("Transform Atoms - Cleanup", () => {
 	beforeEach(() => {
-		transformStore.set(transformTreesAtom, new Map());
-		transformStore.set(transformSourcesAtom, new Set());
+		clearAllTransforms();
 	});
 
-	test("should clear all transforms when last datasource disconnects", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("clears a datasource's dynamic edges", () => {
+		processTFMessage("ds1", tf("map", "odom"));
+		expect(getTransformTable().size).toBe(1);
 
-		processTFMessage("datasource-1", message);
-
-		let trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(1);
-
-		clearTransformsFromDatasource("datasource-1");
-
-		trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(0);
+		clearTransformsFromDatasource("ds1");
+		expect(getTransformTable().size).toBe(0);
 	});
 
-	test("should NOT clear transforms if other datasources are active", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
+	test("retains static edges on a default (dynamic-only) clear", () => {
+		processTFMessage("ds1", tf("map", "odom"), { isStatic: false });
+		processTFMessage("ds1", tf("base", "laser"), { isStatic: true });
 
-		processTFMessage("datasource-1", message);
-		processTFMessage("datasource-2", message);
+		clearTransformsFromDatasource("ds1");
+		expect(getTransformTable().has(K("ds1", "odom"))).toBe(false);
+		expect(getTransformTable().has(K("ds1", "laser"))).toBe(true);
 
-		clearTransformsFromDatasource("datasource-1");
-
-		const trees = transformStore.get(transformTreesAtom);
-		const sources = transformStore.get(transformSourcesAtom);
-
-		// Transforms should still exist
-		expect(trees.size).toBe(1);
-		expect(sources.size).toBe(1);
-		expect(sources.has("datasource-2")).toBe(true);
+		clearTransformsFromDatasource("ds1", { includeStatic: true });
+		expect(getTransformTable().has(K("ds1", "laser"))).toBe(false);
 	});
 
-	test("should handle clearing non-existent datasource gracefully", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message);
-
-		// Clear non-existent datasource
-		clearTransformsFromDatasource("datasource-2");
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(1); // Should still have transforms
+	test("handles clearing a non-existent datasource gracefully", () => {
+		processTFMessage("ds1", tf("map", "odom"));
+		clearTransformsFromDatasource("ds2");
+		expect(getTransformTable().size).toBe(1);
 	});
 
-	test("should clear all transforms with clearAllTransforms", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message);
-		processTFMessage("datasource-2", message);
+	test("clears everything with clearAllTransforms", () => {
+		processTFMessage("ds1", tf("map", "odom"));
+		processTFMessage("ds2", tf("world", "robot"));
 
 		clearAllTransforms();
-
-		const trees = transformStore.get(transformTreesAtom);
-		const sources = transformStore.get(transformSourcesAtom);
-
-		expect(trees.size).toBe(0);
-		expect(sources.size).toBe(0);
+		expect(getTransformTable().size).toBe(0);
+		expect(transformStore.get(transformSourcesAtom).size).toBe(0);
 	});
 });
 
 describe("Transform Atoms - Edge Cases", () => {
 	beforeEach(() => {
-		transformStore.set(transformTreesAtom, new Map());
-		transformStore.set(transformSourcesAtom, new Set());
+		clearAllTransforms();
 	});
 
-	test("should handle empty transform array", () => {
-		const message: TFMessage = {
-			transforms: [],
-		};
-
-		processTFMessage("datasource-1", message);
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(0);
+	test("handles empty transform array", () => {
+		processTFMessage("ds1", { transforms: [] });
+		expect(getTransformTable().size).toBe(0);
 	});
 
-	test("should handle null/undefined message", () => {
-		processTFMessage("datasource-1", null as any);
-		processTFMessage("datasource-1", undefined as any);
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(0);
+	test("handles null/undefined message", () => {
+		processTFMessage("ds1", null as unknown as TFMessage);
+		processTFMessage("ds1", undefined as unknown as TFMessage);
+		expect(getTransformTable().size).toBe(0);
 	});
 
-	test("should handle malformed transform message", () => {
+	test("handles malformed transform message", () => {
 		const message = {
-			transforms: [
-				{
-					// Missing required fields
-					header: {},
-					transform: {},
-				},
-			],
-		} as any;
-
-		// Should not throw
-		expect(() => {
-			processTFMessage("datasource-1", message);
-		}).not.toThrow();
+			transforms: [{ header: {}, transform: {} }],
+		} as unknown as TFMessage;
+		expect(() => processTFMessage("ds1", message)).not.toThrow();
+		expect(getTransformTable().size).toBe(0);
 	});
 
-	test("should handle circular references (child becomes parent)", () => {
-		const message1: TFMessage = {
+	test("handles multiple disconnected root frames", () => {
+		processTFMessage("ds", tfs(["map", "robot1"], ["world", "robot2"]));
+
+		const table = getTransformTable();
+		expect(table.size).toBe(2);
+		expect(table.has(K("ds", "robot1"))).toBe(true);
+		expect(table.has(K("ds", "robot2"))).toBe(true);
+	});
+});
+
+describe("Transform Atoms - Chain resolution", () => {
+	beforeEach(() => {
+		clearAllTransforms();
+	});
+
+	test("findTransformChain resolves legacy bare endpoints against the namespaced table", () => {
+		processTFMessage("ds", {
 			transforms: [
 				{
-					header: { frame_id: "A" },
-					child_frame_id: "B",
+					header: { frame_id: "map" },
+					child_frame_id: "odom",
 					transform: {
 						translation: { x: 1, y: 0, z: 0 },
 						rotation: { x: 0, y: 0, z: 0, w: 1 },
 					},
 				},
-			],
-		};
-
-		processTFMessage("datasource-1", message1);
-
-		// This would create a circular reference if not handled
-		const message2: TFMessage = {
-			transforms: [
 				{
-					header: { frame_id: "B" },
-					child_frame_id: "A",
+					header: { frame_id: "odom" },
+					child_frame_id: "base_link",
 					transform: {
-						translation: { x: -1, y: 0, z: 0 },
+						translation: { x: 0, y: 1, z: 0 },
 						rotation: { x: 0, y: 0, z: 0, w: 1 },
 					},
 				},
 			],
-		};
+		});
 
-		// Should handle gracefully (typically last write wins in TF)
-		processTFMessage("datasource-1", message2);
-
-		const trees = transformStore.get(transformTreesAtom);
-		// Should still have valid tree structure
-		expect(trees.size).toBeGreaterThan(0);
+		const table = getTransformTable();
+		// Bare names (as saved in legacy configs) resolve to the single matching tree.
+		expect(findTransformChain(table, "base_link", "map")?.length).toBe(2);
+		expect(findTransformChain(table, "map", "base_link")?.length).toBe(2);
+		// Namespaced names too.
+		expect(
+			findTransformChain(table, K("ds", "base_link"), K("ds", "map"))
+				?.length,
+		).toBe(2);
+		// Identity + missing.
+		expect(findTransformChain(table, "map", "map")).toEqual([]);
+		expect(findTransformChain(table, "base_link", "nope")).toBeNull();
 	});
 
-	test("should handle multiple root frames (disconnected trees)", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "robot1",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-				{
-					header: { frame_id: "world" },
-					child_frame_id: "robot2",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		processTFMessage("datasource-1", message);
-
-		const trees = transformStore.get(transformTreesAtom);
-		expect(trees.size).toBe(2); // Two separate root frames
-		expect(trees.has("map")).toBe(true);
-		expect(trees.has("world")).toBe(true);
+	test("ambiguous bare endpoints (two sources) do not resolve", () => {
+		processTFMessage("robotA", tf("map", "base_link"));
+		processTFMessage("robotB", tf("map", "base_link"));
+		const table = getTransformTable();
+		expect(findTransformChain(table, "base_link", "map")).toBeNull();
+		expect(
+			findTransformChain(
+				table,
+				K("robotA", "base_link"),
+				K("robotA", "map"),
+			),
+		).not.toBeNull();
 	});
 });
 
 describe("Transform Atoms - Performance", () => {
 	beforeEach(() => {
-		transformStore.set(transformTreesAtom, new Map());
-		transformStore.set(transformSourcesAtom, new Set());
+		clearAllTransforms();
 	});
 
-	test("should handle large transform tree efficiently", () => {
-		// Create a tree with 100 frames
+	test("handles a large transform tree efficiently", () => {
 		const transforms = [];
 		for (let i = 0; i < 100; i++) {
 			transforms.push({
@@ -567,44 +428,9 @@ describe("Transform Atoms - Performance", () => {
 			});
 		}
 
-		const message: TFMessage = { transforms };
-
-		const startTime = performance.now();
-		processTFMessage("datasource-1", message);
-		const duration = performance.now() - startTime;
-
-		// Should complete in reasonable time (< 100ms for 100 frames)
-		expect(duration).toBeLessThan(100);
-
-		const count = transformStore.get(transformFrameCountAtom);
-		expect(count).toBe(101); // root + 100 frames
-	});
-
-	test("should handle rapid updates efficiently", () => {
-		const message: TFMessage = {
-			transforms: [
-				{
-					header: { frame_id: "map" },
-					child_frame_id: "odom",
-					transform: {
-						translation: { x: 0, y: 0, z: 0 },
-						rotation: { x: 0, y: 0, z: 0, w: 1 },
-					},
-				},
-			],
-		};
-
-		const startTime = performance.now();
-
-		// Simulate 1000 rapid updates
-		for (let i = 0; i < 1000; i++) {
-			message.transforms[0]!.transform.translation.x = i;
-			processTFMessage("datasource-1", message);
-		}
-
-		const duration = performance.now() - startTime;
-
-		// Should handle 1000 updates in reasonable time (< 1s)
-		expect(duration).toBeLessThan(1000);
+		const start = performance.now();
+		processTFMessage("ds1", { transforms });
+		expect(performance.now() - start).toBeLessThan(100);
+		expect(transformStore.get(transformFrameCountAtom)).toBe(100);
 	});
 });

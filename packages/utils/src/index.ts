@@ -13,4 +13,5 @@ export * from "./ring-point-buffer";
 export * from "./colors";
 
 export * from "./topic-key";
+export * from "./transform-topics";
 export * from "./datasource-subscription-registry";

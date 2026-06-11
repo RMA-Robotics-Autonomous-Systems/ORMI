@@ -50,23 +50,89 @@ export type Transform = {
 	convention?: CoordinateConvention;
 };
 
+/** Timestamp in seconds (float), derived from a message `header.stamp` `{sec, nsec}`. */
+export type TransformStamp = number;
+
 /**
- * Transform tree node representing a coordinate frame hierarchy.
+ * A single coordinate-frame edge: a child frame expressed in its parent.
+ *
+ * This is the authoritative unit of transform state — the transform table is a flat map of
+ * these edges, keyed by namespaced child frame id.
  */
-export type TransformTree = {
-	/** Unique identifier for this frame (e.g., "base_link", "camera"). */
-	id: string;
-	/** ID of the parent frame (empty string for root frames). */
+export type TransformEdge = {
+	/** Namespaced child frame id (`${source}::${rawFrameId}`) — the key in a {@link TransformTable}. */
+	frameId: string;
+	/** Raw frame id exactly as published (for display). */
+	rawFrameId: string;
+	/** Parent frame id. */
 	parentId: string;
-	/** Transform from parent frame to this frame. */
+	/** Datasource id that published this edge. */
+	source: string;
+	/** Child-in-parent transform, already converted to THREE at the datasource boundary. */
 	transform: Transform;
-	/** Child frames in the hierarchy. */
-	children: Map<string, TransformTree>;
+	/** Last header stamp in seconds; `undefined` if the source omits stamps. */
+	stamp?: TransformStamp;
+	/** Monotonic clock (ms) when last received — drives staleness UI. */
+	receivedAt: number;
+	/** From `/tf_static` vs `/tf`. Static edges never go stale. */
+	isStatic: boolean;
+	/** True iff this edge's parent was itself observed as a child edge somewhere. */
+	parentObserved: boolean;
+};
+
+/**
+ * Authoritative flat transform state: a map from a namespaced (child) frame id to its edge.
+ * Higher-level views (world poses, chains, diagnostics) are derived from this at read time.
+ */
+export type TransformTable = Map<string, TransformEdge>;
+
+/**
+ * A frame resolved to world space, for rendering.
+ *
+ * Positions/rotations are plain math types (THREE-free) — consumers that need THREE objects
+ * construct them at the boundary.
+ */
+export type WorldFrame = {
+	/** Table key (child frame id). */
+	frameId: string;
+	/** Frame id as published (for display). */
+	rawFrameId: string;
+	/** Accumulated world-space position of the frame origin. */
+	worldPosition: Vector3;
+	/** Accumulated world-space orientation. */
+	worldRotation: Quaternion;
+	/** World position of the parent frame, or `null` for a root. */
+	parentWorldPosition: Vector3 | null;
+	/** Depth from the resolved root (0 at the root, +1 per hop). */
+	depth: number;
+	/** Whether this frame is stale (no recent update; static frames are never stale). */
+	stale: boolean;
 	/**
-	 * Default coordinate convention for this tree.
-	 * Individual transforms can override this with their own convention field.
+	 * True for a virtual root frame — a frame only ever observed as a parent (e.g. a fixed
+	 * `map`), emitted at the tree origin with an assumed identity pose. Real edges are never
+	 * inferred.
 	 */
-	convention?: CoordinateConvention;
+	inferred: boolean;
+};
+
+/** Per-frame diagnostic info for the transform-tree UI. */
+export type FrameDiagnostic = {
+	frameId: string;
+	rawFrameId: string;
+	parentId: string;
+	/** Datasource that published the frame. */
+	source: string;
+	/** Depth from the resolved root. */
+	depth: number;
+	stale: boolean;
+	inferred: boolean;
+	isStatic: boolean;
+	/** Last header stamp in seconds, if provided. */
+	stamp?: TransformStamp;
+	/** Monotonic clock (ms) when last received. */
+	receivedAt: number;
+	/** Milliseconds since last received (`now - receivedAt`). */
+	ageMs: number;
 };
 
 /** RGBA color with components in 0..1 range. */

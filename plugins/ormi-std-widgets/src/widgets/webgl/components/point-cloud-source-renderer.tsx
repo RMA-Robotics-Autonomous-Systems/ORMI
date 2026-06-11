@@ -8,8 +8,15 @@ import {
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
 import { RingPointBuffer } from "@workspace/utils";
+import {
+	qualifyFrame,
+	useTransformStatusReporter,
+} from "./scene-transform-context";
 import { themeShaders } from "../utils/theme-shaders";
-import { PointCloudLayerConfig } from "../types/scene-3d-types";
+import {
+	LayerTransformStatus,
+	PointCloudLayerConfig,
+} from "../types/scene-3d-types";
 
 const MAX_ROLLING_POINTS = 600000;
 const TIME_RESET_SECONDS = 300;
@@ -70,10 +77,13 @@ interface PointCloudSourceRendererProps extends Record<string, unknown> {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	source: any;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	transformsTrees: any;
+	table: any;
+	datasourceId?: string;
 	config: PointCloudLayerConfig;
 	targetFrame: string;
 	frameTimeRef: React.MutableRefObject<number>;
+	/** Reports how the layer resolved its transform (for the scene status overlay). */
+	onTransformStatus?: (status: LayerTransformStatus) => void;
 }
 
 export const PointCloudSourceRenderer: React.FC<
@@ -81,12 +91,15 @@ export const PointCloudSourceRenderer: React.FC<
 > = ({
 	sourceId,
 	source,
-	transformsTrees,
+	table,
+	datasourceId,
 	config,
 	targetFrame,
 	frameTimeRef,
+	onTransformStatus,
 }) => {
 	const { invalidate } = useThree();
+	const reportStatus = useTransformStatusReporter(onTransformStatus);
 
 	const pointsRef = useRef<THREE.Points | null>(null);
 	const geometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -182,21 +195,23 @@ export const PointCloudSourceRenderer: React.FC<
 	const processData = useCallback(() => {
 		const dataArray = source?.data ?? [];
 		const timesArray = source?.times ?? [];
-		if (dataArray.length === 0) return;
+		if (dataArray.length === 0) {
+			reportStatus("no-data");
+			return;
+		}
 
 		let transformChain: ReturnType<typeof findTransformChain> | undefined =
 			[];
-		const refFrame = source.referenceFrameId;
+		const refFrame = qualifyFrame(datasourceId, source.referenceFrameId);
 		if (!targetFrame || targetFrame === "" || refFrame === targetFrame) {
 			transformChain = [];
+			reportStatus("resolved");
 		} else {
-			transformChain =
-				findTransformChain(transformsTrees, refFrame, targetFrame) ??
-				null;
-		}
-
-		if (targetFrame && transformChain === null) {
-			return;
+			// Target-frame fallback: if the target isn't reachable from this layer's frame,
+			// render it in its own root (identity) instead of hiding it.
+			const chain = findTransformChain(table, refFrame, targetFrame);
+			reportStatus(chain === null ? "fallback" : "resolved");
+			transformChain = chain ?? [];
 		}
 
 		transformRef.current = buildTransformMatrix(
@@ -364,10 +379,12 @@ export const PointCloudSourceRenderer: React.FC<
 	}, [
 		source,
 		sourceId,
+		datasourceId,
 		targetFrame,
 		rollingBuffer,
-		transformsTrees,
+		table,
 		invalidate,
+		reportStatus,
 	]);
 
 	const updateGeometry = useCallback(() => {

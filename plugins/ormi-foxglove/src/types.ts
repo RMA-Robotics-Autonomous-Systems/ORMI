@@ -6,7 +6,6 @@ import {
 	DatasourceTopic,
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
-import { TransformTree } from "@workspace/ormi-core/types";
 
 /**
  * Extended settings for Foxglove data source.
@@ -67,4 +66,4 @@ export interface FoxgloveMessageData {
 /**
  * Re-exported types for convenience.
  */
-export type { DatasourceTopic, SelectedTopic, TransformTree };
+export type { DatasourceTopic, SelectedTopic };

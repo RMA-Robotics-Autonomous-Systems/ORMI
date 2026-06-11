@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useTransformSource } from "./transform-hooks";
+import { useTransformTable } from "./transform-hooks";
 import { SelectedTopic } from "../datasources/datasource-interface";
 import {
 	findTransformChain,
@@ -23,7 +23,7 @@ export function useTransformToGPS(
 	gpsFrameId: string,
 	gpsOriginData: GeolocationPosition | null,
 ) {
-	const { transformsTrees } = useTransformSource();
+	const table = useTransformTable();
 
 	// Compute transform chain from source to GPS frame
 	const transformChain = useMemo(() => {
@@ -36,11 +36,7 @@ export function useTransformToGPS(
 			return { chain: [], error: null };
 		}
 
-		const chain = findTransformChain(
-			transformsTrees,
-			sourceFrameId,
-			gpsFrameId,
-		);
+		const chain = findTransformChain(table, sourceFrameId, gpsFrameId);
 
 		if (chain === null) {
 			return {
@@ -50,7 +46,7 @@ export function useTransformToGPS(
 		}
 
 		return { chain, error: null };
-	}, [sourceFrameId, gpsFrameId, transformsTrees]);
+	}, [sourceFrameId, gpsFrameId, table]);
 
 	// Get GPS origin coordinates
 	const gpsOrigin = useMemo<GPSCoords | null>(() => {
