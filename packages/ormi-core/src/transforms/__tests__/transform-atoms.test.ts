@@ -11,6 +11,7 @@ import {
 	processTFMessage,
 	clearTransformsFromDatasource,
 	clearAllTransforms,
+	reconcileTransformSources,
 	getTransformTable,
 	type TFMessage,
 } from "../transform-atoms";
@@ -308,6 +309,33 @@ describe("Transform Atoms - Cleanup", () => {
 		processTFMessage("ds1", tf("map", "odom"));
 		clearTransformsFromDatasource("ds2");
 		expect(getTransformTable().size).toBe(1);
+	});
+
+	test("reconcileTransformSources clears datasources no longer configured, incl. static", () => {
+		processTFMessage("robotA", tf("map", "odom"), { isStatic: false });
+		processTFMessage("robotA", tf("base", "laser"), { isStatic: true });
+		processTFMessage("robotB", tf("map", "odom"));
+		expect(getTransformTable().size).toBe(3);
+
+		// robotB left the dashboard; robotA is still configured → robotA fully kept (incl static),
+		// robotB fully removed.
+		reconcileTransformSources(new Set(["robotA"]));
+		expect(getTransformTable().has(K("robotA", "odom"))).toBe(true);
+		expect(getTransformTable().has(K("robotA", "laser"))).toBe(true); // static retained
+		expect(getTransformTable().has(K("robotB", "odom"))).toBe(false);
+		expect(transformStore.get(transformSourcesAtom).has("robotB")).toBe(
+			false,
+		);
+	});
+
+	test("reconcileTransformSources removes a datasource's STATIC frames too (no leak on removal)", () => {
+		processTFMessage("ds1", tf("base", "laser"), { isStatic: true });
+		expect(getTransformTable().has(K("ds1", "laser"))).toBe(true);
+
+		// ds1 no longer configured → its static frames go too (unlike a dynamic-only clear).
+		reconcileTransformSources(new Set());
+		expect(getTransformTable().size).toBe(0);
+		expect(transformStore.get(transformSourcesAtom).size).toBe(0);
 	});
 
 	test("clears everything with clearAllTransforms", () => {

@@ -77,8 +77,9 @@ export interface ManagerAction {
 export interface SubscriptionManagerLike {
 	addAction(name: string, action: ManagerAction): void;
 	removeAction(id: string): void;
+	/** Returns `true` if at least one action handled the event (vs none registered yet). */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	doAction(name: string, ...args: any[]): void;
+	doAction(name: string, ...args: any[]): boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	applyFilterAsync<T>(name: string, ...args: any[]): Promise<T>;
 }
@@ -270,18 +271,25 @@ class Registry implements DatasourceSubscriptionRegistry {
 		entry.publishedRegistered = true;
 	}
 
-	/** Fire `-subscribe` for a wire key and mark it subscribed. */
+	/** Fire `-subscribe` for a wire key and mark it subscribed (only if an action handled it). */
 	private fireSubscribe(entry: WireEntry): void {
 		// `doAction` is SYNCHRONOUS (see `PluginsManager.doAction`): it runs every
 		// registered subscribe action inline and returns only once they are done.
 		// There is therefore no await window during which a concurrent transition
 		// (release / DISPOSED) could bump `entry.generation`, so no generation
-		// guard or transient `"pending"` state is needed here — we go straight to
-		// `"subscribed"`. The generation token only does real work on the
-		// asynchronous advertise path (`fireAdvertise`), whose `applyFilterAsync`
-		// await genuinely lets an in-flight dispatch be raced by an unmount/DISPOSE.
-		this.manager.doAction(subscribeHook(entry.dsId), entry.topic);
-		entry.wireState = "subscribed";
+		// guard or transient `"pending"` state is needed here.
+		//
+		// But the `-subscribe` action may not be registered yet when this fires (the foxglove TF
+		// manager mounts as a child of SubscriptionManager — child effect before parent — and the
+		// wss worker registers its subscribe action after an async handshake). `doAction` returns
+		// `false` in that case; staying "idle" keeps the intent retryable so the re-flush — which
+		// the subscribe managers trigger by re-firing DATASOURCE_READY once their action is live —
+		// recovers it. Marking "subscribed" unconditionally would strand the wire forever.
+		const handled = this.manager.doAction(
+			subscribeHook(entry.dsId),
+			entry.topic,
+		);
+		entry.wireState = handled ? "subscribed" : "idle";
 	}
 
 	/** Release one intent from a wire key; tear down wire at refcount 0. */
@@ -355,18 +363,27 @@ class Registry implements DatasourceSubscriptionRegistry {
 	private async fireAdvertise(entry: AdvertiseEntry): Promise<void> {
 		entry.advertiseState = "pending";
 		const generationAtDispatch = entry.generation;
+		let advertised = false;
 		try {
-			await this.manager.applyFilterAsync(
+			// The `-advertise` filter (PublisherManager) returns `true` once the channel is
+			// advertised. Any other value means it did NOT take — most importantly, when no
+			// `-advertise` filter is registered yet `applyFilterAsync` returns the input topic
+			// unchanged (the publisher manager registers its filter *after* DATASOURCE_READY
+			// fires). Treating that as success would falsely mark the entry "subscribed" and the
+			// READY re-flush — which only retries non-subscribed entries — would never recover,
+			// permanently breaking publish. So only "subscribe" on a genuine `true`.
+			const result = await this.manager.applyFilterAsync<unknown>(
 				advertiseHook(entry.dsId),
 				entry.topic,
 			);
+			advertised = result === true;
 		} catch {
-			// Swallow: a failed advertise simply leaves state non-subscribed;
-			// the next READY re-flush will retry.
+			advertised = false;
 		}
-		if (entry.generation === generationAtDispatch) {
-			entry.advertiseState = "subscribed";
-		}
+		if (entry.generation !== generationAtDispatch) return; // superseded
+		// Stay "idle" on failure so a later re-flush (e.g. once the publisher's `-advertise`
+		// filter is live, which re-fires DATASOURCE_READY) retries.
+		entry.advertiseState = advertised ? "subscribed" : "idle";
 	}
 
 	private releaseAdvertise(key: string): void {

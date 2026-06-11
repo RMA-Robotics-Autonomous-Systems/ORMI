@@ -10,7 +10,7 @@ import React, {
 	useCallback,
 } from "react";
 
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { useFoxgloveData } from "./foxglove-data-handler";
 import { FoxgloveDataSourceSettings, DatasourceTopic } from "./types";
 import { PublisherService } from "./publisher-service";
@@ -100,6 +100,14 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 		});
 
 		setIsInitialized(true);
+
+		// The `-advertise` filter is now live. DATASOURCE_READY was already fired (by the
+		// connection) BEFORE this manager mounted, so the subscription registry's advertise
+		// re-flush ran when no advertise filter existed yet and parked those intents. Re-fire
+		// READY now so the registry re-flushes them against the live filter — otherwise every
+		// publisher that advertised before this point stays a phantom and publish() fails with
+		// "No action found". The re-fire is idempotent for other READY listeners.
+		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, settings.id);
 
 		// Debug: expose service state globally for debugging
 		if (typeof window !== "undefined") {

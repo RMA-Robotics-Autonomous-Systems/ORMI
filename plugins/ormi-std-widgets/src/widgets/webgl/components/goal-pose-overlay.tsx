@@ -22,9 +22,11 @@
  *   4. Release to publish. Goal-pose stays active for another placement;
  *      initial-pose auto-switches to goal-pose.
  *
- * Publishing uses pluginsManager directly (advertise once on mount,
- * publish on release, unadvertise on unmount) so no additional
- * provider wrapper is required in the widget definition.
+ * Publishing rides the shared datasource subscription registry — the same advertise
+ * bookkeeper the `PublisherDataSourcesProvider`/`Publisher` class uses (which can't be
+ * mounted here: it renders a DOM spinner that an r3f `<Canvas>` cannot host). The registry
+ * waits for `DATASOURCE_READY`, re-advertises on reconnect, and refcounts — so the advertise
+ * race that previously left the publisher a phantom ("No action found" on publish) is gone.
  */
 
 import React, {
@@ -37,6 +39,7 @@ import React, {
 import * as THREE from "three";
 import { ThreeEvent, useThree } from "@react-three/fiber";
 import { usePluginsManager } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import {
 	DigitalInput,
 	useDigitalTrigger,
@@ -88,6 +91,7 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	onModeChange,
 }) => {
 	const pm = usePluginsManager();
+	const registry = useMemo(() => getDatasourceSubscriptionRegistry(pm), [pm]);
 	const { controls, gl } = useThree();
 
 	const goalShortcut: DigitalInput = config.goalShortcut ?? {
@@ -125,45 +129,25 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 				: undefined;
 
 	// -----------------------------------------------------------------------
-	// Advertise on mount, unadvertise on unmount — one ref per topic
+	// Advertise via the registry bookkeeper (idempotent/refcounted, READY-waited,
+	// re-advertises on reconnect). One intent per topic; released on unmount.
 	// -----------------------------------------------------------------------
-	const advertisedGoalRef = useRef(false);
-	const advertisedInitialRef = useRef(false);
 	const goalInputArmedRef = useRef(true);
 	const initialInputArmedRef = useRef(true);
 
 	useEffect(() => {
-		if (!goalTopic || advertisedGoalRef.current) return;
-		advertisedGoalRef.current = true;
-		pm.applyFilterAsync(
-			`${goalTopic.source.id}-advertise`,
-			goalTopic,
-		).catch(() => {});
-		return () => {
-			if (goalTopic) {
-				pm.doAction(`${goalTopic.source.id}-unadvertise`, goalTopic);
-			}
-		};
+		if (!goalTopic) return;
+		const handle = registry.advertise(goalTopic);
+		return () => handle.unadvertise();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [goalTopic?.source?.id, goalTopic?.topic]);
+	}, [registry, goalTopic?.source?.id, goalTopic?.topic]);
 
 	useEffect(() => {
-		if (!initialTopic || advertisedInitialRef.current) return;
-		advertisedInitialRef.current = true;
-		pm.applyFilterAsync(
-			`${initialTopic.source.id}-advertise`,
-			initialTopic,
-		).catch(() => {});
-		return () => {
-			if (initialTopic) {
-				pm.doAction(
-					`${initialTopic.source.id}-unadvertise`,
-					initialTopic,
-				);
-			}
-		};
+		if (!initialTopic) return;
+		const handle = registry.advertise(initialTopic);
+		return () => handle.unadvertise();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [initialTopic?.source?.id, initialTopic?.topic]);
+	}, [registry, initialTopic?.source?.id, initialTopic?.topic]);
 
 	// -----------------------------------------------------------------------
 	// Notify parent whenever mode changes

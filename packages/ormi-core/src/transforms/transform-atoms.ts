@@ -465,6 +465,32 @@ export function clearTransformsFromDatasource(
 }
 
 /**
+ * Reconcile the table against the datasources currently configured in the dashboard.
+ *
+ * Any transform source **not** in `liveSourceIds` is fully cleared (including static edges) —
+ * a datasource that left the dashboard (dashboard switch, deletion) takes its frames with it,
+ * instead of leaking or colliding with a later datasource that reuses the same frame names. A
+ * transiently disconnected datasource that is still configured keeps its frames (its id is still
+ * in `liveSourceIds`), so staleness — not removal — handles a dropped connection.
+ *
+ * This is the **single, automatic** TF-disposal path: datasource plugins no longer clear their
+ * own transforms on unmount (which couldn't tell a genuine removal from a transient remount).
+ * The core datasource provider drives this from the live datasource set.
+ *
+ * @param liveSourceIds - Datasource ids currently configured in the dashboard.
+ */
+export function reconcileTransformSources(liveSourceIds: Set<string>): void {
+	// `transformSourcesAtom` is replaced (not mutated) by clearTransformsFromDatasource, so
+	// iterating this snapshot is safe.
+	const sources = transformStore.get(transformSourcesAtom);
+	for (const sourceId of sources) {
+		if (!liveSourceIds.has(sourceId)) {
+			clearTransformsFromDatasource(sourceId, { includeStatic: true });
+		}
+	}
+}
+
+/**
  * Completely clear all transforms
  */
 /** Clear all transforms and sources. */

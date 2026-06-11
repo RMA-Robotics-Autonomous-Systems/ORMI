@@ -5,11 +5,13 @@ import React, { useEffect } from "react";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
-	clearTransformsFromDatasource,
 	convertPosition,
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
-import { isTransientLocalTopic } from "@workspace/utils";
+import {
+	isTransientLocalTopic,
+	getDatasourceSubscriptionRegistry,
+} from "@workspace/utils";
 import type { RosBridgeSuiteDataSourceSettings } from "./rosbridge-suite-source";
 
 interface TransformTreeManagerProps {
@@ -17,14 +19,54 @@ interface TransformTreeManagerProps {
 }
 
 /**
- * TransformTreeManager — feeds a RosBridge datasource's `/tf` and `/tf_static` topics into the
- * shared transform table.
+ * Convert a raw ROS `TFMessage` to THREE convention and push it into the shared transform table.
  *
- * Mirrors the Foxglove manager: it subscribes through the datasource's `*-subscribe` action,
- * receives the raw ROS `TFMessage` (TF topics have no webapp converter, so the source passes
- * them through unchanged), converts each transform ROS → THREE at this boundary, and pushes it
- * via `processTFMessage`. Message handlers are registered *before* subscribing so a fast
- * latched `/tf_static` delivery is never dropped.
+ * @param datasourceId - Datasource id (namespaces the frames).
+ * @param message - Raw TF message (`{ transforms: [...] }`).
+ * @param isStatic - Whether this came from a latched (`/tf_static`) topic.
+ */
+function applyRosbridgeTransformMessage(
+	datasourceId: string,
+	message: { transforms?: any[] } | null | undefined,
+	isStatic: boolean,
+): void {
+	if (!message?.transforms) return;
+
+	const convertedMessage = {
+		...message,
+		transforms: message.transforms.map((tf: any) => {
+			const translation = tf.transform?.translation ?? {
+				x: 0,
+				y: 0,
+				z: 0,
+			};
+			const rotation = tf.transform?.rotation ?? {
+				x: 0,
+				y: 0,
+				z: 0,
+				w: 1,
+			};
+			return {
+				...tf,
+				transform: {
+					...tf.transform,
+					translation: convertPosition(translation, "ROS", "THREE"),
+					rotation: convertQuaternion(rotation, "ROS", "THREE"),
+					convention: "THREE",
+				},
+			};
+		}),
+	};
+
+	processTFMessage(datasourceId, convertedMessage, { isStatic });
+}
+
+/**
+ * TransformTreeManager — feeds a RosBridge datasource's `/tf` and `/tf_static` topics into the
+ * shared transform table through the datasource subscription registry (the shared bookkeeper:
+ * READY-waited, refcounted, reconnect re-flush, StrictMode-safe). Each message is converted
+ * ROS → THREE at this boundary and pushed via `processTFMessage`. TF topics have no webapp
+ * converter, so the source passes the raw `TFMessage` straight through to `onData`.
  */
 const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 	settings,
@@ -42,143 +84,31 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 			return;
 		}
 
-		// 1. Register message handlers (before subscribing — R4 ordering invariant).
-		const actionIds: string[] = [];
-		(settings.transformTreeTopics || []).forEach((topic) => {
-			const messageHook = `${datasource_id}-${topic}-published`;
-			const actionId = `${datasource_id}-transform-${topic}`;
+		const registry = getDatasourceSubscriptionRegistry(pluginsManager);
+		const handles = (settings.transformTreeTopics || []).map((topic) => {
 			const isStatic = isTransientLocalTopic(topic);
-			actionIds.push(actionId);
-
-			pluginsManager.addAction(messageHook, {
-				id: actionId,
-				action: (
-					message: any,
-					_timestamp: number,
-					_frameId: string,
-				) => {
-					if (!message?.transforms) return;
-
-					// Convert TF to THREE convention once at the datasource boundary.
-					const convertedMessage = {
-						...message,
-						transforms: (message.transforms || []).map(
-							(tf: any) => {
-								const translation = tf.transform
-									?.translation ?? {
-									x: 0,
-									y: 0,
-									z: 0,
-								};
-								const rotation = tf.transform?.rotation ?? {
-									x: 0,
-									y: 0,
-									z: 0,
-									w: 1,
-								};
-
-								const convertedTranslation = convertPosition(
-									translation,
-									"ROS",
-									"THREE",
-								);
-								const convertedRotation = convertQuaternion(
-									rotation,
-									"ROS",
-									"THREE",
-								);
-
-								return {
-									...tf,
-									transform: {
-										...tf.transform,
-										translation: convertedTranslation,
-										rotation: convertedRotation,
-										convention: "THREE",
-									},
-								};
-							},
-						),
-					};
-
-					processTFMessage(datasource_id, convertedMessage, {
-						isStatic,
-					});
-				},
-				priority: 100,
-			});
-		});
-
-		// 2. Subscribe to transform topics. `type`/`rawType` map to no webapp converter, so the
-		//    source passes the raw ROS TFMessage through to our handler. The `*-subscribe` action
-		//    is registered by the source provider, which may not have mounted/registered it yet on
-		//    first effect run — wait for it instead of firing a plain `doAction` (which would
-		//    `console.warn` "No action found" and silently drop the subscribe, starving the table).
-		const subscribeHook = `${datasource_id}-subscribe`;
-		let disposed = false;
-		(settings.transformTreeTopics || []).forEach(async (topic) => {
 			const datasourceTopic = {
-				topic: topic,
-				datasource_id: datasource_id,
+				topic,
+				datasource_id,
 				source: settings,
 				type: "tf2_msgs/msg/TFMessage",
 				rawType: "tf2_msgs/msg/TFMessage",
 			};
-
-			try {
-				const ready =
-					await pluginsManager.WaitForActionToExist(subscribeHook);
-				if (!ready) {
-					console.error(
-						`TransformTreeManager: subscribe action never registered for ${topic} — TF not subscribed.`,
-					);
-					return;
-				}
-				// Unmounted while waiting → abort so a pending subscribe can't land after the
-				// cleanup's unsubscribe (idempotency guardrail).
-				if (disposed) return;
-				await pluginsManager.doAction(subscribeHook, datasourceTopic);
-			} catch (error) {
-				console.error(
-					`TransformTreeManager: Failed to subscribe to transform topic ${topic}:`,
-					error,
-				);
-			}
+			return registry.subscribe({
+				topic: datasourceTopic,
+				onData: (message: any) =>
+					applyRosbridgeTransformMessage(
+						datasource_id,
+						message,
+						isStatic,
+					),
+			});
 		});
 
-		return () => {
-			disposed = true;
-			actionIds.forEach((actionId) => {
-				pluginsManager.removeAction(actionId);
-			});
-
-			(settings.transformTreeTopics || []).forEach(async (topic) => {
-				const datasourceTopic = {
-					topic: topic,
-					datasource_id: datasource_id,
-					source: settings,
-					type: "tf2_msgs/msg/TFMessage",
-					rawType: "tf2_msgs/msg/TFMessage",
-				};
-
-				try {
-					await pluginsManager.doAction(
-						`${datasource_id}-unsubscribe`,
-						datasourceTopic,
-						true,
-					);
-				} catch (error) {
-					console.error(
-						`TransformTreeManager: Failed to unsubscribe from transform topic ${topic}:`,
-						error,
-					);
-				}
-			});
-
-			// Drop this datasource's dynamic edges; static (/tf_static) edges are retained by
-			// default so a remount keeps latched frames.
-			clearTransformsFromDatasource(datasource_id);
-		};
+		// Release the registry intents only. The table is cleared automatically by the core
+		// datasource provider when the datasource leaves the dashboard (a transient remount keeps
+		// its frames; see `reconcileTransformSources`).
+		return () => handles.forEach((handle) => handle.unsubscribe());
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [enable, datasource_id, topicsKey, pluginsManager]);
 

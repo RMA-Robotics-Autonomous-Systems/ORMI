@@ -5,11 +5,13 @@ import React, { useEffect } from "react";
 import { usePluginsManager, PluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
-	clearTransformsFromDatasource,
 	convertPosition,
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
-import { isTransientLocalTopic } from "@workspace/utils";
+import {
+	isTransientLocalTopic,
+	getDatasourceSubscriptionRegistry,
+} from "@workspace/utils";
 import { FoxgloveDataSourceSettings } from "./types";
 
 interface TransformTreeManagerProps {
@@ -61,11 +63,14 @@ export function applyFoxgloveTransformMessage(
 }
 
 /**
- * Wire a Foxglove datasource's transform topics into the shared table: register a per-topic
- * message handler **before** subscribing (so a fast latched `/tf_static` is never dropped),
- * then subscribe. Returns a cleanup that removes the handlers, unsubscribes, and clears this
- * datasource's transforms — they repopulate on reconnect (`/tf_static` is re-latched, `/tf`
- * on the next message).
+ * Wire a Foxglove datasource's transform topics into the shared table through the datasource
+ * subscription registry (the shared bookkeeper): it waits for `DATASOURCE_READY`, refcounts,
+ * re-subscribes on reconnect, and is StrictMode-safe — so the mount-order race that previously
+ * needed a hand-rolled `WaitForActionToExist` is handled centrally. Each message is converted
+ * ROS → THREE and pushed via `processTFMessage`. Returns a cleanup that releases the registry
+ * intents only — the table is cleared automatically by the core datasource provider when the
+ * datasource leaves the dashboard (a transient remount keeps its frames; see
+ * `reconcileTransformSources`).
  *
  * Exported so the full pipeline can be integration-tested without rendering the component.
  *
@@ -79,32 +84,12 @@ export function setupFoxgloveTransformManager(
 ): () => void {
 	const datasource_id = settings.id;
 	const topics = settings.transformTreeTopics || [];
+	const registry = getDatasourceSubscriptionRegistry(pluginsManager);
 
-	// 1. Register message handlers (before subscribing).
-	const actionIds: string[] = [];
-	topics.forEach((topic) => {
-		const messageHook = `${datasource_id}-${topic}-published`;
-		const actionId = `${datasource_id}-transform-${topic}`;
+	const handles = topics.map((topic) => {
 		const isStatic = isTransientLocalTopic(topic);
-		actionIds.push(actionId);
-
-		pluginsManager.addAction(messageHook, {
-			id: actionId,
-			action: (message: any) =>
-				applyFoxgloveTransformMessage(datasource_id, message, isStatic),
-			priority: 100,
-		});
-	});
-
-	// 2. Subscribe to transform topics. The datasource's `*-subscribe` action is registered by a
-	//    parent component (SubscriptionManager / worker host). React fires child effects before
-	//    parent effects, and the worker path registers the action only after an async handshake —
-	//    so on first mount the action does not exist yet. Wait for it (rather than firing a plain
-	//    `doAction`, which `console.warn`s "No action found" and silently drops the subscribe,
-	//    starving the whole transform table).
-	const subscribeHook = `${datasource_id}-subscribe`;
-	let disposed = false;
-	topics.forEach(async (topic) => {
+		// `type`/`rawType` map to no webapp converter, so the source passes the raw ROS
+		// `TFMessage` straight through to `onData`.
 		const datasourceTopic = {
 			topic,
 			datasource_id,
@@ -112,57 +97,16 @@ export function setupFoxgloveTransformManager(
 			type: "tf2_msgs/msg/TFMessage",
 			rawType: "tf2_msgs/msg/TFMessage",
 		};
-		try {
-			const ready =
-				await pluginsManager.WaitForActionToExist(subscribeHook);
-			if (!ready) {
-				console.error(
-					`TransformTreeManager: subscribe action never registered for ${topic} — TF not subscribed.`,
-				);
-				return;
-			}
-			// Unmounted while waiting → abort so a pending subscribe can't land after the
-			// cleanup's unsubscribe (idempotency guardrail).
-			if (disposed) return;
-			await pluginsManager.doAction(subscribeHook, datasourceTopic);
-		} catch (error) {
-			console.error(
-				`TransformTreeManager: Failed to subscribe to transform topic ${topic}:`,
-				error,
-			);
-		}
+		return registry.subscribe({
+			topic: datasourceTopic,
+			onData: (message: any) =>
+				applyFoxgloveTransformMessage(datasource_id, message, isStatic),
+		});
 	});
 
-	return () => {
-		disposed = true;
-		actionIds.forEach((actionId) => pluginsManager.removeAction(actionId));
-
-		topics.forEach(async (topic) => {
-			const datasourceTopic = {
-				topic,
-				datasource_id,
-				source: settings,
-				type: "tf2_msgs/msg/TFMessage",
-				rawType: "tf2_msgs/msg/TFMessage",
-			};
-			try {
-				await pluginsManager.doAction(
-					`${datasource_id}-unsubscribe`,
-					datasourceTopic,
-					true,
-				);
-			} catch (error) {
-				console.error(
-					`TransformTreeManager: Failed to unsubscribe from transform topic ${topic}:`,
-					error,
-				);
-			}
-		});
-
-		// Drop this datasource's dynamic edges (static is retained for remount). They repopulate
-		// on reconnect; a real, stable connection only triggers this on genuine disconnect.
-		clearTransformsFromDatasource(datasource_id);
-	};
+	// Release the registry intents only. Clearing the table is the core provider's job
+	// (reconcileTransformSources) so a transient remount doesn't drop frames.
+	return () => handles.forEach((handle) => handle.unsubscribe());
 }
 
 /**

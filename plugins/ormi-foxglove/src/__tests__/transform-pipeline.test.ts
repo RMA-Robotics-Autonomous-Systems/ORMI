@@ -1,15 +1,17 @@
 /**
  * Full transform pipeline tests for the Foxglove plugin.
  *
- * Simulates a connection: a real PluginsManager, the transform manager's subscribe + handler
- * registration, and message delivery on the `${ds}-${topic}-published` hooks — then asserts the
- * shared transform table is populated correctly (ROS→THREE conversion, namespacing, stamp,
- * static/dynamic, per-source isolation). This exercises the real manager code end to end without
- * a WebSocket, so a broken link between "message arrives" and "table populated" is caught here.
+ * Simulates a connection: a real PluginsManager, the transform manager subscribing through the
+ * datasource subscription registry (which fires `-subscribe` on `DATASOURCE_READY` and fans
+ * `${ds}-${topic}-published` messages to the manager's `onData`), then asserts the shared
+ * transform table is populated correctly (ROS→THREE conversion, namespacing, stamp,
+ * static/dynamic, per-source isolation). Exercises the real manager code end to end without a
+ * WebSocket, so a broken link between "message arrives" and "table populated" is caught here.
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { PluginsManager } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import {
 	getTransformTable,
 	clearAllTransforms,
@@ -68,6 +70,11 @@ function managerWithSubscribe(datasourceId: string, recorder: string[]) {
 	return pm;
 }
 
+/** Signal that a datasource is connected — the registry fires queued `-subscribe`s on this. */
+function emitReady(pm: PluginsManager, datasourceId: string) {
+	pm.doAction("datasource-ready", datasourceId);
+}
+
 /** A frame scheduler whose callbacks run only on `flush()` (simulates the browser's rAF). */
 function makeFakeScheduler() {
 	const queue: Array<{ handle: number; cb: () => void }> = [];
@@ -107,19 +114,19 @@ describe("Foxglove TF pipeline", () => {
 		expect(edge?.stamp).toBeCloseTo(100.25, 6);
 	});
 
-	test("end to end: manager subscribes, then delivered messages populate the table", async () => {
+	test("end to end: manager subscribes via the registry on READY, delivered messages populate the table", () => {
 		const subscribed: string[] = [];
 		const pm = managerWithSubscribe("ds1", subscribed);
 
 		const cleanup = setupFoxgloveTransformManager(pm, settings("ds1"));
 
-		// The manager waits for the `*-subscribe` action (polled at 100 ms) before subscribing,
-		// so the subscribe lands shortly after mount rather than synchronously.
-		await new Promise<void>((resolve) => setTimeout(resolve, 250));
+		// The registry fires `-subscribe` once the datasource signals READY — no polling.
+		emitReady(pm, "ds1");
 		expect(subscribed).toContain("/tf");
 		expect(subscribed).toContain("/tf_static");
 
-		// Simulate the connection delivering messages on the published hooks.
+		// The connection delivers messages on the published hooks; the registry fans them to the
+		// manager's onData (the published action is registered when the intent is declared).
 		pm.doAction(
 			"ds1-/tf-published",
 			{ transforms: [ros2Tf("map", "odom", { x: 1, y: 0, z: 0 })] },
@@ -143,9 +150,11 @@ describe("Foxglove TF pipeline", () => {
 		expect(table.has(K("ds1", "laser"))).toBe(true);
 		expect(table.get(K("ds1", "laser"))?.isStatic).toBe(true);
 
-		// Cleanup drops dynamic edges; static is retained (for remount).
+		// Cleanup releases the registry intents only — it no longer clears the table. Clearing is
+		// the core provider's job (reconcileTransformSources) on genuine datasource removal, so a
+		// transient remount keeps its frames.
 		cleanup();
-		expect(getTransformTable().has(K("ds1", "odom"))).toBe(false);
+		expect(getTransformTable().has(K("ds1", "odom"))).toBe(true);
 		expect(getTransformTable().has(K("ds1", "laser"))).toBe(true);
 	});
 
@@ -182,65 +191,31 @@ describe("Foxglove TF pipeline", () => {
 		expect(getTransformTable().size).toBe(0);
 	});
 
-	describe("mount-order race (subscribe action registered after the manager)", () => {
-		const sleep = (ms: number) =>
-			new Promise<void>((resolve) => setTimeout(resolve, ms));
+	test("subscribe fires immediately when the datasource is already READY at setup", () => {
+		// Registry handles the mount-order race (subscribe action / READY arriving in any order)
+		// — see the registry's own tests. Here we just confirm the manager is wired through it:
+		// when READY precedes setup, the intent subscribes at once.
+		const subscribed: string[] = [];
+		const pm = managerWithSubscribe("ds1", subscribed);
 
-		/** Register a recording subscribe/unsubscribe action on an existing manager. */
-		function registerSubscribe(
-			pm: PluginsManager,
-			datasourceId: string,
-			recorder: string[],
-		) {
-			pm.addAction(`${datasourceId}-subscribe`, {
-				id: `${datasourceId}-subscribe`,
-				priority: 10,
-				action: (topic: { topic: string }) =>
-					recorder.push(topic.topic),
-			});
-			pm.addAction(`${datasourceId}-unsubscribe`, {
-				id: `${datasourceId}-unsubscribe`,
-				priority: 10,
-				action: () => {},
-			});
-		}
+		// Registry already exists (an earlier consumer created it) and READY already fired.
+		getDatasourceSubscriptionRegistry(pm);
+		emitReady(pm, "ds1");
+		setupFoxgloveTransformManager(pm, settings("ds1"));
 
-		// Reproduces production: React fires the child TransformTreeManager effect BEFORE the
-		// parent SubscriptionManager registers `*-subscribe`. With a plain `doAction` the subscribe
-		// hit "No action found" and was dropped, starving the table. The manager must instead wait
-		// for the action and subscribe once it appears.
-		test("subscribe still lands when the action registers after the manager mounts", async () => {
-			const subscribed: string[] = [];
-			const pm = new PluginsManager(new Map());
+		expect(subscribed).toContain("/tf");
+		expect(subscribed).toContain("/tf_static");
+	});
 
-			// Manager runs while the subscribe action does NOT exist yet.
-			setupFoxgloveTransformManager(pm, settings("ds1"));
-			expect(subscribed).toEqual([]); // nothing subscribed — action absent
+	test("cleanup before READY never subscribes (intent released)", () => {
+		const subscribed: string[] = [];
+		const pm = managerWithSubscribe("ds1", subscribed);
 
-			// Parent registers the action slightly later (real mount order).
-			registerSubscribe(pm, "ds1", subscribed);
+		const cleanup = setupFoxgloveTransformManager(pm, settings("ds1"));
+		cleanup(); // released before the datasource ever became READY
+		emitReady(pm, "ds1");
 
-			// WaitForActionToExist polls at 100 ms — give it a couple of cycles.
-			await sleep(250);
-
-			expect(subscribed).toContain("/tf");
-			expect(subscribed).toContain("/tf_static");
-		});
-
-		// A manager unmounted while still waiting must NOT subscribe afterwards, or a late
-		// subscribe would land after the cleanup's unsubscribe (dangling subscription).
-		test("a manager unmounted before the action registers does not subscribe", async () => {
-			const subscribed: string[] = [];
-			const pm = new PluginsManager(new Map());
-
-			const cleanup = setupFoxgloveTransformManager(pm, settings("ds1"));
-			cleanup(); // unmount during the wait, before the action exists
-
-			registerSubscribe(pm, "ds1", subscribed);
-			await sleep(250);
-
-			expect(subscribed).toEqual([]); // aborted — never subscribed late
-		});
+		expect(subscribed).toEqual([]); // no dangling subscribe after release
 	});
 
 	describe("async reactivity (browser-faithful)", () => {

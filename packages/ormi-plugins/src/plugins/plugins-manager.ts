@@ -143,8 +143,11 @@ export class PluginsManager {
 	 * Executes all callbacks registered on the action hook.
 	 * @param actionName - Action hook name.
 	 * @param args - Arguments to pass to actions.
+	 * @returns `true` if at least one action was registered (and invoked), `false` if none
+	 * existed. Lets callers (e.g. the subscription registry) tell "fired" from "no handler yet"
+	 * — a dropped action is not silently treated as success.
 	 */
-	doAction(actionName: string | PluginsHooks, ...args: any): void {
+	doAction(actionName: string | PluginsHooks, ...args: any): boolean {
 		const actions: PluginAction[] = [];
 
 		this.plugins.forEach((plugin) => {
@@ -163,11 +166,13 @@ export class PluginsManager {
 
 		if (actions.length === 0) {
 			console.warn(`No action found for ${actionName}`);
+			return false;
 		}
 
 		actions.forEach((action) => {
 			action.action(...args);
 		});
+		return true;
 	}
 
 	/**
