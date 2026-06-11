@@ -1,13 +1,13 @@
 import { ReactNode } from "react";
 import { buildNavigation } from "@/lib/mdx";
 import { DocsSidebar } from "@/components/docs/sidebar";
-import { DocsHeader } from "@/components/docs/header";
 import {
 	SidebarProvider,
 	Sidebar,
 	SidebarContent,
 	SidebarHeader,
 	SidebarInset,
+	SidebarTrigger,
 } from "@workspace/ui/components/sidebar";
 import "./docs.css";
 
@@ -28,8 +28,13 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
 					<DocsSidebar navigation={navigation} />
 				</SidebarContent>
 			</Sidebar>
-			<SidebarInset className="">
-				<DocsHeader />
+			<SidebarInset>
+				<div className="flex items-center gap-2 bg-background px-4 py-2 md:hidden">
+					<SidebarTrigger />
+					<span className="text-sm font-medium text-muted-foreground">
+						Documentation
+					</span>
+				</div>
 				<main className="flex-1">
 					<div className="max-w-4xl mx-auto px-8 py-12">
 						{children}
