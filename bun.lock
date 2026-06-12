@@ -48,6 +48,7 @@
         "ormi-emi-bag-analyzer": "workspace:*",
         "ormi-flight-indicator": "workspace:*",
         "ormi-foxglove": "workspace:*",
+        "ormi-loadgen": "workspace:*",
         "ormi-randoms-datasources": "workspace:*",
         "ormi-rest-bags": "workspace:*",
         "ormi-rosbridge-suite": "workspace:*",
@@ -345,6 +346,23 @@
         "react-use-websocket": "^4.13.0",
         "sonner": "^2.0.7",
         "tsc-alias": "1.8.16",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.3.8",
+        "@types/node": "^25.2.1",
+        "@types/react": "^19.2.13",
+        "@workspace/eslint-config": "workspace:*",
+        "@workspace/typescript-config": "workspace:*",
+        "react": "^19.2.4",
+        "typescript": "^5.9.3",
+      },
+    },
+    "plugins/ormi-loadgen": {
+      "name": "ormi-loadgen",
+      "version": "1.0.0",
+      "dependencies": {
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ormi-plugins": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "^1.3.8",
@@ -2525,6 +2543,8 @@
     "ormi-flight-indicator": ["ormi-flight-indicator@workspace:plugins/ormi-flight-indicator"],
 
     "ormi-foxglove": ["ormi-foxglove@workspace:plugins/ormi-foxglove"],
+
+    "ormi-loadgen": ["ormi-loadgen@workspace:plugins/ormi-loadgen"],
 
     "ormi-randoms-datasources": ["ormi-randoms-datasources@workspace:plugins/ormi-randoms-datasources"],
 

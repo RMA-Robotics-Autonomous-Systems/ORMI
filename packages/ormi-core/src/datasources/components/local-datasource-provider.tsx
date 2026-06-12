@@ -24,8 +24,21 @@ import {
 	createSafeContext,
 	createTopicKey,
 	getDatasourceSubscriptionRegistry,
+	metrics,
 	type SubscriptionHandle,
 } from "@workspace/utils";
+
+/**
+ * Flush-pump metric ids, registered once per runtime (cold path).
+ * `flush.ticks` counts interval ticks that drained a non-empty batch;
+ * `flush.updates` counts drained entries; `flush.overwrites` counts pending
+ * entries replaced before a tick drained them (last-wins drops); `flush.tickMs`
+ * samples tick durations while the heavy tier is on.
+ */
+const flushTicksId = metrics.counter("flush.ticks");
+const flushUpdatesId = metrics.counter("flush.updates");
+const flushOverwritesId = metrics.counter("flush.overwrites");
+const flushTickMsRing = metrics.ring("flush.tickMs");
 
 /** Local datasource context value. */
 interface LocalDataSources {
@@ -201,6 +214,10 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 			const updatesToProcess = new Map(pendingUpdatesRef.current);
 			pendingUpdatesRef.current.clear();
 
+			metrics.add(flushTicksId);
+			metrics.add(flushUpdatesId, updatesToProcess.size);
+			const t0 = metrics.heavy ? Date.now() : 0;
+
 			setSources((prevSources) => {
 				// Create a completely new Map to ensure immutability
 				const newSources = new Map(prevSources);
@@ -237,6 +254,8 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 
 				return newSources;
 			});
+
+			if (t0) metrics.observe(flushTickMsRing, Date.now() - t0);
 		}, updateInterval);
 
 		// Declare a subscribe intent per topic. The registry owns all wire
@@ -263,6 +282,12 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 						);
 					}
 
+					// An undrained pending entry is about to be replaced —
+					// last-wins drop (the flush pump keeps only the newest
+					// value per source between ticks).
+					if (pendingUpdatesRef.current.has(sourceId)) {
+						metrics.add(flushOverwritesId);
+					}
 					pendingUpdatesRef.current.set(sourceId, {
 						value: processedValue,
 						time,

@@ -60,4 +60,14 @@ export interface DatasourceWorkerEvents {
 		callId: string;
 		result: RemoteCallResult;
 	};
+	/**
+	 * Coalesced 1 Hz worker counter snapshot. `produced` maps topic name to
+	 * the cumulative number of messages published on it since worker start
+	 * (the host diffs consecutive snapshots to derive rates). Emitted only
+	 * when counts changed since the last snapshot. Event dispatch is
+	 * name-keyed, so hosts without a handler for it are unaffected.
+	 */
+	"metrics-snapshot": {
+		produced: Record<string, number>;
+	};
 }

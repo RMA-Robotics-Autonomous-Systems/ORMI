@@ -71,6 +71,25 @@ export function createDatasourceWorker<Settings = DatasourceProviderSettings>(
 		  ) => void)
 		| null = null;
 
+	// Worker-local cumulative publish counters, coalesced into a 1 Hz
+	// "metrics-snapshot" event. Deliberately a plain Map (no metrics module in
+	// the worker): the hot-path cost is one Map.get/set per publish. The
+	// interval starts lazily on the first publish and emits only when counts
+	// changed since the last snapshot.
+	const producedCounts = new Map<string, number>();
+	let producedDirty = false;
+	let producedTimer: ReturnType<typeof setInterval> | null = null;
+
+	const emitProducedSnapshot = () => {
+		if (!producedDirty) return;
+		producedDirty = false;
+		const produced: Record<string, number> = {};
+		producedCounts.forEach((count, topic) => {
+			produced[topic] = count;
+		});
+		emit?.("metrics-snapshot", { produced });
+	};
+
 	const context: DatasourceWorkerContext = {
 		publish: (
 			topic,
@@ -79,6 +98,11 @@ export function createDatasourceWorker<Settings = DatasourceProviderSettings>(
 			referenceFrameId,
 			transfer,
 		) => {
+			producedCounts.set(topic, (producedCounts.get(topic) ?? 0) + 1);
+			producedDirty = true;
+			if (producedTimer === null) {
+				producedTimer = setInterval(emitProducedSnapshot, 1000);
+			}
 			emit?.(
 				"topic-published",
 				{ topic, data, time, referenceFrameId },
@@ -117,7 +141,13 @@ export function createDatasourceWorker<Settings = DatasourceProviderSettings>(
 			unsubscribe: implementation.unsubscribe,
 			executeRemoteCall: implementation.executeRemoteCall,
 			cancelRemoteCall: implementation.cancelRemoteCall,
-			shutdown: implementation.shutdown ?? (() => undefined),
+			shutdown: () => {
+				if (producedTimer !== null) {
+					clearInterval(producedTimer);
+					producedTimer = null;
+				}
+				return implementation.shutdown?.();
+			},
 		},
 	);
 

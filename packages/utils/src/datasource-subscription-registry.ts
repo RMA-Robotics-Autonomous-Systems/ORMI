@@ -38,7 +38,14 @@
  * inject the canonical enum values if they ever change.
  */
 
+import { metrics, type CounterId } from "./metrics/metrics-core";
 import { createTopicKey, type TopicKeyInput } from "./topic-key";
+
+/**
+ * Heavy-tier sampled end-to-end latency (publisher `time` → registry fanout),
+ * in ms. Registered once per runtime; written only while `metrics.heavy`.
+ */
+const pipelineLatencyRing = metrics.ring("pipeline.latencyMs");
 
 /**
  * A selected topic as consumed by the registry. Structurally compatible with
@@ -144,6 +151,12 @@ interface WireEntry {
 	generation: number;
 	/** Whether the per-wire-key `published` action is currently registered. */
 	publishedRegistered: boolean;
+	/** Counter id for `wire.<key>.delivered` — one add per delivered message. */
+	deliveredId: CounterId;
+	/** Gauge id for `wire.<key>.fanout` — set to `fanout.size` on every change. */
+	fanoutId: CounterId;
+	/** Message sequence for 1-in-32 heavy-tier latency sampling. */
+	sampleSeq: number;
 }
 
 /** Per-advertise-key record (keyed by `dsId::topic::property`). */
@@ -216,12 +229,16 @@ class Registry implements DatasourceSubscriptionRegistry {
 				wireState: "idle",
 				generation: 0,
 				publishedRegistered: false,
+				deliveredId: metrics.counter(`wire.${key}.delivered`),
+				fanoutId: metrics.counter(`wire.${key}.fanout`),
+				sampleSeq: 0,
 			};
 			this.wires.set(key, entry);
 		}
 
 		const wasEmpty = entry.fanout.size === 0;
 		entry.fanout.set(intentId, onData);
+		metrics.set(entry.fanoutId, entry.fanout.size);
 
 		// 0 → 1 transition: register the per-wire-key published action and, if
 		// the datasource is already READY, fire `-subscribe`. Otherwise the
@@ -265,6 +282,10 @@ class Registry implements DatasourceSubscriptionRegistry {
 				// Fan out to every live intent on this wire key.
 				const live = this.wires.get(key);
 				if (!live) return;
+				metrics.add(live.deliveredId);
+				if (metrics.heavy && (live.sampleSeq++ & 31) === 0) {
+					metrics.observe(pipelineLatencyRing, Date.now() - time);
+				}
 				live.fanout.forEach((cb) => cb(value, time, referenceFrameId));
 			},
 		});
@@ -297,6 +318,7 @@ class Registry implements DatasourceSubscriptionRegistry {
 		const entry = this.wires.get(key);
 		if (!entry) return;
 		if (!entry.fanout.delete(intentId)) return;
+		metrics.set(entry.fanoutId, entry.fanout.size);
 
 		if (entry.fanout.size > 0) {
 			// Intermediate refcount change — no wire traffic.

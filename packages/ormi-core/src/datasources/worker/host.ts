@@ -1,5 +1,6 @@
 import type { PluginsManager } from "@workspace/ormi-plugins";
 import { PluginsHooks } from "@workspace/ormi-plugins";
+import { metrics, type CounterId } from "@workspace/utils";
 import type {
 	DatasourceProviderSettings,
 	DatasourceTopicFilter,
@@ -219,13 +220,42 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 	}
 
 	private registerEventHandlers(): void {
+		// Cold-path metric registration: one published counter per datasource
+		// (idempotent across host re-creation), plus per-topic produced-counter
+		// ids and last-seen cumulative values for diffing worker snapshots.
+		const publishedId = metrics.counter(
+			`ds.${this.datasourceId}.published`,
+		);
+		const producedIds = new Map<string, CounterId>();
+		const lastProduced = new Map<string, number>();
+
 		const topicUnsub = this.rpc.onEvent("topic-published", (payload) => {
+			metrics.add(publishedId);
 			this.pluginsManager.doAction(
 				`${this.datasourceId}-${payload.topic}-published`,
 				payload.data,
 				payload.time,
 				payload.referenceFrameId,
 			);
+		});
+
+		const metricsUnsub = this.rpc.onEvent("metrics-snapshot", (payload) => {
+			// 1 Hz cold path: diff the worker's cumulative per-topic counts
+			// against the last snapshot and fold the delta into this runtime's
+			// metrics registry.
+			for (const topic in payload.produced) {
+				const cumulative = payload.produced[topic]!;
+				let id = producedIds.get(topic);
+				if (id === undefined) {
+					id = metrics.counter(
+						`ds.${this.datasourceId}.topic.${topic}.produced`,
+					);
+					producedIds.set(topic, id);
+				}
+				const delta = cumulative - (lastProduced.get(topic) ?? 0);
+				lastProduced.set(topic, cumulative);
+				if (delta > 0) metrics.add(id, delta);
+			}
 		});
 
 		const callsUnsub = this.rpc.onEvent("remote-calls", (payload) => {
@@ -271,6 +301,7 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 
 		this.disposers.push(
 			topicUnsub,
+			metricsUnsub,
 			callsUnsub,
 			statusUnsub,
 			feedbackUnsub,
