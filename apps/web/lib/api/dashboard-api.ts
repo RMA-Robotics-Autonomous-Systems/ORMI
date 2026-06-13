@@ -20,6 +20,54 @@ export interface DashboardState {
 }
 
 /**
+ * Convert raw workspace `content` (as stored in the DB / returned by the API)
+ * into a usable `DashboardState`.
+ *
+ * - `null`/missing content yields a default empty dashboard (empty layouts,
+ *   widgets, and datasources).
+ * - `widgets`/`datasources` arrive serialized as plain objects and are
+ *   converted to Maps; values that are already Maps pass through unchanged.
+ * - `locked` defaults to `false`, `compactType` to `null`, and `forceReload`
+ *   is always reset to `false`.
+ */
+export function toDashboardState(content: unknown): DashboardState {
+	// If there's no content, use default empty dashboard
+	const dashboardDefinition = content
+		? (content as any)
+		: {
+				layouts: {
+					lg: [],
+					md: [],
+					sm: [],
+					xs: [],
+					xxs: [],
+				},
+				widgets: {},
+				datasources: {},
+			};
+
+	// Convert objects back to Maps
+	const widgets =
+		dashboardDefinition.widgets instanceof Map
+			? dashboardDefinition.widgets
+			: new Map(Object.entries(dashboardDefinition.widgets || {}));
+
+	const datasources =
+		dashboardDefinition.datasources instanceof Map
+			? dashboardDefinition.datasources
+			: new Map(Object.entries(dashboardDefinition.datasources || {}));
+
+	return {
+		layouts: dashboardDefinition.layouts,
+		widgets,
+		locked: dashboardDefinition.locked || false,
+		datasources,
+		compactType: dashboardDefinition.compactType || null,
+		forceReload: false,
+	};
+}
+
+/**
  * Dashboard API client
  */
 export const dashboardApi = {
@@ -80,44 +128,6 @@ export const dashboardApi = {
 			return { ok: false, error: "Workspace not found" };
 		}
 
-		// If there's no content, use default empty dashboard
-		const dashboardDefinition = workspace.content
-			? (workspace.content as any)
-			: {
-					layouts: {
-						lg: [],
-						md: [],
-						sm: [],
-						xs: [],
-						xxs: [],
-					},
-					widgets: {},
-					datasources: {},
-				};
-
-		// Convert objects back to Maps
-		const widgets =
-			dashboardDefinition.widgets instanceof Map
-				? dashboardDefinition.widgets
-				: new Map(Object.entries(dashboardDefinition.widgets || {}));
-
-		const datasources =
-			dashboardDefinition.datasources instanceof Map
-				? dashboardDefinition.datasources
-				: new Map(
-						Object.entries(dashboardDefinition.datasources || {}),
-					);
-
-		return {
-			ok: true,
-			data: {
-				layouts: dashboardDefinition.layouts,
-				widgets,
-				locked: dashboardDefinition.locked || false,
-				datasources,
-				compactType: dashboardDefinition.compactType || null,
-				forceReload: false,
-			},
-		};
+		return { ok: true, data: toDashboardState(workspace.content) };
 	},
 };

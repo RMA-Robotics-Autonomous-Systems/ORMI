@@ -1,9 +1,11 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
+import { useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { UserAccountNav } from "@/components/user/user-home-nav";
 import { PluginPagesNav } from "@/components/plugin-pages-nav";
+import { preloadWorkspaces } from "@/lib/api/workspace-api";
 
 import { User } from "next-auth";
 import { useSession } from "next-auth/react";
@@ -16,6 +18,18 @@ interface HomeLayoutProps {
 
 export default function HomeLayout({ children }: HomeLayoutProps) {
 	const { data: session, status } = useSession();
+	const pathname = usePathname();
+
+	// Eagerly start the workspace-list request when an authenticated user
+	// enters somewhere other than the dashboard (the splash), so the
+	// dashboard's own getAll() consumes the in-flight request. Skip on the
+	// dashboard itself: a direct deep-link there already fetches via the
+	// page's effect, so preloading would start a second, orphaned request.
+	useEffect(() => {
+		if (status !== "authenticated") return;
+		if (pathname.startsWith("/dashboard")) return;
+		preloadWorkspaces();
+	}, [status, pathname]);
 
 	return (
 		<>

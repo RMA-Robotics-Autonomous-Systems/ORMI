@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DashboardShell,
 	DashboardEngine,
@@ -14,8 +14,10 @@ import {
 	handleDelete as td,
 	handleUpdate as tu,
 } from "@/lib/data/prisma-templates";
-import { handleLoad, handleSave } from "@/lib/data/prisma-dashboard";
-import { workspaceApi } from "@/lib/api/workspace-api";
+import { handleSave } from "@/lib/data/prisma-dashboard";
+import { toDashboardState } from "@/lib/api/dashboard-api";
+import { workspaceApi, type Workspace } from "@/lib/api/workspace-api";
+import type { ApiResult } from "@/lib/http/client";
 import { useParams } from "next/navigation";
 
 export default function Page() {
@@ -23,6 +25,32 @@ export default function Page() {
 	const workspaceId = params.wsId as string;
 	const [dashboardType, setDashboardType] = useState<string>("GRID");
 	const [loading, setLoading] = useState(true);
+
+	// One workspace fetch per navigation, shared by both consumers below
+	// (the dashboardType effect and the shell's onLoad). The shell's effect
+	// runs before this page's effect, so the fetch starts lazily on first
+	// call rather than in an effect: whichever consumer runs first kicks it
+	// off and the other awaits the same promise. Keyed by workspaceId so
+	// navigating to another workspace re-fetches; strict-mode double effect
+	// invocation reuses the same in-flight promise.
+	const workspaceFetchRef = useRef<{
+		key: string;
+		promise: Promise<ApiResult<Workspace>>;
+	} | null>(null);
+
+	const getWorkspace = useCallback((): Promise<ApiResult<Workspace>> => {
+		if (workspaceFetchRef.current?.key !== workspaceId) {
+			const parsedWorkspaceId = Number(workspaceId);
+			const promise = Number.isFinite(parsedWorkspaceId)
+				? workspaceApi.getById(parsedWorkspaceId)
+				: Promise.resolve<ApiResult<Workspace>>({
+						ok: false,
+						error: "Invalid workspace ID",
+					});
+			workspaceFetchRef.current = { key: workspaceId, promise };
+		}
+		return workspaceFetchRef.current.promise;
+	}, [workspaceId]);
 
 	useEffect(() => {
 		async function fetchWorkspaceType() {
@@ -58,34 +86,52 @@ export default function Page() {
 			}
 
 			try {
-				const result = await workspaceApi.getById(parsedWorkspaceId);
+				const result = await getWorkspace();
 				if (result.ok) {
-					setDashboardType(
-						(result.data as any)?.dashboardType || "GRID",
-					);
+					setDashboardType(result.data?.dashboardType || "GRID");
 				}
-			} catch (e) {
+			} catch {
 				setDashboardType("GRID");
 			} finally {
 				setLoading(false);
 			}
 		}
 		fetchWorkspaceType();
-	}, [workspaceId]);
+	}, [workspaceId, getWorkspace]);
 
 	// Wrapper functions that include workspaceId
 	const wrappedHandleLoad = async (setState: (state: any) => void) => {
-		return handleLoad(workspaceId, setState);
+		if (!workspaceId) {
+			console.error("Workspace ID is required");
+			return false;
+		}
+
+		const result = await getWorkspace();
+
+		if (!result.ok) {
+			console.error("Failed to load dashboard:", result.error);
+			return false;
+		}
+
+		const workspace = result.data;
+		if (!workspace) {
+			console.error("Failed to load dashboard:", "Workspace not found");
+			return false;
+		}
+
+		setState(toDashboardState(workspace.content));
+		return true;
 	};
 
 	const wrappedHandleSave = async (dashboardState: any) => {
 		return handleSave(dashboardState, workspaceId);
 	};
 
-	// The shell mounts immediately so its persistence load runs in parallel with
-	// the workspace fetch above; both feed the shell's single loading skeleton
-	// (max of the two waits, not the sum). `dashboardType` is only read once the
-	// skeleton clears, by which point the fetch has resolved the real value.
+	// The shell mounts immediately; its persistence load and the dashboardType
+	// effect above both await the same shared workspace fetch, so one
+	// navigation costs exactly one GET. Both feed the shell's single loading
+	// skeleton; `dashboardType` is only read once the skeleton clears, by
+	// which point the fetch has resolved the real value.
 	return (
 		<DashboardShell
 			dashboardType={dashboardType}
