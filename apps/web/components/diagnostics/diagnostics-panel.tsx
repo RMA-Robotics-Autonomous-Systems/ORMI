@@ -10,7 +10,7 @@
  * to the dashboard tree.
  */
 
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import {
 	subscribeMetricsReport,
@@ -142,6 +142,49 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 		() => null,
 	);
 
+	const panelRef = useRef<HTMLDivElement>(null);
+	// Pointer offset from the panel's top-left corner while dragging, or null
+	// when idle. Position is written straight to `panelRef.current.style` so a
+	// drag never triggers React renders — the panel keeps its 1 Hz cadence.
+	const dragOffset = useRef<{ x: number; y: number } | null>(null);
+
+	const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (e.button !== 0) return;
+		// Keep the close button (and any future header controls) clickable.
+		if ((e.target as HTMLElement).closest("button")) return;
+		const panel = panelRef.current;
+		if (!panel) return;
+		const rect = panel.getBoundingClientRect();
+		dragOffset.current = {
+			x: e.clientX - rect.left,
+			y: e.clientY - rect.top,
+		};
+		e.currentTarget.setPointerCapture(e.pointerId);
+	};
+
+	const onHeaderPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		const offset = dragOffset.current;
+		const panel = panelRef.current;
+		if (!offset || !panel) return;
+		const x = Math.min(
+			Math.max(0, e.clientX - offset.x),
+			Math.max(0, window.innerWidth - panel.offsetWidth),
+		);
+		const y = Math.min(
+			Math.max(0, e.clientY - offset.y),
+			Math.max(0, window.innerHeight - panel.offsetHeight),
+		);
+		panel.style.left = `${x}px`;
+		panel.style.top = `${y}px`;
+		panel.style.bottom = "auto";
+	};
+
+	const onHeaderPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (dragOffset.current === null) return;
+		dragOffset.current = null;
+		e.currentTarget.releasePointerCapture(e.pointerId);
+	};
+
 	const wireRows = report ? parseWireRows(report) : [];
 	const latency = report?.rings.find((r) => r.name === "pipeline.latencyMs");
 	const longtasks = report?.counters.find((c) => c.name === "app.longtasks");
@@ -160,8 +203,17 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 	const rpcRttMs = report?.rings.find((r) => r.name === "rpc.rttMs");
 
 	return (
-		<Card className="fixed bottom-4 left-4 z-50 w-[44rem] max-w-[calc(100vw-2rem)] gap-0 py-0 shadow-2xl pointer-events-auto">
-			<CardHeader className="flex flex-row items-center justify-between border-b px-4 py-2 [.border-b]:pb-2">
+		<Card
+			ref={panelRef}
+			className="fixed bottom-4 left-4 z-50 w-[44rem] max-w-[calc(100vw-2rem)] gap-0 py-0 shadow-2xl pointer-events-auto"
+		>
+			<CardHeader
+				className="flex cursor-grab touch-none select-none flex-row items-center justify-between border-b px-4 py-2 active:cursor-grabbing [.border-b]:pb-2"
+				onPointerDown={onHeaderPointerDown}
+				onPointerMove={onHeaderPointerMove}
+				onPointerUp={onHeaderPointerEnd}
+				onPointerCancel={onHeaderPointerEnd}
+			>
 				<CardTitle className="text-sm">Diagnostics</CardTitle>
 				<Button
 					variant="ghost"
