@@ -13,7 +13,7 @@
         },
 */
 
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 
 import * as ROSLIB from "roslib";
 
@@ -26,9 +26,19 @@ import {
 	DatasourceTopic,
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import {
+	usePluginsManager,
+	PluginsHooks,
+	PluginsManager,
+} from "@workspace/ormi-plugins";
+import { metrics } from "@workspace/utils";
 import { toast } from "sonner";
 import { TransformTreeManager } from "./transform-tree-manager";
+import { MessageCoalescer, CoalesceMode } from "./message-coalescer";
+import {
+	topicsToResubscribe,
+	type RequestedTopic,
+} from "./subscription-reconcile";
 
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
@@ -38,6 +48,12 @@ interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
 	reconnectTimeout: number;
 	toasts: boolean;
 	transformTreeTopics: string[];
+	/**
+	 * Wire encoding requested from rosbridge for subscribed topics. `cbor`
+	 * delivers binary fields as typed arrays (no base64 inflation or decode);
+	 * `none` falls back to plain JSON for old rosbridge servers.
+	 */
+	compression?: "cbor" | "none";
 }
 
 export interface ROSTopic {
@@ -169,6 +185,73 @@ type RosTopicAndCounter = {
 	hook: string;
 };
 
+/**
+ * Convert a raw rosbridge message to webapp format and publish it on the
+ * datasource's `-published` hook. Image types resolve asynchronously to an
+ * `ImageBitmap` before publishing.
+ */
+function convertAndPublish(
+	pluginsManager: PluginsManager,
+	datasourceId: string,
+	topic: DatasourceTopic,
+	message: any,
+): void {
+	const frameId = message?.header?.frame_id ?? "unknown";
+
+	// convert the incoming message to webapp format
+	const convertedMessage = UnifiedConverter.convertToWebapp(
+		message,
+		topic.type,
+		topic.rawType,
+	);
+
+	// Handle Image type: convert to ImageBitmap asynchronously
+	if (
+		topic.type === "Image" &&
+		convertedMessage &&
+		typeof convertedMessage === "object"
+	) {
+		if ("__imageData" in convertedMessage) {
+			// Raw image: convert ImageData to ImageBitmap
+			createImageBitmap(convertedMessage.__imageData).then((bitmap) => {
+				pluginsManager.doAction(
+					`${datasourceId}-${topic.topic}-published`,
+					bitmap,
+					Date.now(),
+					frameId,
+				);
+			});
+			return;
+		} else if ("__compressedData" in convertedMessage) {
+			// Compressed image: decode via Blob to ImageBitmap
+			const format = convertedMessage.__format || "jpeg";
+			let mimeType = "image/jpeg";
+			if (format.includes("png")) mimeType = "image/png";
+			else if (format.includes("webp")) mimeType = "image/webp";
+
+			const blob = new Blob([convertedMessage.__compressedData], {
+				type: mimeType,
+			});
+			createImageBitmap(blob).then((bitmap) => {
+				pluginsManager.doAction(
+					`${datasourceId}-${topic.topic}-published`,
+					bitmap,
+					Date.now(),
+					frameId,
+				);
+			});
+			return;
+		}
+	}
+
+	pluginsManager.doAction(
+		`${datasourceId}-${topic.topic}-published`,
+		convertedMessage,
+		Date.now(),
+		frameId,
+	);
+}
+
 // Create a provider component
 const RosBridgeSuiteSourceProvider = (
 	props: RosBridgeSuiteDataSourceSettings,
@@ -177,6 +260,14 @@ const RosBridgeSuiteSourceProvider = (
 
 	const subscribersRef = useRef(new Map<string, ROSLIB.Topic<any>>());
 	const subscribersCountRef = useRef(new Map<string, number>());
+	const coalescerRef = useRef(new MessageCoalescer());
+
+	// Durable record of which topics the subscription registry has asked us to
+	// subscribe, keyed by topic name and independent of the ROS connection. The
+	// live `subscribersRef` entries are `ROSLIB.Topic` objects bound to a single
+	// connection and die on reconnect; this record survives so we can rebuild
+	// every subscription on the new connection (see reconcileSubscriptions).
+	const requestedTopicsRef = useRef(new Map<string, RequestedTopic>());
 
 	// constant for the datasource
 	const datasource_id = props.id;
@@ -206,6 +297,88 @@ const RosBridgeSuiteSourceProvider = (
 		new Map(),
 	); // Topic name -> Promise<void> for unadvertise
 
+	/**
+	 * Create and store a live `ROSLIB.Topic` subscription on the CURRENT
+	 * connection for the given topic. This is the single place that builds a
+	 * subscriber (coalescer registration, produced metric, push callback,
+	 * `subscribersRef` entry), shared by the direct subscribe action and the
+	 * reconnect reconciliation so steady-state behaviour is identical for both.
+	 *
+	 * The caller is responsible for refcounting (`subscribersCountRef`) and for
+	 * not re-subscribing a topic that is already live.
+	 */
+	const subscribeTopicOnCurrentConnection = useCallback(
+		(topicName: string, rawType: string) => {
+			// Webapp type derived the same way AVAILABLE_TOPICS resolves it, so
+			// convertAndPublish sees the same DatasourceTopic shape as the
+			// direct-subscribe path.
+			const topic: DatasourceTopic = {
+				topic: topicName,
+				datasource_id: "rosbridge-suite-source",
+				source: props,
+				type: UnifiedConverter.getWebappTypeFromROSType(rawType) || "",
+				rawType,
+			};
+
+			// CBOR keeps binary fields as typed arrays (no base64);
+			// "none" stays available for old rosbridge servers.
+			const subscriber = new ROSLIB.Topic<any>({
+				ros: ROSRef.current!,
+				name: topicName,
+				messageType: rawType,
+				compression: props.compression === "none" ? "none" : "cbor",
+			});
+
+			// TF-like topics carry deltas: last-wins coalescing would lose
+			// transforms, so they get a lossless queue.
+			const mode: CoalesceMode =
+				rawType === "tf2_msgs/msg/TFMessage" ||
+				(props.transformTreeTopics || []).includes(topicName)
+					? "lossless-queue"
+					: "lossy-latest";
+
+			coalescerRef.current.register(topicName, mode, (message) =>
+				convertAndPublish(
+					pluginsManager,
+					datasource_id,
+					topic,
+					message,
+				),
+			);
+
+			const producedId = metrics.counter(
+				`ds.${datasource_id}.topic.${topicName}.produced`,
+			);
+
+			subscriber.subscribe((message: any) => {
+				metrics.add(producedId);
+				coalescerRef.current.push(topicName, message);
+			});
+
+			subscribersRef.current.set(topicName, subscriber);
+		},
+		[props, pluginsManager, datasource_id],
+	);
+
+	/**
+	 * Re-subscribe every recorded-intent topic that is not currently live on the
+	 * connection. Invoked once a new connection is established: the previous
+	 * connection's `ROSLIB.Topic` objects are dead, the registry believes the
+	 * topics are still subscribed (its re-flush short-circuits on the stale
+	 * entries), so nothing else rebuilds them. The diff is pure and idempotent —
+	 * topics already live are skipped, so it is safe to call repeatedly.
+	 */
+	const reconcileSubscriptions = useCallback(() => {
+		if (!ROSRef.current) return;
+
+		const live = new Set(subscribersRef.current.keys());
+		const pending = topicsToResubscribe(requestedTopicsRef.current, live);
+
+		for (const { topic, rawType } of pending) {
+			subscribeTopicOnCurrentConnection(topic, rawType);
+		}
+	}, [subscribeTopicOnCurrentConnection]);
+
 	useEffect(() => {
 		if (!props.enable) {
 			setConnected(true); // allow to render children
@@ -231,6 +404,21 @@ const RosBridgeSuiteSourceProvider = (
 							PluginsHooks.DATASOURCE_READY,
 							datasource_id,
 						);
+
+						// A new connection just came up. Any `ROSLIB.Topic` left
+						// in subscribersRef is bound to the previous (dead)
+						// connection — drop those entries without calling
+						// unsubscribe (that would target the old, gone socket)
+						// and clear the coalescer so re-registration is clean.
+						// Then rebuild every recorded-intent subscription on this
+						// connection. On the very first connect requestedTopicsRef
+						// is empty, so this is a no-op and the normal subscribe
+						// action populates it after DATASOURCE_READY.
+						subscribersRef.current.clear();
+						subscribersCountRef.current.clear();
+						coalescerRef.current.reset();
+						reconcileSubscriptions();
+
 						resolve(true);
 					});
 
@@ -309,6 +497,19 @@ const RosBridgeSuiteSourceProvider = (
 				id: subscribe_hook,
 				action: async (topic: DatasourceTopic) => {
 					try {
+						// Record intent BEFORE awaiting the connection so it
+						// survives reconnects: the registry re-flushes subscribe
+						// on the new connection, and reconcileSubscriptions reads
+						// this record to rebuild dead subscriptions. Keyed by
+						// topic name, independent of any ROS connection.
+						const existingRequest = requestedTopicsRef.current.get(
+							topic.topic,
+						);
+						requestedTopicsRef.current.set(topic.topic, {
+							rawType: topic.rawType,
+							count: (existingRequest?.count ?? 0) + 1,
+						});
+
 						await connectionRef.current;
 
 						if (subscribersRef.current.has(topic.topic)) {
@@ -320,81 +521,10 @@ const RosBridgeSuiteSourceProvider = (
 							return;
 						}
 
-						// const topicType = await GetTopicType(ROSRef.current!, topic.topic);
-						const subscriber = new ROSLIB.Topic<any>({
-							ros: ROSRef.current!,
-							name: topic.topic,
-							messageType: topic.rawType,
-						});
-
-						subscriber.subscribe((message: any) => {
-							const frameId =
-								(message as any)?.header?.frame_id ?? "unknown";
-
-							// convert the incoming message to webapp format
-							const convertedMessage =
-								UnifiedConverter.convertToWebapp(
-									message,
-									topic.type,
-									topic.rawType,
-								);
-
-							// Handle Image type: convert to ImageBitmap asynchronously
-							if (
-								topic.type === "Image" &&
-								convertedMessage &&
-								typeof convertedMessage === "object"
-							) {
-								if ("__imageData" in convertedMessage) {
-									// Raw image: convert ImageData to ImageBitmap
-									createImageBitmap(
-										convertedMessage.__imageData,
-									).then((bitmap) => {
-										pluginsManager.doAction(
-											`${datasource_id}-${topic.topic}-published`,
-											bitmap,
-											Date.now(),
-											frameId,
-										);
-									});
-									return;
-								} else if (
-									"__compressedData" in convertedMessage
-								) {
-									// Compressed image: decode via Blob to ImageBitmap
-									const format =
-										convertedMessage.__format || "jpeg";
-									let mimeType = "image/jpeg";
-									if (format.includes("png"))
-										mimeType = "image/png";
-									else if (format.includes("webp"))
-										mimeType = "image/webp";
-
-									const blob = new Blob(
-										[convertedMessage.__compressedData],
-										{ type: mimeType },
-									);
-									createImageBitmap(blob).then((bitmap) => {
-										pluginsManager.doAction(
-											`${datasource_id}-${topic.topic}-published`,
-											bitmap,
-											Date.now(),
-											frameId,
-										);
-									});
-									return;
-								}
-							}
-
-							pluginsManager.doAction(
-								`${datasource_id}-${topic.topic}-published`,
-								convertedMessage,
-								Date.now(),
-								frameId,
-							);
-						});
-
-						subscribersRef.current.set(topic.topic, subscriber);
+						subscribeTopicOnCurrentConnection(
+							topic.topic,
+							topic.rawType,
+						);
 						subscribersCountRef.current.set(topic.topic, 1);
 					} catch (error) {
 						if (props.toasts) {
@@ -421,6 +551,21 @@ const RosBridgeSuiteSourceProvider = (
 					try {
 						await connectionRef.current;
 
+						// Drop the durable intent in lockstep with the live
+						// subscription so a fully-unsubscribed topic is not
+						// rebuilt on the next reconnect. ignoreCount removes the
+						// request entirely.
+						const request = requestedTopicsRef.current.get(
+							topic.topic,
+						);
+						if (request) {
+							if (ignoreCount || request.count <= 1) {
+								requestedTopicsRef.current.delete(topic.topic);
+							} else {
+								request.count -= 1;
+							}
+						}
+
 						if (!subscribersRef.current.has(topic.topic)) {
 							return;
 						}
@@ -436,6 +581,7 @@ const RosBridgeSuiteSourceProvider = (
 							subscriber!.unsubscribe();
 							subscribersRef.current.delete(topic.topic);
 							subscribersCountRef.current.delete(topic.topic);
+							coalescerRef.current.unregister(topic.topic);
 						}
 					} catch (error) {
 						console.error("Unsubscribe error:", error);
@@ -857,8 +1003,14 @@ const RosBridgeSuiteSourceProvider = (
 					);
 				}
 			});
+			// NOTE: requestedTopicsRef is intentionally NOT cleared here. This
+			// cleanup runs on every retry-driven effect re-run (reconnect), and
+			// the record of intended subscriptions must survive that so the new
+			// connection's reconcileSubscriptions can rebuild them. On a true
+			// unmount a remount gets fresh refs anyway.
 			subscribersRef.current.clear();
 			subscribersCountRef.current.clear();
+			coalescerRef.current.reset();
 			console.log("ROS2 Cleanup: Subscribers cleared.");
 
 			// --- Publisher Cleanup ---
@@ -897,7 +1049,7 @@ const RosBridgeSuiteSourceProvider = (
 			disconnect(); // Disconnect the ROS connection
 			console.log("ROS2 Cleanup: Disconnect called.");
 		};
-	}, [retry, props, pluginsManager]); // Add pluginsManager dependency
+	}, [retry, props, pluginsManager, reconcileSubscriptions]);
 
 	// Mount the transform manager once connected, so its subscribe runs after this provider has
 	// registered the subscribe action. It feeds /tf and /tf_static into the shared table.

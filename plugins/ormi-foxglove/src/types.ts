@@ -6,6 +6,7 @@ import {
 	DatasourceTopic,
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
+import type { CounterId } from "@workspace/utils";
 
 /**
  * Extended settings for Foxglove data source.
@@ -29,6 +30,14 @@ export interface Subscriber {
 	count: number;
 	hook: string;
 	reader: MessageReader;
+	/**
+	 * True when raw frames must be queued losslessly instead of coalesced
+	 * last-wins. Required for TF-like delta streams, where different frame
+	 * pairs arrive in different messages.
+	 */
+	lossless: boolean;
+	/** Metrics slot incremented on every raw arrival for this topic. */
+	producedId: CounterId;
 }
 
 /**

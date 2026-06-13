@@ -4,6 +4,42 @@
 
 import { IMU, Movement, PointsCloud } from "@workspace/ormi-core/types";
 
+/**
+ * Normalize a `uint8[]` message field to a `Uint8Array` view, without copying
+ * when possible.
+ *
+ * What rosbridge delivers depends on the subscription compression:
+ * - `cbor`: roslib decodes via `cbor2`, so byte fields arrive as a
+ *   `Uint8Array` view over the frame buffer (typed-array CBOR tags decode to
+ *   their matching typed arrays) — returned as-is, zero copy. Note the view
+ *   may have a non-zero `byteOffset` into a larger buffer.
+ * - `none` (plain JSON): byte fields arrive base64-encoded — decoded here.
+ * - Plain number arrays / ArrayBuffers are wrapped defensively.
+ */
+function toByteArray(raw: unknown): Uint8Array | null {
+	if (typeof raw === "string") {
+		const binaryString = atob(raw);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		return bytes;
+	}
+	if (raw instanceof Uint8Array) {
+		return raw;
+	}
+	if (ArrayBuffer.isView(raw)) {
+		return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+	}
+	if (raw instanceof ArrayBuffer) {
+		return new Uint8Array(raw);
+	}
+	if (Array.isArray(raw)) {
+		return new Uint8Array(raw);
+	}
+	return null;
+}
+
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
 interface ConverterEntry {
 	conversions: {
@@ -237,34 +273,10 @@ export class UnifiedConverter {
 							};
 						}
 
-						// Handle the binary data properly
-						let buffer: ArrayBuffer;
-						let totalPoints: number;
-
-						// Check if data is already a buffer or needs conversion
-						if (data.data.buffer) {
-							// Use the buffer directly
-							buffer = data.data.buffer.slice(
-								0,
-								data.data.byteLength,
-							);
-							totalPoints = Math.min(
-								width * height,
-								Math.floor(buffer.byteLength / point_step),
-							);
-						} else if (typeof data.data === "string") {
-							// Convert from base64 if needed
-							const binaryString = atob(data.data);
-							buffer = new ArrayBuffer(binaryString.length);
-							const bufferView = new Uint8Array(buffer);
-							for (let i = 0; i < binaryString.length; i++) {
-								bufferView[i] = binaryString.charCodeAt(i);
-							}
-							totalPoints = Math.min(
-								width * height,
-								Math.floor(buffer.byteLength / point_step),
-							);
-						} else {
+						// Normalize the binary blob: typed-array view under
+						// CBOR (zero copy), base64 string under plain JSON.
+						const bytes = toByteArray(data.data);
+						if (!bytes) {
 							console.error(
 								"Unsupported point cloud data format",
 							);
@@ -274,8 +286,19 @@ export class UnifiedConverter {
 							};
 						}
 
-						// Create a data view for efficient access
-						const dataView = new DataView(buffer);
+						const totalPoints = Math.min(
+							width * height,
+							Math.floor(bytes.byteLength / point_step),
+						);
+
+						// Data view over just this field — offsets below are
+						// relative to the view, so a non-zero byteOffset into
+						// a shared CBOR frame buffer is handled correctly.
+						const dataView = new DataView(
+							bytes.buffer,
+							bytes.byteOffset,
+							bytes.byteLength,
+						);
 						const littleEndian = !is_bigendian;
 
 						const packedPoints = new Float32Array(totalPoints * 3);
@@ -411,6 +434,116 @@ export class UnifiedConverter {
 						};
 					},
 				},
+				"sensor_msgs/msg/LaserScan": {
+					toRos2: (data: PointsCloud) => ({}),
+					fromRos2: (data): PointsCloud => {
+						const ranges = data.ranges as
+							| ArrayLike<number>
+							| undefined;
+						if (!ranges || typeof ranges.length !== "number") {
+							console.error("LaserScan message missing ranges");
+							return {
+								points: new Float32Array(0),
+								convention: "THREE",
+							};
+						}
+
+						const angleMin =
+							typeof data.angle_min === "number"
+								? data.angle_min
+								: 0;
+						const angleIncrement =
+							typeof data.angle_increment === "number"
+								? data.angle_increment
+								: 0;
+						const rangeMin =
+							typeof data.range_min === "number"
+								? data.range_min
+								: 0;
+						const rangeMax =
+							typeof data.range_max === "number"
+								? data.range_max
+								: Infinity;
+
+						const count = ranges.length;
+						const scanIntensities = data.intensities as
+							| ArrayLike<number>
+							| undefined;
+						const hasIntensities =
+							!!scanIntensities &&
+							typeof scanIntensities.length === "number" &&
+							scanIntensities.length === count;
+
+						const packedPoints = new Float32Array(count * 3);
+						const intensities = hasIntensities
+							? new Float32Array(count)
+							: undefined;
+						let validPointCount = 0;
+						let maxIntensity = 0;
+
+						for (let i = 0; i < count; i++) {
+							const r = ranges[i]!;
+							// Drop NaN, +/-Inf, and out-of-window returns
+							if (
+								!Number.isFinite(r) ||
+								r < rangeMin ||
+								r > rangeMax
+							) {
+								continue;
+							}
+
+							const angle = angleMin + i * angleIncrement;
+							// Polar -> Cartesian in the ROS sensor frame (the scan plane lies at z = 0)
+							const x = r * Math.cos(angle);
+							const y = r * Math.sin(angle);
+
+							const idx = validPointCount * 3;
+							// Convert ROS -> THREE
+							packedPoints[idx] = -y;
+							packedPoints[idx + 1] = 0;
+							packedPoints[idx + 2] = -x;
+
+							if (intensities && scanIntensities) {
+								const intensity = scanIntensities[i]!;
+								const safe = Number.isFinite(intensity)
+									? intensity
+									: 0;
+								intensities[validPointCount] = safe;
+								if (safe > maxIntensity) maxIntensity = safe;
+							}
+
+							validPointCount++;
+						}
+
+						const finalPoints = packedPoints.subarray(
+							0,
+							validPointCount * 3,
+						);
+
+						let finalIntensities: Float32Array | undefined;
+						if (
+							intensities &&
+							validPointCount > 0 &&
+							maxIntensity > 0
+						) {
+							// Normalize per-scan to 0..1 for coloring
+							finalIntensities = intensities.subarray(
+								0,
+								validPointCount,
+							);
+							for (let i = 0; i < validPointCount; i++) {
+								finalIntensities[i] =
+									finalIntensities[i]! / maxIntensity;
+							}
+						}
+
+						return {
+							points: finalPoints,
+							intensities: finalIntensities,
+							convention: "THREE",
+						};
+					},
+				},
 			},
 		},
 		Image: {
@@ -431,21 +564,10 @@ export class UnifiedConverter {
 							data.height,
 						);
 
-						// Decode base64 if data is a string (rosbridge sends as base64)
-						let rawData: Uint8Array;
-						if (typeof data.data === "string") {
-							const binaryString = atob(data.data);
-							rawData = new Uint8Array(binaryString.length);
-							for (let i = 0; i < binaryString.length; i++) {
-								rawData[i] = binaryString.charCodeAt(i);
-							}
-						} else if (data.data instanceof Uint8Array) {
-							rawData = data.data;
-						} else if (Array.isArray(data.data)) {
-							rawData = new Uint8Array(data.data);
-						} else {
-							rawData = new Uint8Array(data.data);
-						}
+						// Typed-array view under CBOR (zero copy), base64
+						// string under plain JSON.
+						const rawData =
+							toByteArray(data.data) ?? new Uint8Array(0);
 
 						const encoding = data.encoding?.toLowerCase() || "";
 
@@ -539,21 +661,11 @@ export class UnifiedConverter {
 					fromRos2: (
 						data: any,
 					): { __compressedData: Uint8Array; __format: string } => {
-						// Return compressed data for async conversion to ImageBitmap
-						let rawData: Uint8Array;
-						if (typeof data.data === "string") {
-							const binaryString = atob(data.data);
-							rawData = new Uint8Array(binaryString.length);
-							for (let i = 0; i < binaryString.length; i++) {
-								rawData[i] = binaryString.charCodeAt(i);
-							}
-						} else if (data.data instanceof Uint8Array) {
-							rawData = data.data;
-						} else if (Array.isArray(data.data)) {
-							rawData = new Uint8Array(data.data);
-						} else {
-							rawData = new Uint8Array(data.data);
-						}
+						// Return compressed data for async conversion to ImageBitmap.
+						// Typed-array view under CBOR (zero copy), base64
+						// string under plain JSON.
+						const rawData =
+							toByteArray(data.data) ?? new Uint8Array(0);
 
 						return {
 							__compressedData: rawData,

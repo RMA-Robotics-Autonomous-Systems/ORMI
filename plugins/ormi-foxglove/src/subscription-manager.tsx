@@ -1,12 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, {
+	ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { Channel, MessageData } from "@foxglove/ws-protocol";
 import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";
+import { MessageCoalescer } from "./message-coalescer";
 import {
 	FoxgloveDataSourceSettings,
 	Subscriber,
@@ -14,13 +21,149 @@ import {
 	DatasourceTopic,
 } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { metrics } from "@workspace/utils";
 import { useFoxgloveData } from "./foxglove-data-handler";
+import { topicsToSubscribe } from "./subscription-reconcile";
 import { toast } from "sonner";
 
 interface SubscriptionManagerProps {
 	children: ReactNode;
 	settings: FoxgloveDataSourceSettings;
 }
+
+/**
+ * TF messages are deltas — different frame pairs arrive in different
+ * messages — so last-wins coalescing would silently lose transforms. Topics
+ * with these schemas must use the lossless queue mode.
+ */
+const isTfLikeSchema = (schemaName: string): boolean =>
+	schemaName === "tf2_msgs/msg/TFMessage" ||
+	schemaName.endsWith("/TFMessage");
+
+/** True when `stamp` looks like a ROS2 `builtin_interfaces/Time`. */
+const isRosStamp = (
+	stamp: unknown,
+): stamp is { sec: number; nanosec: number } =>
+	typeof stamp === "object" &&
+	stamp !== null &&
+	(stamp as any).sec !== undefined &&
+	(stamp as any).nanosec !== undefined;
+
+/** Converts a ROS2 `builtin_interfaces/Time` to JavaScript milliseconds. */
+const rosStampToMillis = (stamp: { sec: number; nanosec: number }): number =>
+	stamp.sec * 1000 + stamp.nanosec / 1000000;
+
+/**
+ * Extracts `frame_id` and timestamp from a decoded ROS2 message with a
+ * bounded, shape-aware probe: the standard `header`, then
+ * `transforms[0].header` (TFMessage), then top-level `frame_id`/`stamp`,
+ * then one level of plain-object children (max depth 2). Arrays and typed
+ * arrays are never enumerated — a headerless point cloud must not cost
+ * O(points) of property enumeration. Falls back to `"unknown"` /
+ * `Date.now()` when nothing is found, like the previous deep scan.
+ */
+function extractMessageMeta(parsed: unknown): {
+	frameId: string;
+	timestamp: number;
+} {
+	let frameId = "unknown";
+	let timestamp = Date.now();
+
+	if (typeof parsed !== "object" || parsed === null) {
+		return { frameId, timestamp };
+	}
+	const msg = parsed as any;
+
+	let frameFound = false;
+	let stampFound = false;
+
+	// Standard std_msgs/Header.
+	if (typeof msg.header?.frame_id === "string") {
+		frameId = msg.header.frame_id;
+		frameFound = true;
+	}
+	if (isRosStamp(msg.header?.stamp)) {
+		timestamp = rosStampToMillis(msg.header.stamp);
+		stampFound = true;
+	}
+
+	// tf2_msgs/TFMessage shape: read the first transform's header.
+	if (Array.isArray(msg.transforms) && msg.transforms.length > 0) {
+		const first = msg.transforms[0];
+		if (typeof first?.header?.frame_id === "string") {
+			frameId = first.header.frame_id;
+			frameFound = true;
+			if (!stampFound && isRosStamp(first.header.stamp)) {
+				timestamp = rosStampToMillis(first.header.stamp);
+				stampFound = true;
+			}
+		} else {
+			// Multiple transforms without a readable single frame.
+			frameId = "tf_multiple";
+			frameFound = true;
+		}
+	}
+
+	// Top-level frame_id/stamp (headerless messages).
+	if (!frameFound && typeof msg.frame_id === "string") {
+		frameId = msg.frame_id;
+		frameFound = true;
+	}
+	if (!stampFound && isRosStamp(msg.stamp)) {
+		timestamp = rosStampToMillis(msg.stamp);
+		stampFound = true;
+	}
+
+	// Last resort: probe direct plain-object children only. Never recurse
+	// further and never enumerate arrays or typed arrays.
+	if (!frameFound || !stampFound) {
+		for (const key of Object.keys(msg)) {
+			if (frameFound && stampFound) break;
+			const child = msg[key];
+			if (
+				child === null ||
+				typeof child !== "object" ||
+				Array.isArray(child) ||
+				ArrayBuffer.isView(child)
+			) {
+				continue;
+			}
+			if (!frameFound) {
+				if (typeof child.frame_id === "string") {
+					frameId = child.frame_id;
+					frameFound = true;
+				} else if (typeof child.header?.frame_id === "string") {
+					frameId = child.header.frame_id;
+					frameFound = true;
+				}
+			}
+			if (!stampFound) {
+				if (isRosStamp(child.stamp)) {
+					timestamp = rosStampToMillis(child.stamp);
+					stampFound = true;
+				} else if (isRosStamp(child.header?.stamp)) {
+					timestamp = rosStampToMillis(child.header.stamp);
+					stampFound = true;
+				}
+			}
+		}
+	}
+
+	return { frameId, timestamp };
+}
+
+/**
+ * Builds the raw-message coalescer for one manager instance. The dispatcher
+ * is dereferenced through a ref at drain time (timer/socket callbacks, never
+ * during render) so the long-lived coalescer always decodes through the
+ * latest closure.
+ */
+const createDrainCoalescer = (
+	dispatchRef: React.RefObject<(messageData: MessageData) => void>,
+) =>
+	new MessageCoalescer<MessageData>((messageData) =>
+		dispatchRef.current(messageData),
+	);
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	children,
@@ -49,6 +192,35 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		new Map(),
 	);
 
+	// Durable record of "what the registry asked us to subscribe", keyed by
+	// topic name with the requested refcount as value. Independent of async
+	// channel/pending timing: the subscribe/unsubscribe actions update it
+	// synchronously at the top, so it survives the mount→unmount→mount churn
+	// caused by StrictMode double-invoke and real reconnects. This is the source
+	// of truth the reconcile diffs against the client's live subscribers.
+	const requestedTopicsRef = useRef<Map<string, number>>(new Map());
+
+	// Tracks whether DATASOURCE_READY has already been re-fired for the current
+	// stable (client + non-empty channels) window, so the stabilize effect fires
+	// it exactly once per (re)connect instead of on every render. Reset on
+	// disconnect so the next connection re-aligns the registry's wire state.
+	const readyFiredRef = useRef(false);
+
+	// Latest-ref so the long-lived coalescer always drains through the
+	// current decode closure (pluginsManager, settings) without being
+	// recreated. Assigned below, after decodeAndDispatch is defined.
+	const decodeAndDispatchRef = useRef<(messageData: MessageData) => void>(
+		() => {},
+	);
+
+	// One coalescer per manager instance. Raw payloads are stashed on
+	// arrival and decoded on its ~30 Hz drain tick; per-message error
+	// handling lives inside decodeAndDispatch, so one bad message cannot
+	// break a drain tick for other topics.
+	const [coalescer] = useState(() =>
+		createDrainCoalescer(decodeAndDispatchRef),
+	);
+
 	// Function queue for ordered processing
 	const queueRef = useRef<Map<number, Array<() => Promise<void>>>>(new Map());
 	const processingRef = useRef<Map<number, boolean>>(new Map());
@@ -56,6 +228,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	const datasource_id = settings.id;
 	const subscribe_hook = `${datasource_id}-subscribe`;
 	const unsubscribe_hook = `${datasource_id}-unsubscribe`;
+
+	// Topics that must use the lossless coalescer queue: configured
+	// transform-tree topics plus any TF-schema channel. TF streams are
+	// deltas, so last-wins coalescing would silently lose transforms.
+	const isLosslessTopic = (topic: string, schemaName: string): boolean =>
+		(settings.transformTreeTopics ?? []).includes(topic) ||
+		isTfLikeSchema(schemaName);
 
 	// Utility functions
 	const hashTopicName = (topic: string): number => {
@@ -125,6 +304,72 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			queueRef.current.delete(id);
 			processingRef.current.delete(id);
 		}
+	};
+
+	/**
+	 * Subscribes the client to a known channel and registers the resulting
+	 * Subscriber, deduped per channelId via the operation queue. Shared by the
+	 * direct subscribe path and the reconcile so both produce an identical
+	 * Subscriber (reader, lossless flag, producedId, hook). Idempotent: if a
+	 * subscriber for this channelId already exists, its count is bumped instead
+	 * of issuing a second `client.subscribe`, so concurrent callers (direct
+	 * path, pending machinery, reconcile) never double-subscribe.
+	 *
+	 * @param channel The advertised channel to subscribe.
+	 * @param count Initial subscriber count when newly created.
+	 */
+	const ensureSubscribedToChannel = async (
+		channel: Channel,
+		count: number,
+	): Promise<void> => {
+		await enqueueOperation(channel.id, async () => {
+			// Already subscribed by channelId → bump refcount, never resubscribe.
+			const existingSubscriber = Array.from(
+				subscribersRef.current.values(),
+			).find((s) => s.channelId === channel.id);
+
+			if (existingSubscriber) {
+				existingSubscriber.count += count;
+				return;
+			}
+
+			if (!clientRef.current) {
+				// No client yet: a later stabilize/reconcile will retry.
+				await addPendingSubscription(channel.topic);
+				return;
+			}
+
+			const subscriptionId = clientRef.current.subscribe(channel.id);
+
+			if (subscriptionId === undefined || subscriptionId === null) {
+				console.error(`Failed to subscribe to topic ${channel.topic}`);
+				throw new Error(
+					`Failed to subscribe to topic ${channel.topic}`,
+				);
+			}
+
+			const subscriber = {
+				subscriberId: subscriptionId,
+				channelId: channel.id,
+				topic: channel.topic,
+				schemaName: channel.schemaName,
+				webtype: UnifiedConverter.getWebappTypeFromROSType(
+					channel.schemaName,
+				),
+				count,
+				hook: `${datasource_id}-${channel.topic}-published`,
+				reader: new MessageReader(
+					parse(channel.schema, { ros2: true }),
+				),
+				lossless: isLosslessTopic(channel.topic, channel.schemaName),
+				producedId: metrics.counter(
+					`ds.${datasource_id}.topic.${channel.topic}.produced`,
+				),
+			} as Subscriber;
+
+			subscribersRef.current.set(subscriptionId, subscriber);
+			coalescer.start();
+		});
 	};
 
 	const addPendingSubscription = async (topic: string): Promise<boolean> => {
@@ -206,12 +451,20 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 								reader: new MessageReader(
 									parse(channel.schema, { ros2: true }),
 								),
+								lossless: isLosslessTopic(
+									channel.topic,
+									channel.schemaName,
+								),
+								producedId: metrics.counter(
+									`ds.${datasource_id}.topic.${channel.topic}.produced`,
+								),
 							} as Subscriber;
 
 							subscribersRef.current.set(
 								subscriptionId,
 								subscriber,
 							);
+							coalescer.start();
 
 							for (const resolver of pending.resolvers) {
 								resolver(true);
@@ -289,7 +542,175 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		}
 	}, [channels, client, settings, datasource_id]);
 
-	// Handle incoming messages
+	// Reconcile the client's live subscriptions against the registry's recorded
+	// intent. This is the robustness net for the mount/unmount churn described
+	// on requestedTopicsRef: it (re)subscribes any requested topic that has an
+	// advertised channel but no live subscriber. Idempotent — topics already
+	// subscribed are skipped, and ensureSubscribedToChannel dedupes per channel
+	// — so it is safe to call repeatedly and concurrently with the pending
+	// machinery.
+	const reconcileSubscriptions = useCallback(() => {
+		if (!clientRef.current || channelsRef.current.size === 0) {
+			return;
+		}
+
+		const channelValues = Array.from(channelsRef.current.values());
+		const toSubscribe = topicsToSubscribe(
+			requestedTopicsRef.current.keys(),
+			subscribersRef.current.values(),
+			channelValues,
+		);
+
+		for (const topicName of toSubscribe) {
+			const channel = channelValues.find((ch) => ch.topic === topicName);
+			if (!channel) continue; // Channel vanished between diff and use.
+
+			const count = requestedTopicsRef.current.get(topicName) ?? 1;
+			ensureSubscribedToChannel(channel, count).catch((error) => {
+				console.error(
+					`Failed to reconcile subscription for ${topicName}:`,
+					error,
+				);
+			});
+		}
+		// channelValues is recomputed inside; refs are stable, so the callback
+		// only needs to change when the (re)connect identity does.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [client, channels]);
+
+	// Run the reconcile when the connection and channel list stabilize — the
+	// moment channels/client become available after a (re)connect or remount.
+	// Also re-fire DATASOURCE_READY once per stable window so the registry
+	// re-flushes any wire it left idle during the churn (idempotent for other
+	// listeners). The readyFiredRef guard prevents firing on every render; it is
+	// reset on disconnect so the next connection realigns the wire state.
+	useEffect(() => {
+		if (client && channels.size > 0) {
+			reconcileSubscriptions();
+
+			if (!readyFiredRef.current) {
+				readyFiredRef.current = true;
+				pluginsManager.doAction(
+					PluginsHooks.DATASOURCE_READY,
+					datasource_id,
+				);
+			}
+		} else {
+			// Lost the client or all channels: next stabilize must re-fire READY.
+			readyFiredRef.current = false;
+		}
+	}, [
+		channels,
+		client,
+		reconcileSubscriptions,
+		pluginsManager,
+		datasource_id,
+	]);
+
+	// Decode + dispatch one stashed raw message. Runs from the coalescer's
+	// drain tick, NOT on message arrival — high-rate topics pay at most one
+	// decode per drain tick instead of one per wire message.
+	const decodeAndDispatch = (messageData: MessageData) => {
+		// Get the subscriber directly by subscriptionId
+		const subscriber = subscribersRef.current.get(
+			messageData.subscriptionId,
+		);
+
+		if (!subscriber) {
+			return;
+		}
+
+		try {
+			const parsed = subscriber.reader.readMessage(messageData.data);
+
+			const { frameId, timestamp } = extractMessageMeta(parsed);
+
+			const convertedMessage = UnifiedConverter.convertToWebapp(
+				parsed,
+				subscriber.webtype,
+				subscriber.schemaName,
+			);
+
+			// Handle Image type: convert to ImageBitmap asynchronously
+			if (
+				subscriber.webtype === "Image" &&
+				convertedMessage &&
+				typeof convertedMessage === "object"
+			) {
+				if ("__imageData" in convertedMessage) {
+					// Raw image: convert ImageData to ImageBitmap
+					createImageBitmap(convertedMessage.__imageData).then(
+						(bitmap) => {
+							pluginsManager.doAction(
+								subscriber.hook,
+								bitmap,
+								timestamp,
+								frameId,
+							);
+						},
+					);
+					return;
+				} else if ("__compressedData" in convertedMessage) {
+					// Compressed image: decode via Blob to ImageBitmap
+					const format = convertedMessage.__format || "jpeg";
+					let mimeType = "image/jpeg";
+					if (format.includes("png")) mimeType = "image/png";
+					else if (format.includes("webp")) mimeType = "image/webp";
+
+					const blob = new Blob([convertedMessage.__compressedData], {
+						type: mimeType,
+					});
+					createImageBitmap(blob).then((bitmap) => {
+						pluginsManager.doAction(
+							subscriber.hook,
+							bitmap,
+							timestamp,
+							frameId,
+						);
+					});
+					return;
+				}
+			}
+
+			pluginsManager.doAction(
+				subscriber.hook,
+				convertedMessage,
+				timestamp,
+				frameId,
+			);
+		} catch (error) {
+			// Handle CDR reading errors gracefully
+			console.error(
+				`Error parsing message for subscription ${messageData.subscriptionId} (topic: ${subscriber.topic}):`,
+				error,
+			);
+
+			// Don't spam the console with repeated errors for the same topic
+			const errorKey = `${subscriber.topic}_parse_error`;
+			if (!(window as any)[errorKey]) {
+				(window as any)[errorKey] = true;
+
+				// Show toast for first occurrence only
+				if (settings.toasts) {
+					toast(
+						`Message parsing error on topic ${subscriber.topic}. Check console for details.`,
+					);
+				}
+			}
+			return; // Skip this message
+		}
+	};
+
+	// Keep the coalescer draining through the latest closure. Effect-time
+	// assignment is safe: drains only run from timers/socket events, which
+	// fire after effects have committed.
+	useEffect(() => {
+		decodeAndDispatchRef.current = decodeAndDispatch;
+	});
+
+	// Handle incoming messages: stash the raw bytes only (O(1), no copy, no
+	// decode). The payload's ArrayBuffer is per-WebSocket-event, so holding
+	// the view until the drain tick is safe.
 	useEffect(() => {
 		if (!client) return;
 
@@ -303,211 +724,16 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				return;
 			}
 
-			try {
-				const parsed = subscriber.reader.readMessage(messageData.data);
+			// Count every raw arrival before coalescing — produced vs
+			// delivered (counted at the subscription registry) exposes the
+			// coalescing drop ratio in the diagnostics panel.
+			metrics.add(subscriber.producedId);
 
-				// Enhanced frameId parsing for complex messages
-				let frameId = "unknown";
-
-				// Extract timestamp from ROS2 message if available
-				let timestamp = Date.now();
-
-				// First, try the standard header.frame_id and header.stamp
-				if ((parsed as any)?.header?.frame_id) {
-					frameId = (parsed as any).header.frame_id;
-				}
-
-				// Extract timestamp from header.stamp if available
-				if ((parsed as any)?.header?.stamp) {
-					const stamp = (parsed as any).header.stamp;
-					if (
-						stamp.sec !== undefined &&
-						stamp.nanosec !== undefined
-					) {
-						// Convert ROS2 timestamp (sec + nanosec) to JavaScript timestamp (milliseconds)
-						timestamp = stamp.sec * 1000 + stamp.nanosec / 1000000;
-					}
-				}
-
-				// For TF messages, extract from first transform
-				if (
-					(parsed as any)?.transforms &&
-					Array.isArray((parsed as any).transforms) &&
-					(parsed as any).transforms.length > 0
-				) {
-					const firstTransform = (parsed as any).transforms[0];
-					if (firstTransform?.header?.frame_id) {
-						frameId = firstTransform.header.frame_id;
-
-						// Also try to get timestamp from first transform if not already found
-						if (
-							timestamp === Date.now() &&
-							firstTransform?.header?.stamp
-						) {
-							const stamp = firstTransform.header.stamp;
-							if (
-								stamp.sec !== undefined &&
-								stamp.nanosec !== undefined
-							) {
-								timestamp =
-									stamp.sec * 1000 + stamp.nanosec / 1000000;
-							}
-						}
-					} else {
-						frameId = "tf_multiple"; // Multiple transforms without clear single frame
-					}
-				}
-				// For other complex messages, try to find any frame_id field
-				else if (typeof parsed === "object" && parsed !== null) {
-					// Search for frame_id in nested structures
-					const findFrameId = (obj: any): string | null => {
-						if (obj && typeof obj === "object") {
-							if (
-								obj.frame_id &&
-								typeof obj.frame_id === "string"
-							) {
-								return obj.frame_id;
-							}
-							for (const key in obj) {
-								if (
-									obj.hasOwnProperty &&
-									obj.hasOwnProperty(key)
-								) {
-									const result = findFrameId(obj[key]);
-									if (result) return result;
-								}
-							}
-						}
-						return null;
-					};
-
-					const foundFrameId = findFrameId(parsed);
-					if (foundFrameId) {
-						frameId = foundFrameId;
-					}
-
-					// Also search for timestamp in nested structures if not found yet
-					if (timestamp === Date.now()) {
-						const findTimestamp = (obj: any): number | null => {
-							if (obj && typeof obj === "object") {
-								// Look for stamp field with sec and nanosec
-								if (
-									obj.stamp &&
-									obj.stamp.sec !== undefined &&
-									obj.stamp.nanosec !== undefined
-								) {
-									return (
-										obj.stamp.sec * 1000 +
-										obj.stamp.nanosec / 1000000
-									);
-								}
-								// Look for header with stamp
-								if (
-									obj.header?.stamp?.sec !== undefined &&
-									obj.header?.stamp?.nanosec !== undefined
-								) {
-									return (
-										obj.header.stamp.sec * 1000 +
-										obj.header.stamp.nanosec / 1000000
-									);
-								}
-								// Recursively search nested objects
-								for (const key in obj) {
-									if (
-										obj.hasOwnProperty &&
-										obj.hasOwnProperty(key)
-									) {
-										const result = findTimestamp(obj[key]);
-										if (result !== null) return result;
-									}
-								}
-							}
-							return null;
-						};
-
-						const foundTimestamp = findTimestamp(parsed);
-						if (foundTimestamp !== null) {
-							timestamp = foundTimestamp;
-						}
-					}
-				}
-
-				const convertedMessage = UnifiedConverter.convertToWebapp(
-					parsed,
-					subscriber.webtype,
-					subscriber.schemaName,
-				);
-
-				// Handle Image type: convert to ImageBitmap asynchronously
-				if (
-					subscriber.webtype === "Image" &&
-					convertedMessage &&
-					typeof convertedMessage === "object"
-				) {
-					if ("__imageData" in convertedMessage) {
-						// Raw image: convert ImageData to ImageBitmap
-						createImageBitmap(convertedMessage.__imageData).then(
-							(bitmap) => {
-								pluginsManager.doAction(
-									subscriber.hook,
-									bitmap,
-									timestamp,
-									frameId,
-								);
-							},
-						);
-						return;
-					} else if ("__compressedData" in convertedMessage) {
-						// Compressed image: decode via Blob to ImageBitmap
-						const format = convertedMessage.__format || "jpeg";
-						let mimeType = "image/jpeg";
-						if (format.includes("png")) mimeType = "image/png";
-						else if (format.includes("webp"))
-							mimeType = "image/webp";
-
-						const blob = new Blob(
-							[convertedMessage.__compressedData],
-							{ type: mimeType },
-						);
-						createImageBitmap(blob).then((bitmap) => {
-							pluginsManager.doAction(
-								subscriber.hook,
-								bitmap,
-								timestamp,
-								frameId,
-							);
-						});
-						return;
-					}
-				}
-
-				pluginsManager.doAction(
-					subscriber.hook,
-					convertedMessage,
-					timestamp,
-					frameId,
-				);
-			} catch (error) {
-				// Handle CDR reading errors gracefully
-				console.error(
-					`Error parsing message for subscription ${messageData.subscriptionId} (topic: ${subscriber.topic}):`,
-					error,
-				);
-
-				// Don't spam the console with repeated errors for the same topic
-				const errorKey = `${subscriber.topic}_parse_error`;
-				if (!(window as any)[errorKey]) {
-					(window as any)[errorKey] = true;
-
-					// Show toast for first occurrence only
-					if (settings.toasts) {
-						toast(
-							`Message parsing error on topic ${subscriber.topic}. Check console for details.`,
-						);
-					}
-				}
-				return; // Skip this message
-			}
+			coalescer.push(
+				messageData.subscriptionId,
+				messageData,
+				subscriber.lossless,
+			);
 		};
 
 		client.on("message", handleMessage);
@@ -515,7 +741,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		return () => {
 			client.off("message", handleMessage);
 		};
-	}, [client, pluginsManager]);
+	}, [client, coalescer]);
 
 	// Register plugin system hooks
 	useEffect(() => {
@@ -527,6 +753,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		pluginsManager.addAction(subscribe_hook, {
 			id: subscribe_hook,
 			action: async (topic: DatasourceTopic) => {
+				// Record the intent first, before any async channel lookup, so
+				// the reconcile can recover this subscription even if the
+				// connection/channels churn before the direct path completes.
+				requestedTopicsRef.current.set(
+					topic.topic,
+					(requestedTopicsRef.current.get(topic.topic) ?? 0) + 1,
+				);
+
 				// Find the channel id
 				const channel = Array.from(channelsRef.current.values()).find(
 					(channel) => {
@@ -539,60 +773,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					await addPendingSubscription(topic.topic);
 					return;
 				}
-				const channelId = channel.id;
 
-				// Queue the subscription operation
-				await enqueueOperation(channelId, async () => {
-					// Check if the topic is already subscribed by finding subscriber with matching channelId
-					const existingSubscriber = Array.from(
-						subscribersRef.current.values(),
-					).find((s) => s.channelId === channelId);
-
-					if (existingSubscriber) {
-						existingSubscriber.count++;
-						return;
-					}
-
-					// Check if client is available
-					if (!clientRef.current) {
-						await addPendingSubscription(topic.topic);
-						return;
-					}
-
-					// Subscribe to the topic
-					const subscriptionId =
-						clientRef.current.subscribe(channelId);
-
-					if (
-						subscriptionId === undefined ||
-						subscriptionId === null
-					) {
-						console.error(
-							`Failed to subscribe to topic ${topic.topic}`,
-						);
-						throw new Error(
-							`Failed to subscribe to topic ${topic.topic}`,
-						);
-					}
-
-					// Add the subscriber to the list
-					const subscriber = {
-						subscriberId: subscriptionId,
-						channelId: channelId,
-						topic: topic.topic,
-						schemaName: channel.schemaName,
-						webtype: UnifiedConverter.getWebappTypeFromROSType(
-							channel.schemaName,
-						),
-						count: 1,
-						hook: `${datasource_id}-${topic.topic}-published`,
-						reader: new MessageReader(
-							parse(channel.schema, { ros2: true }),
-						),
-					} as Subscriber;
-
-					subscribersRef.current.set(subscriptionId, subscriber);
-				}).catch((error) => {
+				// Subscribe through the shared helper so the direct path and the
+				// reconcile build an identical Subscriber and dedupe per channel.
+				await ensureSubscribedToChannel(channel, 1).catch(() => {
 					if (settings.toasts) {
 						toast(
 							"Error: Failed to subscribe to topic " +
@@ -611,6 +795,17 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				topic: DatasourceTopic,
 				ignoreCount: boolean = false,
 			) => {
+				// Drop the recorded intent so the reconcile won't resubscribe a
+				// topic the registry no longer wants. ignoreCount removes the
+				// request entirely; otherwise decrement and delete at <= 0.
+				const requested =
+					requestedTopicsRef.current.get(topic.topic) ?? 0;
+				if (ignoreCount || requested <= 1) {
+					requestedTopicsRef.current.delete(topic.topic);
+				} else {
+					requestedTopicsRef.current.set(topic.topic, requested - 1);
+				}
+
 				// Find the channel id
 				const channel = Array.from(channelsRef.current.values()).find(
 					(channel) => {
@@ -663,6 +858,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					if (orphanedSubscriber) {
 						const [subscriptionId, subscriber] = orphanedSubscriber;
 						subscribersRef.current.delete(subscriptionId);
+						coalescer.remove(subscriptionId);
+						if (subscribersRef.current.size === 0) {
+							coalescer.stop();
+						}
 
 						pluginsManager.removeAction(subscriber.hook);
 					}
@@ -696,6 +895,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 							);
 						}
 						subscribersRef.current.delete(subscriber.subscriberId);
+						coalescer.remove(subscriber.subscriberId);
+						if (subscribersRef.current.size === 0) {
+							coalescer.stop();
+						}
 					}
 				}).catch((error) => {
 					if (settings.toasts) {
@@ -737,6 +940,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				});
 			}
 			subscribersRef.current.clear();
+
+			// No subscriptions remain: stop the drain tick and discard any
+			// undrained raw payloads (their channels belong to the old client).
+			coalescer.stop();
 
 			// Resolve pending subscriptions
 			pendingSubscriptionsRef.current.forEach((pending) => {

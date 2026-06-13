@@ -38,6 +38,14 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 					type: "boolean",
 					title: "Display Toasts",
 				},
+				compression: {
+					type: "string",
+					title: "Compression",
+					description:
+						"Wire encoding for subscribed topics. CBOR (recommended) is binary: smaller and much cheaper to decode than JSON with base64 blobs. Pick None only for old rosbridge servers without CBOR support.",
+					enum: ["cbor", "none"],
+					default: "cbor",
+				},
 				transformTreeTopics: {
 					type: "array",
 					title: "Transform Tree Topics",
@@ -56,6 +64,7 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 			transformTreeTopics: ["/tf", "/tf_static"],
 			url: "ws://localhost:9090",
 			reconnectTimeout: 2,
+			compression: "cbor",
 		},
 
 		Provider: (props) => RosBridgeSuiteSourceProvider(props),
