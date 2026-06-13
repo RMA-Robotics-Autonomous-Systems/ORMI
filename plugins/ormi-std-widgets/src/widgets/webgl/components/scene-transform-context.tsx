@@ -121,7 +121,9 @@ function makeAnchorEdge(
  * - **autoAnchor** places *every* unobserved source root at the world origin (identity), so all
  *   trees share a common origin with no manual configuration.
  *
- * Returns the input table unchanged when there are no manual anchors and `autoAnchor` is off.
+ * Copy-on-write: the input table is cloned only when an anchor edge is actually added. When
+ * anchoring produces no changes (no anchors configured, every target already observed, or
+ * nothing left to anchor), the input table is returned by reference.
  */
 export function buildAnchoredTable(
 	table: TransformTable,
@@ -133,13 +135,16 @@ export function buildAnchoredTable(
 	if (!hasManual && !autoAnchor) return table;
 
 	const worldKey = sceneWorldKey(worldFrame);
-	const effective = new Map(table);
+	// Created lazily on the first added edge; null means "no changes yet".
+	let effective: TransformTable | null = null;
 
 	if (hasManual) {
 		for (const anchor of anchors!) {
 			if (!anchor?.source || !anchor?.rootFrame) continue;
 			const childKey = namespaceFrame(anchor.source, anchor.rootFrame);
-			if (effective.has(childKey)) continue; // don't clobber an observed/anchored edge
+			// Don't clobber an observed/anchored edge.
+			if (table.has(childKey) || effective?.has(childKey)) continue;
+			if (effective === null) effective = new Map(table);
 			effective.set(
 				childKey,
 				makeAnchorEdge(
@@ -157,7 +162,13 @@ export function buildAnchoredTable(
 		// Every unobserved parent (a tree root) that isn't already anchored → world origin.
 		for (const edge of table.values()) {
 			const pid = edge.parentId;
-			if (pid && pid !== worldKey && !effective.has(pid)) {
+			if (
+				pid &&
+				pid !== worldKey &&
+				!table.has(pid) &&
+				!effective?.has(pid)
+			) {
+				if (effective === null) effective = new Map(table);
 				effective.set(
 					pid,
 					makeAnchorEdge(pid, frameRawName(pid), worldKey),
@@ -166,7 +177,7 @@ export function buildAnchoredTable(
 		}
 	}
 
-	return effective;
+	return effective ?? table;
 }
 
 type SceneTransformValue = { table: TransformTable };
@@ -201,4 +212,34 @@ export function useSceneTransformTable(
 		if (!hasManual && !autoAnchor) return coreTable;
 		return buildAnchoredTable(coreTable, anchors, worldFrame, autoAnchor);
 	}, [coreTable, anchors, worldFrame, autoAnchor]);
+}
+
+interface SceneAnchoredTransformProviderProps {
+	anchors: SceneAnchor[] | undefined;
+	worldFrame: string;
+	autoAnchor?: boolean;
+	children: React.ReactNode;
+}
+
+/**
+ * Subscribes to the core transform table, overlays the scene's anchors, and provides the
+ * effective table to descendant layer renderers via {@link SceneTransformProvider}.
+ *
+ * This component is the scene's TF subscription boundary: mount it around the layer renderers
+ * (inside the Canvas) so a TF bump re-renders only this subtree — never the scene shell, its
+ * Canvas configuration, or the DOM control panel.
+ */
+export function SceneAnchoredTransformProvider({
+	anchors,
+	worldFrame,
+	autoAnchor = false,
+	children,
+}: SceneAnchoredTransformProviderProps) {
+	const table = useSceneTransformTable(anchors, worldFrame, autoAnchor);
+	const value = useMemo(() => ({ table }), [table]);
+	return (
+		<SceneTransformProvider value={value}>
+			{children}
+		</SceneTransformProvider>
+	);
 }

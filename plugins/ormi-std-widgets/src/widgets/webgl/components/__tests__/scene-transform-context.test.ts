@@ -152,6 +152,40 @@ describe("buildAnchoredTable autoAnchor", () => {
 	});
 });
 
+describe("buildAnchoredTable no-op identity", () => {
+	test("autoAnchor on an empty table returns the input by reference", () => {
+		const empty = table();
+		expect(buildAnchoredTable(empty, undefined, "world", true)).toBe(empty);
+	});
+
+	test("autoAnchor returns the input by reference when every root already hangs off the world", () => {
+		// A snapshot whose only root is already parented to the scene world key.
+		const rooted: TransformEdge = {
+			...edge("A", "map", "ignored"),
+			parentId: sceneWorldKey("world"),
+		};
+		const t = table(rooted, edge("A", "odom", "map"));
+		expect(buildAnchoredTable(t, undefined, "world", true)).toBe(t);
+	});
+
+	test("manual anchors return the input by reference when every target is already observed", () => {
+		const observed = edge("A", "map", "earth");
+		const t = table(observed, edge("A", "odom", "map"));
+		// "A::map" is observed, so the anchor adds nothing; "A::earth" stays
+		// unanchored because autoAnchor is off.
+		expect(buildAnchoredTable(t, [anchor("A", 7)], "world", false)).toBe(t);
+	});
+
+	test("still copies when an anchor edge is actually added", () => {
+		const t = table(edge("A", "odom", "map"));
+		const eff = buildAnchoredTable(t, undefined, "world", true);
+		expect(eff).not.toBe(t);
+		// Input table is left untouched.
+		expect(t.has(namespaceFrame("A", "map"))).toBe(false);
+		expect(eff.has(namespaceFrame("A", "map"))).toBe(true);
+	});
+});
+
 describe("qualifyFrame", () => {
 	test("namespaces a bare frame by datasource", () => {
 		expect(qualifyFrame("A", "base_link")).toBe(

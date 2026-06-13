@@ -1,4 +1,5 @@
 import { ControlElement, Categorization, Category } from "@jsonforms/core";
+import { useMemo } from "react";
 import {
 	LocalDataSourcesProvider,
 	SelectedTopic,
@@ -18,35 +19,27 @@ import { Scene3DProps } from "./types/scene-3d-types";
  * Combines Point Cloud and Path visualization in a single 3D canvas
  */
 function Scene3DWidget(data: Scene3DProps) {
-	// Collect all topics from all layers for the data source provider
-	const allTopics: SelectedTopic[] = [];
+	const { pointCloudLayers, pathLayers, mapGridLayers } = data;
 
-	if (data.pointCloudLayers) {
-		for (const layer of data.pointCloudLayers) {
-			if (layer.enabled === false) continue;
-			if (layer.topic) {
-				allTopics.push(layer.topic);
+	// Collect all topics from all layers for the data source provider. Memoized on the layer
+	// settings that define it (real dependencies, read inside the memo body) so the provider
+	// receives a stable array identity until the configured layers actually change.
+	const allTopics = useMemo(() => {
+		const topics: SelectedTopic[] = [];
+		const layerGroups: {
+			enabled?: boolean;
+			topic?: SelectedTopic;
+		}[][] = [pointCloudLayers ?? [], pathLayers ?? [], mapGridLayers ?? []];
+		for (const layers of layerGroups) {
+			for (const layer of layers) {
+				if (layer.enabled === false) continue;
+				if (layer.topic) {
+					topics.push(layer.topic);
+				}
 			}
 		}
-	}
-
-	if (data.pathLayers) {
-		for (const layer of data.pathLayers) {
-			if (layer.enabled === false) continue;
-			if (layer.topic) {
-				allTopics.push(layer.topic);
-			}
-		}
-	}
-
-	if (data.mapGridLayers) {
-		for (const layer of data.mapGridLayers) {
-			if (layer.enabled === false) continue;
-			if (layer.topic) {
-				allTopics.push(layer.topic);
-			}
-		}
-	}
+		return topics;
+	}, [pointCloudLayers, pathLayers, mapGridLayers]);
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={1}>

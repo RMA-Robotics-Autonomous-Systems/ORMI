@@ -1,4 +1,5 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
+import { useMemo } from "react";
 import {
 	LocalDataSourcesProvider,
 	SelectedTopic,
@@ -18,9 +19,13 @@ export interface PathViewerProps extends Record<string, unknown> {
 }
 
 function PathViewerWidget(data: PathViewerProps) {
+	// Stable array identity keyed on the topic itself, so the provider's
+	// subscription lifecycle doesn't churn on unrelated re-renders.
+	const topic = data.topic;
+	const selectedTopics = useMemo(() => (topic ? [topic] : []), [topic]);
 	return (
 		<LocalDataSourcesProvider
-			SelectedTopics={data.topic ? [data.topic] : []}
+			SelectedTopics={selectedTopics}
 			buffersSize={1}
 		>
 			<PathViewerComp {...data} />
