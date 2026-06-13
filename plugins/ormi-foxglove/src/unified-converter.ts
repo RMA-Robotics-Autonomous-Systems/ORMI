@@ -779,6 +779,117 @@ export class UnifiedConverter {
 						};
 					},
 				},
+				"sensor_msgs/msg/LaserScan": {
+					toRos2: (data: PointsCloud) => ({}),
+					fromRos2: (data): PointsCloud => {
+						const ranges = data.ranges as
+							| ArrayLike<number>
+							| undefined;
+						if (!ranges || typeof ranges.length !== "number") {
+							console.error("LaserScan message missing ranges");
+							return {
+								points: new Float32Array(0),
+								convention: "THREE" as const,
+							};
+						}
+
+						const angleMin =
+							typeof data.angle_min === "number"
+								? data.angle_min
+								: 0;
+						const angleIncrement =
+							typeof data.angle_increment === "number"
+								? data.angle_increment
+								: 0;
+						const rangeMin =
+							typeof data.range_min === "number"
+								? data.range_min
+								: 0;
+						const rangeMax =
+							typeof data.range_max === "number"
+								? data.range_max
+								: Infinity;
+
+						const count = ranges.length;
+						const scanIntensities = data.intensities as
+							| ArrayLike<number>
+							| undefined;
+						const hasIntensities =
+							!!scanIntensities &&
+							typeof scanIntensities.length === "number" &&
+							scanIntensities.length === count;
+
+						const packedPoints = new Float32Array(count * 3);
+						const intensities = hasIntensities
+							? new Float32Array(count)
+							: undefined;
+						let validPointCount = 0;
+						let maxIntensity = 0;
+
+						for (let i = 0; i < count; i++) {
+							const r = ranges[i]!;
+							// Drop NaN, +/-Inf, and out-of-window returns
+							if (
+								!Number.isFinite(r) ||
+								r < rangeMin ||
+								r > rangeMax
+							) {
+								continue;
+							}
+
+							const angle = angleMin + i * angleIncrement;
+							// Polar -> Cartesian in the ROS sensor frame (the scan plane lies at z = 0)
+							const x = r * Math.cos(angle);
+							const y = r * Math.sin(angle);
+
+							const idx = validPointCount * 3;
+							// Convert ROS -> THREE
+							packedPoints[idx] = -y;
+							packedPoints[idx + 1] = 0;
+							packedPoints[idx + 2] = -x;
+
+							if (intensities && scanIntensities) {
+								const intensity = scanIntensities[i]!;
+								const safe = Number.isFinite(intensity)
+									? intensity
+									: 0;
+								intensities[validPointCount] = safe;
+								if (safe > maxIntensity) maxIntensity = safe;
+							}
+
+							validPointCount++;
+						}
+
+						const finalPoints = packedPoints.subarray(
+							0,
+							validPointCount * 3,
+						);
+
+						let finalIntensities: Float32Array | undefined;
+						if (
+							intensities &&
+							validPointCount > 0 &&
+							maxIntensity > 0
+						) {
+							// Normalize per-scan to 0..1 for coloring
+							finalIntensities = intensities.subarray(
+								0,
+								validPointCount,
+							);
+							for (let i = 0; i < validPointCount; i++) {
+								finalIntensities[i] =
+									finalIntensities[i]! / maxIntensity;
+							}
+						}
+
+						return {
+							points: finalPoints,
+							intensities: finalIntensities,
+							// Converted to Three.js coordinates
+							convention: "THREE" as const,
+						};
+					},
+				},
 			},
 		},
 		Image: {
