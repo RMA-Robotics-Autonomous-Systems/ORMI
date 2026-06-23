@@ -26,4 +26,5 @@ export interface PointsCloudProps extends Record<string, unknown> {
 	customColor?: string;
 	colorMode?: "source" | "reflectivity";
 	targetFrame?: string;
+	maxPoints?: number;
 }

@@ -1,3 +1,17 @@
+import { metrics } from "@workspace/utils";
+
+/**
+ * RPC client metric ids, registered once per JS runtime (cold path).
+ * `rpc.calls` counts every outgoing request; `rpc.inflight` is a gauge of
+ * currently pending requests; `rpc.rttMs` samples round-trip times while the
+ * heavy tier is on. This module is shared by the main thread and workers —
+ * each runtime has its own metrics singleton, and a worker's registry simply
+ * has no reporter attached, so the writes are harmless there.
+ */
+const rpcCallsId = metrics.counter("rpc.calls");
+const rpcInflightId = metrics.counter("rpc.inflight");
+const rpcRttRing = metrics.ring("rpc.rttMs");
+
 /** Map of RPC method names to functions. */
 export type RpcMethodMap = Record<string, (...args: any[]) => any>;
 /** Map of RPC event names to payloads. */
@@ -87,7 +101,12 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 	let counter = 0;
 	const pending = new Map<
 		string,
-		{ resolve: (value: any) => void; reject: (reason?: any) => void }
+		{
+			resolve: (value: any) => void;
+			reject: (reason?: any) => void;
+			/** Heavy-tier RTT start time (`Date.now()`); 0 when not sampling. */
+			t0: number;
+		}
 	>();
 	const eventHandlers = new Map<
 		keyof E & string,
@@ -103,6 +122,8 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 			const entry = pending.get(message.id);
 			if (!entry) return;
 			pending.delete(message.id);
+			metrics.set(rpcInflightId, pending.size);
+			if (entry.t0) metrics.observe(rpcRttRing, Date.now() - entry.t0);
 
 			if (message.ok) {
 				entry.resolve(message.result);
@@ -133,8 +154,12 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 			params,
 		};
 
+		metrics.add(rpcCallsId);
+		const t0 = metrics.heavy ? Date.now() : 0;
+
 		return new Promise((resolve, reject) => {
-			pending.set(id, { resolve, reject });
+			pending.set(id, { resolve, reject, t0 });
+			metrics.set(rpcInflightId, pending.size);
 			target.postMessage(request);
 		}) as Promise<Awaited<ReturnType<M[typeof method]>>>;
 	};
@@ -158,6 +183,7 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 	const dispose = () => {
 		target.removeEventListener("message", onMessage);
 		pending.clear();
+		metrics.set(rpcInflightId, pending.size);
 		eventHandlers.clear();
 	};
 

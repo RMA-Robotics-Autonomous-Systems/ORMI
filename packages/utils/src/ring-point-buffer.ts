@@ -1,3 +1,11 @@
+/** A contiguous run of ring slots written since the last drain (in points, not array elements). */
+export interface RingWriteSpan {
+	/** First written slot index. */
+	start: number;
+	/** Number of written slots. */
+	count: number;
+}
+
 export class RingPointBuffer {
 	private positions: Float32Array;
 	private colors: Float32Array;
@@ -5,6 +13,9 @@ export class RingPointBuffer {
 	private timestamps: Float32Array;
 	private capacity: number;
 	private writeIndex: number = 0;
+	private filled: number = 0;
+	private pendingSpans: RingWriteSpan[] = [];
+	private pendingCovered: number = 0;
 
 	constructor(capacity: number) {
 		this.capacity = capacity;
@@ -22,6 +33,10 @@ export class RingPointBuffer {
 		count: number,
 		currentTime: number,
 	): void {
+		if (count <= 0) return;
+
+		const spanStart = this.writeIndex;
+
 		for (let i = 0; i < count; i++) {
 			const srcIdx3 = i * 3;
 			const dstIdx = this.writeIndex;
@@ -38,6 +53,9 @@ export class RingPointBuffer {
 
 			this.writeIndex = (this.writeIndex + 1) % this.capacity;
 		}
+
+		this.filled = Math.min(this.capacity, this.filled + count);
+		this.addPendingSpan(spanStart, count);
 	}
 
 	getData(): {
@@ -58,9 +76,58 @@ export class RingPointBuffer {
 		return this.capacity;
 	}
 
+	/**
+	 * Number of slots that hold real points (monotonic up to capacity). Use as the
+	 * geometry draw range so never-written slots are not rendered.
+	 */
+	getFillCount(): number {
+		return this.filled;
+	}
+
+	/**
+	 * Return the slot spans written since the last drain and reset the pending set.
+	 * Spans are expressed in points; a wrapping write yields two spans. When the
+	 * accumulated writes cover the whole buffer, a single full-capacity span is
+	 * returned. Intended for partial GPU uploads (`BufferAttribute.addUpdateRange`).
+	 */
+	drainWriteSpans(): RingWriteSpan[] {
+		const spans = this.pendingSpans;
+		this.pendingSpans = [];
+		this.pendingCovered = 0;
+		return spans;
+	}
+
 	shiftTimestamps(deltaSeconds: number): void {
 		for (let i = 0; i < this.timestamps.length; i++) {
 			this.timestamps[i] = this.timestamps[i]! - deltaSeconds;
 		}
+		// Every slot changed; consumers must re-upload the full buffer.
+		this.markAllPending();
+	}
+
+	/** Record a write of `count` slots starting at `start` (wrap-aware, coalesces to full). */
+	private addPendingSpan(start: number, count: number): void {
+		if (
+			this.pendingCovered + count >= this.capacity ||
+			count >= this.capacity
+		) {
+			this.markAllPending();
+			return;
+		}
+		this.pendingCovered += count;
+		const end = start + count;
+		if (end <= this.capacity) {
+			this.pendingSpans.push({ start, count });
+		} else {
+			// Wrapped write: tail segment + head segment.
+			this.pendingSpans.push({ start, count: this.capacity - start });
+			this.pendingSpans.push({ start: 0, count: end - this.capacity });
+		}
+	}
+
+	/** Collapse pending spans to a single full-capacity span. */
+	private markAllPending(): void {
+		this.pendingSpans = [{ start: 0, count: this.capacity }];
+		this.pendingCovered = this.capacity;
 	}
 }

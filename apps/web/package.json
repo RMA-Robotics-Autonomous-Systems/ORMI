@@ -43,6 +43,7 @@
 		"ormi-flight-indicator": "workspace:*",
 		"ormi-foxglove": "workspace:*",
 		"ormi-emi-bag-analyzer": "workspace:*",
+		"ormi-loadgen": "workspace:*",
 		"ormi-randoms-datasources": "workspace:*",
 		"ormi-rest-bags": "workspace:*",
 		"ormi-rosbridge-suite": "workspace:*",

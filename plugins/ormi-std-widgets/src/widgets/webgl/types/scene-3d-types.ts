@@ -18,6 +18,11 @@ export interface PointCloudLayerConfig {
 	pointSize?: number;
 	decayTime?: number;
 	rollingBuffer?: boolean;
+	/**
+	 * Rolling-buffer capacity in points (clamped to 600 000). Each 100 000 points
+	 * costs ~3.2 MB of vertex data (CPU + GPU). @default 600000
+	 */
+	maxPoints?: number;
 	theme?: PointCloudTheme;
 	useTransparency?: boolean;
 	customColor?: string;

@@ -21,24 +21,4 @@ const handleSave = async (
 	return true;
 };
 
-const handleLoad = async (
-	workspaceId: string,
-	setState: (state: DashboardState) => void,
-) => {
-	if (!workspaceId) {
-		console.error("Workspace ID is required");
-		return false;
-	}
-
-	const result = await dashboardApi.load(workspaceId);
-
-	if (!result.ok) {
-		console.error("Failed to load dashboard:", result.error);
-		return false;
-	}
-
-	setState(result.data);
-	return true;
-};
-
-export { handleSave, handleLoad };
+export { handleSave };

@@ -1,7 +1,7 @@
 import { CloudIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { PointsCloudProps } from "./types/points-cloud-drei-types";
-import { PointsCloudComp } from "./components/points-cloud-drei-comp";
+import { PointsCloudScene } from "./components/points-cloud-scene";
 import { LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
 import {
 	FrameSelectElement,
@@ -21,7 +21,7 @@ function PointsCloudDreiWidget(data: PointsCloudProps) {
 			}
 			buffersSize={1}
 		>
-			<PointsCloudComp {...data} />
+			<PointsCloudScene {...data} />
 		</LocalDataSourcesProvider>
 	);
 }

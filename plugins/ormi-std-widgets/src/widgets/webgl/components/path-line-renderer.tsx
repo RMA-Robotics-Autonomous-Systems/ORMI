@@ -3,12 +3,11 @@ import * as THREE from "three";
 import {
 	Path,
 	CoordinateConvention,
-	Transform,
+	TransformTable,
 } from "@workspace/ormi-core/types";
 import {
 	findTransformChain,
 	convertPosition,
-	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
 import {
 	useSceneTransforms,
@@ -16,6 +15,7 @@ import {
 	qualifyFrame,
 } from "./scene-transform-context";
 import type { LayerTransformStatus } from "../types/scene-3d-types";
+import { buildTransformMatrix } from "../engine/transform-resolve";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -53,51 +53,32 @@ function resetInstanceCap(geometry: LineGeometry): void {
 		undefined;
 }
 
-const buildTransformMatrix = (
-	transformChain: Transform[] | undefined,
-	fallbackConvention: CoordinateConvention,
-): THREE.Matrix4 => {
-	const matrix = new THREE.Matrix4();
-	matrix.identity();
+/**
+ * Resolve the frame chain and write it into the line's matrix. Matrix-only:
+ * never touches geometry buffers, so it is safe to run at transform rate.
+ */
+function applyLinePose(
+	line: Line2,
+	table: TransformTable,
+	refFrame: string,
+	targetFrame: string | undefined,
+	reportStatus: (status: LayerTransformStatus) => void,
+): void {
+	const hasTarget = Boolean(targetFrame && targetFrame.trim() !== "");
+	const transformChain =
+		hasTarget && table.size > 0
+			? findTransformChain(table, refFrame, targetFrame!)
+			: [];
+	// `null` chain = target unreachable → identity fallback (renders in own root frame).
+	reportStatus(
+		hasTarget && transformChain === null ? "fallback" : "resolved",
+	);
 
-	if (!transformChain || transformChain.length === 0) {
-		return matrix;
-	}
-
-	for (const transform of transformChain) {
-		const convention = transform.convention ?? fallbackConvention ?? "ROS";
-		const position = convertPosition(
-			{
-				x: transform.position.x,
-				y: transform.position.y,
-				z: transform.position.z,
-			},
-			convention,
-			"THREE",
-		);
-		const rotation = convertQuaternion(
-			transform.rotation,
-			convention,
-			"THREE",
-		);
-
-		const transformMatrix = new THREE.Matrix4();
-		transformMatrix.compose(
-			new THREE.Vector3(position.x, position.y, position.z),
-			new THREE.Quaternion(
-				rotation.x,
-				rotation.y,
-				rotation.z,
-				rotation.w,
-			),
-			new THREE.Vector3(1, 1, 1),
-		);
-
-		matrix.premultiply(transformMatrix);
-	}
-
-	return matrix;
-};
+	const transformMatrix = buildTransformMatrix(transformChain ?? [], "THREE");
+	line.matrixAutoUpdate = false;
+	line.matrix.copy(transformMatrix);
+	line.matrixWorldNeedsUpdate = true;
+}
 
 export const PathLineRenderer = ({
 	source,
@@ -112,7 +93,25 @@ export const PathLineRenderer = ({
 	const linePositionsRef = useRef<Float32Array | null>(null);
 	const { table } = useSceneTransforms();
 	const reportStatus = useTransformStatusReporter(onTransformStatus);
-	const { size } = useThree();
+	const { size, invalidate } = useThree();
+
+	// Reference frame of the current path data, consumed by the TF effect.
+	const refFrameRef = useRef<string | null>(null);
+	// Latest table for the data effect's one-shot pose apply, without making
+	// the data effect depend on (and re-run at) the TF table. Kept fresh by
+	// the TF effect, which is declared first so it runs before the data
+	// effect on any commit where both change.
+	const tableRef = useRef(table);
+
+	// ── TF effect: matrix-only update per transform bump ─────────────────────
+	useEffect(() => {
+		tableRef.current = table;
+		const line = lineRef.current;
+		const refFrame = refFrameRef.current;
+		if (!line || refFrame === null) return;
+		applyLinePose(line, table, refFrame, targetFrame, reportStatus);
+		invalidate();
+	}, [table, targetFrame, invalidate, reportStatus]);
 
 	const geometry = useMemo(() => new LineGeometry(), []);
 	const material = useMemo(
@@ -155,12 +154,18 @@ export const PathLineRenderer = ({
 		};
 	}, [geometry, material]);
 
+	// ── Data effect: pose conversion + GPU upload, runs per path message ─────
+	// No explicit bounding-sphere pass: the line renders with
+	// `frustumCulled = false` (set above) so the sphere is never used for
+	// culling, and `LineSegmentsGeometry.setPositions` already computes the
+	// bounding volumes internally once per data upload.
 	useEffect(() => {
 		const clearLine = () => {
 			geometry.setPositions([0, 0, 0, 0, 0, 0]);
 			geometry.setDrawRange(0, 0);
-			geometry.computeBoundingSphere();
 			linePositionsRef.current = null;
+			refFrameRef.current = null;
+			invalidate();
 		};
 
 		if (!source || !source.data || source.data.length === 0) {
@@ -189,61 +194,62 @@ export const PathLineRenderer = ({
 		}
 		const startIndex = Math.max(0, totalPoseCount - usedPoseCount);
 
+		// Grow-only scratch buffer, reused across updates.
 		let positions = linePositionsRef.current;
-		if (!positions || positions.length !== MAX_PATH_POINTS * 3) {
-			positions = new Float32Array(MAX_PATH_POINTS * 3);
+		const needed = usedPoseCount * 3;
+		if (!positions || positions.length < needed) {
+			positions = new Float32Array(needed);
 			linePositionsRef.current = positions;
 		}
 
-		const refFrame = qualifyFrame(datasourceId, source.referenceFrameId);
-		const hasTarget = Boolean(targetFrame && targetFrame.trim() !== "");
-		const transformChain =
-			hasTarget && table.size > 0
-				? findTransformChain(table, refFrame, targetFrame!)
-				: [];
-		// `null` chain = target unreachable → identity fallback (renders in own root frame).
-		reportStatus(
-			hasTarget && transformChain === null ? "fallback" : "resolved",
-		);
-
-		const transformMatrix = buildTransformMatrix(
-			transformChain ?? [],
-			"THREE",
-		);
-		if (lineRef.current) {
-			lineRef.current.matrixAutoUpdate = false;
-			lineRef.current.matrix.copy(transformMatrix);
-			lineRef.current.matrixWorldNeedsUpdate = true;
+		if (sourceConvention === "THREE") {
+			// Already in the render convention — copy coordinates directly
+			// instead of allocating a converted position object per pose.
+			for (let i = 0; i < usedPoseCount; i++) {
+				const position = poses[startIndex + i]!.position;
+				const idx = i * 3;
+				positions[idx] = position.x;
+				positions[idx + 1] = position.y;
+				positions[idx + 2] = position.z;
+			}
+		} else {
+			for (let i = 0; i < usedPoseCount; i++) {
+				const idx = i * 3;
+				const convertedPosition = convertPosition(
+					poses[startIndex + i]!.position,
+					sourceConvention,
+					"THREE",
+				);
+				positions[idx] = convertedPosition.x;
+				positions[idx + 1] = convertedPosition.y;
+				positions[idx + 2] = convertedPosition.z;
+			}
 		}
 
-		for (let i = 0; i < usedPoseCount; i++) {
-			const pose = poses[startIndex + i]!;
-			const idx = i * 3;
-			const convertedPosition = convertPosition(
-				pose.position,
-				sourceConvention,
-				"THREE",
-			);
-			positions[idx] = convertedPosition.x;
-			positions[idx + 1] = convertedPosition.y;
-			positions[idx + 2] = convertedPosition.z;
-		}
-
-		geometry.setPositions(positions.subarray(0, usedPoseCount * 3));
+		geometry.setPositions(positions.subarray(0, needed));
 		// The point count changes every update; clear the latched instance cap so the
 		// full current path renders instead of being truncated to the initial segments.
 		resetInstanceCap(geometry);
 		geometry.setDrawRange(0, usedPoseCount);
-		geometry.computeBoundingSphere();
-	}, [
-		source,
-		datasourceId,
-		targetFrame,
-		table,
-		geometry,
-		material,
-		reportStatus,
-	]);
+
+		// Place the new data once with the latest table; subsequent transform
+		// bumps are handled matrix-only by the TF effect.
+		refFrameRef.current = qualifyFrame(
+			datasourceId,
+			source.referenceFrameId,
+		);
+		if (lineRef.current) {
+			applyLinePose(
+				lineRef.current,
+				tableRef.current,
+				refFrameRef.current,
+				targetFrame,
+				reportStatus,
+			);
+		}
+
+		invalidate();
+	}, [source, datasourceId, targetFrame, geometry, invalidate, reportStatus]);
 
 	const lineObject = useMemo(
 		() => new Line2(geometry, material),

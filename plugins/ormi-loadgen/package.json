@@ -1,0 +1,35 @@
+{
+	"name": "ormi-loadgen",
+	"version": "1.0.0",
+	"description": "Synthetic load generator datasource for performance and robustness testing",
+	"private": true,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"development": "./src/index.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"lint": "eslint .",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist build .turbo node_modules"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.8",
+		"@types/node": "^25.2.1",
+		"@types/react": "^19.2.13",
+		"@workspace/eslint-config": "workspace:*",
+		"@workspace/typescript-config": "workspace:*",
+		"react": "^19.2.4",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"@workspace/ormi-plugins": "workspace:*",
+		"@workspace/ormi-core": "workspace:*"
+	},
+	"ormi_plugin": true
+}

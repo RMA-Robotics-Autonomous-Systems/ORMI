@@ -12,9 +12,91 @@ mock.module("../workspace-api", () => ({
 }));
 
 // Import after the module mock is registered.
-const { dashboardApi } = await import("../dashboard-api");
+const { dashboardApi, toDashboardState } = await import("../dashboard-api");
 
 const emptyLayouts = { lg: [], md: [], sm: [], xs: [], xxs: [] };
+
+describe("toDashboardState", () => {
+	test("null content yields default empty dashboard", () => {
+		const state = toDashboardState(null);
+
+		expect(state.layouts).toEqual(emptyLayouts);
+		expect(state.widgets).toBeInstanceOf(Map);
+		expect(state.widgets.size).toBe(0);
+		expect(state.datasources).toBeInstanceOf(Map);
+		expect(state.datasources.size).toBe(0);
+		expect(state.locked).toBe(false);
+		expect(state.compactType).toBeNull();
+		expect(state.forceReload).toBe(false);
+	});
+
+	test("undefined content yields default empty dashboard", () => {
+		const state = toDashboardState(undefined);
+
+		expect(state.layouts).toEqual(emptyLayouts);
+		expect(state.widgets.size).toBe(0);
+		expect(state.datasources.size).toBe(0);
+	});
+
+	test("plain-object widgets/datasources (serialized shape) become Maps", () => {
+		const state = toDashboardState({
+			layouts: emptyLayouts,
+			widgets: { w1: { type: "map" } },
+			datasources: { d1: { type: "foxglove" } },
+		});
+
+		expect(state.widgets).toBeInstanceOf(Map);
+		expect(state.widgets.get("w1")).toEqual({ type: "map" });
+		expect(state.datasources).toBeInstanceOf(Map);
+		expect(state.datasources.get("d1")).toEqual({ type: "foxglove" });
+	});
+
+	test("Map widgets/datasources pass through unchanged", () => {
+		const widgets = new Map([["w1", { type: "map" }]]);
+		const datasources = new Map([["d1", { type: "foxglove" }]]);
+
+		const state = toDashboardState({
+			layouts: emptyLayouts,
+			widgets,
+			datasources,
+		});
+
+		expect(state.widgets).toBe(widgets);
+		expect(state.datasources).toBe(datasources);
+	});
+
+	test("missing widgets/datasources keys yield empty Maps", () => {
+		const state = toDashboardState({ layouts: emptyLayouts });
+
+		expect(state.widgets).toBeInstanceOf(Map);
+		expect(state.widgets.size).toBe(0);
+		expect(state.datasources).toBeInstanceOf(Map);
+		expect(state.datasources.size).toBe(0);
+	});
+
+	test("locked/compactType default to false/null and forceReload is always reset", () => {
+		const defaulted = toDashboardState({
+			layouts: emptyLayouts,
+			widgets: {},
+			datasources: {},
+		});
+		expect(defaulted.locked).toBe(false);
+		expect(defaulted.compactType).toBeNull();
+		expect(defaulted.forceReload).toBe(false);
+
+		const explicit = toDashboardState({
+			layouts: emptyLayouts,
+			widgets: {},
+			datasources: {},
+			locked: true,
+			compactType: "vertical",
+			forceReload: true,
+		});
+		expect(explicit.locked).toBe(true);
+		expect(explicit.compactType).toBe("vertical");
+		expect(explicit.forceReload).toBe(false);
+	});
+});
 
 describe("dashboardApi.save", () => {
 	beforeEach(() => {
