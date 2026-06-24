@@ -15,6 +15,7 @@ import {
 	remoteCallsAtom,
 	remoteCallCountAtom,
 } from "../remote-call-atoms";
+import { appStore } from "../../store";
 
 // ============================================================================
 // Hook State Interface
@@ -279,10 +280,14 @@ interface UseAvailableRemoteCallsFilter {
  * @returns Remote call list and metadata.
  */
 function useAvailableRemoteCalls(filter?: UseAvailableRemoteCallsFilter) {
-	// Subscribe to the atoms - automatic re-render when they change
-	const allCalls = useAtomValue(allRemoteCallsAtom);
-	const callsByDatasource = useAtomValue(remoteCallsAtom);
-	const count = useAtomValue(remoteCallCountAtom);
+	// Subscribe to the atoms - automatic re-render when they change.
+	// Pin to `appStore` (the store the out-of-React writers target) so reads never resolve
+	// against a different Provider-supplied store. See packages/ormi-core/src/store.ts.
+	const allCalls = useAtomValue(allRemoteCallsAtom, { store: appStore });
+	const callsByDatasource = useAtomValue(remoteCallsAtom, {
+		store: appStore,
+	});
+	const count = useAtomValue(remoteCallCountAtom, { store: appStore });
 
 	// Apply local filters
 	const filteredCalls = useMemo(() => {

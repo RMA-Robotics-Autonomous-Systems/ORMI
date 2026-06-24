@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { getDefaultStore } from "jotai";
+import { appStore } from "../../store";
 import {
 	remoteCallsAtom,
 	allRemoteCallsAtom,
@@ -23,11 +23,11 @@ import {
 import type { RemoteCallDefinition } from "../remote-call-interface";
 
 describe("Remote Call Atoms - Basic Operations", () => {
-	let store: ReturnType<typeof getDefaultStore>;
+	let store: typeof appStore;
 
 	beforeEach(() => {
 		// Use the default store and clear it before each test
-		store = getDefaultStore();
+		store = appStore;
 		store.set(remoteCallsAtom, new Map());
 		store.set(remoteCallSourcesAtom, new Set());
 	});
@@ -299,10 +299,10 @@ describe("Remote Call Atoms - Basic Operations", () => {
 });
 
 describe("Remote Call Atoms - Multiple Datasources", () => {
-	let store: ReturnType<typeof getDefaultStore>;
+	let store: typeof appStore;
 
 	beforeEach(() => {
-		store = getDefaultStore();
+		store = appStore;
 		store.set(remoteCallsAtom, new Map());
 		store.set(remoteCallSourcesAtom, new Set());
 	});
@@ -424,10 +424,10 @@ describe("Remote Call Atoms - Multiple Datasources", () => {
 });
 
 describe("Remote Call Atoms - Edge Cases", () => {
-	let store: ReturnType<typeof getDefaultStore>;
+	let store: typeof appStore;
 
 	beforeEach(() => {
-		store = getDefaultStore();
+		store = appStore;
 		store.set(remoteCallsAtom, new Map());
 		store.set(remoteCallSourcesAtom, new Set());
 	});
@@ -526,10 +526,10 @@ describe("Remote Call Atoms - Edge Cases", () => {
 });
 
 describe("Remote Call Atoms - Store Access Functions", () => {
-	let store: ReturnType<typeof getDefaultStore>;
+	let store: typeof appStore;
 
 	beforeEach(() => {
-		store = getDefaultStore();
+		store = appStore;
 		store.set(remoteCallsAtom, new Map());
 		store.set(remoteCallSourcesAtom, new Set());
 	});
@@ -564,10 +564,10 @@ describe("Remote Call Atoms - Store Access Functions", () => {
 });
 
 describe("Remote Call Atoms - Concurrency", () => {
-	let store: ReturnType<typeof getDefaultStore>;
+	let store: typeof appStore;
 
 	beforeEach(() => {
-		store = getDefaultStore();
+		store = appStore;
 		store.set(remoteCallsAtom, new Map());
 		store.set(remoteCallSourcesAtom, new Set());
 	});

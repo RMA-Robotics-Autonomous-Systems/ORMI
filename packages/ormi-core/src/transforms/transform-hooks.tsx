@@ -26,11 +26,11 @@ import {
 } from "../types";
 import {
 	transformFrameCountAtom,
-	transformStore,
 	subscribeToTransforms,
 	getTransformTableSnapshot,
 	getServerTransformTableSnapshot,
 } from "./transform-atoms";
+import { appStore } from "../store";
 import {
 	resolveWorldPose,
 	selectFrameDiagnostics,
@@ -58,7 +58,7 @@ export function useTransformTable(): TransformTable {
  */
 /** Get the total number of frames across all transform trees. */
 export function useTransformFrameCount(): number {
-	return useAtomValue(transformFrameCountAtom, { store: transformStore });
+	return useAtomValue(transformFrameCountAtom, { store: appStore });
 }
 
 /**

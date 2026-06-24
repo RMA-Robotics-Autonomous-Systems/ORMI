@@ -11,8 +11,9 @@
  * - removeRemoteCalls: Function to remove remote calls when datasource disconnects
  */
 
-import { atom, getDefaultStore } from "jotai";
+import { atom } from "jotai";
 import { RemoteCallDefinition } from "./remote-call-interface";
+import { appStore } from "../store";
 
 // ============================================================================
 // Core Atoms
@@ -58,7 +59,7 @@ export const remoteCallSourcesAtom = atom<Set<string>>(new Set<string>());
  * @returns Remote calls map.
  */
 export function getRemoteCalls(): Map<string, RemoteCallDefinition[]> {
-	return getDefaultStore().get(remoteCallsAtom);
+	return appStore.get(remoteCallsAtom);
 }
 
 /**
@@ -66,7 +67,7 @@ export function getRemoteCalls(): Map<string, RemoteCallDefinition[]> {
  * @returns Remote call list.
  */
 export function getAllRemoteCalls(): RemoteCallDefinition[] {
-	return getDefaultStore().get(allRemoteCallsAtom);
+	return appStore.get(allRemoteCallsAtom);
 }
 
 /**
@@ -75,7 +76,7 @@ export function getAllRemoteCalls(): RemoteCallDefinition[] {
  * @returns Unsubscribe function.
  */
 export function subscribeToRemoteCalls(callback: () => void): () => void {
-	return getDefaultStore().sub(remoteCallsAtom, callback);
+	return appStore.sub(remoteCallsAtom, callback);
 }
 
 // ============================================================================
@@ -91,7 +92,7 @@ export function setRemoteCalls(
 	datasourceId: string,
 	calls: RemoteCallDefinition[],
 ): void {
-	const store = getDefaultStore();
+	const store = appStore;
 	const currentCalls = store.get(remoteCallsAtom);
 	const newCalls = new Map(currentCalls);
 
@@ -117,7 +118,7 @@ export function addRemoteCall(
 	datasourceId: string,
 	call: RemoteCallDefinition,
 ): void {
-	const store = getDefaultStore();
+	const store = appStore;
 	const currentCalls = store.get(remoteCallsAtom);
 	const newCalls = new Map(currentCalls);
 
@@ -153,7 +154,7 @@ export function addRemoteCall(
  * @param callName - Call name to remove.
  */
 export function removeRemoteCall(datasourceId: string, callName: string): void {
-	const store = getDefaultStore();
+	const store = appStore;
 	const currentCalls = store.get(remoteCallsAtom);
 	const datasourceCalls = currentCalls.get(datasourceId);
 
@@ -182,7 +183,7 @@ export function removeRemoteCall(datasourceId: string, callName: string): void {
  * @param datasourceId - Datasource id.
  */
 export function clearRemoteCallsFromDatasource(datasourceId: string): void {
-	const store = getDefaultStore();
+	const store = appStore;
 	const currentCalls = store.get(remoteCallsAtom);
 
 	if (!currentCalls.has(datasourceId)) return;
@@ -202,7 +203,7 @@ export function clearRemoteCallsFromDatasource(datasourceId: string): void {
 
 /** Clear all remote calls and sources. */
 export function clearAllRemoteCalls(): void {
-	const store = getDefaultStore();
+	const store = appStore;
 	store.set(remoteCallsAtom, new Map());
 	store.set(remoteCallSourcesAtom, new Set());
 }
@@ -217,7 +218,7 @@ export function findRemoteCall(
 	callName: string,
 	datasourceId?: string,
 ): RemoteCallDefinition | null {
-	const allCalls = getDefaultStore().get(remoteCallsAtom);
+	const allCalls = appStore.get(remoteCallsAtom);
 
 	if (datasourceId) {
 		const datasourceCalls = allCalls.get(datasourceId);

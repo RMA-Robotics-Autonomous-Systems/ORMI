@@ -7,7 +7,7 @@ import { AuthProvider } from "@/components/session-provider";
 import { PluginsProvider } from "@workspace/ormi-plugins";
 import { NavbarProvider } from "@workspace/ui/combined/navbar/navbar-provider";
 import registry from "../ormi-plugins";
-import { transformStore } from "@workspace/ormi-core/transforms";
+import { appStore } from "@workspace/ormi-core";
 import { DevlogDialog } from "@/components/devlogs/devlog-dialog";
 import { DiagnosticsHost } from "@/components/diagnostics/diagnostics-host";
 
@@ -17,7 +17,7 @@ interface ClientProvidersProps {
 
 export function ClientProviders({ children }: ClientProvidersProps) {
 	return (
-		<JotaiProvider store={transformStore}>
+		<JotaiProvider store={appStore}>
 			<ThemeProvider>
 				<AuthProvider>
 					<PluginsProvider PluginsInfo={registry}>
