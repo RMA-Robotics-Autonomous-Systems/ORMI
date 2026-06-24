@@ -129,8 +129,10 @@ export const analyzeTopicCompatibility = async (
 		compatibleProperties: [],
 	};
 
-	// 1. Check direct webapp type match
-	const directMatch = requirements.accepts.includes(topic.type);
+	// 1. Check direct webapp type match, then direct raw type match.
+	const directMatch =
+		requirements.accepts.includes(topic.type) ||
+		!!(topic.rawType && requirements.acceptsRaw?.includes(topic.rawType));
 	if (directMatch) {
 		result.isCompatible = true;
 		result.directMatch = true;
@@ -180,10 +182,30 @@ export const analyzeTopicCompatibility = async (
 		result.directMatch || result.compatibleProperties.length > 0;
 
 	if (!result.isCompatible) {
-		result.reason = `Topic type '${topic.type}' and its properties don't match any of: ${requirements.accepts.join(", ")}`;
+		result.reason = describeRequirementsMismatch(topic, requirements);
 	}
 
 	return result;
+};
+
+/**
+ * Build the "not compatible" reason string for a topic/requirements pair.
+ * @param topic - Datasource topic.
+ * @param requirements - Widget data requirements.
+ * @returns Human-readable mismatch reason.
+ */
+const describeRequirementsMismatch = (
+	topic: DatasourceTopic,
+	requirements: DataRequirements,
+): string => {
+	const parts: string[] = [];
+	if (requirements.accepts.length > 0) {
+		parts.push(`webapp types: ${requirements.accepts.join(", ")}`);
+	}
+	if (requirements.acceptsRaw && requirements.acceptsRaw.length > 0) {
+		parts.push(`raw types: ${requirements.acceptsRaw.join(", ")}`);
+	}
+	return `Topic type '${topic.type}' (raw '${topic.rawType}') and its properties don't match any of {${parts.join("; ")}}`;
 };
 
 /**
@@ -198,8 +220,10 @@ export const isTopicCompatible = (
 ): boolean => {
 	if (!requirements) return true;
 
-	// Direct type match
+	// Direct webapp type match, then direct raw type match
 	if (requirements.accepts.includes(topic.type)) return true;
+	if (topic.rawType && requirements.acceptsRaw?.includes(topic.rawType))
+		return true;
 
 	// Basic webapp property analysis (synchronous only)
 	if (topic.type) {
@@ -519,8 +543,10 @@ export const analyzeTopicCompatibilityWithTrees = async (
 		};
 	}
 
-	// 1. Check direct webapp type match
-	const directMatch = requirements.accepts.includes(topic.type);
+	// 1. Check direct webapp type match, then direct raw type match
+	const directMatch =
+		requirements.accepts.includes(topic.type) ||
+		!!(topic.rawType && requirements.acceptsRaw?.includes(topic.rawType));
 
 	// 2. Build dual property trees
 	const propertyTree = await buildDualPropertyTree(
@@ -549,7 +575,7 @@ export const analyzeTopicCompatibilityWithTrees = async (
 		compatibleProperties: allCompatibleProperties,
 		propertyTree,
 		reason: !isCompatible
-			? `Topic type '${topic.type}' and its properties don't match any of: ${requirements.accepts.join(", ")}`
+			? describeRequirementsMismatch(topic, requirements)
 			: undefined,
 	};
 
@@ -675,9 +701,12 @@ export const validateDataRequirements = (
 		return errors;
 	}
 
-	if (!requirements.accepts || requirements.accepts.length === 0) {
+	const hasWebapp = !!requirements.accepts && requirements.accepts.length > 0;
+	const hasRaw =
+		!!requirements.acceptsRaw && requirements.acceptsRaw.length > 0;
+	if (!hasWebapp && !hasRaw) {
 		errors.push(
-			`Data requirements must specify at least one accepted data type`,
+			`Data requirements must specify at least one accepted data type (accepts or acceptsRaw)`,
 		);
 	}
 
