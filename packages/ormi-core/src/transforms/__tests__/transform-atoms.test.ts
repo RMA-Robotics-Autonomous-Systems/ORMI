@@ -3,8 +3,8 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
+import { appStore } from "../../store";
 import {
-	transformStore,
 	transformSourcesAtom,
 	transformFrameCountAtom,
 	transformVersionAtom,
@@ -88,7 +88,7 @@ describe("Transform Atoms - Basic Functionality", () => {
 		processTFMessage("datasource-1", tf("map", "odom"));
 		processTFMessage("datasource-2", tf("map", "odom"));
 
-		const sources = transformStore.get(transformSourcesAtom);
+		const sources = appStore.get(transformSourcesAtom);
 		expect(sources.size).toBe(2);
 		expect(sources.has("datasource-1")).toBe(true);
 		expect(sources.has("datasource-2")).toBe(true);
@@ -96,7 +96,7 @@ describe("Transform Atoms - Basic Functionality", () => {
 
 	test("counts frames (edges)", () => {
 		processTFMessage("ds1", tfs(["map", "odom"], ["odom", "base_link"]));
-		expect(transformStore.get(transformFrameCountAtom)).toBe(2);
+		expect(appStore.get(transformFrameCountAtom)).toBe(2);
 	});
 
 	test("tags each edge with its source and keeps the raw name", () => {
@@ -218,21 +218,21 @@ describe("Transform Atoms - Reactivity (version coalescing)", () => {
 
 	test("a sub-epsilon update does not bump the version", () => {
 		processTFMessage("ds", tf("map", "odom", { x: 1, y: 2, z: 3 }));
-		const v1 = transformStore.get(transformVersionAtom);
+		const v1 = appStore.get(transformVersionAtom);
 
 		processTFMessage(
 			"ds",
 			tf("map", "odom", { x: 1.00001, y: 2.00001, z: 3.00001 }),
 		);
-		expect(transformStore.get(transformVersionAtom)).toBe(v1);
+		expect(appStore.get(transformVersionAtom)).toBe(v1);
 	});
 
 	test("a material change bumps the version", () => {
 		processTFMessage("ds", tf("map", "odom", { x: 1, y: 0, z: 0 }));
-		const v1 = transformStore.get(transformVersionAtom);
+		const v1 = appStore.get(transformVersionAtom);
 
 		processTFMessage("ds", tf("map", "odom", { x: 5, y: 0, z: 0 }));
-		expect(transformStore.get(transformVersionAtom)).not.toBe(v1);
+		expect(appStore.get(transformVersionAtom)).not.toBe(v1);
 		expect(
 			getTransformTable().get(K("ds", "odom"))?.transform.position.x,
 		).toBe(5);
@@ -323,9 +323,7 @@ describe("Transform Atoms - Cleanup", () => {
 		expect(getTransformTable().has(K("robotA", "odom"))).toBe(true);
 		expect(getTransformTable().has(K("robotA", "laser"))).toBe(true); // static retained
 		expect(getTransformTable().has(K("robotB", "odom"))).toBe(false);
-		expect(transformStore.get(transformSourcesAtom).has("robotB")).toBe(
-			false,
-		);
+		expect(appStore.get(transformSourcesAtom).has("robotB")).toBe(false);
 	});
 
 	test("reconcileTransformSources removes a datasource's STATIC frames too (no leak on removal)", () => {
@@ -335,7 +333,7 @@ describe("Transform Atoms - Cleanup", () => {
 		// ds1 no longer configured → its static frames go too (unlike a dynamic-only clear).
 		reconcileTransformSources(new Set());
 		expect(getTransformTable().size).toBe(0);
-		expect(transformStore.get(transformSourcesAtom).size).toBe(0);
+		expect(appStore.get(transformSourcesAtom).size).toBe(0);
 	});
 
 	test("clears everything with clearAllTransforms", () => {
@@ -344,7 +342,7 @@ describe("Transform Atoms - Cleanup", () => {
 
 		clearAllTransforms();
 		expect(getTransformTable().size).toBe(0);
-		expect(transformStore.get(transformSourcesAtom).size).toBe(0);
+		expect(appStore.get(transformSourcesAtom).size).toBe(0);
 	});
 });
 
@@ -459,6 +457,6 @@ describe("Transform Atoms - Performance", () => {
 		const start = performance.now();
 		processTFMessage("ds1", { transforms });
 		expect(performance.now() - start).toBeLessThan(100);
-		expect(transformStore.get(transformFrameCountAtom)).toBe(100);
+		expect(appStore.get(transformFrameCountAtom)).toBe(100);
 	});
 });

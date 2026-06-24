@@ -13,11 +13,11 @@ import {
 	clearAllTransforms,
 	getTransformTable,
 	subscribeToTransforms,
-	transformStore,
 	transformVersionAtom,
 	type FrameScheduler,
 	type TFMessage,
 } from "../transform-atoms";
+import { appStore } from "../../store";
 
 /** A frame scheduler whose callbacks run only when `flush()` is called. */
 function makeFakeScheduler() {
@@ -78,14 +78,14 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 	});
 
 	test("the first change after a quiet period bumps synchronously — no timer involved", () => {
-		const v0 = transformStore.get(transformVersionAtom);
+		const v0 = appStore.get(transformVersionAtom);
 
 		processTFMessage("ds", tf("map", "odom"));
 
 		// Data AND version are visible immediately: consumers can never be stranded on a
 		// stale snapshot by a dropped timer, because the leading bump doesn't use one.
 		expect(getTransformTable().has("ds::odom")).toBe(true);
-		expect(transformStore.get(transformVersionAtom)).toBe(v0 + 1);
+		expect(appStore.get(transformVersionAtom)).toBe(v0 + 1);
 		expect(fake.pending()).toBe(0);
 	});
 
@@ -102,17 +102,17 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 	});
 
 	test("rapid follow-up changes coalesce into a single trailing bump", () => {
-		const v0 = transformStore.get(transformVersionAtom);
+		const v0 = appStore.get(transformVersionAtom);
 
 		// Leading bump (sync).
 		processTFMessage("ds", tf("map", "odom", { x: 1, y: 0, z: 0 }));
-		expect(transformStore.get(transformVersionAtom)).toBe(v0 + 1);
+		expect(appStore.get(transformVersionAtom)).toBe(v0 + 1);
 
 		// Within the coalescing window: deferred to one trailing bump, not two more.
 		processTFMessage("ds", tf("map", "odom", { x: 2, y: 0, z: 0 }));
 		processTFMessage("ds", tf("odom", "base_link"));
 		expect(fake.pending()).toBe(1);
-		expect(transformStore.get(transformVersionAtom)).toBe(v0 + 1);
+		expect(appStore.get(transformVersionAtom)).toBe(v0 + 1);
 
 		// Data is in the table regardless — only the notification is deferred.
 		expect(getTransformTable().size).toBe(2);
@@ -121,7 +121,7 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 		);
 
 		fake.flush();
-		expect(transformStore.get(transformVersionAtom)).toBe(v0 + 2);
+		expect(appStore.get(transformVersionAtom)).toBe(v0 + 2);
 	});
 
 	test("a clear bumps synchronously and cancels any pending trailing bump", () => {
@@ -129,11 +129,11 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 		processTFMessage("ds", tf("map", "odom", { x: 2, y: 0, z: 0 })); // trailing (pending)
 		expect(fake.pending()).toBe(1);
 
-		const vBefore = transformStore.get(transformVersionAtom);
+		const vBefore = appStore.get(transformVersionAtom);
 		clearAllTransforms();
 
 		expect(fake.pending()).toBe(0); // pending trailing bump cancelled
-		expect(transformStore.get(transformVersionAtom)).toBe(vBefore + 1);
+		expect(appStore.get(transformVersionAtom)).toBe(vBefore + 1);
 		expect(getTransformTable().size).toBe(0);
 	});
 
@@ -145,7 +145,7 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 		processTFMessage("ds", tf("map", "odom", { x: 1, y: 0, z: 0 })); // leading (sync)
 		processTFMessage("ds", tf("odom", "base_link", { x: 5, y: 0, z: 0 })); // trailing (pending)
 		expect(fake.pending()).toBe(1);
-		const vStuck = transformStore.get(transformVersionAtom);
+		const vStuck = appStore.get(transformVersionAtom);
 
 		// The trailing callback never fires. Time passes beyond the stuck threshold.
 		await sleep(120);
@@ -153,7 +153,7 @@ describe("Transform reactivity (leading edge + trailing coalesce)", () => {
 		// An epsilon-equal message arrives (changed=false). The watchdog must still heal.
 		processTFMessage("ds", tf("odom", "base_link", { x: 5, y: 0, z: 0 }));
 
-		expect(transformStore.get(transformVersionAtom)).toBe(vStuck + 1);
+		expect(appStore.get(transformVersionAtom)).toBe(vStuck + 1);
 		expect(fake.pending()).toBe(0); // stuck handle cancelled
 	});
 });

@@ -16,7 +16,7 @@
  * {@link getTransformTable} / `useTransformTable`, or higher-level selectors.
  */
 
-import { atom, createStore } from "jotai";
+import { atom } from "jotai";
 import {
 	CoordinateConvention,
 	Transform,
@@ -24,11 +24,7 @@ import {
 	TransformTable,
 } from "../types";
 import { namespaceFrame } from "./frame-namespace";
-
-// Create a single shared store instance for transforms
-// This ensures processTFMessage() and consumers use the same store
-/** Shared Jotai store for transform state. */
-export const transformStore = createStore();
+import { appStore } from "../store";
 
 // ============================================================================
 // Authoritative state
@@ -123,7 +119,7 @@ export function __setFrameScheduler(scheduler: FrameScheduler | null): void {
 function commitVersionBump(): void {
 	pendingHandle = null;
 	lastBumpAt = monotonicNow();
-	transformStore.set(transformVersionAtom, (v) => v + 1);
+	appStore.set(transformVersionAtom, (v) => v + 1);
 }
 
 /** Bump the version immediately, cancelling any pending coalesced bump. */
@@ -133,7 +129,7 @@ function bumpVersionNow(): void {
 		pendingHandle = null;
 	}
 	lastBumpAt = monotonicNow();
-	transformStore.set(transformVersionAtom, (v) => v + 1);
+	appStore.set(transformVersionAtom, (v) => v + 1);
 }
 
 /**
@@ -154,7 +150,7 @@ function requestVersionBump(now: number): void {
 	if (pendingHandle !== null) return; // trailing bump already queued
 	if (now - lastBumpAt >= COALESCE_MS) {
 		lastBumpAt = now;
-		transformStore.set(transformVersionAtom, (v) => v + 1);
+		appStore.set(transformVersionAtom, (v) => v + 1);
 		return;
 	}
 	pendingSince = now;
@@ -176,7 +172,7 @@ function healStuckPending(now: number): void {
 	frameScheduler.cancel(pendingHandle);
 	pendingHandle = null;
 	lastBumpAt = now;
-	transformStore.set(transformVersionAtom, (v) => v + 1);
+	appStore.set(transformVersionAtom, (v) => v + 1);
 }
 
 /** Monotonic millisecond clock, immune to wall-clock jumps where available. */
@@ -216,7 +212,7 @@ let snapshotTable: TransformTable = EMPTY_TABLE;
  * @returns The current table snapshot (read-only).
  */
 export function getTransformTableSnapshot(): TransformTable {
-	const version = transformStore.get(transformVersionAtom);
+	const version = appStore.get(transformVersionAtom);
 	if (version !== snapshotVersion) {
 		snapshotVersion = version;
 		snapshotTable = new Map(transformTable);
@@ -238,7 +234,7 @@ export function getServerTransformTableSnapshot(): TransformTable {
  * @returns Unsubscribe function.
  */
 export function subscribeToTransforms(callback: () => void): () => void {
-	return transformStore.sub(transformVersionAtom, callback);
+	return appStore.sub(transformVersionAtom, callback);
 }
 
 // ============================================================================
@@ -330,11 +326,11 @@ export function processTFMessage(
 	}
 
 	// Always track datasource, even if no changes are made
-	const sources = transformStore.get(transformSourcesAtom);
+	const sources = appStore.get(transformSourcesAtom);
 	if (!sources.has(datasourceId)) {
 		const newSources = new Set(sources);
 		newSources.add(datasourceId);
-		transformStore.set(transformSourcesAtom, newSources);
+		appStore.set(transformSourcesAtom, newSources);
 	}
 
 	const isStatic = options?.isStatic ?? false;
@@ -442,7 +438,7 @@ export function clearTransformsFromDatasource(
 		}
 	}
 
-	const sources = transformStore.get(transformSourcesAtom);
+	const sources = appStore.get(transformSourcesAtom);
 	if (sources.has(datasourceId)) {
 		// Drop the source tag only once it owns no remaining edges.
 		let stillOwnsEdges = false;
@@ -455,7 +451,7 @@ export function clearTransformsFromDatasource(
 		if (!stillOwnsEdges) {
 			const newSources = new Set(sources);
 			newSources.delete(datasourceId);
-			transformStore.set(transformSourcesAtom, newSources);
+			appStore.set(transformSourcesAtom, newSources);
 		}
 	}
 
@@ -482,7 +478,7 @@ export function clearTransformsFromDatasource(
 export function reconcileTransformSources(liveSourceIds: Set<string>): void {
 	// `transformSourcesAtom` is replaced (not mutated) by clearTransformsFromDatasource, so
 	// iterating this snapshot is safe.
-	const sources = transformStore.get(transformSourcesAtom);
+	const sources = appStore.get(transformSourcesAtom);
 	for (const sourceId of sources) {
 		if (!liveSourceIds.has(sourceId)) {
 			clearTransformsFromDatasource(sourceId, { includeStatic: true });
@@ -496,6 +492,6 @@ export function reconcileTransformSources(liveSourceIds: Set<string>): void {
 /** Clear all transforms and sources. */
 export function clearAllTransforms(): void {
 	transformTable.clear();
-	transformStore.set(transformSourcesAtom, new Set());
+	appStore.set(transformSourcesAtom, new Set());
 	bumpVersionNow();
 }
