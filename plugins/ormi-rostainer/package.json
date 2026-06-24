@@ -1,0 +1,26 @@
+{
+	"name": "ormi-rostainer",
+	"version": "1.0.0",
+	"description": "ROSTainer container management widget for ORMI",
+	"private": true,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"development": "./src/index.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"lint": "eslint .",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@workspace/ormi-plugins": "workspace:*",
+		"@workspace/ormi-core": "workspace:*",
+		"@workspace/ui": "workspace:*"
+	},
+	"ormi_plugin": true
+}
