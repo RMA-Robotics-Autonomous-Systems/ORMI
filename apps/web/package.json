@@ -49,6 +49,7 @@
 		"ormi-rosbridge-suite": "workspace:*",
 		"ormi-std-widgets": "workspace:*",
 		"ormi-tello": "workspace:*",
+		"ormi-rostainer": "workspace:*",
 		"pg": "^8.18.0",
 		"prisma": "^7.3.0",
 		"react": "^19.2.4",
