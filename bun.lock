@@ -456,6 +456,15 @@
         "typescript": "^5.9.3",
       },
     },
+    "plugins/ormi-rostainer": {
+      "name": "ormi-rostainer",
+      "version": "1.0.0",
+      "dependencies": {
+        "@workspace/ormi-core": "workspace:*",
+        "@workspace/ormi-plugins": "workspace:*",
+        "@workspace/ui": "workspace:*",
+      },
+    },
     "plugins/ormi-std-widgets": {
       "name": "ormi-std-widgets",
       "version": "1.0.0",
@@ -2551,6 +2560,8 @@
     "ormi-rest-bags": ["ormi-rest-bags@workspace:plugins/ormi-rest-bags"],
 
     "ormi-rosbridge-suite": ["ormi-rosbridge-suite@workspace:plugins/ormi-rosbridge-suite"],
+
+    "ormi-rostainer": ["ormi-rostainer@workspace:plugins/ormi-rostainer"],
 
     "ormi-std-widgets": ["ormi-std-widgets@workspace:plugins/ormi-std-widgets"],
 
