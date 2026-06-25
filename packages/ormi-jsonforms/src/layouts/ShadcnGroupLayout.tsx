@@ -51,8 +51,12 @@ const GroupComponent = React.memo(function GroupComponent({
 	const groupLayout = uischema as GroupLayout;
 
 	return (
-		<div>
-			{!isEmpty(label) && <h2>{label}</h2>}
+		<div className="mb-4 space-y-3 rounded-md border p-3">
+			{!isEmpty(label) && (
+				<h3 className="border-b pb-1 text-sm font-semibold text-foreground">
+					{label}
+				</h3>
+			)}
 			<ShadcnLayoutRenderer
 				{...props}
 				visible={visible}
