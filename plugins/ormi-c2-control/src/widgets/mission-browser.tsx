@@ -23,6 +23,7 @@ import {
 	useSelectedMission,
 	setSelectedMission,
 } from "../state/selection-store";
+import { publishMissionNames } from "../state/c2-catalog-store";
 import {
 	MissionRow,
 	duplicateMission,
@@ -98,7 +99,9 @@ function MissionBrowserBody(props: {
 			return;
 		}
 		setError(null);
-		setRows(normalizeMissions(result.data));
+		const nextRows = normalizeMissions(result.data);
+		setRows(nextRows);
+		publishMissionNames(nextRows);
 	}, [executeList]);
 
 	// Fetch-on-mount (and when the list call definition changes).
@@ -113,7 +116,9 @@ function MissionBrowserBody(props: {
 				return;
 			}
 			setError(null);
-			setRows(normalizeMissions(result.data));
+			const nextRows = normalizeMissions(result.data);
+			setRows(nextRows);
+			publishMissionNames(nextRows);
 		})();
 		return () => {
 			cancelled = true;

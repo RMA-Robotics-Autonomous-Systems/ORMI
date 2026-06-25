@@ -19,8 +19,15 @@ import { Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { C2Call } from "../datasource/remote-calls";
+import { publishAgentNames, useAgentName } from "../state/c2-agents-store";
 import { C2Vehicle } from "../types/c2-types";
-import { FleetRow, collectTelemetry, mergeFleet } from "./fleet-helpers";
+import {
+	FleetRow,
+	collectTelemetry,
+	mergeFleet,
+	readNamespace,
+	vehicleAgentId,
+} from "./fleet-helpers";
 
 /**
  * F7 — Fleet / vehicle widget.
@@ -41,6 +48,12 @@ interface FleetStatusProps extends Record<string, unknown> {
 	title: string;
 	/** `/multi_robot/edge/feedback` topic for live agent telemetry. */
 	topic?: SelectedTopic;
+	/**
+	 * `/multi_robot/edge/agent_profile` topic (`std_msgs/msg/String`) carrying
+	 * per-agent profiles; feeds the agent-name store so rows show the friendly
+	 * namespace name instead of the UUID. Optional.
+	 */
+	agent_profile_topic?: SelectedTopic;
 	/** Pin the roster to a specific C2 datasource id; empty → first available. */
 	datasource_id?: string;
 }
@@ -89,7 +102,19 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 				: Array.isArray((data as { vehicles?: unknown })?.vehicles)
 					? (data as { vehicles: unknown[] }).vehicles
 					: [];
-			setVehicles(list as C2Vehicle[]);
+			const vehicleList = list as C2Vehicle[];
+			setVehicles(vehicleList);
+			// Best-effort: publish any namespace the roster carries. The :5000
+			// schema strips `namespace` today, so this publishes nothing — it is
+			// free and correct if the C2 schema is ever loosened.
+			publishAgentNames(
+				vehicleList
+					.map((v) => ({
+						agent_id: vehicleAgentId(v) ?? "",
+						name: readNamespace(v as Record<string, unknown>),
+					}))
+					.filter((r) => r.agent_id),
+			);
 		});
 		return () => {
 			cancelled = true;
@@ -99,26 +124,116 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 	return { vehicles, error, loading };
 }
 
+/**
+ * Feed the agent-name store from the buffered `agent_profile` source.
+ *
+ * Each `std_msgs/msg/String` message wraps the full agent profile as a JSON
+ * string in its `data` field; we parse it defensively (tolerating an
+ * already-parsed object, skipping non-string/garbage) and publish
+ * `{ agent_id, namespace }`. Runs in an effect over the buffered source — NEVER
+ * in render. Selects ONLY the agent_profile topic's buffer (via the provider's
+ * own `getSource`), so the feedback topic's messages are never folded in.
+ */
+function useAgentProfilePublisher(source: BufferedSource | undefined): void {
+	const buffer = source?.data;
+	useEffect(() => {
+		if (!buffer) return;
+		const rows: { agent_id: string; name?: string | null }[] = [];
+		for (const value of buffer) {
+			if (value == null) continue;
+			let parsed: Record<string, unknown> | null = null;
+			try {
+				const data = (value as { data?: unknown }).data;
+				if (typeof data === "string") {
+					parsed = JSON.parse(data) as Record<string, unknown>;
+				} else if (typeof value === "object") {
+					// Already-parsed object (e.g. topic `property` into the field).
+					parsed = value as Record<string, unknown>;
+				}
+			} catch {
+				continue;
+			}
+			if (parsed == null || typeof parsed !== "object") continue;
+			const agentId = parsed.agent_id;
+			if (typeof agentId !== "string" || agentId === "") continue;
+			rows.push({ agent_id: agentId, name: readNamespace(parsed) });
+		}
+		if (rows.length > 0) publishAgentNames(rows);
+	}, [buffer]);
+}
+
+/**
+ * One fleet row.
+ *
+ * A hoisted (module-level) component so it can call {@link useAgentName} for the
+ * agent's namespace name — hooks can't run inside the `.map` of the parent. Its
+ * identity is stable across renders, so rows don't remount (Component-identity
+ * rule §10 / the Group A `GeometryRow` pattern). The full `agent_id` stays in
+ * the `title` tooltip.
+ */
+function FleetRowItem({ row }: { row: FleetRow }) {
+	const name = useAgentName(row.agent_id);
+	const live = row.telemetry != null;
+	return (
+		<div className="border rounded-md p-2 text-xs flex items-center gap-2">
+			<span
+				className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+					live ? "bg-emerald-500" : "bg-zinc-400"
+				}`}
+			/>
+			<span className="font-medium truncate flex-1" title={row.agent_id}>
+				{name}
+			</span>
+			{row.unregistered && <Badge variant="outline">unregistered</Badge>}
+			{row.telemetry?.state != null && (
+				<span className="text-muted-foreground shrink-0">
+					{String(row.telemetry.state)}
+				</span>
+			)}
+			{row.telemetry?.position && (
+				<span className="text-muted-foreground shrink-0">
+					({row.telemetry.position.x.toFixed(2)},{" "}
+					{row.telemetry.position.y.toFixed(2)})
+				</span>
+			)}
+		</div>
+	);
+}
+
 /** Inner body once the roster call definition is resolved. */
 function FleetBody(props: {
 	definition: RemoteCallDefinition;
 	hasTopic: boolean;
 	topic?: SelectedTopic;
+	profileTopic?: SelectedTopic;
 }) {
 	const { vehicles, error, loading } = useVehicleRoster(props.definition);
-	const { sources, getTopicHealth } = useLocalDataSource();
+	const { getSource, getTopicHealth } = useLocalDataSource();
+
+	const profileSource = props.profileTopic
+		? getSource(props.profileTopic)
+		: undefined;
+	useAgentProfilePublisher(profileSource as BufferedSource | undefined);
 
 	// Every agent publishes its own Feedback on the shared topic, so dedupe the
 	// buffered window by agent_id (last wins) rather than showing only the newest
-	// message — otherwise a single row cycles through the agents.
+	// message — otherwise a single row cycles through the agents. Select ONLY the
+	// feedback topic's buffer so the agent_profile topic's strings aren't parsed
+	// as telemetry.
+	//
+	// The provider rebuilds a topic's `Source` object only on the flush that
+	// delivered new data for it (untouched sources keep their reference), so
+	// `feedbackSource` itself is the change-fresh dependency — keying the memo on
+	// it (not on the whole `sources` map) recomputes exactly when feedback lands
+	// and reads the same value it keys on (no React-Compiler dead-read trap).
 	const hasTopic = props.hasTopic;
+	const feedbackSource = props.topic
+		? (getSource(props.topic) as BufferedSource | undefined)
+		: undefined;
 	const rows: FleetRow[] = useMemo(() => {
-		if (!hasTopic) return mergeFleet(vehicles, []);
-		const buffers = [
-			...(sources as Map<string, BufferedSource>).values(),
-		].map((source) => source.data);
-		return mergeFleet(vehicles, collectTelemetry(buffers));
-	}, [vehicles, sources, hasTopic]);
+		if (!hasTopic || !feedbackSource) return mergeFleet(vehicles, []);
+		return mergeFleet(vehicles, collectTelemetry([feedbackSource.data]));
+	}, [vehicles, hasTopic, feedbackSource]);
 
 	// Per-series telemetry health (does not blank the roster, §13).
 	const telemetryHealth = props.topic
@@ -155,43 +270,9 @@ function FleetBody(props: {
 							No vehicles registered.
 						</div>
 					)}
-					{rows.map((row) => {
-						const live = row.telemetry != null;
-						return (
-							<div
-								key={row.agent_id}
-								className="border rounded-md p-2 text-xs flex items-center gap-2"
-							>
-								<span
-									className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-										live ? "bg-emerald-500" : "bg-zinc-400"
-									}`}
-								/>
-								<span
-									className="font-medium truncate flex-1"
-									title={row.agent_id}
-								>
-									{row.agent_id}
-								</span>
-								{row.unregistered && (
-									<Badge variant="outline">
-										unregistered
-									</Badge>
-								)}
-								{row.telemetry?.state != null && (
-									<span className="text-muted-foreground shrink-0">
-										{String(row.telemetry.state)}
-									</span>
-								)}
-								{row.telemetry?.position && (
-									<span className="text-muted-foreground shrink-0">
-										({row.telemetry.position.x.toFixed(2)},{" "}
-										{row.telemetry.position.y.toFixed(2)})
-									</span>
-								)}
-							</div>
-						);
-					})}
+					{rows.map((row) => (
+						<FleetRowItem key={row.agent_id} row={row} />
+					))}
 				</div>
 			</ScrollArea>
 		</div>
@@ -225,7 +306,9 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
 		);
 	}
 
-	const topics = props.topic ? [props.topic] : [];
+	const topics: SelectedTopic[] = [];
+	if (props.topic) topics.push(props.topic);
+	if (props.agent_profile_topic) topics.push(props.agent_profile_topic);
 
 	return (
 		// Buffer a window of recent messages so all interleaved agents (one
@@ -236,6 +319,7 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
 				definition={definition}
 				hasTopic={Boolean(props.topic)}
 				topic={props.topic}
+				profileTopic={props.agent_profile_topic}
 			/>
 		</LocalDataSourcesProvider>
 	);
@@ -259,6 +343,10 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 			properties: {
 				title: { type: "string", title: "Title" },
 				topic: { type: "object", title: "Edge feedback topic" },
+				agent_profile_topic: {
+					type: "object",
+					title: "Agent profile topic (optional)",
+				},
 				datasource_id: {
 					type: "string",
 					title: "C2 datasource id (optional)",
@@ -281,6 +369,16 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 						dataRequirements: {
 							accepts: [],
 							acceptsRaw: ["task_msgs/msg/Feedback"],
+						},
+					},
+				} as TopicSelectElement,
+				{
+					type: "TopicSelect",
+					scope: "#/properties/agent_profile_topic",
+					options: {
+						dataRequirements: {
+							accepts: [],
+							acceptsRaw: ["std_msgs/msg/String"],
 						},
 					},
 				} as TopicSelectElement,

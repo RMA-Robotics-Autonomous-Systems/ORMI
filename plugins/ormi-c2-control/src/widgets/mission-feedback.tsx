@@ -16,11 +16,14 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { ListChecks } from "lucide-react";
 
 import {
+	FeedbackTask,
 	MissionFeedback,
 	parseMissionFeedback,
 } from "../types/mission-feedback";
 import { missionStatusLabel } from "../types/status-labels";
 import { useSelectedMission } from "../state/selection-store";
+import { useMissionName } from "../state/c2-catalog-store";
+import { useAgentName } from "../state/c2-agents-store";
 
 /**
  * F10 — Mission feedback widget.
@@ -74,6 +77,37 @@ function latestFeedback(
 	return latest;
 }
 
+/**
+ * One per-vehicle task row.
+ *
+ * A hoisted (module-level) component so it can call {@link useAgentName} for the
+ * vehicle's namespace name — hooks can't run inside the `.map` of the parent.
+ * Its identity is stable across renders, so rows don't remount. The full
+ * `vehicle_id` stays in the `title` tooltip.
+ */
+function TaskRow({ task, index }: { task: FeedbackTask; index: number }) {
+	const name = useAgentName(task.vehicle_id);
+	void index;
+	return (
+		<div className="border rounded-md p-2 text-xs">
+			<div className="flex items-center justify-between gap-2">
+				<span className="font-medium truncate" title={task.vehicle_id}>
+					{name || "unknown vehicle"}
+				</span>
+				<span className="text-muted-foreground shrink-0">
+					{task.waypoints.length} waypoint
+					{task.waypoints.length === 1 ? "" : "s"}
+				</span>
+			</div>
+			{task.est && (
+				<div className="text-muted-foreground mt-1">
+					ETA: {task.est}
+				</div>
+			)}
+		</div>
+	);
+}
+
 /** Body: parses the latest feedback, gates on health, filters by mission. */
 function MissionFeedbackBody(props: {
 	sourceTitle: string;
@@ -91,13 +125,16 @@ function MissionFeedbackBody(props: {
 		(feedback != null && feedback.mission_id === props.missionId);
 	const shown = matches ? feedback : null;
 
+	const pinnedName = useMissionName(props.missionId);
+	const shownName = useMissionName(shown?.mission_id);
+
 	return (
 		<DatasourceGate health={health} title={props.sourceTitle}>
 			<div className="h-full flex flex-col gap-2 p-3 text-sm">
 				{shown == null ? (
 					<div className="text-muted-foreground">
 						{props.missionId
-							? `Waiting for feedback for mission ${props.missionId}…`
+							? `Waiting for feedback for mission ${pinnedName}…`
 							: "Waiting for mission feedback…"}
 					</div>
 				) : (
@@ -115,7 +152,7 @@ function MissionFeedbackBody(props: {
 								className="text-xs text-muted-foreground truncate"
 								title={shown.mission_id}
 							>
-								{shown.mission_id}
+								{shownName}
 							</span>
 						</div>
 						<ScrollArea className="flex-1 min-h-0">
@@ -126,31 +163,11 @@ function MissionFeedbackBody(props: {
 									</div>
 								)}
 								{shown.tasks.map((task, index) => (
-									<div
+									<TaskRow
 										key={`${task.vehicle_id}-${index}`}
-										className="border rounded-md p-2 text-xs"
-									>
-										<div className="flex items-center justify-between gap-2">
-											<span
-												className="font-medium truncate"
-												title={task.vehicle_id}
-											>
-												{task.vehicle_id ||
-													"unknown vehicle"}
-											</span>
-											<span className="text-muted-foreground shrink-0">
-												{task.waypoints.length} waypoint
-												{task.waypoints.length === 1
-													? ""
-													: "s"}
-											</span>
-										</div>
-										{task.est && (
-											<div className="text-muted-foreground mt-1">
-												ETA: {task.est}
-											</div>
-										)}
-									</div>
+										task={task}
+										index={index}
+									/>
 								))}
 							</div>
 						</ScrollArea>

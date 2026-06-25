@@ -13,14 +13,25 @@ import { MissionFeedbackDefinition } from "./widgets/mission-feedback";
 import { SwarmLogDefinition } from "./widgets/swarm-log";
 import { MissionBrowserDefinition } from "./widgets/mission-browser";
 import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
+import { MissionEditorDefinition } from "./widgets/mission-editor";
+import { MissionMapDefinition } from "./widgets/mission-map";
 
 /** The C2 datasource definition id — gated command widgets key on it. */
 export const C2_DATASOURCE_ID = "c2-control-source";
 
-/** Command-widget ids gated on a configured C2 datasource (§4.1). */
+/**
+ * Command-widget ids gated on a configured C2 datasource (§4.1).
+ *
+ * The mission map (F6) is included here because its draw/feature CRUD core needs
+ * the C2 datasource (`c2.features.*`); its live telemetry overlay degrades
+ * independently via the topic health, so gating the whole widget on the C2
+ * datasource does not over-restrict the overlay.
+ */
 const C2_COMMAND_WIDGET_IDS = [
 	"c2-mission-browser-widget",
 	"c2-mission-control-panel-widget",
+	"c2-mission-editor-widget",
+	"c2-mission-map-widget",
 ] as const;
 
 /**
@@ -86,6 +97,9 @@ export const widgetsExport = (
 	// Phase 3 — command widgets (gated by widgetFilters below).
 	widgets.push(MissionBrowserDefinition());
 	widgets.push(MissionControlPanelDefinition());
+	// Phase 4 — authoring widgets (also gated): mission editor (F5) and map (F6).
+	widgets.push(MissionEditorDefinition());
+	widgets.push(MissionMapDefinition());
 	return widgets;
 };
 

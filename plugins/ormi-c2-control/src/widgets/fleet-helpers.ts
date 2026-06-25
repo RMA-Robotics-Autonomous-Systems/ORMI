@@ -149,8 +149,33 @@ export function collectTelemetry(
 	return [...byAgent.values()];
 }
 
+/**
+ * Probe a vehicle/agent_profile object for the friendly namespace name.
+ *
+ * Checks, in order, a top-level `namespace`, a nested `agent_profile.namespace`,
+ * then a top-level `name`. Returns the first non-blank trimmed string, else
+ * undefined. Used to feed `publishAgentNames` (see `c2-agents-store.ts`).
+ *
+ * @param v - A raw vehicle or parsed agent_profile object.
+ * @returns The namespace name, or undefined when none can be read.
+ */
+export function readNamespace(v: Record<string, unknown>): string | undefined {
+	const candidates = [
+		v.namespace,
+		(v.agent_profile as Record<string, unknown>)?.namespace,
+		v.name,
+	];
+	for (const c of candidates) {
+		if (typeof c === "string") {
+			const t = c.trim();
+			if (t !== "") return t;
+		}
+	}
+	return undefined;
+}
+
 /** Read an agent id off a roster vehicle, tolerating field-name variants. */
-function vehicleAgentId(vehicle: C2Vehicle): string | undefined {
+export function vehicleAgentId(vehicle: C2Vehicle): string | undefined {
 	const id =
 		vehicle.agent_id ??
 		(vehicle as Record<string, unknown>).agentId ??

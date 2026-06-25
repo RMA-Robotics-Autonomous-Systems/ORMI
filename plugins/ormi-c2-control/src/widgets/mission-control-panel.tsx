@@ -39,6 +39,7 @@ import {
 	validateMissionConfig,
 } from "../types/mission-config-validation";
 import { useSelectedMission } from "../state/selection-store";
+import { useMissionName } from "../state/c2-catalog-store";
 import { newMissionStub, normalizeMissions } from "./mission-list";
 import { MissionIssueList } from "./mission-issues";
 import {
@@ -152,6 +153,7 @@ function ControlPanelBody(props: {
 	hasTopic: boolean;
 }) {
 	const { sources, health } = useLocalDataSource();
+	const missionName = useMissionName(props.missionId);
 	const feedback = props.hasTopic
 		? latestFeedback(sources as Map<string, BufferedSource>)
 		: null;
@@ -298,7 +300,7 @@ function ControlPanelBody(props: {
 						className="text-xs text-muted-foreground truncate"
 						title={props.missionId}
 					>
-						{props.missionId}
+						{missionName}
 					</span>
 				) : (
 					<span className="text-xs text-muted-foreground">

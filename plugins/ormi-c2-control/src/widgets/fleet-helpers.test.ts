@@ -6,7 +6,43 @@ import {
 	extractAgentPosition,
 	extractAgentTelemetry,
 	mergeFleet,
+	readNamespace,
 } from "./fleet-helpers";
+
+describe("readNamespace (namespace probe order)", () => {
+	it("prefers a top-level namespace", () => {
+		expect(
+			readNamespace({
+				namespace: "Themis_Fr",
+				agent_profile: { namespace: "Other" },
+				name: "Also",
+			}),
+		).toBe("Themis_Fr");
+	});
+
+	it("falls back to agent_profile.namespace", () => {
+		expect(
+			readNamespace({ agent_profile: { namespace: "Atlas_Be" } }),
+		).toBe("Atlas_Be");
+	});
+
+	it("falls back to name when no namespace is present", () => {
+		expect(readNamespace({ name: "Rover_1" })).toBe("Rover_1");
+	});
+
+	it("trims and rejects blank/whitespace-only candidates", () => {
+		expect(readNamespace({ namespace: "  Spaced  " })).toBe("Spaced");
+		expect(readNamespace({ namespace: "   ", name: "Fallback" })).toBe(
+			"Fallback",
+		);
+	});
+
+	it("returns undefined when nothing usable is present", () => {
+		expect(readNamespace({})).toBeUndefined();
+		expect(readNamespace({ namespace: "", name: "" })).toBeUndefined();
+		expect(readNamespace({ namespace: 42 } as never)).toBeUndefined();
+	});
+});
 
 describe("extractAgentPosition (defensive, §7 two variants)", () => {
 	it("reads the nav_msgs/Odometry variant", () => {

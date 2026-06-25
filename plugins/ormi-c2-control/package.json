@@ -31,10 +31,16 @@
 	},
 	"dependencies": {
 		"@jsonforms/core": "^3.7.0",
+		"@jsonforms/react": "^3.7.0",
 		"@workspace/ormi-core": "workspace:*",
+		"@workspace/ormi-jsonforms": "workspace:*",
 		"@workspace/ormi-plugins": "workspace:*",
 		"@workspace/ui": "workspace:*",
-		"@workspace/utils": "workspace:*"
+		"@workspace/utils": "workspace:*",
+		"maplibre-gl": "^5.17.0",
+		"react-map-gl": "^8.1.0",
+		"terra-draw": "^1.31.2",
+		"terra-draw-maplibre-gl-adapter": "^1.4.1"
 	},
 	"ormi_plugin": true
 }

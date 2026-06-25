@@ -15,6 +15,7 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { ScrollText } from "lucide-react";
 
 import { useSelectedMission } from "../state/selection-store";
+import { useMissionName } from "../state/c2-catalog-store";
 
 /**
  * F11 — Swarm log widget.
@@ -82,6 +83,7 @@ function SwarmLogBody(props: {
 	missionId: string | null;
 }) {
 	const { sources, health } = useLocalDataSource();
+	const missionName = useMissionName(props.missionId);
 	const entries = collectSwarmLog(
 		sources as Map<string, BufferedSource>,
 		props.missionId,
@@ -95,7 +97,7 @@ function SwarmLogBody(props: {
 						{entries.length === 0 ? (
 							<div className="text-muted-foreground">
 								{props.missionId
-									? `No log entries for mission ${props.missionId}.`
+									? `No log entries for mission ${missionName}.`
 									: "No log entries yet."}
 							</div>
 						) : (

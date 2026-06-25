@@ -34,6 +34,37 @@ export { SwarmLogDefinition } from "./widgets/swarm-log";
 // Command widget definitions + helpers (Phase 3).
 export { MissionBrowserDefinition } from "./widgets/mission-browser";
 export { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
+
+// Authoring widget definitions + helpers (Phase 4 — F5 editor, F6 map).
+export { MissionEditorDefinition } from "./widgets/mission-editor";
+export { MissionMapDefinition } from "./widgets/mission-map";
+export {
+	buildMissionDraft,
+	hydrateMissionDraft,
+	pushFeatureRef,
+	pushInlineGeometry,
+	removeGeometryAt,
+	mergeVehicles,
+	toggleVehicle,
+	patchDraft,
+} from "./widgets/mission-editor-helpers";
+export type { MissionDraft } from "./widgets/mission-editor-helpers";
+export {
+	drawFeatureToC2Feature,
+	c2FeatureToDrawFeature,
+	drawFeatureToInlineGeometry,
+	readFeatureId,
+} from "./widgets/feature-geojson";
+export type { DrawFeature, FeatureMeta } from "./widgets/feature-geojson";
+
+// Map-editing store (F5/F6 geometry hand-off).
+export {
+	setPickedFeature,
+	setDraftGeometry,
+	clearMapEditing,
+	useC2MapEditing,
+} from "./state/map-editing-store";
+export type { DraftGeometry, MapEditingState } from "./state/map-editing-store";
 export {
 	normalizeMissions,
 	newMissionStub,
