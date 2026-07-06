@@ -139,7 +139,7 @@ export default function Page() {
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>
-			{({ widgetDefinitions }) => (
+			{({ widgetDefinitions, widgetGroups }) => (
 				<TemplatesProvider
 					onLoad={tl}
 					addTemplate={ts}
@@ -148,7 +148,10 @@ export default function Page() {
 				>
 					<GlobalDataSourcesProvider>
 						<DashboardEngine />
-						<WidgetsDialog widgetDefinitions={widgetDefinitions} />
+						<WidgetsDialog
+							widgetDefinitions={widgetDefinitions}
+							widgetGroups={widgetGroups}
+						/>
 					</GlobalDataSourcesProvider>
 				</TemplatesProvider>
 			)}

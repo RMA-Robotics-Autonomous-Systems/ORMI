@@ -48,9 +48,23 @@ export const [DashboardShellContextProvider, useDashboardShell] =
 // hasChanged / save reference change.
 // ---------------------------------------------------------------------------
 
+/** A set of widget definitions attributed to the plugin that contributed them. */
+export interface WidgetGroup {
+	/** Name of the plugin that contributed the widgets. */
+	pluginName: string;
+	/** Widget definitions contributed by that plugin. */
+	widgets: WidgetDefinition[];
+}
+
 export interface DashboardRegistryContextValue {
-	/** All widget definitions resolved from the plugin registry. */
+	/** All widget definitions resolved from the plugin registry (flattened). */
 	widgetDefinitions: WidgetDefinition[];
+	/**
+	 * Widget definitions grouped by the plugin that contributed them
+	 * (provenance-based). Consumed by the widget picker to render per-plugin
+	 * sections. `widgetDefinitions` is the flattened form of this.
+	 */
+	widgetGroups: WidgetGroup[];
 	/** All datasource definitions resolved from the plugin registry. */
 	datasourceDefinitions: DatasourceDefinition<DatasourceProviderSettings>[];
 	/**
@@ -112,19 +126,49 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	// run on every render at a consistent position in the hook chain.
 	// Do NOT wrap in useMemo — the memo bail-out would skip those inner hook
 	// calls and cause a "change in order of Hooks" violation.
-	let widgetDefinitions = pluginsManager.applyFilter<WidgetDefinition[]>(
-		PluginsHooks.WIDGETS_LIST,
-		[],
-	);
 
-	// Apply extensibility hooks to allow plugins to modify definitions at registry time.
-	// This decouples definition factories from hook calls while preserving plugin extensibility.
-	widgetDefinitions = widgetDefinitions.map((def) => {
-		if (def.extensibilityHook) {
-			return def.extensibilityHook(def, pluginsManager);
+	// Flat, GATED widget list + provenance in a SINGLE pass. applyFilterTracked
+	// runs every plugin's WIDGETS_LIST filters over one shared accumulator
+	// (including the datasource-gating filter registered last at MAX_SAFE_INTEGER
+	// priority by the global datasource provider, which removes widgets whose
+	// required datasource is absent and returns [] when none is connected) and,
+	// in the same pass, records which plugin first introduced each widget id.
+	//
+	// CRITICAL: the WIDGETS_LIST filters invoke widget definition factories that
+	// may call React hooks at factory level. They must run EXACTLY ONCE per
+	// render — running applyFilter and a separate provenance pass would invoke
+	// the factories twice and corrupt hook order. This is the same invariant the
+	// "no useMemo" note above protects.
+	const applyExtensibility = (def: WidgetDefinition): WidgetDefinition =>
+		def.extensibilityHook
+			? def.extensibilityHook(def, pluginsManager)
+			: def;
+
+	const { result: gatedWidgets, origin: widgetPlugin } =
+		pluginsManager.applyFilterTracked<WidgetDefinition>(
+			PluginsHooks.WIDGETS_LIST,
+			[],
+			(widget) => widget.id,
+		);
+
+	const widgetDefinitions = gatedWidgets.map(applyExtensibility);
+
+	// Group the GATED list by attributed plugin, preserving first-seen plugin
+	// order. No datasource → widgetDefinitions is [] → widgetGroups is [] → the
+	// picker shows its "No widgets available" empty state.
+	const widgetGroupMap = new Map<string, WidgetDefinition[]>();
+	widgetDefinitions.forEach((widget) => {
+		const pluginName = widgetPlugin.get(widget.id) ?? "Other";
+		const bucket = widgetGroupMap.get(pluginName);
+		if (bucket) {
+			bucket.push(widget);
+		} else {
+			widgetGroupMap.set(pluginName, [widget]);
 		}
-		return def;
 	});
+	const widgetGroups: WidgetGroup[] = Array.from(
+		widgetGroupMap.entries(),
+	).map(([pluginName, widgets]) => ({ pluginName, widgets }));
 	const datasourceDefinitions = pluginsManager.applyFilter<
 		DatasourceDefinition<DatasourceProviderSettings>[]
 	>(PluginsHooks.DATASOURCES_LIST, []);
@@ -186,6 +230,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	// from reaching registry-only consumers and vice-versa.
 	const registryValue: DashboardRegistryContextValue = {
 		widgetDefinitions,
+		widgetGroups,
 		datasourceDefinitions,
 		engineDefinitions,
 	};

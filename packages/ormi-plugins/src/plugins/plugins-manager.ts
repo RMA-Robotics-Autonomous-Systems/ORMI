@@ -274,4 +274,117 @@ export class PluginsManager {
 	getPlugins(): Map<string | PluginsHooks, Plugin> {
 		return this.plugins;
 	}
+
+	/**
+	 * Collects the items contributed to a list filter, grouped by the plugin that
+	 * provided them (provenance-based attribution — no extra field on the items).
+	 *
+	 * For each registered plugin, its filters for `filterName` are run in
+	 * isolation against a fresh `[]` (sorted by ascending priority, mirroring
+	 * {@link applyFilter} semantics), and the resulting items are attributed to
+	 * `plugin.name`. Plugins that contribute zero items are skipped.
+	 *
+	 * Unlike {@link applyFilter} — which runs every plugin's filters over a single
+	 * shared accumulator — this isolates each plugin so the contributions can be
+	 * grouped. Use it to render provenance-grouped lists (e.g. the widget picker).
+	 *
+	 * @typeParam T - Item type the filter operates on (e.g. `WidgetDefinition`).
+	 * @param filterName - List filter hook name (e.g. `WIDGETS_LIST`).
+	 * @returns Groups of items keyed by the contributing plugin's name. Empty
+	 * groups are omitted.
+	 */
+	collectGroups<T>(
+		filterName: string | PluginsHooks,
+	): { pluginName: string; items: T[] }[] {
+		const groups: { pluginName: string; items: T[] }[] = [];
+
+		this.plugins.forEach((plugin) => {
+			const filtersMap = plugin.filters.get(filterName);
+			if (filtersMap === undefined) {
+				return;
+			}
+
+			const filters: PluginFilter[] = [];
+			filtersMap.forEach((filter) => {
+				filters.push(filter);
+			});
+
+			if (filters.length === 0) {
+				return;
+			}
+
+			// Mirror applyFilter's ascending-priority ordering, but start from a
+			// fresh accumulator so only this plugin's contributions are collected.
+			filters.sort((a, b) => a.priority - b.priority);
+
+			let items: T[] = [];
+			filters.forEach((filter) => {
+				items = filter.filter(items) as T[];
+			});
+
+			if (items.length > 0) {
+				groups.push({ pluginName: plugin.getName(), items });
+			}
+		});
+
+		return groups;
+	}
+
+	/**
+	 * Like {@link applyFilter}, but also records which plugin first introduced
+	 * each resulting item.
+	 *
+	 * Every filter is invoked **exactly once** across the whole call — definition
+	 * factories that call React hooks at factory level must never be re-invoked,
+	 * or their hooks fire twice and corrupt hook order (see the dashboard-shell
+	 * hook-order note). This is the single-pass alternative to running
+	 * {@link applyFilter} and {@link collectGroups} separately, which would
+	 * evaluate the filters twice.
+	 *
+	 * `result` is identical to what {@link applyFilter} returns for the same hook
+	 * and seed (same flattened ascending-priority order, including any final
+	 * gating filter that removes items). `origin` maps `keyOf(item)` to the name
+	 * of the plugin whose filter first introduced that key; first-seen wins.
+	 *
+	 * Gating filters only remove items (they introduce none), so survivors keep
+	 * the attribution of the plugin that pushed them. Removed items leave stale
+	 * `origin` entries that callers simply never read.
+	 *
+	 * @typeParam T - Item type the filter operates on (e.g. `WidgetDefinition`).
+	 * @param filterName - List filter hook name (e.g. `WIDGETS_LIST`).
+	 * @param seed - Initial accumulator passed to the first filter.
+	 * @param keyOf - Stable key extractor used to attribute and dedupe items.
+	 * @returns The filtered `result` and the `origin` attribution map.
+	 */
+	applyFilterTracked<T>(
+		filterName: string | PluginsHooks,
+		seed: T[],
+		keyOf: (item: T) => string,
+	): { result: T[]; origin: Map<string, string> } {
+		const entries: { pluginName: string; filter: PluginFilter }[] = [];
+
+		this.plugins.forEach((plugin) => {
+			plugin.filters.get(filterName)?.forEach((filter) => {
+				entries.push({ pluginName: plugin.getName(), filter });
+			});
+		});
+
+		// Mirror applyFilter's global ascending-priority ordering.
+		entries.sort((a, b) => a.filter.priority - b.filter.priority);
+
+		let result = seed;
+		const origin = new Map<string, string>();
+
+		entries.forEach(({ pluginName, filter }) => {
+			result = filter.filter(result) as T[];
+			for (const item of result) {
+				const key = keyOf(item);
+				if (!origin.has(key)) {
+					origin.set(key, pluginName);
+				}
+			}
+		});
+
+		return { result, origin };
+	}
 }

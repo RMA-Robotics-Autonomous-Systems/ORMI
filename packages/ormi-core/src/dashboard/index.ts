@@ -6,6 +6,7 @@ export type {
 	DashboardShellProps,
 	DashboardShellContextValue,
 	DashboardRegistryContextValue,
+	WidgetGroup,
 } from "./shell/dashboard-shell";
 export {
 	useDashboardShell,
