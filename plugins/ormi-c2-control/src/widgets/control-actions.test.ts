@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
-import { MissionStatus } from "../types/c2-types";
-import { ControlAction, allowedActions } from "./control-actions";
+import { MissionBehavior, MissionStatus } from "../types/c2-types";
+import {
+	ControlAction,
+	allowedActions,
+	canSubmit,
+	isMissionIdle,
+	missionConfigSignature,
+} from "./control-actions";
+import type { MissionDraft } from "./mission-editor-helpers";
 
 /** The actions that must be true for a given status, everything else false. */
 function expectOnly(
@@ -105,5 +112,161 @@ describe("allowedActions (F8 status → allowed lifecycle commands)", () => {
 		for (const status of statuses) {
 			expect(allowedActions(status).submit).toBe(true);
 		}
+	});
+});
+
+/** A minimal, valid working draft for signature/canSubmit tests. */
+function makeDraft(overrides: Partial<MissionDraft> = {}): MissionDraft {
+	return {
+		mission_id: "m-1",
+		name: "Mission 1",
+		behavior: MissionBehavior.NAVIGATE,
+		objective: { geometries: [] },
+		vehicles: [],
+		...overrides,
+	};
+}
+
+describe("isMissionIdle (idle/terminal → fresh Submit is fine)", () => {
+	it("treats missing status as idle", () => {
+		expect(isMissionIdle(null)).toBe(true);
+		expect(isMissionIdle(undefined)).toBe(true);
+	});
+
+	it("treats NONE and terminal/failed states as idle", () => {
+		for (const status of [
+			MissionStatus.NONE,
+			MissionStatus.COMPLETED,
+			MissionStatus.DELETED,
+			MissionStatus.STOPPED,
+			MissionStatus.FAILED,
+			MissionStatus.PLANNED_FAILED,
+		]) {
+			expect(isMissionIdle(status)).toBe(true);
+		}
+	});
+
+	it("treats active states as NOT idle", () => {
+		for (const status of [
+			MissionStatus.PLANNED,
+			MissionStatus.PLANNED_ALTERNATIVE,
+			MissionStatus.ACCEPTED,
+			MissionStatus.STARTED,
+			MissionStatus.PAUSED,
+		]) {
+			expect(isMissionIdle(status)).toBe(false);
+		}
+	});
+});
+
+describe("missionConfigSignature (dirty detector)", () => {
+	it("is stable for the same config content", () => {
+		expect(missionConfigSignature(makeDraft())).toBe(
+			missionConfigSignature(makeDraft()),
+		);
+	});
+
+	it("changes when a meaningful field changes", () => {
+		const base = missionConfigSignature(makeDraft());
+		expect(
+			missionConfigSignature(makeDraft({ vehicles: ["v-1"] })),
+		).not.toBe(base);
+		expect(missionConfigSignature(makeDraft({ name: "Renamed" }))).not.toBe(
+			base,
+		);
+		expect(
+			missionConfigSignature(
+				makeDraft({ behavior: MissionBehavior.COVERAGE }),
+			),
+		).not.toBe(base);
+	});
+
+	it("ignores empty optional blocks (cleaned before signing)", () => {
+		const withEmptyTransit = makeDraft({
+			transit: {},
+		} as Partial<MissionDraft>);
+		expect(missionConfigSignature(withEmptyTransit)).toBe(
+			missionConfigSignature(makeDraft()),
+		);
+	});
+});
+
+describe("canSubmit (Submit dirty-gate)", () => {
+	const sigA = "sig-a";
+	const sigB = "sig-b";
+
+	it("allows Submit when the mission is idle/terminal (regardless of sigs)", () => {
+		expect(
+			canSubmit({
+				status: MissionStatus.NONE,
+				currentSig: sigA,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(true);
+		expect(
+			canSubmit({
+				status: null,
+				currentSig: null,
+				lastSubmittedSig: null,
+			}),
+		).toBe(true);
+		expect(
+			canSubmit({
+				status: MissionStatus.COMPLETED,
+				currentSig: sigA,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(true);
+	});
+
+	it("disables Submit on an active mission whose config is unchanged", () => {
+		expect(
+			canSubmit({
+				status: MissionStatus.PLANNED,
+				currentSig: sigA,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(false);
+		expect(
+			canSubmit({
+				status: MissionStatus.STARTED,
+				currentSig: sigA,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(false);
+	});
+
+	it("re-enables Submit on an active mission once the config changes", () => {
+		expect(
+			canSubmit({
+				status: MissionStatus.PLANNED,
+				currentSig: sigB,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(true);
+		expect(
+			canSubmit({
+				status: MissionStatus.ACCEPTED,
+				currentSig: sigB,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(true);
+	});
+
+	it("disables Submit on an active mission when either signature is missing", () => {
+		expect(
+			canSubmit({
+				status: MissionStatus.PLANNED,
+				currentSig: null,
+				lastSubmittedSig: sigA,
+			}),
+		).toBe(false);
+		expect(
+			canSubmit({
+				status: MissionStatus.PLANNED,
+				currentSig: sigA,
+				lastSubmittedSig: null,
+			}),
+		).toBe(false);
 	});
 });

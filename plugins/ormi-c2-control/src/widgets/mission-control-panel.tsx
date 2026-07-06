@@ -18,6 +18,7 @@ import { Button } from "@workspace/ui/components/button";
 import { Separator } from "@workspace/ui/components/separator";
 import {
 	CheckCircle2,
+	Loader2,
 	Pause,
 	Play,
 	Rocket,
@@ -25,14 +26,10 @@ import {
 	Square,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { C2Call } from "../datasource/remote-calls";
 import { MissionStatus } from "../types/c2-types";
-import {
-	MissionFeedback,
-	parseMissionFeedback,
-} from "../types/mission-feedback";
 import { missionStatusLabel } from "../types/status-labels";
 import {
 	MissionConfigIssue,
@@ -40,13 +37,22 @@ import {
 } from "../types/mission-config-validation";
 import { useSelectedMission } from "../state/selection-store";
 import { useMissionName } from "../state/c2-catalog-store";
+import { useMissionFeedback } from "../state/mission-feedback-store";
+import { useMissionDraft } from "../state/mission-draft-store";
+import type { MissionDraft } from "./mission-editor-helpers";
+import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { newMissionStub, normalizeMissions } from "./mission-list";
 import { MissionIssueList } from "./mission-issues";
 import {
 	AllowedActions,
 	ControlAction,
 	allowedActions,
+	canSubmit,
+	isMissionIdle,
+	missionConfigSignature,
 } from "./control-actions";
+import { MissionStateMachine } from "./mission-state-machine";
+import { useAsyncAction } from "./use-async-action";
 
 /**
  * F8 — Lifecycle control panel widget.
@@ -84,35 +90,6 @@ interface MissionControlPanelProps extends Record<string, unknown> {
 	datasource_id?: string;
 }
 
-/** Per-topic buffered source shape used here. */
-interface BufferedSource {
-	data: unknown[];
-}
-
-/** Raw `c2_msgs/msg/MissionFeedback` wrapper around the JSON-string field. */
-interface RawMissionFeedbackMsg {
-	mission_id?: string;
-	mission_feedback?: string;
-}
-
-/** Pull the latest typed feedback from the local-datasource sources map. */
-function latestFeedback(
-	sources: Map<string, BufferedSource>,
-): MissionFeedback | null {
-	let latest: MissionFeedback | null = null;
-	for (const source of sources.values()) {
-		const value = source.data[source.data.length - 1];
-		if (value == null) continue;
-		const msg = value as RawMissionFeedbackMsg;
-		const candidate =
-			typeof msg.mission_feedback === "string"
-				? parseMissionFeedback(msg.mission_feedback)
-				: parseMissionFeedback(value as RawMissionFeedbackMsg);
-		if (candidate) latest = candidate;
-	}
-	return latest;
-}
-
 /** Resolve a C2 call definition by name. */
 function findCall(
 	calls: RemoteCallDefinition[],
@@ -138,7 +115,11 @@ function CommandButton(props: {
 			onClick={props.onClick}
 			className="flex-1 min-w-[5rem]"
 		>
-			{props.icon}
+			{props.pending ? (
+				<Loader2 className="w-3.5 h-3.5 animate-spin" />
+			) : (
+				props.icon
+			)}
 			<span className="ml-1">{props.label}</span>
 		</Button>
 	);
@@ -154,21 +135,93 @@ function ControlPanelBody(props: {
 }) {
 	const { sources, health } = useLocalDataSource();
 	const missionName = useMissionName(props.missionId);
-	const feedback = props.hasTopic
-		? latestFeedback(sources as Map<string, BufferedSource>)
-		: null;
 
-	// Live status for the active/pinned mission (when feedback carries one).
-	const matchesMission =
-		!props.missionId ||
-		(feedback != null && feedback.mission_id === props.missionId);
+	// `/multi_robot/mission_feedback` is a SINGLE shared topic carrying feedback
+	// for ALL missions, interleaved. Parse the latest message and PUBLISH it into
+	// the per-mission feedback store (keyed by `mission_id`), then READ ONLY this
+	// panel's mission slot. Publishing is gated on `props.hasTopic` so a panel with
+	// no feedback topic configured publishes nothing — preserving the "no topic →
+	// no live status" contract. Reading the per-mission slot (instead of the size-1
+	// buffer tail) means an interleaved message for ANOTHER mission updates THAT
+	// slot and never blanks the status/buttons for the mission we control — no
+	// A→null→A flicker that momentarily dropped the badge and disabled the buttons.
+	usePublishMissionFeedback(
+		sources as Map<string, { data: unknown[] }>,
+		props.hasTopic,
+	);
+
+	// Live status for the active/pinned mission. With no `missionId`, the store
+	// returns the latest mission's feedback (matching the old "follow latest"
+	// branch); with a pinned mission, it returns that mission's slot (null until it
+	// publishes). When no feedback topic is configured, status stays null.
+	const storeFeedback = useMissionFeedback(props.missionId);
 	const liveStatus: MissionStatus | null =
-		matchesMission && feedback ? feedback.status : null;
+		props.hasTopic && storeFeedback ? storeFeedback.status : null;
 
 	const allowed: AllowedActions = useMemo(
 		() => allowedActions(liveStatus),
 		[liveStatus],
 	);
+
+	// ── Submit dirty-gate (Part 1) ──────────────────────────────────────────
+	// The operator's live working draft for this mission (the F5/F6 config) and
+	// its content signature. An edit in F5/F6 mutates the shared draft, so
+	// `currentSig` changes, which re-enables Submit on an otherwise-gated active
+	// mission.
+	const { missionId } = props;
+	const draft = useMissionDraft(missionId);
+	const currentSig = useMemo(
+		() => (draft ? missionConfigSignature(draft) : null),
+		[draft],
+	);
+	// The signature last submitted for THIS mission; reset on mission change so a
+	// different mission never inherits a stale "already submitted" signature.
+	const [lastSubmittedSig, setLastSubmittedSig] = useState<string | null>(
+		null,
+	);
+	useEffect(() => {
+		setLastSubmittedSig(null);
+	}, [missionId]);
+	// Seed: an already-active mission carried over from a prior session (its live
+	// status is non-idle) should be treated as already-submitted with its current
+	// config — so an unchanged planned mission stays gated until the operator
+	// actually edits it. Set only when currently null to avoid a feedback loop.
+	useEffect(() => {
+		if (
+			!isMissionIdle(liveStatus) &&
+			lastSubmittedSig == null &&
+			currentSig != null
+		) {
+			setLastSubmittedSig(currentSig);
+		}
+	}, [liveStatus, lastSubmittedSig, currentSig]);
+
+	// ── Awaiting-C2 transition lock (Part 2) ────────────────────────────────
+	// The HTTP POST to C2 returns before C2 transitions the mission, so the
+	// in-flight `busy` lock releases too early to stop a re-press (e.g. Approve
+	// spammed). This second, longer lock holds from a successful dispatch until
+	// the live status actually moves off `fromStatus` (C2 acted), the mission
+	// changes, or a timeout fallback fires (a silent C2 must not lock forever).
+	const [pendingTransition, setPendingTransition] = useState<{
+		fromStatus: MissionStatus | null;
+	} | null>(null);
+	// Clear when C2 has moved the mission off the status we dispatched from.
+	useEffect(() => {
+		if (pendingTransition && liveStatus !== pendingTransition.fromStatus) {
+			setPendingTransition(null);
+		}
+	}, [liveStatus, pendingTransition]);
+	// Clear on mission change — a different mission's lock must not carry over.
+	useEffect(() => {
+		setPendingTransition(null);
+	}, [missionId]);
+	// Timeout fallback: release the lock after ~25s even if C2 never reports a
+	// transition, so a silent/unreachable C2 can't lock the operator out.
+	useEffect(() => {
+		if (!pendingTransition) return;
+		const id = setTimeout(() => setPendingTransition(null), 25_000);
+		return () => clearTimeout(id);
+	}, [pendingTransition]);
 
 	// Resolve the command + list calls (list is used to source the Submit config).
 	const { initDef } = props;
@@ -196,14 +249,19 @@ function ControlPanelBody(props: {
 		listDef ?? initDef,
 	);
 
-	const [busy, setBusy] = useState<ControlAction | null>(null);
+	// In-flight guard: `busy` is the action currently dispatching (or null). While
+	// any action is in flight, EVERY button is disabled (see `CommandButton`
+	// enablement below) and `run` drops re-entrant clicks — so a fast double-click,
+	// or a click on a different command mid-flight, can't fire a duplicate or
+	// conflicting command before React re-renders the disabled state.
+	const { pending: busy, run } = useAsyncAction<ControlAction>();
 	const [error, setError] = useState<string | null>(null);
 	const [message, setMessage] = useState<string | null>(null);
 	const [issues, setIssues] = useState<MissionConfigIssue[]>([]);
 
 	/** Run a no-payload change_status command, surfacing status/error. */
 	const runCommand = useCallback(
-		async (
+		(
 			action: ControlAction,
 			call: ReturnType<typeof useRemoteCall>,
 			def: RemoteCallDefinition | undefined,
@@ -212,18 +270,21 @@ function ControlPanelBody(props: {
 				setError(`${action} is unavailable on this datasource`);
 				return;
 			}
-			setBusy(action);
-			setError(null);
-			setMessage(null);
-			const result = await call.execute({});
-			setBusy(null);
-			if (!result.success) {
-				setError(result.error ?? `${action} failed`);
-				return;
-			}
-			setMessage(`${action} sent`);
+			return run(action, async () => {
+				setError(null);
+				setMessage(null);
+				const result = await call.execute({});
+				if (!result.success) {
+					setError(result.error ?? `${action} failed`);
+					return;
+				}
+				setMessage(`${action} sent`);
+				// Hold the lifecycle buttons until C2 actually transitions the
+				// mission off the status we dispatched from (or the timeout fires).
+				setPendingTransition({ fromStatus: liveStatus });
+			});
 		},
-		[],
+		[run, liveStatus],
 	);
 
 	/**
@@ -231,62 +292,71 @@ function ControlPanelBody(props: {
 	 * mission config from the stored definition (`c2.missions.list`) when found;
 	 * otherwise submits a minimal stub (full authoring is F5/Phase 4).
 	 */
-	const handleSubmit = useCallback(async () => {
+	const handleSubmit = useCallback(() => {
 		if (!initDef) {
 			setError("c2.mission.init is unavailable on this datasource");
 			return;
 		}
-		if (!props.missionId) {
+		if (!missionId) {
 			setError("Select a mission first (no active mission).");
 			return;
 		}
-		setBusy("submit");
-		setError(null);
-		setMessage(null);
-		setIssues([]);
+		const activeMissionId = missionId;
+		return run("submit", async () => {
+			setError(null);
+			setMessage(null);
+			setIssues([]);
 
-		// Try to load the stored mission config for the active mission.
-		let missionConfig: unknown = null;
-		if (listDef) {
-			const listed = await list.execute({});
-			if (listed.success) {
-				const row = normalizeMissions(listed.data).find(
-					(r) => r.mission_id === props.missionId,
-				);
-				if (row) missionConfig = row.raw;
+			// Try to load the stored mission config for the active mission.
+			let missionConfig: unknown = null;
+			if (listDef) {
+				const listed = await list.execute({});
+				if (listed.success) {
+					const row = normalizeMissions(listed.data).find(
+						(r) => r.mission_id === activeMissionId,
+					);
+					if (row) missionConfig = row.raw;
+				}
 			}
-		}
-		// Fallback: a minimal config under the active mission id.
-		if (missionConfig == null) {
-			missionConfig = newMissionStub(
-				"Mission",
-				undefined,
-				props.missionId,
-			);
-		}
+			// Fallback: a minimal config under the active mission id.
+			if (missionConfig == null) {
+				missionConfig = newMissionStub(
+					"Mission",
+					undefined,
+					activeMissionId,
+				);
+			}
 
-		// Hard gate: never submit a config the C2 planner would reject/crash on.
-		const found = validateMissionConfig(missionConfig);
-		setIssues(found);
-		if (found.some((issue) => issue.severity === "error")) {
-			setBusy(null);
-			setError(
-				"This mission config cannot be submitted — fix the errors below.",
-			);
-			return;
-		}
+			// Hard gate: never submit a config the C2 planner would reject/crash on.
+			const found = validateMissionConfig(missionConfig);
+			setIssues(found);
+			if (found.some((issue) => issue.severity === "error")) {
+				setError(
+					"This mission config cannot be submitted — fix the errors below.",
+				);
+				return;
+			}
 
-		const result = await init.execute({
-			mission_id: props.missionId,
-			mission_config: missionConfig,
+			const result = await init.execute({
+				mission_id: activeMissionId,
+				mission_config: missionConfig,
+			});
+			if (!result.success) {
+				setError(result.error ?? "Submit failed");
+				return;
+			}
+			setMessage("Mission submitted (initialize)");
+			// Mark this config as the last-submitted one so an unchanged re-Submit
+			// is gated; prefer the live draft's signature, falling back to the
+			// config actually submitted when no draft is loaded.
+			setLastSubmittedSig(
+				currentSig ??
+					missionConfigSignature(missionConfig as MissionDraft),
+			);
+			// Hold the lifecycle buttons until C2 transitions the mission.
+			setPendingTransition({ fromStatus: liveStatus });
 		});
-		setBusy(null);
-		if (!result.success) {
-			setError(result.error ?? "Submit failed");
-			return;
-		}
-		setMessage("Mission submitted (initialize)");
-	}, [initDef, listDef, props.missionId, init, list]);
+	}, [initDef, listDef, missionId, init, list, run, currentSig, liveStatus]);
 
 	return (
 		<div className="h-full flex flex-col gap-3 p-3 text-sm">
@@ -318,6 +388,11 @@ function ControlPanelBody(props: {
 				)}
 			</div>
 
+			{/* Prominent, color-coded mission state machine (mirrors the live
+			    status); the allowedActions()-gated buttons remain the action
+			    surface. */}
+			<MissionStateMachine status={liveStatus} />
+
 			<Separator />
 
 			{/* Lifecycle commands */}
@@ -327,7 +402,17 @@ function ControlPanelBody(props: {
 						label="Submit"
 						icon={<Send className="w-3.5 h-3.5" />}
 						variant="default"
-						enabled={allowed.submit && Boolean(initDef)}
+						enabled={
+							allowed.submit &&
+							canSubmit({
+								status: liveStatus,
+								currentSig,
+								lastSubmittedSig,
+							}) &&
+							Boolean(initDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "submit"}
 						onClick={() => void handleSubmit()}
 					/>
@@ -335,7 +420,12 @@ function ControlPanelBody(props: {
 						label="Approve"
 						icon={<CheckCircle2 className="w-3.5 h-3.5" />}
 						variant="default"
-						enabled={allowed.approve && Boolean(approveDef)}
+						enabled={
+							allowed.approve &&
+							Boolean(approveDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "approve"}
 						onClick={() =>
 							void runCommand("approve", approve, approveDef)
@@ -344,7 +434,12 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Start"
 						icon={<Play className="w-3.5 h-3.5" />}
-						enabled={allowed.start && Boolean(startDef)}
+						enabled={
+							allowed.start &&
+							Boolean(startDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "start"}
 						onClick={() =>
 							void runCommand("start", start, startDef)
@@ -355,7 +450,12 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Pause"
 						icon={<Pause className="w-3.5 h-3.5" />}
-						enabled={allowed.pause && Boolean(pauseDef)}
+						enabled={
+							allowed.pause &&
+							Boolean(pauseDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "pause"}
 						onClick={() =>
 							void runCommand("pause", pause, pauseDef)
@@ -364,7 +464,12 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Stop"
 						icon={<Square className="w-3.5 h-3.5" />}
-						enabled={allowed.stop && Boolean(stopDef)}
+						enabled={
+							allowed.stop &&
+							Boolean(stopDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "stop"}
 						onClick={() => void runCommand("stop", stop, stopDef)}
 					/>
@@ -372,7 +477,12 @@ function ControlPanelBody(props: {
 						label="Delete"
 						icon={<Trash2 className="w-3.5 h-3.5" />}
 						variant="destructive"
-						enabled={allowed.delete && Boolean(deleteDef)}
+						enabled={
+							allowed.delete &&
+							Boolean(deleteDef) &&
+							busy === null &&
+							pendingTransition === null
+						}
 						pending={busy === "delete"}
 						onClick={() =>
 							void runCommand("delete", del, deleteDef)
@@ -394,6 +504,12 @@ function ControlPanelBody(props: {
 			{message && !error && (
 				<div className="text-xs text-muted-foreground shrink-0">
 					{message}
+				</div>
+			)}
+			{pendingTransition !== null && (
+				<div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+					<Loader2 className="w-3 h-3 animate-spin" />
+					Waiting for C2 to transition the mission…
 				</div>
 			)}
 			{!props.hasTopic && (
@@ -428,6 +544,15 @@ const MissionControlPanelWidget: React.FC<MissionControlPanelProps> = (
 
 	const initDef = useMemo(() => findCall(calls, C2Call.MissionInit), [calls]);
 
+	// Stable across parent re-renders: a fresh `[props.topic]` literal every
+	// render makes LocalDataSourcesProvider re-subscribe (unsubscribe→subscribe),
+	// flapping health and flickering the panel (AGENTS.md subscription-thrash
+	// rule). Memo it (above the early return so the hook runs unconditionally).
+	const topics = useMemo(
+		() => (props.topic ? [props.topic] : []),
+		[props.topic],
+	);
+
 	if (!initDef) {
 		return (
 			<div className="h-full flex items-center justify-center p-3 text-sm text-muted-foreground text-center">
@@ -436,8 +561,6 @@ const MissionControlPanelWidget: React.FC<MissionControlPanelProps> = (
 			</div>
 		);
 	}
-
-	const topics = props.topic ? [props.topic] : [];
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={topics} buffersSize={1}>

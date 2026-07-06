@@ -41,6 +41,34 @@ export interface MissionFeedback {
 	tasks: FeedbackTask[];
 }
 
+/**
+ * A content signature of a parsed feedback's RENDERED plan: mission id, status,
+ * issue, and per-task vehicle + waypoint geometry/ETA. Identical plans yield an
+ * identical string.
+ *
+ * `mission_feedback` streams continuously, so consumers receive a fresh parsed
+ * object on every message; comparing this signature lets them keep a stable
+ * reference and skip rebuilding/repainting derived UI (GeoJSON, task rows) when
+ * the plan hasn't actually changed.
+ *
+ * @param fb - The parsed feedback.
+ * @returns A stable signature string for the plan content.
+ */
+export function feedbackPlanSignature(fb: MissionFeedback): string {
+	const tasks = fb.tasks
+		.map(
+			(t) =>
+				`${t.vehicle_id}:${t.est ?? ""}:${t.waypoints
+					.map(
+						(w) =>
+							`${w.lngLat[0]},${w.lngLat[1]},${w.orientation ?? ""},${w.average_speed ?? ""},${w.eta ?? ""}`,
+					)
+					.join(";")}`,
+		)
+		.join("|");
+	return `${fb.mission_id}|${fb.status}|${fb.issue ?? ""}|${tasks}`;
+}
+
 interface RawWaypoint {
 	coordinates?: [number, number];
 	average_speed?: number;

@@ -95,7 +95,7 @@ export function RainviewerOverlay() {
 				<span
 					className={
 						isForecast
-							? "text-sky-500 font-medium"
+							? "text-info font-medium"
 							: "text-muted-foreground"
 					}
 				>

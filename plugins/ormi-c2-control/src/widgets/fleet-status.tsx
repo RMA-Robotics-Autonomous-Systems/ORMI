@@ -2,6 +2,7 @@
 
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import {
+	DatasourceProviderSettings,
 	LocalDataSourcesProvider,
 	RemoteCallDefinition,
 	SelectedTopic,
@@ -15,16 +16,25 @@ import {
 } from "@workspace/ormi-core/widgets";
 import { Badge } from "@workspace/ui/components/badge";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
-import { Truck } from "lucide-react";
+import { ChevronDown, ChevronRight, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { C2Call } from "../datasource/remote-calls";
-import { publishAgentNames, useAgentName } from "../state/c2-agents-store";
+import {
+	publishAgentProfiles,
+	useAgentName,
+	useAgentRecord,
+} from "../state/c2-agents-store";
+import { agentStateLabel } from "../types/agent-state-labels";
 import { C2Vehicle } from "../types/c2-types";
 import {
 	FleetRow,
+	autonomyStatusLabel,
+	buildNamespacedTopic,
 	collectTelemetry,
 	mergeFleet,
+	parseAgentProfileTelemetry,
+	parseAutonomyStatus,
 	readNamespace,
 	vehicleAgentId,
 } from "./fleet-helpers";
@@ -106,13 +116,19 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 			setVehicles(vehicleList);
 			// Best-effort: publish any namespace the roster carries. The :5000
 			// schema strips `namespace` today, so this publishes nothing — it is
-			// free and correct if the C2 schema is ever loosened.
-			publishAgentNames(
+			// free and correct if the C2 schema is ever loosened. No datasource
+			// `source` here (REST roster), so per-agent topic subscriptions are
+			// only enabled once the agent_profile topic feeds a source.
+			publishAgentProfiles(
 				vehicleList
-					.map((v) => ({
-						agent_id: vehicleAgentId(v) ?? "",
-						name: readNamespace(v as Record<string, unknown>),
-					}))
+					.map((v) => {
+						const ns = readNamespace(v as Record<string, unknown>);
+						return {
+							agent_id: vehicleAgentId(v) ?? "",
+							namespace: ns ?? null,
+							name: ns,
+						};
+					})
 					.filter((r) => r.agent_id),
 			);
 		});
@@ -124,21 +140,51 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 	return { vehicles, error, loading };
 }
 
+/** Parsed battery/fuel/sensor telemetry, keyed by agent_id (widget-local). */
+type ProfileTelemetryMap = Record<
+	string,
+	ReturnType<typeof parseAgentProfileTelemetry>
+>;
+
 /**
- * Feed the agent-name store from the buffered `agent_profile` source.
+ * Feed the agent store from the buffered `agent_profile` source (when that
+ * OPTIONAL topic is configured).
  *
  * Each `std_msgs/msg/String` message wraps the full agent profile as a JSON
  * string in its `data` field; we parse it defensively (tolerating an
  * already-parsed object, skipping non-string/garbage) and publish
- * `{ agent_id, namespace }`. Runs in an effect over the buffered source — NEVER
- * in render. Selects ONLY the agent_profile topic's buffer (via the provider's
- * own `getSource`), so the feedback topic's messages are never folded in.
+ * `{ agent_id, namespace, name, source }` — the `source` is the agent_profile
+ * topic's datasource, so per-agent localization/autonomy subscriptions can be
+ * issued against it WHEN this topic is present. Runs in an effect over the
+ * buffered source — NEVER in render. Selects ONLY the agent_profile topic's
+ * buffer (via the provider's own `getSource`), so the feedback topic's messages
+ * are never folded in.
+ *
+ * The detail's battery/fuel/sensor lines do NOT consume this — they read the
+ * roster `row.vehicle` (`vehicle_info`) directly. The returned telemetry map is
+ * retained for compatibility but is otherwise unused; the store publish is the
+ * meaningful side effect here.
+ *
+ * @param source - The buffered agent_profile source (or undefined).
+ * @param profileTopic - The agent_profile SelectedTopic (for its `.source`).
+ * @returns Parsed profile telemetry keyed by agent_id.
  */
-function useAgentProfilePublisher(source: BufferedSource | undefined): void {
+function useAgentProfilePublisher(
+	source: BufferedSource | undefined,
+	profileTopic: SelectedTopic | undefined,
+): ProfileTelemetryMap {
 	const buffer = source?.data;
+	const profileSource = profileTopic?.source ?? null;
+	const [telemetry, setTelemetry] = useState<ProfileTelemetryMap>({});
 	useEffect(() => {
 		if (!buffer) return;
-		const rows: { agent_id: string; name?: string | null }[] = [];
+		const rows: {
+			agent_id: string;
+			namespace: string | null;
+			name?: string | null;
+			source: typeof profileSource;
+		}[] = [];
+		const parsedTelemetry: ProfileTelemetryMap = {};
 		for (const value of buffer) {
 			if (value == null) continue;
 			let parsed: Record<string, unknown> | null = null;
@@ -156,45 +202,271 @@ function useAgentProfilePublisher(source: BufferedSource | undefined): void {
 			if (parsed == null || typeof parsed !== "object") continue;
 			const agentId = parsed.agent_id;
 			if (typeof agentId !== "string" || agentId === "") continue;
-			rows.push({ agent_id: agentId, name: readNamespace(parsed) });
+			const ns = readNamespace(parsed);
+			rows.push({
+				agent_id: agentId,
+				namespace: ns ?? null,
+				name: ns,
+				source: profileSource,
+			});
+			parsedTelemetry[agentId] = parseAgentProfileTelemetry(parsed);
 		}
-		if (rows.length > 0) publishAgentNames(rows);
-	}, [buffer]);
+		if (rows.length > 0) publishAgentProfiles(rows);
+		if (Object.keys(parsedTelemetry).length > 0) {
+			setTelemetry((prev) => ({ ...prev, ...parsedTelemetry }));
+		}
+	}, [buffer, profileSource]);
+	return telemetry;
+}
+
+/** A small labelled key/value line inside the expanded detail. */
+function DetailLine(props: { label: string; value: React.ReactNode }) {
+	return (
+		<div className="flex items-center justify-between gap-2">
+			<span className="text-muted-foreground">{props.label}</span>
+			<span className="font-medium text-right">{props.value}</span>
+		</div>
+	);
 }
 
 /**
- * One fleet row.
+ * Per-agent autonomy detail, mounted ONLY while the row is expanded.
+ *
+ * A hoisted component that wraps its OWN `LocalDataSourcesProvider` with a single
+ * `{namespace}/edge/multi_robot/autonomy_status` subscription
+ * (`autonomy_msgs/msg/AutonomyStatus`, `buffersSize: 1`). On collapse the parent
+ * unmounts it, which tears the provider down and auto-unsubscribes. The
+ * single-topic array is inline (the child mounts/unmounts as a unit, so a fresh
+ * array per render does not thrash a long-lived subscription). Degrades per
+ * series via `getTopicHealth` (§13); shows an unavailable note with no
+ * namespace/source.
+ */
+function AgentAutonomyDetail(props: {
+	namespace: string | null;
+	source: DatasourceProviderSettings | null;
+}) {
+	if (!props.namespace) {
+		return (
+			<div className="text-muted-foreground">
+				autonomy unavailable (no namespace)
+			</div>
+		);
+	}
+	if (!props.source) {
+		return (
+			<div className="text-muted-foreground">
+				autonomy unavailable (configure the feedback/telemetry topic)
+			</div>
+		);
+	}
+	const topic: SelectedTopic = {
+		topic: buildNamespacedTopic(props.namespace, "autonomy_status"),
+		datasource_id: props.source.id,
+		source: props.source,
+		type: "autonomy_msgs/msg/AutonomyStatus",
+		rawType: "autonomy_msgs/msg/AutonomyStatus",
+		property: "",
+	};
+	return (
+		<LocalDataSourcesProvider SelectedTopics={[topic]} buffersSize={1}>
+			<AgentAutonomyBody topic={topic} />
+		</LocalDataSourcesProvider>
+	);
+}
+
+/** Autonomy detail body: reads the latest AutonomyStatus and renders it. */
+function AgentAutonomyBody({ topic }: { topic: SelectedTopic }) {
+	const { getSource, getTopicHealth } = useLocalDataSource();
+	const source = getSource(topic) as BufferedSource | undefined;
+	const health = getTopicHealth(topic);
+	const parsed = useMemo(() => {
+		const latest = source?.data[source.data.length - 1];
+		return parseAutonomyStatus(latest ?? null);
+	}, [source]);
+
+	if (health === "offline" || !parsed) {
+		return (
+			<div className="text-muted-foreground">
+				autonomy: {health === "offline" ? "offline" : "no data"}
+			</div>
+		);
+	}
+	return (
+		<div className="flex flex-col gap-1">
+			<DetailLine
+				label="status"
+				value={autonomyStatusLabel(parsed.status)}
+			/>
+			{parsed.primitives.length === 0 ? (
+				<div className="text-muted-foreground">no primitives</div>
+			) : (
+				parsed.primitives.map((p, i) => (
+					<DetailLine
+						key={i}
+						label={`primitive ${i + 1}`}
+						value={`${p.progress}`}
+					/>
+				))
+			)}
+		</div>
+	);
+}
+
+/**
+ * One fleet row — collapsed summary + an expandable detail panel.
  *
  * A hoisted (module-level) component so it can call {@link useAgentName} for the
  * agent's namespace name — hooks can't run inside the `.map` of the parent. Its
  * identity is stable across renders, so rows don't remount (Component-identity
  * rule §10 / the Group A `GeometryRow` pattern). The full `agent_id` stays in
  * the `title` tooltip.
+ *
+ * Collapsed: status dot, name, state, position. Expanded: Position & speed,
+ * State + task progress, Battery & fuel %, Autonomy status + progress. The
+ * autonomy subscription only mounts while expanded (see {@link AgentAutonomyDetail}).
  */
-function FleetRowItem({ row }: { row: FleetRow }) {
+function FleetRowItem({
+	row,
+	telemetrySource,
+}: {
+	row: FleetRow;
+	/** The fleet's configured feedback-topic ROS source, used as the autonomy
+	 *  subscription source for roster-fed agents (which carry no ROS source). */
+	telemetrySource?: DatasourceProviderSettings;
+}) {
 	const name = useAgentName(row.agent_id);
+	const record = useAgentRecord(row.agent_id);
+	const [open, setOpen] = useState(false);
 	const live = row.telemetry != null;
+	const pos = row.telemetry?.position;
+
+	// Battery/fuel/sensors come from the ROSTER vehicle record (the
+	// `c2.vehicles.list` response carries `vehicle_info` at top level), NOT the
+	// optional agent_profile-topic stash.
+	const profileTelemetry = row.vehicle
+		? parseAgentProfileTelemetry(row.vehicle)
+		: undefined;
+
+	// Autonomy subscription identity: the namespace from the store record (ROS
+	// agent_profile) or the roster vehicle; the source from the store record or
+	// the fleet's configured feedback topic (roster-fed agents have no source).
+	const namespace =
+		record?.namespace ?? readNamespace(row.vehicle ?? {}) ?? null;
+	const autonomySource = record?.source ?? telemetrySource ?? null;
 	return (
-		<div className="border rounded-md p-2 text-xs flex items-center gap-2">
-			<span
-				className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-					live ? "bg-emerald-500" : "bg-zinc-400"
-				}`}
-			/>
-			<span className="font-medium truncate flex-1" title={row.agent_id}>
-				{name}
-			</span>
-			{row.unregistered && <Badge variant="outline">unregistered</Badge>}
-			{row.telemetry?.state != null && (
-				<span className="text-muted-foreground shrink-0">
-					{String(row.telemetry.state)}
+		<div className="border rounded-md text-xs">
+			<button
+				type="button"
+				className="w-full p-2 flex items-center gap-2 text-left"
+				onClick={() => setOpen((v) => !v)}
+				aria-expanded={open}
+			>
+				{open ? (
+					<ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />
+				) : (
+					<ChevronRight className="w-3 h-3 shrink-0 text-muted-foreground" />
+				)}
+				<span
+					className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+						live ? "bg-success" : "bg-muted-foreground"
+					}`}
+				/>
+				<span
+					className="font-medium truncate flex-1"
+					title={row.agent_id}
+				>
+					{name}
 				</span>
-			)}
-			{row.telemetry?.position && (
-				<span className="text-muted-foreground shrink-0">
-					({row.telemetry.position.x.toFixed(2)},{" "}
-					{row.telemetry.position.y.toFixed(2)})
-				</span>
+				{row.unregistered && (
+					<Badge variant="outline">unregistered</Badge>
+				)}
+				{row.telemetry?.state != null && (
+					<span className="text-muted-foreground shrink-0">
+						{agentStateLabel(row.telemetry.state)}
+					</span>
+				)}
+				{pos && (
+					<span className="text-muted-foreground shrink-0">
+						({pos.x.toFixed(2)}, {pos.y.toFixed(2)})
+					</span>
+				)}
+			</button>
+
+			{open && (
+				<div className="border-t p-2 flex flex-col gap-3">
+					{/* Position & speed */}
+					<div className="flex flex-col gap-1">
+						<div className="font-medium">Position &amp; speed</div>
+						{pos ? (
+							<>
+								<DetailLine
+									label="position"
+									value={`${pos.x.toFixed(5)}, ${pos.y.toFixed(5)}`}
+								/>
+								{pos.z != null && (
+									<DetailLine
+										label="altitude"
+										value={pos.z.toFixed(2)}
+									/>
+								)}
+							</>
+						) : (
+							<div className="text-muted-foreground">
+								non-geographic frame
+							</div>
+						)}
+					</div>
+
+					{/* State + task progress */}
+					<div className="flex flex-col gap-1">
+						<div className="font-medium">State &amp; task</div>
+						<DetailLine
+							label="state"
+							value={
+								row.telemetry?.state != null
+									? agentStateLabel(row.telemetry.state)
+									: "—"
+							}
+						/>
+					</div>
+
+					{/* Battery & fuel % */}
+					<div className="flex flex-col gap-1">
+						<div className="font-medium">Battery &amp; fuel</div>
+						<DetailLine
+							label="battery"
+							value={
+								profileTelemetry?.batteryPct != null
+									? `${profileTelemetry.batteryPct}%`
+									: "—"
+							}
+						/>
+						<DetailLine
+							label="fuel"
+							value={
+								profileTelemetry?.fuelPct != null
+									? `${profileTelemetry.fuelPct}%`
+									: "—"
+							}
+						/>
+						{profileTelemetry &&
+							profileTelemetry.sensors.length > 0 && (
+								<DetailLine
+									label="sensors"
+									value={`${profileTelemetry.sensors.length} reporting`}
+								/>
+							)}
+					</div>
+
+					{/* Autonomy status + progress (subscribes only while open) */}
+					<div className="flex flex-col gap-1">
+						<div className="font-medium">Autonomy</div>
+						<AgentAutonomyDetail
+							namespace={namespace}
+							source={autonomySource}
+						/>
+					</div>
+				</div>
 			)}
 		</div>
 	);
@@ -210,10 +482,17 @@ function FleetBody(props: {
 	const { vehicles, error, loading } = useVehicleRoster(props.definition);
 	const { getSource, getTopicHealth } = useLocalDataSource();
 
+	// Still runs the agent_profile publisher when that optional topic is
+	// configured — it feeds the agent store name/namespace/source (and provides a
+	// ROS source when present). The detail no longer relies on its stashed
+	// battery/fuel telemetry (that now comes from the roster `row.vehicle`).
 	const profileSource = props.profileTopic
 		? getSource(props.profileTopic)
 		: undefined;
-	useAgentProfilePublisher(profileSource as BufferedSource | undefined);
+	useAgentProfilePublisher(
+		profileSource as BufferedSource | undefined,
+		props.profileTopic,
+	);
 
 	// Every agent publishes its own Feedback on the shared topic, so dedupe the
 	// buffered window by agent_id (last wins) rather than showing only the newest
@@ -271,7 +550,11 @@ function FleetBody(props: {
 						</div>
 					)}
 					{rows.map((row) => (
-						<FleetRowItem key={row.agent_id} row={row} />
+						<FleetRowItem
+							key={row.agent_id}
+							row={row}
+							telemetrySource={props.topic?.source}
+						/>
 					))}
 				</div>
 			</ScrollArea>

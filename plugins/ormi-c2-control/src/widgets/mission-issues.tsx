@@ -43,9 +43,7 @@ const MissionIssueList: React.FC<MissionIssueListProps> = ({
 						<li
 							key={`${issue.severity}-${issue.path}-${index}`}
 							className={`flex items-start gap-1.5 ${
-								isError
-									? "text-destructive"
-									: "text-amber-600 dark:text-amber-400"
+								isError ? "text-destructive" : "text-warning"
 							}`}
 						>
 							{isError ? (

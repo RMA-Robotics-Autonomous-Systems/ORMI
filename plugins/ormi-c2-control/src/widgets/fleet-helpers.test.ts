@@ -2,10 +2,15 @@ import { describe, expect, it } from "bun:test";
 
 import { C2Vehicle } from "../types/c2-types";
 import {
+	autonomyStatusLabel,
+	buildNamespacedTopic,
 	collectTelemetry,
 	extractAgentPosition,
 	extractAgentTelemetry,
+	extractOdometryLngLat,
 	mergeFleet,
+	parseAgentProfileTelemetry,
+	parseAutonomyStatus,
 	readNamespace,
 } from "./fleet-helpers";
 
@@ -127,6 +132,146 @@ describe("collectTelemetry (per-agent, interleaved single-agent messages)", () =
 
 	it("ignores empty buffers and null entries (no throw)", () => {
 		expect(collectTelemetry([[null, undefined], []])).toEqual([]);
+	});
+});
+
+describe("extractOdometryLngLat (frame_id-gated geographic position)", () => {
+	const odom = { pose: { pose: { position: { x: 4.2, y: 50.1, z: 12 } } } };
+
+	it("maps a map-frame Odometry to { lng: x, lat: y }", () => {
+		expect(extractOdometryLngLat(odom, "map")).toEqual({
+			lng: 4.2,
+			lat: 50.1,
+		});
+	});
+
+	it("returns null for a non-map frame (local/metric)", () => {
+		expect(extractOdometryLngLat(odom, "odom")).toBeNull();
+		expect(extractOdometryLngLat(odom, "base_link")).toBeNull();
+		expect(extractOdometryLngLat(odom, undefined)).toBeNull();
+		expect(extractOdometryLngLat(odom, "")).toBeNull();
+	});
+
+	it("returns null when the position can't be read (no throw)", () => {
+		expect(extractOdometryLngLat({}, "map")).toBeNull();
+		expect(extractOdometryLngLat(null, "map")).toBeNull();
+		expect(extractOdometryLngLat({ pose: {} }, "map")).toBeNull();
+	});
+});
+
+describe("parseAutonomyStatus (defensive)", () => {
+	it("parses a full message with primitives", () => {
+		const raw = {
+			status: 1,
+			primitive_statuses: [{ progress: 0.5 }, { progress: 0.9 }],
+		};
+		expect(parseAutonomyStatus(raw)).toEqual({
+			status: 1,
+			primitives: [{ progress: 0.5 }, { progress: 0.9 }],
+		});
+	});
+
+	it("tolerates a partial message (no primitives)", () => {
+		expect(parseAutonomyStatus({ status: 2 })).toEqual({
+			status: 2,
+			primitives: [],
+		});
+	});
+
+	it("drops non-numeric progress entries and defaults a missing status", () => {
+		const raw = {
+			primitive_statuses: [
+				{ progress: 30 },
+				{ progress: "nope" },
+				{},
+				null,
+			],
+		};
+		expect(parseAutonomyStatus(raw)).toEqual({
+			status: 0,
+			primitives: [{ progress: 30 }],
+		});
+	});
+
+	it("returns null on garbage / non-object input (no throw)", () => {
+		expect(parseAutonomyStatus(null)).toBeNull();
+		expect(parseAutonomyStatus(42)).toBeNull();
+		expect(parseAutonomyStatus("x")).toBeNull();
+	});
+
+	it("labels known and unknown status codes", () => {
+		expect(autonomyStatusLabel(0)).toBe("PENDING");
+		expect(autonomyStatusLabel(1)).toBe("ACTIVE");
+		expect(autonomyStatusLabel(4)).toBe("ABORTED");
+		expect(autonomyStatusLabel(9)).toBe("Status 9");
+	});
+});
+
+describe("parseAgentProfileTelemetry (vehicle_info.*)", () => {
+	it("reads battery, fuel, and sensor statuses", () => {
+		const parsed = {
+			vehicle_info: {
+				battery_status_pct: 87,
+				fuel_status_pct: 42,
+				sensor_list: [{ status: 1 }, { status: 0 }],
+			},
+		};
+		expect(parseAgentProfileTelemetry(parsed)).toEqual({
+			batteryPct: 87,
+			fuelPct: 42,
+			sensors: [{ status: 1 }, { status: 0 }],
+		});
+	});
+
+	it("omits missing percentages and skips garbage sensor entries", () => {
+		const parsed = {
+			vehicle_info: {
+				sensor_list: [{ status: 2 }, {}, null, { status: "x" }],
+			},
+		};
+		expect(parseAgentProfileTelemetry(parsed)).toEqual({
+			batteryPct: undefined,
+			fuelPct: undefined,
+			sensors: [{ status: 2 }],
+		});
+	});
+
+	it("returns empty sensors on missing vehicle_info / garbage (no throw)", () => {
+		expect(parseAgentProfileTelemetry({})).toEqual({ sensors: [] });
+		expect(parseAgentProfileTelemetry(null)).toEqual({ sensors: [] });
+		expect(parseAgentProfileTelemetry(42)).toEqual({ sensors: [] });
+	});
+});
+
+describe("buildNamespacedTopic (slash normalization, leading slash)", () => {
+	it("builds from a bare namespace with a leading slash", () => {
+		expect(buildNamespacedTopic("Themis_Fr", "localization")).toBe(
+			"/Themis_Fr/edge/multi_robot/localization",
+		);
+	});
+
+	it("normalizes a leading slash on the namespace (no double slash)", () => {
+		expect(buildNamespacedTopic("/Themis_Fr", "localization")).toBe(
+			"/Themis_Fr/edge/multi_robot/localization",
+		);
+	});
+
+	it("trims a trailing slash on the namespace", () => {
+		expect(buildNamespacedTopic("Themis_Fr/", "autonomy_status")).toBe(
+			"/Themis_Fr/edge/multi_robot/autonomy_status",
+		);
+	});
+
+	it("handles a namespace wrapped in slashes (no double slashes)", () => {
+		expect(buildNamespacedTopic("/Themis_Fr/", "localization")).toBe(
+			"/Themis_Fr/edge/multi_robot/localization",
+		);
+	});
+
+	it("strips a leading slash on the suffix too", () => {
+		expect(buildNamespacedTopic("ns", "/localization")).toBe(
+			"/ns/edge/multi_robot/localization",
+		);
 	});
 });
 

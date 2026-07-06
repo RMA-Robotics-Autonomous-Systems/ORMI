@@ -7,6 +7,8 @@ import {
 	readFeatureId,
 	type DrawFeature,
 } from "./feature-geojson";
+import { hasUsableCoordinates } from "./mission-editor-helpers";
+import { inlineToDrawFeature } from "./mission-geometry";
 
 /** A drawn polygon with explicit [lng, lat] coordinates. */
 const drawnPolygon: DrawFeature = {
@@ -149,10 +151,127 @@ describe("c2FeatureToDrawFeature", () => {
 	});
 });
 
+const drawnLine: DrawFeature = {
+	type: "Feature",
+	properties: {},
+	geometry: {
+		type: "LineString",
+		coordinates: [
+			[4.39, 50.84],
+			[4.4, 50.85],
+		],
+	},
+};
+
 describe("drawFeatureToInlineGeometry", () => {
-	it("emits geometry_type + [lng,lat] coordinates with no swap", () => {
+	it("wraps a Point into a 2-level single-vertex list [[lng,lat]], no swap", () => {
 		const inline = drawFeatureToInlineGeometry(drawnPoint);
 		expect(inline.geometry.geometry_type).toBe("Point");
-		expect(inline.geometry.coordinates).toEqual([4.39, 50.84]);
+		expect(inline.geometry.coordinates).toEqual([[4.39, 50.84]]);
+	});
+
+	it("produces a single-vertex Point usable as C2 inline geometry", () => {
+		// A single-vertex Point yields a 2-level list [[lon,lat]], which the C2
+		// mission parser (and hasUsableCoordinates) accept as a valid vertex list.
+		const inline = drawFeatureToInlineGeometry(drawnPoint);
+		expect(hasUsableCoordinates(inline.geometry.coordinates)).toBe(true);
+		const coords = inline.geometry.coordinates as number[][];
+		expect(coords).toHaveLength(1);
+		expect(coords[0]).toHaveLength(2);
+		expect(typeof coords[0]?.[0]).toBe("number");
+		expect(typeof coords[0]?.[1]).toBe("number");
+	});
+
+	it("passes a LineString through as a 2-level vertex list", () => {
+		const inline = drawFeatureToInlineGeometry(drawnLine);
+		expect(inline.geometry.geometry_type).toBe("LineString");
+		expect(inline.geometry.coordinates).toEqual([
+			[4.39, 50.84],
+			[4.4, 50.85],
+		]);
+	});
+
+	it("flattens a GeoJSON Polygon to its outer ring (2-level), preserving [lng,lat]", () => {
+		const polygon: DrawFeature = {
+			type: "Feature",
+			properties: {},
+			geometry: {
+				type: "Polygon",
+				coordinates: [
+					[
+						[0, 0],
+						[1, 0],
+						[1, 1],
+						[0, 0],
+					],
+				],
+			},
+		};
+		const inline = drawFeatureToInlineGeometry(polygon);
+		expect(inline.geometry.geometry_type).toBe("Polygon");
+		expect(inline.geometry.coordinates).toEqual([
+			[0, 0],
+			[1, 0],
+			[1, 1],
+			[0, 0],
+		]);
+	});
+
+	it("tolerates an odd/missing coordinates value without throwing", () => {
+		const odd = {
+			type: "Feature",
+			properties: {},
+			geometry: { type: "Polygon", coordinates: undefined },
+		} as unknown as DrawFeature;
+		expect(() => drawFeatureToInlineGeometry(odd)).not.toThrow();
+		expect(drawFeatureToInlineGeometry(odd).geometry.coordinates).toBe(
+			undefined,
+		);
+	});
+});
+
+describe("inline geometry round-trip (draw → inline → draw)", () => {
+	/** draw → inline → draw, returning the recovered GeoJSON geometry. */
+	function roundTrip(drawn: DrawFeature) {
+		const inline = drawFeatureToInlineGeometry(drawn);
+		const recovered = inlineToDrawFeature(inline.geometry);
+		return recovered?.geometry ?? null;
+	}
+
+	it("round-trips a Point, recovering the GeoJSON [lng,lat] (order preserved)", () => {
+		const inline = drawFeatureToInlineGeometry(drawnPoint);
+		// Serializes to the 2-level single-vertex list contract.
+		expect(inline.geometry.coordinates).toEqual([[4.39, 50.84]]);
+		const recovered = roundTrip(drawnPoint);
+		expect(recovered).toEqual({
+			type: "Point",
+			coordinates: [4.39, 50.84],
+		});
+	});
+
+	it("round-trips a LineString, preserving every [lng,lat] vertex", () => {
+		const recovered = roundTrip(drawnLine);
+		expect(recovered).toEqual({
+			type: "LineString",
+			coordinates: [
+				[4.39, 50.84],
+				[4.4, 50.85],
+			],
+		});
+	});
+
+	it("round-trips a Polygon, preserving the outer ring [lng,lat] order", () => {
+		const recovered = roundTrip(drawnPolygon);
+		expect(recovered).toEqual({
+			type: "Polygon",
+			coordinates: [
+				[
+					[4.39, 50.84],
+					[4.4, 50.84],
+					[4.4, 50.85],
+					[4.39, 50.84],
+				],
+			],
+		});
 	});
 });

@@ -196,9 +196,77 @@ function checkCoordinatePair(
 }
 
 /**
- * Validate a `MissionGeometry`: either `feature_id` (string) OR an inline
- * `geometry` object with required `coordinates`. Used at `objective.geometries[]`,
- * `objective.line_of_sight`, `start.geometry`, and `transit.geofence`.
+ * Validate a `coordinates` value against the C2's FLAT vertex contract.
+ *
+ * The C2 mission parser (`MissionConfig.hpp`, `MissionGeometry::FromJson`) reads
+ * `coords[i][0]` / `coords[i][1]` as each vertex's lon/lat — it does NOT accept
+ * GeoJSON nesting. So `coordinates` is either a single vertex `[lon, lat]`
+ * (1 level) or a flat list of vertices `[[lon, lat], …]` (2 levels, used for a
+ * LineString, a Polygon ring, or a MultiPoint). The Mongo mission schema
+ * (`coordinates: [[Number]]`) enforces exactly this flat 2-level shape. A
+ * GeoJSON triple-nested Polygon `[[[lon, lat]]]` would break the C2 and is a
+ * clear error — the ring must be flattened (drop the GeoJSON outer wrapper).
+ *
+ * Type-aware: a `Point` is read by the C2 as `coordinates[0]`, so a Point MUST
+ * be a 2-level single-vertex list `[[lon, lat]]`; a bare 1-level `[lon, lat]`
+ * for a Point is an error (the C2 would read `coordinates[0]` as a lone number).
+ *
+ * `coords` is already known to be an array at the call site.
+ */
+function checkCoordinates(
+	issues: IssueList,
+	coords: unknown[],
+	path: string,
+	geometryType?: string,
+): void {
+	if (coords.length === 0) {
+		issues.error(path, "Geometry has no coordinates.");
+		return;
+	}
+	// Single vertex `[lon, lat]` — first element is a number.
+	if (typeof coords[0] === "number") {
+		// A Point must be a 2-level single-vertex list `[[lon, lat]]`; a bare pair
+		// makes the C2 read coordinates[0] as a number, not a vertex.
+		if (geometryType === "Point") {
+			issues.error(
+				path,
+				"A Point objective must be a list of one [lon, lat] vertex (`[[lon, lat]]`), not a bare pair — the C2 reads coordinates[0] as the vertex.",
+			);
+			return;
+		}
+		checkCoordinatePair(issues, coords, path);
+		return;
+	}
+	// Flat list of vertices `[[lon, lat], …]` — each element must be a leaf pair.
+	// A third level (an element whose first element is itself an array) is the
+	// un-flattened GeoJSON shape the C2 cannot read — reject it, do NOT recurse.
+	coords.forEach((entry, index) => {
+		const childPath = `${path}[${index}]`;
+		if (!Array.isArray(entry)) {
+			issues.error(
+				childPath,
+				"Coordinate must be an array like [lon, lat].",
+			);
+			return;
+		}
+		if (Array.isArray(entry[0])) {
+			issues.error(
+				childPath,
+				"coordinates must be a flat list of [lon, lat] vertices; a nested polygon ring must be flattened (got extra nesting).",
+			);
+			return;
+		}
+		checkCoordinatePair(issues, entry, childPath);
+	});
+}
+
+/**
+ * Validate a `MissionGeometry`: either a `feature_id` reference (string) OR an
+ * inline `geometry` object with required flat `coordinates`. A valid feature_id
+ * WINS — it short-circuits inline-geometry validation, mirroring the C2, which
+ * ignores any inline geometry when a feature reference is present. Used at
+ * `objective.geometries[]`, `objective.line_of_sight`, `start.geometry`, and
+ * `transit.geofence`.
  */
 function checkGeometry(issues: IssueList, value: unknown, path: string): void {
 	if (!isObject(value)) {
@@ -212,6 +280,20 @@ function checkGeometry(issues: IssueList, value: unknown, path: string): void {
 
 	if (hasFeatureId && typeof value.feature_id !== "string") {
 		issues.error(`${path}.feature_id`, "feature_id must be a string.");
+	}
+
+	// feature_id wins: the C2 (`MissionConfig.hpp` lines 36-39) takes the feature
+	// reference and IGNORES any inline geometry. A saved reference round-trips
+	// from Mongo carrying a materialized empty `geometry: { coordinates: [] }`
+	// (the Mongoose mission schema adds it) — that must NOT be rejected. So a
+	// valid (non-empty string) feature_id short-circuits all inline-geometry
+	// validation, regardless of an accompanying geometry object.
+	if (
+		hasFeatureId &&
+		typeof value.feature_id === "string" &&
+		value.feature_id.length > 0
+	) {
+		return;
 	}
 
 	if (!hasFeatureId && !hasGeometry) {
@@ -258,24 +340,18 @@ function checkGeometry(issues: IssueList, value: unknown, path: string): void {
 		return;
 	}
 
-	// Single pair `[lon, lat]` vs. array-of-pairs `[[lon,lat], ...]`.
-	const isArrayOfPairs =
-		coordinates.length > 0 && Array.isArray(coordinates[0]);
-	if (isArrayOfPairs) {
-		coordinates.forEach((pair, index) => {
-			checkCoordinatePair(
-				issues,
-				pair,
-				`${path}.geometry.coordinates[${index}]`,
-			);
-		});
-	} else {
-		checkCoordinatePair(
-			issues,
-			coordinates,
-			`${path}.geometry.coordinates`,
-		);
-	}
+	// Validate the flat C2 vertex shape (1-level pair or 2-level vertex list),
+	// type-aware: a Point must be a 2-level single-vertex list.
+	const geometryType =
+		typeof geometry.geometry_type === "string"
+			? geometry.geometry_type
+			: undefined;
+	checkCoordinates(
+		issues,
+		coordinates,
+		`${path}.geometry.coordinates`,
+		geometryType,
+	);
 }
 
 /**
@@ -542,6 +618,79 @@ function checkObjective(issues: IssueList, value: unknown, path: string): void {
 	);
 }
 
+/**
+ * Classify the inline geometry types in a (well-formed) `objective.geometries[]`.
+ *
+ * Only inline geometries (`{ geometry: { geometry_type } }`) with a known type
+ * label are classified; pure `feature_id` references and malformed entries are
+ * ignored (their type is unknown, and any structural error is already reported
+ * by {@link checkObjective}). Used to drive behavior-aware advisory warnings.
+ */
+function classifyObjectiveGeometries(geometries: unknown[]): {
+	pointCount: number;
+	lineOrAreaCount: number;
+} {
+	let pointCount = 0;
+	let lineOrAreaCount = 0;
+	for (const entry of geometries) {
+		if (!isObject(entry)) continue;
+		const geometry = entry.geometry;
+		if (!isObject(geometry)) continue;
+		const type = geometry.geometry_type;
+		if (type === "Point") pointCount += 1;
+		else if (type === "LineString" || type === "Polygon") {
+			lineOrAreaCount += 1;
+		}
+	}
+	return { pointCount, lineOrAreaCount };
+}
+
+/**
+ * Emit behavior-aware advisory warnings (non-blocking) for a NAVIGATE mission,
+ * once `vehicles`, `behavior` and `objective.geometries` are all well-formed.
+ *
+ * These describe planner allocation behavior (one agent per objective; NAVIGATE
+ * treats lines/areas as coverage regions) so an operator can catch a likely
+ * mismatch. They are advisory only — `warning` severity, never blocking.
+ */
+function checkNavigateAdvisories(issues: IssueList, config: JsonObject): void {
+	if (config.behavior !== MissionBehavior.NAVIGATE) return;
+
+	// Only run on well-formed inputs so we don't double-report on erroring configs.
+	const vehicles = config.vehicles;
+	if (!Array.isArray(vehicles) || vehicles.length === 0) return;
+	if (!vehicles.every((v) => typeof v === "string")) return;
+
+	const objective = config.objective;
+	if (!isObject(objective)) return;
+	const geometries = objective.geometries;
+	if (!Array.isArray(geometries) || geometries.length === 0) return;
+
+	const { pointCount, lineOrAreaCount } =
+		classifyObjectiveGeometries(geometries);
+
+	if (lineOrAreaCount > 0) {
+		issues.warning(
+			"objective.geometries",
+			"Under NAVIGATE the planner treats a line/area objective as a coverage region — it does not drive along the line. Use Point objectives, or COVERAGE behavior, if you meant a route or an area to cover.",
+		);
+	}
+
+	if (geometries.length > vehicles.length) {
+		issues.warning(
+			"objective.geometries",
+			`The planner allocates roughly one agent per objective; with more objectives (${geometries.length}) than vehicles (${vehicles.length}) some objectives may be left unplanned.`,
+		);
+	}
+
+	if (pointCount > 0 && lineOrAreaCount > 0) {
+		issues.warning(
+			"objective.geometries",
+			"Mixing Point objectives with line/area objectives: the planner allocates point goals first and may starve the line/area objectives of agents.",
+		);
+	}
+}
+
 /** Validate the `start` (`MissionStart`) block (optional top-level). */
 function checkStart(issues: IssueList, value: unknown, path: string): void {
 	if (!isObject(value)) {
@@ -731,6 +880,10 @@ export function validateMissionConfig(config: unknown): MissionConfigIssue[] {
 
 	// objective — required object.
 	checkObjective(issues, config.objective, "objective");
+
+	// Behavior-aware advisory warnings (non-blocking) — run once behavior,
+	// vehicles and objective.geometries are all in scope and well-formed.
+	checkNavigateAdvisories(issues, config);
 
 	// start — optional.
 	if ("start" in config && config.start !== undefined) {

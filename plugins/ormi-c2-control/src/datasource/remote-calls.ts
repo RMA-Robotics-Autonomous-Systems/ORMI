@@ -26,10 +26,15 @@ export const C2Call = {
 	MissionsList: "c2.missions.list",
 	MissionsSave: "c2.missions.save",
 	MissionsDelete: "c2.missions.delete",
-	FeaturesCollections: "c2.features.collections",
-	FeaturesList: "c2.features.list",
-	FeaturesSave: "c2.features.save",
-	FeaturesDelete: "c2.features.delete",
+	MapsList: "c2.maps.list",
+	MapsCreate: "c2.maps.create",
+	MapsDelete: "c2.maps.delete",
+	MapFeaturesList: "c2.map.features.list",
+	MapFeaturesAdd: "c2.map.features.add",
+	MapFeaturesUpdate: "c2.map.features.update",
+	MapFeaturesDelete: "c2.map.features.delete",
+	PlannerStatus: "c2.planner.status",
+	PlannerGraph: "c2.planner.graph",
 	VehiclesList: "c2.vehicles.list",
 } as const;
 
@@ -166,66 +171,138 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 		}),
 	},
 	{
-		name: C2Call.FeaturesCollections,
-		description: "List map-feature collections (MapDB).",
+		name: C2Call.MapsList,
+		description: "List registered maps (MapDB registry).",
 		requestSchema: empty,
 		build: (s) => ({
-			url: `${s.dbUrl}/collections`,
+			url: `${s.dbUrl}/maps`,
 			init: { method: "GET" },
 		}),
 	},
 	{
-		name: C2Call.FeaturesList,
-		description: "List geojson features in a collection.",
+		name: C2Call.MapsCreate,
+		description: "Register a new map.",
 		requestSchema: {
 			type: "object",
 			properties: {
-				collectionName: { type: "string", title: "Collection" },
+				name: { type: "string", title: "Map name" },
+				crs: { type: "string", title: "CRS" },
 			},
-			required: ["collectionName"],
+			required: ["name"],
 		},
 		build: (s, req) => ({
-			url: `${s.dbUrl}/map-features/${enc(String(req.collectionName ?? ""))}`,
-			init: { method: "GET" },
-		}),
-	},
-	{
-		name: C2Call.FeaturesSave,
-		description: "Create/update a geojson feature.",
-		requestSchema: {
-			type: "object",
-			properties: {
-				collectionName: { type: "string", title: "Collection" },
-				feature: { type: "object", title: "GeoJSON Feature" },
-			},
-			required: ["collectionName", "feature"],
-		},
-		build: (s, req) => ({
-			url: `${s.dbUrl}/save-feature`,
+			url: `${s.dbUrl}/maps`,
 			init: {
 				method: "POST",
 				headers: JSON_HEADERS,
-				body: JSON.stringify({
-					collectionName: req.collectionName,
-					feature: req.feature,
-				}),
+				body: JSON.stringify(
+					req.crs != null
+						? { name: req.name, crs: req.crs }
+						: { name: req.name },
+				),
 			},
 		}),
 	},
 	{
-		name: C2Call.FeaturesDelete,
-		description: "Delete a geojson feature.",
+		name: C2Call.MapsDelete,
+		description: "Delete a map (and its features).",
+		requestSchema: {
+			type: "object",
+			properties: { name: { type: "string", title: "Map name" } },
+			required: ["name"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/maps/${enc(String(req.name ?? ""))}`,
+			init: { method: "DELETE" },
+		}),
+	},
+	{
+		name: C2Call.MapFeaturesList,
+		description: "List geojson features for a map.",
+		requestSchema: {
+			type: "object",
+			properties: { name: { type: "string", title: "Map name" } },
+			required: ["name"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/maps/${enc(String(req.name ?? ""))}/features`,
+			init: { method: "GET" },
+		}),
+	},
+	{
+		name: C2Call.MapFeaturesAdd,
+		description: "Add a geojson feature to a map.",
 		requestSchema: {
 			type: "object",
 			properties: {
-				collectionName: { type: "string", title: "Collection" },
-				featureId: { type: "string", title: "Feature ID" },
+				name: { type: "string", title: "Map name" },
+				feature: { type: "object", title: "GeoJSON Feature" },
 			},
-			required: ["collectionName", "featureId"],
+			required: ["name", "feature"],
 		},
 		build: (s, req) => ({
-			url: `${s.dbUrl}/delete-feature/${enc(String(req.collectionName ?? ""))}/${enc(String(req.featureId ?? ""))}`,
+			url: `${s.dbUrl}/maps/${enc(String(req.name ?? ""))}/features`,
+			init: {
+				method: "POST",
+				headers: JSON_HEADERS,
+				body: JSON.stringify(req.feature ?? {}),
+			},
+		}),
+	},
+	{
+		name: C2Call.MapFeaturesUpdate,
+		description: "Update (upsert) a geojson feature on a map.",
+		requestSchema: {
+			type: "object",
+			properties: {
+				name: { type: "string", title: "Map name" },
+				featureId: { type: "string", title: "Feature ID" },
+				feature: { type: "object", title: "GeoJSON Feature" },
+			},
+			required: ["name", "featureId", "feature"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/maps/${enc(String(req.name ?? ""))}/features/${enc(String(req.featureId ?? ""))}`,
+			init: {
+				method: "PUT",
+				headers: JSON_HEADERS,
+				body: JSON.stringify(req.feature ?? {}),
+			},
+		}),
+	},
+	{
+		name: C2Call.MapFeaturesDelete,
+		description: "Delete a geojson feature from a map.",
+		requestSchema: {
+			type: "object",
+			properties: {
+				name: { type: "string", title: "Map name" },
+				featureId: { type: "string", title: "Feature ID" },
+			},
+			required: ["name", "featureId"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/maps/${enc(String(req.name ?? ""))}/features/${enc(String(req.featureId ?? ""))}`,
 			init: { method: "DELETE" },
+		}),
+	},
+	{
+		name: C2Call.PlannerStatus,
+		description: "Read the planner status (loaded map, mode, graph size).",
+		requestSchema: empty,
+		build: (s) => ({
+			url: `${s.dbUrl}/planner/status`,
+			init: { method: "GET" },
+		}),
+	},
+	{
+		name: C2Call.PlannerGraph,
+		description:
+			"Read the planner navigation graph (GeoJSON node/edge FeatureCollection).",
+		requestSchema: empty,
+		build: (s) => ({
+			url: `${s.dbUrl}/planner/graph`,
+			init: { method: "GET" },
 		}),
 	},
 	{

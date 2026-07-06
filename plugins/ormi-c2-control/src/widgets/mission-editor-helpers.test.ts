@@ -1,15 +1,21 @@
 import { describe, expect, it } from "bun:test";
 
 import { MissionBehavior } from "../types/c2-types";
+import type { MissionConfig } from "../types/c2-types";
 import {
+	advancedSliceEquals,
 	buildMissionDraft,
 	cleanMissionConfig,
+	drawShapeToMode,
+	hasUsableCoordinates,
 	hydrateMissionDraft,
+	mergeMissionOwnedFields,
 	mergeVehicles,
 	patchDraft,
 	pushFeatureRef,
 	pushInlineGeometry,
 	removeGeometryAt,
+	shouldLoadActiveMission,
 	toggleVehicle,
 } from "./mission-editor-helpers";
 
@@ -98,6 +104,58 @@ describe("pushFeatureRef", () => {
 	});
 });
 
+describe("hasUsableCoordinates", () => {
+	it("is true for a Point pair", () => {
+		expect(hasUsableCoordinates([4.39, 50.84])).toBe(true);
+	});
+
+	it("is true for a LineString", () => {
+		expect(
+			hasUsableCoordinates([
+				[4.39, 50.84],
+				[4.4, 50.85],
+			]),
+		).toBe(true);
+	});
+
+	it("is true for a Polygon (3-level)", () => {
+		expect(
+			hasUsableCoordinates([
+				[
+					[4.39, 50.84],
+					[4.4, 50.84],
+					[4.4, 50.85],
+					[4.39, 50.84],
+				],
+			]),
+		).toBe(true);
+	});
+
+	it("is true for a MultiPolygon (4-level)", () => {
+		expect(
+			hasUsableCoordinates([
+				[
+					[
+						[4.39, 50.84],
+						[4.4, 50.84],
+						[4.4, 50.85],
+						[4.39, 50.84],
+					],
+				],
+			]),
+		).toBe(true);
+	});
+
+	it("is false for empty, degenerate ring, single number, and non-array", () => {
+		expect(hasUsableCoordinates([])).toBe(false);
+		expect(hasUsableCoordinates([[]])).toBe(false);
+		expect(hasUsableCoordinates([5])).toBe(false);
+		expect(hasUsableCoordinates("nope")).toBe(false);
+		expect(hasUsableCoordinates(null)).toBe(false);
+		expect(hasUsableCoordinates(undefined)).toBe(false);
+	});
+});
+
 describe("pushInlineGeometry", () => {
 	it("appends an inline geometry with [lng,lat] coordinates preserved", () => {
 		const draft = buildMissionDraft();
@@ -113,6 +171,43 @@ describe("pushInlineGeometry", () => {
 				},
 			},
 		]);
+	});
+
+	it("appends a valid Polygon geometry", () => {
+		const draft = buildMissionDraft();
+		const polygon = [
+			[
+				[4.39, 50.84],
+				[4.4, 50.84],
+				[4.4, 50.85],
+				[4.39, 50.84],
+			],
+		];
+		const next = pushInlineGeometry(draft, {
+			geometry_type: "Polygon",
+			coordinates: polygon,
+		});
+		expect(next.objective.geometries).toEqual([
+			{ geometry: { geometry_type: "Polygon", coordinates: polygon } },
+		]);
+	});
+
+	it("does NOT append a geometry with empty coordinates", () => {
+		const draft = buildMissionDraft();
+		const next = pushInlineGeometry(draft, {
+			geometry_type: "Polygon",
+			coordinates: [],
+		});
+		expect(next.objective.geometries).toHaveLength(0);
+	});
+
+	it("does NOT append a degenerate empty ring [[]]", () => {
+		const draft = buildMissionDraft();
+		const next = pushInlineGeometry(draft, {
+			geometry_type: "Polygon",
+			coordinates: [[]],
+		});
+		expect(next.objective.geometries).toHaveLength(0);
 	});
 });
 
@@ -165,6 +260,45 @@ describe("patchDraft", () => {
 	});
 });
 
+describe("shouldLoadActiveMission (editor follows active mission)", () => {
+	it("loads when a non-empty active id differs from the draft", () => {
+		expect(shouldLoadActiveMission("m-2", "m-1")).toBe(true);
+	});
+
+	it("loads when there is no draft yet (initial mount)", () => {
+		expect(shouldLoadActiveMission("m-1", null)).toBe(true);
+		expect(shouldLoadActiveMission("m-1", undefined)).toBe(true);
+	});
+
+	it("does not load when active matches the draft (loop avoidance)", () => {
+		expect(shouldLoadActiveMission("m-1", "m-1")).toBe(false);
+	});
+
+	it("does not load when there is no active selection", () => {
+		expect(shouldLoadActiveMission(null, "m-1")).toBe(false);
+		expect(shouldLoadActiveMission(undefined, null)).toBe(false);
+		expect(shouldLoadActiveMission("", "m-1")).toBe(false);
+	});
+});
+
+describe("advancedSliceEquals (mount-echo dirty guard)", () => {
+	it("treats equal slices (the JSON-Forms mount echo) as unchanged", () => {
+		const slice = { transit: { desired_vehicle_constraints: { max: 3 } } };
+		expect(advancedSliceEquals(slice, { ...slice })).toBe(true);
+	});
+
+	it("treats an empty slice and undefined/null as equal", () => {
+		expect(advancedSliceEquals({}, undefined)).toBe(true);
+		expect(advancedSliceEquals(null, {})).toBe(true);
+	});
+
+	it("detects a real change", () => {
+		expect(
+			advancedSliceEquals({ transit: { x: 1 } }, { transit: { x: 2 } }),
+		).toBe(false);
+	});
+});
+
 describe("hydrateMissionDraft", () => {
 	it("hydrates from a stored mission, dropping Mongo _id and keeping fields", () => {
 		const stored = {
@@ -210,5 +344,131 @@ describe("hydrateMissionDraft", () => {
 		});
 		expect(draft.vehicles).toEqual(["ok", "ok2"]);
 		expect(draft.objective.geometries).toEqual([]);
+	});
+});
+
+describe("drawShapeToMode (shape → terra-draw mode)", () => {
+	it("maps point → point", () => {
+		expect(drawShapeToMode("point")).toBe("point");
+	});
+
+	it("maps line → linestring", () => {
+		expect(drawShapeToMode("line")).toBe("linestring");
+	});
+
+	it("maps polygon → polygon", () => {
+		expect(drawShapeToMode("polygon")).toBe("polygon");
+	});
+
+	it("maps rectangle → rectangle", () => {
+		expect(drawShapeToMode("rectangle")).toBe("rectangle");
+	});
+});
+
+describe("mergeMissionOwnedFields (map save-merge)", () => {
+	const fresh = (): MissionConfig => ({
+		mission_id: "m1",
+		name: "Stored name",
+		behavior: MissionBehavior.NAVIGATE,
+		objective: {
+			geometries: [{ feature_id: "old" }],
+			// An advanced block F5 owns — must be preserved verbatim.
+			arrival_time: { earliest: "t0", latest: "t1", target: "t2" },
+		},
+		vehicles: ["v-old"],
+		transit: { desired_vehicle_constraints: { max_speed: 3 } },
+		start: { geometry: { feature_id: "s" } },
+	});
+
+	it("overlays the four map-owned fields", () => {
+		const merged = mergeMissionOwnedFields(fresh(), {
+			geometries: [{ feature_id: "new" }],
+			vehicles: ["v-a", "v-b"],
+			behavior: MissionBehavior.COVERAGE,
+			name: "New name",
+		});
+		expect(merged.objective.geometries).toEqual([{ feature_id: "new" }]);
+		expect(merged.vehicles).toEqual(["v-a", "v-b"]);
+		expect(merged.behavior).toBe(MissionBehavior.COVERAGE);
+		expect(merged.name).toBe("New name");
+	});
+
+	it("preserves F5's advanced blocks (transit / start / arrival_time)", () => {
+		const merged = mergeMissionOwnedFields(fresh(), {
+			geometries: [{ feature_id: "new" }],
+			vehicles: ["v-a"],
+			behavior: MissionBehavior.NAVIGATE,
+		});
+		expect(merged.transit).toEqual({
+			desired_vehicle_constraints: { max_speed: 3 },
+		});
+		expect(merged.start).toEqual({ geometry: { feature_id: "s" } });
+		expect(merged.objective.arrival_time).toEqual({
+			earliest: "t0",
+			latest: "t1",
+			target: "t2",
+		});
+	});
+
+	it("does not write name when omitted or blank (keeps the stored name)", () => {
+		expect(
+			mergeMissionOwnedFields(fresh(), {
+				geometries: [{ feature_id: "new" }],
+				vehicles: ["v-a"],
+				behavior: MissionBehavior.NAVIGATE,
+			}).name,
+		).toBe("Stored name");
+		expect(
+			mergeMissionOwnedFields(fresh(), {
+				geometries: [{ feature_id: "new" }],
+				vehicles: ["v-a"],
+				behavior: MissionBehavior.NAVIGATE,
+				name: "   ",
+			}).name,
+		).toBe("Stored name");
+	});
+
+	it("does not mutate the input config", () => {
+		const input = fresh();
+		mergeMissionOwnedFields(input, {
+			geometries: [{ feature_id: "new" }],
+			vehicles: ["v-a"],
+			behavior: MissionBehavior.COVERAGE,
+		});
+		expect(input.objective.geometries).toEqual([{ feature_id: "old" }]);
+		expect(input.vehicles).toEqual(["v-old"]);
+		expect(input.behavior).toBe(MissionBehavior.NAVIGATE);
+	});
+
+	it("makes a new empty mission submittable once the quartet is filled", () => {
+		// A mission F4 just created: behavior + empty objective + no vehicles.
+		const empty: MissionConfig = {
+			mission_id: "m2",
+			behavior: MissionBehavior.NAVIGATE,
+			objective: { geometries: [] },
+			vehicles: [],
+		};
+		const merged = mergeMissionOwnedFields(empty, {
+			geometries: [
+				{
+					geometry: {
+						geometry_type: "Polygon",
+						coordinates: [
+							[
+								[0, 0],
+								[1, 0],
+								[1, 1],
+								[0, 0],
+							],
+						],
+					},
+				},
+			],
+			vehicles: ["v-a"],
+			behavior: MissionBehavior.COVERAGE,
+		});
+		expect(merged.objective.geometries.length).toBe(1);
+		expect(merged.vehicles).toEqual(["v-a"]);
+		expect(merged.behavior).toBe(MissionBehavior.COVERAGE);
 	});
 });

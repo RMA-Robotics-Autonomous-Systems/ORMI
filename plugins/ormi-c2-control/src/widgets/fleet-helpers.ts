@@ -154,7 +154,7 @@ export function collectTelemetry(
  *
  * Checks, in order, a top-level `namespace`, a nested `agent_profile.namespace`,
  * then a top-level `name`. Returns the first non-blank trimmed string, else
- * undefined. Used to feed `publishAgentNames` (see `c2-agents-store.ts`).
+ * undefined. Used to feed `publishAgentProfiles` (see `c2-agents-store.ts`).
  *
  * @param v - A raw vehicle or parsed agent_profile object.
  * @returns The namespace name, or undefined when none can be read.
@@ -172,6 +172,141 @@ export function readNamespace(v: Record<string, unknown>): string | undefined {
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Extract a GEOGRAPHIC lng/lat from a raw `nav_msgs/msg/Odometry` value, gated
+ * on the message's `frame_id`.
+ *
+ * Per the verified C2 contract, the per-agent `localization` Odometry carries a
+ * geographic position ONLY when `header.frame_id === "map"`, with
+ * `pose.pose.position.x = longitude` and `.y = latitude` (degrees). For any
+ * other frame the position is a local/metric pose with no map meaning, so we
+ * return null (the caller renders no marker). Reuses {@link extractAgentPosition}
+ * to find `pose.pose.position` defensively; the frame is read at the call site
+ * (`odom.header.frame_id`) and passed in. Never throws.
+ *
+ * @param odom - A raw Odometry message (the message IS the Odometry).
+ * @param frameId - The message's `header.frame_id`.
+ * @returns `{ lng, lat }` when geographic (`frame_id === "map"`), else null.
+ */
+export function extractOdometryLngLat(
+	odom: unknown,
+	frameId: string | undefined,
+): { lng: number; lat: number } | null {
+	if (frameId !== "map") return null;
+	const pos = extractAgentPosition(odom);
+	if (!pos) return null;
+	return { lng: pos.x, lat: pos.y };
+}
+
+/** Autonomy status code → label (`autonomy_msgs/msg/AutonomyStatus.status`). */
+export const AUTONOMY_STATUS_LABELS: Record<number, string> = {
+	0: "PENDING",
+	1: "ACTIVE",
+	2: "COMPLETED",
+	3: "FAILED",
+	4: "ABORTED",
+};
+
+/**
+ * Resolve an autonomy status code to its label, tolerating unknown codes.
+ * @param n - The numeric status code.
+ * @returns The label, or `Status <n>` for an unrecognized code.
+ */
+export function autonomyStatusLabel(n: number): string {
+	return AUTONOMY_STATUS_LABELS[n] ?? `Status ${n}`;
+}
+
+/**
+ * Defensively parse a raw `autonomy_msgs/msg/AutonomyStatus` message.
+ *
+ * Reads the numeric `status` and the `primitive_statuses[].progress` list
+ * (`0..1` or `0..100` — tolerated either way, the caller just displays it).
+ * Non-numeric / missing progress entries are dropped. Returns null when the
+ * input is not an object. Never throws.
+ *
+ * @param raw - A raw AutonomyStatus message.
+ * @returns `{ status, primitives }`, or null on a non-object input.
+ */
+export function parseAutonomyStatus(
+	raw: unknown,
+): { status: number; primitives: { progress: number }[] } | null {
+	if (raw == null || typeof raw !== "object") return null;
+	const obj = raw as Record<string, unknown>;
+	const status =
+		typeof obj.status === "number" && Number.isFinite(obj.status)
+			? obj.status
+			: 0;
+	const primitives: { progress: number }[] = [];
+	const list = obj.primitive_statuses;
+	if (Array.isArray(list)) {
+		for (const entry of list) {
+			if (entry == null || typeof entry !== "object") continue;
+			const progress = (entry as Record<string, unknown>).progress;
+			if (typeof progress === "number" && Number.isFinite(progress)) {
+				primitives.push({ progress });
+			}
+		}
+	}
+	return { status, primitives };
+}
+
+/**
+ * Defensively read battery/fuel/sensor telemetry out of a parsed agent_profile.
+ *
+ * Reads `vehicle_info.battery_status_pct`, `vehicle_info.fuel_status_pct`, and
+ * `vehicle_info.sensor_list[].status`. Missing/garbage fields are omitted (the
+ * percentages) or skipped (sensor entries). Never throws.
+ *
+ * @param parsed - A parsed agent_profile object.
+ * @returns Battery/fuel percentages (when present) and sensor statuses.
+ */
+export function parseAgentProfileTelemetry(parsed: unknown): {
+	batteryPct?: number;
+	fuelPct?: number;
+	sensors: { status: number }[];
+} {
+	const sensors: { status: number }[] = [];
+	if (parsed == null || typeof parsed !== "object") return { sensors };
+	const info = (parsed as Record<string, unknown>).vehicle_info;
+	if (info == null || typeof info !== "object") return { sensors };
+	const vi = info as Record<string, unknown>;
+	const batteryPct = firstFinite(vi.battery_status_pct);
+	const fuelPct = firstFinite(vi.fuel_status_pct);
+	const list = vi.sensor_list;
+	if (Array.isArray(list)) {
+		for (const entry of list) {
+			if (entry == null || typeof entry !== "object") continue;
+			const status = (entry as Record<string, unknown>).status;
+			if (typeof status === "number" && Number.isFinite(status)) {
+				sensors.push({ status });
+			}
+		}
+	}
+	return { batteryPct, fuelPct, sensors };
+}
+
+/**
+ * Build a per-agent namespaced topic name from an agent's namespace.
+ *
+ * Produces `/${ns}/edge/multi_robot/${suffix}` with a LEADING SLASH — the real
+ * ROS graph exposes these topics fully-qualified (`/Themis_Fr/edge/multi_robot/
+ * localization`). Slash normalization: leading/trailing slashes on `namespace`
+ * are stripped and the suffix's leading slash trimmed, so neither a bare nor a
+ * slash-wrapped namespace yields double slashes. Pure.
+ *
+ * @param namespace - The agent's `AUTONOMY_TOPIC_PREFIX` namespace.
+ * @param suffix - The topic suffix (e.g. `localization`, `autonomy_status`).
+ * @returns The full topic name, with a leading slash.
+ */
+export function buildNamespacedTopic(
+	namespace: string,
+	suffix: string,
+): string {
+	const ns = namespace.replace(/^\/+/, "").replace(/\/+$/, "");
+	const tail = suffix.replace(/^\/+/, "");
+	return `/${ns}/edge/multi_robot/${tail}`;
 }
 
 /** Read an agent id off a roster vehicle, tolerating field-name variants. */

@@ -11,7 +11,14 @@ import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
-import { Copy, ListPlus, RefreshCw, Rocket, Trash2 } from "lucide-react";
+import {
+	Copy,
+	ListPlus,
+	Loader2,
+	RefreshCw,
+	Rocket,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { C2Call } from "../datasource/remote-calls";
@@ -31,6 +38,7 @@ import {
 	normalizeMissions,
 } from "./mission-list";
 import { MissionIssueList } from "./mission-issues";
+import { useAsyncAction } from "./use-async-action";
 
 /**
  * F4 — Mission browser widget.
@@ -84,7 +92,14 @@ function MissionBrowserBody(props: {
 	const [error, setError] = useState<string | null>(null);
 	const [issues, setIssues] = useState<MissionConfigIssue[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [busy, setBusy] = useState(false);
+	// In-flight guard for the write actions (create / duplicate / delete). One
+	// latch across all of them — a write is in progress, so every action button is
+	// disabled and re-entrant clicks are dropped. `pending` carries the action key
+	// (`"save"` for create/duplicate; `"delete:<id>"` per row) so the clicked row's
+	// Delete shows its own spinner. `busy` is the any-action-pending mirror used to
+	// disable the whole toolbar/list.
+	const { pending, run } = useAsyncAction<string>();
+	const busy = pending !== null;
 	const [newName, setNewName] = useState("");
 
 	const { execute: executeList } = list;
@@ -127,32 +142,32 @@ function MissionBrowserBody(props: {
 
 	/** Save a mission object then refetch (write → refetch, §4.1 F3). */
 	const saveAndRefetch = useCallback(
-		async (mission: unknown, selectId?: string) => {
+		(mission: unknown, selectId?: string) => {
 			if (!props.saveDef) {
 				setError("c2.missions.save is unavailable");
 				return;
 			}
-			// Draft-save: F4 has no UI to add vehicles/geometries yet (that's the
-			// F5 editor, Phase 4), so a saved mission is a draft. We still validate
-			// and surface the issues advisory-style so the operator sees what is
-			// incomplete, but we do NOT block the save — the real planner-crash
-			// gate stays HARD at F8 init (`c2.mission.init`).
-			setIssues(validateMissionConfig(mission));
-			setBusy(true);
-			const result = await save.execute({ mission });
-			setBusy(false);
-			if (!result.success) {
-				setError(result.error ?? "Failed to save mission");
-				return;
-			}
-			setError(null);
-			// Keep the advisory issues visible: the draft saved, but they tell the
-			// operator what still needs filling in (in the F5 editor) before it can
-			// be started.
-			if (selectId) setSelectedMission(selectId);
-			await refetch();
+			return run("save", async () => {
+				// Draft-save: F4 has no UI to add vehicles/geometries yet (that's
+				// the F5 editor, Phase 4), so a saved mission is a draft. We still
+				// validate and surface the issues advisory-style so the operator
+				// sees what is incomplete, but we do NOT block the save — the real
+				// planner-crash gate stays HARD at F8 init (`c2.mission.init`).
+				setIssues(validateMissionConfig(mission));
+				const result = await save.execute({ mission });
+				if (!result.success) {
+					setError(result.error ?? "Failed to save mission");
+					return;
+				}
+				setError(null);
+				// Keep the advisory issues visible: the draft saved, but they tell
+				// the operator what still needs filling in (in the F5 editor) before
+				// it can be started.
+				if (selectId) setSelectedMission(selectId);
+				await refetch();
+			});
 		},
-		[props.saveDef, save, refetch],
+		[props.saveDef, save, refetch, run],
 	);
 
 	/** Create a minimal new mission (stub — full authoring is F5/Phase 4). */
@@ -174,23 +189,25 @@ function MissionBrowserBody(props: {
 
 	/** Delete a mission then refetch. */
 	const handleDelete = useCallback(
-		async (row: MissionRow) => {
+		(row: MissionRow) => {
 			if (!props.deleteDef) {
 				setError("c2.missions.delete is unavailable");
 				return;
 			}
-			setBusy(true);
-			const result = await del.execute({ mission_id: row.mission_id });
-			setBusy(false);
-			if (!result.success) {
-				setError(result.error ?? "Failed to delete mission");
-				return;
-			}
-			setError(null);
-			if (active === row.mission_id) setSelectedMission(null);
-			await refetch();
+			return run(`delete:${row.mission_id}`, async () => {
+				const result = await del.execute({
+					mission_id: row.mission_id,
+				});
+				if (!result.success) {
+					setError(result.error ?? "Failed to delete mission");
+					return;
+				}
+				setError(null);
+				if (active === row.mission_id) setSelectedMission(null);
+				await refetch();
+			});
 		},
-		[props.deleteDef, del, refetch, active],
+		[props.deleteDef, del, refetch, active, run],
 	);
 
 	return (
@@ -210,11 +227,15 @@ function MissionBrowserBody(props: {
 					size="sm"
 					variant="outline"
 					className="h-7"
-					onClick={handleCreate}
+					onClick={() => void handleCreate()}
 					disabled={busy || !props.saveDef}
 					title="Create a minimal new mission (edit later in the mission editor)"
 				>
-					<ListPlus className="w-3.5 h-3.5 mr-1" />
+					{pending === "save" ? (
+						<Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+					) : (
+						<ListPlus className="w-3.5 h-3.5 mr-1" />
+					)}
 					New
 				</Button>
 				<Button
@@ -309,7 +330,11 @@ function MissionBrowserBody(props: {
 										void handleDelete(row);
 									}}
 								>
-									<Trash2 className="w-3.5 h-3.5" />
+									{pending === `delete:${row.mission_id}` ? (
+										<Loader2 className="w-3.5 h-3.5 animate-spin" />
+									) : (
+										<Trash2 className="w-3.5 h-3.5" />
+									)}
 								</Button>
 							</div>
 						);

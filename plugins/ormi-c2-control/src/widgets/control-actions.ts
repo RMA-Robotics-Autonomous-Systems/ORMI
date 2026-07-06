@@ -1,4 +1,6 @@
 import { MissionStatus } from "../types/c2-types";
+import type { MissionDraft } from "./mission-editor-helpers";
+import { cleanMissionConfig } from "./mission-editor-helpers";
 
 /**
  * F8 lifecycle-control gating (pure, testable).
@@ -101,4 +103,92 @@ export function allowedActions(
 			// Unknown numeric status the C2 may add → conservative: only Submit.
 			return base;
 	}
+}
+
+/**
+ * Whether the C2 is idle/terminal for this mission — i.e. there is no live,
+ * in-progress mission occupying the command surface that an unchanged re-Submit
+ * would duplicate.
+ *
+ * `null`/`undefined` (no feedback yet), `NONE` (no live mission), and the
+ * terminal/failed states (`COMPLETED`/`DELETED`/`STOPPED`/`FAILED`/
+ * `PLANNED_FAILED`) all count as idle: a fresh Submit/re-plan is always fine.
+ * The active states (`PLANNED`/`PLANNED_ALTERNATIVE`/`ACCEPTED`/`STARTED`/
+ * `PAUSED`) are NOT idle — re-Submitting an unchanged config there is the
+ * accidental re-plan we gate against in {@link canSubmit}.
+ *
+ * @param status - The live `MissionStatus`, or `null`/`undefined`.
+ * @returns `true` when the mission is idle/terminal for this command surface.
+ */
+export function isMissionIdle(
+	status: MissionStatus | null | undefined,
+): boolean {
+	if (status == null) return true;
+	switch (status) {
+		case MissionStatus.NONE:
+		case MissionStatus.PLANNED_FAILED:
+		case MissionStatus.FAILED:
+		case MissionStatus.STOPPED:
+		case MissionStatus.DELETED:
+		case MissionStatus.COMPLETED:
+			return true;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Stable content signature of the meaningful mission config — the dirty-detector
+ * for {@link canSubmit}.
+ *
+ * Runs the config through {@link cleanMissionConfig} first (dropping the empty
+ * optional blocks JSON-Forms materializes), so two drafts that differ only in
+ * half-formed `{}` blocks share a signature, then serializes with stable
+ * key-order. Identical meaningful config → identical string; any real edit (a
+ * geometry, a vehicle, a name, a behavior) → a different string.
+ *
+ * Key order is stable because `cleanMissionConfig` rebuilds the object with a
+ * fixed property order and `JSON.stringify` preserves insertion order; the draft
+ * is JSON-safe.
+ *
+ * @param config - The working mission draft.
+ * @returns A stable signature string for the meaningful config content.
+ */
+export function missionConfigSignature(config: MissionDraft): string {
+	return JSON.stringify(cleanMissionConfig(config));
+}
+
+/** Inputs to the Submit dirty-gate. */
+export interface CanSubmitArgs {
+	/** Live `MissionStatus` from feedback (or `null`/`undefined`). */
+	status: MissionStatus | null | undefined;
+	/** Signature of the operator's current working draft (or `null`). */
+	currentSig: string | null;
+	/** Signature last submitted for this mission (or `null` if never). */
+	lastSubmittedSig: string | null;
+}
+
+/**
+ * Whether Submit (initialize / re-plan) should be available.
+ *
+ * Submit is allowed when EITHER:
+ *  - the mission is idle/terminal ({@link isMissionIdle}) — a fresh Submit is
+ *    always fine when nothing live occupies the command surface; OR
+ *  - the config has CHANGED since the last submit — both signatures are present
+ *    and differ, so the operator has refined an active mission and may re-plan.
+ *
+ * The gated case is the one this prevents: an active (PLANNED/ACCEPTED/STARTED/
+ * PAUSED) mission whose config is unchanged since it was submitted → Submit
+ * disabled, so the operator can't accidentally re-plan an in-flight mission.
+ *
+ * @param args - {@link CanSubmitArgs}.
+ * @returns `true` when Submit should be enabled by the dirty-gate.
+ */
+export function canSubmit(args: CanSubmitArgs): boolean {
+	if (isMissionIdle(args.status)) return true;
+	return (
+		args.currentSig != null &&
+		args.lastSubmittedSig != null &&
+		args.currentSig !== args.lastSubmittedSig
+	);
 }

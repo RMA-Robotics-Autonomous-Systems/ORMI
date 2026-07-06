@@ -24,6 +24,30 @@ export type MissionDraft = MissionConfig & {
 };
 
 /**
+ * Decide whether the editor should (re)load the active mission into the draft.
+ *
+ * The F5 editor follows the active mission from the selection store: it loads a
+ * mission whenever the active id is a non-empty id that differs from the one
+ * already loaded in the draft. A `null`/empty active id (no selection) and an
+ * active id that already matches the draft both yield `false` — the latter is
+ * the loop-avoidance guard, so a hydrate that sets the draft to the active id
+ * does not re-trigger another load.
+ *
+ * Pure (no React) so the follow decision is unit-testable in isolation.
+ *
+ * @param activeId - The active mission id from the selection store.
+ * @param draftMissionId - The mission id currently loaded in the draft.
+ * @returns `true` when a different, non-empty mission should be loaded.
+ */
+export function shouldLoadActiveMission(
+	activeId: string | null | undefined,
+	draftMissionId: string | null | undefined,
+): boolean {
+	if (!activeId) return false;
+	return activeId !== draftMissionId;
+}
+
+/**
  * Build a fresh, minimal mission draft.
  *
  * Mirrors `newMissionStub` but typed for the editor: a fresh id, a name, a
@@ -118,6 +142,24 @@ export function hydrateMissionDraft(raw: unknown): MissionDraft {
 }
 
 /**
+ * Structural-equality check for the advanced (deep-optional) slice fed to
+ * JSON-Forms (`arrival_time` / `transit` / `start`).
+ *
+ * JSON-Forms fires `onChange` on mount with the data it was handed, so the
+ * editor must NOT treat that echo as an operator edit (it would falsely mark a
+ * freshly-loaded mission dirty). This compares the incoming slice against the
+ * draft's current slice so the dirty flag flips only on a real change. Compares
+ * by stable JSON serialization — the slice is small and JSON-safe.
+ *
+ * @param a - One advanced slice.
+ * @param b - The other advanced slice.
+ * @returns `true` when both slices are structurally equal.
+ */
+export function advancedSliceEquals(a: unknown, b: unknown): boolean {
+	return JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+}
+
+/**
  * Return a new draft with an objective geometry appended that REFERENCES a
  * stored MapDB feature by id (`{ feature_id }`).
  *
@@ -140,18 +182,54 @@ export function pushFeatureRef(
 }
 
 /**
+ * Return `true` only when `coords` contains at least one usable leaf `[lon, lat]`
+ * pair (two numbers) somewhere in its GeoJSON nesting.
+ *
+ * Walks the same nesting as the validator's `checkCoordinates`: a leaf is reached
+ * when the first element is a number (then it must be ≥2 numbers); otherwise each
+ * element is recursed into. Empty arrays (including a degenerate ring `[[]]`),
+ * single-number pairs (`[5]`), and non-array inputs all yield `false`.
+ *
+ * This is the authoring-side counterpart to the validator — it stops a degenerate
+ * draw from ever being appended to a draft (audit #10).
+ *
+ * @param coords - The drawn geometry's coordinates (any nesting depth).
+ * @returns `true` when at least one valid `[lon, lat]` leaf exists.
+ */
+export function hasUsableCoordinates(coords: unknown): boolean {
+	if (!Array.isArray(coords) || coords.length === 0) return false;
+	// Leaf pair `[lon, lat]` — first element is a number.
+	if (typeof coords[0] === "number") {
+		return (
+			coords.length >= 2 &&
+			typeof coords[0] === "number" &&
+			typeof coords[1] === "number"
+		);
+	}
+	// Nested — usable when ANY child yields a usable leaf.
+	return coords.some((entry) => hasUsableCoordinates(entry));
+}
+
+/**
  * Return a new draft with an INLINE objective geometry appended
  * (`{ geometry: { geometry_type, coordinates } }`).
  *
- * Coordinates pass through unchanged (`[lng, lat]`).
+ * Coordinates pass through unchanged (`[lng, lat]`). A drawn geometry whose
+ * coordinates have no usable `[lon, lat]` leaf (an empty or degenerate draw) is
+ * REFUSED — the draft is returned unchanged so a degenerate geometry can never be
+ * added (audit #10). Does not throw.
+ *
  * @param draft - The current draft.
  * @param drawn - The drawn geometry handed off from the map (F6).
- * @returns A new draft (the original is not mutated).
+ * @returns A new draft (the original is not mutated); unchanged if the draw is unusable.
  */
 export function pushInlineGeometry(
 	draft: MissionDraft,
 	drawn: DraftGeometry,
 ): MissionDraft {
+	if (!hasUsableCoordinates(drawn.coordinates)) {
+		return draft;
+	}
 	const geometry: MissionGeometry = {
 		geometry: {
 			geometry_type: drawn.geometry_type,
@@ -230,6 +308,90 @@ export function toggleVehicle(
 		? draft.vehicles.filter((id) => id !== vehicleId)
 		: [...draft.vehicles, vehicleId];
 	return { ...draft, vehicles: next };
+}
+
+/**
+ * The drawable shapes the map toolbar offers. `point` is a single-vertex mission
+ * objective geometry only — C2 map features stay line/polygon (the C2 rejects
+ * `Point` map features), so the map-editor context never offers it.
+ */
+export type DrawShape = "point" | "line" | "polygon" | "rectangle";
+
+/** terra-draw mode strings (verified against terra-draw 1.31.2). */
+export type DrawGeometryMode = "point" | "linestring" | "polygon" | "rectangle";
+
+/**
+ * Map a toolbar {@link DrawShape} to the terra-draw mode string the Draw tool
+ * activates. `rectangle` is an axis-aligned bounding rectangle (a fast polygon);
+ * it produces a `Polygon` geometry just like `polygon`. `point` activates the
+ * single-vertex point mode (mission objective geometry only).
+ *
+ * Pure (no React / no map) so the mapping is unit-testable in isolation.
+ *
+ * @param shape - The operator-selected shape.
+ * @returns The terra-draw mode string to activate.
+ */
+export function drawShapeToMode(shape: DrawShape): DrawGeometryMode {
+	switch (shape) {
+		case "point":
+			return "point";
+		case "line":
+			return "linestring";
+		case "rectangle":
+			return "rectangle";
+		case "polygon":
+		default:
+			return "polygon";
+	}
+}
+
+/**
+ * The slice of a {@link MissionConfig} the MAP (F6) owns and may overwrite on
+ * save: the objective geometries, the vehicle allocation, the behavior, and the
+ * (optional) display name. Everything else — F5's advanced `transit` / `start`
+ * blocks, `arrival_time`, etc. — is owned elsewhere and must be preserved.
+ */
+export interface MissionOwnedFields {
+	geometries: MissionGeometry[];
+	vehicles: string[];
+	behavior: MissionBehavior;
+	name?: string;
+}
+
+/**
+ * Merge the MAP-owned fields into a freshly-fetched mission config, preserving
+ * every other field verbatim (so the map's save never clobbers F5's advanced
+ * `transit` / `start` / `arrival_time` blocks).
+ *
+ * Only `objective.geometries`, top-level `vehicles`, `behavior`, and `name` are
+ * replaced; the rest of `objective` and the rest of the config carry through.
+ * `name` is only written when provided (a non-empty string), so the map never
+ * blanks an F5-set name. Pure (no fetch / no React) so the merge is testable.
+ *
+ * This is the deadlock fix: a mission F4 created (empty) gains behavior +
+ * geometry + vehicles here, so `validateMissionConfig` passes and the save
+ * succeeds. Concurrent edits to the same field are last-writer-wins by design.
+ *
+ * @param fresh - The re-fetched stored mission config.
+ * @param owned - The MAP-owned fields to overlay.
+ * @returns A new merged config (neither input is mutated).
+ */
+export function mergeMissionOwnedFields(
+	fresh: MissionConfig,
+	owned: MissionOwnedFields,
+): MissionConfig {
+	const merged: MissionConfig = {
+		...fresh,
+		behavior: owned.behavior,
+		vehicles: owned.vehicles,
+		objective: {
+			...fresh.objective,
+			geometries: owned.geometries,
+		},
+	};
+	const name = owned.name?.trim();
+	if (name) merged.name = name;
+	return merged;
 }
 
 /**

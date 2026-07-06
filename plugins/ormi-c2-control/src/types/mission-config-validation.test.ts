@@ -72,6 +72,110 @@ describe("validateMissionConfig — valid configs", () => {
 		] as never;
 		expect(errorCount(validateMissionConfig(config))).toBe(0);
 	});
+
+	it("accepts a valid 2-level Point ([[lon, lat]] single-vertex list)", () => {
+		const config = minimalValid();
+		config.objective.geometries = [
+			{
+				geometry: {
+					geometry_type: "Point",
+					coordinates: [[4.35, 50.85]],
+				},
+			},
+		] as never;
+		expect(errorCount(validateMissionConfig(config))).toBe(0);
+	});
+
+	it("rejects a bare 1-level Point ([lon, lat]) — the C2 reads coordinates[0] as a number", () => {
+		const config = minimalValid();
+		config.objective.geometries = [
+			{
+				geometry: {
+					geometry_type: "Point",
+					coordinates: [4.35, 50.85],
+				},
+			},
+		] as never;
+		const errs = errorsAt(
+			validateMissionConfig(config),
+			"objective.geometries[0].geometry.coordinates",
+		);
+		expect(errs).toHaveLength(1);
+		expect(errs[0]?.message).toContain("[[lon, lat]]");
+	});
+
+	it("accepts a valid LineString", () => {
+		const config = minimalValid();
+		config.objective.geometries = [
+			{
+				geometry: {
+					geometry_type: "LineString",
+					coordinates: [
+						[4.35, 50.85],
+						[4.36, 50.86],
+						[4.37, 50.87],
+					],
+				},
+			},
+		] as never;
+		expect(errorCount(validateMissionConfig(config))).toBe(0);
+	});
+
+	it("accepts a valid flat Polygon ring (2-level — the C2 contract)", () => {
+		const config = minimalValid();
+		config.objective.geometries = [
+			{
+				geometry: {
+					geometry_type: "Polygon",
+					coordinates: [
+						[4.35, 50.85],
+						[4.36, 50.85],
+						[4.36, 50.86],
+						[4.35, 50.85],
+					],
+				},
+			},
+		] as never;
+		expect(errorCount(validateMissionConfig(config))).toBe(0);
+	});
+
+	it("rejects an un-flattened GeoJSON Polygon (3-level nesting)", () => {
+		const config = minimalValid();
+		config.objective.geometries = [
+			{
+				geometry: {
+					geometry_type: "Polygon",
+					coordinates: [
+						[
+							[4.35, 50.85],
+							[4.36, 50.85],
+							[4.36, 50.86],
+							[4.35, 50.85],
+						],
+					],
+				},
+			},
+		] as never;
+		const errs = errorsAt(
+			validateMissionConfig(config),
+			"objective.geometries[0].geometry.coordinates",
+		);
+		expect(errs).not.toHaveLength(0);
+		expect(errs[0]?.message).toContain("flat list of [lon, lat]");
+	});
+
+	it("accepts a feature_id reference carrying a materialized empty geometry (Mongo round-trip)", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: {
+				geometries: [
+					{ feature_id: "abc", geometry: { coordinates: [] } },
+				],
+			},
+		};
+		expect(errorCount(validateMissionConfig(config))).toBe(0);
+	});
 });
 
 describe("validateMissionConfig — top-level", () => {
@@ -234,6 +338,75 @@ describe("validateMissionConfig — objective + geometries", () => {
 				"objective.geometries[0].geometry.coordinates",
 			),
 		).toHaveLength(1);
+	});
+
+	it("errors with a clear message on empty coordinates []", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: { geometries: [{ geometry: { coordinates: [] } }] },
+		};
+		const errs = errorsAt(
+			validateMissionConfig(config),
+			"objective.geometries[0].geometry.coordinates",
+		);
+		expect(errs).toHaveLength(1);
+		expect(errs[0]?.message).toContain("no coordinates");
+	});
+
+	it("errors on a degenerate empty ring [[]]", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: { geometries: [{ geometry: { coordinates: [[]] } }] },
+		};
+		expect(
+			errorsAt(
+				validateMissionConfig(config),
+				"objective.geometries[0].geometry.coordinates",
+			),
+		).not.toHaveLength(0);
+	});
+
+	it("errors on a single-number coordinate [5]", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: { geometries: [{ geometry: { coordinates: [5] } }] },
+		};
+		expect(
+			errorsAt(
+				validateMissionConfig(config),
+				"objective.geometries[0].geometry.coordinates",
+			),
+		).not.toHaveLength(0);
+	});
+
+	it("warns on a swapped/out-of-range pair inside a flat polygon ring (lon=200)", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: {
+				geometries: [
+					{
+						geometry: {
+							geometry_type: "Polygon",
+							coordinates: [
+								[200, 50.85],
+								[4.36, 50.85],
+								[4.36, 50.86],
+								[200, 50.85],
+							],
+						},
+					},
+				],
+			},
+		};
+		const issues = validateMissionConfig(config);
+		expect(
+			warningsAt(issues, "objective.geometries[0].geometry.coordinates"),
+		).not.toHaveLength(0);
+		expect(errorCount(issues)).toBe(0);
 	});
 
 	it("warns when vehicle_orientation_origin is present", () => {
@@ -460,6 +633,136 @@ describe("validateMissionConfig — start", () => {
 		expect(
 			errorsAt(validateMissionConfig(config), "start.vehicle_formation"),
 		).toHaveLength(1);
+	});
+});
+
+describe("validateMissionConfig — NAVIGATE advisory warnings", () => {
+	/** A 2-level Point objective geometry (the C2 contract). */
+	function pointGeom(lon: number, lat: number) {
+		return {
+			geometry: { geometry_type: "Point", coordinates: [[lon, lat]] },
+		};
+	}
+
+	/** A flat 2-level LineString objective geometry. */
+	function lineGeom() {
+		return {
+			geometry: {
+				geometry_type: "LineString",
+				coordinates: [
+					[4.35, 50.85],
+					[4.36, 50.86],
+				],
+			},
+		};
+	}
+
+	/** A flat 2-level Polygon ring objective geometry. */
+	function polygonGeom() {
+		return {
+			geometry: {
+				geometry_type: "Polygon",
+				coordinates: [
+					[4.35, 50.85],
+					[4.36, 50.85],
+					[4.36, 50.86],
+					[4.35, 50.85],
+				],
+			},
+		};
+	}
+
+	it("warns when a NAVIGATE objective uses a LineString (coverage region)", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a", "b"],
+			objective: { geometries: [lineGeom()] },
+		};
+		const issues = validateMissionConfig(config);
+		const warns = warningsAt(issues, "objective.geometries");
+		expect(warns.some((w) => w.message.includes("coverage region"))).toBe(
+			true,
+		);
+		expect(errorCount(issues)).toBe(0);
+		expect(isMissionConfigSubmittable(config)).toBe(true);
+	});
+
+	it("warns when a NAVIGATE objective uses a Polygon (coverage region)", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a", "b"],
+			objective: { geometries: [polygonGeom()] },
+		};
+		const warns = warningsAt(
+			validateMissionConfig(config),
+			"objective.geometries",
+		);
+		expect(warns.some((w) => w.message.includes("coverage region"))).toBe(
+			true,
+		);
+	});
+
+	it("warns when objective count exceeds the assigned vehicle count", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: {
+				geometries: [pointGeom(4.35, 50.85), pointGeom(4.36, 50.86)],
+			},
+		};
+		const issues = validateMissionConfig(config);
+		const warns = warningsAt(issues, "objective.geometries");
+		expect(warns.some((w) => w.message.includes("left unplanned"))).toBe(
+			true,
+		);
+		expect(errorCount(issues)).toBe(0);
+	});
+
+	it("warns when a NAVIGATE objective mixes Point with line/area geometries", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a", "b", "c"],
+			objective: { geometries: [pointGeom(4.35, 50.85), lineGeom()] },
+		};
+		const warns = warningsAt(
+			validateMissionConfig(config),
+			"objective.geometries",
+		);
+		expect(warns.some((w) => w.message.includes("starve"))).toBe(true);
+	});
+
+	it("emits no NAVIGATE advisory for a single Point with enough vehicles", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a", "b"],
+			objective: { geometries: [pointGeom(4.35, 50.85)] },
+		};
+		expect(
+			warningsAt(validateMissionConfig(config), "objective.geometries"),
+		).toHaveLength(0);
+	});
+
+	it("does not emit NAVIGATE advisories for COVERAGE behavior", () => {
+		const config = {
+			behavior: 1,
+			vehicles: ["a"],
+			objective: { geometries: [polygonGeom(), lineGeom()] },
+		};
+		expect(
+			warningsAt(validateMissionConfig(config), "objective.geometries"),
+		).toHaveLength(0);
+	});
+
+	it("advisory warnings never block submission", () => {
+		const config = {
+			behavior: 0,
+			vehicles: ["a"],
+			objective: { geometries: [lineGeom(), polygonGeom()] },
+		};
+		const issues = validateMissionConfig(config);
+		expect(issues.some((i) => i.severity === "warning")).toBe(true);
+		expect(issues.every((i) => i.severity === "warning")).toBe(true);
+		expect(isMissionConfigSubmittable(config)).toBe(true);
 	});
 });
 

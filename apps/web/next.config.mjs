@@ -16,46 +16,47 @@ const src = (p) => `../../${p}`;
 
 const devSourceAliases = isDev
 	? {
-			"@workspace/ormi-core": src("packages/ormi-core/src/index.ts"),
-			"@workspace/ormi-core/datasources": src(
-				"packages/ormi-core/src/datasources/index.ts",
-			),
-			"@workspace/ormi-core/datasources/worker": src(
-				"packages/ormi-core/src/datasources/worker/index.ts",
-			),
-			"@workspace/ormi-core/widgets": src(
-				"packages/ormi-core/src/widgets/index.ts",
-			),
-			"@workspace/ormi-core/dashboard": src(
-				"packages/ormi-core/src/dashboard/index.ts",
-			),
-			"@workspace/ormi-core/templates": src(
-				"packages/ormi-core/src/templates/index.ts",
-			),
-			"@workspace/ormi-core/types": src(
-				"packages/ormi-core/src/types/index.ts",
-			),
-			"@workspace/ormi-core/renderers": src(
-				"packages/ormi-core/src/renderers/index.ts",
-			),
-			"@workspace/ormi-core/transforms": src(
-				"packages/ormi-core/src/transforms/index.ts",
-			),
-			"@workspace/ormi-jsonforms": src("packages/ormi-jsonforms/src/index.ts"),
-			"@workspace/ormi-plugins": src("packages/ormi-plugins/src/index.ts"),
-			"@workspace/utils": src("packages/utils/src/index.ts"),
-			"ormi-emi-bag-analyzer": src("plugins/ormi-emi-bag-analyzer/src/index.ts"),
-			"ormi-flight-indicator": src("plugins/ormi-flight-indicator/src/index.ts"),
-			"ormi-foxglove": src("plugins/ormi-foxglove/src/index.ts"),
-			"ormi-randoms-datasources": src(
-				"plugins/ormi-randoms-datasources/src/index.ts",
-			),
-			"ormi-rest-bags": src("plugins/ormi-rest-bags/src/index.ts"),
-			"ormi-rosbridge-suite": src("plugins/ormi-rosbridge-suite/src/index.ts"),
-			"ormi-std-widgets": src("plugins/ormi-std-widgets/src/index.ts"),
-			"ormi-tello": src("plugins/ormi-tello/src/index.ts"),
-			"teodor-emi-extension": src("plugins/teodor-emi-extension/src/index.ts"),
-		}
+		"@workspace/ormi-core": src("packages/ormi-core/src/index.ts"),
+		"@workspace/ormi-core/datasources": src(
+			"packages/ormi-core/src/datasources/index.ts",
+		),
+		"@workspace/ormi-core/datasources/worker": src(
+			"packages/ormi-core/src/datasources/worker/index.ts",
+		),
+		"@workspace/ormi-core/widgets": src(
+			"packages/ormi-core/src/widgets/index.ts",
+		),
+		"@workspace/ormi-core/dashboard": src(
+			"packages/ormi-core/src/dashboard/index.ts",
+		),
+		"@workspace/ormi-core/templates": src(
+			"packages/ormi-core/src/templates/index.ts",
+		),
+		"@workspace/ormi-core/types": src(
+			"packages/ormi-core/src/types/index.ts",
+		),
+		"@workspace/ormi-core/renderers": src(
+			"packages/ormi-core/src/renderers/index.ts",
+		),
+		"@workspace/ormi-core/transforms": src(
+			"packages/ormi-core/src/transforms/index.ts",
+		),
+		"@workspace/ormi-jsonforms": src("packages/ormi-jsonforms/src/index.ts"),
+		"@workspace/ormi-plugins": src("packages/ormi-plugins/src/index.ts"),
+		"@workspace/utils": src("packages/utils/src/index.ts"),
+		"ormi-emi-bag-analyzer": src("plugins/ormi-emi-bag-analyzer/src/index.ts"),
+		"ormi-flight-indicator": src("plugins/ormi-flight-indicator/src/index.ts"),
+		"ormi-foxglove": src("plugins/ormi-foxglove/src/index.ts"),
+		"ormi-randoms-datasources": src(
+			"plugins/ormi-randoms-datasources/src/index.ts",
+		),
+		"ormi-rest-bags": src("plugins/ormi-rest-bags/src/index.ts"),
+		"ormi-rosbridge-suite": src("plugins/ormi-rosbridge-suite/src/index.ts"),
+		"ormi-std-widgets": src("plugins/ormi-std-widgets/src/index.ts"),
+		"ormi-tello": src("plugins/ormi-tello/src/index.ts"),
+		"teodor-emi-extension": src("plugins/teodor-emi-extension/src/index.ts"),
+		"ormi-c2-control": src("plugins/ormi-c2-control/src/index.ts")
+	}
 	: {};
 
 /** @type {import('next').NextConfig} */
@@ -76,6 +77,7 @@ const nextConfig = {
 		"ormi-std-widgets",
 		"ormi-tello",
 		"teodor-emi-extension",
+		"ormi-c2-control"
 	],
 	// Explicitly opt into Turbopack for production builds on Next 16.
 	// Our worker assets are loaded via URL + fetch, so we do not need the

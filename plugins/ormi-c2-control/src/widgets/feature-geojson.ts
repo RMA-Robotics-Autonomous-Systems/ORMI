@@ -9,11 +9,20 @@ import { generateMissionId } from "./mission-list";
  * No map, no React, no fetch — just the geometry/property translation so it can
  * be unit-tested directly.
  *
- * ⚠ COORDINATE RULE — everything here is GeoJSON `[lng, lat]` end-to-end. The
- * terra-draw snapshot, the saved MapDB `C2Feature`, and the mission
- * `objective.geometries[].geometry.coordinates` all use `[lng, lat]`. There is
- * NO swap in this module (the only swap in the whole system is the
+ * ⚠ COORDINATE RULE — `[lng, lat]` order is preserved end-to-end; there is NO
+ * swap in this module (the only swap in the whole system is the
  * `mission_feedback` waypoints, handled by S2 in `mission-feedback.ts`).
+ *
+ * ⚠ NESTING RULE — the terra-draw snapshot and the saved MapDB `C2Feature` are
+ * full GeoJSON (a Polygon's `coordinates` is triple-nested `[[[lng,lat],…]]`).
+ * MapDB feature storage keeps that GeoJSON shape verbatim (its schema allows any
+ * nesting) — see {@link drawFeatureToC2Feature}. The mission-config inline
+ * geometry is the ONE place nesting changes: the C2 mission parser
+ * (`MissionConfig.hpp`, `MissionGeometry::FromJson`) reads `coords[i][0]` /
+ * `coords[i][1]` as each vertex's lon/lat, i.e. a FLAT vertex list, NOT GeoJSON.
+ * A single vertex is `[lng,lat]` (1 level); a line / ring / multi-vertex is
+ * `[[lng,lat],…]` (2 levels). A GeoJSON triple-nested Polygon breaks the C2, so
+ * {@link drawFeatureToInlineGeometry} flattens to that flat form.
  *
  * The persisted `feature_id` is an ORMI-generated UUID stored in
  * `properties.feature_id` — NOT terra-draw's internal numeric/string `id`, which
@@ -41,9 +50,10 @@ export interface FeatureMeta {
  * Convert a terra-draw snapshot feature into the persisted `C2Feature` (MapDB)
  * GeoJSON shape.
  *
- * Coordinates pass through unchanged (`[lng, lat]`). The result's
- * `properties.feature_id` is the ORMI UUID — provided (edit) or freshly minted
- * (create) — NOT the terra-draw `id`.
+ * Coordinates pass through unchanged — full GeoJSON shape and `[lng, lat]` order
+ * (MapDB's feature schema allows any nesting; this is NOT the flattened C2
+ * mission form). The result's `properties.feature_id` is the ORMI UUID —
+ * provided (edit) or freshly minted (create) — NOT the terra-draw `id`.
  *
  * @param drawn - The terra-draw snapshot feature.
  * @param meta - Name / feature_type / optional feature_id to carry.
@@ -127,17 +137,53 @@ export function c2FeatureToDrawFeature(feature: C2Feature): DrawFeature | null {
  * Build the inline `objective.geometries[]` entry for a drawn geometry, in the
  * mission-config shape `{ geometry: { geometry_type, coordinates } }`.
  *
- * Coordinates pass through unchanged (`[lng, lat]`).
+ * Flattens terra-draw's GeoJSON `coordinates` to the C2's flat vertex list (the
+ * only place in this module where nesting changes; `[lng, lat]` order is still
+ * preserved, and MapDB feature storage stays full GeoJSON):
+ *
+ * - **Point** → `[[lng, lat]]` (2 levels, a single-vertex list). The C2 mission
+ *   parser reads a Point's vertex as `coordinates[0]`, and the Mongo mission
+ *   schema is `coordinates: [[Number]]` (2-level); emitting a bare 1-level
+ *   `[lng, lat]` makes the C2 read `coordinates[0]` as a lone number. So the
+ *   GeoJSON `[lng, lat]` is wrapped into a one-element vertex list here.
+ * - **LineString** → `[[lng, lat], …]` (2 levels), as-is.
+ * - **Polygon** → the OUTER RING only (`coordinates[0]` → `[[lng, lat], …]`,
+ *   2 levels). terra-draw polygons are single-ring; the GeoJSON outer wrapper is
+ *   dropped so the C2 can read `coords[i][0]`/`coords[i][1]` as each vertex.
+ *
+ * `geometry_type` is the GeoJSON type string — the C2 treats it as a label only.
+ * Defensive: a missing/odd `coordinates` value is passed through unchanged rather
+ * than throwing.
+ *
  * @param drawn - A terra-draw snapshot feature.
- * @returns The inline geometry entry.
+ * @returns The inline geometry entry in the C2 flat vertex form.
  */
 export function drawFeatureToInlineGeometry(drawn: DrawFeature): {
 	geometry: { geometry_type: string; coordinates: unknown };
 } {
+	const type = drawn.geometry.type;
+	const raw = drawn.geometry.coordinates;
+
+	let coordinates: unknown = raw;
+	// Polygon: drop the GeoJSON outer ring wrapper, keep ring 0 (the outer ring).
+	if (type === "Polygon" && Array.isArray(raw) && Array.isArray(raw[0])) {
+		coordinates = raw[0];
+	}
+	// Point: wrap the GeoJSON `[lng, lat]` into a single-vertex list `[[lng, lat]]`
+	// (2-level) so the C2 reads the vertex as `coordinates[0]` and the Mongo
+	// `[[Number]]` schema matches without coercion.
+	else if (
+		type === "Point" &&
+		Array.isArray(raw) &&
+		typeof raw[0] === "number"
+	) {
+		coordinates = [raw];
+	}
+
 	return {
 		geometry: {
-			geometry_type: drawn.geometry.type,
-			coordinates: drawn.geometry.coordinates,
+			geometry_type: type,
+			coordinates,
 		},
 	};
 }
