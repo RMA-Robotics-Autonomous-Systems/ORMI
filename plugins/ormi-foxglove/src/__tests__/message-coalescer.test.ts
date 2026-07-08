@@ -1,22 +1,23 @@
 /**
  * Tests for the raw-message coalescer used by the main-thread Foxglove path:
  * lossy last-wins overwriting, lossless FIFO ordering, the cap-triggered
- * synchronous drain, drain precedence, key removal, and tick lifecycle.
+ * synchronous drain, drain precedence, key removal, tick lifecycle, the
+ * per-tick decode budget, and the per-topic decode-rate cap.
  */
 
 import { describe, test, expect } from "bun:test";
 
-import { MessageCoalescer } from "../message-coalescer";
+import {
+	MessageCoalescer,
+	type MessageCoalescerOptions,
+} from "../message-coalescer";
 
 interface Payload {
 	key: number;
 	seq: number;
 }
 
-const makeCoalescer = (options?: {
-	intervalMs?: number;
-	losslessCap?: number;
-}) => {
+const makeCoalescer = (options?: MessageCoalescerOptions) => {
 	const dispatched: Payload[] = [];
 	const coalescer = new MessageCoalescer<Payload>(
 		(entry) => dispatched.push(entry),
@@ -172,5 +173,162 @@ describe("MessageCoalescer — lifecycle", () => {
 		await Bun.sleep(30);
 
 		expect(dispatched).toHaveLength(1);
+	});
+});
+
+describe("MessageCoalescer — per-tick time budget", () => {
+	test("a pass with more work than the budget yields and finishes the rest on the next pass, losing and duplicating nothing", () => {
+		// Deterministic clock: each dispatch advances it, so the budget is
+		// blown after a fixed number of decodes.
+		let clock = 0;
+		const now = () => clock;
+		const dispatched: Payload[] = [];
+		const coalescer = new MessageCoalescer<Payload>(
+			(entry) => {
+				dispatched.push(entry);
+				clock += 2; // each decode "costs" 2 ms
+			},
+			{ budgetMs: 5, now },
+		);
+
+		// 10 lossless frames on one key — must drain in order across passes.
+		for (let seq = 1; seq <= 10; seq++) {
+			coalescer.push(7, { key: 7, seq }, true);
+		}
+
+		// First pass: ~3 decodes (2 ms each, budget 5) then a yield.
+		const firstFinished = coalescer.drainAll();
+		expect(firstFinished).toBe(false);
+		expect(dispatched.length).toBeGreaterThan(0);
+		expect(dispatched.length).toBeLessThan(10);
+
+		// Keep pumping passes (as the catch-up tick would) until drained.
+		let guard = 0;
+		while (!coalescer.drainAll()) {
+			if (++guard > 50) throw new Error("drain never finished");
+		}
+
+		// Every frame exactly once, in arrival order — no loss, no duplication.
+		expect(dispatched.map((p) => p.seq)).toEqual([
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		]);
+	});
+
+	test("lossy latest survives a budget yield triggered by lossless work", () => {
+		let clock = 0;
+		const now = () => clock;
+		const dispatched: Payload[] = [];
+		const coalescer = new MessageCoalescer<Payload>(
+			(entry) => {
+				dispatched.push(entry);
+				clock += 4; // one dispatch already exceeds the 3 ms budget
+			},
+			{ budgetMs: 3, now },
+		);
+
+		coalescer.push(1, { key: 1, seq: 1 }, true); // lossless, drained first
+		coalescer.push(2, { key: 2, seq: 99 }, false); // lossy latest
+
+		// The single lossless dispatch blows the budget, deferring the lossy key.
+		expect(coalescer.drainAll()).toBe(false);
+		expect(dispatched.map((p) => `${p.key}:${p.seq}`)).toEqual(["1:1"]);
+
+		// Next pass decodes the retained lossy latest — nothing was lost.
+		expect(coalescer.drainAll()).toBe(true);
+		expect(dispatched.map((p) => `${p.key}:${p.seq}`)).toEqual([
+			"1:1",
+			"2:99",
+		]);
+	});
+});
+
+describe("MessageCoalescer — per-topic decode-rate cap", () => {
+	const CAP_MS = 80; // ~12.5 Hz ceiling
+
+	test("coalesces a burst to LATEST at the cap rate and never drops the newest", () => {
+		let clock = 0;
+		const now = () => clock;
+		const { coalescer, dispatched } = makeCoalescer({
+			budgetMs: 1000, // large: isolate the cap from the budget
+			now,
+		});
+
+		// Interleaved arrivals (~30 Hz) against a drain that also runs each
+		// step; the cap must throttle decode to ~1 per CAP_MS window.
+		const step = (t: number, seq: number) => {
+			clock = t;
+			coalescer.push(7, { key: 7, seq }, false, CAP_MS);
+			coalescer.drainAll();
+		};
+
+		step(0, 1); // decode (first ever)
+		step(33, 2); // deferred by cap
+		step(66, 3); // deferred; overwrites the retained 2
+		step(99, 4); // cap window elapsed → decode 4 (3 was shed)
+		step(132, 5); // deferred
+		step(165, 6); // deferred; overwrites 5
+		step(198, 7); // decode 7 (6 was shed)
+		step(231, 8); // deferred, retained
+
+		// Quiet period: the newest retained frame must still decode.
+		clock = 320;
+		coalescer.drainAll();
+
+		expect(dispatched.map((p) => p.seq)).toEqual([1, 4, 7, 8]);
+		// The final frame pushed (8) is decoded — the newest is never dropped.
+		expect(dispatched.at(-1)!.seq).toBe(8);
+	});
+
+	test("shed frames are counted in the drop metric (overwriteCount)", () => {
+		let clock = 0;
+		const now = () => clock;
+		const { coalescer, dispatched } = makeCoalescer({
+			budgetMs: 1000,
+			now,
+		});
+
+		let pushed = 0;
+		const step = (t: number, seq: number) => {
+			clock = t;
+			coalescer.push(7, { key: 7, seq }, false, CAP_MS);
+			pushed++;
+			coalescer.drainAll();
+		};
+
+		step(0, 1);
+		step(33, 2);
+		step(66, 3);
+		step(99, 4);
+		step(132, 5);
+		step(165, 6);
+		step(198, 7);
+		step(231, 8);
+		clock = 320;
+		coalescer.drainAll();
+
+		// Every pushed frame is either decoded or counted as a drop — the
+		// produced-vs-delivered gap stays honest, nothing is silently hidden.
+		expect(dispatched.length + coalescer.overwriteCount).toBe(pushed);
+		expect(coalescer.overwriteCount).toBeGreaterThan(0);
+	});
+
+	test("an uncapped lossy topic decodes every drain (cap 0 = unaffected)", () => {
+		let clock = 0;
+		const now = () => clock;
+		const { coalescer, dispatched } = makeCoalescer({
+			budgetMs: 1000,
+			now,
+		});
+
+		// No cap: each drain right after a push decodes the latest immediately.
+		clock = 0;
+		coalescer.push(7, { key: 7, seq: 1 }, false, 0);
+		coalescer.drainAll();
+		clock = 5; // well under any cap window
+		coalescer.push(7, { key: 7, seq: 2 }, false, 0);
+		coalescer.drainAll();
+
+		expect(dispatched.map((p) => p.seq)).toEqual([1, 2]);
+		expect(coalescer.overwriteCount).toBe(0);
 	});
 });

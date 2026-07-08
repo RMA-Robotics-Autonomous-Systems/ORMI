@@ -38,14 +38,8 @@
  * inject the canonical enum values if they ever change.
  */
 
-import { metrics, type CounterId } from "./metrics/metrics-core";
+import { metrics, type CounterId, type RingId } from "./metrics/metrics-core";
 import { createTopicKey, type TopicKeyInput } from "./topic-key";
-
-/**
- * Heavy-tier sampled end-to-end latency (publisher `time` → registry fanout),
- * in ms. Registered once per runtime; written only while `metrics.heavy`.
- */
-const pipelineLatencyRing = metrics.ring("pipeline.latencyMs");
 
 /**
  * A selected topic as consumed by the registry. Structurally compatible with
@@ -155,6 +149,13 @@ interface WireEntry {
 	deliveredId: CounterId;
 	/** Gauge id for `wire.<key>.fanout` — set to `fanout.size` on every change. */
 	fanoutId: CounterId;
+	/**
+	 * Ring id for `wire.<key>.latencyMs` — per-topic end-to-end latency
+	 * (publisher `time` → registry fanout). Written only while `metrics.heavy`,
+	 * 1-in-32 sampled, so each topic reports its own p50/p95/p99/max instead of
+	 * being smeared into one aggregate dominated by the highest-rate wire.
+	 */
+	latencyId: RingId;
 	/** Message sequence for 1-in-32 heavy-tier latency sampling. */
 	sampleSeq: number;
 }
@@ -231,6 +232,7 @@ class Registry implements DatasourceSubscriptionRegistry {
 				publishedRegistered: false,
 				deliveredId: metrics.counter(`wire.${key}.delivered`),
 				fanoutId: metrics.counter(`wire.${key}.fanout`),
+				latencyId: metrics.ring(`wire.${key}.latencyMs`),
 				sampleSeq: 0,
 			};
 			this.wires.set(key, entry);
@@ -284,7 +286,7 @@ class Registry implements DatasourceSubscriptionRegistry {
 				if (!live) return;
 				metrics.add(live.deliveredId);
 				if (metrics.heavy && (live.sampleSeq++ & 31) === 0) {
-					metrics.observe(pipelineLatencyRing, Date.now() - time);
+					metrics.observe(live.latencyId, Date.now() - time);
 				}
 				live.fanout.forEach((cb) => cb(value, time, referenceFrameId));
 			},

@@ -82,3 +82,6 @@ ARCH_REVIEW_DASHBOARD_WIDGETS_2026-02-24.md
 ACTIONS_INVENTORY.md
 API_AUDIT.md
 .vscode/settings.json
+
+# Chrome DevTools performance traces
+Trace-*.json.gz
