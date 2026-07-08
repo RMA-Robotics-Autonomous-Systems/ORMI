@@ -39,7 +39,7 @@ import React, {
 import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { ThreeEvent, useThree } from "@react-three/fiber";
-import { useWorldFrames } from "@workspace/ormi-core/transforms";
+import { useThrottledWorldFrames } from "../engine/react/throttled-transforms";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -257,7 +257,8 @@ interface FrameLabelProps {
 	nodeId: string;
 	position: [number, number, number];
 	fontSize: number;
-	color: THREE.Color;
+	/** CSS color string (e.g. `#00ff88`) — cheaper than a per-node `THREE.Color`. */
+	color: string;
 	isHovered: boolean;
 	sphereRadius: number;
 }
@@ -337,6 +338,13 @@ const SCRATCH_SCALE = new THREE.Vector3();
 const SCRATCH_QUATERNION = new THREE.Quaternion();
 const SCRATCH_DIRECTION = new THREE.Vector3();
 const SCRATCH_COLOR = new THREE.Color();
+/**
+ * Dedicated scratch for the per-render label pass. Kept separate from
+ * {@link SCRATCH_COLOR} (used by the instance-write helpers) so the two passes
+ * never alias, and hoisted out of the label loop so no `THREE.Color` is allocated
+ * per node per render — each label reads a fresh hex string off this one instance.
+ */
+const LABEL_COLOR_SCRATCH = new THREE.Color();
 const CYLINDER_UP = new THREE.Vector3(0, 1, 0);
 const IDENTITY_QUATERNION = new THREE.Quaternion();
 
@@ -480,32 +488,62 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 		showInferredRoots = true,
 	} = config;
 
-	// World-space geometry is resolved once in core; project it into THREE types here.
-	const worldFrames = useWorldFrames(
+	// World-space geometry is resolved once in core; project it into THREE types
+	// here. The table is rate-capped (see `useThrottledWorldFrames`) so the tree
+	// reconciles at ~13 Hz instead of once per raw TF bump.
+	const worldFrames = useThrottledWorldFrames(
 		enabled ? targetFrame : "",
 		staleThresholdMs,
 	);
 
+	// Vector3 pools reused across bumps: a TF update rewrites these in place rather
+	// than allocating N fresh `THREE.Vector3` per node. Index-aligned with
+	// `frameNodes`; consumers only read (instance writes copy, handlers clone), so
+	// in-place reuse is safe. Grows monotonically; entries past the live count are
+	// inert.
+	const worldPosPoolRef = useRef<THREE.Vector3[]>([]);
+	const parentPosPoolRef = useRef<THREE.Vector3[]>([]);
+
 	const frameNodes = useMemo<FrameNode[]>(() => {
 		if (!enabled) return [];
-		return worldFrames.map((wf, index) => ({
-			id: wf.rawFrameId,
-			worldPos: new THREE.Vector3(
+		const worldPool = worldPosPoolRef.current;
+		const parentPool = parentPosPoolRef.current;
+		return worldFrames.map((wf, index) => {
+			let worldPos = worldPool[index];
+			if (!worldPos) {
+				worldPos = new THREE.Vector3();
+				worldPool[index] = worldPos;
+			}
+			worldPos.set(
 				wf.worldPosition.x,
 				wf.worldPosition.y,
 				wf.worldPosition.z,
-			),
-			parentPos: wf.parentWorldPosition
-				? new THREE.Vector3(
-						wf.parentWorldPosition.x,
-						wf.parentWorldPosition.y,
-						wf.parentWorldPosition.z,
-					)
-				: null,
-			depth: wf.depth,
-			inferred: wf.inferred,
-			index,
-		}));
+			);
+
+			let parentPos: THREE.Vector3 | null = null;
+			if (wf.parentWorldPosition) {
+				let pooled = parentPool[index];
+				if (!pooled) {
+					pooled = new THREE.Vector3();
+					parentPool[index] = pooled;
+				}
+				pooled.set(
+					wf.parentWorldPosition.x,
+					wf.parentWorldPosition.y,
+					wf.parentWorldPosition.z,
+				);
+				parentPos = pooled;
+			}
+
+			return {
+				id: wf.rawFrameId,
+				worldPos,
+				parentPos,
+				depth: wf.depth,
+				inferred: wf.inferred,
+				index,
+			};
+		});
 	}, [worldFrames, enabled]);
 
 	// Partition spheres into a solid set and a wireframe set (inferred roots).
@@ -766,15 +804,17 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 			{showLabels &&
 				frameNodes.map((node) => {
 					const isHovered = hoveredNodeId === node.id;
-					const labelColor = computeNodeColor(
-						node,
-						frameNodes.length,
-						isHovered,
-						hoverColor,
-						colorScheme,
-						uniformColor,
-						new THREE.Color(),
-					);
+					const labelColor =
+						"#" +
+						computeNodeColor(
+							node,
+							frameNodes.length,
+							isHovered,
+							hoverColor,
+							colorScheme,
+							uniformColor,
+							LABEL_COLOR_SCRATCH,
+						).getHexString();
 					return (
 						<FrameLabel
 							key={node.id}

@@ -113,48 +113,41 @@ function makeAnchorEdge(
 	};
 }
 
+/** A pending synthetic anchor before its {@link TransformEdge} is materialized. */
+interface PendingAnchor {
+	key: string;
+	rawFrameId: string;
+	worldKey: string;
+	position?: { x: number; y: number; z: number };
+	rotation?: { x: number; y: number; z: number; w: number };
+}
+
 /**
- * Build an effective transform table = the core table plus synthetic anchor edges that place
- * each source's root into the scene world. Pure; never overwrites a real (observed) edge.
- *
- * - **Manual** anchors place a specific `${source}::${rootFrame}` at a given pose.
- * - **autoAnchor** places *every* unobserved source root at the world origin (identity), so all
- *   trees share a common origin with no manual configuration.
- *
- * Copy-on-write: the input table is cloned only when an anchor edge is actually added. When
- * anchoring produces no changes (no anchors configured, every target already observed, or
- * nothing left to anchor), the input table is returned by reference.
+ * Derive the anchor edges to overlay (manual takes precedence over autoAnchor for the same
+ * key). Scans the table but allocates no edge objects — just the small pending set. Never
+ * targets an observed key.
  */
-export function buildAnchoredTable(
+function derivePendingAnchors(
 	table: TransformTable,
 	anchors: SceneAnchor[] | undefined,
-	worldFrame: string,
-	autoAnchor = false,
-): TransformTable {
-	const hasManual = Boolean(anchors && anchors.length > 0);
-	if (!hasManual && !autoAnchor) return table;
-
-	const worldKey = sceneWorldKey(worldFrame);
-	// Created lazily on the first added edge; null means "no changes yet".
-	let effective: TransformTable | null = null;
+	worldKey: string,
+	autoAnchor: boolean,
+	hasManual: boolean,
+): PendingAnchor[] {
+	const pending = new Map<string, PendingAnchor>();
 
 	if (hasManual) {
 		for (const anchor of anchors!) {
 			if (!anchor?.source || !anchor?.rootFrame) continue;
 			const childKey = namespaceFrame(anchor.source, anchor.rootFrame);
-			// Don't clobber an observed/anchored edge.
-			if (table.has(childKey) || effective?.has(childKey)) continue;
-			if (effective === null) effective = new Map(table);
-			effective.set(
-				childKey,
-				makeAnchorEdge(
-					childKey,
-					anchor.rootFrame,
-					worldKey,
-					anchor.position,
-					anchor.rotation,
-				),
-			);
+			if (table.has(childKey) || pending.has(childKey)) continue;
+			pending.set(childKey, {
+				key: childKey,
+				rawFrameId: anchor.rootFrame,
+				worldKey,
+				position: anchor.position,
+				rotation: anchor.rotation,
+			});
 		}
 	}
 
@@ -166,18 +159,123 @@ export function buildAnchoredTable(
 				pid &&
 				pid !== worldKey &&
 				!table.has(pid) &&
-				!effective?.has(pid)
+				!pending.has(pid)
 			) {
-				if (effective === null) effective = new Map(table);
-				effective.set(
-					pid,
-					makeAnchorEdge(pid, frameRawName(pid), worldKey),
-				);
+				pending.set(pid, {
+					key: pid,
+					rawFrameId: frameRawName(pid),
+					worldKey,
+				});
 			}
 		}
 	}
 
-	return effective ?? table;
+	return [...pending.values()];
+}
+
+/** Order-independent fingerprint of a pending anchor set (key + raw + world + pose). */
+function anchorSignature(pending: PendingAnchor[]): string {
+	const parts = pending.map(
+		(p) =>
+			`${p.key}|${p.rawFrameId}|${p.worldKey}|` +
+			`${p.position?.x ?? 0},${p.position?.y ?? 0},${p.position?.z ?? 0}|` +
+			`${p.rotation?.x ?? 0},${p.rotation?.y ?? 0},${p.rotation?.z ?? 0},${p.rotation?.w ?? 1}`,
+	);
+	parts.sort();
+	return parts.join(";");
+}
+
+/**
+ * Per-consumer cache for {@link buildAnchoredTable}. Holds the last anchor-edge set (reused
+ * across bumps while the anchor set is unchanged) and the last effective table (returned by
+ * reference when the exact inputs recur). Create one via {@link createAnchorEdgeCache} and keep
+ * it in a `useRef` — it is a mutable scratch, never a reactive value.
+ */
+export interface AnchorEdgeCache {
+	current: {
+		signature: string;
+		edges: Array<[string, TransformEdge]>;
+		table: TransformTable;
+		result: TransformTable;
+	} | null;
+}
+
+/** Create an empty {@link AnchorEdgeCache}. */
+export function createAnchorEdgeCache(): AnchorEdgeCache {
+	return { current: null };
+}
+
+/**
+ * Build an effective transform table = the core table plus synthetic anchor edges that place
+ * each source's root into the scene world. Never overwrites a real (observed) edge.
+ *
+ * - **Manual** anchors place a specific `${source}::${rootFrame}` at a given pose.
+ * - **autoAnchor** places *every* unobserved source root at the world origin (identity), so all
+ *   trees share a common origin with no manual configuration.
+ *
+ * Copy-on-write: when anchoring adds nothing (no anchors configured, every target already
+ * observed, or nothing left to anchor) the input table is returned by reference. When anchor
+ * edges *are* added the base table is merged into a fresh `Map` (unavoidable — consumers read a
+ * single `TransformTable`).
+ *
+ * Pass a {@link AnchorEdgeCache} to cap the per-bump cost of that merge on a high-rate TF
+ * stream: while the anchor *set* is unchanged the (stable) anchor edge objects are reused
+ * instead of re-derived, and an identical `(table, anchors)` call returns the previous effective
+ * table by reference — so an unchanged anchor set never re-allocates when nothing actually moved.
+ * Without a cache the function is pure and allocates the merge each time it adds an edge.
+ */
+export function buildAnchoredTable(
+	table: TransformTable,
+	anchors: SceneAnchor[] | undefined,
+	worldFrame: string,
+	autoAnchor = false,
+	cache?: AnchorEdgeCache,
+): TransformTable {
+	const hasManual = Boolean(anchors && anchors.length > 0);
+	if (!hasManual && !autoAnchor) return table;
+
+	const worldKey = sceneWorldKey(worldFrame);
+	const pending = derivePendingAnchors(
+		table,
+		anchors,
+		worldKey,
+		autoAnchor,
+		hasManual,
+	);
+	if (pending.length === 0) return table;
+
+	const buildEdges = (): Array<[string, TransformEdge]> =>
+		pending.map((p) => [
+			p.key,
+			makeAnchorEdge(
+				p.key,
+				p.rawFrameId,
+				p.worldKey,
+				p.position,
+				p.rotation,
+			),
+		]);
+
+	if (!cache) {
+		const effective: TransformTable = new Map(table);
+		for (const [key, edge] of buildEdges()) effective.set(key, edge);
+		return effective;
+	}
+
+	const signature = anchorSignature(pending);
+	const prev = cache.current;
+	// Exact inputs recur (re-render with no TF bump) → no reallocation at all.
+	if (prev && prev.signature === signature && prev.table === table) {
+		return prev.result;
+	}
+	// Same anchor set, new base table → reuse the stable edge objects, only merge.
+	const edges =
+		prev && prev.signature === signature ? prev.edges : buildEdges();
+
+	const result: TransformTable = new Map(table);
+	for (const [key, edge] of edges) result.set(key, edge);
+	cache.current = { signature, edges, table, result };
+	return result;
 }
 
 type SceneTransformValue = { table: TransformTable };
@@ -207,10 +305,17 @@ export function useSceneTransformTable(
 	autoAnchor = false,
 ): TransformTable {
 	const coreTable = useTransformTable();
+	const cacheRef = useRef<AnchorEdgeCache>(createAnchorEdgeCache());
 	return useMemo(() => {
 		const hasManual = Boolean(anchors && anchors.length > 0);
 		if (!hasManual && !autoAnchor) return coreTable;
-		return buildAnchoredTable(coreTable, anchors, worldFrame, autoAnchor);
+		return buildAnchoredTable(
+			coreTable,
+			anchors,
+			worldFrame,
+			autoAnchor,
+			cacheRef.current,
+		);
 	}, [coreTable, anchors, worldFrame, autoAnchor]);
 }
 
