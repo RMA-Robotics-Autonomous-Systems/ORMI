@@ -40,6 +40,17 @@ const isTfLikeSchema = (schemaName: string): boolean =>
 	schemaName === "tf2_msgs/msg/TFMessage" ||
 	schemaName.endsWith("/TFMessage");
 
+/**
+ * `diagnostic_msgs/msg/DiagnosticArray` on a shared `/diagnostics` topic is
+ * multi-publisher: many nodes (including low-Hz ones) interleave messages that
+ * each carry only that node's statuses. Like TF deltas, last-wins coalescing
+ * would silently drop the non-latest publishers, so these topics must use the
+ * lossless queue mode. Diagnostics are low-rate, so the lossless decode cost is
+ * negligible.
+ */
+export const isDiagnosticSchema = (schemaName: string): boolean =>
+	schemaName === "diagnostic_msgs/msg/DiagnosticArray";
+
 /** True when `stamp` looks like a ROS2 `builtin_interfaces/Time`. */
 const isRosStamp = (
 	stamp: unknown,
@@ -230,11 +241,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	const unsubscribe_hook = `${datasource_id}-unsubscribe`;
 
 	// Topics that must use the lossless coalescer queue: configured
-	// transform-tree topics plus any TF-schema channel. TF streams are
-	// deltas, so last-wins coalescing would silently lose transforms.
+	// transform-tree topics, any TF-schema channel, plus DiagnosticArray topics.
+	// TF streams are deltas and DiagnosticArray is multi-publisher, so last-wins
+	// coalescing would silently lose transforms / low-Hz diagnostic publishers.
 	const isLosslessTopic = (topic: string, schemaName: string): boolean =>
 		(settings.transformTreeTopics ?? []).includes(topic) ||
-		isTfLikeSchema(schemaName);
+		isTfLikeSchema(schemaName) ||
+		isDiagnosticSchema(schemaName);
 
 	// Utility functions
 	const hashTopicName = (topic: string): number => {

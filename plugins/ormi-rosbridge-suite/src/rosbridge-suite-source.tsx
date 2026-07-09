@@ -43,6 +43,23 @@ import {
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
 
+/**
+ * Raw ROS types whose messages must never be dropped by last-wins coalescing,
+ * so their topics use the lossless queue mode:
+ * - `tf2_msgs/msg/TFMessage`: deltas — different frame pairs arrive in
+ *   different messages.
+ * - `diagnostic_msgs/msg/DiagnosticArray`: a shared `/diagnostics` topic is
+ *   multi-publisher — many nodes (including low-Hz ones) interleave messages
+ *   that each carry only that node's statuses.
+ *
+ * Both are low-rate, so lossless decode cost is negligible. Configured
+ * transform-tree topics are handled separately (they are keyed by topic name,
+ * not raw type).
+ */
+export const isLosslessRawType = (rawType: string): boolean =>
+	rawType === "tf2_msgs/msg/TFMessage" ||
+	rawType === "diagnostic_msgs/msg/DiagnosticArray";
+
 interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
 	url: string;
 	reconnectTimeout: number;
@@ -329,10 +346,13 @@ const RosBridgeSuiteSourceProvider = (
 				compression: props.compression === "none" ? "none" : "cbor",
 			});
 
-			// TF-like topics carry deltas: last-wins coalescing would lose
-			// transforms, so they get a lossless queue.
+			// TF-like topics carry deltas and DiagnosticArray on a shared
+			// /diagnostics topic is multi-publisher (many nodes interleave
+			// messages, each carrying only its own statuses): last-wins
+			// coalescing would silently drop transforms / low-Hz diagnostic
+			// publishers, so both get a lossless queue.
 			const mode: CoalesceMode =
-				rawType === "tf2_msgs/msg/TFMessage" ||
+				isLosslessRawType(rawType) ||
 				(props.transformTreeTopics || []).includes(topicName)
 					? "lossless-queue"
 					: "lossy-latest";
