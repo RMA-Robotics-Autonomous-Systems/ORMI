@@ -11,6 +11,9 @@ import {
 	PoseStamped,
 	Path,
 	MapGrid,
+	BatteryState,
+	DiagnosticArray,
+	DiagnosticStatus,
 } from "@workspace/ormi-core/types";
 import {
 	convertPosition,
@@ -1369,6 +1372,146 @@ export class UnifiedConverter {
 							orientation,
 							timestamp,
 							convention: "THREE",
+						};
+					},
+				},
+			},
+		},
+		/**
+		 * Battery state — sensor_msgs/msg/BatteryState.
+		 * NaN is meaningful (an unmeasured float field) and is preserved here,
+		 * never coerced to 0; the widget renders NaN as "—".
+		 */
+		BatteryState: {
+			conversions: {
+				"sensor_msgs/msg/BatteryState": {
+					// Best-effort webapp → ros2 (display-only; ORMI does not publish this type).
+					toRos2: (data: BatteryState) => ({
+						header: {
+							stamp: {
+								sec: Math.floor(data.timestamp),
+								nanosec: Math.floor((data.timestamp % 1) * 1e9),
+							},
+							frame_id: data.frameId,
+						},
+						voltage: data.voltage,
+						temperature: data.temperature,
+						current: data.current,
+						charge: data.charge,
+						capacity: data.capacity,
+						design_capacity: data.designCapacity,
+						percentage: data.percentage,
+						power_supply_status: data.powerSupplyStatus,
+						power_supply_health: data.powerSupplyHealth,
+						power_supply_technology: data.powerSupplyTechnology,
+						present: data.present,
+						cell_voltage: data.cellVoltage,
+						cell_temperature: data.cellTemperature,
+						location: data.location,
+						serial_number: data.serialNumber,
+					}),
+					fromRos2: (data: any): BatteryState => {
+						// Preserve NaN — an unmeasured field must not read as 0.
+						const num = (v: unknown) =>
+							typeof v === "number" ? v : NaN;
+						const stamp = data.header?.stamp;
+						return {
+							timestamp: stamp
+								? stamp.sec + stamp.nanosec / 1e9
+								: 0,
+							frameId: data.header?.frame_id ?? "",
+							voltage: num(data.voltage),
+							temperature: num(data.temperature),
+							current: num(data.current),
+							charge: num(data.charge),
+							capacity: num(data.capacity),
+							designCapacity: num(data.design_capacity),
+							percentage: num(data.percentage),
+							powerSupplyStatus: Number(
+								data.power_supply_status ?? 0,
+							),
+							powerSupplyHealth: Number(
+								data.power_supply_health ?? 0,
+							),
+							powerSupplyTechnology: Number(
+								data.power_supply_technology ?? 0,
+							),
+							present: !!data.present,
+							// Array.from(x, Number) flattens CBOR/typed-array vs
+							// JSON-array variance to a plain number[].
+							cellVoltage: Array.from(
+								data.cell_voltage ?? [],
+								Number,
+							),
+							cellTemperature: Array.from(
+								data.cell_temperature ?? [],
+								Number,
+							),
+							location: data.location ?? "",
+							serialNumber: data.serial_number ?? "",
+						};
+					},
+				},
+			},
+		},
+		/**
+		 * Diagnostics — diagnostic_msgs/msg/DiagnosticArray.
+		 * `level` is a ROS byte enum (OK=0, WARN=1, ERROR=2, STALE=3);
+		 * normalized to a number here since CBOR/rosbridge may deliver it as a
+		 * 1-char string or byte rather than a number.
+		 */
+		DiagnosticArray: {
+			conversions: {
+				"diagnostic_msgs/msg/DiagnosticArray": {
+					// Best-effort webapp → ros2 (display-only; ORMI does not publish this type).
+					toRos2: (data: DiagnosticArray) => ({
+						header: {
+							stamp: {
+								sec: Math.floor(data.timestamp),
+								nanosec: Math.floor((data.timestamp % 1) * 1e9),
+							},
+							frame_id: data.frameId,
+						},
+						status: data.status.map((s: DiagnosticStatus) => ({
+							level: s.level,
+							name: s.name,
+							message: s.message,
+							hardware_id: s.hardwareId,
+							values: s.values.map((kv) => ({
+								key: kv.key,
+								value: kv.value,
+							})),
+						})),
+					}),
+					fromRos2: (data: any): DiagnosticArray => {
+						// ROS `byte` may arrive as a number, or (under CBOR/
+						// rosbridge) a 1-char string or byte. Normalize to a
+						// number; default 0 (OK).
+						const level = (v: unknown): number =>
+							typeof v === "number"
+								? v
+								: typeof v === "string" && v.length === 1
+									? v.charCodeAt(0)
+									: Number(v ?? 0);
+						const stamp = data.header?.stamp;
+						return {
+							timestamp: stamp
+								? stamp.sec + stamp.nanosec / 1e9
+								: 0,
+							frameId: data.header?.frame_id ?? "",
+							status: Array.from(data.status ?? [], (s: any) => ({
+								level: level(s.level),
+								name: String(s.name ?? ""),
+								message: String(s.message ?? ""),
+								hardwareId: String(s.hardware_id ?? ""),
+								values: Array.from(
+									s.values ?? [],
+									(kv: any) => ({
+										key: String(kv.key ?? ""),
+										value: String(kv.value ?? ""),
+									}),
+								),
+							})),
 						};
 					},
 				},

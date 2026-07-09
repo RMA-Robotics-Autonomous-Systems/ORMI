@@ -219,3 +219,84 @@ export type MapGrid = {
 	/** Coordinate convention of the origin pose. Defaults to `"ROS"`. */
 	convention?: CoordinateConvention;
 };
+
+/**
+ * Battery state, normalized from sensor_msgs/msg/BatteryState.
+ * Float fields may be NaN when unmeasured — NaN is meaningful and must be preserved, never coerced to 0.
+ */
+export interface BatteryState {
+	/** header.stamp flattened to seconds. */
+	timestamp: number;
+	/** header.frame_id. */
+	frameId: string;
+	/** Terminal voltage in V; may be NaN. */
+	voltage: number;
+	/** Temperature in °C; may be NaN. */
+	temperature: number;
+	/** Current in A; may be NaN (negative = discharging). */
+	current: number;
+	/** Current charge in Ah; may be NaN. */
+	charge: number;
+	/** Capacity in Ah; may be NaN. */
+	capacity: number;
+	/** Design capacity in Ah; may be NaN. */
+	designCapacity: number;
+	/** Charge percentage 0..1; may be NaN. */
+	percentage: number;
+	/** Power supply status enum (0..4). */
+	powerSupplyStatus: number;
+	/** Power supply health enum (0..8). */
+	powerSupplyHealth: number;
+	/** Power supply technology enum (0..8). */
+	powerSupplyTechnology: number;
+	/** Whether a battery is present. */
+	present: boolean;
+	/** Per-cell voltage in V (NaN entries allowed). */
+	cellVoltage: number[];
+	/** Per-cell temperature in °C (NaN entries allowed). */
+	cellTemperature: number[];
+	/** Battery location on the robot. */
+	location: string;
+	/** Battery serial number. */
+	serialNumber: string;
+}
+
+/** One dynamic key/value pair attached to a {@link DiagnosticStatus}. */
+export interface DiagnosticKeyValue {
+	key: string;
+	value: string;
+}
+
+/**
+ * A single diagnostic status, normalized from
+ * `diagnostic_msgs/msg/DiagnosticStatus`.
+ */
+export interface DiagnosticStatus {
+	/**
+	 * Severity level enum: `0` = OK, `1` = WARN, `2` = ERROR, `3` = STALE.
+	 * Normalized to a number at the datasource boundary (a ROS `byte` may
+	 * arrive as a number or a 1-char string under CBOR/rosbridge).
+	 */
+	level: number;
+	/** Status name (often a slash-delimited path). */
+	name: string;
+	/** Human-readable status message. */
+	message: string;
+	/** Hardware identifier this status describes. */
+	hardwareId: string;
+	/** Dynamic key/value detail pairs (no fixed schema). */
+	values: DiagnosticKeyValue[];
+}
+
+/**
+ * Diagnostics snapshot, normalized from `diagnostic_msgs/msg/DiagnosticArray`.
+ * Each entry's `level` uses the DiagnosticStatus enum (OK/WARN/ERROR/STALE).
+ */
+export interface DiagnosticArray {
+	/** header.stamp flattened to seconds. */
+	timestamp: number;
+	/** header.frame_id. */
+	frameId: string;
+	/** The individual statuses reported in this message. */
+	status: DiagnosticStatus[];
+}

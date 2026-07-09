@@ -24,6 +24,8 @@ import { PathViewerDefinition } from "./widgets/webgl/path-viewer";
 import { Scene3DDefinition } from "./widgets/webgl/scene-3d-definition";
 import { ImageViewerDefinition } from "./widgets/basic/image";
 import { MapGridViewerDefinition } from "./widgets/basic/map-grid-viewer";
+import { BatteryStateWidgetDefinition } from "./widgets/battery/battery-state-widget";
+import { DiagnosticsWidgetDefinition } from "./widgets/diagnostics/diagnostic-widget";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
 /**
@@ -49,6 +51,8 @@ const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(TopicsListDefinition());
 	widgets.push(ImageViewerDefinition());
 	widgets.push(MapGridViewerDefinition());
+	widgets.push(BatteryStateWidgetDefinition());
+	widgets.push(DiagnosticsWidgetDefinition());
 
 	// widgets.push(PointsCloudDreiDefinition());
 	// widgets.push(PathViewerDefinition());
