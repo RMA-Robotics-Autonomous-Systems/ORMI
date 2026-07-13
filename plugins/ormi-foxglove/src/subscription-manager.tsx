@@ -13,7 +13,6 @@ import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";
-import { MessageCoalescer } from "./message-coalescer";
 import {
 	FoxgloveDataSourceSettings,
 	Subscriber,
@@ -21,7 +20,7 @@ import {
 	DatasourceTopic,
 } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
-import { metrics } from "@workspace/utils";
+import { metrics, MessageCoalescer } from "@workspace/utils";
 import { useFoxgloveData } from "./foxglove-data-handler";
 import { topicsToSubscribe } from "./subscription-reconcile";
 import { toast } from "sonner";
@@ -201,13 +200,29 @@ function extractMessageMeta(parsed: unknown): {
  * Builds the raw-message coalescer for one manager instance. The dispatcher
  * is dereferenced through a ref at drain time (timer/socket callbacks, never
  * during render) so the long-lived coalescer always decodes through the
- * latest closure.
+ * latest closure. Coarse per-datasource coalescer metrics (overwrites, decoded,
+ * dispatch time) are registered once and fed to the shared engine; the finer
+ * PointCloud2 decode probe in `decodeAndDispatch` coexists with them.
  */
 const createDrainCoalescer = (
 	dispatchRef: React.RefObject<(messageData: MessageData) => void>,
+	datasourceId: string,
 ) =>
-	new MessageCoalescer<MessageData>((messageData) =>
-		dispatchRef.current(messageData),
+	new MessageCoalescer<MessageData>(
+		(messageData) => dispatchRef.current(messageData),
+		{
+			metrics: {
+				overwrites: metrics.counter(
+					`ds.${datasourceId}.coalescer.overwrites`,
+				),
+				decoded: metrics.counter(
+					`ds.${datasourceId}.coalescer.decoded`,
+				),
+				dispatchMs: metrics.ring(
+					`ds.${datasourceId}.coalescer.dispatchMs`,
+				),
+			},
+		},
 	);
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
@@ -263,7 +278,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// handling lives inside decodeAndDispatch, so one bad message cannot
 	// break a drain tick for other topics.
 	const [coalescer] = useState(() =>
-		createDrainCoalescer(decodeAndDispatchRef),
+		createDrainCoalescer(decodeAndDispatchRef, settings.id),
 	);
 
 	// Function queue for ordered processing

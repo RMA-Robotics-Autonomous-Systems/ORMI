@@ -1,16 +1,22 @@
 /**
- * Tests for the raw-message coalescer used by the main-thread Foxglove path:
- * lossy last-wins overwriting, lossless FIFO ordering, the cap-triggered
- * synchronous drain, drain precedence, key removal, tick lifecycle, the
- * per-tick decode budget, and the per-topic decode-rate cap.
+ * Tests for the shared {@link MessageCoalescer} engine: lossy last-wins
+ * overwriting, lossless FIFO ordering, the cap-triggered synchronous drain,
+ * drain precedence, key removal (discard vs flush), tick lifecycle, the
+ * per-tick decode budget, the per-topic decode-rate cap, string keys, error
+ * isolation, and metrics emission.
+ *
+ * Budget/cap cases drive `drainAll()` directly with an injected clock — never
+ * through live timers — so they are deterministic.
  */
 
 import { describe, test, expect } from "bun:test";
 
 import {
 	MessageCoalescer,
+	type CoalescerKey,
 	type MessageCoalescerOptions,
 } from "../message-coalescer";
+import { metrics } from "../metrics/metrics-core";
 
 interface Payload {
 	key: number;
@@ -143,6 +149,36 @@ describe("MessageCoalescer — lifecycle", () => {
 		coalescer.drainAll();
 
 		expect(dispatched).toEqual([{ key: 1, seq: 1 }]);
+	});
+
+	test("remove(key, true) flushes a lossless queue before deleting it", () => {
+		const { coalescer, dispatched } = makeCoalescer();
+
+		coalescer.push(7, { key: 7, seq: 1 }, true);
+		coalescer.push(7, { key: 7, seq: 2 }, true);
+		coalescer.remove(7, true);
+
+		// Drained on remove, in order, before the key is gone.
+		expect(dispatched.map((p) => p.seq)).toEqual([1, 2]);
+
+		// Key is gone: a later push is a fresh queue, nothing duplicated.
+		coalescer.push(7, { key: 7, seq: 3 }, true);
+		coalescer.drainAll();
+		expect(dispatched.map((p) => p.seq)).toEqual([1, 2, 3]);
+	});
+
+	test("remove(key, true) flushes the retained lossy latest before deleting", () => {
+		const { coalescer, dispatched } = makeCoalescer();
+
+		coalescer.push(3, { key: 3, seq: 1 }, false);
+		coalescer.push(3, { key: 3, seq: 2 }, false);
+		coalescer.remove(3, true);
+
+		expect(dispatched).toEqual([{ key: 3, seq: 2 }]);
+
+		// A subsequent drain adds nothing — the slot was removed.
+		coalescer.drainAll();
+		expect(dispatched).toHaveLength(1);
 	});
 
 	test("stop() discards all undrained payloads", () => {
@@ -330,5 +366,139 @@ describe("MessageCoalescer — per-topic decode-rate cap", () => {
 
 		expect(dispatched.map((p) => p.seq)).toEqual([1, 2]);
 		expect(coalescer.overwriteCount).toBe(0);
+	});
+});
+
+describe("MessageCoalescer — string keys", () => {
+	test("lossy last-wins with string keys", () => {
+		const dispatched: Array<[string, number]> = [];
+		const coalescer = new MessageCoalescer<number, string>((entry, key) =>
+			dispatched.push([key, entry]),
+		);
+
+		coalescer.push("/scan", 1, false);
+		coalescer.push("/scan", 2, false);
+		coalescer.push("/pose", 10, false);
+		coalescer.drainAll();
+
+		expect(dispatched).toEqual([
+			["/scan", 2],
+			["/pose", 10],
+		]);
+		expect(coalescer.overwriteCount).toBe(1);
+	});
+
+	test("lossless FIFO with string keys, drained in order", () => {
+		const dispatched: number[] = [];
+		const coalescer = new MessageCoalescer<number, string>((entry) =>
+			dispatched.push(entry),
+		);
+
+		coalescer.push("/tf", 1, true);
+		coalescer.push("/tf", 2, true);
+		coalescer.push("/tf", 3, true);
+		coalescer.drainAll();
+
+		expect(dispatched).toEqual([1, 2, 3]);
+	});
+});
+
+describe("MessageCoalescer — error isolation", () => {
+	test("a throwing dispatch on one key does not stop another, and onError fires once", () => {
+		const dispatched: number[] = [];
+		const errors: Array<{ error: unknown; key: CoalescerKey }> = [];
+		const coalescer = new MessageCoalescer<number, string>(
+			(entry, key) => {
+				if (key === "/bad") throw new Error("boom");
+				dispatched.push(entry);
+			},
+			{ onError: (error, key) => errors.push({ error, key }) },
+		);
+
+		coalescer.push("/bad", 1, false);
+		coalescer.push("/good", 2, false);
+		coalescer.drainAll();
+
+		expect(dispatched).toEqual([2]);
+		expect(errors).toHaveLength(1);
+		expect(errors[0]!.key).toBe("/bad");
+		expect((errors[0]!.error as Error).message).toBe("boom");
+	});
+});
+
+describe("MessageCoalescer — metrics", () => {
+	test("emits overwrites, decoded, and (heavy) dispatchMs into the registry", () => {
+		metrics.reset();
+		metrics.heavy = true;
+
+		const overwritesId = metrics.counter("test.coalescer.overwrites");
+		const decodedId = metrics.counter("test.coalescer.decoded");
+		const dispatchMsId = metrics.ring("test.coalescer.dispatchMs");
+
+		let clock = 0;
+		const coalescer = new MessageCoalescer<number>(() => {}, {
+			budgetMs: 1000, // isolate from the budget
+			now: () => clock,
+			metrics: {
+				overwrites: overwritesId,
+				decoded: decodedId,
+				dispatchMs: dispatchMsId,
+			},
+		});
+
+		// 200 Hz lossy stream (a frame every 5 ms) drained at ~30 Hz.
+		let lastDrain = 0;
+		let pushed = 0;
+		for (let t = 0; t <= 1000; t += 5) {
+			clock = t;
+			coalescer.push(1, t, false);
+			pushed++;
+			if (t - lastDrain >= 33) {
+				coalescer.drainAll();
+				lastDrain = t;
+			}
+		}
+
+		const snap = metrics.snapshot();
+		const decoded = snap.counters.values[decodedId]!;
+		const overwrites = snap.counters.values[overwritesId]!;
+
+		// ~30 drains delivered one frame each; the rest were overwritten.
+		expect(decoded).toBeGreaterThanOrEqual(25);
+		expect(decoded).toBeLessThanOrEqual(35);
+		expect(overwrites).toBeGreaterThanOrEqual(160);
+		expect(overwrites).toBeLessThanOrEqual(180);
+		// Every pushed frame is accounted for (delivered, dropped, or the one
+		// still-pending slot at loop end).
+		expect(decoded + overwrites).toBeGreaterThanOrEqual(pushed - 1);
+		// Heavy tier on → dispatch durations were sampled.
+		expect(snap.rings.values[dispatchMsId]!.length).toBeGreaterThan(0);
+
+		metrics.reset();
+	});
+
+	test("dispatchMs ring stays empty when the heavy tier is off", () => {
+		metrics.reset();
+		metrics.heavy = false;
+
+		const decodedId = metrics.counter("test.coalescer.decoded");
+		const dispatchMsId = metrics.ring("test.coalescer.dispatchMs");
+
+		const coalescer = new MessageCoalescer<number>(() => {}, {
+			metrics: { decoded: decodedId, dispatchMs: dispatchMsId },
+		});
+
+		for (let i = 0; i < 10; i++) {
+			coalescer.push(1, i, false);
+			coalescer.drainAll();
+		}
+
+		const snap = metrics.snapshot();
+		// The decoded counter is not heavy-gated, so it still advances...
+		expect(snap.counters.values[decodedId]!).toBe(10);
+		// ...but the dispatchMs ring was never written on the light tier.
+		expect(snap.rings.values[dispatchMsId]!.length).toBe(0);
+
+		metrics.reset();
 	});
 });
