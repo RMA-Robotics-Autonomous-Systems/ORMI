@@ -28,6 +28,20 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 				title: { type: "string", title: "Title" },
 				enable: { type: "boolean", title: "Enable" },
 
+				preset: {
+					type: "string",
+					title: "Load preset",
+					enum: ["light", "medium", "heavy", "custom"],
+					default: "medium",
+				},
+
+				transport: {
+					type: "string",
+					title: "Transport",
+					enum: ["worker", "main-thread"],
+					default: "worker",
+				},
+
 				generators: {
 					type: "array",
 					title: "Generators",
@@ -115,12 +129,52 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 			},
 		},
 
-		// Punishing multi-generator default mix (~2000 msg/s aggregate, ~70 MB/s
-		// of point data) so a freshly added datasource finds the knee fast.
+		// Preset is always shown; the raw generators array and fault knobs are
+		// only revealed under the "custom" preset (rule idiom matches the
+		// std-widgets configs: SHOW when a scope's value equals a const).
+		uischema: {
+			type: "VerticalLayout",
+			elements: [
+				{ type: "Control", scope: "#/properties/title" },
+				{ type: "Control", scope: "#/properties/enable" },
+				{ type: "Control", scope: "#/properties/preset" },
+				// Transport is orthogonal to the preset — always visible, never
+				// gated by the preset rule.
+				{ type: "Control", scope: "#/properties/transport" },
+				{
+					type: "Control",
+					scope: "#/properties/generators",
+					rule: {
+						effect: "SHOW",
+						condition: {
+							scope: "#/properties/preset",
+							schema: { const: "custom" },
+						},
+					},
+				},
+				{
+					type: "Control",
+					scope: "#/properties/faults",
+					rule: {
+						effect: "SHOW",
+						condition: {
+							scope: "#/properties/preset",
+							schema: { const: "custom" },
+						},
+					},
+				},
+			],
+		},
+
+		// Default to the medium preset. The generators array below is only used
+		// when the user switches the preset to "custom"; it starts from a sane,
+		// punishing multi-generator mix.
 		data: {
 			id: "",
 			title: "",
 			enable: true,
+			preset: "medium",
+			transport: "worker",
 			generators: [
 				{
 					topicPrefix: "load/scalar",

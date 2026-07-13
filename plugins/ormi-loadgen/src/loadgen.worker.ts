@@ -10,26 +10,18 @@ import type {
 } from "@workspace/ormi-core/datasources";
 import type { PointsCloud } from "@workspace/ormi-core/types";
 import type { LoadgenGenerator, LoadgenSettings } from "./index";
+import { resolveGenerators } from "./presets";
+import {
+	burstOpen,
+	createGeneratorState,
+	decodeFrame,
+	getGeneratorForTopic,
+	produceRaw,
+	topicTypeFor,
+} from "./loadgen-generators";
 
 /** Built-in 1 Hz self-report topic publishing worker-local produced counters. */
 const STATS_TOPIC = "/loadgen/stats";
-
-interface Vec3 {
-	x: number;
-	y: number;
-	z: number;
-}
-
-interface Quat extends Vec3 {
-	w: number;
-}
-
-/** Odom-like nested message; fields are optional so the malformed generator can omit them. */
-interface OdomMessage {
-	pose: { position?: Vec3; orientation?: Quat };
-	velocity: { linear?: Vec3; angular?: Vec3 };
-	pad: string;
-}
 
 createDatasourceWorker<LoadgenSettings>((context) => {
 	const intervals = new Map<string, ReturnType<typeof setInterval>>();
@@ -40,205 +32,41 @@ createDatasourceWorker<LoadgenSettings>((context) => {
 	let settings: LoadgenSettings;
 	let callCounter = 0;
 
-	/** Map a generator topic name back to its generator definition. */
-	const getGeneratorForTopic = (
-		topicName: string,
-	): LoadgenGenerator | undefined => {
-		for (const generator of settings.generators) {
-			const prefix = `${generator.topicPrefix}/`;
-			if (!topicName.startsWith(prefix)) continue;
-			const index = Number(topicName.slice(prefix.length));
-			if (
-				Number.isInteger(index) &&
-				index >= 0 &&
-				index < generator.topicCount
-			) {
-				return generator;
-			}
-		}
-		return undefined;
-	};
-
-	/** Advertised topic type for a generator payload shape. */
-	const topicTypeFor = (type: LoadgenGenerator["type"]): string => {
-		switch (type) {
-			case "scalar":
-				return "number";
-			case "pointcloud":
-				return "PointsCloud";
-			default:
-				return "object";
-		}
-	};
-
-	/** True when the topic's burst duty-cycle window is open (always true without burst). */
-	const burstOpen = (burst?: { periodMs: number; dutyPct: number }) =>
-		!burst ||
-		Date.now() % burst.periodMs < (burst.periodMs * burst.dutyPct) / 100;
-
 	const incrementProduced = (topicName: string) => {
 		produced.set(topicName, (produced.get(topicName) ?? 0) + 1);
 	};
 
-	/** Fresh odom-like message from a random-walk state. */
-	const makeOdomMessage = (
-		state: { position: Vec3; yaw: number; velocity: Vec3 },
-		pad: string,
-	): OdomMessage => ({
-		pose: {
-			position: { ...state.position },
-			orientation: {
-				x: 0,
-				y: 0,
-				z: Math.sin(state.yaw / 2),
-				w: Math.cos(state.yaw / 2),
-			},
-		},
-		velocity: {
-			linear: { ...state.velocity },
-			angular: { x: 0, y: 0, z: (Math.random() - 0.5) * 0.2 },
-		},
-		pad,
-	});
-
-	const makeOdomState = () => ({
-		position: { x: 0, y: 0, z: 0 },
-		yaw: 0,
-		velocity: { x: 0, y: 0, z: 0 },
-	});
-
-	const walkOdomState = (state: ReturnType<typeof makeOdomState>) => {
-		state.velocity.x += (Math.random() - 0.5) * 0.1;
-		state.velocity.y += (Math.random() - 0.5) * 0.1;
-		state.velocity.z += (Math.random() - 0.5) * 0.02;
-		state.position.x += state.velocity.x * 0.033;
-		state.position.y += state.velocity.y * 0.033;
-		state.position.z += state.velocity.z * 0.033;
-		state.yaw += (Math.random() - 0.5) * 0.05;
-	};
-
-	/** Padding string sized so the serialized odom message is roughly payloadBytes. */
-	const makePad = (payloadBytes: number) => {
-		const baseLength = JSON.stringify(
-			makeOdomMessage(makeOdomState(), ""),
-		).length;
-		return "x".repeat(Math.max(0, payloadBytes - baseLength));
-	};
-
-	/** Start the publish interval for one generator topic. */
+	/**
+	 * Start the publish interval for one generator topic. Each tick produces a
+	 * raw frame and decodes it IN the worker before publishing, so the worker
+	 * path mirrors the Foxglove `wss://` worker (decode off the main thread, then
+	 * a transferable hand-off). The shared generator core is the single source of
+	 * truth for both this transport and the main-thread coalescer path.
+	 */
 	const startGenerator = (
 		topicName: string,
 		generator: LoadgenGenerator,
 	): ReturnType<typeof setInterval> => {
 		const intervalMs = 1000 / generator.rateHz;
+		const state = createGeneratorState(generator);
 
-		switch (generator.type) {
-			case "scalar": {
-				let value = Math.random();
-				return setInterval(() => {
-					value += Math.random() * 0.1 - 0.05;
-					if (!burstOpen(generator.burst)) return;
-					context.publish(topicName, value, Date.now());
-					incrementProduced(topicName);
-				}, intervalMs);
-			}
-
-			case "object": {
-				const state = makeOdomState();
-				const pad = makePad(generator.payloadBytes);
-				return setInterval(() => {
-					walkOdomState(state);
-					if (!burstOpen(generator.burst)) return;
-					context.publish(
-						topicName,
-						makeOdomMessage(state, pad),
-						Date.now(),
-					);
-					incrementProduced(topicName);
-				}, intervalMs);
-			}
-
-			case "malformed": {
-				const state = makeOdomState();
-				const pad = makePad(generator.payloadBytes);
-				let publishSeq = 0;
-				return setInterval(() => {
-					walkOdomState(state);
-					if (!burstOpen(generator.burst)) return;
-					const message = makeOdomMessage(state, pad);
-					publishSeq++;
-					if (publishSeq % 10 === 0) {
-						const omissions: ReadonlyArray<() => void> = [
-							() => delete message.pose.position,
-							() => delete message.pose.orientation,
-							() => delete message.velocity.linear,
-							() => delete message.velocity.angular,
-						];
-						omissions[
-							Math.floor(Math.random() * omissions.length)
-						]!();
-					}
-					context.publish(topicName, message, Date.now());
-					incrementProduced(topicName);
-				}, intervalMs);
-			}
-
-			case "pointcloud": {
-				const numPoints = Math.max(
-					1,
-					Math.floor(generator.payloadBytes / 12),
-				);
-				const base = new Float32Array(numPoints * 3);
-				const phases = new Float32Array(numPoints);
-				const colors = new Float32Array(numPoints * 3);
-				for (let i = 0; i < numPoints; i++) {
-					const idx = i * 3;
-					base[idx] = (Math.random() - 0.5) * 2;
-					base[idx + 1] = (Math.random() - 0.5) * 2;
-					base[idx + 2] = (Math.random() - 0.5) * 2;
-					phases[i] = Math.random() * Math.PI * 2;
-					colors[idx] = Math.random();
-					colors[idx + 1] = Math.random();
-					colors[idx + 2] = Math.random();
-				}
-				// Reused when transfer is off; structured clone copies it per publish.
-				const reusable = generator.transfer
-					? null
-					: new Float32Array(numPoints * 3);
-
-				return setInterval(() => {
-					if (!burstOpen(generator.burst)) return;
-					const t = Date.now() / 1000;
-					const amplitude = 0.05;
-					const positions = generator.transfer
-						? new Float32Array(numPoints * 3)
-						: reusable!;
-					for (let i = 0; i < numPoints; i++) {
-						const idx = i * 3;
-						const phase = phases[i]!;
-						positions[idx] =
-							base[idx]! + Math.sin(t + phase) * amplitude;
-						positions[idx + 1] =
-							base[idx + 1]! +
-							Math.sin(t + phase * 1.3) * amplitude;
-						positions[idx + 2] =
-							base[idx + 2]! +
-							Math.sin(t + phase * 1.7) * amplitude;
-					}
-					context.publish(
-						topicName,
-						{
-							points: positions,
-							colors,
-						} as PointsCloud,
-						Date.now(),
-						undefined,
-						generator.transfer ? [positions.buffer] : undefined,
-					);
-					incrementProduced(topicName);
-				}, intervalMs);
-			}
-		}
+		return setInterval(() => {
+			if (!burstOpen(generator.burst)) return;
+			const raw = produceRaw(generator, state);
+			const decoded = decodeFrame(raw, generator);
+			// Transfer only the freshly-decoded point buffer, matching the prior
+			// zero-copy path; JSON payloads have nothing transferable.
+			const transfer =
+				generator.type === "pointcloud" &&
+				generator.transfer &&
+				decoded !== null &&
+				typeof decoded === "object" &&
+				"points" in decoded
+					? [(decoded as PointsCloud).points.buffer]
+					: undefined;
+			context.publish(topicName, decoded, raw.time, undefined, transfer);
+			incrementProduced(topicName);
+		}, intervalMs);
 	};
 
 	/** Run the 1 Hz stats self-report only while at least one topic is subscribed. */
@@ -265,13 +93,13 @@ createDatasourceWorker<LoadgenSettings>((context) => {
 
 	const listTopics = async (): Promise<DatasourceTopic[]> => {
 		const topics: DatasourceTopic[] = [];
-		for (const generator of settings.generators) {
+		for (const generator of resolveGenerators(settings)) {
 			for (let i = 0; i < generator.topicCount; i++) {
 				topics.push({
 					topic: `${generator.topicPrefix}/${i}`,
 					datasource_id: settings.id,
 					source: settings,
-					type: topicTypeFor(generator.type),
+					type: topicTypeFor(generator),
 					rawType: generator.type,
 				});
 			}
@@ -308,7 +136,10 @@ createDatasourceWorker<LoadgenSettings>((context) => {
 			const isStats = topic.topic === STATS_TOPIC;
 			const generator = isStats
 				? undefined
-				: getGeneratorForTopic(topic.topic);
+				: getGeneratorForTopic(
+						topic.topic,
+						resolveGenerators(settings),
+					);
 			if (!isStats && !generator) {
 				return;
 			}

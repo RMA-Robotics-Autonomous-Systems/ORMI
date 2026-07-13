@@ -1,5 +1,6 @@
 import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 import dataSourceExport, { widgetsExport, widgetFilters } from "./export";
+import type { LoadgenPreset } from "./presets";
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
 
 /** Synthetic load generator datasource plugin registration. */
@@ -48,8 +49,8 @@ interface LoadgenGenerator {
 	payloadBytes: number;
 	/** Optional duty-cycle gating: publish only while `(now % periodMs) < periodMs * dutyPct / 100`. */
 	burst?: { periodMs: number; dutyPct: number };
-	/** Pointcloud only: transfer the positions buffer (fresh buffer per tick) instead of structured-cloning it. */
-	transfer: boolean;
+	/** Pointcloud only: transfer the positions buffer (fresh buffer per tick) instead of structured-cloning it. Defaults to falsy. */
+	transfer?: boolean;
 }
 
 /** Fault injection knobs for the loadgen worker. */
@@ -62,6 +63,19 @@ interface LoadgenFaults {
 
 /** Settings for the loadgen datasource. */
 interface LoadgenSettings extends DatasourceProviderSettings {
+	/**
+	 * Load intensity preset. A non-custom preset provisions a fixed generator
+	 * mix and ignores `generators`; `custom` (or a legacy config with no
+	 * preset) uses `generators`. See `resolveGenerators` in `./presets`.
+	 */
+	preset?: LoadgenPreset;
+	/**
+	 * Transport the datasource runs on. `worker` (default) decodes inside a Web
+	 * Worker; `main-thread` reproduces the `ws://` main-thread pipeline via the
+	 * shared coalescer. Orthogonal to `preset`. A missing value is treated as
+	 * `worker` for back-compat with pre-transport configs.
+	 */
+	transport?: "worker" | "main-thread";
 	generators: LoadgenGenerator[];
 	faults?: LoadgenFaults;
 }

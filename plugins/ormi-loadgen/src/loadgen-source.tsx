@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { LoadgenSettings } from "./index";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
+import { LoadgenMainThreadProvider } from "./loadgen-main-thread-source";
 
 /**
- * Lifecycle component for the load generator datasource.
- * Manages worker initialization and plugin hook registration.
+ * Worker-transport lifecycle component for the load generator datasource.
+ * Spins up the Web Worker (which produces + decodes off the main thread) and
+ * registers its plugin hooks via {@link WorkerDatasourceHost}.
  */
-const LoadgenSourceProvider = (props: LoadgenSettings) => {
+const LoadgenWorkerProvider = (props: LoadgenSettings) => {
 	const pluginsManager = usePluginsManager();
 	const hostRef = useRef<WorkerDatasourceHost<LoadgenSettings> | null>(null);
 	const [, setInitialized] = useState(false);
@@ -70,11 +72,29 @@ const LoadgenSourceProvider = (props: LoadgenSettings) => {
 		props.id,
 		props.enable,
 		props.title,
+		props.preset,
 		props.generators,
 		props.faults,
 	]);
 
 	return null;
+};
+
+/**
+ * Datasource entry point: a thin transport switch. Renders either the worker or
+ * the main-thread provider based on `props.transport` (missing → `worker`). The
+ * `key` forces a clean unmount/remount when the operator flips the transport, so
+ * the old provider's hooks, timers, worker, and coalescer are fully torn down
+ * before the new one registers — no dual registration, no leaked intervals. The
+ * switch renders one component (never conditionally calls hooks), so the Rules
+ * of Hooks hold.
+ */
+const LoadgenSourceProvider = (props: LoadgenSettings) => {
+	return props.transport === "main-thread" ? (
+		<LoadgenMainThreadProvider key="mt" {...props} />
+	) : (
+		<LoadgenWorkerProvider key="wk" {...props} />
+	);
 };
 
 export { LoadgenSourceProvider };
