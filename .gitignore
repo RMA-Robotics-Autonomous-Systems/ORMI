@@ -83,5 +83,15 @@ ACTIONS_INVENTORY.md
 API_AUDIT.md
 .vscode/settings.json
 
+# Root design / plan / worklog docs — kept local, not shared via git
+RBT_PERFORMANCE_PLAN.md
+RBT_ROBUSTNESS_PLAN.md
+RBT_EXTENDABLE_WIDGETS_REVIEW.md
+C2_INTEGRATION_PLAN.md
+TODO.md
+
 # Chrome DevTools performance traces
 Trace-*.json.gz
+
+# Load generator benchmark exports
+loadgen-*.json

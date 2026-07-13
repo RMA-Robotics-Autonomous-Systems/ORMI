@@ -1,0 +1,17 @@
+// Lifecycle "state machine" views over the `state` element groups in
+// model/states.c4.
+
+views {
+
+  view state_datasource of dsLifecycle {
+    title 'Datasource Connection Lifecycle'
+    include *
+    autoLayout TopBottom
+  }
+
+  view state_subscription of subRefcount {
+    title 'Subscription Refcount Lifecycle'
+    include *
+    autoLayout TopBottom
+  }
+}

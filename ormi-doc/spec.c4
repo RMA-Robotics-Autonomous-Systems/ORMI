@@ -1,0 +1,74 @@
+// ORMI architecture specification: element/relationship kinds, styling, tags.
+// Every diagram in this repo is LikeC4 (https://likec4.dev) — there are no other
+// diagramming tools. Keep kinds minimal and meaningful.
+
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element externalSystem {
+    style {
+      color slate
+      shape rectangle
+    }
+  }
+  element system {
+    style {
+      color indigo
+    }
+  }
+  element container {
+    style {
+      color blue
+    }
+  }
+  element component {
+    style {
+      color sky
+    }
+  }
+  element datasource {
+    style {
+      color green
+      shape rectangle
+    }
+  }
+  element widget {
+    style {
+      color amber
+      shape rectangle
+    }
+  }
+  element worker {
+    style {
+      color gray
+      shape rectangle
+    }
+  }
+  element database {
+    style {
+      color blue
+      shape cylinder
+    }
+  }
+  // Lifecycle state node — used only by the state-machine views (states.c4).
+  element state {
+    style {
+      color gray
+      shape rectangle
+    }
+  }
+
+  tag core       // packages/ormi-core — immutable
+  tag plugin     // plugins/ormi-*
+  tag mainThread // runs on the main thread (ws:// robots)
+  tag store      // shared reactive state
+  tag deprecated
+
+  // Deployment nodes.
+  deploymentNode host
+  deploymentNode browser
+  deploymentNode containerRuntime
+}

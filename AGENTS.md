@@ -27,6 +27,7 @@ packages/
     utils/               Shared utilities
 plugins/
     ormi-*               Plugin implementations, ormi prefix used for included plugins
+ormi-doc/                Internal architecture knowledge system (LikeC4 + markdown); local-only, not shipped
 ```
 
 ## Required Inputs
@@ -86,6 +87,8 @@ All other sections reference this rule. Do not modify core without satisfying al
 - Single shared Jotai store: the app has exactly one Jotai store, `appStore` (`packages/ormi-core/src/store.ts`). The React tree is wrapped in `<Provider store={appStore}>`, and every atom writer that runs **outside** React — transforms (`processTFMessage`), remote calls (`setRemoteCalls`), and any future subsystem — must target `appStore`. Never call `getDefaultStore()` or `createStore()` for app state: a write that lands in a store the `<Provider>` does not bind is invisible to `useAtomValue`, which then silently reports empty/stale state (this stranded both the remote-call explorer and the rostainer buttons — writes went to the default store while the tree read from a separate transform store). Hooks reading these atoms pin the store explicitly: `useAtomValue(atom, { store: appStore })`.
 - React Compiler + external mutable stores: the web app builds with `reactCompiler: true`, which infers memo dependencies from the callback **body** and drops no-op reads. Never key a `useMemo` on a version counter while the body reads a module-level store (`void version; …, [version]`) — the compiler strips the dead read and freezes the memo on its first result (this stranded every TF widget on stale data in production while the store was fully populated). Hooks over external mutable state must use `useSyncExternalStore` with an identity-stable, change-fresh snapshot, and derived memos must consume that snapshot as a real dependency (reference: `packages/ormi-core/src/transforms/transform-hooks.tsx`).
 - Commit messages: do **not** add `Co-Authored-By` trailers or any other agent/tool attribution (no "Generated with", no co-author lines) to commits. Keep the message to the change itself.
+- Rolling TODO: keep a bare-minimum `TODO.md` at the repo root as a rolling worklog — what's in flight and what's next, terse, newest first — so work can resume after a pause. Update it as work starts and finishes; it points at the detailed plan docs rather than duplicating them.
+- Architecture knowledge system lockstep: [ormi-doc/](ormi-doc/) is the internal, local-only architecture knowledge base (a LikeC4 model + markdown under `ormi-doc/knowledge/`) and is source-of-truth for platform architecture — when it disagrees with nearby code, it wins. On any structural platform change (new or changed container, component, datasource, plugin, or data-flow edge), update the owning `ormi-doc/knowledge/` file **and** the LikeC4 model in the same change. It is browsed locally (`cd ormi-doc && bun run dev`) and is never built into or shipped with the web app.
 
 ## Implementation Patterns
 
@@ -96,7 +99,7 @@ This section captures the approved patterns for common problems. Use these inste
 Use a single `apiResponse(data, status)` helper for all API responses.
 
 ```typescript
-// packages/utils/src/api-response.ts
+// apps/web/lib/api-utils.ts
 export function apiResponse(data: unknown, status = 200) {
 	return NextResponse.json(data, { status });
 }
@@ -236,11 +239,11 @@ export async function POST(req: Request) {
 
 ### 7. Server-Side Data Access — Prisma helpers
 
-All Prisma calls must go through dedicated helper files in `apps/web/server/prisma-*.ts`. Do not call Prisma directly from route handlers or components.
+All Prisma calls must go through dedicated helper files in `apps/web/lib/data/prisma-*.ts`. Do not call Prisma directly from route handlers or components.
 
 ```typescript
 // ✅ Correct — call a server helper
-import { getWorkspaceById } from "@/server/prisma-workspaces";
+import { getWorkspaceById } from "@/lib/data/prisma-workspaces";
 
 // ❌ Wrong — never call prisma directly from a route
 import { prisma } from "@/lib/prisma";
@@ -325,6 +328,7 @@ Component: (data: MyWidgetProps) => <MyWidget {...data} />;
 - Plugin system: [apps/web/content/docs/Plugin-System.md](apps/web/content/docs/Plugin-System.md)
 - Widgets system: [apps/web/content/docs/Widgets.md](apps/web/content/docs/Widgets.md)
 - Harmonization report: [HARMONIZATION_REPORT.md](HARMONIZATION_REPORT.md)
+- Architecture knowledge system (internal, local-only): [ormi-doc/](ormi-doc/) — LikeC4 model + `ormi-doc/knowledge/` base
 
 ## Workflow
 

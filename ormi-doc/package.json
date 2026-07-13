@@ -1,0 +1,16 @@
+{
+	"name": "ormi-doc",
+	"private": true,
+	"type": "module",
+	"description": "Internal, local-only architecture knowledge system for ORMI (LikeC4 model + markdown knowledge base). Not shipped with the web app.",
+	"scripts": {
+		"dev": "likec4 start",
+		"validate": "likec4 validate .",
+		"build": "likec4 build --output dist .",
+		"export:png": "likec4 export png --output ./out ."
+	},
+	"devDependencies": {
+		"@likec4/icons": "1.46.4",
+		"likec4": "1.58.0"
+	}
+}

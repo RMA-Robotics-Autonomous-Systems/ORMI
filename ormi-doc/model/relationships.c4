@@ -1,0 +1,87 @@
+// Cross-cutting wiring between web components, plugins, datasource runtime, and
+// external systems. Element-local relationships stay with their elements; the
+// data-flow spanning many elements is collected here.
+
+model {
+
+  // ---- Operator ------------------------------------------------------------
+
+  operator -> ormi.web.dashboard 'monitors & controls via'
+
+  // ---- External bridges ----------------------------------------------------
+
+  rosbridge -> robot 'bridges ROS2 topics/services/TF'
+  foxglove -> robot 'streams telemetry from'
+
+  // ---- Datasource plugins → external systems -------------------------------
+
+  ormi.web.plugins.foxglovePlugin -> foxglove 'connects (wss:// worker · ws:// main thread)'
+  ormi.web.plugins.rosbridgePlugin -> rosbridge 'subscribes / calls services'
+  ormi.web.plugins.telloPlugin -> tello 'telemetry & flight commands (ws://)'
+  ormi.web.plugins.restBagsPlugin -> restEndpoint 'fetches bag data'
+  ormi.web.plugins.rostainerPlugin -> rostainer 'starts / stops ROS2 nodes'
+
+  // ---- Plugin registration -------------------------------------------------
+
+  ormi.web.pluginLoader -> ormi.web.plugins 'imports & instantiates'
+  ormi.web.plugins -> ormi.web.pluginsManager 'registers filters/actions (WIDGETS_LIST, DATASOURCES_LIST, JSON_FORMS_RENDERER, PAGES_LIST, …)'
+
+  // ---- Datasource plugins plug into the shared runtime ---------------------
+
+  ormi.web.plugins.foxglovePlugin -> ormi.web.datasourceRuntime 'runs its worker / main-thread connection in'
+  ormi.web.plugins.rosbridgePlugin -> ormi.web.datasourceRuntime 'runs its worker in'
+  ormi.web.plugins.telloPlugin -> ormi.web.datasourceRuntime.mainThreadConn 'runs on (insecure ws://)'
+  ormi.web.plugins.loadgenPlugin -> ormi.web.datasourceRuntime 'drives synthetic load through its worker / main-thread coalescer path'
+
+  // ---- Ingest data flow (datasource → PluginsManager) ----------------------
+
+  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.converter 'normalize raw → webapp type'
+  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.workerHost 'ctx.publish (typed RPC, zero-copy transferables)'
+  ormi.web.datasourceRuntime.workerHost -> ormi.web.pluginsManager 'publishes normalized data'
+  ormi.web.datasourceRuntime.mainThreadConn -> ormi.web.datasourceRuntime.coalescer 'raw ws:// messages'
+  ormi.web.datasourceRuntime.coalescer -> ormi.web.datasourceRuntime.converter 'coalesced-to-latest, decode-budgeted'
+  ormi.web.datasourceRuntime.mainThreadConn -> ormi.web.pluginsManager 'publishes normalized data (budgeted)'
+
+  // ---- Subscription lifecycle ---------------------------------------------
+
+  ormi.web.datasourceRuntime.localData -> ormi.web.datasourceRuntime.subscriptionRegistry 'declares refcounted subscribe intents'
+  ormi.web.datasourceRuntime.subscriptionRegistry -> ormi.web.pluginsManager 'issues -subscribe/-advertise on DATASOURCE_READY'
+  ormi.web.pluginsManager -> ormi.web.datasourceRuntime.workerHost 'subscribe / unsubscribe / shutdown'
+  ormi.web.pluginsManager -> ormi.web.datasourceRuntime.mainThreadConn 'subscribe / unsubscribe'
+
+  // ---- Consumer data flow (PluginsManager → widget) ------------------------
+
+  ormi.web.pluginsManager -> ormi.web.datasourceRuntime.localData 'dispatches data to subscribers'
+  ormi.web.datasourceRuntime.localData -> ormi.web.widgetHost 'buffered data via useLocalDataSource (30Hz) + health'
+  ormi.web.dashboard -> ormi.web.widgetHost 'mounts placed widgets (per-widget error boundary)'
+
+  // ---- Transform (TF) flow -------------------------------------------------
+
+  ormi.web.datasourceRuntime.converter -> ormi.web.transforms 'processTFMessage(datasourceId, msg, { isStatic })'
+  ormi.web.transforms -> ormi.web.appStore 'writes edges + version bump'
+  ormi.web.transforms -> ormi.web.widgetHost 'frame data via useTransformEdges / useWorldFrames / useTransformToGPS'
+
+  // ---- Remote calls --------------------------------------------------------
+
+  ormi.web.pluginsManager -> ormi.web.remoteCalls 'aggregates AVAILABLE_REMOTE_CALLS'
+  ormi.web.remoteCalls -> ormi.web.appStore 'setRemoteCalls'
+  ormi.web.widgetHost -> ormi.web.remoteCalls 'invokes via useRemoteCall'
+
+  // ---- Dashboard state & config -------------------------------------------
+
+  ormi.web.dashboard -> ormi.web.appStore 'reads/writes widgets, layouts, locked, datasources'
+  ormi.web.dashboard -> ormi.web.renderers 'renders widget/datasource config forms'
+  ormi.web.dashboard -> ormi.web.ui 'uses primitives'
+  ormi.web.widgetHost -> ormi.web.ui 'uses primitives (DatasourceGate offline card)'
+  ormi.web.dashboard -> ormi.web.templates 'save/apply widget & datasource templates'
+
+  // ---- Client → server -----------------------------------------------------
+
+  ormi.web.dashboard -> ormi.web.httpClient 'load/save dashboards & workspaces'
+  ormi.web.templates -> ormi.web.httpClient 'persist via /api/templates'
+  ormi.web.httpClient -> ormi.web.apiRoutes 'HTTP (ApiResult<T>)'
+  ormi.web.apiRoutes -> ormi.web.auth 'withAuth guard'
+  ormi.web.apiRoutes -> ormi.web.serverData 'DB access via Prisma helpers'
+  ormi.web.serverData -> ormi.db 'Prisma queries'
+  ormi.web.auth -> ormi.db 'sessions & accounts'
+}

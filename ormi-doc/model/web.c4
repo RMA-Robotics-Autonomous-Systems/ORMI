@@ -1,0 +1,108 @@
+// Components inside the Next.js web app (`ormi.web`).
+// The dashboard shell, the widget host, the plugin runtime, the single Jotai
+// store, the transform pipeline, renderers/forms, templates, and the server side
+// (API routes, Prisma helpers, NextAuth). Datasource-runtime components live in
+// model/datasources.c4; feature plugins in model/plugins.c4.
+
+model {
+  extend ormi.web {
+
+    // ---- Client shell -------------------------------------------------------
+
+    dashboard = component 'Dashboard Shell' {
+      technology 'React · packages/ormi-core/dashboard'
+      description 'Renders the active dashboard: a pluggable layout engine (react-grid-layout GRID or flexlayout-react FLEX) arranges placed widgets. Reads widgets/layouts/locked state from atoms; mutates through useDashboardActions.'
+
+      link ../knowledge/dashboard/knowledge.md 'Dashboard system'
+    }
+
+    widgetHost = component 'Widget Host' {
+      technology 'packages/ormi-core/dashboard/layout'
+      description 'Mounts each placed widget by using WidgetDefinition.Component directly as the React component type, wrapped in a per-widget error boundary. Re-invokes each widget factory on render, so Component must be a stable module-level reference.'
+
+      link ../knowledge/widgets/knowledge.md 'Widgets system'
+    }
+
+    // ---- Plugin runtime -----------------------------------------------------
+
+    pluginsManager = component 'PluginsManager' {
+      technology 'packages/ormi-plugins'
+      description 'Client-side hook broker. applyFilter runs registered filters in priority order (lower first) to build the widget/datasource/renderer/layout lists; doAction fans out lifecycle actions (DATASOURCE_READY / DATASOURCE_DISPOSED). One instance per app.'
+
+      link ../knowledge/shared/plugin-system.md 'Plugin system'
+    }
+
+    pluginLoader = component 'Plugin Loader' {
+      technology 'apps/web/ormi-plugins.ts (CLI-generated registry)'
+      description 'Dynamically imports each registered ormi-* plugin and instantiates its Plugin subclass, whose constructor registers all filters/actions with the PluginsManager.'
+
+      link ../knowledge/shared/plugin-system.md 'Plugin system'
+    }
+
+    // ---- Shared reactive state ---------------------------------------------
+
+    appStore = component 'appStore (Jotai)' {
+      #core
+      #store
+      technology 'packages/ormi-core/src/store.ts'
+      description 'The single app-wide Jotai store. The React tree is wrapped in <Provider store={appStore}>; every out-of-React atom writer (transforms, remote calls) must target it. Never getDefaultStore() / createStore() — a stray store is invisible to useAtomValue.'
+
+      link ../knowledge/shared/architecture.md 'Single-store rule'
+    }
+
+    transforms = component 'Transform Pipeline (TF)' {
+      #core
+      #store
+      technology 'packages/ormi-core/transforms'
+      description 'Authoritative flat TransformTable (Map<frameId, TransformEdge>, keys namespaced by datasource). processTFMessage does O(1) upserts; a leading-edge + trailing-coalesced (~60Hz) version counter drives reactivity. Derived selectors resolve chains/world frames/GPS at read time.'
+
+      link ../knowledge/shared/data-flow.md 'TF data flow'
+    }
+
+    remoteCalls = component 'Remote Calls' {
+      #core
+      #store
+      technology 'packages/ormi-core/datasources · remote-call atoms'
+      description 'Aggregates callable datasource services (AVAILABLE_REMOTE_CALLS / REMOTE_CALL_DEFINITION) into appStore via setRemoteCalls; widgets invoke them through useRemoteCall.'
+    }
+
+    // ---- Forms & templates --------------------------------------------------
+
+    renderers = component 'JSON Forms Renderers' {
+      technology 'packages/ormi-jsonforms · ormi-core/renderers'
+      description 'Renders widget/datasource config forms. Composes shadcn/material base controls + coreRenderer (TopicSelect, FrameSelect pickers) + any plugin renderers added via JSON_FORMS_RENDERER; JSON Forms selects the highest-ranked tester per control.'
+    }
+
+    templates = component 'Templates' {
+      technology 'packages/ormi-core/templates'
+      description 'Save/reuse a single configured widget or datasource instance. TemplatesProvider exposes useTemplates; persistence callbacks are wired to /api/templates (or a localStorage variant).'
+    }
+
+    ui = component 'Shared UI Kit' {
+      technology 'packages/ui — Radix UI + shadcn/ui + Tailwind'
+      description 'Primitive components and tokens (buttons, dialogs, cards, DatasourceGate offline card) reused across dashboard, widgets, and plugins.'
+    }
+
+    // ---- Server side --------------------------------------------------------
+
+    apiRoutes = component 'API Route Handlers' {
+      technology 'apps/web/app/api — Next.js route handlers'
+      description 'REST endpoints for workspaces, dashboards, categories, templates, users, devlogs. Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
+    }
+
+    httpClient = component 'HTTP Client + API Wrappers' {
+      technology 'apps/web/lib/http · apps/web/lib/api'
+      description 'Client-side domain API wrappers over a shared HttpClient returning ApiResult<T>; the only sanctioned way for client code to reach the route handlers (never raw fetch).'
+    }
+
+    serverData = component 'Prisma Data Helpers' {
+      technology 'apps/web/lib/data/prisma-*.ts'
+      description 'The only place Prisma is called. prisma-workspaces / prisma-dashboard / prisma-templates encapsulate all DB access for the route handlers.'
+    }
+
+    auth = component 'NextAuth' {
+      technology 'apps/web/server/auth.ts · NextAuth'
+      description 'Session/credential authentication. withAuth(handler) guards protected routes; sessions and accounts persist in PostgreSQL.'
+    }
+  }
+}

@@ -1,0 +1,23 @@
+// The ORMI system and its top-level containers.
+// Web components are added in model/web.c4 and model/datasources.c4 (both `extend
+// ormi.web`); plugins in model/plugins.c4; cross-cutting wiring in model/relationships.c4.
+
+model {
+  ormi = system 'ORMI' {
+    description 'Open Robotic Management Interface — modular Next.js dashboard for monitoring and controlling heterogeneous robotic systems in real time. Developed by the RMA Robotics & Autonomous Systems Laboratory.'
+
+    link ../knowledge/shared/architecture.md 'Architecture overview'
+
+    web = container 'Web App' {
+      technology 'Next.js 16 (app router) · React 19 · TypeScript · Bun · Turbo'
+      description 'App-router dashboard rendering customizable widgets fed by pluggable datasources. Hosts the plugin runtime, the single Jotai store, and the Next.js API/route handlers.'
+
+      link ../knowledge/shared/architecture.md 'Architecture overview'
+    }
+
+    db = database 'PostgreSQL' {
+      technology 'Prisma ORM'
+      description 'Workspaces, dashboards (layouts + widget/datasource instances), categories, templates, users, accounts, and sessions.'
+    }
+  }
+}

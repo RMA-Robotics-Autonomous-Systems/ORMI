@@ -1,0 +1,33 @@
+// Actors and external systems ORMI talks to.
+// The datasource landscape: ROS2/rosbridge, Foxglove, Tello, REST — most robots
+// expose plain ws:// endpoints (see the main-thread routing note in datasources.c4).
+
+model {
+  operator = actor 'Operator' {
+    description 'Robotics operator monitoring and controlling autonomous systems through the ORMI dashboard.'
+  }
+
+  robot = externalSystem 'Robot / Autonomous System' {
+    description 'Heterogeneous robot or autonomous vehicle. Exposes its data through a ROS2, Foxglove, or vendor bridge — commonly over plain ws://.'
+  }
+
+  rosbridge = externalSystem 'ROS2 / rosbridge' {
+    description 'rosbridge_suite WebSocket server bridging ROS2 topics, services, and TF onto a JSON/CBOR wire protocol.'
+  }
+
+  foxglove = externalSystem 'Foxglove WebSocket' {
+    description 'Foxglove WebSocket protocol server streaming robot telemetry (PointCloud2, LaserScan, TF, diagnostics, …) as CDR-encoded messages.'
+  }
+
+  tello = externalSystem 'DJI Tello' {
+    description 'DJI Tello drone exposing a UDP/WebSocket bridge on ws://<ip>:8005 for telemetry and flight commands.'
+  }
+
+  restEndpoint = externalSystem 'REST / Bag Endpoint' {
+    description 'HTTP endpoint serving recorded bags or REST-shaped data consumed by the REST datasource.'
+  }
+
+  rostainer = externalSystem 'ROS Container Host' {
+    description 'Docker/container backend that runs ROS2 nodes on demand, driven by the ROSTainer plugin.'
+  }
+}
