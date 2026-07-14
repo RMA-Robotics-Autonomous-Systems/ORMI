@@ -37,7 +37,7 @@ export function PathViewerDefinition(): WidgetDefinition<PathViewerProps> {
 	return {
 		id: "std-path-viewer",
 		name: "Path Viewer",
-		description: "Display a 3D path visualization with poses",
+		description: "3D path visualization with poses",
 		titleProp: "title",
 		icon: <RouteIcon />,
 		schema: {

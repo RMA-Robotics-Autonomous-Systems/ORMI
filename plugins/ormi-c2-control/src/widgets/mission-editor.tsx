@@ -797,8 +797,7 @@ export function MissionEditorDefinition(): WidgetDefinition<MissionEditorProps> 
 	return {
 		id: "c2-mission-editor-widget",
 		name: "C2 Mission Editor",
-		description:
-			"Author a mission config (name, behavior, vehicles, objective geometries, transit/start) and save via c2.missions.save",
+		description: "Author and save mission configs",
 		titleProp: "title",
 		icon: <Pencil />,
 

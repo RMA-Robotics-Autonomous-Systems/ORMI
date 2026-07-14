@@ -659,8 +659,7 @@ export function LoadSinkDefinition(): WidgetDefinition<LoadSinkProps> {
 	return {
 		id: LOAD_SINK_WIDGET_ID,
 		name: "Load Sink",
-		description:
-			"Subscribes to every topic of all enabled load generator datasources to exercise full pipeline fan-out",
+		description: "Subscribe to all loadgen topics",
 		titleProp: "title",
 		schema: {
 			type: "object",

@@ -470,7 +470,7 @@ export function KeyboardControlDefinition(): WidgetDefinition<KeyboardControlDat
 	return {
 		id: "keyboard-cmd-vel-widget",
 		name: "Keyboard control",
-		description: "Allow user to control the robot with the keyboard",
+		description: "Control the robot via keyboard",
 		titleProp: "title",
 		icon: <KeyboardIcon />,
 		schema: {

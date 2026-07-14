@@ -571,7 +571,7 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 	return {
 		id: "webrtc-viewer-widget",
 		name: "WebRTC viewer",
-		description: "Display a video stream from a ROS2 topic",
+		description: "Display a ROS2 video stream",
 		titleProp: "title",
 		icon: <CctvIcon />,
 		schema: {

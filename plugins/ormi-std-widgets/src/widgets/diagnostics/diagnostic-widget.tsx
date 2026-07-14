@@ -549,8 +549,7 @@ export function DiagnosticsWidgetDefinition(): WidgetDefinition<DiagnosticsWidge
 	return {
 		id: "diagnostics-widget",
 		name: "Diagnostics",
-		description:
-			"Auto-subscribes to every diagnostic_msgs/msg/DiagnosticArray topic and renders a unified, hardware-grouped health view",
+		description: "Grouped diagnostic health view",
 		titleProp: "title",
 		icon: <Activity />,
 		schema: {

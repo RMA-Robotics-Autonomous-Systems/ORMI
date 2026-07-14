@@ -336,7 +336,7 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 	return {
 		id: "rqt-graph",
 		name: "RQT Graph",
-		description: "Equivalent to the ROS2 RQT Graph tool",
+		description: "ROS2 RQT graph tool",
 		titleProp: "title",
 		icon: (
 			<svg

@@ -178,7 +178,7 @@ export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 	return {
 		id: "cycle-cmd-vel-widget",
 		name: "Cycle control",
-		description: "Allow user to cycle a topic",
+		description: "Cycle a topic value",
 		titleProp: "title",
 		icon: <RefreshCcwDot />,
 		schema: {

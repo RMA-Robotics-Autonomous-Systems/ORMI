@@ -326,8 +326,7 @@ export function MissionFeedbackDefinition(): WidgetDefinition<MissionFeedbackPro
 	return {
 		id: "c2-mission-feedback-widget",
 		name: "C2 Mission Feedback",
-		description:
-			"Live mission status, tasks and waypoints from /multi_robot/mission_feedback, with optional planning state (/multi_robot/planner/state)",
+		description: "Live mission status and waypoints",
 		titleProp: "title",
 		icon: <ListChecks />,
 

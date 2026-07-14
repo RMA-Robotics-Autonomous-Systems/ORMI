@@ -157,7 +157,7 @@ export function SwarmLogDefinition(): WidgetDefinition<SwarmLogProps> {
 	return {
 		id: "c2-swarm-log-widget",
 		name: "C2 Swarm Log",
-		description: "Scrolling mission log stream from /multi_robot/swarm_log",
+		description: "Scrolling swarm mission log",
 		titleProp: "title",
 		icon: <ScrollText />,
 

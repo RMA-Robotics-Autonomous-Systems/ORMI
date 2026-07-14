@@ -99,7 +99,7 @@ export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndica
 	return {
 		id: "int-status-indicator",
 		name: "Status indicator",
-		description: "Display a status based on an Integer value",
+		description: "Status from an integer value",
 		titleProp: "title",
 
 		icon: <CircleAlertIcon />,

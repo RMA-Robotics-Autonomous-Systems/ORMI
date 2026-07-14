@@ -111,7 +111,7 @@ export function PluginsViewerDefinition(): WidgetDefinition<PluginsViewerProps> 
 	return {
 		id: "plugins-viewer-widget",
 		name: "Plugins viewer",
-		description: "Display the differents filters and actions",
+		description: "Display filters and actions",
 		titleProp: "title",
 		icon: <FolderTreeIcon />,
 		schema: {

@@ -396,8 +396,7 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 	return {
 		id: "c2-mission-browser-widget",
 		name: "C2 Mission Browser",
-		description:
-			"List / select / create / duplicate / delete C2 missions (c2.missions.*); selecting drives the active mission",
+		description: "Browse and manage C2 missions",
 		titleProp: "title",
 		icon: <ListPlus />,
 

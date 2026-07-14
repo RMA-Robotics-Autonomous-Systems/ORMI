@@ -3386,8 +3386,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 	return {
 		id: "c2-mission-map-widget",
 		name: "C2 Mission Map",
-		description:
-			"Edit per-map MapDB features (c2.maps.* / c2.map.features.*) and the active mission's objective geometry, with live mission_feedback waypoints, per-agent localization markers (frame_id-gated), and planner status",
+		description: "Edit map features and geometry",
 		titleProp: "title",
 		icon: <MapIcon />,
 

@@ -582,8 +582,7 @@ export function MissionControlPanelDefinition(): WidgetDefinition<MissionControl
 	return {
 		id: "c2-mission-control-panel-widget",
 		name: "C2 Mission Control",
-		description:
-			"Submit → Approve → Start / Pause / Stop / Delete the active mission; buttons gate on live MissionStatus",
+		description: "Control the active mission lifecycle",
 		titleProp: "title",
 		icon: <Rocket />,
 

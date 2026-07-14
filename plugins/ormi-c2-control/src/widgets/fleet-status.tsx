@@ -616,8 +616,7 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 	return {
 		id: "c2-fleet-status-widget",
 		name: "C2 Fleet Status",
-		description:
-			"Vehicle roster (c2.vehicles.list) cross-referenced with live /multi_robot/edge/feedback presence",
+		description: "Vehicle roster with live presence",
 		titleProp: "title",
 		icon: <Truck />,
 

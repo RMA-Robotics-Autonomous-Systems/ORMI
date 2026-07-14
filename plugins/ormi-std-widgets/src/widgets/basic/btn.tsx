@@ -78,7 +78,7 @@ export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 	return {
 		id: "btn-cmd-vel-widget",
 		name: "Btn control",
-		description: "Allow user to toggle a topic",
+		description: "Toggle a topic",
 		titleProp: "title",
 		icon: <ConciergeBellIcon />,
 		schema: {

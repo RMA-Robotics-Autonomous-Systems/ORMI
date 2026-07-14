@@ -52,8 +52,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 	return {
 		id: "std-scene-3d",
 		name: "3D Scene",
-		description:
-			"Unified 3D visualization with support for point clouds, paths, and more",
+		description: "Unified 3D scene visualization",
 		titleProp: "title",
 		icon: <Box3DIcon />,
 		schema: {
