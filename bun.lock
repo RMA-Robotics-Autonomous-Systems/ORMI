@@ -410,6 +410,7 @@
         "@workspace/ormi-core": "workspace:*",
         "@workspace/ormi-plugins": "workspace:*",
         "@workspace/ui": "workspace:*",
+        "@workspace/utils": "workspace:*",
         "sonner": "^2.0.7",
       },
       "devDependencies": {

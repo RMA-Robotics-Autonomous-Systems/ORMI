@@ -8,7 +8,7 @@ import type {
 	RemoteCallOptions,
 	RemoteCallResult,
 } from "@workspace/ormi-core/datasources";
-import type { PointsCloud } from "@workspace/ormi-core/types";
+import { transferablesFor } from "@workspace/utils/transferables";
 import type { LoadgenGenerator, LoadgenSettings } from "./index";
 import { resolveGenerators } from "./presets";
 import {
@@ -66,17 +66,15 @@ createDatasourceWorker<LoadgenSettings>((context) => {
 		for (let i = 0; i < n; i++) {
 			const raw = produceRaw(generator, state);
 			const decoded = decodeFrame(raw, generator);
-			// Transfer only THIS iteration's freshly-produced point buffer:
-			// decodeFrame materializes a new PointsCloud each call, so the buffer
-			// is never read again after this publish. JSON payloads transfer none.
-			const transfer =
-				generator.type === "pointcloud" &&
-				generator.transfer &&
-				decoded !== null &&
-				typeof decoded === "object" &&
-				"points" in decoded
-					? [(decoded as PointsCloud).points.buffer]
-					: undefined;
+			// Transfer this iteration's freshly-produced owned buffers:
+			// decodeFrame materializes a new payload each call, so its buffers
+			// are never read again after this publish. `transferablesFor`
+			// returns the point cloud's points (+ colors/intensities when
+			// present) and `[]` for JSON payloads. The `transfer` flag is the
+			// benchmark toggle for the copy-vs-transfer comparison.
+			const transfer = generator.transfer
+				? transferablesFor(decoded)
+				: undefined;
 			context.publish(topicName, decoded, raw.time, undefined, transfer);
 			incrementProduced(topicName);
 		}

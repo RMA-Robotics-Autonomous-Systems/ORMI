@@ -31,7 +31,8 @@
 		"sonner": "^2.0.7",
 		"@workspace/ormi-plugins": "workspace:*",
 		"@workspace/ormi-core": "workspace:*",
-		"@workspace/ui": "workspace:*"
+		"@workspace/ui": "workspace:*",
+		"@workspace/utils": "workspace:*"
 	},
 	"ormi_plugin": true
 }

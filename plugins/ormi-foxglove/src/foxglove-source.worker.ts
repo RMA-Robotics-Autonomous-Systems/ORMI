@@ -30,6 +30,8 @@ import {
 	createSerializationError,
 } from "@workspace/ormi-core/datasources/worker";
 
+import { transferablesFor } from "@workspace/utils/transferables";
+
 import { UnifiedConverter } from "./unified-converter";
 import { foxgloveIdlToJsonSchema } from "./foxglove-idl-to-jsonschema";
 import { interfaceList } from "./interface-list";
@@ -425,12 +427,21 @@ const handleMessage = (messageData: MessageData) => {
 			converted = parsed;
 		}
 
-		server.emit("topic-published", {
-			topic: subscriber.topic,
-			data: converted,
-			time: timestamp,
-			referenceFrameId: frameId,
-		});
+		// Transfer the converted payload's owned binary buffers (point-cloud
+		// positions/colors/intensities, compressed-image bytes) instead of
+		// structure-cloning them. `converted` is freshly materialized by
+		// UnifiedConverter for this message and is never read again after this
+		// emit, so its buffers are safe to hand off zero-copy.
+		server.emit(
+			"topic-published",
+			{
+				topic: subscriber.topic,
+				data: converted,
+				time: timestamp,
+				referenceFrameId: frameId,
+			},
+			transferablesFor(converted),
+		);
 	} catch (error) {
 		// ignore parse errors
 	}

@@ -13,6 +13,7 @@ import type {
 	RemoteCallOptions,
 	RemoteCallResult,
 } from "@workspace/ormi-core/datasources";
+import { transferablesFor } from "@workspace/utils/transferables";
 import type { RandomDataSourceSettings } from "./index";
 import type {
 	IMU,
@@ -205,15 +206,22 @@ createDatasourceWorker<RandomDataSourceSettings>((context) => {
 						positions[idx + 2] =
 							basePoint.z + Math.sin(t + phase.z) * amplitude;
 					}
+					// `baseColors` is retained and reused across ticks, so it is
+					// NOT owned per-message and must never be transferred
+					// (transferring it would detach it after the first frame).
+					// Copy it into a fresh, message-owned buffer so the whole
+					// payload can be handed off zero-copy via transferablesFor.
+					const colors = baseColors.slice();
+					const payload: PointsCloud = {
+						points: positions,
+						colors,
+					};
 					context.publish(
 						topic.topic,
-						{
-							points: positions,
-							colors: baseColors,
-						} as PointsCloud,
+						payload,
 						Date.now(),
 						undefined,
-						[positions.buffer],
+						transferablesFor(payload),
 					);
 				}, 1000 / freq);
 			}
