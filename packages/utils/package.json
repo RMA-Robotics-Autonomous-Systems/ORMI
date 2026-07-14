@@ -37,6 +37,11 @@
 			"types": "./dist/transferables.d.ts",
 			"development": "./src/transferables.ts",
 			"import": "./dist/transferables.js"
+		},
+		"./coalesced-publisher": {
+			"types": "./dist/coalesced-publisher.d.ts",
+			"development": "./src/coalesced-publisher.ts",
+			"import": "./dist/coalesced-publisher.js"
 		}
 	},
 	"private": true,

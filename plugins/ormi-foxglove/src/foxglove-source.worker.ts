@@ -31,6 +31,10 @@ import {
 } from "@workspace/ormi-core/datasources/worker";
 
 import { transferablesFor } from "@workspace/utils/transferables";
+import {
+	createCoalescedPublisher,
+	type DecodedMessage,
+} from "@workspace/utils/coalesced-publisher";
 
 import { UnifiedConverter } from "./unified-converter";
 import { foxgloveIdlToJsonSchema } from "./foxglove-idl-to-jsonschema";
@@ -310,6 +314,7 @@ const processPendingSubscriptions = () => {
 		subscribersById.set(subscriptionId, subscriber);
 		subscribersByTopic.set(channel.topic, subscriber);
 		pendingSubscriptions.delete(topic);
+		publisher.start();
 	});
 };
 
@@ -335,6 +340,7 @@ const processPendingOperations = () => {
 				};
 				subscribersById.set(subscriptionId, newSub);
 				subscribersByTopic.set(sub.topic, newSub);
+				publisher.start();
 			}
 		}
 	});
@@ -382,69 +388,192 @@ const processPendingOperations = () => {
 	pendingAdvertiseOps.clear();
 };
 
+// --- Worker-side coalescing (latest-per-topic on a drain tick) --------------
+// Raw frames are stashed at wire rate; decode+convert+emit run only on the
+// coalescer's ~30 Hz drain tick, emitting latest-per-topic. The
+// classification below (which streams stay lossless, which get a decode-rate
+// cap) MIRRORS the main-thread `ws://` path in subscription-manager.tsx —
+// keep the two in sync.
+
+/** ROS2 schema whose CDR decode is expensive enough to rate-cap. */
+const POINTCLOUD2_SCHEMA = "sensor_msgs/msg/PointCloud2";
+/**
+ * Point-cloud decode-rate ceiling (Hz) — a burst guard, not a reduction. Frames
+ * above it coalesce to LATEST (the newest is never dropped).
+ */
+const POINTCLOUD_DECODE_HZ_CAP = 12;
+const POINTCLOUD_DECODE_MIN_INTERVAL_MS = 1000 / POINTCLOUD_DECODE_HZ_CAP;
+
+/** Per-topic decode-rate cap (ms) for a schema; 0 = decode at full drain rate. */
+const decodeCapMsForSchema = (schemaName: string): number =>
+	schemaName === POINTCLOUD2_SCHEMA ? POINTCLOUD_DECODE_MIN_INTERVAL_MS : 0;
+
+/**
+ * TF messages are deltas — different frame pairs arrive in different messages —
+ * so last-wins coalescing would silently lose transforms. Must be lossless.
+ */
+const isTfLikeSchema = (schemaName: string): boolean =>
+	schemaName === "tf2_msgs/msg/TFMessage" ||
+	schemaName.endsWith("/TFMessage");
+
+/**
+ * `diagnostic_msgs/msg/DiagnosticArray` on a shared `/diagnostics` topic is
+ * multi-publisher: last-wins would drop the non-latest publishers. Must be
+ * lossless. Diagnostics are low-rate, so the lossless cost is negligible.
+ */
+const isDiagnosticSchema = (schemaName: string): boolean =>
+	schemaName === "diagnostic_msgs/msg/DiagnosticArray";
+
+/** Topics whose coalescing must be lossless (delta / multi-publisher streams). */
+const isLosslessTopic = (topic: string, schemaName: string): boolean =>
+	(settings?.transformTreeTopics ?? []).includes(topic) ||
+	isTfLikeSchema(schemaName) ||
+	isDiagnosticSchema(schemaName);
+
+// Wire-rate arrival counters, coalesced into a 1 Hz "metrics-snapshot" that the
+// host folds into `ds.<id>.topic.<topic>.produced` (the WIRE rate). The host's
+// `ds.<id>.published` counter counts emits on the drain tick (the COALESCED
+// rate); the two together expose the coalescing drop ratio. Plain Map — no
+// metrics module on the worker hot path (one Map.get/set per arrival).
+const producedCounts = new Map<string, number>();
+let producedDirty = false;
+let producedTimer: ReturnType<typeof setInterval> | null = null;
+
+const emitProducedSnapshot = () => {
+	if (!producedDirty) return;
+	producedDirty = false;
+	const produced: Record<string, number> = {};
+	producedCounts.forEach((count, topic) => {
+		produced[topic] = count;
+	});
+	server.emit("metrics-snapshot", { produced });
+};
+
+const countProduced = (topic: string) => {
+	producedCounts.set(topic, (producedCounts.get(topic) ?? 0) + 1);
+	producedDirty = true;
+	if (producedTimer === null) {
+		producedTimer = setInterval(emitProducedSnapshot, 1000);
+	}
+};
+
+/**
+ * Decode+convert one stashed raw message on the drain tick (NOT at wire rate).
+ * Returns the emit payload, or `null` on a subscriber miss / undecodable CDR so
+ * the coalescer skips the emit. This is the previous inline decode path.
+ */
+function decodeMessage(
+	messageData: MessageData,
+	subscriptionId: number,
+): DecodedMessage | null {
+	const subscriber = subscribersById.get(subscriptionId);
+	if (!subscriber) return null;
+
+	let parsed: any;
+	try {
+		parsed = subscriber.reader.readMessage(messageData.data);
+	} catch {
+		// Undecodable CDR — skip the emit (was the outer try/catch before).
+		return null;
+	}
+
+	let frameId = "unknown";
+	let timestamp = Date.now();
+
+	if (parsed?.header?.frame_id) {
+		frameId = parsed.header.frame_id;
+	}
+
+	if (parsed?.header?.stamp) {
+		const stamp = parsed.header.stamp;
+		if (stamp.sec !== undefined && stamp.nanosec !== undefined) {
+			timestamp = stamp.sec * 1000 + stamp.nanosec / 1000000;
+		}
+	}
+
+	let converted: unknown = parsed;
+	try {
+		converted = UnifiedConverter.convertToWebapp(
+			parsed,
+			subscriber.webtype,
+			subscriber.schemaName,
+		);
+	} catch (error) {
+		if (errorHandler) {
+			errorHandler.handleRaw(error, {
+				severity: ErrorSeverity.WARNING,
+				category: ErrorCategory.CONVERSION,
+				context: {
+					topic: subscriber.topic,
+					schemaName: subscriber.schemaName,
+					webtype: subscriber.webtype,
+				},
+				message: `Failed to convert message for topic ${subscriber.topic}`,
+			});
+		}
+		// Fall back to raw parsed data
+		converted = parsed;
+	}
+
+	// Transfer the converted payload's owned binary buffers (point-cloud
+	// positions/colors/intensities, compressed-image bytes) instead of
+	// structure-cloning them. `converted` is freshly materialized by
+	// UnifiedConverter for this message and is never read again after the
+	// emit, so its buffers are safe to hand off zero-copy.
+	return {
+		topic: subscriber.topic,
+		data: converted,
+		time: timestamp,
+		frame: frameId,
+		transfer: transferablesFor(converted),
+	};
+}
+
+/** Emit a drained/decoded payload to the host in the shape it expects. */
+const publishDecoded = (
+	topic: string,
+	data: unknown,
+	time?: number,
+	frame?: string,
+	transfer?: Transferable[],
+) => {
+	server.emit(
+		"topic-published",
+		{
+			topic,
+			data,
+			time: time ?? Date.now(),
+			referenceFrameId: frame,
+		},
+		transfer,
+	);
+};
+
+/**
+ * One coalescing publisher for the whole worker, keyed by numeric subscription
+ * id. Started when the first subscription becomes active and stopped when the
+ * last is removed.
+ */
+const publisher = createCoalescedPublisher<MessageData, number>(
+	publishDecoded,
+	decodeMessage,
+);
+
 const handleMessage = (messageData: MessageData) => {
 	const subscriber = subscribersById.get(messageData.subscriptionId);
 	if (!subscriber) return;
 
-	try {
-		const parsed = subscriber.reader.readMessage(messageData.data);
+	// Count the raw arrival at WIRE rate, then stash it (O(1), no decode). The
+	// backing ArrayBuffer is per-WebSocket-event and is not read again until the
+	// drain tick decodes it, so holding the view until then is safe.
+	countProduced(subscriber.topic);
 
-		let frameId = "unknown";
-		let timestamp = Date.now();
-
-		if ((parsed as any)?.header?.frame_id) {
-			frameId = (parsed as any).header.frame_id;
-		}
-
-		if ((parsed as any)?.header?.stamp) {
-			const stamp = (parsed as any).header.stamp;
-			if (stamp.sec !== undefined && stamp.nanosec !== undefined) {
-				timestamp = stamp.sec * 1000 + stamp.nanosec / 1000000;
-			}
-		}
-
-		let converted = parsed;
-		try {
-			converted = UnifiedConverter.convertToWebapp(
-				parsed,
-				subscriber.webtype,
-				subscriber.schemaName,
-			);
-		} catch (error) {
-			if (errorHandler) {
-				errorHandler.handleRaw(error, {
-					severity: ErrorSeverity.WARNING,
-					category: ErrorCategory.CONVERSION,
-					context: {
-						topic: subscriber.topic,
-						schemaName: subscriber.schemaName,
-						webtype: subscriber.webtype,
-					},
-					message: `Failed to convert message for topic ${subscriber.topic}`,
-				});
-			}
-			// Fall back to raw parsed data
-			converted = parsed;
-		}
-
-		// Transfer the converted payload's owned binary buffers (point-cloud
-		// positions/colors/intensities, compressed-image bytes) instead of
-		// structure-cloning them. `converted` is freshly materialized by
-		// UnifiedConverter for this message and is never read again after this
-		// emit, so its buffers are safe to hand off zero-copy.
-		server.emit(
-			"topic-published",
-			{
-				topic: subscriber.topic,
-				data: converted,
-				time: timestamp,
-				referenceFrameId: frameId,
-			},
-			transferablesFor(converted),
-		);
-	} catch (error) {
-		// ignore parse errors
-	}
+	publisher.push(
+		messageData.subscriptionId,
+		messageData,
+		isLosslessTopic(subscriber.topic, subscriber.schemaName),
+		decodeCapMsForSchema(subscriber.schemaName),
+	);
 };
 
 const handleAdvertiseServices = (newServices: Service[]) => {
@@ -769,6 +898,7 @@ const server = createRpcServer<
 
 			subscribersById.set(subscriptionId, subscriber);
 			subscribersByTopic.set(channel.topic, subscriber);
+			publisher.start();
 		},
 		unsubscribe: async (topic: SelectedTopic, ignoreCount = false) => {
 			const pending = pendingSubscriptions.get(topic.topic);
@@ -796,6 +926,12 @@ const server = createRpcServer<
 				client.unsubscribe(subscriber.subscriptionId);
 				subscribersById.delete(subscriber.subscriptionId);
 				subscribersByTopic.delete(topic.topic);
+				// Drop any undrained frames for this stream; stop the drain tick
+				// once no subscriptions remain.
+				publisher.remove(subscriber.subscriptionId);
+				if (subscribersById.size === 0) {
+					publisher.stop();
+				}
 			}
 		},
 		executeRemoteCall: async (
@@ -907,6 +1043,13 @@ const server = createRpcServer<
 		cancelRemoteCall: async () => false,
 		shutdown: async () => {
 			clearReconnectTimer();
+			// Stop the coalescer drain tick and discard undrained frames, and
+			// stop the 1 Hz produced-snapshot timer.
+			publisher.stop();
+			if (producedTimer !== null) {
+				clearInterval(producedTimer);
+				producedTimer = null;
+			}
 			if (ws) {
 				ws.close();
 				ws = null;
