@@ -24,20 +24,32 @@ import {
 	type GeneratorState,
 	type RawFrame,
 } from "./loadgen-generators";
+import {
+	createAccumulator,
+	drawEmissions,
+	SCHEDULER_TICK_MS,
+	type EmitAccumulator,
+} from "./loadgen-scheduler";
 
 /** Built-in 1 Hz self-report topic mirroring the worker transport's stats. */
 const STATS_TOPIC = "/loadgen/stats";
 
 /**
  * Per-topic live generation state kept by the main-thread provider: the
- * generator that drives the topic, its mutable production state, and the timer
- * pushing frames into the coalescer. The `generator` is what the coalescer's
- * dispatch resolves against by topic name to decode the raw frame.
+ * generator that drives the topic, its mutable production state, its emission
+ * accumulator, and the cached per-topic push parameters. The single driver loop
+ * fans out over these; the `generator` is what the coalescer's dispatch resolves
+ * against by topic name to decode the raw frame.
  */
 interface TopicRuntime {
 	generator: LoadgenGenerator;
 	state: GeneratorState;
-	interval: ReturnType<typeof setInterval>;
+	acc: EmitAccumulator;
+	/** Per-topic produced counter id (worker-parity: counts every generated frame). */
+	producedId: ReturnType<typeof metrics.counter>;
+	/** Cached coalescer push params for this generator's payload shape. */
+	lossless: boolean;
+	decodeCapMs: number;
 }
 
 /**
@@ -71,6 +83,11 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 	const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
 		null,
 	);
+	// ONE driver loop fans out every subscribed topic (see loadgen-scheduler).
+	const driverIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+		null,
+	);
+	const lastTickRef = useRef(0);
 
 	// One coalescer per provider instance, keyed by topic name. Its dispatch
 	// resolves the topic's generator from the live runtime map and runs the
@@ -122,41 +139,74 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 		const subscribersCount = subscribersCountRef.current;
 		const produced = producedRef.current;
 
-		/** Start the per-topic production timer that feeds the coalescer. */
+		/**
+		 * The single scheduler pass. Measures real elapsed `dt`, then for each
+		 * subscribed topic draws `floor(owed)` frames and pushes them into the
+		 * coalescer. `produced`/`producedId` increment per GENERATED frame so the
+		 * produced counter reflects the true configured rate; the coalescer then
+		 * coalesces a same-pass lossy batch to the latest, so `delivered` and the
+		 * drop ratio stay honest. A burst topic whose window is closed resets its
+		 * accumulator so no suppressed backlog dumps when it reopens.
+		 */
+		const tick = (): void => {
+			const now = Date.now();
+			const dt = now - lastTickRef.current;
+			lastTickRef.current = now;
+			for (const [topicName, runtime] of runtimes) {
+				const { generator, state, acc } = runtime;
+				if (!burstOpen(generator.burst)) {
+					acc.owed = 0;
+					continue;
+				}
+				const n = drawEmissions(acc, generator.rateHz, dt);
+				for (let i = 0; i < n; i++) {
+					produced.set(topicName, (produced.get(topicName) ?? 0) + 1);
+					metrics.add(runtime.producedId);
+					coalescer.push(
+						topicName,
+						produceRaw(generator, state),
+						runtime.lossless,
+						runtime.decodeCapMs,
+					);
+				}
+			}
+		};
+
+		/** Start the single driver loop on first subscribe (idempotent). */
+		const ensureDriver = (): void => {
+			if (driverIntervalRef.current !== null) return;
+			lastTickRef.current = Date.now();
+			driverIntervalRef.current = setInterval(tick, SCHEDULER_TICK_MS);
+		};
+
+		/** Stop the single driver loop once no topic remains subscribed. */
+		const stopDriverIfIdle = (): void => {
+			if (driverIntervalRef.current !== null && runtimes.size === 0) {
+				clearInterval(driverIntervalRef.current);
+				driverIntervalRef.current = null;
+			}
+		};
+
+		/** Register a topic's generation runtime (idempotent per topic). */
 		const startTopic = (
 			topicName: string,
 			generator: LoadgenGenerator,
 		): void => {
-			const state = createGeneratorState(generator);
-			const producedId = metrics.counter(
-				`ds.${datasource_id}.topic.${topicName}.produced`,
-			);
-			const lossless = losslessFor(generator);
-			const decodeCapMs = decodeCapMsFor(generator);
-			const intervalMs = 1000 / generator.rateHz;
-
-			const interval = setInterval(() => {
-				if (!burstOpen(generator.burst)) return;
-				produced.set(topicName, (produced.get(topicName) ?? 0) + 1);
-				metrics.add(producedId);
-				coalescer.push(
-					topicName,
-					produceRaw(generator, state),
-					lossless,
-					decodeCapMs,
-				);
-			}, intervalMs);
-
-			runtimes.set(topicName, { generator, state, interval });
+			runtimes.set(topicName, {
+				generator,
+				state: createGeneratorState(generator),
+				acc: createAccumulator(),
+				producedId: metrics.counter(
+					`ds.${datasource_id}.topic.${topicName}.produced`,
+				),
+				lossless: losslessFor(generator),
+				decodeCapMs: decodeCapMsFor(generator),
+			});
 		};
 
-		/** Drop a topic's timer + coalescer stash (idempotent). */
+		/** Drop a topic's runtime + coalescer stash (idempotent). */
 		const stopTopic = (topicName: string): void => {
-			const runtime = runtimes.get(topicName);
-			if (runtime) {
-				clearInterval(runtime.interval);
-				runtimes.delete(topicName);
-			}
+			runtimes.delete(topicName);
 			coalescer.remove(topicName);
 		};
 
@@ -241,6 +291,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				if (generator && !runtimes.has(topic.topic)) {
 					startTopic(topic.topic, generator);
 					coalescer.start();
+					ensureDriver();
 				}
 				ensureStatsInterval();
 			},
@@ -256,7 +307,10 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				if (ignoreCount) {
 					stopTopic(topic.topic);
 					subscribersCount.delete(topic.topic);
-					if (runtimes.size === 0) coalescer.stop();
+					if (runtimes.size === 0) {
+						coalescer.stop();
+						stopDriverIfIdle();
+					}
 					ensureStatsInterval();
 					return;
 				}
@@ -272,7 +326,10 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				if (newCount <= 0) {
 					subscribersCount.delete(topic.topic);
 					stopTopic(topic.topic);
-					if (runtimes.size === 0) coalescer.stop();
+					if (runtimes.size === 0) {
+						coalescer.stop();
+						stopDriverIfIdle();
+					}
 				} else {
 					subscribersCount.set(topic.topic, newCount);
 				}
@@ -301,7 +358,10 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 			pluginsManager.removeAction(unsubscribe_hook);
 			pluginsManager.removeFilter(definition_hook);
 
-			runtimes.forEach((runtime) => clearInterval(runtime.interval));
+			if (driverIntervalRef.current !== null) {
+				clearInterval(driverIntervalRef.current);
+				driverIntervalRef.current = null;
+			}
 			runtimes.clear();
 			subscribersCount.clear();
 			produced.clear();
