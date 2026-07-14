@@ -27,6 +27,11 @@
 			"types": "./dist/index.d.ts",
 			"development": "./src/index.ts",
 			"import": "./dist/index.js"
+		},
+		"./metrics": {
+			"types": "./dist/metrics/metrics-core.d.ts",
+			"development": "./src/metrics/metrics-core.ts",
+			"import": "./dist/metrics/metrics-core.js"
 		}
 	},
 	"private": true,

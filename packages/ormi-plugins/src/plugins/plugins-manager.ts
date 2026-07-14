@@ -1,13 +1,58 @@
+import { metrics, type CounterId, type RingId } from "@workspace/utils/metrics";
+
 import { Plugin, PluginAction, PluginFilter } from "./plugins-types";
 import { PluginsHooks } from "./plugins-types";
 
+type HookName = string | PluginsHooks;
+
+/** Shared frozen empties so a zero-handler dispatch allocates nothing. */
+const EMPTY_FILTERS: ReadonlyArray<PluginFilter> = Object.freeze([]);
+const EMPTY_ACTIONS: ReadonlyArray<PluginAction> = Object.freeze([]);
+
 /**
  * Manages plugin actions and filters on client side.
+ *
+ * `plugins` stays the source of truth (per-plugin provenance still drives
+ * {@link collectGroups} / {@link applyFilterTracked} and removal-by-id). On top
+ * of it we keep a **derived, copy-on-write flat index** per hook so the hot
+ * dispatch paths ({@link doAction} / {@link applyFilter} / {@link applyFilterAsync})
+ * never re-flatten or re-sort per call: they read one frozen, priority-ordered
+ * array and iterate it. The index is rebuilt only on a registration change
+ * (`add*`/`remove*`), publishing a **new** frozen array (never mutating in
+ * place), so a dispatch mid-fan-out keeps iterating its own snapshot even when a
+ * handler registers/removes another handler.
+ *
+ * The seed relies on the contract that all post-construction registration goes
+ * through this manager's `add*`/`remove*`; direct `Plugin.addFilter/addAction`
+ * only runs inside plugin subclass constructors, before the plugin is handed to
+ * the manager. Post-hoc direct plugin-map mutation is not observed.
  */
 export class PluginsManager {
-	private plugins: Map<string | PluginsHooks, Plugin>;
+	private plugins: Map<HookName, Plugin>;
 
-	constructor(pluginsMap: Map<string | PluginsHooks, Plugin>) {
+	/** Derived per-hook flat indexes (copy-on-write frozen arrays). */
+	private filterIndex = new Map<HookName, ReadonlyArray<PluginFilter>>();
+	private actionIndex = new Map<HookName, ReadonlyArray<PluginAction>>();
+
+	/**
+	 * id → hooks it is registered under, so `removeFilter`/`removeAction` (which
+	 * take no hook name) rebuild exactly the affected hooks. Filters and actions
+	 * have independent id spaces (separate plugin maps), and one id may appear
+	 * under several hooks — hence a Set per id, matching today's remove-from-all
+	 * semantics.
+	 */
+	private filterIdToHooks = new Map<string, Set<HookName>>();
+	private actionIdToHooks = new Map<string, Set<HookName>>();
+
+	/** Zero-handler warn fires once per hook (cleared on the next registration). */
+	private warnedFilterHooks = new Set<HookName>();
+	private warnedActionHooks = new Set<HookName>();
+
+	/** Heavy-tier dispatch metric ids (registered once; idempotent). */
+	private readonly dispatchMsRing: RingId;
+	private readonly dispatchesCounter: CounterId;
+
+	constructor(pluginsMap: Map<HookName, Plugin>) {
 		this.plugins = pluginsMap;
 
 		// add a "basic" plugin that will be used to add new filters and actions from the client side
@@ -19,6 +64,92 @@ export class PluginsManager {
 				version: "1.0.0",
 			}),
 		);
+
+		this.dispatchMsRing = metrics.ring("broker.dispatchMs");
+		this.dispatchesCounter = metrics.counter("broker.dispatches");
+
+		this.seedIndexes();
+	}
+
+	/**
+	 * Walk every plugin's per-hook maps once to seed the flat indexes and the
+	 * id→hooks maps. Runs after the "basic" plugin is inserted so index order
+	 * matches `plugins` insertion order (basic last).
+	 */
+	private seedIndexes(): void {
+		const filterHooks = new Set<HookName>();
+		const actionHooks = new Set<HookName>();
+
+		this.plugins.forEach((plugin) => {
+			plugin.filters.forEach((filterMap, hook) => {
+				filterHooks.add(hook);
+				filterMap.forEach((filter) => {
+					this.trackId(this.filterIdToHooks, filter.id, hook);
+				});
+			});
+			plugin.actions.forEach((actionMap, hook) => {
+				actionHooks.add(hook);
+				actionMap.forEach((action) => {
+					this.trackId(this.actionIdToHooks, action.id, hook);
+				});
+			});
+		});
+
+		filterHooks.forEach((hook) => this.rebuildFilterIndex(hook));
+		actionHooks.forEach((hook) => this.rebuildActionIndex(hook));
+	}
+
+	private trackId(
+		map: Map<string, Set<HookName>>,
+		id: string,
+		hook: HookName,
+	): void {
+		let hooks = map.get(id);
+		if (hooks === undefined) {
+			hooks = new Set();
+			map.set(id, hooks);
+		}
+		hooks.add(hook);
+	}
+
+	/**
+	 * Rebuild one hook's filter array from `plugins` (copy-on-write). Flattens in
+	 * plugin-insertion → inner-map-insertion order, then stable-sorts by
+	 * ascending priority — reproducing the exact order the per-call flatten+sort
+	 * used to produce. Publishes a new frozen array; the previous one is left
+	 * untouched for any in-flight dispatch.
+	 */
+	private rebuildFilterIndex(hook: HookName): void {
+		const filters: PluginFilter[] = [];
+		this.plugins.forEach((plugin) => {
+			plugin.filters.get(hook)?.forEach((filter) => {
+				filters.push(filter);
+			});
+		});
+		filters.sort((a, b) => a.priority - b.priority);
+
+		if (filters.length === 0) {
+			this.filterIndex.delete(hook);
+		} else {
+			this.filterIndex.set(hook, Object.freeze(filters));
+		}
+	}
+
+	/** Action counterpart of {@link rebuildFilterIndex}. */
+	private rebuildActionIndex(hook: HookName): void {
+		const actions: PluginAction[] = [];
+		this.plugins.forEach((plugin) => {
+			plugin.actions.get(hook)?.forEach((action) => {
+				actions.push(action);
+			});
+		});
+		actions.sort((a, b) => a.priority - b.priority);
+
+		if (actions.length === 0) {
+			this.actionIndex.delete(hook);
+		} else {
+			this.actionIndex.set(hook, Object.freeze(actions));
+		}
 	}
 
 	/**
@@ -27,32 +158,37 @@ export class PluginsManager {
 	 * @param args - Arguments where first is the value to transform.
 	 * @returns Transformed value.
 	 */
-	applyFilter<T>(filterName: string | PluginsHooks, ...args: any): T {
+	applyFilter<T>(filterName: HookName, ...args: any): T {
 		if (args.length < 1) {
 			throw new Error(`No argument given in ${filterName}`);
 		}
 		let result = args[0];
-		const filters: PluginFilter[] = [];
 
-		this.plugins.forEach((plugin) => {
-			const filtersMap = plugin.filters.get(filterName);
-
-			if (filtersMap !== undefined) {
-				filtersMap.forEach((filter) => {
-					filters.push(filter);
-				});
-			}
-		});
-
+		const filters = this.filterIndex.get(filterName) ?? EMPTY_FILTERS;
 		if (filters.length === 0) {
-			console.warn(`No filter found for ${filterName}`);
+			this.warnOnce(this.warnedFilterHooks, filterName, "filter");
+			return result;
 		}
 
-		filters.sort((a, b) => a.priority - b.priority);
+		const timed = metrics.heavy;
+		const startedAt = timed ? performance.now() : 0;
 
-		filters.forEach((filter) => {
-			result = filter.filter(result, ...args.slice(1));
-		});
+		const rest = args.slice(1);
+		// try/finally so a throwing filter still records the dispatch metric; the
+		// throw propagates unchanged and the remaining filters are still skipped.
+		try {
+			for (const filter of filters) {
+				result = filter.filter(result, ...rest);
+			}
+		} finally {
+			if (timed) {
+				metrics.add(this.dispatchesCounter);
+				metrics.observe(
+					this.dispatchMsRing,
+					performance.now() - startedAt,
+				);
+			}
+		}
 
 		return result;
 	}
@@ -63,35 +199,21 @@ export class PluginsManager {
 	 * @param args - Arguments where first is the value to transform.
 	 * @returns Promise resolving to transformed value.
 	 */
-	async applyFilterAsync<T>(
-		filterName: string | PluginsHooks,
-		...args: any
-	): Promise<T> {
+	async applyFilterAsync<T>(filterName: HookName, ...args: any): Promise<T> {
 		if (args.length < 1) {
 			throw new Error(`No argument given in ${filterName}`);
 		}
 		let result = args[0];
-		const filters: PluginFilter[] = [];
 
-		this.plugins.forEach((plugin) => {
-			const filtersMap = plugin.filters.get(filterName);
-
-			if (filtersMap !== undefined) {
-				filtersMap.forEach((filter) => {
-					filters.push(filter);
-				});
-			}
-		});
-
+		const filters = this.filterIndex.get(filterName) ?? EMPTY_FILTERS;
 		if (filters.length === 0) {
-			console.warn(`No filter found for ${filterName}`);
+			this.warnOnce(this.warnedFilterHooks, filterName, "filter");
 			return result;
 		}
 
-		filters.sort((a, b) => a.priority - b.priority);
-
+		const rest = args.slice(1);
 		for (const filter of filters) {
-			result = (await filter.filter(result, ...args.slice(1))) as T;
+			result = (await filter.filter(result, ...rest)) as T;
 		}
 
 		return result;
@@ -102,7 +224,7 @@ export class PluginsManager {
 	 * @param filterName - Filter hook name.
 	 * @param filter - Filter to add.
 	 */
-	addFilter(filterName: string | PluginsHooks, filter: PluginFilter): void {
+	addFilter(filterName: HookName, filter: PluginFilter): void {
 		const basicPlugin = this.plugins.get("basic");
 
 		if (basicPlugin === undefined) {
@@ -118,6 +240,10 @@ export class PluginsManager {
 		}
 
 		basicPlugin.filters.get(filterName)?.set(filter.id, filter);
+
+		this.trackId(this.filterIdToHooks, filter.id, filterName);
+		this.warnedFilterHooks.delete(filterName);
+		this.rebuildFilterIndex(filterName);
 	}
 
 	/**
@@ -125,18 +251,20 @@ export class PluginsManager {
 	 * @param pluginFilterId - Filter ID to remove.
 	 */
 	removeFilter(pluginFilterId: string): void {
-		// search for the filter in all plugins
-		// if none has the filter, throw an error, otherwise delete it
+		const hooks = this.filterIdToHooks.get(pluginFilterId);
+		if (hooks === undefined) {
+			// Non-existent id — no-op (matches the historical silent swallow).
+			return;
+		}
+
 		this.plugins.forEach((plugin) => {
-			plugin.filters.forEach((filterMap) => {
-				if (filterMap.has(pluginFilterId)) {
-					filterMap.delete(pluginFilterId);
-					return;
-				}
+			hooks.forEach((hook) => {
+				plugin.filters.get(hook)?.delete(pluginFilterId);
 			});
 		});
 
-		// throw new Error(`Filter with id ${pluginFilterId} not found`);
+		hooks.forEach((hook) => this.rebuildFilterIndex(hook));
+		this.filterIdToHooks.delete(pluginFilterId);
 	}
 
 	/**
@@ -147,32 +275,51 @@ export class PluginsManager {
 	 * existed. Lets callers (e.g. the subscription registry) tell "fired" from "no handler yet"
 	 * — a dropped action is not silently treated as success.
 	 */
-	doAction(actionName: string | PluginsHooks, ...args: any): boolean {
-		const actions: PluginAction[] = [];
-
-		this.plugins.forEach((plugin) => {
-			if (plugin.actions.has(actionName)) {
-				const actionsMap = plugin.actions.get(actionName);
-
-				if (actionsMap !== undefined) {
-					actionsMap.forEach((action) => {
-						actions.push(action);
-					});
-				}
-			}
-		});
-
-		actions.sort((a, b) => a.priority - b.priority);
+	doAction(actionName: HookName, ...args: any): boolean {
+		const actions = this.actionIndex.get(actionName) ?? EMPTY_ACTIONS;
 
 		if (actions.length === 0) {
-			console.warn(`No action found for ${actionName}`);
+			this.warnOnce(this.warnedActionHooks, actionName, "action");
 			return false;
 		}
 
-		actions.forEach((action) => {
-			action.action(...args);
-		});
+		const timed = metrics.heavy;
+		const startedAt = timed ? performance.now() : 0;
+
+		// try/finally so a throwing action still records the dispatch metric; the
+		// throw propagates unchanged and the remaining actions are still skipped.
+		try {
+			for (const action of actions) {
+				action.action(...args);
+			}
+		} finally {
+			if (timed) {
+				metrics.add(this.dispatchesCounter);
+				metrics.observe(
+					this.dispatchMsRing,
+					performance.now() - startedAt,
+				);
+			}
+		}
+
 		return true;
+	}
+
+	/**
+	 * Emits the zero-handler warning at most once per hook. Cleared by the next
+	 * successful registration on that hook, so a later empty period can warn
+	 * again — but a reconnect storm of dispatches to an empty hook stays quiet.
+	 */
+	private warnOnce(
+		warned: Set<HookName>,
+		hook: HookName,
+		kind: "filter" | "action",
+	): void {
+		if (warned.has(hook)) {
+			return;
+		}
+		warned.add(hook);
+		console.warn(`No ${kind} found for ${hook}`);
 	}
 
 	/**
@@ -183,7 +330,7 @@ export class PluginsManager {
 	 * @returns Promise resolving to true if action executed, false if timeout.
 	 */
 	async WaitAndDoAction(
-		actionName: string | PluginsHooks,
+		actionName: HookName,
 		timeoutSecond: number = 5,
 		...args: any
 	): Promise<boolean> {
@@ -205,7 +352,7 @@ export class PluginsManager {
 	 * @param actionName - Action hook name.
 	 * @param action - Action to add.
 	 */
-	addAction(actionName: string | PluginsHooks, action: PluginAction): void {
+	addAction(actionName: HookName, action: PluginAction): void {
 		const basicPlugin = this.plugins.get("basic");
 
 		if (basicPlugin === undefined) {
@@ -221,6 +368,10 @@ export class PluginsManager {
 		}
 
 		basicPlugin.actions.get(actionName)?.set(action.id, action);
+
+		this.trackId(this.actionIdToHooks, action.id, actionName);
+		this.warnedActionHooks.delete(actionName);
+		this.rebuildActionIndex(actionName);
 	}
 
 	/**
@@ -228,17 +379,20 @@ export class PluginsManager {
 	 * @param pluginActionId - Action ID to remove.
 	 */
 	removeAction(pluginActionId: string): void {
-		// search for the action in all plugins, if none has the action, throw an error, otherwise delete it
+		const hooks = this.actionIdToHooks.get(pluginActionId);
+		if (hooks === undefined) {
+			// Non-existent id — no-op (matches the historical silent swallow).
+			return;
+		}
+
 		this.plugins.forEach((plugin) => {
-			plugin.actions.forEach((actionsMap) => {
-				if (actionsMap.has(pluginActionId)) {
-					actionsMap.delete(pluginActionId);
-					return;
-				}
+			hooks.forEach((hook) => {
+				plugin.actions.get(hook)?.delete(pluginActionId);
 			});
 		});
 
-		// throw new Error(`Action with id ${pluginActionId} not found`);
+		hooks.forEach((hook) => this.rebuildActionIndex(hook));
+		this.actionIdToHooks.delete(pluginActionId);
 	}
 
 	/**
@@ -248,7 +402,7 @@ export class PluginsManager {
 	 * @returns Promise resolving to true if found, false if timeout.
 	 */
 	WaitForActionToExist(
-		actionName: string | PluginsHooks,
+		actionName: HookName,
 		timeoutSecond: number = 5,
 	): Promise<boolean> {
 		return new Promise((resolve) => {
@@ -271,7 +425,7 @@ export class PluginsManager {
 	 * Gets all registered plugins.
 	 * @returns Map of plugins.
 	 */
-	getPlugins(): Map<string | PluginsHooks, Plugin> {
+	getPlugins(): Map<HookName, Plugin> {
 		return this.plugins;
 	}
 
@@ -288,13 +442,16 @@ export class PluginsManager {
 	 * shared accumulator — this isolates each plugin so the contributions can be
 	 * grouped. Use it to render provenance-grouped lists (e.g. the widget picker).
 	 *
+	 * Deliberately iterates `plugins` (not the flat index): the flat index
+	 * discards the per-plugin grouping this method needs.
+	 *
 	 * @typeParam T - Item type the filter operates on (e.g. `WidgetDefinition`).
 	 * @param filterName - List filter hook name (e.g. `WIDGETS_LIST`).
 	 * @returns Groups of items keyed by the contributing plugin's name. Empty
 	 * groups are omitted.
 	 */
 	collectGroups<T>(
-		filterName: string | PluginsHooks,
+		filterName: HookName,
 	): { pluginName: string; items: T[] }[] {
 		const groups: { pluginName: string; items: T[] }[] = [];
 
@@ -350,6 +507,9 @@ export class PluginsManager {
 	 * the attribution of the plugin that pushed them. Removed items leave stale
 	 * `origin` entries that callers simply never read.
 	 *
+	 * Deliberately iterates `plugins` (not the flat index): it needs per-plugin
+	 * provenance the flat index discards.
+	 *
 	 * @typeParam T - Item type the filter operates on (e.g. `WidgetDefinition`).
 	 * @param filterName - List filter hook name (e.g. `WIDGETS_LIST`).
 	 * @param seed - Initial accumulator passed to the first filter.
@@ -357,7 +517,7 @@ export class PluginsManager {
 	 * @returns The filtered `result` and the `origin` attribution map.
 	 */
 	applyFilterTracked<T>(
-		filterName: string | PluginsHooks,
+		filterName: HookName,
 		seed: T[],
 		keyOf: (item: T) => string,
 	): { result: T[]; origin: Map<string, string> } {
