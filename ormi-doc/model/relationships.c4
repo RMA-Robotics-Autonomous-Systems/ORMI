@@ -35,8 +35,9 @@ model {
 
   // ---- Ingest data flow (datasource → PluginsManager) ----------------------
 
-  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.converter 'normalize raw → webapp type'
-  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.workerHost 'ctx.publish (typed RPC, zero-copy transferables)'
+  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.coalescer 'opt-in worker-side coalesce-to-latest before decode (foxglove wss://, createCoalescedPublisher)'
+  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.converter 'normalize raw → webapp type (at drain rate when coalesced)'
+  ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.workerHost 'ctx.publish / server.emit (typed RPC, zero-copy transferables via transferablesFor)'
   ormi.web.datasourceRuntime.workerHost -> ormi.web.pluginsManager 'publishes normalized data'
   ormi.web.datasourceRuntime.mainThreadConn -> ormi.web.datasourceRuntime.coalescer 'raw ws:// messages'
   ormi.web.datasourceRuntime.coalescer -> ormi.web.datasourceRuntime.converter 'coalesced-to-latest, decode-budgeted'

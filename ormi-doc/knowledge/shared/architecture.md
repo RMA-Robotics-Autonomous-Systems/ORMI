@@ -13,16 +13,16 @@ Systems Laboratory, Royal Military Academy of Belgium.
 
 ## Monorepo topology
 
-| Layer            | Where                       | Contents                                                                     |
-| ---------------- | --------------------------- | ---------------------------------------------------------------------------- |
-| Web app          | `apps/web`                  | Next.js 16 app router, React 19, UI, server, Prisma, NextAuth                |
-| Core library     | `packages/ormi-core`        | Widgets, datasources, transforms, types, store — **immutable**               |
-| Plugin framework | `packages/ormi-plugins`     | `Plugin` base class, `PluginsHooks`, `PluginsManager`                        |
-| Shared UI        | `packages/ui`               | Radix UI + shadcn/ui primitives, `DatasourceGate`                            |
-| Utilities        | `packages/utils`            | `createSafeContext`, subscription registry, `MessageCoalescer`, metrics, CLI |
-| API helper       | `apps/web/lib/api-utils.ts` | `apiResponse` — the single helper for all API responses                      |
-| JSON Forms       | `packages/ormi-jsonforms`   | Widget/datasource config schema rendering                                    |
-| Features         | `plugins/ormi-*`            | Datasource + widget plugin implementations                                   |
+| Layer            | Where                       | Contents                                                                                                                     |
+| ---------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Web app          | `apps/web`                  | Next.js 16 app router, React 19, UI, server, Prisma, NextAuth                                                                |
+| Core library     | `packages/ormi-core`        | Widgets, datasources, transforms, types, store — **immutable**                                                               |
+| Plugin framework | `packages/ormi-plugins`     | `Plugin` base class, `PluginsHooks`, `PluginsManager`                                                                        |
+| Shared UI        | `packages/ui`               | Radix UI + shadcn/ui primitives, `DatasourceGate`                                                                            |
+| Utilities        | `packages/utils`            | `createSafeContext`, subscription registry, `MessageCoalescer`, `createCoalescedPublisher`, `transferablesFor`, metrics, CLI |
+| API helper       | `apps/web/lib/api-utils.ts` | `apiResponse` — the single helper for all API responses                                                                      |
+| JSON Forms       | `packages/ormi-jsonforms`   | Widget/datasource config schema rendering                                                                                    |
+| Features         | `plugins/ormi-*`            | Datasource + widget plugin implementations                                                                                   |
 
 Rule of placement: reusable logic lives in `packages/` or `plugins/`, not `apps/`.
 Prefer plugins for feature extensions, packages for shared core capabilities.

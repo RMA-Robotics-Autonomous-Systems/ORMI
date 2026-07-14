@@ -103,13 +103,21 @@ map. There is no `ctx.publishError` or `ctx.onAction`.
 > main-thread rosbridge and tello datasources all follow this. See
 > `../shared/data-flow.md`.
 
-## Message coalescing (main-thread ingest paths)
+## Message coalescing (all ingest paths)
 
-Main-thread datasources (foxglove `ws://`, rosbridge) ingest faster than the store
-or screen consumes. They funnel raw frames through the **shared** coalescer in
-`@workspace/utils` — `MessageCoalescer<T, K extends string | number>` — instead of
-each plugin reimplementing one. The engine owns the mechanism; a plugin supplies
-only its decode/convert callback:
+Datasources ingest faster than the store or screen consumes. They funnel raw frames
+through the **shared** coalescer in `@workspace/utils` —
+`MessageCoalescer<T, K extends string | number>` — instead of each plugin
+reimplementing one. It runs on the **main thread** for foxglove `ws://` (numeric
+keys) and rosbridge (topic-string keys), **and inside the foxglove `wss://` worker**
+via the opt-in `createCoalescedPublisher(sink, decode, opts)` wrapper — so decode
+runs at the ~30 Hz drain rate off the wire-rate path in every case, and a 100 Hz
+stream no longer decodes/clones/dispatches ~70 frames/s the store immediately drops.
+Delta streams (TF, `DiagnosticArray`) use the **lossless queue**; state topics are
+**lossy-latest**; PointCloud2 gets a 12 Hz decode cap. Coalescing is **opt-in at the
+call site** — core `ctx.publish` stays a full-rate pipe (never a silent lossy
+default). The engine owns the mechanism; a plugin supplies only its decode/convert
+callback:
 
 ```typescript
 import { MessageCoalescer } from "@workspace/utils";
@@ -131,6 +139,15 @@ drop ratio identically. `remove(key, flush?)` discards (default) or drains-then-
 `stop()` discards undrained work — rosbridge calls it on reconnect rather than
 replaying a dead connection. See `../shared/coding-standards.md` for the decode
 budgeting rule this enforces.
+
+**Zero-copy handoff.** Worker datasources emitting binary payloads use the shared
+`transferablesFor(payload)` helper (`@workspace/utils`) to transfer owned buffers
+(PointsCloud `points`/`colors`/`intensities`, `ImageBitmap`, compressed image) via
+`ctx.publish(…, transfer)` / `server.emit(…, transfer)` instead of structure-cloning
+a full ~1.2 MB copy per message. The helper duck-types the payload and de-dupes by
+backing buffer so a shared `ArrayBuffer` is never partially neutered; the worker must
+not read those buffers after publishing (they are detached). The foxglove `wss://`
+worker composes this into the coalescer drain: coalesce → decode → transfer-emit.
 
 ## Provider (plain lifecycle component)
 

@@ -31,9 +31,8 @@ model {
       }
 
       coalescer = component 'Message Coalescer' {
-        #mainThread
         technology '@workspace/utils · MessageCoalescer<T,K> · one engine, plugin-supplied decode'
-        description 'Shared generic coalescer protecting the main-thread ingest paths (foxglove ws:// with numeric subscription keys; rosbridge with topic-string keys). Each plugin supplies only its decode/convert callback; the engine owns the mechanism: coalesce to the latest message per topic before decode, cap per-topic decode rate for heavy payloads (PointCloud2), time-budget each tick with a catch-up macrotask so a burst cannot starve the fanout/render loop, and count overwrites honestly. Shed frames stay visible via the produced-vs-delivered drop ratio.'
+        description 'Shared generic coalescer used on the main-thread ingest paths (foxglove ws:// with numeric subscription keys; rosbridge with topic-string keys) AND inside the foxglove wss:// worker (via the createCoalescedPublisher wrapper), so decode runs at the ~30Hz drain rate off the wire-rate path in every case. Each plugin supplies only its decode/convert callback; the engine owns the mechanism: coalesce to the latest message per topic before decode, cap per-topic decode rate for heavy payloads (PointCloud2, 12Hz), time-budget each tick with a catch-up macrotask so a burst cannot starve the fanout/render loop, and count overwrites honestly. Delta streams (TF, DiagnosticArray) use the lossless queue; state topics are lossy-latest. Shed frames stay visible via the produced-vs-delivered drop ratio. The sibling transferablesFor helper hands owned buffers (point clouds) across the worker→host boundary zero-copy instead of structure-cloning.'
       }
 
       converter = component 'UnifiedConverter' {
