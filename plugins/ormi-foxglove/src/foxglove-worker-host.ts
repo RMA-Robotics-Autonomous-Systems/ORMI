@@ -308,11 +308,19 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 		);
 		const producedIds = new Map<string, CounterId>();
 		const lastProduced = new Map<string, number>();
+		// Per-topic hook-name cache: the `-published` action name is invariant per
+		// topic, so build it once instead of concatenating on every drained message.
+		const publishedHooks = new Map<string, string>();
 
 		const topicUnsub = this.rpc.onEvent("topic-published", (payload) => {
 			metrics.add(publishedId);
+			let hook = publishedHooks.get(payload.topic);
+			if (hook === undefined) {
+				hook = `${this.datasourceId}-${payload.topic}-published`;
+				publishedHooks.set(payload.topic, hook);
+			}
 			this.pluginsManager.doAction(
-				`${this.datasourceId}-${payload.topic}-published`,
+				hook,
 				payload.data,
 				payload.time,
 				payload.referenceFrameId,
