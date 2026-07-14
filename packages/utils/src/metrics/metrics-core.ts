@@ -189,7 +189,19 @@ export class Metrics {
 }
 
 /**
- * Module singleton — one per JS runtime (workers have their own instance,
- * with their own counter id space).
+ * Process-global singleton — exactly one per JS runtime (workers have their
+ * own instance, with their own counter id space).
+ *
+ * Pinned on `globalThis` rather than a bare module-level `new Metrics()`: the
+ * same module can be instantiated twice when it is reached through two
+ * different specifiers that resolve to different physical files — e.g. the
+ * `@workspace/utils/metrics` subpath (`dist`) vs. the barrel's relative import
+ * (`src`). A bare module singleton would then split into two registries, so a
+ * producer that registers on one instance is invisible to a reader on the
+ * other (this stranded the broker's `broker.dispatchMs` metric). The
+ * `globalThis` pin collapses every copy back to one shared instance.
  */
-export const metrics = new Metrics();
+const globalScope = globalThis as typeof globalThis & {
+	__ormiMetrics__?: Metrics;
+};
+export const metrics: Metrics = (globalScope.__ormiMetrics__ ??= new Metrics());
