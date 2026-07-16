@@ -279,7 +279,7 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 
 		// Attempt graceful shutdown
 		const shutdownTimeout = setTimeout(() => {
-			console.warn(
+			console.error(
 				`[Foxglove Worker] Graceful shutdown timeout for ${this.datasourceId}, forcing termination`,
 			);
 			this.worker.terminate();
