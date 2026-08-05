@@ -111,8 +111,7 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 	return {
 		id: "cond-status-indicator",
 		name: "Conditional Status",
-		description:
-			"Display a status based on an number value and a condition",
+		description: "Status from a value condition",
 		titleProp: "title",
 
 		icon: <CircleAlertIcon />,

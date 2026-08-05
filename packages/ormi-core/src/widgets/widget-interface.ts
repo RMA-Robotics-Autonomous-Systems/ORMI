@@ -7,6 +7,14 @@ import { PluginsManager } from "@workspace/ormi-plugins";
 interface DataRequirements {
 	/** Webapp types this widget can handle (e.g., "number", "Vector3", "Movement"). */
 	accepts: string[];
+	/**
+	 * Raw datasource (e.g. ROS) type names this widget can handle, matched
+	 * directly against a topic's `rawType` (e.g. "c2_msgs/msg/SwarmLog"). Use
+	 * this for topics that have no webapp type — the widget consumes the raw
+	 * decoded message. A topic is compatible if its webapp type matches
+	 * `accepts` OR its raw type matches `acceptsRaw`.
+	 */
+	acceptsRaw?: string[];
 }
 
 /** TopicSelect UI schema element with data requirements. */

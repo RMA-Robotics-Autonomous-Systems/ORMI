@@ -422,7 +422,7 @@ export function ChartEchartsWidgetDefinition(): WidgetDefinition<ChartEchartsSet
 	return {
 		id: "chart-widget-echarts",
 		name: "ECharts Chart",
-		description: "Display a customizable real-time chart using ECharts",
+		description: "Customizable real-time ECharts chart",
 		titleProp: "title",
 		icon: <ChartLineIcon />,
 		schema: {

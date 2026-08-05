@@ -819,3 +819,298 @@ describe("Plugin Manager - Production Edge Cases", () => {
 		expect(executed).toEqual([1, 2]);
 	});
 });
+
+describe("Plugin Manager - collectGroups", () => {
+	test("attributes items to the plugin that contributed them", () => {
+		const pluginA = new Plugin({ name: "plugin-a", version: "1.0.0" });
+		pluginA.addFilter("widgets-list", {
+			id: "a-filter",
+			priority: 10,
+			filter: (items: string[]) => [...items, "a1", "a2"],
+		});
+
+		const pluginB = new Plugin({ name: "plugin-b", version: "1.0.0" });
+		pluginB.addFilter("widgets-list", {
+			id: "b-filter",
+			priority: 10,
+			filter: (items: string[]) => [...items, "b1"],
+		});
+
+		const pluginsMap = new Map();
+		pluginsMap.set("plugin-a", pluginA);
+		pluginsMap.set("plugin-b", pluginB);
+		const manager = new PluginsManager(pluginsMap);
+
+		const groups = manager.collectGroups<string>("widgets-list");
+
+		expect(groups).toContainEqual({
+			pluginName: "plugin-a",
+			items: ["a1", "a2"],
+		});
+		expect(groups).toContainEqual({
+			pluginName: "plugin-b",
+			items: ["b1"],
+		});
+	});
+
+	test("runs each plugin in isolation from a fresh accumulator", () => {
+		const pluginA = new Plugin({ name: "plugin-a", version: "1.0.0" });
+		pluginA.addFilter("widgets-list", {
+			id: "a-filter",
+			priority: 10,
+			filter: (items: string[]) => [...items, "a1"],
+		});
+
+		const pluginB = new Plugin({ name: "plugin-b", version: "1.0.0" });
+		pluginB.addFilter("widgets-list", {
+			id: "b-filter",
+			priority: 10,
+			filter: (items: string[]) => [...items, "b1"],
+		});
+
+		const pluginsMap = new Map();
+		pluginsMap.set("plugin-a", pluginA);
+		pluginsMap.set("plugin-b", pluginB);
+		const manager = new PluginsManager(pluginsMap);
+
+		const groups = manager.collectGroups<string>("widgets-list");
+		const a = groups.find((g) => g.pluginName === "plugin-a");
+		const b = groups.find((g) => g.pluginName === "plugin-b");
+
+		// plugin-b's items must not bleed into plugin-a's group and vice versa.
+		expect(a?.items).toEqual(["a1"]);
+		expect(b?.items).toEqual(["b1"]);
+	});
+
+	test("orders a plugin's own filters by ascending priority", () => {
+		const plugin = new Plugin({ name: "plugin-a", version: "1.0.0" });
+		plugin.addFilter("widgets-list", {
+			id: "late",
+			priority: 20,
+			filter: (items: string[]) => [...items, "late"],
+		});
+		plugin.addFilter("widgets-list", {
+			id: "early",
+			priority: 5,
+			filter: (items: string[]) => [...items, "early"],
+		});
+
+		const pluginsMap = new Map();
+		pluginsMap.set("plugin-a", plugin);
+		const manager = new PluginsManager(pluginsMap);
+
+		const groups = manager.collectGroups<string>("widgets-list");
+
+		expect(groups[0]?.items).toEqual(["early", "late"]);
+	});
+
+	test("skips plugins that contribute no items", () => {
+		const plugin = new Plugin({ name: "plugin-a", version: "1.0.0" });
+		plugin.addFilter("widgets-list", {
+			id: "noop",
+			priority: 10,
+			filter: (items: string[]) => items,
+		});
+
+		const pluginsMap = new Map();
+		pluginsMap.set("plugin-a", plugin);
+		const manager = new PluginsManager(pluginsMap);
+
+		const groups = manager.collectGroups<string>("widgets-list");
+
+		expect(groups).toEqual([]);
+	});
+
+	test("isolates a gating-style filter so it cannot drop other plugins' items", () => {
+		// Mirrors the datasource-gating filter the dashboard registers on the
+		// "basic" plugin at MAX_SAFE_INTEGER priority: it would return [] when run
+		// over the shared accumulator. collectGroups runs it in isolation, so it
+		// only sees its own empty array (a no-op contribution that is skipped) and
+		// never gates the real plugins' contributions — those stay attributed.
+		const widgetPlugin = new Plugin({ name: "plugin-a", version: "1.0.0" });
+		widgetPlugin.addFilter("widgets-list", {
+			id: "a-widgets",
+			priority: 10,
+			filter: (items: string[]) => [...items, "a1"],
+		});
+
+		const gatingPlugin = new Plugin({ name: "basic", version: "1.0.0" });
+		gatingPlugin.addFilter("widgets-list", {
+			id: "gate",
+			priority: Number.MAX_SAFE_INTEGER,
+			filter: () => [], // drops everything when run over a shared list
+		});
+
+		const pluginsMap = new Map();
+		pluginsMap.set("plugin-a", widgetPlugin);
+		pluginsMap.set("gating", gatingPlugin);
+		const manager = new PluginsManager(pluginsMap);
+
+		const groups = manager.collectGroups<string>("widgets-list");
+
+		// plugin-a's widget survives; the gating plugin yields no group.
+		expect(groups).toEqual([{ pluginName: "plugin-a", items: ["a1"] }]);
+	});
+});
+
+describe("Plugin Manager - applyFilterTracked", () => {
+	const buildManager = (
+		plugins: { key: string; name: string; filters: PluginFilter[] }[],
+	) => {
+		const pluginsMap = new Map();
+		plugins.forEach(({ key, name, filters }) => {
+			const plugin = new Plugin({ name, version: "1.0.0" });
+			filters.forEach((filter) =>
+				plugin.addFilter("widgets-list", filter),
+			);
+			pluginsMap.set(key, plugin);
+		});
+		return new PluginsManager(pluginsMap);
+	};
+
+	test("result equals applyFilter for the same hook and seed", () => {
+		const config = [
+			{
+				key: "plugin-a",
+				name: "plugin-a",
+				filters: [
+					{
+						id: "a",
+						priority: 10,
+						filter: (items: string[]) => [...items, "a1", "a2"],
+					},
+				],
+			},
+			{
+				key: "plugin-b",
+				name: "plugin-b",
+				filters: [
+					{
+						id: "b",
+						priority: 5,
+						filter: (items: string[]) => [...items, "b1"],
+					},
+				],
+			},
+		];
+
+		const tracked = buildManager(config).applyFilterTracked<string>(
+			"widgets-list",
+			[],
+			(item) => item,
+		);
+		const flat = buildManager(config).applyFilter<string[]>(
+			"widgets-list",
+			[],
+		);
+
+		expect(tracked.result).toEqual(flat);
+		// Ascending priority: plugin-b (5) runs before plugin-a (10).
+		expect(tracked.result).toEqual(["b1", "a1", "a2"]);
+	});
+
+	test("origin attributes each item to the plugin that pushed it", () => {
+		const manager = buildManager([
+			{
+				key: "plugin-a",
+				name: "plugin-a",
+				filters: [
+					{
+						id: "a",
+						priority: 10,
+						filter: (items: string[]) => [...items, "a1"],
+					},
+				],
+			},
+			{
+				key: "plugin-b",
+				name: "plugin-b",
+				filters: [
+					{
+						id: "b",
+						priority: 20,
+						filter: (items: string[]) => [...items, "b1"],
+					},
+				],
+			},
+		]);
+
+		const { origin } = manager.applyFilterTracked<string>(
+			"widgets-list",
+			[],
+			(item) => item,
+		);
+
+		expect(origin.get("a1")).toBe("plugin-a");
+		expect(origin.get("b1")).toBe("plugin-b");
+	});
+
+	test("gating filter drops items while survivors keep attribution", () => {
+		const manager = buildManager([
+			{
+				key: "plugin-a",
+				name: "plugin-a",
+				filters: [
+					{
+						id: "a",
+						priority: 10,
+						filter: (items: string[]) => [...items, "a1", "a2"],
+					},
+				],
+			},
+			{
+				key: "gating",
+				name: "basic",
+				filters: [
+					{
+						id: "gate",
+						priority: Number.MAX_SAFE_INTEGER,
+						// Remove "a2" (datasource-gated style removal).
+						filter: (items: string[]) =>
+							items.filter((i) => i !== "a2"),
+					},
+				],
+			},
+		]);
+
+		const { result, origin } = manager.applyFilterTracked<string>(
+			"widgets-list",
+			[],
+			(item) => item,
+		);
+
+		expect(result).toEqual(["a1"]);
+		expect(origin.get("a1")).toBe("plugin-a");
+	});
+
+	test("invokes each filter exactly once across the whole call", () => {
+		// The property whose violation caused the infinite render loop: definition
+		// factories (run inside these filters) must not be evaluated twice.
+		const filterA = mock((items: string[]) => [...items, "a1"]);
+		const gate = mock((items: string[]) => items);
+
+		const manager = buildManager([
+			{
+				key: "plugin-a",
+				name: "plugin-a",
+				filters: [{ id: "a", priority: 10, filter: filterA }],
+			},
+			{
+				key: "gating",
+				name: "basic",
+				filters: [
+					{
+						id: "gate",
+						priority: Number.MAX_SAFE_INTEGER,
+						filter: gate,
+					},
+				],
+			},
+		]);
+
+		manager.applyFilterTracked<string>("widgets-list", [], (item) => item);
+
+		expect(filterA).toHaveBeenCalledTimes(1);
+		expect(gate).toHaveBeenCalledTimes(1);
+	});
+});

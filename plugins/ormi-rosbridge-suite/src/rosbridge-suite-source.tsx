@@ -13,7 +13,7 @@
         },
 */
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import * as ROSLIB from "roslib";
 
@@ -31,10 +31,9 @@ import {
 	PluginsHooks,
 	PluginsManager,
 } from "@workspace/ormi-plugins";
-import { metrics } from "@workspace/utils";
+import { metrics, MessageCoalescer } from "@workspace/utils";
 import { toast } from "sonner";
 import { TransformTreeManager } from "./transform-tree-manager";
-import { MessageCoalescer, CoalesceMode } from "./message-coalescer";
 import {
 	topicsToResubscribe,
 	type RequestedTopic,
@@ -59,6 +58,25 @@ const WAIT_FOR_CONNECTION = 500;
 export const isLosslessRawType = (rawType: string): boolean =>
 	rawType === "tf2_msgs/msg/TFMessage" ||
 	rawType === "diagnostic_msgs/msg/DiagnosticArray";
+
+/** Raw ROS type whose per-point decode we throttle on the main thread. */
+const POINTCLOUD2_RAW_TYPE = "sensor_msgs/msg/PointCloud2";
+
+/**
+ * Per-topic decode-rate ceiling for expensive lossy payloads — a guard against
+ * a robot bursting above its nominal rate, matching the Foxglove path. A single
+ * point-cloud stream then converts at most ~12 times/s regardless of arrival
+ * rate; faster frames coalesce to LATEST (the newest is never dropped).
+ */
+const POINTCLOUD_DECODE_HZ_CAP = 12;
+const POINTCLOUD_DECODE_MIN_INTERVAL_MS = 1000 / POINTCLOUD_DECODE_HZ_CAP;
+
+/**
+ * Minimum ms between decodes for a raw type, or 0 when the type is cheap enough
+ * to convert at the full drain rate. Only point-cloud-class payloads are capped.
+ */
+const decodeCapMsForRawType = (rawType: string): number =>
+	rawType === POINTCLOUD2_RAW_TYPE ? POINTCLOUD_DECODE_MIN_INTERVAL_MS : 0;
 
 interface RosBridgeSuiteDataSourceSettings extends DatasourceProviderSettings {
 	url: string;
@@ -277,7 +295,16 @@ const RosBridgeSuiteSourceProvider = (
 
 	const subscribersRef = useRef(new Map<string, ROSLIB.Topic<any>>());
 	const subscribersCountRef = useRef(new Map<string, number>());
-	const coalescerRef = useRef(new MessageCoalescer());
+
+	// Per-topic coalescer metadata the shared engine's dispatch resolves against
+	// by key (topic name): the DatasourceTopic to convert into, and the topic's
+	// lossless flag / decode cap. Populated where the DatasourceTopic is built.
+	const subscribersMetaRef = useRef(
+		new Map<
+			string,
+			{ topic: DatasourceTopic; lossless: boolean; decodeCapMs: number }
+		>(),
+	);
 
 	// Durable record of which topics the subscription registry has asked us to
 	// subscribe, keyed by topic name and independent of the ROS connection. The
@@ -295,6 +322,44 @@ const RosBridgeSuiteSourceProvider = (
 	const advertise_hook = `${datasource_id}-advertise`;
 	const unadvertise_hook = `${datasource_id}-unadvertise`;
 	const available_types = `${datasource_id}-available-types`;
+
+	// One coalescer per provider instance, keyed by topic name. Its dispatch is
+	// instance-level: it resolves the topic's DatasourceTopic from the side map
+	// by key and runs the convert + publish path off the shared ~30 Hz drain
+	// tick. Per-message errors are isolated by the engine, so one bad message
+	// cannot starve the other topics. Coarse per-datasource metrics (overwrites,
+	// decoded, dispatch time) feed the diagnostics panel — rosbridge's first
+	// decode-time signal and an honest coalescing drop counter.
+	const [coalescer] = useState(
+		() =>
+			new MessageCoalescer<unknown, string>(
+				(message, topicName) => {
+					const meta = subscribersMetaRef.current.get(topicName);
+					if (!meta) return;
+					convertAndPublish(
+						pluginsManager,
+						datasource_id,
+						meta.topic,
+						message,
+					);
+				},
+				{
+					metrics: {
+						overwrites: metrics.counter(
+							`ds.${datasource_id}.coalescer.overwrites`,
+						),
+						decoded: metrics.counter(
+							`ds.${datasource_id}.coalescer.decoded`,
+						),
+						dispatchMs: metrics.ring(
+							`ds.${datasource_id}.coalescer.dispatchMs`,
+						),
+					},
+					onError: (error) =>
+						console.error("ROS2 message dispatch failed:", error),
+				},
+			),
+	);
 
 	// ROS Websocket
 	const ROSRef = useRef<ROSLIB.Ros | null>(null);
@@ -351,20 +416,18 @@ const RosBridgeSuiteSourceProvider = (
 			// messages, each carrying only its own statuses): last-wins
 			// coalescing would silently drop transforms / low-Hz diagnostic
 			// publishers, so both get a lossless queue.
-			const mode: CoalesceMode =
+			const lossless =
 				isLosslessRawType(rawType) ||
-				(props.transformTreeTopics || []).includes(topicName)
-					? "lossless-queue"
-					: "lossy-latest";
+				(props.transformTreeTopics || []).includes(topicName);
+			const decodeCapMs = decodeCapMsForRawType(rawType);
 
-			coalescerRef.current.register(topicName, mode, (message) =>
-				convertAndPublish(
-					pluginsManager,
-					datasource_id,
-					topic,
-					message,
-				),
-			);
+			// The side map the instance-level coalescer dispatch resolves
+			// against by key. Must be set before the first push.
+			subscribersMetaRef.current.set(topicName, {
+				topic,
+				lossless,
+				decodeCapMs,
+			});
 
 			const producedId = metrics.counter(
 				`ds.${datasource_id}.topic.${topicName}.produced`,
@@ -372,12 +435,13 @@ const RosBridgeSuiteSourceProvider = (
 
 			subscriber.subscribe((message: any) => {
 				metrics.add(producedId);
-				coalescerRef.current.push(topicName, message);
+				coalescer.push(topicName, message, lossless, decodeCapMs);
 			});
 
 			subscribersRef.current.set(topicName, subscriber);
+			coalescer.start();
 		},
-		[props, pluginsManager, datasource_id],
+		[props, datasource_id, coalescer],
 	);
 
 	/**
@@ -436,7 +500,10 @@ const RosBridgeSuiteSourceProvider = (
 						// action populates it after DATASOURCE_READY.
 						subscribersRef.current.clear();
 						subscribersCountRef.current.clear();
-						coalescerRef.current.reset();
+						subscribersMetaRef.current.clear();
+						// Discard any payloads stashed for the dead connection;
+						// reconcile restarts the tick as it rebuilds topics.
+						coalescer.stop();
 						reconcileSubscriptions();
 
 						resolve(true);
@@ -599,9 +666,16 @@ const RosBridgeSuiteSourceProvider = (
 								topic.topic,
 							);
 							subscriber!.unsubscribe();
+							// Drain anything pending BEFORE dropping the meta the
+							// dispatch resolves against, so lossless topics never
+							// lose queued messages on unsubscribe.
+							coalescer.remove(topic.topic, true);
 							subscribersRef.current.delete(topic.topic);
 							subscribersCountRef.current.delete(topic.topic);
-							coalescerRef.current.unregister(topic.topic);
+							subscribersMetaRef.current.delete(topic.topic);
+							if (subscribersRef.current.size === 0) {
+								coalescer.stop();
+							}
 						}
 					} catch (error) {
 						console.error("Unsubscribe error:", error);
@@ -1030,7 +1104,10 @@ const RosBridgeSuiteSourceProvider = (
 			// unmount a remount gets fresh refs anyway.
 			subscribersRef.current.clear();
 			subscribersCountRef.current.clear();
-			coalescerRef.current.reset();
+			subscribersMetaRef.current.clear();
+			// Stop the drain tick and discard undrained payloads — their
+			// connection is gone. Reconnect rebuilds and restarts.
+			coalescer.stop();
 			console.log("ROS2 Cleanup: Subscribers cleared.");
 
 			// --- Publisher Cleanup ---
@@ -1069,7 +1146,7 @@ const RosBridgeSuiteSourceProvider = (
 			disconnect(); // Disconnect the ROS connection
 			console.log("ROS2 Cleanup: Disconnect called.");
 		};
-	}, [retry, props, pluginsManager, reconcileSubscriptions]);
+	}, [retry, props, pluginsManager, reconcileSubscriptions, coalescer]);
 
 	// Mount the transform manager once connected, so its subscribe runs after this provider has
 	// registered the subscribe action. It feeds /tf and /tf_static into the shared table.

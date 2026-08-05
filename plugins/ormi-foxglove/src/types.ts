@@ -36,6 +36,12 @@ export interface Subscriber {
 	 * pairs arrive in different messages.
 	 */
 	lossless: boolean;
+	/**
+	 * Minimum ms between decodes for this (lossy) topic, 0 = uncapped. Set for
+	 * expensive payloads (e.g. PointCloud2) so a bursting robot cannot force
+	 * the main thread to decode faster than the cap; bursts coalesce to latest.
+	 */
+	decodeCapMs: number;
 	/** Metrics slot incremented on every raw arrival for this topic. */
 	producedId: CounterId;
 }

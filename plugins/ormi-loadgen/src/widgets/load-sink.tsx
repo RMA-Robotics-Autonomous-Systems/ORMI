@@ -9,8 +9,20 @@ import {
 	useLocalDataSource,
 } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
-import { useEffect, useState } from "react";
+import {
+	PluginsHooks,
+	usePluginsManager,
+	type PluginsManager,
+} from "@workspace/ormi-plugins";
+import {
+	metrics,
+	subscribeMetricsReport,
+	type MetricsReport,
+} from "@workspace/utils";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { LoadgenSettings } from "../index";
+import { resolveGenerators } from "../presets";
 
 /** Datasource definition id this widget binds to. */
 export const LOADGEN_DATASOURCE_ID = "loadgen-source";
@@ -35,7 +47,390 @@ interface LoadSinkProps extends Record<string, unknown> {
 	title: string;
 	/** Skip the 1 Hz `/loadgen/stats` self-report topic (default true). */
 	excludeStats: boolean;
+	/**
+	 * Benchmark summary scope: `"loadgen"` aggregates only wire rows belonging
+	 * to loadgen datasources; `"all"` aggregates every wire row. Default
+	 * `"loadgen"`.
+	 */
+	scope?: "loadgen" | "all";
 }
+
+/** Selectable benchmark window durations, in seconds. */
+const DURATION_OPTIONS = [5, 10, 30, 60] as const;
+
+/** Default benchmark window duration, in seconds. */
+const DEFAULT_DURATION_SEC = 10;
+
+/** Compact per-generator summary embedded in an exported benchmark. */
+interface GeneratorSummary {
+	topicPrefix: string;
+	topicCount: number;
+	type: string;
+	rateHz: number;
+	payloadBytes: number;
+}
+
+/** Derived summary block of an exported benchmark. */
+interface BenchmarkSummary {
+	producedPerSec: number;
+	deliveredPerSec: number;
+	dropPct: number;
+	latP50: number | null;
+	latP95: number | null;
+	decodePc2P95Ms: number | null;
+	flushOverwritesPerSec: number | null;
+	longtasksPerSec: number | null;
+}
+
+/** Full exported benchmark document. */
+interface BenchmarkExport {
+	preset: string | null;
+	generators: GeneratorSummary[] | null;
+	startedAt: number;
+	durationMs: number;
+	env: { userAgent: string; note: string };
+	summary: BenchmarkSummary;
+	ticks: MetricsReport[];
+}
+
+/**
+ * Prod-vs-dev caveat embedded in every export: dev builds and open DevTools
+ * dominate main-thread traces, so a benchmark is only meaningful on a
+ * production build.
+ */
+const ENV_NOTE =
+	"Metrics reflect the build that produced them; judge performance on a production build, not a dev build with DevTools open.";
+
+/**
+ * Average of a numeric list, or `null` when empty. Keeps the summary honest —
+ * an unsampled metric reports `null` rather than a misleading `0`.
+ */
+const averageOrNull = (values: number[]): number | null =>
+	values.length === 0
+		? null
+		: values.reduce((sum, value) => sum + value, 0) / values.length;
+
+/**
+ * Aggregate a captured window of 1 Hz reports into a single summary.
+ *
+ * Rates (`*.PerSec`) are averaged across the ticks that carried a non-null
+ * `ratePerSec` (the first tick after the reporter loop starts has none). Ring
+ * percentiles (latency, decode) are **averaged** across every captured tick
+ * and matching ring — a stable central estimate over the window rather than a
+ * single worst-tick spike. `dropPct` is derived from the aggregate produced
+ * and delivered rates.
+ *
+ * @param ticks - Raw reports captured during the window.
+ * @param loadgenIds - Instance ids of the enabled loadgen datasources.
+ * @param scope - `"loadgen"` restricts wire/produced rows to loadgen
+ *   datasources; `"all"` includes every datasource.
+ */
+function summarizeTicks(
+	ticks: MetricsReport[],
+	loadgenIds: Set<string>,
+	scope: "loadgen" | "all",
+): BenchmarkSummary {
+	const belongs = (dsId: string) => scope === "all" || loadgenIds.has(dsId);
+
+	const deliveredRates: number[] = [];
+	const producedRates: number[] = [];
+	const latP50s: number[] = [];
+	const latP95s: number[] = [];
+	const decodeP95s: number[] = [];
+	const flushRates: number[] = [];
+	const longtaskRates: number[] = [];
+
+	for (const report of ticks) {
+		let tickDelivered = 0;
+		let hasDelivered = false;
+		let tickProduced = 0;
+		let hasProduced = false;
+
+		for (const counter of report.counters) {
+			if (
+				counter.name.startsWith("wire.") &&
+				counter.name.endsWith(".delivered") &&
+				counter.value !== 0
+			) {
+				const key = counter.name.slice(
+					"wire.".length,
+					-".delivered".length,
+				);
+				const dsId = key.split("::")[0] ?? "";
+				if (belongs(dsId) && counter.ratePerSec !== null) {
+					tickDelivered += counter.ratePerSec;
+					hasDelivered = true;
+				}
+			} else if (
+				counter.name.startsWith("ds.") &&
+				counter.name.endsWith(".produced")
+			) {
+				const dsId = counter.name
+					.slice("ds.".length)
+					.split(".topic.")[0]!;
+				if (belongs(dsId) && counter.ratePerSec !== null) {
+					tickProduced += counter.ratePerSec;
+					hasProduced = true;
+				}
+			} else if (
+				counter.name === "flush.overwrites" &&
+				counter.ratePerSec !== null
+			) {
+				flushRates.push(counter.ratePerSec);
+			} else if (
+				counter.name === "app.longtasks" &&
+				counter.ratePerSec !== null
+			) {
+				longtaskRates.push(counter.ratePerSec);
+			}
+		}
+
+		for (const ring of report.rings) {
+			if (ring.count === 0) continue;
+			if (
+				ring.name.startsWith("wire.") &&
+				ring.name.endsWith(".latencyMs")
+			) {
+				const key = ring.name.slice(
+					"wire.".length,
+					-".latencyMs".length,
+				);
+				const dsId = key.split("::")[0] ?? "";
+				if (belongs(dsId)) {
+					latP50s.push(ring.p50);
+					latP95s.push(ring.p95);
+				}
+			} else if (ring.name === "decode.pointcloud2.ms") {
+				decodeP95s.push(ring.p95);
+			}
+		}
+
+		if (hasDelivered) deliveredRates.push(tickDelivered);
+		if (hasProduced) producedRates.push(tickProduced);
+	}
+
+	const producedPerSec = averageOrNull(producedRates) ?? 0;
+	const deliveredPerSec = averageOrNull(deliveredRates) ?? 0;
+	const dropPct =
+		producedPerSec > 0
+			? Math.max(0, 1 - deliveredPerSec / producedPerSec) * 100
+			: 0;
+
+	return {
+		producedPerSec,
+		deliveredPerSec,
+		dropPct,
+		latP50: averageOrNull(latP50s),
+		latP95: averageOrNull(latP95s),
+		decodePc2P95Ms: averageOrNull(decodeP95s),
+		flushOverwritesPerSec: averageOrNull(flushRates),
+		longtasksPerSec: averageOrNull(longtaskRates),
+	};
+}
+
+/** Snapshot of the enabled loadgen datasources at benchmark start. */
+interface LoadgenSnapshot {
+	/** Instance ids of every enabled loadgen datasource. */
+	ids: Set<string>;
+	/** Active preset of the first enabled loadgen datasource, or `null`. */
+	preset: string | null;
+	/** Resolved generator summary of the first enabled loadgen datasource. */
+	generators: GeneratorSummary[] | null;
+}
+
+/**
+ * Read the enabled loadgen datasources from the plugins manager and resolve
+ * the primary one's preset + generator mix. Called once at benchmark start so
+ * the export reflects the config that was actually under test.
+ */
+function snapshotLoadgen(pluginsManager: PluginsManager): LoadgenSnapshot {
+	const datasources = pluginsManager.applyFilter<Datasource[]>(
+		PluginsHooks.AVAILABLE_DATASOURCES,
+		[],
+	);
+	const loadgen = datasources.filter(
+		(datasource) =>
+			datasource.datasource_id === LOADGEN_DATASOURCE_ID &&
+			datasource.settings.enable,
+	);
+	const ids = new Set(loadgen.map((datasource) => datasource.settings.id));
+
+	const primary = loadgen[0]?.settings as LoadgenSettings | undefined;
+	const preset = primary?.preset ?? null;
+	const generators = primary
+		? resolveGenerators(primary).map(
+				(generator): GeneratorSummary => ({
+					topicPrefix: generator.topicPrefix,
+					topicCount: generator.topicCount,
+					type: generator.type,
+					rateHz: generator.rateHz,
+					payloadBytes: generator.payloadBytes,
+				}),
+			)
+		: null;
+
+	return { ids, preset, generators };
+}
+
+/** Format an elapsed millisecond count as `mm:ss`. */
+const formatClock = (ms: number): string => {
+	const totalSec = Math.max(0, Math.floor(ms / 1000));
+	const minutes = Math.floor(totalSec / 60);
+	const seconds = totalSec % 60;
+	return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
+
+/**
+ * Timed benchmark recorder. Flips the heavy metrics tier on for the window
+ * (required for latency/decode rings to populate), captures every 1 Hz report,
+ * then restores the prior heavy state and downloads a JSON summary.
+ *
+ * All recording state lives in refs so an unmount mid-window can restore the
+ * heavy tier and unsubscribe without depending on a stale closure — the heavy
+ * tier must never be left stuck on.
+ */
+const BenchmarkRecorder: React.FC<{ scope: "loadgen" | "all" }> = ({
+	scope,
+}) => {
+	const pluginsManager = usePluginsManager();
+	const [recording, setRecording] = useState(false);
+	const [durationSec, setDurationSec] =
+		useState<number>(DEFAULT_DURATION_SEC);
+	const [elapsedMs, setElapsedMs] = useState(0);
+
+	// Recording state kept in refs so teardown never reads a stale closure.
+	const recordingRef = useRef(false);
+	const ticksRef = useRef<MetricsReport[]>([]);
+	const unsubscribeRef = useRef<(() => void) | null>(null);
+	const priorHeavyRef = useRef(false);
+	const startedAtRef = useRef(0);
+	const durationRef = useRef(DEFAULT_DURATION_SEC);
+	const snapshotRef = useRef<LoadgenSnapshot | null>(null);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const scopeRef = useRef(scope);
+	// Mirror the latest scope into a ref so a teardown/download (which runs from
+	// a stable callback) reads the current value without re-binding.
+	useEffect(() => {
+		scopeRef.current = scope;
+	}, [scope]);
+
+	/**
+	 * Tear down a recording: unsubscribe, restore the heavy tier, clear the
+	 * timer. Idempotent. When `download` is true (timer elapsed or manual
+	 * stop) it also builds and downloads the export; on unmount it is false.
+	 */
+	const stopRecording = useCallback((download: boolean) => {
+		if (!recordingRef.current) return;
+		recordingRef.current = false;
+
+		unsubscribeRef.current?.();
+		unsubscribeRef.current = null;
+		metrics.heavy = priorHeavyRef.current;
+		if (timerRef.current !== null) {
+			clearTimeout(timerRef.current);
+			timerRef.current = null;
+		}
+		setRecording(false);
+
+		if (!download) return;
+
+		const snapshot = snapshotRef.current;
+		const startedAt = startedAtRef.current;
+		const durationMs = durationRef.current * 1000;
+		const ticks = ticksRef.current;
+
+		const summary = summarizeTicks(
+			ticks,
+			snapshot?.ids ?? new Set<string>(),
+			scopeRef.current,
+		);
+
+		const preset = snapshot?.preset ?? null;
+		const doc: BenchmarkExport = {
+			preset,
+			generators: snapshot?.generators ?? null,
+			startedAt,
+			durationMs,
+			env: { userAgent: navigator.userAgent, note: ENV_NOTE },
+			summary,
+			ticks,
+		};
+
+		// Blob + anchor download (no shared helper; mirrors emi-bag-analyzer).
+		const json = JSON.stringify(doc, null, 2);
+		const blob = new Blob([json], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const anchor = document.createElement("a");
+		anchor.href = url;
+		anchor.download = `loadgen-${preset ?? "benchmark"}-${startedAt}.json`;
+		anchor.click();
+		URL.revokeObjectURL(url);
+	}, []);
+
+	const startRecording = useCallback(() => {
+		if (recordingRef.current) return;
+
+		const startedAt = Date.now();
+		snapshotRef.current = snapshotLoadgen(pluginsManager);
+		ticksRef.current = [];
+		startedAtRef.current = startedAt;
+		durationRef.current = durationSec;
+		priorHeavyRef.current = metrics.heavy;
+		metrics.heavy = true;
+		recordingRef.current = true;
+
+		setElapsedMs(0);
+		setRecording(true);
+
+		unsubscribeRef.current = subscribeMetricsReport((report) => {
+			ticksRef.current.push(report);
+			setElapsedMs(Date.now() - startedAt);
+		});
+
+		timerRef.current = setTimeout(
+			() => stopRecording(true),
+			durationSec * 1000,
+		);
+	}, [pluginsManager, durationSec, stopRecording]);
+
+	// Unmount safety: restore heavy tier + unsubscribe, never download.
+	useEffect(() => {
+		return () => stopRecording(false);
+	}, [stopRecording]);
+
+	return (
+		<div className="flex flex-wrap items-center gap-2 border-b p-2 text-xs font-mono shrink-0">
+			<span className="font-semibold">benchmark</span>
+			<select
+				className="rounded border bg-transparent px-1 py-0.5 disabled:opacity-50"
+				value={durationSec}
+				disabled={recording}
+				onChange={(event) => setDurationSec(Number(event.target.value))}
+				aria-label="Benchmark duration"
+			>
+				{DURATION_OPTIONS.map((seconds) => (
+					<option key={seconds} value={seconds}>
+						{seconds}s
+					</option>
+				))}
+			</select>
+			<button
+				type="button"
+				className="rounded border px-2 py-0.5 hover:bg-muted"
+				onClick={() =>
+					recording ? stopRecording(true) : startRecording()
+				}
+			>
+				{recording ? "Stop" : "Start"}
+			</button>
+			{recording && (
+				<span className="text-red-500">
+					● REC {formatClock(elapsedMs)}
+				</span>
+			)}
+		</div>
+	);
+};
 
 /** Indicator dot color per topic health state. */
 const HEALTH_DOT_CLASS: Record<DatasourceHealth, string> = {
@@ -239,13 +634,20 @@ const LoadSinkHost: React.FC<LoadSinkProps> = (props) => {
 		};
 	}, [pluginsManager, excludeStats]);
 
+	const scope = props.scope === "all" ? "all" : "loadgen";
+
 	return (
-		<LocalDataSourcesProvider
-			SelectedTopics={topics}
-			buffersSize={BUFFER_SIZE}
-		>
-			<LoadSinkSummary topics={topics} />
-		</LocalDataSourcesProvider>
+		<div className="h-full flex flex-col min-h-0">
+			<BenchmarkRecorder scope={scope} />
+			<div className="flex-1 min-h-0">
+				<LocalDataSourcesProvider
+					SelectedTopics={topics}
+					buffersSize={BUFFER_SIZE}
+				>
+					<LoadSinkSummary topics={topics} />
+				</LocalDataSourcesProvider>
+			</div>
+		</div>
 	);
 };
 
@@ -257,8 +659,7 @@ export function LoadSinkDefinition(): WidgetDefinition<LoadSinkProps> {
 	return {
 		id: LOAD_SINK_WIDGET_ID,
 		name: "Load Sink",
-		description:
-			"Subscribes to every topic of all enabled load generator datasources to exercise full pipeline fan-out",
+		description: "Subscribe to all loadgen topics",
 		titleProp: "title",
 		schema: {
 			type: "object",
@@ -270,6 +671,12 @@ export function LoadSinkDefinition(): WidgetDefinition<LoadSinkProps> {
 				excludeStats: {
 					type: "boolean",
 					title: "Exclude /loadgen/stats",
+				},
+				scope: {
+					type: "string",
+					title: "Benchmark scope",
+					enum: ["loadgen", "all"],
+					default: "loadgen",
 				},
 			},
 			required: ["title"],
@@ -286,12 +693,17 @@ export function LoadSinkDefinition(): WidgetDefinition<LoadSinkProps> {
 					type: "Control",
 					scope: "#/properties/excludeStats",
 				},
+				{
+					type: "Control",
+					scope: "#/properties/scope",
+				},
 			],
 		},
 
 		data: {
 			title: "Load Sink",
 			excludeStats: true,
+			scope: "loadgen",
 		},
 		Component: LoadSinkHost,
 	} as WidgetDefinition<LoadSinkProps>;

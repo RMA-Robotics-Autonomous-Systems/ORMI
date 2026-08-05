@@ -1,0 +1,72 @@
+// Dynamic (sequence) views of the runtime data flows.
+
+views {
+
+  // ---- Ingest via Web Worker (wss:// / HTTP-served) -----------------------
+
+  dynamic view flow_worker {
+    title 'Data Flow — Worker path (wss:// / HTTP-served)'
+
+    ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.converter 'normalize raw → webapp type'
+    ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.workerHost 'ctx.publish (typed RPC, zero-copy)'
+    ormi.web.datasourceRuntime.workerHost -> ormi.web.pluginsManager 'forward published data'
+    ormi.web.pluginsManager -> ormi.web.datasourceRuntime.localData 'dispatch to subscribers'
+    ormi.web.datasourceRuntime.localData -> ormi.web.widgetHost 'buffered data (30Hz) via useLocalDataSource'
+
+    autoLayout LeftRight
+  }
+
+  // ---- Ingest via main thread (ws:// robots) ------------------------------
+
+  dynamic view flow_mainthread {
+    title 'Data Flow — Main-thread path (insecure ws://)'
+
+    ormi.web.datasourceRuntime.mainThreadConn -> ormi.web.datasourceRuntime.coalescer 'raw ws:// messages'
+    ormi.web.datasourceRuntime.coalescer -> ormi.web.datasourceRuntime.converter 'coalesce-to-latest + decode budget'
+    ormi.web.datasourceRuntime.converter -> ormi.web.pluginsManager 'publish normalized (budgeted)'
+    ormi.web.pluginsManager -> ormi.web.datasourceRuntime.localData 'dispatch to subscribers'
+    ormi.web.datasourceRuntime.localData -> ormi.web.widgetHost 'buffered data (30Hz)'
+
+    autoLayout LeftRight
+  }
+
+  // ---- Subscription lifecycle ---------------------------------------------
+
+  dynamic view flow_subscription {
+    title 'Subscription — intent → READY → subscribe'
+
+    ormi.web.widgetHost -> ormi.web.datasourceRuntime.localData 'select topics'
+    ormi.web.datasourceRuntime.localData -> ormi.web.datasourceRuntime.subscriptionRegistry 'declare refcounted intent'
+    ormi.web.datasourceRuntime.workerHost -> ormi.web.pluginsManager 'DATASOURCE_READY'
+    ormi.web.datasourceRuntime.subscriptionRegistry -> ormi.web.pluginsManager 'issue -subscribe (READY-waited)'
+    ormi.web.pluginsManager -> ormi.web.datasourceRuntime.workerHost 'subscribe(topic)'
+
+    autoLayout LeftRight
+  }
+
+  // ---- TF transform flow ---------------------------------------------------
+
+  dynamic view flow_tf {
+    title 'Transform (TF) Data Flow'
+
+    ormi.web.datasourceRuntime.dsWorker -> ormi.web.datasourceRuntime.converter 'convert transform ROS → THREE, tag isStatic'
+    ormi.web.datasourceRuntime.converter -> ormi.web.transforms 'processTFMessage (O(1) upsert)'
+    ormi.web.transforms -> ormi.web.appStore 'edge upsert + version bump (leading + trailing ~60Hz)'
+    ormi.web.transforms -> ormi.web.widgetHost 'useTransformEdges / useWorldFrames / useTransformToGPS'
+
+    autoLayout LeftRight
+  }
+
+  // ---- Plugin registration -------------------------------------------------
+
+  dynamic view flow_plugin_register {
+    title 'Plugin Registration'
+
+    ormi.web.pluginLoader -> ormi.web.plugins 'import() + new Plugin()'
+    ormi.web.plugins -> ormi.web.pluginsManager 'addFilter / addAction (constructor)'
+    ormi.web.pluginsManager -> ormi.web.dashboard 'applyFilter(WIDGETS_LIST) → widget picker'
+    ormi.web.pluginsManager -> ormi.web.datasourceRuntime 'applyFilter(DATASOURCES_LIST)'
+
+    autoLayout LeftRight
+  }
+}

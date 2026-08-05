@@ -61,6 +61,14 @@ interface WireRow {
 	 * rate is available.
 	 */
 	dropFraction: number | null;
+	/**
+	 * Per-topic p50 end-to-end latency in ms (publisher `time` → fanout) from
+	 * this wire's `wire.<key>.latencyMs` ring, or `null` when the ring has no
+	 * samples yet (heavy tier off, or fewer than 32 messages seen).
+	 */
+	latencyP50: number | null;
+	/** Per-topic p95 end-to-end latency in ms, or `null` when unsampled. */
+	latencyP95: number | null;
 }
 
 /**
@@ -72,6 +80,19 @@ interface WireRow {
 function parseWireRows(report: MetricsReport): WireRow[] {
 	const fanouts = new Map<string, number>();
 	const producedRates = new Map<string, number | null>();
+	// Per-wire latency rings: `wire.<key>.latencyMs` → percentile stats.
+	const latencies = new Map<
+		string,
+		{ count: number; p50: number; p95: number }
+	>();
+	for (const ring of report.rings) {
+		if (ring.name.startsWith("wire.") && ring.name.endsWith(".latencyMs")) {
+			latencies.set(
+				ring.name.slice("wire.".length, -".latencyMs".length),
+				ring,
+			);
+		}
+	}
 	for (const counter of report.counters) {
 		if (
 			counter.name.startsWith("wire.") &&
@@ -112,6 +133,8 @@ function parseWireRows(report: MetricsReport): WireRow[] {
 			producedRate !== null && producedRate > 0 && deliveredRate !== null
 				? Math.max(0, 1 - deliveredRate / producedRate)
 				: null;
+		const latency = latencies.get(wireKey);
+		const sampled = latency !== undefined && latency.count > 0;
 		rows.push({
 			wireKey,
 			datasourceId,
@@ -120,6 +143,8 @@ function parseWireRows(report: MetricsReport): WireRow[] {
 			fanout: fanouts.get(wireKey) ?? 0,
 			producedRate,
 			dropFraction,
+			latencyP50: sampled ? latency.p50 : null,
+			latencyP95: sampled ? latency.p95 : null,
 		});
 	}
 	return rows;
@@ -133,6 +158,11 @@ function formatHz(rate: number | null): string {
 /** Render a number with at most 3 decimals, trailing zeros trimmed. */
 function formatNumber(value: number, maxDecimals = 3): string {
 	return Number(value.toFixed(maxDecimals)).toString();
+}
+
+/** Format a latency in ms as `12.3`, or an em dash when unsampled. */
+function formatMs(value: number | null): string {
+	return value === null ? "—" : value.toFixed(1);
 }
 
 const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
@@ -186,7 +216,12 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 	};
 
 	const wireRows = report ? parseWireRows(report) : [];
-	const latency = report?.rings.find((r) => r.name === "pipeline.latencyMs");
+	const decodeMs = report?.rings.find(
+		(r) => r.name === "decode.pointcloud2.ms",
+	);
+	const decodeClouds = report?.counters.find(
+		(c) => c.name === "decode.pointcloud2.clouds",
+	);
 	const longtasks = report?.counters.find((c) => c.name === "app.longtasks");
 	const frames = report?.counters.find((c) => c.name === "app.frames");
 	const heap = report?.counters.find((c) => c.name === "app.heapBytes");
@@ -270,6 +305,12 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 												Fan-out
 											</TableHead>
 											<TableHead className="h-7 px-2 text-right">
+												Lat p50
+											</TableHead>
+											<TableHead className="h-7 px-2 text-right">
+												Lat p95
+											</TableHead>
+											<TableHead className="h-7 px-2 text-right">
 												Drop
 											</TableHead>
 										</TableRow>
@@ -304,6 +345,12 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 												<TableCell className="px-2 py-1 text-right">
 													×{formatNumber(row.fanout)}
 												</TableCell>
+												<TableCell className="px-2 py-1 text-right text-muted-foreground">
+													{formatMs(row.latencyP50)}
+												</TableCell>
+												<TableCell className="px-2 py-1 text-right text-muted-foreground">
+													{formatMs(row.latencyP95)}
+												</TableCell>
 												<TableCell
 													className={`px-2 py-1 text-right ${
 														row.dropFraction !==
@@ -324,27 +371,40 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 							)}
 						</section>
 
-						{latency && latency.count > 0 && (
+						{decodeClouds && decodeClouds.value > 0 && (
 							<>
 								<Separator />
 								<section>
 									<h3 className="mb-1 font-medium text-muted-foreground">
-										Latency (ms, n={latency.count})
+										Decode
 									</h3>
 									<div className="flex justify-between font-mono tabular-nums">
 										<span>
-											p50 {latency.p50.toFixed(1)}
-										</span>
-										<span>
-											p95 {latency.p95.toFixed(1)}
-										</span>
-										<span>
-											p99 {latency.p99.toFixed(1)}
-										</span>
-										<span>
-											max {latency.max.toFixed(1)}
+											{formatHz(
+												decodeClouds.ratePerSec ?? null,
+											)}{" "}
+											<span className="text-muted-foreground">
+												PointCloud2 clouds
+											</span>
 										</span>
 									</div>
+									{decodeMs && decodeMs.count > 0 && (
+										<div className="flex justify-between font-mono tabular-nums">
+											<span>
+												p50 {decodeMs.p50.toFixed(2)}
+											</span>
+											<span>
+												p95 {decodeMs.p95.toFixed(2)}
+											</span>
+											<span>
+												p99 {decodeMs.p99.toFixed(2)}
+											</span>
+											<span>
+												max {decodeMs.max.toFixed(2)}{" "}
+												ms/cloud
+											</span>
+										</div>
+									)}
 								</section>
 							</>
 						)}

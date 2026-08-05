@@ -13,7 +13,6 @@ import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 
 import { UnifiedConverter } from "./unified-converter";
-import { MessageCoalescer } from "./message-coalescer";
 import {
 	FoxgloveDataSourceSettings,
 	Subscriber,
@@ -21,7 +20,7 @@ import {
 	DatasourceTopic,
 } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
-import { metrics } from "@workspace/utils";
+import { metrics, MessageCoalescer } from "@workspace/utils";
 import { useFoxgloveData } from "./foxglove-data-handler";
 import { topicsToSubscribe } from "./subscription-reconcile";
 import { toast } from "sonner";
@@ -30,6 +29,40 @@ interface SubscriptionManagerProps {
 	children: ReactNode;
 	settings: FoxgloveDataSourceSettings;
 }
+
+/** ROS2 schema whose main-thread CDR decode we meter directly. */
+const POINTCLOUD2_SCHEMA = "sensor_msgs/msg/PointCloud2";
+
+/**
+ * Per-topic decode-rate ceiling for expensive lossy payloads. This is a guard
+ * against a robot bursting above its nominal rate — not an aggressive
+ * reduction — so on the main-thread `ws://` path a single point-cloud stream
+ * cannot force more than ~12 decodes/s regardless of arrival rate. Frames that
+ * arrive faster coalesce to LATEST in the coalescer (the newest is never
+ * dropped); the drain also caps decode at ~30 Hz overall, so this only bites
+ * when a topic bursts past 12 Hz.
+ */
+const POINTCLOUD_DECODE_HZ_CAP = 12;
+const POINTCLOUD_DECODE_MIN_INTERVAL_MS = 1000 / POINTCLOUD_DECODE_HZ_CAP;
+
+/**
+ * Per-topic decode-rate cap (ms between decodes) for a schema, or 0 when the
+ * schema is cheap enough to decode at the full drain rate. Only expensive
+ * point-cloud-class payloads are capped; poses, TF, and other low-cost topics
+ * are unaffected.
+ */
+const decodeCapMsForSchema = (schemaName: string): number =>
+	schemaName === POINTCLOUD2_SCHEMA ? POINTCLOUD_DECODE_MIN_INTERVAL_MS : 0;
+
+/**
+ * Direct decode-cost meter for the PointCloud2 main-thread path — the
+ * `ws://` bottleneck. `decode.pointcloud2.clouds` counts every cloud that
+ * completes `readMessage` + `convertToWebapp` (a rate-independent throughput
+ * signal); `decode.pointcloud2.ms` is a heavy-tier `performance.now()` ring of
+ * ms/cloud so p50/p95 stay comparable fix-over-fix regardless of publish rate.
+ */
+const pointcloud2DecodedId = metrics.counter("decode.pointcloud2.clouds");
+const pointcloud2DecodeMsRing = metrics.ring("decode.pointcloud2.ms");
 
 /**
  * TF messages are deltas — different frame pairs arrive in different
@@ -167,13 +200,29 @@ function extractMessageMeta(parsed: unknown): {
  * Builds the raw-message coalescer for one manager instance. The dispatcher
  * is dereferenced through a ref at drain time (timer/socket callbacks, never
  * during render) so the long-lived coalescer always decodes through the
- * latest closure.
+ * latest closure. Coarse per-datasource coalescer metrics (overwrites, decoded,
+ * dispatch time) are registered once and fed to the shared engine; the finer
+ * PointCloud2 decode probe in `decodeAndDispatch` coexists with them.
  */
 const createDrainCoalescer = (
 	dispatchRef: React.RefObject<(messageData: MessageData) => void>,
+	datasourceId: string,
 ) =>
-	new MessageCoalescer<MessageData>((messageData) =>
-		dispatchRef.current(messageData),
+	new MessageCoalescer<MessageData>(
+		(messageData) => dispatchRef.current(messageData),
+		{
+			metrics: {
+				overwrites: metrics.counter(
+					`ds.${datasourceId}.coalescer.overwrites`,
+				),
+				decoded: metrics.counter(
+					`ds.${datasourceId}.coalescer.decoded`,
+				),
+				dispatchMs: metrics.ring(
+					`ds.${datasourceId}.coalescer.dispatchMs`,
+				),
+			},
+		},
 	);
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
@@ -229,7 +278,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// handling lives inside decodeAndDispatch, so one bad message cannot
 	// break a drain tick for other topics.
 	const [coalescer] = useState(() =>
-		createDrainCoalescer(decodeAndDispatchRef),
+		createDrainCoalescer(decodeAndDispatchRef, settings.id),
 	);
 
 	// Function queue for ordered processing
@@ -375,6 +424,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					parse(channel.schema, { ros2: true }),
 				),
 				lossless: isLosslessTopic(channel.topic, channel.schemaName),
+				decodeCapMs: decodeCapMsForSchema(channel.schemaName),
 				producedId: metrics.counter(
 					`ds.${datasource_id}.topic.${channel.topic}.produced`,
 				),
@@ -466,6 +516,9 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 								),
 								lossless: isLosslessTopic(
 									channel.topic,
+									channel.schemaName,
+								),
+								decodeCapMs: decodeCapMsForSchema(
 									channel.schemaName,
 								),
 								producedId: metrics.counter(
@@ -634,6 +687,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		}
 
 		try {
+			// Meter the main-thread PointCloud2 decode (CDR read + convert) —
+			// the known `ws://` bottleneck. The `performance.now()` pair only
+			// runs on the heavy tier; the throughput counter is always on.
+			const isPointCloud2 = subscriber.schemaName === POINTCLOUD2_SCHEMA;
+			const timeDecode = isPointCloud2 && metrics.heavy;
+			const decodeStart = timeDecode ? performance.now() : 0;
+
 			const parsed = subscriber.reader.readMessage(messageData.data);
 
 			const { frameId, timestamp } = extractMessageMeta(parsed);
@@ -643,6 +703,16 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				subscriber.webtype,
 				subscriber.schemaName,
 			);
+
+			if (isPointCloud2) {
+				metrics.add(pointcloud2DecodedId);
+				if (timeDecode) {
+					metrics.observe(
+						pointcloud2DecodeMsRing,
+						performance.now() - decodeStart,
+					);
+				}
+			}
 
 			// Handle Image type: convert to ImageBitmap asynchronously
 			if (
@@ -739,13 +809,16 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 			// Count every raw arrival before coalescing — produced vs
 			// delivered (counted at the subscription registry) exposes the
-			// coalescing drop ratio in the diagnostics panel.
+			// coalescing drop ratio in the diagnostics panel. Frames shed by
+			// the decode-rate cap never reach the delivered counter, so the
+			// ratio reflects them honestly without a separate hidden path.
 			metrics.add(subscriber.producedId);
 
 			coalescer.push(
 				messageData.subscriptionId,
 				messageData,
 				subscriber.lossless,
+				subscriber.decodeCapMs,
 			);
 		};
 

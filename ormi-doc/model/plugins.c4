@@ -1,0 +1,92 @@
+// Feature plugins (`plugins/ormi-*`) loaded into the web app.
+// Each plugin is a Plugin subclass whose constructor registers filters/actions
+// with the PluginsManager (WIDGETS_LIST, DATASOURCES_LIST, JSON_FORMS_RENDERER,
+// WIDGET_LIST_WITH_DATASOURCE, PAGES_LIST, …). Datasource plugins additionally
+// ship a Web Worker (or main-thread connection for ws://) reusing the runtime in
+// model/datasources.c4.
+
+model {
+  extend ormi.web {
+
+    plugins = component 'Feature Plugins' {
+      #plugin
+      technology 'plugins/ormi-* · Plugin base class + PluginsHooks'
+      description 'Isolated feature extensions registered through the plugin hook system — never importing app internals. Contribute datasources, widgets, JSON Forms renderers, layout engines, and pages.'
+
+      link ../knowledge/shared/plugin-system.md 'Plugin system'
+
+      // ---- Datasource plugins ---------------------------------------------
+
+      foxglovePlugin = datasource 'Foxglove Plugin' {
+        #plugin
+        technology 'plugins/ormi-foxglove'
+        description 'Foxglove WebSocket datasource. Worker path for wss:// / HTTP-served; routes insecure ws:// URLs to a main-thread connection through the shared message coalescer (numeric subscription keys) with the PointCloud2 decode budget/cap. Normalizes CDR messages, feeds TF, contributes a URL renderer.'
+      }
+
+      rosbridgePlugin = datasource 'ROSBridge Suite' {
+        #plugin
+        technology 'plugins/ormi-rosbridge-suite'
+        description 'ROS2 datasource over rosbridge. Routes messages through the shared coalescer (topic-string keys, decode budget + per-topic cap + decode-time metric), normalizes ROS messages to webapp types, feeds TF via its transform-tree manager, and exposes the rqt / conversion graph widgets. On reconnect it discards undrained payloads rather than replaying a dead connection.'
+      }
+
+      telloPlugin = datasource 'Tello Plugin' {
+        #plugin
+        #mainThread
+        technology 'plugins/ormi-tello'
+        description 'DJI Tello datasource + control. Connects to ws://<ip>:8005 on the main thread (insecure ws://) for telemetry and flight commands.'
+      }
+
+      restBagsPlugin = datasource 'REST Bags' {
+        #plugin
+        technology 'plugins/ormi-rest-bags'
+        description 'REST-backed datasource serving recorded bag data, plus its display widgets.'
+      }
+
+      randomsPlugin = datasource 'Random Datasources' {
+        #plugin
+        technology 'plugins/ormi-randoms-datasources'
+        description 'Minimal reference datasource (worker + provider + definition) generating synthetic data for demos and tests.'
+      }
+
+      loadgenPlugin = datasource 'Load Generator' {
+        #plugin
+        technology 'plugins/ormi-loadgen'
+        description 'Synthetic high-rate datasource for benchmarking the ingest + render pipeline. Selectable transport — worker (decode off-thread + transferables, mirrors foxglove wss://) or main-thread (raw frames through the shared coalescer + on-thread decode, mirrors rosbridge / foxglove ws://) — so both real hot paths can be profiled under the same load. Auto-provisions topics from Light/Medium/Heavy/Custom presets (no manual generator authoring). The paired Load Sink widget subscribes to every generated topic and records a timed metrics-report window to a benchmark JSON.'
+      }
+
+      // ---- Widget / feature plugins ---------------------------------------
+
+      stdWidgets = component 'STD Widgets' {
+        #plugin
+        technology 'plugins/ormi-std-widgets'
+        description 'Standard widget collection (value/status displays, charts, 3D scene, controls). Also registers map local visualizers (MAP_LOCAL_VISUALIZERS) and gates widgets by datasource.'
+
+        link ../knowledge/widgets/knowledge.md 'Widgets'
+      }
+
+      c2Control = datasource 'C2 Control' {
+        #plugin
+        technology 'plugins/ormi-c2-control'
+        description 'Command-and-control plugin: mission planner/authoring, geofence, OSM/map layers, agent markers. Contributes both a datasource and widgets (odometry position is lng/lat geographic degrees).'
+      }
+
+      flightIndicator = widget 'Flight Indicator' {
+        #plugin
+        technology 'plugins/ormi-flight-indicator'
+        description 'Attitude / flight instrument widget (artificial horizon, heading).'
+      }
+
+      rostainerPlugin = widget 'ROSTainer' {
+        #plugin
+        technology 'plugins/ormi-rostainer'
+        description 'Widgets to start/stop and manage containerized ROS2 nodes on a container host.'
+      }
+
+      emiBagAnalyzer = component 'EMI Bag Analyzer' {
+        #plugin
+        technology 'plugins/ormi-emi-bag-analyzer'
+        description 'Full-page plugin (PAGES_LIST) for analyzing EMI survey bags. Adds a route under /plugin-pages and a navbar entry.'
+      }
+    }
+  }
+}

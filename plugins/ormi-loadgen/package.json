@@ -15,6 +15,7 @@
 	"scripts": {
 		"build": "tsc",
 		"lint": "eslint .",
+		"test": "bun test src",
 		"typecheck": "tsc --noEmit",
 		"clean": "rm -rf dist build .turbo node_modules"
 	},
@@ -29,7 +30,8 @@
 	},
 	"dependencies": {
 		"@workspace/ormi-plugins": "workspace:*",
-		"@workspace/ormi-core": "workspace:*"
+		"@workspace/ormi-core": "workspace:*",
+		"@workspace/utils": "workspace:*"
 	},
 	"ormi_plugin": true
 }

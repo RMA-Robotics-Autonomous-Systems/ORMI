@@ -24,7 +24,7 @@
 */
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import merge from "lodash/merge";
 import {
 	ControlProps,
@@ -35,18 +35,24 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { format } from "date-fns";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@workspace/ui/components/popover";
-import { Button } from "@workspace/ui/components/button";
-import { cn } from "@workspace/ui/lib/utils";
-import { CalendarIcon } from "lucide-react";
-import { Calendar } from "@workspace/ui/components/calendar";
 import { Input } from "@workspace/ui/components/input";
+import { Label } from "@workspace/ui/components/label";
+import { cn } from "@workspace/ui/lib/utils";
 
+/**
+ * Date + time control.
+ *
+ * Uses a single native `datetime-local` input so the operator picks the date
+ * AND the time in one widget (the previous calendar-popover + separate, until-a-
+ * date-is-picked-disabled time field was easy to get stuck on and overflowed
+ * narrow widgets). The input works in local "yyyy-MM-ddTHH:mm"; the stored value
+ * is a full ISO-8601 string (UTC via `toISOString()`) so it round-trips and
+ * passes ISO-8601 validators.
+ */
 const ShadcnDateTimeControl = ({
+	id,
+	label,
+	required,
 	description,
 	errors,
 	uischema,
@@ -57,42 +63,29 @@ const ShadcnDateTimeControl = ({
 	data,
 	config,
 }: ControlProps) => {
-	const [date, setDate] = useState<Date | undefined>(
-		data ? new Date(data) : undefined,
-	);
-
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		false,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
 
-	const handleDateChange = (newDate: Date | undefined) => {
-		if (!newDate) return;
-
-		if (date) {
-			// Preserve time from existing date
-			newDate.setHours(date.getHours());
-			newDate.setMinutes(date.getMinutes());
+	// Local input value "yyyy-MM-ddTHH:mm" from the stored ISO string (guarded
+	// against an invalid/garbage date so a bad value renders empty, not a throw).
+	let localValue = "";
+	if (data) {
+		const parsed = new Date(data);
+		if (!Number.isNaN(parsed.getTime())) {
+			localValue = format(parsed, "yyyy-MM-dd'T'HH:mm");
 		}
+	}
 
-		setDate(newDate);
-		handleChange(path, newDate.toISOString());
-	};
-
-	const handleTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		if (!date) return;
-
-		const [hours, minutes] = event.target.value.split(":");
-		const newDate = new Date(date);
-		newDate.setHours(parseInt(hours!), parseInt(minutes!));
-
-		setDate(newDate);
-		handleChange(path, newDate.toISOString());
+	const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const value = event.target.value;
+		handleChange(path, value ? new Date(value).toISOString() : undefined);
 	};
 
 	if (!visible) {
@@ -100,49 +93,25 @@ const ShadcnDateTimeControl = ({
 	}
 
 	return (
-		<div className="space-y-2">
-			<div className="flex space-x-2">
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant={"outline"}
-							className={cn(
-								"w-[260px] justify-start text-left font-normal",
-								!date && "text-muted-foreground",
-								!isValid && "border-destructive",
-							)}
-							disabled={!enabled}
-						>
-							<CalendarIcon className="mr-2 h-4 w-4" />
-							{date ? (
-								format(date, "PPP")
-							) : (
-								<span>Pick a date</span>
-							)}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={date}
-							onSelect={handleDateChange}
-							disabled={!enabled}
-							autoFocus
-						/>
-					</PopoverContent>
-				</Popover>
+		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			<Label
+				htmlFor={id}
+				className={cn(
+					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+					required && "after:text-destructive after:content-['*']",
+				)}
+			>
+				{label}
+			</Label>
 
-				<Input
-					type="time"
-					className={cn(
-						"w-[140px]",
-						!isValid && "border-destructive",
-					)}
-					value={date ? format(date, "HH:mm") : ""}
-					onChange={handleTimeChange}
-					disabled={!enabled || !date}
-				/>
-			</div>
+			<Input
+				id={id}
+				type="datetime-local"
+				className={cn("w-full", !isValid && "border-destructive")}
+				value={localValue}
+				onChange={onChange}
+				disabled={!enabled}
+			/>
 
 			{showDescription && (
 				<p className="text-sm text-muted-foreground">{description}</p>

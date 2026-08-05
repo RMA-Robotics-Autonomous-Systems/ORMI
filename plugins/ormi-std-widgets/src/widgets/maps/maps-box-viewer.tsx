@@ -190,7 +190,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 	const definition: WidgetDefinition<MapsViewerSettings> = {
 		id: "map-box-viewer",
 		name: "Maps",
-		description: "Display the location of collection of robots",
+		description: "Show robot locations on map",
 		titleProp: "title",
 
 		icon: <MapIcon />,

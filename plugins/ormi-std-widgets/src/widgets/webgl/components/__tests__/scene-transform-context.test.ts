@@ -6,6 +6,7 @@ import {
 import type { TransformEdge, TransformTable } from "@workspace/ormi-core/types";
 import {
 	buildAnchoredTable,
+	createAnchorEdgeCache,
 	qualifyFrame,
 	sceneWorldKey,
 } from "../scene-transform-context";
@@ -183,6 +184,56 @@ describe("buildAnchoredTable no-op identity", () => {
 		// Input table is left untouched.
 		expect(t.has(namespaceFrame("A", "map"))).toBe(false);
 		expect(eff.has(namespaceFrame("A", "map"))).toBe(true);
+	});
+});
+
+describe("buildAnchoredTable with AnchorEdgeCache", () => {
+	test("returns the previous effective table by reference for identical inputs", () => {
+		const t = table(edge("A", "odom", "map"));
+		const cache = createAnchorEdgeCache();
+		const first = buildAnchoredTable(t, undefined, "world", true, cache);
+		const second = buildAnchoredTable(t, undefined, "world", true, cache);
+		// Same base table + same anchor set → no re-allocation of the merged map.
+		expect(second).toBe(first);
+	});
+
+	test("reuses the stable anchor edge objects across a new base table", () => {
+		const cache = createAnchorEdgeCache();
+		// Two different base-table instances with the same topology (anchor set).
+		const t1 = table(edge("A", "odom", "map"));
+		const t2 = table(edge("A", "odom", "map"));
+		const eff1 = buildAnchoredTable(t1, undefined, "world", true, cache);
+		const eff2 = buildAnchoredTable(t2, undefined, "world", true, cache);
+
+		const anchorKey = namespaceFrame("A", "map");
+		expect(eff2).not.toBe(eff1); // base changed → fresh merged map
+		// …but the (unchanged) anchor edge object is reused, not re-derived.
+		expect(eff2.get(anchorKey)).toBe(eff1.get(anchorKey));
+	});
+
+	test("rebuilds anchor edges when the anchor set changes", () => {
+		const cache = createAnchorEdgeCache();
+		const t1 = table(edge("A", "odom", "map"));
+		// Prime the cache with the single-tree anchor set.
+		buildAnchoredTable(t1, undefined, "world", true, cache);
+
+		// A second tree appears → the anchor set now includes B::map too.
+		const t2 = table(edge("A", "odom", "map"), edge("B", "odom", "map"));
+		const eff2 = buildAnchoredTable(t2, undefined, "world", true, cache);
+
+		expect(eff2.get(namespaceFrame("A", "map"))?.parentId).toBe(
+			sceneWorldKey("world"),
+		);
+		expect(eff2.get(namespaceFrame("B", "map"))?.parentId).toBe(
+			sceneWorldKey("world"),
+		);
+	});
+
+	test("cache path matches the pure path (no-op returns input by reference)", () => {
+		const cache = createAnchorEdgeCache();
+		const t = table(edge("A", "odom", "map"));
+		// autoAnchor off, no manual anchors → same reference either way.
+		expect(buildAnchoredTable(t, undefined, "world", false, cache)).toBe(t);
 	});
 });
 

@@ -1,0 +1,52 @@
+// Lifecycle state machines, modeled as small `state` element groups so they can
+// be drawn as views without a state-machine primitive. These grouping elements
+// are intentionally kept OUT of the structure/landscape views.
+
+model {
+
+  // ---- Datasource connection lifecycle ------------------------------------
+  // Health surfaced to widgets (useLocalDataSource → connecting | online | offline).
+  // Each topic degrades independently; one offline datasource never blocks others.
+
+  dsLifecycle = component 'Datasource Connection Lifecycle' {
+    description 'Per-datasource health as widgets observe it.'
+
+    dsConnecting = state 'connecting' {
+      description 'Provider mounted, worker/main-thread connection opening. Widgets show a connecting card (DatasourceGate).'
+    }
+    dsOnline = state 'online' {
+      description 'DATASOURCE_READY fired; subscriptions flushed, data flowing.'
+    }
+    dsOffline = state 'offline' {
+      description 'DATASOURCE_DISPOSED / connection lost. Data-display widgets show an offline card; control & last-known-value widgets keep their state.'
+    }
+  }
+
+  dsConnecting -> dsOnline 'DATASOURCE_READY (flush intents)'
+  dsConnecting -> dsOffline 'connect failed'
+  dsOnline -> dsOffline 'connection lost / disposed'
+  dsOffline -> dsConnecting 'reconnect (registry re-issues -subscribe)'
+
+  // ---- Subscription refcount lifecycle ------------------------------------
+  // One entry per wire key (dsId::topic[::property]); the registry owns all
+  // subscribe/unsubscribe traffic.
+
+  subRefcount = component 'Subscription Refcount Lifecycle' {
+    description 'Per wire-key refcount inside the subscription registry.'
+
+    subIdle = state 'no intents (count 0)' {
+      description 'No widget wants this topic. No wire subscription open.'
+    }
+    subPending = state 'intent, datasource not ready' {
+      description 'A refcounted intent exists but the backing datasource is not DATASOURCE_READY yet. Waits — no polling, no timeout.'
+    }
+    subActive = state 'subscribed (count ≥ 1)' {
+      description 'Real -subscribe issued. Added/released intents adjust the refcount; reconnect re-issues -subscribe idempotently (worker dedupes 0↔1).'
+    }
+  }
+
+  subIdle -> subPending 'first intent (datasource not ready)'
+  subIdle -> subActive 'first intent (datasource ready) → -subscribe'
+  subPending -> subActive 'DATASOURCE_READY → -subscribe'
+  subActive -> subIdle 'last intent released → -unsubscribe'
+}

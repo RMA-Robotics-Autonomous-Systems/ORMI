@@ -157,7 +157,7 @@ export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 	return {
 		id: "toggle-cmd-vel-widget",
 		name: "Toggle control",
-		description: "Allow user to toggle a topic",
+		description: "Toggle a topic",
 		titleProp: "title",
 		icon: <ToggleRightIcon />,
 		schema: {

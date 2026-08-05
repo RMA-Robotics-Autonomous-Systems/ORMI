@@ -365,7 +365,7 @@ export function TransformTreeWidgetDefinition(): WidgetDefinition<TransformTreeV
 	return {
 		id: "transform-tree",
 		name: "Transform Tree Viewer",
-		description: "Displays the transform tree hierarchy as a graph",
+		description: "Transform tree hierarchy graph",
 		titleProp: "title",
 		icon: (
 			<svg

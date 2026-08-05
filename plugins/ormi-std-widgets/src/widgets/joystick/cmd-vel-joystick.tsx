@@ -399,7 +399,7 @@ export function JoypadControlsDefinition(): WidgetDefinition<JoypadControlsProps
 	return {
 		id: "joystick-cmd-vel-widget",
 		name: "Joystick control",
-		description: "Allow user to control the robot with a joystick",
+		description: "Control the robot via joystick",
 		titleProp: "title",
 		icon: <GamepadIcon />,
 		schema: {

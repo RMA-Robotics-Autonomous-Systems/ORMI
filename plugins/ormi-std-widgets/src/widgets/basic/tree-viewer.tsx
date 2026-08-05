@@ -92,7 +92,7 @@ export function TreeViewerDefinition(): WidgetDefinition<TreeViewerProps> {
 	return {
 		id: "tree-viewer-widget",
 		name: "Tree viewer",
-		description: "Display a tree view of data",
+		description: "Tree view of data",
 		titleProp: "title",
 		icon: <ListTreeIcon />,
 		schema: {

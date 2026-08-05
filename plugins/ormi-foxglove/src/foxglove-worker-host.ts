@@ -1,5 +1,6 @@
 import type { PluginsManager } from "@workspace/ormi-plugins";
 import { PluginsHooks } from "@workspace/ormi-plugins";
+import { metrics, type CounterId } from "@workspace/utils";
 import type {
 	DatasourceProviderSettings,
 	DatasourceTopic,
@@ -278,7 +279,7 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 
 		// Attempt graceful shutdown
 		const shutdownTimeout = setTimeout(() => {
-			console.warn(
+			console.error(
 				`[Foxglove Worker] Graceful shutdown timeout for ${this.datasourceId}, forcing termination`,
 			);
 			this.worker.terminate();
@@ -297,13 +298,51 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 	}
 
 	private registerEventHandlers(): void {
+		// Cold-path metric registration. `ds.<id>.published` counts every emit
+		// the worker drains to the host — after worker-side coalescing this is
+		// the COALESCED (drain-tick) rate. The per-topic `produced` counters
+		// (folded from the worker's 1 Hz snapshot below) carry the WIRE rate, so
+		// produced-vs-published exposes the coalescing drop ratio.
+		const publishedId = metrics.counter(
+			`ds.${this.datasourceId}.published`,
+		);
+		const producedIds = new Map<string, CounterId>();
+		const lastProduced = new Map<string, number>();
+		// Per-topic hook-name cache: the `-published` action name is invariant per
+		// topic, so build it once instead of concatenating on every drained message.
+		const publishedHooks = new Map<string, string>();
+
 		const topicUnsub = this.rpc.onEvent("topic-published", (payload) => {
+			metrics.add(publishedId);
+			let hook = publishedHooks.get(payload.topic);
+			if (hook === undefined) {
+				hook = `${this.datasourceId}-${payload.topic}-published`;
+				publishedHooks.set(payload.topic, hook);
+			}
 			this.pluginsManager.doAction(
-				`${this.datasourceId}-${payload.topic}-published`,
+				hook,
 				payload.data,
 				payload.time,
 				payload.referenceFrameId,
 			);
+		});
+
+		// Fold the worker's cumulative per-topic wire-rate counts into this
+		// runtime's metrics registry by diffing consecutive 1 Hz snapshots.
+		const metricsUnsub = this.rpc.onEvent("metrics-snapshot", (payload) => {
+			for (const topic in payload.produced) {
+				const cumulative = payload.produced[topic]!;
+				let id = producedIds.get(topic);
+				if (id === undefined) {
+					id = metrics.counter(
+						`ds.${this.datasourceId}.topic.${topic}.produced`,
+					);
+					producedIds.set(topic, id);
+				}
+				const delta = cumulative - (lastProduced.get(topic) ?? 0);
+				lastProduced.set(topic, cumulative);
+				if (delta > 0) metrics.add(id, delta);
+			}
 		});
 
 		const callsUnsub = this.rpc.onEvent("remote-calls", (payload) => {
@@ -325,7 +364,7 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 			},
 		);
 
-		this.disposers.push(topicUnsub, callsUnsub, resultUnsub);
+		this.disposers.push(topicUnsub, metricsUnsub, callsUnsub, resultUnsub);
 	}
 
 	private createRemoteCallHandle(handleWire: {

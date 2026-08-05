@@ -639,8 +639,7 @@ export function RemoteCallExplorerDefinition(): WidgetDefinition<RemoteCallWidge
 	return {
 		id: "remote-call-explorer-widget",
 		name: "Remote Call Explorer",
-		description:
-			"List and execute available remote calls (services/actions)",
+		description: "List and run remote calls",
 		titleProp: "title",
 		icon: <PhoneCall />,
 

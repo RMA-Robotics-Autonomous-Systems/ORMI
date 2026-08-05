@@ -242,7 +242,7 @@ export function MapGridViewerDefinition(): WidgetDefinition<MapGridViewerProps> 
 	return {
 		id: "map-grid-viewer",
 		name: "Map Grid Viewer",
-		description: "2D visualisation of ROS2 OccupancyGrid / Costmap topics",
+		description: "2D OccupancyGrid / Costmap viewer",
 		titleProp: "title",
 		icon: <MapIcon />,
 		schema: {

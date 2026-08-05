@@ -30,8 +30,7 @@ export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> 
 	return {
 		id: "std-points-cloud-drei",
 		name: "Points Cloud Drei",
-		description:
-			"Display a real-time points cloud using optimized rendering",
+		description: "Real-time optimized point cloud",
 		titleProp: "title",
 		icon: <CloudIcon />,
 		schema: {

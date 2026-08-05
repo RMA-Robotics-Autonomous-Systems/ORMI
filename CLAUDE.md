@@ -21,16 +21,17 @@ Two behavioral rules from `AGENTS.md` are easy to forget and apply on **every** 
 
 ## Stack
 
-| Layer            | Tech                                                                  | Where                             |
-| ---------------- | --------------------------------------------------------------------- | --------------------------------- |
-| Web app          | Next.js 16 (app router) + React 19 + TypeScript                       | `apps/web`                        |
-| Core library     | Widgets, datasources, transformations (immutable)                     | `packages/ormi-core`              |
-| Plugin framework | `Plugin` base class, `PluginsHooks`                                   | `packages/ormi-plugins`           |
-| Shared UI        | Radix UI + shadcn/ui primitives                                       | `packages/ui`                     |
-| Utilities        | `apiResponse`, `createSafeContext`, `filterWidgetsByDatasources`, CLI | `packages/utils`                  |
-| JSON Forms       | Widget config schema rendering                                        | `packages/ormi-jsonforms`         |
-| Features         | Datasource + widget plugins (`ormi-*`)                                | `plugins/`                        |
-| Backend          | Prisma ORM + PostgreSQL, NextAuth                                     | `apps/web/server`, `apps/web/lib` |
+| Layer            | Tech                                                   | Where                             |
+| ---------------- | ------------------------------------------------------ | --------------------------------- |
+| Web app          | Next.js 16 (app router) + React 19 + TypeScript        | `apps/web`                        |
+| Core library     | Widgets, datasources, transformations (immutable)      | `packages/ormi-core`              |
+| Plugin framework | `Plugin` base class, `PluginsHooks`                    | `packages/ormi-plugins`           |
+| Shared UI        | Radix UI + shadcn/ui primitives                        | `packages/ui`                     |
+| Utilities        | `createSafeContext`, `filterWidgetsByDatasources`, CLI | `packages/utils`                  |
+| API helper       | `apiResponse` (all API responses)                      | `apps/web/lib/api-utils.ts`       |
+| JSON Forms       | Widget config schema rendering                         | `packages/ormi-jsonforms`         |
+| Features         | Datasource + widget plugins (`ormi-*`)                 | `plugins/`                        |
+| Backend          | Prisma ORM + PostgreSQL, NextAuth                      | `apps/web/server`, `apps/web/lib` |
 
 Tooling: **Bun** package manager, **Turbo** monorepo orchestration, **Bun test**, ESLint + Prettier, simple-git-hooks. Config comes from `docker-compose.yml` / env vars — never hardcode secrets.
 
@@ -81,4 +82,4 @@ On-demand procedural workflows live in `.claude/skills/`. They load only when in
 
 ## High-Sensitivity Areas (always extra care)
 
-Core immutability (`packages/ormi-core`), the Error Handling Rule (explain, don't auto-fix pasted errors), Zod validation on every mutating route, `withAuth` on protected routes, Prisma access only through `apps/web/server/prisma-*.ts` helpers, `apiResponse` for all API responses, and secret handling (never logged or committed). See `AGENTS.md` for the full pattern set.
+Core immutability (`packages/ormi-core`), the Error Handling Rule (explain, don't auto-fix pasted errors), Zod validation on every mutating route, `withAuth` on protected routes, Prisma access only through `apps/web/lib/data/prisma-*.ts` helpers, `apiResponse` for all API responses, and secret handling (never logged or committed). See `AGENTS.md` for the full pattern set.

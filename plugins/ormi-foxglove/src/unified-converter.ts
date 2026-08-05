@@ -601,73 +601,207 @@ export class UnifiedConverter {
 							return null;
 						};
 
-						// Process all points
-						for (let i = 0; i < totalPoints; i++) {
-							const baseOffset = i * point_step;
+						// Fast path detection: a little-endian float32 x/y/z
+						// layout with a 4-byte-aligned stride and field offsets
+						// lets us stride-read the payload as a Float32Array view
+						// (`view[base + fieldFloatOffset]`) instead of paying a
+						// bounds-checked, endianness-branched DataView call per
+						// component — the common Livox layout. Big-endian,
+						// non-float32, or non-4-aligned layouts keep the DataView
+						// reader as a fallback.
+						const xDatatype = fieldMap.x?.datatype;
+						const yDatatype = fieldMap.y?.datatype;
+						const zDatatype = fieldMap.z?.datatype;
+						const viewAligned =
+							littleEndian &&
+							point_step % 4 === 0 &&
+							buffer.byteOffset % 4 === 0;
+						const useFloatView =
+							viewAligned &&
+							xDatatype === 7 &&
+							yDatatype === 7 &&
+							zDatatype === 7 &&
+							xOffset % 4 === 0 &&
+							yOffset % 4 === 0 &&
+							zOffset % 4 === 0;
 
-							// Get x, y, z values directly
-							try {
-								const x = dataView.getFloat32(
-									baseOffset + xOffset,
-									littleEndian,
+						// The whole loop is wrapped once. A per-point try/catch
+						// deoptimises the hot body; an out-of-bounds read on a
+						// malformed cloud stops the loop here, and the points
+						// decoded before the fault are still returned — the same
+						// skip-and-keep semantics as the previous per-point catch,
+						// since a bad field offset faults deterministically.
+						try {
+							if (useFloatView) {
+								const floatCount = Math.floor(
+									buffer.byteLength / 4,
 								);
-								const y = dataView.getFloat32(
-									baseOffset + yOffset,
-									littleEndian,
+								const floatView = new Float32Array(
+									buffer.buffer,
+									buffer.byteOffset,
+									floatCount,
 								);
-								const z = dataView.getFloat32(
-									baseOffset + zOffset,
-									littleEndian,
+								const uintView = new Uint32Array(
+									buffer.buffer,
+									buffer.byteOffset,
+									floatCount,
 								);
+								const strideFloats = point_step / 4;
+								const xFloat = xOffset / 4;
+								const yFloat = yOffset / 4;
+								const zFloat = zOffset / 4;
 
-								// Add valid points (could add filtering here if needed)
-								if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-									const idx = validPointCount * 3;
-									// Convert ROS -> THREE
-									// THREE_X = -ROS_Y, THREE_Y = ROS_Z, THREE_Z = -ROS_X
-									packedPoints[idx] = -y;
-									packedPoints[idx + 1] = z;
-									packedPoints[idx + 2] = -x;
+								// Intensity / rgb reads collapse to a view index
+								// only when that field is itself float32/uint32
+								// aligned; otherwise the DataView reader still
+								// covers the single field.
+								const intensityFloatFast =
+									intensityOffset !== undefined &&
+									intensityDatatype === 7 &&
+									intensityOffset % 4 === 0;
+								const intensityFloat = intensityFloatFast
+									? intensityOffset! / 4
+									: 0;
+								const rgbViewFast =
+									rgbOffset !== undefined &&
+									rgbOffset % 4 === 0 &&
+									(rgbDatatype === 5 ||
+										rgbDatatype === 6 ||
+										rgbDatatype === 7);
+								const rgbFloat = rgbViewFast
+									? rgbOffset! / 4
+									: 0;
 
-									if (
-										rgbOffset !== undefined &&
-										rgbDatatype !== undefined
-									) {
-										const color = readRgb(
-											dataView,
-											baseOffset + rgbOffset,
-											rgbDatatype,
-										);
-										if (color) {
-											packedColors[idx] = color.r;
-											packedColors[idx + 1] = color.g;
-											packedColors[idx + 2] = color.b;
+								for (let i = 0; i < totalPoints; i++) {
+									const base = i * strideFloats;
+									const x = floatView[base + xFloat]!;
+									const y = floatView[base + yFloat]!;
+									const z = floatView[base + zFloat]!;
+
+									if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+										const idx = validPointCount * 3;
+										// Convert ROS -> THREE
+										// THREE_X = -ROS_Y, THREE_Y = ROS_Z, THREE_Z = -ROS_X
+										packedPoints[idx] = -y;
+										packedPoints[idx + 1] = z;
+										packedPoints[idx + 2] = -x;
+
+										if (
+											rgbOffset !== undefined &&
+											rgbDatatype !== undefined
+										) {
+											// A float32/uint32 rgb field reads its
+											// raw 32-bit pattern straight from the
+											// uint view (identical bytes to the
+											// DataView float-bit reinterpret on
+											// little-endian); otherwise fall back.
+											const color = rgbViewFast
+												? unpackRgb(
+														uintView[
+															base + rgbFloat
+														]!,
+													)
+												: readRgb(
+														dataView,
+														base * 4 + rgbOffset,
+														rgbDatatype,
+													);
+											if (color) {
+												packedColors[idx] = color.r;
+												packedColors[idx + 1] = color.g;
+												packedColors[idx + 2] = color.b;
+											}
 										}
-									}
 
-									if (
-										intensityOffset !== undefined &&
-										intensityDatatype !== undefined
-									) {
-										const rawIntensity = readFieldValue(
-											dataView,
-											baseOffset + intensityOffset,
-											intensityDatatype,
-										);
-										const normalized = normalizeIntensity(
-											rawIntensity,
-											intensityDatatype,
-										);
-										intensities[validPointCount] =
-											normalized;
-									}
+										if (
+											intensityOffset !== undefined &&
+											intensityDatatype !== undefined
+										) {
+											const rawIntensity =
+												intensityFloatFast
+													? floatView[
+															base +
+																intensityFloat
+														]!
+													: readFieldValue(
+															dataView,
+															base * 4 +
+																intensityOffset,
+															intensityDatatype,
+														);
+											intensities[validPointCount] =
+												normalizeIntensity(
+													rawIntensity,
+													intensityDatatype,
+												);
+										}
 
-									validPointCount++;
+										validPointCount++;
+									}
 								}
-							} catch (e) {
-								// Skip points that can't be properly read
-								continue;
+							} else {
+								for (let i = 0; i < totalPoints; i++) {
+									const baseOffset = i * point_step;
+
+									const x = dataView.getFloat32(
+										baseOffset + xOffset,
+										littleEndian,
+									);
+									const y = dataView.getFloat32(
+										baseOffset + yOffset,
+										littleEndian,
+									);
+									const z = dataView.getFloat32(
+										baseOffset + zOffset,
+										littleEndian,
+									);
+
+									if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+										const idx = validPointCount * 3;
+										// Convert ROS -> THREE
+										// THREE_X = -ROS_Y, THREE_Y = ROS_Z, THREE_Z = -ROS_X
+										packedPoints[idx] = -y;
+										packedPoints[idx + 1] = z;
+										packedPoints[idx + 2] = -x;
+
+										if (
+											rgbOffset !== undefined &&
+											rgbDatatype !== undefined
+										) {
+											const color = readRgb(
+												dataView,
+												baseOffset + rgbOffset,
+												rgbDatatype,
+											);
+											if (color) {
+												packedColors[idx] = color.r;
+												packedColors[idx + 1] = color.g;
+												packedColors[idx + 2] = color.b;
+											}
+										}
+
+										if (
+											intensityOffset !== undefined &&
+											intensityDatatype !== undefined
+										) {
+											const rawIntensity = readFieldValue(
+												dataView,
+												baseOffset + intensityOffset,
+												intensityDatatype,
+											);
+											intensities[validPointCount] =
+												normalizeIntensity(
+													rawIntensity,
+													intensityDatatype,
+												);
+										}
+
+										validPointCount++;
+									}
+								}
 							}
+						} catch {
+							// Malformed cloud: keep the points decoded so far.
 						}
 
 						// Trim arrays to actual size (important for memory efficiency)

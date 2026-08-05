@@ -93,7 +93,7 @@ export function Ros2ConvertionGraphDefinition(): WidgetDefinition<Ros2Convertion
 	return {
 		id: "ros2-conversion-graph",
 		name: "ROS2 Conversion Graph",
-		description: "Shows the conversion graph between ROS2 and Webapp types",
+		description: "ROS2 to Webapp type graph",
 		titleProp: "title",
 		icon: <BinaryIcon />,
 		schema: {

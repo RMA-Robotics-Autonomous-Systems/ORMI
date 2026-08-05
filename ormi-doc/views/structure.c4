@@ -1,0 +1,73 @@
+// Static structure views: landscape, containers, and component drill-downs.
+// Dynamic data-flow views live in flows.c4; lifecycle state machines in states.c4.
+
+views {
+
+  // ---- Landscape (C4 level 1) ---------------------------------------------
+  // Explicit includes keep the lifecycle state groups (states.c4) out of the map.
+
+  view index {
+    title 'ORMI — System Landscape'
+    include
+      operator,
+      ormi,
+      robot,
+      rosbridge,
+      foxglove,
+      tello,
+      restEndpoint,
+      rostainer
+    autoLayout LeftRight
+  }
+
+  // ---- Containers (C4 level 2) --------------------------------------------
+
+  view ormi_containers of ormi {
+    title 'ORMI — Containers'
+    include *
+    autoLayout LeftRight
+  }
+
+  // ---- Web app components (C4 level 3) ------------------------------------
+
+  view web of ormi.web {
+    title 'ORMI Web App — Components'
+    include *
+    autoLayout LeftRight
+  }
+
+  // ---- Datasource runtime (worker vs main-thread split) -------------------
+
+  view datasource_runtime of ormi.web.datasourceRuntime {
+    title 'Datasource Runtime — Worker vs Main-thread'
+    include
+      *,
+      ormi.web.pluginsManager,
+      ormi.web.widgetHost,
+      ormi.web.transforms
+    autoLayout LeftRight
+  }
+
+  // ---- Feature plugins -----------------------------------------------------
+
+  view plugins of ormi.web.plugins {
+    title 'Feature Plugins'
+    include
+      *,
+      ormi.web.pluginsManager,
+      foxglove,
+      rosbridge,
+      tello,
+      restEndpoint,
+      rostainer
+    autoLayout LeftRight
+  }
+
+  // ---- Deployment ----------------------------------------------------------
+
+  deployment view deployment {
+    title 'ORMI — Deployment (local / docker-compose)'
+    include *
+    autoLayout LeftRight
+  }
+}

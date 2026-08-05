@@ -1,0 +1,35 @@
+// Deployment: how ORMI runs locally / via docker-compose.
+// The operator's browser runs the client bundle (plugin runtime, widgets,
+// datasource workers/main-thread connections); the server runs the Next.js app
+// and PostgreSQL, typically as docker-compose services.
+
+deployment {
+  operatorMachine = host 'Operator Workstation' {
+    browserNode = browser 'Web Browser' {
+      description 'Runs the ORMI client: dashboard, plugin runtime, widgets, and datasource workers / ws:// main-thread connections. Opens WebSockets straight to robots.'
+      webClient = instanceOf ormi.web
+    }
+  }
+
+  server = host 'ORMI Server (docker-compose)' {
+    description 'Local or on-prem host running the ORMI stack, usually via docker-compose.'
+
+    appRuntime = containerRuntime 'Next.js Server' {
+      description 'Serves the app router pages and the /api route handlers (Prisma helpers, NextAuth).'
+    }
+
+    dbRuntime = containerRuntime 'PostgreSQL' {
+      dbInstance = instanceOf ormi.db
+    }
+  }
+
+  // Robots the browser client talks to directly over WebSockets.
+  robotHost = host 'Robot / Bridge Host' {
+    description 'Runs the robot bridges (rosbridge / Foxglove / Tello) the browser connects to.'
+  }
+
+  // Derived + explicit deployment relationships.
+  browserNode -> appRuntime 'HTTPS (pages + /api)'
+  browserNode -> robotHost 'WebSocket (ws:// main thread · wss:// worker)'
+  appRuntime -> dbRuntime 'Prisma (PostgreSQL wire)'
+}

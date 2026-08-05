@@ -28,7 +28,7 @@ export function IframeDefinition(): WidgetDefinition<IFrameProps> {
 	return {
 		id: "iframe-widget",
 		name: "IFrame viewer",
-		description: "Display the differents filters and actions",
+		description: "Embed a web page",
 		titleProp: "title",
 		icon: <GlobeIcon />,
 		schema: {

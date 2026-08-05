@@ -336,8 +336,7 @@ export function BatteryStateWidgetDefinition(): WidgetDefinition<BatteryWidgetPr
 	return {
 		id: "battery-state-widget",
 		name: "Battery State",
-		description:
-			"Auto-subscribes to every sensor_msgs/msg/BatteryState topic and renders each battery's full state as a card",
+		description: "Battery state cards per topic",
 		titleProp: "title",
 		icon: <BatteryFull />,
 		schema: {

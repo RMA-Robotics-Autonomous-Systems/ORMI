@@ -115,7 +115,10 @@ const TopicSelectRenderer = (props: ControlProps) => {
 					{dataRequirements ? (
 						<span>
 							<strong>Requirements:</strong>{" "}
-							{dataRequirements.accepts.join(", ")}
+							{[
+								...dataRequirements.accepts,
+								...(dataRequirements.acceptsRaw ?? []),
+							].join(", ")}
 						</span>
 					) : (
 						<span>

@@ -27,6 +27,21 @@
 			"types": "./dist/index.d.ts",
 			"development": "./src/index.ts",
 			"import": "./dist/index.js"
+		},
+		"./metrics": {
+			"types": "./dist/metrics/metrics-core.d.ts",
+			"development": "./src/metrics/metrics-core.ts",
+			"import": "./dist/metrics/metrics-core.js"
+		},
+		"./transferables": {
+			"types": "./dist/transferables.d.ts",
+			"development": "./src/transferables.ts",
+			"import": "./dist/transferables.js"
+		},
+		"./coalesced-publisher": {
+			"types": "./dist/coalesced-publisher.d.ts",
+			"development": "./src/coalesced-publisher.ts",
+			"import": "./dist/coalesced-publisher.js"
 		}
 	},
 	"private": true,

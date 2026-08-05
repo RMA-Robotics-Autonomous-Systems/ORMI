@@ -9,6 +9,9 @@ import { describe, test, expect } from "bun:test";
 import {
 	analyzeSchemaProperties,
 	analyzeTopicCompatibility,
+	analyzeTopicCompatibilityWithTrees,
+	isTopicCompatible,
+	validateDataRequirements,
 	type CompatibleProperty,
 } from "../topic-compatibility";
 import type { DatasourceTopic } from "../../datasources/datasource-interface";
@@ -240,6 +243,127 @@ describe("Topic Compatibility - Direct Type Matching", () => {
 
 		expect(result.isCompatible).toBe(true);
 		expect(result.directMatch).toBe(true);
+	});
+});
+
+describe("Topic Compatibility - Raw Type Matching (acceptsRaw)", () => {
+	const c2Topic: DatasourceTopic = {
+		topic: "/multi_robot/swarm_log",
+		datasource_id: "test",
+		source: {} as any,
+		type: "", // no webapp type — custom ROS message
+		rawType: "c2_msgs/msg/SwarmLog",
+	};
+
+	test("matches directly when rawType is in acceptsRaw", async () => {
+		const requirements: DataRequirements = {
+			accepts: [],
+			acceptsRaw: ["c2_msgs/msg/SwarmLog"],
+		};
+
+		const result = await analyzeTopicCompatibility(c2Topic, requirements);
+
+		expect(result.directMatch).toBe(true);
+		expect(result.isCompatible).toBe(true);
+	});
+
+	test("does not match when rawType is absent from acceptsRaw", async () => {
+		const requirements: DataRequirements = {
+			accepts: [],
+			acceptsRaw: ["c2_msgs/msg/MissionFeedback"],
+		};
+
+		const result = await analyzeTopicCompatibility(c2Topic, requirements);
+
+		expect(result.directMatch).toBe(false);
+		expect(result.isCompatible).toBe(false);
+		expect(result.reason).toContain("c2_msgs/msg/SwarmLog");
+	});
+
+	test("webapp accepts and raw acceptsRaw are OR-ed", async () => {
+		const webappTopic: DatasourceTopic = {
+			topic: "/temperature",
+			datasource_id: "test",
+			source: {} as any,
+			type: "number",
+			rawType: "sensor_msgs/msg/Float64",
+		};
+
+		const requirements: DataRequirements = {
+			accepts: ["number"],
+			acceptsRaw: ["c2_msgs/msg/SwarmLog"],
+		};
+
+		// webapp side matches
+		expect(
+			(await analyzeTopicCompatibility(webappTopic, requirements))
+				.directMatch,
+		).toBe(true);
+		// raw side matches
+		expect(
+			(await analyzeTopicCompatibility(c2Topic, requirements))
+				.directMatch,
+		).toBe(true);
+	});
+
+	test("analyzeTopicCompatibilityWithTrees direct-matches via rawType", async () => {
+		const result = await analyzeTopicCompatibilityWithTrees(c2Topic, {
+			accepts: [],
+			acceptsRaw: ["c2_msgs/msg/SwarmLog"],
+		});
+		expect(result.directMatch).toBe(true);
+		expect(result.isCompatible).toBe(true);
+	});
+
+	test("an empty rawType never matches an acceptsRaw entry", async () => {
+		const noRawTopic: DatasourceTopic = {
+			topic: "/x",
+			datasource_id: "test",
+			source: {} as any,
+			type: "",
+			rawType: "",
+		};
+		// A widget that fat-fingers "" into acceptsRaw must not match every
+		// raw-less topic.
+		expect(
+			(
+				await analyzeTopicCompatibility(noRawTopic, {
+					accepts: [],
+					acceptsRaw: [""],
+				})
+			).directMatch,
+		).toBe(false);
+		expect(
+			isTopicCompatible(noRawTopic, { accepts: [], acceptsRaw: [""] }),
+		).toBe(false);
+	});
+
+	test("sync isTopicCompatible honors acceptsRaw", () => {
+		expect(
+			isTopicCompatible(c2Topic, {
+				accepts: [],
+				acceptsRaw: ["c2_msgs/msg/SwarmLog"],
+			}),
+		).toBe(true);
+		expect(
+			isTopicCompatible(c2Topic, {
+				accepts: [],
+				acceptsRaw: ["other/Type"],
+			}),
+		).toBe(false);
+	});
+
+	test("validateDataRequirements accepts a raw-only requirement", () => {
+		expect(
+			validateDataRequirements({
+				accepts: [],
+				acceptsRaw: ["c2_msgs/msg/SwarmLog"],
+			}),
+		).toEqual([]);
+		// neither accepts nor acceptsRaw => error
+		expect(
+			validateDataRequirements({ accepts: [], acceptsRaw: [] }).length,
+		).toBeGreaterThan(0);
 	});
 });
 

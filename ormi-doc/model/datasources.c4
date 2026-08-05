@@ -1,0 +1,58 @@
+// Datasource runtime inside the web app (`ormi.web`).
+// The generic datasource plumbing shared by every datasource plugin: the two
+// ingest paths (Web Worker for wss:// / HTTP-served; main thread for ws:// robots),
+// the subscription registry, normalization, and the per-widget 30Hz buffer.
+// Concrete datasource plugins (foxglove, rosbridge, tello, …) live in plugins.c4.
+
+model {
+  extend ormi.web {
+
+    datasourceRuntime = component 'Datasource Runtime' {
+      #core
+      technology 'packages/ormi-core/datasources'
+      description 'Core plumbing every datasource plugin reuses: worker/main-thread hosts, the subscription registry, message normalization, and per-widget buffering.'
+
+      link ../knowledge/datasources/knowledge.md 'Datasources'
+
+      workerHost = component 'WorkerDatasourceHost' {
+        technology 'ormi-core/datasources/worker · typed RPC'
+        description 'Main-thread RPC client for a datasource Web Worker: sends subscribe/unsubscribe/shutdown, receives ctx.publish payloads (zero-copy transferables), forwards them to the PluginsManager. The wss:// / HTTP-served path.'
+      }
+
+      dsWorker = worker 'Datasource Worker' {
+        technology 'Web Worker · createDatasourceWorker'
+        description 'Runs the datasource off the main thread: opens the connection, listTopics, subscribe/unsubscribe (idempotent, refcounted), and publishes normalized data via ctx.publish. Isolated — a crash does not take down the app.'
+      }
+
+      mainThreadConn = component 'Main-thread Connection' {
+        #mainThread
+        technology 'ormi-core-hosted, runs in the document'
+        description 'Fallback ingest path for insecure ws:// robots. A browser site-level insecure-content exception applies to the document but NOT to Web Workers, so a ws:// socket must run on the main thread. Deliberate — do not force the worker path.'
+      }
+
+      coalescer = component 'Message Coalescer' {
+        technology '@workspace/utils · MessageCoalescer<T,K> · one engine, plugin-supplied decode'
+        description 'Shared generic coalescer used on the main-thread ingest paths (foxglove ws:// with numeric subscription keys; rosbridge with topic-string keys) AND inside the foxglove wss:// worker (via the createCoalescedPublisher wrapper), so decode runs at the ~30Hz drain rate off the wire-rate path in every case. Each plugin supplies only its decode/convert callback; the engine owns the mechanism: coalesce to the latest message per topic before decode, cap per-topic decode rate for heavy payloads (PointCloud2, 12Hz), time-budget each tick with a catch-up macrotask so a burst cannot starve the fanout/render loop, and count overwrites honestly. Delta streams (TF, DiagnosticArray) use the lossless queue; state topics are lossy-latest. Shed frames stay visible via the produced-vs-delivered drop ratio. The sibling transferablesFor helper hands owned buffers (point clouds) across the worker→host boundary zero-copy instead of structure-cloning.'
+      }
+
+      converter = component 'UnifiedConverter' {
+        technology 'per-plugin, at the datasource boundary'
+        description 'Normalizes raw ROS/vendor messages into stable webapp types (Movement, IMU, PointsCloud, MapGrid, Pose, Path, BatteryState, DiagnosticArray, …). Each topic is tagged with its resolved webapp type. Preserves NaN for unmeasured fields.'
+      }
+
+      subscriptionRegistry = component 'Subscription Registry' {
+        technology '@workspace/utils · one per PluginsManager'
+        description 'Owns all subscribe/unsubscribe + advertise/unadvertise wire traffic. Widgets declare refcounted intents per topic key (dsId::topic[::property]); the real -subscribe fires only on DATASOURCE_READY and is re-issued on every reconnect; -unsubscribe only when the last intent is released.'
+
+        link ../knowledge/datasources/knowledge.md 'Subscription lifecycle'
+      }
+
+      localData = component 'LocalDataSourcesProvider' {
+        technology 'ormi-core/datasources · 30Hz buffer'
+        description 'Per-widget context that declares subscribe intents for the widget selected topics and buffers incoming values at 30Hz. Widgets read via useLocalDataSource() (data/times/referenceFrameId + health, getTopicHealth) — never a datasource object directly.'
+
+        link ../knowledge/datasources/knowledge.md 'Consuming data'
+      }
+    }
+  }
+}
