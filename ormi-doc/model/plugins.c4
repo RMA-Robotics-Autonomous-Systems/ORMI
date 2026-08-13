@@ -87,6 +87,45 @@ model {
         technology 'plugins/ormi-emi-bag-analyzer'
         description 'Full-page plugin (PAGES_LIST) for analyzing EMI survey bags. Adds a route under /plugin-pages and a navbar entry.'
       }
+
+      teodorEmi = component 'Teodor EMI' {
+        #plugin
+        technology 'plugins/teodor-emi-extension'
+        description 'Robot-and-sensor-specific EMI support for Teodor. Extends the standard map widget with EMI marker types, and ships a detection cockpit page. Its defining move is the replay datasource below: a recorded bag is presented as a live source, so the same page works offline and online with one code path.'
+
+        link ../knowledge/datasources/teodor-emi.md 'Teodor EMI'
+
+        emiDetector = component 'EMI Detector' {
+          technology 'plugins/teodor-emi-extension/src/detector · pure TS'
+          description 'Port of the offline report tool detector (emi_ws/tools/report/detector.js, itself verified against pipeline.py and the C++ nodes): EMA, ATR Schmitt trigger, experimental per-coil MAD, georeferencing, gate and chain association, cross-coil geometry. No React, no DOM. Held to the Python reference by a committed fixture.'
+        }
+
+        emiSchemas = component 'EMI Message Schemas' {
+          technology 'plugins/teodor-emi-extension/src/msgs · @foxglove/rosmsg'
+          description 'Hand-shipped ROS 2 definitions for emi_msgs and its dependencies, because the recordings are rosbag2 metadata v5 and carry no message_definitions table. Two wire layouts per drifted type are kept and selected by structural validation at decode time, so a recording and a current-build robot both decode.'
+        }
+
+        emiRunStore = component 'EMI Run Store' {
+          technology 'plugins/teodor-emi-extension/src/state · module singleton + Jotai on appStore'
+          description 'One run, one replay, one set of subscriptions for every EMI panel. A globalThis-pinned refcounted store subscribes through the datasource subscription registry and builds a column-oriented EmiRun on the /teodora/emi/gnss timebase; widgets read it through useSyncExternalStore, and useEmiReplay memoises a single detector pass across all of them with the parameters deferred so a slider drag coalesces.'
+        }
+
+        emiCockpit = component 'EMI Cockpit Widgets' {
+          technology 'plugins/teodor-emi-extension/src/widgets + src/charts · raw canvas'
+          description 'Ten widgets and a page at /plugin-pages/teodor-emi running the FLEX layout engine: coil signal stack, motion, coil array, parameter rail, threshold sweep, cross-coil lag, repeatability, tables, mission control, export. Registered by the PAGE, not by the plugin class — WIDGETS_LIST is global, so a constructor-time filter offers every EMI panel to every workspace in the app, each of which resolves no source and renders an offline card. FlexLayout rather than the grid because these panels want proportional shares of the window instead of rectangles in fixed 30px row units, and because the occasional controls share a tabset — which a grid cannot express. Canvas rather than uPlot because a repaint must cost the panel width, not the sample count — one min/max pair per pixel column — and because the five coil panels share one scale and the cross-coil links are drawn between them. Also contributes four marker types to the standard map widget (driven track, detections, targets, robot ghosts), which draw the shared replay rather than their selected topic, and which the shipped cockpit now places rather than leaving to be discovered. The ghosts stroke the recording's own tf_static tree edge for edge, not a rake inferred from the coil offsets, and the track is broken wherever the fix was lost rather than bridged across it.'
+        }
+
+        emiMissionStore = component 'EMI Mission Store' {
+          technology 'plugins/teodor-emi-extension/src/mission · IndexedDB + pure codec'
+          description 'A survey with a beginning, an end and durability. idle → recording → stopped over the run store, spilling fixed 2048-sample blocks to IndexedDB as the append-only columns fill, so a crash costs the tail of one block rather than the survey. Persists the resolved EmiRun rather than re-encoding messages the ingest never saw, which makes "reopen it and get identical numbers" identity instead of an argument; reassembly enforces contiguity so an interrupted mission truncates at the hole instead of filling it with zeros that read as flat signal. Also owns the GeoJSON export, which carries the full parameter set it was read at and keeps the two robot trackers and the replay apart by source.'
+        }
+
+        emiReplaySource = component 'EMI Replay Datasource' {
+          #datasource
+          technology 'plugins/teodor-emi-extension/src/datasource · createDatasourceWorker + sql.js'
+          description 'A recorded .db3 answering the datasource protocol: enumerates the bag topics, and on subscribe streams them via a prepared statement per topic. Defaults to DRAINING rather than playing back — a bag is read, not watched, so the whole survey is delivered in a second or two and the playhead becomes a cursor over a complete run instead of a live edge; the drain is time-sliced (12 ms per pass, yielding between) because every published message is fanned out on the main thread and an unbroken pass would freeze the tab. Real-time playback remains, with play/pause/seek/rate as remote calls. Delivers oldest-first across topics in both modes, and holds the clock back rather than skipping when a playback tick runs out of budget. Bounded by sql.js being wasm32 — the whole database lives in a heap measured at 2 GiB — so the picker refuses past 1.5 GiB with the ros2-bag-convert advice rather than failing in the worker minutes later. init never rejects (that would take AVAILABLE_TOPICS down for every datasource) but never fails silently either: the worker posts its own message past core RPC, which ignores unknown types, and the provider renders it over the panels. The provider also builds the subscription registry before starting the worker: the registry only learns readiness from a DATASOURCE_READY listener registered in its constructor, so one built later never hears this datasource go ready and parks every subscribe forever.'
+        }
+      }
     }
   }
 }
