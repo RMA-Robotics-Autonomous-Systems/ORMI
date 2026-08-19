@@ -47,6 +47,20 @@ function toByteArray(raw: unknown): Uint8Array | null {
 	return null;
 }
 
+/**
+ * Current wall-clock time as a ROS 2 `builtin_interfaces/msg/Time`.
+ *
+ * Stamped command messages (e.g. `geometry_msgs/msg/TwistStamped` on a
+ * teleoperation topic) are timed out by the receiving controller, so the
+ * header must carry a real stamp rather than a zeroed placeholder.
+ * @returns ROS 2 time with `sec`/`nanosec` fields.
+ */
+function rosTimeNow(): { sec: number; nanosec: number } {
+	const ms = Date.now();
+	const sec = Math.floor(ms / 1000);
+	return { sec, nanosec: Math.round((ms - sec * 1000) * 1e6) };
+}
+
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
 interface ConverterEntry {
 	conversions: {
@@ -86,6 +100,38 @@ export class UnifiedConverter {
 							x: data.angular.x,
 							y: data.angular.y,
 							z: data.angular.z,
+						},
+					}),
+				},
+				"geometry_msgs/msg/TwistStamped": {
+					toRos2: (data: Movement & { frameId?: string }) => ({
+						header: {
+							stamp: rosTimeNow(),
+							frame_id: data.frameId ?? "",
+						},
+						twist: {
+							linear: {
+								x: data.linear.x,
+								y: data.linear.y,
+								z: data.linear.z,
+							},
+							angular: {
+								x: data.angular.x,
+								y: data.angular.y,
+								z: data.angular.z,
+							},
+						},
+					}),
+					fromRos2: (data: any) => ({
+						linear: {
+							x: data.twist?.linear?.x ?? 0,
+							y: data.twist?.linear?.y ?? 0,
+							z: data.twist?.linear?.z ?? 0,
+						},
+						angular: {
+							x: data.twist?.angular?.x ?? 0,
+							y: data.twist?.angular?.y ?? 0,
+							z: data.twist?.angular?.z ?? 0,
 						},
 					}),
 				},
@@ -445,8 +491,7 @@ export class UnifiedConverter {
 					toRos2: (data: PointsCloud) => ({}),
 					fromRos2: (data): PointsCloud => {
 						const ranges = data.ranges as
-							| ArrayLike<number>
-							| undefined;
+							ArrayLike<number> | undefined;
 						if (!ranges || typeof ranges.length !== "number") {
 							console.error("LaserScan message missing ranges");
 							return {
@@ -474,8 +519,7 @@ export class UnifiedConverter {
 
 						const count = ranges.length;
 						const scanIntensities = data.intensities as
-							| ArrayLike<number>
-							| undefined;
+							ArrayLike<number> | undefined;
 						const hasIntensities =
 							!!scanIntensities &&
 							typeof scanIntensities.length === "number" &&

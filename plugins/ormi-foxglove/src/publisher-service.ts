@@ -280,9 +280,18 @@ export class PublisherService {
 						selectedTopic.rawType,
 					);
 
-					// Validate converted message structure for geometry_msgs/msg/Twist
+					// Validate converted message structure for Twist payloads.
+					// TwistStamped carries the same body under `twist`.
 					if (selectedTopic.rawType === "geometry_msgs/msg/Twist") {
 						this.validateTwistMessage(converted, publisher.topic);
+					} else if (
+						selectedTopic.rawType ===
+						"geometry_msgs/msg/TwistStamped"
+					) {
+						this.validateTwistMessage(
+							converted?.twist,
+							publisher.topic,
+						);
 					}
 
 					// Serialize message using MessageWriter
@@ -317,9 +326,16 @@ export class PublisherService {
 	}
 
 	/**
-	 * Validates a Twist message structure to ensure it matches the expected schema
+	 * Validates a Twist body (the `linear`/`angular` pair) to ensure it matches
+	 * the expected schema. For `TwistStamped`, pass the nested `twist` object.
 	 */
 	private validateTwistMessage(message: any, topicName: string): void {
+		if (!message) {
+			throw new Error(
+				`Twist message missing its body for topic ${topicName}`,
+			);
+		}
+
 		const requiredStructure = {
 			linear: ["x", "y", "z"],
 			angular: ["x", "y", "z"],
