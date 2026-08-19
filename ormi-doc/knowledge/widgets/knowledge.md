@@ -278,3 +278,32 @@ The provider receives its persistence callbacks (`addTemplate`, `removeTemplate`
 `updateTemplate`, initial load) as props, so the same UI can be backed by
 different stores. In the web app these are wired to `/api/templates` via the
 server/data helpers; a localStorage-backed variant exists for offline use.
+
+---
+
+## Widget families that carry their own data
+
+The contract above assumes a widget is configured with topics and reads them
+through `useLocalDataSource` or the subscription registry. One family
+deliberately does not: the **Teodor EMI cockpit**
+([knowledge/datasources/teodor-emi.md](../datasources/teodor-emi.md)) registers
+ten widgets that resolve their own source through a shared module store, so any
+of them can be dropped on an ordinary workspace with nothing to configure but a
+title.
+
+Two consequences worth knowing before copying the shape:
+
+- **A panel whose body is gated does not exist until it is online.** Those
+  widgets sit inside `DatasourceGate`, so anything that measures or observes the
+  host element has to react to it _arriving_ — a callback ref, not an effect
+  keyed on a `useRef` object, which never re-runs and leaves every canvas blank.
+- **Charting there is raw canvas, not uPlot.** Not a rejection of the standard
+  time-series widget: those panels decimate to one min/max pair per pixel column
+  so a repaint costs the panel width rather than the recording length, and
+  having done that there is nothing left for a chart library to do. A widget
+  showing a few thousand points should still use uPlot.
+
+A widget that needs a `TemplatesProvider` in its own page must mount one:
+`GlobalDataSourcesProvider` and the grid engine both call `useTemplates()`, which
+throws when the provider is absent. Core ships `temphandleLoad`/`temphandleSave`
+for pages that cannot reach the app's Prisma helpers.
