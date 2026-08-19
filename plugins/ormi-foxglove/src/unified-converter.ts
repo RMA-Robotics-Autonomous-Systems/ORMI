@@ -22,6 +22,20 @@ import {
 import { PluginsManager } from "@workspace/ormi-plugins";
 
 /**
+ * Current wall-clock time as a ROS 2 `builtin_interfaces/msg/Time`.
+ *
+ * Stamped command messages (e.g. `geometry_msgs/msg/TwistStamped` on a
+ * teleoperation topic) are timed out by the receiving controller, so the
+ * header must carry a real stamp rather than a zeroed placeholder.
+ * @returns ROS 2 time with `sec`/`nanosec` fields.
+ */
+function rosTimeNow(): { sec: number; nanosec: number } {
+	const ms = Date.now();
+	const sec = Math.floor(ms / 1000);
+	return { sec, nanosec: Math.round((ms - sec * 1000) * 1e6) };
+}
+
+/**
  * Converter entry for unified ros2/webapp type conversion.
  */
 interface ConverterEntry {
@@ -93,6 +107,46 @@ export class UnifiedConverter {
 							x: data.angular.x,
 							y: data.angular.y,
 							z: data.angular.z,
+						},
+						// ROS Twist uses ROS REP-103 coordinate convention
+						convention: "ROS" as const,
+					}),
+				},
+				"geometry_msgs/msg/TwistStamped": {
+					toRos2: (data: Movement & { frameId?: string }) => {
+						if (!data) {
+							throw new Error(
+								"Movement data is null or undefined",
+							);
+						}
+
+						const sanitizeVector = (vec: any) => ({
+							x: Number(vec?.x) || 0,
+							y: Number(vec?.y) || 0,
+							z: Number(vec?.z) || 0,
+						});
+
+						return {
+							header: {
+								stamp: rosTimeNow(),
+								frame_id: data.frameId ?? "",
+							},
+							twist: {
+								linear: sanitizeVector(data.linear),
+								angular: sanitizeVector(data.angular),
+							},
+						};
+					},
+					fromRos2: (data: any) => ({
+						linear: {
+							x: data.twist?.linear?.x ?? 0,
+							y: data.twist?.linear?.y ?? 0,
+							z: data.twist?.linear?.z ?? 0,
+						},
+						angular: {
+							x: data.twist?.angular?.x ?? 0,
+							y: data.twist?.angular?.y ?? 0,
+							z: data.twist?.angular?.z ?? 0,
 						},
 						// ROS Twist uses ROS REP-103 coordinate convention
 						convention: "ROS" as const,
@@ -920,8 +974,7 @@ export class UnifiedConverter {
 					toRos2: (data: PointsCloud) => ({}),
 					fromRos2: (data): PointsCloud => {
 						const ranges = data.ranges as
-							| ArrayLike<number>
-							| undefined;
+							ArrayLike<number> | undefined;
 						if (!ranges || typeof ranges.length !== "number") {
 							console.error("LaserScan message missing ranges");
 							return {
@@ -949,8 +1002,7 @@ export class UnifiedConverter {
 
 						const count = ranges.length;
 						const scanIntensities = data.intensities as
-							| ArrayLike<number>
-							| undefined;
+							ArrayLike<number> | undefined;
 						const hasIntensities =
 							!!scanIntensities &&
 							typeof scanIntensities.length === "number" &&
