@@ -74,8 +74,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 	// Resolve connection parameters defensively so a missing/malformed topic
 	// renders the empty state instead of throwing.
 	const ros2Definition = props.topic?.source as
-		| RosBridgeSuiteDataSourceSettings
-		| undefined;
+		RosBridgeSuiteDataSourceSettings | undefined;
 	const host = getHostFromWSUrl(ros2Definition?.url);
 	const topicName = props.topic?.topic;
 	const iceServersUrls = props.iceServersUrls;
@@ -101,7 +100,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
 	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const retryAttemptRef = useRef(0);
-	const stallTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const lastFramesRef = useRef<number>(0);
 	const lastTimeRef = useRef<number>(0);
 	const lastProgressAtRef = useRef<number>(0);
 
@@ -141,6 +140,9 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 		cleanupRef.current = false;
 		setHasFrame(false);
 		setUiStatus("connecting");
+		lastFramesRef.current = 0;
+		lastTimeRef.current = 0;
+		lastProgressAtRef.current = Date.now();
 
 		if (pcRef.current) {
 			pcRef.current.close();
@@ -198,12 +200,10 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 				);
 			} else if (state === "failed") {
 				handleFailure();
-			} else if (state === "disconnected" || state === "closed") {
-				if (!cleanupRef.current) {
-					setHasFrame(false);
-					setUiStatus("stalled");
-				}
 			}
+			// `disconnected` is transient (ICE recovers on its own, typically on
+			// lossy Wi-Fi) and `closed` is our own teardown — neither is proof the
+			// picture stopped. The frame-progress watchdog owns live/stalled.
 		};
 
 		pc.oniceconnectionstatechange = () => {
@@ -218,22 +218,13 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 				const video = videoRef.current;
 				video.srcObject = event.streams[0];
 
+				// Fast path to `live` on the first frame. `waiting`/`stalled`
+				// fire on ordinary jitter for a live MediaStream, so they are
+				// not used — the watchdog decides when the stream has stopped.
 				video.onplaying = () => {
 					if (cleanupRef.current) return;
 					setHasFrame(true);
 					setUiStatus("live");
-				};
-				video.onwaiting = () => {
-					if (!cleanupRef.current) setUiStatus("stalled");
-				};
-				video.onstalled = () => {
-					if (!cleanupRef.current) setUiStatus("stalled");
-				};
-				video.onended = () => {
-					if (!cleanupRef.current) {
-						setHasFrame(false);
-						setUiStatus("stalled");
-					}
 				};
 
 				video.play().catch(() => {});
@@ -325,34 +316,39 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 	}, [host, topicName, iceServersKey, hasTopic, retryNonce, clearRetryTimer]);
 
 	// --- Frame-progress watchdog -----------------------------------------
+	// Decoded-frame progress is the single source of truth for live/stalled.
+	// It runs for the widget's whole lifetime (not only after `playing`), so
+	// it recovers from any state the one-shot media/ICE events left behind.
 	useEffect(() => {
-		if (!hasFrame) return;
-		const video = videoRef.current;
-		if (!video) return;
+		if (!hasTopic) return;
 
-		lastTimeRef.current = video.currentTime;
-		lastProgressAtRef.current = Date.now();
-
-		stallTimerRef.current = setInterval(() => {
+		const timer = setInterval(() => {
 			const v = videoRef.current;
-			if (!v) return;
+			if (!v || !v.srcObject) return;
 
-			if (v.currentTime > lastTimeRef.current) {
-				lastTimeRef.current = v.currentTime;
+			// Counters reset when a new stream is attached, so any change with a
+			// non-zero value counts as progress. `currentTime` is the fallback
+			// for engines that do not report decoded frames.
+			const frames = v.getVideoPlaybackQuality?.().totalVideoFrames ?? 0;
+			const progressed =
+				frames > 0
+					? frames !== lastFramesRef.current
+					: v.currentTime > 0 &&
+						v.currentTime !== lastTimeRef.current;
+			lastFramesRef.current = frames;
+			lastTimeRef.current = v.currentTime;
+
+			if (progressed) {
 				lastProgressAtRef.current = Date.now();
-				setUiStatus((prev) => (prev === "stalled" ? "live" : prev));
+				setHasFrame(true);
+				setUiStatus((prev) => (prev === "failed" ? prev : "live"));
 			} else if (Date.now() - lastProgressAtRef.current > STALL_TIMEOUT) {
 				setUiStatus((prev) => (prev === "live" ? "stalled" : prev));
 			}
 		}, STALL_CHECK_INTERVAL);
 
-		return () => {
-			if (stallTimerRef.current) {
-				clearInterval(stallTimerRef.current);
-				stallTimerRef.current = null;
-			}
-		};
-	}, [hasFrame]);
+		return () => clearInterval(timer);
+	}, [hasTopic]);
 
 	// --- Failure toast ----------------------------------------------------
 	useEffect(() => {
