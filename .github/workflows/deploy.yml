@@ -20,6 +20,12 @@ jobs:
     # public repositories.
     build:
         name: Build ${{ matrix.platform }}
+        # A workflow_run trigger fires on CI *completion*, whatever the
+        # conclusion — without this guard a red CI still publishes an image.
+        # Manual dispatches have no upstream run to check.
+        if: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            || github.event.workflow_run.conclusion == 'success' }}
         runs-on: ${{ matrix.runner }}
         permissions:
             contents: read
