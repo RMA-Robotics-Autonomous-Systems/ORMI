@@ -1,7 +1,41 @@
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Build stamp shown in the navbar, as `YYYYMMDD-<short sha>`.
+ *
+ * The date is the *commit* date, not the build date, so the same commit always
+ * produces the same string — two images built a week apart from one commit are
+ * the same software and should say so.
+ *
+ * `APP_VERSION` is injected by the Docker build: `.dockerignore` excludes `.git`,
+ * so the image build cannot read the repository and the CI workflow (which can)
+ * passes it as a build argument. Outside Docker we read git directly, and a
+ * checkout without git history falls back to `dev` rather than failing a build.
+ *
+ * Listed in turbo.json's `build.env` so changing it invalidates the build cache;
+ * without that, turbo would replay a cached build and bake in a stale stamp.
+ */
+function resolveAppVersion() {
+	if (process.env.APP_VERSION) return process.env.APP_VERSION;
+	try {
+		const git = (args) =>
+			execSync(`git ${args}`, {
+				cwd: __dirname,
+				stdio: ["ignore", "pipe", "ignore"],
+			})
+				.toString()
+				.trim();
+		return `${git("show -s --format=%cd --date=format:%Y%m%d HEAD")}-${git(
+			"rev-parse --short=7 HEAD",
+		)}`;
+	} catch {
+		return "dev";
+	}
+}
 
 // Dev-only: resolve internal workspace packages and plugins to their TypeScript
 // source instead of their prebuilt `dist/`. The packages declare a
@@ -76,6 +110,12 @@ const nextConfig = {
 	// `ormi-*` packages, producing a server that cannot resolve its plugins.
 	output: "standalone",
 	outputFileTracingRoot: path.join(__dirname, "../../"),
+	// Inlined at build time. Not part of the validated runtime env in
+	// config/env.js: that schema is for values a deployment supplies, and this
+	// one is fixed when the bundle is compiled.
+	env: {
+		NEXT_PUBLIC_APP_VERSION: resolveAppVersion(),
+	},
 	reactCompiler: true,
 	transpilePackages: [
 		"@workspace/ui",

@@ -44,6 +44,17 @@ jobs:
               uses: actions/checkout@v4
               with:
                   submodules: recursive
+                  # workflow_run checks out the default branch tip by default,
+                  # which can already be ahead of the commit CI validated. Pin
+                  # to that commit so the image, and the version it stamps,
+                  # are the code that passed.
+                  ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+            - name: Compute build stamp
+              run: |
+                  sha=$(git rev-parse --short=7 HEAD)
+                  day=$(git show -s --format=%cd --date=format:%Y%m%d HEAD)
+                  echo "APP_VERSION=${day}-${sha}" >> "$GITHUB_ENV"
 
             - name: Set platform slug
               run: echo "PLATFORM_SLUG=${platform//\//-}" >> "$GITHUB_ENV"
@@ -76,6 +87,8 @@ jobs:
                   context: .
                   file: Dockerfile.ormi_core
                   platforms: ${{ matrix.platform }}
+                  build-args: |
+                      APP_VERSION=${{ env.APP_VERSION }}
                   cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ env.PLATFORM_SLUG }}
                   cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ env.PLATFORM_SLUG }},mode=max
                   outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true

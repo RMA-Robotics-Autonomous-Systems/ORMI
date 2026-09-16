@@ -55,6 +55,11 @@ RUN bun install --frozen-lockfile
 # ---------------------------------------------------------------------------
 FROM deps AS build
 COPY . .
+# The build context has no .git (see .dockerignore), so the navbar's build stamp
+# cannot be derived here — CI passes it in. Left empty, next.config.mjs falls
+# back to reading git, and then to "dev".
+ARG APP_VERSION=""
+ENV APP_VERSION=${APP_VERSION}
 # APP_URL is a server-only variable; it is NOT baked into the client bundle.
 # It is injected at container start via docker-compose environment, so runtime
 # env validation is skipped here and runs normally in the runtime stage.

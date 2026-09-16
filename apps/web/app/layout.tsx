@@ -109,6 +109,17 @@ export default async function RootLayout({
 							defaultThemeId="amber"
 						/>
 					</NavbarItem>
+					{/* Build stamp, last in the right zone so it sits at the
+					    far edge of the bar. Inlined at build time by
+					    next.config.mjs as YYYYMMDD-<short sha>. */}
+					<NavbarItem id="version" zone="right" priority={100}>
+						<span
+							className="px-2 font-mono text-xs text-muted-foreground/70 select-all"
+							title="Build version"
+						>
+							{process.env.NEXT_PUBLIC_APP_VERSION}
+						</span>
+					</NavbarItem>
 					<NavBar />
 					{children}
 					<Toaster />
