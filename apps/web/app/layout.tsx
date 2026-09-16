@@ -15,6 +15,7 @@ import { Toaster } from "@workspace/ui/components/sonner";
 import { NavbarItem, NavBar } from "@workspace/ui/combined/navbar";
 import { cn } from "@workspace/ui/lib/utils";
 import { ClientProviders } from "@/components/client-providers";
+import { VersionBadge } from "@/components/version-badge";
 import { getThemePresets } from "@/server/theme-presets";
 
 const fontSans = FontSans({
@@ -110,15 +111,17 @@ export default async function RootLayout({
 						/>
 					</NavbarItem>
 					{/* Build stamp, last in the right zone so it sits at the
-					    far edge of the bar. Inlined at build time by
-					    next.config.mjs as YYYYMMDD-<short sha>. */}
-					<NavbarItem id="version" zone="right" priority={100}>
-						<span
-							className="px-2 font-mono text-xs text-muted-foreground/70 select-all"
-							title="Build version"
-						>
-							{process.env.NEXT_PUBLIC_APP_VERSION}
-						</span>
+					    far edge of the bar. `flex items-center` on the item
+					    itself because NavbarItem portals into a height:100%
+					    wrapper that does not centre its content — a full-height
+					    Button fills it, a one-line label would sit at the top. */}
+					<NavbarItem
+						id="version"
+						zone="right"
+						priority={100}
+						className="flex items-center"
+					>
+						<VersionBadge />
 					</NavbarItem>
 					<NavBar />
 					{children}

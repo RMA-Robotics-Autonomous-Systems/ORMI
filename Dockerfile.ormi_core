@@ -92,6 +92,12 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 WORKDIR /app
 
+# The server runs under Bun, not Node: apps/web/lib/mdx/render.ts and the docs
+# page render markdown with `Bun.markdown.render`, so under Node every /docs
+# page and the devlog ("What's new") API throw `ReferenceError: Bun is not
+# defined` and return 500. Node stays in the image for the Prisma CLI.
+COPY --from=oven/bun:1.4.2 /usr/local/bin/bun /usr/local/bin/bun
+
 # Next standalone output. With `outputFileTracingRoot` set to the workspace
 # root the tree is rooted at the monorepo, so the server lands at
 # apps/web/server.js with its traced node_modules alongside.
@@ -118,7 +124,7 @@ set -e
 cd /app/prisma-cli
 node node_modules/prisma/build/index.js migrate deploy
 cd /app
-exec node apps/web/server.js
+exec bun apps/web/server.js
 EOF
 RUN chmod +x /usr/local/bin/ormi-entrypoint.sh
 

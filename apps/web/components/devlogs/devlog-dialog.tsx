@@ -9,16 +9,25 @@ import {
 } from "@workspace/ui/components/dialog";
 import { Button } from "@workspace/ui/components/button";
 import { Separator } from "@workspace/ui/components/separator";
-import { useDevlogs } from "@/hooks/use-devlogs";
+import { useDevlogContext } from "@/components/devlogs/devlog-provider";
 
 export function DevlogDialog() {
-	const { devlogs, markAsSeen } = useDevlogs();
+	const { devlogs, mode, close, markAsSeen } = useDevlogContext();
 
-	const open = devlogs.length > 0;
+	const open = mode !== "hidden" && devlogs.length > 0;
+	// Opened deliberately from the version badge: behave like a normal dialog.
+	// Opened by itself because there is unread news: acknowledge to close, so
+	// the entry is not silently marked read by an errant Escape.
+	const dismissible = mode === "all";
 
 	return (
-		<Dialog open={open}>
-			<DialogContent size="medium" showCloseButton={false}>
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next && dismissible) close();
+			}}
+		>
+			<DialogContent size="medium" showCloseButton={dismissible}>
 				<DialogHeader>
 					<DialogTitle>What&apos;s new</DialogTitle>
 				</DialogHeader>
@@ -38,7 +47,9 @@ export function DevlogDialog() {
 				</div>
 
 				<DialogFooter>
-					<Button onClick={markAsSeen}>Got it</Button>
+					<Button onClick={dismissible ? close : markAsSeen}>
+						{dismissible ? "Close" : "Got it"}
+					</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -9,6 +9,7 @@ import { NavbarProvider } from "@workspace/ui/combined/navbar/navbar-provider";
 import registry from "../ormi-plugins";
 import { appStore } from "@workspace/ormi-core";
 import { DevlogDialog } from "@/components/devlogs/devlog-dialog";
+import { DevlogProvider } from "@/components/devlogs/devlog-provider";
 import { DiagnosticsHost } from "@/components/diagnostics/diagnostics-host";
 
 interface ClientProvidersProps {
@@ -22,9 +23,14 @@ export function ClientProviders({ children }: ClientProvidersProps) {
 				<AuthProvider>
 					<PluginsProvider PluginsInfo={registry}>
 						<NavbarProvider>
-							{children}
-							<DevlogDialog />
-							<DiagnosticsHost />
+							{/* Inside NavbarProvider: the navbar's version
+							    badge opens the dialog, so both must share one
+							    devlog state. */}
+							<DevlogProvider>
+								{children}
+								<DevlogDialog />
+								<DiagnosticsHost />
+							</DevlogProvider>
 						</NavbarProvider>
 					</PluginsProvider>
 				</AuthProvider>

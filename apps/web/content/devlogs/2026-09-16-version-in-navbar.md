@@ -6,7 +6,7 @@ Every ORMI dashboard now displays the exact version it is running, in small grey
 
 It reads as a date and a short code, like `20260916-de9ed2a`. The first part is the day the code was written, and the second identifies the precise change it was built from.
 
-Clicking the text selects the whole thing, so it can be copied in one go and pasted into a message or a ticket.
+Clicking it opens this What's New panel, so the full history of changes is always one click away from the version you are running.
 
 ## Why it is there
 
@@ -18,4 +18,4 @@ When you report something that looks wrong, including this stamp tells us exactl
 
 ## What it does not do
 
-It is a label, not a control. Nothing about it changes how a dashboard behaves, and it does not check for or install updates. The date shown is when the change was made, not when your particular installation received it — a version stamp stays the same for as long as that version is what you are running.
+Opening the panel changes nothing about how a dashboard behaves, and it does not check for or install updates. The date shown is when the change was made, not when your particular installation received it — a version stamp stays the same for as long as that version is what you are running.
