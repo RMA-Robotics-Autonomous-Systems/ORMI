@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { StyleSpecification } from "react-map-gl/maplibre";
+import { applyBasemapKey } from "@workspace/utils";
 import { GridUtils } from "../gps-components/maps-grid";
 
 /**
@@ -18,6 +19,8 @@ interface CustomLayer {
  */
 interface UseMapStyleProps {
 	mapUrl: string;
+	/** Operator-supplied key for basemaps that require one (Carto, Stadia). */
+	basemapApiKey?: string;
 	use3D: boolean;
 	apiKey?: string;
 	customLayers: CustomLayer[];
@@ -31,6 +34,7 @@ interface UseMapStyleProps {
  */
 export function useMapStyle({
 	mapUrl,
+	basemapApiKey,
 	use3D,
 	apiKey,
 	customLayers,
@@ -99,7 +103,7 @@ export function useMapStyle({
 			sources: {
 				"raster-tiles": {
 					type: "raster",
-					tiles: [mapUrl],
+					tiles: [applyBasemapKey(mapUrl, basemapApiKey)],
 				},
 				grid: {
 					type: "geojson",
@@ -187,5 +191,5 @@ export function useMapStyle({
 		}
 
 		return baseStyle;
-	}, [mapUrl, use3D, apiKey, customLayers, showGrid]);
+	}, [mapUrl, basemapApiKey, use3D, apiKey, customLayers, showGrid]);
 }

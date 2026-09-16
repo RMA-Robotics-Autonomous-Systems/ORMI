@@ -21,3 +21,5 @@ export * from "./datasource-subscription-registry";
 
 export * from "./metrics/metrics-core";
 export * from "./metrics/metrics-reporter";
+
+export * from "./basemap-providers";

@@ -170,6 +170,7 @@ import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { vehicleColor } from "./plan-metrics";
 import { useMapInit } from "./maps-shared/use-map-init";
 import { useMapStyle } from "./maps-shared/use-map-style";
+import { BASEMAPS_REQUIRING_KEY, basemapOneOf } from "@workspace/utils";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
 import { RainviewerOverlay } from "./rainviewer-overlay";
@@ -260,6 +261,8 @@ interface MissionMapProps extends Record<string, unknown> {
 	title: string;
 	/** Raster XYZ tile URL template for the base map. */
 	mapUrl?: string;
+	/** Operator-supplied key for basemaps that require one (Carto, Stadia). */
+	basemapApiKey?: string;
 	/** Last-used map name (persisted in config). */
 	defaultMap?: string;
 	/** Pin to a specific C2 datasource id; empty → first available. */
@@ -277,50 +280,6 @@ interface MissionMapProps extends Record<string, unknown> {
 }
 
 const DEFAULT_MAP_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-
-/**
- * Selectable raster base-map providers (XYZ tile templates), mirroring the
- * std-widgets map widget. Rendered as a dropdown via the JSON Schema `oneOf`.
- */
-const MAP_TILE_PROVIDERS = [
-	{
-		const: "https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
-		title: "Carto Voyager (labels under)",
-	},
-	{ const: DEFAULT_MAP_URL, title: "OpenStreetMap" },
-	{
-		const: "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-		title: "OpenStreetMap Humanitarian",
-	},
-	{
-		const: "https://tile.opentopomap.org/{z}/{x}/{y}.png",
-		title: "OpenTopoMap",
-	},
-	{
-		const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png",
-		title: "Stadia Alidade Smooth Dark",
-	},
-	{
-		const: "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg",
-		title: "Stadia Alidade Satellite",
-	},
-	{
-		const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-		title: "ArcGIS World Imagery",
-	},
-	{
-		const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-		title: "ArcGIS World Topo Map",
-	},
-	{
-		const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web_grau/default/WEBMERCATOR/{z}/{y}/{x}.png",
-		title: "GeoDataCenter TopPlus (gray)",
-	},
-	{
-		const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png",
-		title: "GeoDataCenter TopPlus (color)",
-	},
-];
 
 /** Resolve a C2 call definition by name. */
 function findCall(
@@ -1366,6 +1325,7 @@ function clearDraw(draw: TerraDraw | null): void {
 /** Inner body once the CRUD call definitions are resolved. */
 function MissionMapBody(props: {
 	mapUrl: string;
+	basemapApiKey?: string;
 	defaultMap?: string;
 	mapsListDef: RemoteCallDefinition;
 	mapsCreateDef?: RemoteCallDefinition;
@@ -1423,7 +1383,7 @@ function MissionMapBody(props: {
 	);
 
 	const { startingLocation } = useMapInit();
-	const mapStyle = useMapStyle(props.mapUrl);
+	const mapStyle = useMapStyle(props.mapUrl, props.basemapApiKey);
 	const mapRef = useRef<MapRef>(null);
 	const drawRef = useRef<TerraDraw | null>(null);
 	// terra-draw id of the feature currently loaded into the draw layer for
@@ -1968,8 +1928,7 @@ function MissionMapBody(props: {
 			const liveFeature =
 				editing && liveId != null
 					? (drawRef.current?.getSnapshotFeature(liveId) as
-							| DrawFeature
-							| undefined)
+							DrawFeature | undefined)
 					: undefined;
 			const source = liveFeature ?? pending.feature;
 			const feature = drawFeatureToC2Feature(source, {
@@ -2457,8 +2416,7 @@ function MissionMapBody(props: {
 		const liveId = editingDrawIdRef.current;
 		if (pickedGeomIndex != null && liveId != null) {
 			const live = drawRef.current?.getSnapshotFeature(liveId) as
-				| DrawFeature
-				| undefined;
+				DrawFeature | undefined;
 			if (live) {
 				const inline = drawFeatureToInlineGeometry(live);
 				geometries = geometries.map((g, i) =>
@@ -3359,6 +3317,7 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 	return (
 		<MissionMapBody
 			mapUrl={props.mapUrl?.trim() || DEFAULT_MAP_URL}
+			basemapApiKey={props.basemapApiKey}
 			defaultMap={props.defaultMap}
 			mapsListDef={mapsListDef}
 			mapsCreateDef={mapsCreateDef}
@@ -3397,8 +3356,12 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				mapUrl: {
 					type: "string",
 					title: "Base map",
-					oneOf: MAP_TILE_PROVIDERS,
+					oneOf: basemapOneOf(),
 					default: DEFAULT_MAP_URL,
+				},
+				basemapApiKey: {
+					type: "string",
+					title: "Basemap API Key",
 				},
 				defaultMap: {
 					type: "string",
@@ -3448,6 +3411,17 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				{
 					type: "Control",
 					scope: "#/properties/mapUrl",
+				} as ControlElement,
+				{
+					type: "Control",
+					scope: "#/properties/basemapApiKey",
+					rule: {
+						effect: "SHOW",
+						condition: {
+							scope: "#/properties/mapUrl",
+							schema: { enum: [...BASEMAPS_REQUIRING_KEY] },
+						},
+					},
 				} as ControlElement,
 				{
 					type: "Control",

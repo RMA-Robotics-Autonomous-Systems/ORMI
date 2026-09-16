@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { StyleSpecification } from "react-map-gl/maplibre";
+import { applyBasemapKey } from "@workspace/utils";
 
 /**
  * Raster-base MapLibre style for the C2 map widget (F6).
@@ -11,16 +12,21 @@ import type { StyleSpecification } from "react-map-gl/maplibre";
  * a single raster tile base under the feature / draw / overlay layers.
  *
  * @param mapUrl - A raster XYZ tile URL template (`{x}/{y}/{z}`).
+ * @param basemapApiKey - Operator-supplied key, appended only for the basemap
+ *   providers that require one (Carto, Stadia Maps).
  * @returns A MapLibre `StyleSpecification` with a single raster base layer.
  */
-export function useMapStyle(mapUrl: string): StyleSpecification {
+export function useMapStyle(
+	mapUrl: string,
+	basemapApiKey?: string,
+): StyleSpecification {
 	return useMemo<StyleSpecification>(
 		() => ({
 			version: 8,
 			sources: {
 				"raster-tiles": {
 					type: "raster",
-					tiles: [mapUrl],
+					tiles: [applyBasemapKey(mapUrl, basemapApiKey)],
 					tileSize: 256,
 				},
 			},
@@ -34,6 +40,6 @@ export function useMapStyle(mapUrl: string): StyleSpecification {
 				},
 			],
 		}),
-		[mapUrl],
+		[mapUrl, basemapApiKey],
 	);
 }

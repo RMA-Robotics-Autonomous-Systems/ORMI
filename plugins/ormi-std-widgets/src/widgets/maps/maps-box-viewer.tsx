@@ -16,6 +16,7 @@ import {
 	WidgetDefinition,
 } from "@workspace/ormi-core/widgets";
 import { PluginsManager } from "@workspace/ormi-plugins";
+import { BASEMAPS_REQUIRING_KEY, basemapOneOf } from "@workspace/utils";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
@@ -34,6 +35,7 @@ interface MapsViewerSettings extends Record<string, unknown> {
 	mapUrl: string;
 	use3D: boolean;
 	apiKey?: string;
+	basemapApiKey?: string;
 
 	// GPS Topics (already in GPS coordinates)
 	topics: {
@@ -87,6 +89,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 	const gridHook = useMapGrid(mapRef, showGrid);
 	const mapStyle = useMapStyle({
 		mapUrl: props.mapUrl,
+		basemapApiKey: props.basemapApiKey,
 		use3D: props.use3D,
 		apiKey: props.apiKey,
 		customLayers: customLayersState,
@@ -206,53 +209,14 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				mapUrl: {
 					type: "string",
 					title: "Map URL",
-					oneOf: [
-						{
-							const: "https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
-							title: "Carto Voyager Labels Under",
-						},
-						{
-							const: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-							title: "OpenStreetMap",
-						},
-						{
-							const: "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-							title: "OpenStreetMap Humanitarian",
-						},
-						{
-							const: "https://tile.opentopomap.org/{z}/{x}/{y}.png",
-							title: "OpenTopoMap A",
-						},
-						{
-							//https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/5/15/10.png
-							const: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png",
-							title: "Stadia Maps Alidade Smooth Dark",
-						},
-						{
-							//https://tiles.stadiamaps.com/tiles/alidade_satellite/7/72/44.jpg
-							const: "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg",
-							title: "Stadia Maps Alidade Satellite",
-						},
-						{
-							//https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/18/88796/141595
-							const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-							title: "ArcGIS World Imagery",
-						},
-						{
-							const: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-							title: "ArcGIS World Topo Map",
-						},
-						{
-							const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web_grau/default/WEBMERCATOR/{z}/{y}/{x}.png",
-							title: "GeoDataCenter WMTS TopPlus Open (gray)",
-						},
-						{
-							const: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png",
-							title: "GeoDataCenter WMTS TopPlus Open (color)",
-						},
-					],
+					oneOf: basemapOneOf(),
 					default:
 						"https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
+				},
+
+				basemapApiKey: {
+					type: "string",
+					title: "Basemap API Key",
 				},
 
 				use3D: {
@@ -262,7 +226,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				},
 				apiKey: {
 					type: "string",
-					title: "API Key",
+					title: "MapTiler API Key (3D buildings)",
 				},
 				topics: {
 					type: "array",
@@ -431,6 +395,19 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 						{
 							type: "Control",
 							scope: "#/properties/mapUrl",
+						} as ControlElement,
+						{
+							type: "Control",
+							scope: "#/properties/basemapApiKey",
+							rule: {
+								effect: "SHOW",
+								condition: {
+									scope: "#/properties/mapUrl",
+									schema: {
+										enum: [...BASEMAPS_REQUIRING_KEY],
+									},
+								},
+							},
 						} as ControlElement,
 						{
 							type: "Control",

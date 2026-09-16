@@ -51,6 +51,7 @@
 
 import type { DashboardInterface } from "@workspace/ormi-core/dashboard";
 import type { Widget } from "@workspace/ormi-core/widgets";
+import { BASEMAP_PROVIDERS } from "@workspace/utils";
 
 /** Widget ids this template places. */
 const IDS = {
@@ -80,9 +81,13 @@ interface Panel {
  * Carto Voyager with labels under: a survey is read as marks on ground, so the
  * basemap has to stay behind them. Labels drawn over the layers put place names
  * through the detections.
+ *
+ * Resolved from the shared provider table so the cockpit cannot drift from the
+ * url the map widget's dropdown offers.
  */
-const CARTO_VOYAGER =
-	"https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png";
+const CARTO_VOYAGER = BASEMAP_PROVIDERS.find(
+	(entry) => entry.provider === "Carto",
+)!.url;
 
 /**
  * A map layer entry, as the standard map widget stores them.
