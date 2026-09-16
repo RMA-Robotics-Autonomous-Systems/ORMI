@@ -105,3 +105,19 @@ datasource boundary is done by `UnifiedConverter` (ROS → webapp types).
 Local / self-hosted. Config comes from `docker-compose.yml` / env vars — never
 hardcode secrets. Backend is Prisma ORM + PostgreSQL with NextAuth. Server-side
 Prisma access is only through `apps/web/lib/data/prisma-*.ts` helpers.
+
+The app image (`Dockerfile.ormi_core`) is a multi-stage build and ships **only**
+Next's standalone output — the traced server bundle, `.next/static`, `public`,
+and an isolated Prisma CLI for `migrate deploy` at start. The monorepo sources,
+the workspace `node_modules` and the build toolchain stay in discarded stages.
+This depends on `output: "standalone"` plus `outputFileTracingRoot` pointed at
+the workspace root in `apps/web/next.config.mjs`; without that root, tracing
+stops at `apps/web` and the shipped server cannot resolve the symlinked
+`@workspace/*` and `ormi-*` packages. The container entrypoint runs
+`prisma migrate deploy` and then `node apps/web/server.js`; watchtower pulls
+new images in the field, so image size is deployment latency. The image is
+published to GHCR as a two-platform manifest (`linux/amd64`, `linux/arm64`)
+built natively on one runner per platform; `:latest` is written once, by the
+manifest-merge job, so a watchtower poll never sees a partial publish.
+**`linux/arm64` is a production target**: ORMI is deployed on Jetson Orin
+arm64 robots as well as on x86 servers, so both platforms must publish.

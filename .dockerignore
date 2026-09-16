@@ -1,15 +1,37 @@
-# Exclude volume directories to prevent them from being copied into images
+# Patterns without `**` only match at the context root, so every build artifact
+# that can appear inside a workspace needs the `**/` form.
+
+# Volume directories — never belong in an image
 postgres/
 webrtc/
 
-# Exclude common development files
+# Dependencies and build output (rebuilt inside the image)
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.cache
+
+# VCS and CI
 .git
 .github
 .gitignore
-.turbo
-# .env
-# .env.*
+
+# Local-only tooling and knowledge bases (explicitly not shipped)
+ormi-doc/
+graphify-out/
+.claude/
+
+# Working documents, benchmark captures and scratch data
 *.log
-node_modules/
-dist/
-.next/
+*_PLAN.md
+*_REPORT.md
+*_REVIEW.md
+BENCHMARK_HISTORY.md
+TODO.md
+loadgen-*.json
+*.geojson
+
+# Env files stay out of the image; values come from docker-compose
+.env
+.env.*

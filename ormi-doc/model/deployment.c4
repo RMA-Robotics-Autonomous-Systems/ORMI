@@ -15,7 +15,12 @@ deployment {
     description 'Local or on-prem host running the ORMI stack, usually via docker-compose.'
 
     appRuntime = containerRuntime 'Next.js Server' {
-      description 'Serves the app router pages and the /api route handlers (Prisma helpers, NextAuth).'
+      description '''
+        Serves the app router pages and the /api route handlers (Prisma helpers, NextAuth).
+        Shipped as Next standalone output (traced server bundle + .next/static + public)
+        built by Dockerfile.ormi_core; the entrypoint applies Prisma migrations, then starts
+        apps/web/server.js. No monorepo sources or workspace node_modules in the image.
+      '''
     }
 
     dbRuntime = containerRuntime 'PostgreSQL' {

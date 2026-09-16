@@ -1,3 +1,8 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 // Dev-only: resolve internal workspace packages and plugins to their TypeScript
 // source instead of their prebuilt `dist/`. The packages declare a
 // `"development"` export condition for exactly this, but Turbopack (Next 16)
@@ -61,6 +66,16 @@ const devSourceAliases = isDev
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+	// Emit a self-contained server bundle (`.next/standalone`) so the Docker
+	// runtime stage needs neither the monorepo sources nor its `node_modules`.
+	// Next traces only the modules the server actually imports; build-only
+	// toolchains (@next/swc, turbo, typescript) and client-only libraries
+	// (plotly, mermaid, echarts — already compiled into `.next/static`) are
+	// left behind. `outputFileTracingRoot` must point at the workspace root or
+	// tracing stops at `apps/web` and misses the symlinked `@workspace/*` and
+	// `ormi-*` packages, producing a server that cannot resolve its plugins.
+	output: "standalone",
+	outputFileTracingRoot: path.join(__dirname, "../../"),
 	reactCompiler: true,
 	transpilePackages: [
 		"@workspace/ui",

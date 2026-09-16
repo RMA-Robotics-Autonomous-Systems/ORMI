@@ -1,28 +1,121 @@
-# Use latest Node.js LTS version
-FROM node:lts-bullseye
+# syntax=docker/dockerfile:1.7
 
-# Set the timezone to UTC
-ENV TZ=UTC
-# Set the locale to UTF-8
-ENV LANG=C.UTF-8
+# Multi-stage build. Only the final `runtime` stage is shipped: it carries the
+# Next.js standalone server, its traced dependencies and the Prisma CLI needed
+# for `migrate deploy` at start — not the ~2.3 GB monorepo `node_modules`, not
+# the sources, and not the build toolchain.
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash && \
-    mv /root/.bun/bin/bun /usr/local/bin/bun && \
-    rm -rf /root/.bun
-# Set working directory
-WORKDIR /ORMI-CORE
-# Copy all folders from the host to the container
+# ---------------------------------------------------------------------------
+# node-base — the runtime floor: Node plus the Prisma engines' only native
+# dependency. Shared by the build stages and the shipped image, so the runtime
+# never inherits Bun (~93 MB) that only the build needs.
+# ---------------------------------------------------------------------------
+FROM node:24-bookworm-slim AS node-base
+ENV TZ=UTC \
+    LANG=C.UTF-8
+# openssl is required by the Prisma engines; ca-certificates by Bun's fetch.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# base — build-side toolchain: node-base plus Bun.
+# ---------------------------------------------------------------------------
+FROM node-base AS base
+# Pinned for reproducible builds. Do not drop below 1.4 — bun 1.2.x resolves
+# the React Compiler's babel plugin relative to next's own bundle instead of the
+# project root, which fails every `reactCompiler: true` build with
+# "Cannot find module '../../node_modules/babel-plugin-react-compiler'".
+# (Root package.json still declares `packageManager: bun@1.2.17`; it is stale.)
+COPY --from=oven/bun:1.4.2 /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /app
+
+# ---------------------------------------------------------------------------
+# manifests — strip the context down to workspace package.json files + lockfile
+# so the (slow, network-bound) install layer is only invalidated by real
+# dependency changes, not by every source edit.
+# ---------------------------------------------------------------------------
+FROM base AS manifests
+WORKDIR /src
 COPY . .
+RUN find . -name node_modules -prune -o -type f \
+        ! -name package.json ! -name 'bun.lock*' -print0 \
+    | xargs -0 --no-run-if-empty rm -f \
+    && find . -type d -empty -delete
 
-RUN bun install
+# ---------------------------------------------------------------------------
+# deps — full workspace install (dev dependencies included; the build needs them)
+# ---------------------------------------------------------------------------
+FROM base AS deps
+COPY --from=manifests /src/ ./
+RUN bun install --frozen-lockfile
 
+# ---------------------------------------------------------------------------
+# build — turbo build across packages, plugins and the web app
+# ---------------------------------------------------------------------------
+FROM deps AS build
+COPY . .
 # APP_URL is a server-only variable; it is NOT baked into the client bundle.
-# It is injected at container start via docker-compose environment.
-# Skip runtime env validation during build; server vars are injected at container start
-ENV SKIP_ENV_VALIDATION=1
+# It is injected at container start via docker-compose environment, so runtime
+# env validation is skipped here and runs normally in the runtime stage.
+ENV SKIP_ENV_VALIDATION=1 \
+    NODE_ENV=production
 RUN bun run build
-# Remove the build-time skip flag so runtime validation runs normally
-ENV SKIP_ENV_VALIDATION=
+# Turbopack emits server source maps in production builds — ~98 MB of the
+# ~124 MB under .next/server. They are debug-only; drop them from the image.
+RUN find apps/web/.next -name '*.js.map' -delete
 
-CMD ["bun", "run", "start"]
+# ---------------------------------------------------------------------------
+# prisma-cli — isolated install of the Prisma CLI for `migrate deploy`.
+# The standalone trace covers @prisma/client but not the CLI (no server module
+# imports it). The version is read back from the workspace install so it can
+# never drift from apps/web/package.json.
+# ---------------------------------------------------------------------------
+FROM base AS prisma-cli
+WORKDIR /prisma-cli
+COPY --from=deps /app/node_modules/prisma/package.json /tmp/prisma-package.json
+RUN PRISMA_VERSION="$(node -p "require('/tmp/prisma-package.json').version")" \
+    && npm init -y >/dev/null \
+    && npm install --omit=dev --no-audit --no-fund "prisma@${PRISMA_VERSION}"
+
+# ---------------------------------------------------------------------------
+# runtime — everything the container actually needs, and nothing else
+# ---------------------------------------------------------------------------
+FROM node-base AS runtime
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+
+# Next standalone output. With `outputFileTracingRoot` set to the workspace
+# root the tree is rooted at the monorepo, so the server lands at
+# apps/web/server.js with its traced node_modules alongside.
+COPY --from=build /app/apps/web/.next/standalone ./
+# Static assets and public files are not traced and must be copied explicitly.
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
+
+# Prisma migrations run at container start against the compose-provided
+# DATABASE_URL. The schema, its migrations and prisma.config.ts live *next to*
+# the CLI rather than under apps/web: prisma.config.ts is loaded as a module and
+# resolves `@prisma/config` from its own directory, which the standalone trace
+# does not carry (no server module imports it).
+COPY --from=prisma-cli /prisma-cli ./prisma-cli
+COPY --from=build /app/apps/web/prisma ./prisma-cli/prisma
+COPY --from=build /app/apps/web/prisma.config.ts ./prisma-cli/prisma.config.ts
+
+COPY <<'EOF' /usr/local/bin/ormi-entrypoint.sh
+#!/bin/sh
+set -e
+# Run from /app/prisma-cli so the CLI auto-discovers prisma/schema.prisma and
+# prisma.config.ts (which supplies the datasource URL) and can resolve the
+# config's own imports.
+cd /app/prisma-cli
+node node_modules/prisma/build/index.js migrate deploy
+cd /app
+exec node apps/web/server.js
+EOF
+RUN chmod +x /usr/local/bin/ormi-entrypoint.sh
+
+EXPOSE 3000
+CMD ["/usr/local/bin/ormi-entrypoint.sh"]
