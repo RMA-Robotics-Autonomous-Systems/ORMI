@@ -30,6 +30,13 @@ interface TopicEntry {
 	name: string;
 	topic: SelectedTopic;
 	makerType: "simple" | "heatmap" | "path" | "multipoints";
+	/**
+	 * Stable identity of this configuration entry, produced by `GpsTopicsLayer`
+	 * and shared with the marker that renders it. Several entries may target the
+	 * same topic, so the topic key is not unique: this id keys the row and the
+	 * marker-injected ButtonHolder toggle.
+	 */
+	instanceId: string;
 }
 
 /**
@@ -42,7 +49,7 @@ interface TopicEntry {
  * renders nothing.
  *
  * The per-row visibility toggle is injected by the marker components through
- * the keyed ButtonHolder bus (`items`); its key is `getSourceId(topic)`.
+ * the keyed ButtonHolder bus (`items`); its key is the entry's `instanceId`.
  *
  * @param props - Component props.
  * @returns React element or null when there is nothing to show.
@@ -139,7 +146,7 @@ function TopicsSection({
 	topics: TopicEntry[];
 	mapRef?: React.RefObject<MapRef | null>;
 }) {
-	const { getSource, getSourceId } = useLocalDataSource();
+	const { getSource } = useLocalDataSource();
 	const { items } = useButtonHolder();
 
 	const handleTopicClick = (topic: TopicEntry) => {
@@ -197,10 +204,10 @@ function TopicsSection({
 				Topics
 			</span>
 			{topics.map((topic) => {
-				const topicKey = getSourceId(topic.topic);
+				const instanceId = topic.instanceId;
 				return (
 					<div
-						key={topicKey}
+						key={instanceId}
 						className="flex items-center gap-2 rounded px-1 py-0.5"
 					>
 						{/* eslint-disable-next-line @next/next/no-img-element */}
@@ -208,7 +215,7 @@ function TopicsSection({
 							width={20}
 							height={20}
 							className="shrink-0"
-							src={createAvatarDataUri("bottts", topicKey)}
+							src={createAvatarDataUri("bottts", instanceId)}
 							alt={`Marker for ${topic.name}`}
 						/>
 						<span className="min-w-0 flex-1 truncate text-sm">
@@ -232,9 +239,9 @@ function TopicsSection({
 								Center map on &quot;{topic.name}&quot;
 							</TooltipContent>
 						</Tooltip>
-						{items.has(topicKey) && (
+						{items.has(instanceId) && (
 							<div className="shrink-0">
-								{items.get(topicKey)?.component}
+								{items.get(instanceId)?.component}
 							</div>
 						)}
 					</div>

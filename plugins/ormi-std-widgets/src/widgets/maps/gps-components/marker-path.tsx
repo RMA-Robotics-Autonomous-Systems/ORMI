@@ -20,12 +20,19 @@ export default function PathMarker(props: {
 	topic: SelectedTopic;
 	name: string;
 	scale?: number;
+	/**
+	 * Stable identity of the configuration entry this marker renders. Several
+	 * entries may target the same topic, so the topic key is not unique: this id
+	 * keys the ButtonHolder toggle and the MapLibre source/layer ids.
+	 */
+	instanceId: string;
 }) {
 	const [locations, setLocations] = useState<any>([]);
-	const { getSource, getSourceId } = useLocalDataSource();
+	const { getSource } = useLocalDataSource();
 
-	// Create unique IDs for this path marker instance using source ID
-	const uniqueTopicId = getSourceId(props.topic);
+	// Unique IDs for this path marker instance: per configuration entry, not per
+	// topic, so two entries on the same topic do not collide in MapLibre.
+	const uniqueTopicId = props.instanceId;
 	const sourceId = `path-source-${uniqueTopicId}`;
 	const layerId = `path-layer-${uniqueTopicId}`;
 
@@ -70,15 +77,19 @@ export default function PathMarker(props: {
 		} catch (error) {
 			console.error("Error parsing data", error, data);
 		}
+	}, [getSource, props.topic]);
 
+	// Visibility toggle registration lives in its own effect so it re-registers
+	// on `show` and never closes over a stale value.
+	useEffect(() => {
 		setButtonItem(
-			getSourceId(props.topic),
+			props.instanceId,
 			<Button
 				variant="ghost"
 				size="icon"
 				className="h-6 w-6"
 				onClick={() => {
-					setShow(!show);
+					setShow((v) => !v);
 				}}
 			>
 				{show ? (
@@ -91,9 +102,9 @@ export default function PathMarker(props: {
 		);
 
 		return () => {
-			removeButtonItem(getSourceId(props.topic));
+			removeButtonItem(props.instanceId);
 		};
-	}, [getSource, props.topic]);
+	}, [props.instanceId, show, setButtonItem, removeButtonItem]);
 
 	const distance = (
 		lat1: number,
@@ -162,6 +173,7 @@ export default function PathMarker(props: {
 				topic={props.topic}
 				name={props.name}
 				scale={props.scale}
+				instanceId={props.instanceId}
 				isChild
 			/>
 		</>

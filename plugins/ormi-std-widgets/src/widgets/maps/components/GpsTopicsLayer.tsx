@@ -78,6 +78,22 @@ export function GpsTopicsLayer({
 		);
 	}, [topics]);
 
+	// Per-entry instance identity. A topic can legitimately appear in several
+	// entries (e.g. a `path` and a `multipoints` view of the same fix), so the
+	// topic key alone is not unique: compose it with the list index. Markers and
+	// the control panel must agree on this id — it keys the ButtonHolder toggle,
+	// the panel rows and the MapLibre source/layer ids.
+	const entries = useMemo(
+		() =>
+			topics.map((t, i) => ({
+				...t,
+				instanceId: t.topic
+					? `${t.topic.source.id}::${t.topic.topic}::${t.topic.property ?? ""}::${i}`
+					: `gps-topic-${i}`,
+			})),
+		[topics],
+	);
+
 	// Render nothing only when there is neither a topic nor a layer to control.
 	if (
 		(!topics || topics.length === 0) &&
@@ -88,16 +104,13 @@ export function GpsTopicsLayer({
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
-			{topics.map((t, i) => {
-				// Unique, stable key per entry: a topic name can be empty or shared across
-				// entries, so compose it with the topic identity and the list index.
-				const key = t.topic
-					? `${t.topic.source.id}::${t.topic.topic}::${t.topic.property ?? ""}::${i}`
-					: `gps-topic-${i}`;
+			{entries.map((t) => {
+				const instanceId = t.instanceId;
 				if (t.makerType === "simple") {
 					return (
 						<TopicMarker
-							key={key}
+							key={instanceId}
+							instanceId={instanceId}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -106,7 +119,8 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "heatmap") {
 					return (
 						<HeatMarker
-							key={key}
+							key={instanceId}
+							instanceId={instanceId}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -116,7 +130,8 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "path") {
 					return (
 						<PathMarker
-							key={key}
+							key={instanceId}
+							instanceId={instanceId}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -125,7 +140,8 @@ export function GpsTopicsLayer({
 				} else if (t.makerType === "multipoints") {
 					return (
 						<MultiPoints
-							key={key}
+							key={instanceId}
+							instanceId={instanceId}
 							topic={t.topic}
 							name={t.name}
 							scale={1}
@@ -133,9 +149,11 @@ export function GpsTopicsLayer({
 					);
 				}
 				// Plugin-provided marker: wrap in a keyed Fragment — the returned element
-				// is arbitrary JSX we cannot attach a key to directly.
+				// is arbitrary JSX we cannot attach a key to directly. The filter payload
+				// keeps its shape (a single entry object) and now also carries
+				// `instanceId` for plugins that need a per-entry identity.
 				return (
-					<Fragment key={key}>
+					<Fragment key={instanceId}>
 						{pluginsManager.applyFilter<JSX.Element | null>(
 							"std-widgets-map-components",
 							null,
@@ -146,7 +164,7 @@ export function GpsTopicsLayer({
 			})}
 
 			<MapControlPanel
-				topics={topics}
+				topics={entries}
 				customLayers={customLayers}
 				mapRef={mapRef}
 				onLayerVisibilityChange={onLayerVisibilityChange}

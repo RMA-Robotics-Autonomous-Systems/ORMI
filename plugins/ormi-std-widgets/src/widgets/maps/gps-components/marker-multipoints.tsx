@@ -20,14 +20,21 @@ export default function MultiPoints(props: {
 	topic: SelectedTopic;
 	name: string;
 	scale?: number;
+	/**
+	 * Stable identity of the configuration entry this marker renders. Several
+	 * entries may target the same topic, so the topic key is not unique: this id
+	 * keys the ButtonHolder toggle and the MapLibre source/layer ids.
+	 */
+	instanceId: string;
 }) {
 	const [locations, setLocations] = useState<any>([]);
 	const [hoveredPoint, setHoveredPoint] = useState<any>(null);
-	const { getSource, getSourceId } = useLocalDataSource();
+	const { getSource } = useLocalDataSource();
 	const { current: map } = useMap();
 
-	// Create unique IDs for this multipoints instance using source ID
-	const uniqueTopicId = getSourceId(props.topic);
+	// Unique IDs for this multipoints instance: per configuration entry, not per
+	// topic, so two entries on the same topic do not collide in MapLibre.
+	const uniqueTopicId = props.instanceId;
 	const sourceId = `points-source-${uniqueTopicId}`;
 	const layerId = `points-layer-${uniqueTopicId}`;
 
@@ -78,14 +85,24 @@ export default function MultiPoints(props: {
 		map.on("mousemove", handleMouseMove);
 		map.on("mouseleave", layerId, handleMouseLeave);
 
+		return () => {
+			map.off("mousemove", handleMouseMove);
+			map.off("mouseleave", layerId, handleMouseLeave);
+		};
+	}, [map, layerId, show]);
+
+	// Visibility toggle registration lives in its own effect so it does not wait
+	// for the map to be ready, and re-registers on `show` so the icon and the
+	// click handler never close over a stale value.
+	useEffect(() => {
 		setButtonItem(
-			getSourceId(props.topic),
+			props.instanceId,
 			<Button
 				variant="ghost"
 				size="icon"
 				className="h-6 w-6"
 				onClick={() => {
-					setShow(!show);
+					setShow((v) => !v);
 				}}
 			>
 				{show ? (
@@ -98,12 +115,9 @@ export default function MultiPoints(props: {
 		);
 
 		return () => {
-			map.off("mousemove", handleMouseMove);
-			map.off("mouseleave", layerId, handleMouseLeave);
-
-			removeButtonItem(getSourceId(props.topic));
+			removeButtonItem(props.instanceId);
 		};
-	}, [map, layerId, show]);
+	}, [props.instanceId, show, setButtonItem, removeButtonItem]);
 
 	useEffect(() => {
 		const data = getSource(props.topic);

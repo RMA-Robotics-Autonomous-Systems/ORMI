@@ -21,12 +21,18 @@ export default function TopicMarker(props: {
 	name: string;
 	scale?: number;
 	isChild?: boolean;
+	/**
+	 * Stable identity of the configuration entry this marker renders. Several
+	 * entries may target the same topic, so the topic key is not unique: this id
+	 * keys the ButtonHolder toggle and seeds the marker avatar.
+	 */
+	instanceId: string;
 }) {
 	const [location, setLocation] = useState<[number, number]>([
 		50.843941, 4.3930369,
 	]);
 	const [hasData, setHasData] = useState(false);
-	const { getSource, getSourceId } = useLocalDataSource();
+	const { getSource } = useLocalDataSource();
 
 	const { setButtonItem, removeButtonItem } = useButtonHolder();
 	const [show, setShow] = useState(true);
@@ -50,35 +56,45 @@ export default function TopicMarker(props: {
 		} catch (error) {
 			console.error("Error parsing data", error, data);
 		}
-
-		if (!props.isChild) {
-			const buttonKey = getSourceId(props.topic);
-
-			setButtonItem(
-				buttonKey,
-				<Button
-					variant="ghost"
-					size="icon"
-					className="h-6 w-6"
-					onClick={() => {
-						setShow(!show);
-					}}
-				>
-					{show ? (
-						<EyeIcon className="h-3 w-3" />
-					) : (
-						<EyeClosedIcon className="h-3 w-3" />
-					)}
-				</Button>,
-				1,
-			);
-		}
-		return () => {
-			if (!props.isChild) {
-				removeButtonItem(getSourceId(props.topic));
-			}
-		};
 	}, [getSource, props.topic]);
+
+	// Visibility toggle registration lives in its own effect: it must run even
+	// when the topic has produced no data yet, and it has to re-register on
+	// `show` so the icon and the click handler never close over a stale value.
+	useEffect(() => {
+		if (props.isChild) {
+			return;
+		}
+
+		setButtonItem(
+			props.instanceId,
+			<Button
+				variant="ghost"
+				size="icon"
+				className="h-6 w-6"
+				onClick={() => {
+					setShow((v) => !v);
+				}}
+			>
+				{show ? (
+					<EyeIcon className="h-3 w-3" />
+				) : (
+					<EyeClosedIcon className="h-3 w-3" />
+				)}
+			</Button>,
+			1,
+		);
+
+		return () => {
+			removeButtonItem(props.instanceId);
+		};
+	}, [
+		props.instanceId,
+		props.isChild,
+		show,
+		setButtonItem,
+		removeButtonItem,
+	]);
 
 	return (
 		hasData &&
@@ -89,10 +105,7 @@ export default function TopicMarker(props: {
 					<img
 						width={32}
 						height={32}
-						src={createAvatarDataUri(
-							"bottts",
-							getSourceId(props.topic),
-						)}
+						src={createAvatarDataUri("bottts", props.instanceId)}
 						alt={`Marker for ${props.name}`}
 					/>
 					<p style={{ textAlign: "center" }}>{props.name}</p>

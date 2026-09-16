@@ -20,6 +20,12 @@ export default function HeatMarker(props: {
 	name: string;
 	scale?: number;
 	numericalTopic?: SelectedTopic;
+	/**
+	 * Stable identity of the configuration entry this marker renders. Several
+	 * entries may target the same topic, so the topic key is not unique: this id
+	 * keys the ButtonHolder toggle and the MapLibre source/layer ids.
+	 */
+	instanceId: string;
 }) {
 	const [locations, setLocations] = useState<
 		Array<{ coords: [number, number]; value: number }>
@@ -28,11 +34,12 @@ export default function HeatMarker(props: {
 		coords: [number, number];
 		value: number;
 	} | null>(null);
-	const { sources, getSource, getSourceId } = useLocalDataSource();
+	const { sources, getSource } = useLocalDataSource();
 	const { current: map } = useMap();
 
-	// Create unique IDs for this heat marker instance using source ID
-	const uniqueTopicId = getSourceId(props.topic);
+	// Unique IDs for this heat marker instance: per configuration entry, not per
+	// topic, so two entries on the same topic do not collide in MapLibre.
+	const uniqueTopicId = props.instanceId;
 	const sourceId = `value-points-${uniqueTopicId}`;
 	const layerId = `value-points-layer-${uniqueTopicId}`;
 
@@ -156,15 +163,20 @@ export default function HeatMarker(props: {
 				]);
 			}
 		}
+	}, [sources]);
 
+	// Visibility toggle registration lives in its own effect: it must run even
+	// when the topic has produced no data yet, and it has to re-register on
+	// `show` so the icon and the click handler never close over a stale value.
+	useEffect(() => {
 		setButtonItem(
-			getSourceId(props.topic),
+			props.instanceId,
 			<Button
 				variant="ghost"
 				size="icon"
 				className="h-6 w-6"
 				onClick={() => {
-					setShow(!show);
+					setShow((v) => !v);
 				}}
 			>
 				{show ? (
@@ -177,9 +189,9 @@ export default function HeatMarker(props: {
 		);
 
 		return () => {
-			removeButtonItem(getSourceId(props.topic));
+			removeButtonItem(props.instanceId);
 		};
-	}, [sources]);
+	}, [props.instanceId, show, setButtonItem, removeButtonItem]);
 
 	// Set up hover events for the map
 	useEffect(() => {
