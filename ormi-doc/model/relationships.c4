@@ -21,6 +21,15 @@ model {
   ormi.web.plugins.restBagsPlugin -> restEndpoint 'fetches bag data'
   ormi.web.plugins.rostainerPlugin -> rostainer 'starts / stops ROS2 nodes'
 
+  // ---- Map widgets -> basemap providers ------------------------------------
+  // Tiles, styles, glyphs and sprites are fetched by the OPERATOR BROWSER
+  // straight from the vendor CDN. Nothing is proxied by the Next.js server and
+  // nothing is self-hosted, so a vendor outage degrades only the dashboards
+  // that selected that basemap.
+
+  ormi.web.plugins.stdWidgets -> basemapProviders 'fetches basemap tiles + bundled vector style sources (browser -> vendor CDN)'
+  ormi.web.plugins.c2Control -> basemapProviders 'fetches basemap + open-source overlay tiles (browser -> vendor CDN)'
+
   // ---- Plugin registration -------------------------------------------------
 
   ormi.web.pluginLoader -> ormi.web.plugins 'imports & instantiates'

@@ -24,13 +24,18 @@ const RADAR_OPACITY = 0.7;
  * every ~10 min (freshness), and a local interval animates through the frames
  * (past → nowcast). All frames are mounted as raster layers so their tiles
  * preload; only the active frame is opaque, giving a flicker-free crossfade.
- * `beforeId="c2-features-fill"` keeps the radar under the C2 features.
+ * `beforeId` keeps the radar under the C2 features; on a vector basemap the
+ * caller resolves the style's overlay anchor instead, so the radar also stays
+ * under the basemap's own place labels.
  *
  * Self-contained: it owns its frame index + play state and also renders a small
  * play/pause + timestamp control over the map, so no state crosses the widget
  * boundary. Mount it conditionally on the Layers toggle.
+ *
+ * @param props.beforeId - MapLibre layer id to insert the radar frames before.
+ *   Defaults to the C2 feature fill, which every C2 map renders.
  */
-export function RainviewerOverlay() {
+export function RainviewerOverlay(props: { beforeId?: string }) {
 	const { host, frames, pastCount } = useRainviewerFrames();
 	const [tick, setTick] = useState(0);
 	const [playing, setPlaying] = useState(true);
@@ -69,7 +74,7 @@ export function RainviewerOverlay() {
 					<Layer
 						id={`c2-rainviewer-${frame.time}-layer`}
 						type="raster"
-						beforeId="c2-features-fill"
+						beforeId={props.beforeId ?? "c2-features-fill"}
 						paint={{
 							"raster-opacity": i === index ? RADAR_OPACITY : 0,
 							"raster-opacity-transition": { duration: 300 },

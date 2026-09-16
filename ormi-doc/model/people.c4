@@ -30,4 +30,8 @@ model {
   rostainer = externalSystem 'ROS Container Host' {
     description 'Docker/container backend that runs ROS2 nodes on demand, driven by the ROSTainer plugin.'
   }
+
+  basemapProviders = externalSystem 'Basemap Tile Providers' {
+    description 'The six hosted map vendors behind the shared basemap catalogue (packages/utils/src/basemap-providers.ts): Carto, OpenStreetMap (incl. HOT and OpenTopoMap), Stadia Maps, Esri ArcGIS, BKG TopPlus, and OpenFreeMap. Ten catalogue rows are raster XYZ tiles; OpenFreeMap additionally serves the vector tiles, glyphs and sprites behind the three MapLibre styles ORMI bundles. Carto and Stadia require an operator-supplied API key; OpenFreeMap states no SLA, which is why raster stays the default.'
+  }
 }

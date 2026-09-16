@@ -2,8 +2,11 @@ import { describe, test, expect } from "bun:test";
 import {
 	BASEMAP_PROVIDERS,
 	BASEMAPS_REQUIRING_KEY,
+	VECTOR_BASEMAPS,
 	applyBasemapKey,
 	basemapOneOf,
+	isVectorBasemap,
+	vectorBasemapStyleId,
 } from "../basemap-providers";
 
 const CARTO =
@@ -13,6 +16,12 @@ const STADIA_DARK =
 const STADIA_SATELLITE =
 	"https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg";
 const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const LIBERTY = "ormi:vector/openfreemap-liberty";
+
+/** Every raster row — i.e. every row a deployed widget config can hold today. */
+const RASTER_PROVIDERS = BASEMAP_PROVIDERS.filter(
+	(entry) => entry.kind !== "vector",
+);
 
 describe("applyBasemapKey", () => {
 	test("appends Carto's `key` parameter", () => {
@@ -62,6 +71,12 @@ describe("applyBasemapKey", () => {
 });
 
 describe("BASEMAPS_REQUIRING_KEY", () => {
+	test("excludes every vector sentinel — they take no key", () => {
+		for (const url of VECTOR_BASEMAPS) {
+			expect(BASEMAPS_REQUIRING_KEY).not.toContain(url);
+		}
+	});
+
 	test("contains exactly the three key-requiring urls", () => {
 		expect([...BASEMAPS_REQUIRING_KEY]).toEqual([
 			CARTO,
@@ -89,7 +104,124 @@ describe("basemapOneOf", () => {
 		);
 	});
 
-	test("offers all ten basemaps", () => {
-		expect(basemapOneOf()).toHaveLength(10);
+	test("offers all thirteen basemaps", () => {
+		expect(basemapOneOf()).toHaveLength(13);
+	});
+
+	test("emits a { const, title } pair for every row, vector rows included", () => {
+		for (const entry of basemapOneOf()) {
+			expect(Object.keys(entry).sort()).toEqual(["const", "title"]);
+			expect(entry.const).toBeTruthy();
+			expect(entry.title).toBeTruthy();
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Persisted-config regression guard
+//
+// Every value a deployed robot may already have saved in a widget config is a
+// raster url. Adding vector rows must leave all of them on a byte-identical
+// code path — these tests fail loudly if a vector change ever bleeds into the
+// raster catalogue.
+// ---------------------------------------------------------------------------
+
+describe("raster rows are untouched by the vector entries", () => {
+	test("all ten raster rows are still present, in order, with no `kind`", () => {
+		expect(RASTER_PROVIDERS).toHaveLength(10);
+		expect(BASEMAP_PROVIDERS.slice(0, 10)).toEqual(RASTER_PROVIDERS);
+		for (const entry of RASTER_PROVIDERS) {
+			expect(entry.kind).toBeUndefined();
+		}
+	});
+
+	test("every raster row round-trips applyBasemapKey exactly as before", () => {
+		for (const entry of RASTER_PROVIDERS) {
+			expect(applyBasemapKey(entry.url)).toBe(entry.url);
+			expect(applyBasemapKey(entry.url, "")).toBe(entry.url);
+			expect(applyBasemapKey(entry.url, "abc123")).toBe(
+				entry.keyParam
+					? `${entry.url}?${entry.keyParam}=abc123`
+					: entry.url,
+			);
+		}
+	});
+
+	test("isVectorBasemap is false for every raster url", () => {
+		for (const entry of RASTER_PROVIDERS) {
+			expect(isVectorBasemap(entry.url)).toBe(false);
+			expect(vectorBasemapStyleId(entry.url)).toBeUndefined();
+		}
+	});
+
+	test("isVectorBasemap is false for an unknown custom template and for empty input", () => {
+		expect(
+			isVectorBasemap("https://tiles.example.org/base/{z}/{x}/{y}.png"),
+		).toBe(false);
+		expect(isVectorBasemap("")).toBe(false);
+		expect(isVectorBasemap("ormi:vector/does-not-exist")).toBe(false);
+	});
+
+	test("the teodor cockpit preset value stays raster", () => {
+		// `default-cockpit.ts` seeds its map widget from the Carto Voyager row.
+		const preset = BASEMAP_PROVIDERS.find((entry) =>
+			entry.url.includes("voyager_labels_under"),
+		);
+		expect(preset).toBeDefined();
+		expect(isVectorBasemap(preset!.url)).toBe(false);
+	});
+});
+
+describe("vector basemaps", () => {
+	test("exposes exactly the three bundled sentinels, in catalogue order", () => {
+		expect([...VECTOR_BASEMAPS]).toEqual([
+			"ormi:vector/openfreemap-liberty",
+			"ormi:vector/openfreemap-positron",
+			"ormi:vector/openfreemap-dark",
+		]);
+	});
+
+	test("sentinels use a non-HTTP scheme so a stray setStyle fails loudly", () => {
+		for (const url of VECTOR_BASEMAPS) {
+			expect(url.startsWith("ormi:vector/")).toBe(true);
+			expect(url.startsWith("http")).toBe(false);
+			expect(url).not.toContain("{z}");
+		}
+	});
+
+	test("sentinels are unique and collide with no raster url", () => {
+		expect(new Set(VECTOR_BASEMAPS).size).toBe(VECTOR_BASEMAPS.length);
+		const rasterUrls = new Set(RASTER_PROVIDERS.map((e) => e.url));
+		for (const url of VECTOR_BASEMAPS) {
+			expect(rasterUrls.has(url)).toBe(false);
+		}
+	});
+
+	test("every sentinel resolves to its style id", () => {
+		expect(vectorBasemapStyleId(LIBERTY)).toBe("openfreemap-liberty");
+		expect(vectorBasemapStyleId("ormi:vector/openfreemap-positron")).toBe(
+			"openfreemap-positron",
+		);
+		expect(vectorBasemapStyleId("ormi:vector/openfreemap-dark")).toBe(
+			"openfreemap-dark",
+		);
+		for (const url of VECTOR_BASEMAPS) {
+			expect(isVectorBasemap(url)).toBe(true);
+			expect(vectorBasemapStyleId(url)).toBeTruthy();
+		}
+	});
+
+	test("declares the source zoom ceiling MapLibre overzooms past", () => {
+		for (const url of VECTOR_BASEMAPS) {
+			const entry = BASEMAP_PROVIDERS.find((e) => e.url === url);
+			expect(entry).toMatchObject({ kind: "vector", maxSourceZoom: 14 });
+		}
+	});
+
+	test("applyBasemapKey is a no-op on a sentinel", () => {
+		for (const url of VECTOR_BASEMAPS) {
+			expect(applyBasemapKey(url, "abc123")).toBe(url);
+			expect(applyBasemapKey(url)).toBe(url);
+		}
 	});
 });

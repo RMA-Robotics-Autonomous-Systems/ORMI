@@ -170,7 +170,13 @@ import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { vehicleColor } from "./plan-metrics";
 import { useMapInit } from "./maps-shared/use-map-init";
 import { useMapStyle } from "./maps-shared/use-map-style";
-import { BASEMAPS_REQUIRING_KEY, basemapOneOf } from "@workspace/utils";
+import {
+	BASEMAPS_REQUIRING_KEY,
+	DEFAULT_BASEMAP_URL,
+	ORMI_STYLE_ANCHORS,
+	basemapOneOf,
+	resolveAnchor,
+} from "@workspace/utils";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
 import { RainviewerOverlay } from "./rainviewer-overlay";
@@ -279,7 +285,13 @@ interface MissionMapProps extends Record<string, unknown> {
 	agentTopic?: SelectedTopic;
 }
 
-const DEFAULT_MAP_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+/**
+ * Basemap used when a widget's `mapUrl` is unset or blank.
+ *
+ * Also the schema default. Shared with the std-widgets map so the two agree;
+ * see `DEFAULT_BASEMAP_URL` in `@workspace/utils`.
+ */
+const DEFAULT_MAP_URL = DEFAULT_BASEMAP_URL;
 
 /** Resolve a C2 call definition by name. */
 function findCall(
@@ -897,12 +909,17 @@ function WaypointInteractions(props: {
 // ---------------------------------------------------------------------------
 
 /**
- * Render the active open-source overlays as raster layers. `beforeId` pins them
- * under the C2 feature fill (so they sit above the base map but below the
- * feature / draw / live layers). The id is always present because
- * `FeatureLayers` renders unconditionally.
+ * Render the active open-source overlays as raster layers.
+ *
+ * `beforeId` pins them under the C2 feature fill (so they sit above the base map
+ * but below the feature / draw / live layers); that id is always present because
+ * `FeatureLayers` renders unconditionally. On a vector basemap the caller passes
+ * the style's resolved overlay anchor instead, which additionally keeps the
+ * overlays under the basemap's own label stack.
+ *
+ * @param props.beforeId - MapLibre layer id to insert the overlays before.
  */
-function OverlayLayers(props: { active: string[] }) {
+function OverlayLayers(props: { active: string[]; beforeId: string }) {
 	return (
 		<>
 			{resolveOverlays(props.active).map((overlay) => (
@@ -916,7 +933,7 @@ function OverlayLayers(props: { active: string[] }) {
 					<Layer
 						id={`c2-overlay-${overlay.id}-layer`}
 						type="raster"
-						beforeId="c2-features-fill"
+						beforeId={props.beforeId}
 						paint={{ "raster-opacity": 1 }}
 					/>
 				</Source>
@@ -1384,6 +1401,14 @@ function MissionMapBody(props: {
 
 	const { startingLocation } = useMapInit();
 	const mapStyle = useMapStyle(props.mapUrl, props.basemapApiKey);
+	// Where the raster overlays (open-source tiles, radar) slot into the style.
+	// `resolveAnchor` returns undefined for a raster basemap — it carries no
+	// anchors — and MapLibre THROWS on a `beforeId` naming a layer the style does
+	// not contain, so the C2 feature fill stays the fallback. Never pass a bare
+	// anchor constant.
+	const overlayBeforeId =
+		resolveAnchor(mapStyle, ORMI_STYLE_ANCHORS.overlay) ??
+		"c2-features-fill";
 	const mapRef = useRef<MapRef>(null);
 	const drawRef = useRef<TerraDraw | null>(null);
 	// terra-draw id of the feature currently loaded into the draw layer for
@@ -3147,9 +3172,12 @@ function MissionMapBody(props: {
 					onClick={handleMapClick}
 					style={{ width: "100%", height: "100%" }}
 				>
-					<OverlayLayers active={activeOverlays} />
+					<OverlayLayers
+						active={activeOverlays}
+						beforeId={overlayBeforeId}
+					/>
 					{activeOverlays.includes(RAINVIEWER_OVERLAY_ID) && (
-						<RainviewerOverlay />
+						<RainviewerOverlay beforeId={overlayBeforeId} />
 					)}
 					{/* Planner navigation graph — faint backdrop UNDER the
 					    operator's features (beforeId), drawn before them. */}

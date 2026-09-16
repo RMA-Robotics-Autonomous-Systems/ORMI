@@ -1,6 +1,13 @@
 import { useMemo } from "react";
 import { StyleSpecification } from "react-map-gl/maplibre";
-import { applyBasemapKey } from "@workspace/utils";
+import {
+	ORMI_STYLE_ANCHORS,
+	applyBasemapKey,
+	insertLayersAt,
+	isVectorBasemap,
+	vectorBasemapStyleId,
+} from "@workspace/utils";
+import { createVectorBasemapStyle } from "@workspace/utils/basemap-style";
 import { GridUtils } from "../gps-components/maps-grid";
 
 /**
@@ -28,7 +35,23 @@ interface UseMapStyleProps {
 }
 
 /**
+ * Layer id of the 3D building extrusion carried by every ORMI-bundled vector
+ * style. It ships hidden; the widget flips its visibility from the 3D toggle.
+ */
+const VECTOR_BUILDINGS_3D_LAYER = "building-3d";
+
+/**
  * Generates MapLibre style specification with custom layers and grid.
+ *
+ * Two branches, picked on the persisted `mapUrl`:
+ * - a **vector** sentinel selects an ORMI-bundled style, whose anchor layers
+ *   place the custom raster layers under the basemap's labels and the grid
+ *   directly above them, and whose own `building-3d` layer serves the 3D
+ *   toggle — no MapTiler key needed;
+ * - anything else is a **raster** XYZ template and takes the original path.
+ *   That style carries no anchors, so `insertLayersAt` appends, reproducing the
+ *   pre-anchor layer order exactly: base tiles, custom layers, grid.
+ *
  * @param props - Hook props.
  * @returns MapLibre style specification or undefined.
  */
@@ -97,18 +120,88 @@ export function useMapStyle({
 			}
 		});
 
-		// Base style configuration
-		const baseStyle: StyleSpecification = {
+		const gridSource = {
+			type: "geojson" as const,
+			data: GridUtils.createGridLines([-180, -85, 180, 85], 1000),
+		};
+
+		// `showGrid` drives the paint opacity rather than adding/removing the
+		// layer: on a vector basemap a structural diff across 100+ layers is far
+		// more expensive than a single paint property change.
+		const gridLayer = {
+			id: "grid-layer",
+			type: "line",
+			source: "grid",
+			layout: {
+				"line-join": "round",
+				"line-cap": "round",
+			},
+			paint: {
+				"line-color": "#888888",
+				"line-width": 1,
+				"line-opacity": showGrid ? 0.5 : 0,
+			},
+		};
+
+		/**
+		 * Slot the operator's raster layers and the grid into a style: custom
+		 * layers under the basemap's labels, grid directly above them. Both
+		 * append when the style has no anchors (every raster basemap).
+		 */
+		const withOverlays = (
+			style: StyleSpecification,
+		): StyleSpecification => {
+			const withCustom = insertLayersAt(
+				style.layers,
+				ORMI_STYLE_ANCHORS.overlay,
+				customLayersData,
+			);
+			return {
+				...style,
+				layers: insertLayersAt(
+					withCustom,
+					ORMI_STYLE_ANCHORS.graticule,
+					[gridLayer as never],
+				),
+			};
+		};
+
+		// --- Vector basemap: an ORMI-bundled style, fresh copy per call ------
+		const vectorStyleId = isVectorBasemap(mapUrl)
+			? vectorBasemapStyleId(mapUrl)
+			: undefined;
+		if (vectorStyleId) {
+			const vectorStyle = createVectorBasemapStyle(vectorStyleId);
+			return withOverlays({
+				...vectorStyle,
+				sources: {
+					...vectorStyle.sources,
+					grid: gridSource,
+					...customSources,
+				},
+				layers: vectorStyle.layers.map((layer) =>
+					layer.id === VECTOR_BUILDINGS_3D_LAYER
+						? {
+								...layer,
+								layout: {
+									...layer.layout,
+									visibility: use3D ? "visible" : "none",
+								},
+							}
+						: layer,
+				) as StyleSpecification["layers"],
+			});
+		}
+
+		// --- Raster basemap: the original XYZ path ---------------------------
+		const baseStyle = withOverlays({
 			version: 8,
 			sources: {
 				"raster-tiles": {
 					type: "raster",
 					tiles: [applyBasemapKey(mapUrl, basemapApiKey)],
 				},
-				grid: {
-					type: "geojson",
-					data: GridUtils.createGridLines([-180, -85, 180, 85], 1000),
-				},
+				grid: gridSource,
 				...customSources,
 			},
 			layers: [
@@ -119,25 +212,12 @@ export function useMapStyle({
 					minzoom: 0,
 					maxzoom: 22,
 				},
-				...customLayersData,
-				{
-					id: "grid-layer",
-					type: "line",
-					source: "grid",
-					layout: {
-						"line-join": "round",
-						"line-cap": "round",
-					},
-					paint: {
-						"line-color": "#888888",
-						"line-width": 1,
-						"line-opacity": showGrid ? 0.5 : 0,
-					},
-				},
 			],
-		};
+		});
 
-		// Add 3D buildings if enabled
+		// Add 3D buildings if enabled. A raster basemap carries no vector
+		// geometry, so the extrusions need a vector source of their own — hence
+		// the MapTiler key. The vector branch above has one already.
 		if (use3D && apiKey) {
 			return {
 				...baseStyle,

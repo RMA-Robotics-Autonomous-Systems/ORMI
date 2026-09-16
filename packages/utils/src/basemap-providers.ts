@@ -1,7 +1,8 @@
 /**
- * Shared catalogue of raster basemap (XYZ tile) providers offered by the ORMI
- * map widgets, plus the helpers needed to build a JSON Schema dropdown from it
- * and to attach a per-widget API key to the providers that require one.
+ * Shared catalogue of the basemaps offered by the ORMI map widgets — raster
+ * (XYZ tile) providers and ORMI-bundled vector styles — plus the helpers needed
+ * to build a JSON Schema dropdown from it and to attach a per-widget API key to
+ * the providers that require one.
  *
  * This module is intentionally dependency-free (no React, no `ormi-core`, no
  * `ormi-plugins`) — same discipline as `topic-key.ts` — so widget code, page
@@ -16,18 +17,40 @@
  *
  * The query-parameter name differs per vendor (`key` vs `api_key`), which is
  * why the key is carried in the table rather than hardcoded at the call site.
+ *
+ * Vector entries work differently: their `url` is not a tile template at all
+ * but an opaque `ormi:vector/...` SENTINEL naming one of the styles bundled in
+ * `basemap-styles/`. The sentinel deliberately uses a non-HTTP scheme so that
+ * anything which mistakes it for a tile template or a style URL fails loudly
+ * instead of quietly fetching someone else's style without ORMI's anchors.
+ * `url` stays the identity field either way, which is what keeps every
+ * persisted widget config — all of them raster — working untouched.
  */
 
-/**
- * A selectable raster basemap.
- */
-export interface BasemapProvider {
-	/** XYZ tile URL template, containing `{z}`, `{x}` and `{y}` placeholders. */
+/** Fields every basemap entry carries, raster or vector. */
+interface BasemapProviderBase {
+	/**
+	 * The persisted identity of this basemap, and the value stored in a widget
+	 * config. An XYZ tile URL template containing `{z}`, `{x}` and `{y}` for
+	 * raster entries; an `ormi:vector/...` sentinel for vector entries.
+	 */
 	url: string;
 	/** Human-readable label shown in the basemap dropdown. */
 	title: string;
 	/** Vendor name, for UI labels and help text. */
 	provider: string;
+}
+
+/**
+ * A raster XYZ tile basemap.
+ *
+ * `kind` is optional and absent on every entry: a missing `kind` MEANS raster,
+ * which is what lets the ten pre-existing rows — and every widget config
+ * persisted against them — stay exactly as they are.
+ */
+export interface RasterBasemapProvider extends BasemapProviderBase {
+	/** Always omitted or `"raster"`; absent is the raster default. */
+	kind?: "raster";
 	/**
 	 * Query-parameter name carrying the API key, present only when this
 	 * provider requires a key.
@@ -36,6 +59,45 @@ export interface BasemapProvider {
 	/** Where an operator obtains a key, present only alongside `keyParam`. */
 	keyUrl?: string;
 }
+
+/** Id of a vector basemap style bundled under `basemap-styles/`. */
+export type VectorBasemapStyleId =
+	"openfreemap-liberty" | "openfreemap-positron" | "openfreemap-dark";
+
+/**
+ * A vector basemap backed by an ORMI-bundled MapLibre style.
+ *
+ * `keyParam`/`keyUrl` are declared as `undefined` rather than omitted so that
+ * the key helpers can keep reading them straight off the union — a vector
+ * basemap never takes an API key.
+ */
+export interface VectorBasemapProvider extends BasemapProviderBase {
+	/** Discriminator; always present on vector entries. */
+	kind: "vector";
+	/** The bundled style this entry selects. */
+	styleId: VectorBasemapStyleId;
+	/**
+	 * Maximum zoom the vector SOURCE actually ships tiles for. MapLibre
+	 * overzooms beyond it, so the map stays usable at high zoom — labels and
+	 * geometry are simply scaled rather than refined.
+	 */
+	maxSourceZoom: number;
+	/** Never set on a vector basemap. */
+	keyParam?: undefined;
+	/** Never set on a vector basemap. */
+	keyUrl?: undefined;
+}
+
+/** A selectable basemap: raster tiles, or an ORMI-bundled vector style. */
+export type BasemapProvider = RasterBasemapProvider | VectorBasemapProvider;
+
+/**
+ * The basemap both map widgets start on: OpenFreeMap's Liberty vector style.
+ *
+ * Exported so the two widget schemas — and C2's runtime fallback for an unset
+ * `mapUrl` — agree on one value instead of each repeating a sentinel string.
+ */
+export const DEFAULT_BASEMAP_URL = "ormi:vector/openfreemap-liberty";
 
 /**
  * Every basemap ORMI's map widgets offer, in dropdown order.
@@ -97,7 +159,78 @@ export const BASEMAP_PROVIDERS: readonly BasemapProvider[] = [
 		title: "TopPlus Open (color)",
 		provider: "BKG",
 	},
+	{
+		kind: "vector",
+		url: DEFAULT_BASEMAP_URL,
+		title: "OpenFreeMap Liberty (vector)",
+		provider: "OpenFreeMap",
+		styleId: "openfreemap-liberty",
+		maxSourceZoom: 14,
+	},
+	{
+		kind: "vector",
+		url: "ormi:vector/openfreemap-positron",
+		title: "OpenFreeMap Positron (vector)",
+		provider: "OpenFreeMap",
+		styleId: "openfreemap-positron",
+		maxSourceZoom: 14,
+	},
+	{
+		kind: "vector",
+		url: "ormi:vector/openfreemap-dark",
+		title: "OpenFreeMap Dark (vector)",
+		provider: "OpenFreeMap",
+		styleId: "openfreemap-dark",
+		maxSourceZoom: 14,
+	},
 ];
+
+/**
+ * Every vector basemap in the catalogue, keyed by its sentinel url.
+ *
+ * Kept as a `Map` rather than a repeated `.find()` so the per-render lookups in
+ * `useMapStyle` stay O(1).
+ */
+const VECTOR_BASEMAPS_BY_URL: ReadonlyMap<string, VectorBasemapProvider> =
+	new Map(
+		BASEMAP_PROVIDERS.filter(
+			(entry): entry is VectorBasemapProvider => entry.kind === "vector",
+		).map((entry) => [entry.url, entry]),
+	);
+
+/**
+ * The sentinel urls of every vector basemap, in catalogue order.
+ *
+ * Used as the `enum` of JSON Forms conditions that must hide raster-only
+ * controls (the MapTiler 3D-buildings key) when a vector basemap is selected.
+ */
+export const VECTOR_BASEMAPS: readonly string[] = [
+	...VECTOR_BASEMAPS_BY_URL.keys(),
+];
+
+/**
+ * Whether a persisted `mapUrl` selects an ORMI-bundled vector style.
+ *
+ * @param url - A persisted basemap value; anything unknown (a custom tile
+ *   template, a blank string) is raster.
+ * @returns `true` only for a known vector sentinel.
+ */
+export function isVectorBasemap(url: string): boolean {
+	return VECTOR_BASEMAPS_BY_URL.has(url);
+}
+
+/**
+ * Resolve a persisted `mapUrl` to the bundled style it selects.
+ *
+ * @param url - A persisted basemap value.
+ * @returns The style id, or `undefined` when the value is not a vector
+ *   sentinel — in which case the caller must take its raster path.
+ */
+export function vectorBasemapStyleId(
+	url: string,
+): VectorBasemapStyleId | undefined {
+	return VECTOR_BASEMAPS_BY_URL.get(url)?.styleId;
+}
 
 /**
  * The tile URLs of every provider that requires an API key.

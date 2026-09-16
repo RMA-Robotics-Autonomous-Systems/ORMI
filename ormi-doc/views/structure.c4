@@ -16,7 +16,8 @@ views {
       foxglove,
       tello,
       restEndpoint,
-      rostainer
+      rostainer,
+      basemapProviders
     autoLayout LeftRight
   }
 
@@ -59,7 +60,8 @@ views {
       rosbridge,
       tello,
       restEndpoint,
-      rostainer
+      rostainer,
+      basemapProviders
     autoLayout LeftRight
   }
 

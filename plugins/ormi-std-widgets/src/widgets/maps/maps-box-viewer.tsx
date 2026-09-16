@@ -16,7 +16,12 @@ import {
 	WidgetDefinition,
 } from "@workspace/ormi-core/widgets";
 import { PluginsManager } from "@workspace/ormi-plugins";
-import { BASEMAPS_REQUIRING_KEY, basemapOneOf } from "@workspace/utils";
+import {
+	BASEMAPS_REQUIRING_KEY,
+	DEFAULT_BASEMAP_URL,
+	VECTOR_BASEMAPS,
+	basemapOneOf,
+} from "@workspace/utils";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
@@ -210,8 +215,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 					type: "string",
 					title: "Map URL",
 					oneOf: basemapOneOf(),
-					default:
-						"https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
+					default: DEFAULT_BASEMAP_URL,
 				},
 
 				basemapApiKey: {
@@ -226,7 +230,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				},
 				apiKey: {
 					type: "string",
-					title: "MapTiler API Key (3D buildings)",
+					title: "MapTiler API Key (3D buildings, raster basemaps only)",
 				},
 				topics: {
 					type: "array",
@@ -416,11 +420,29 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 						{
 							type: "Control",
 							scope: "#/properties/apiKey",
+							// The MapTiler key only buys 3D buildings on a
+							// RASTER basemap, which carries no vector geometry
+							// of its own. The bundled vector styles ship their
+							// own `building-3d` layer, so asking for a key
+							// there would be asking for something unused.
 							rule: {
 								effect: "SHOW",
 								condition: {
-									scope: "#/properties/use3D",
-									schema: { const: true },
+									type: "AND",
+									conditions: [
+										{
+											scope: "#/properties/use3D",
+											schema: { const: true },
+										},
+										{
+											scope: "#/properties/mapUrl",
+											schema: {
+												not: {
+													enum: [...VECTOR_BASEMAPS],
+												},
+											},
+										},
+									],
 								},
 							},
 						} as ControlElement,

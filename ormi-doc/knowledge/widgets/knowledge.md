@@ -281,6 +281,105 @@ server/data helpers; a localStorage-backed variant exists for offline use.
 
 ---
 
+## Basemaps
+
+Every map widget — `ormi-std-widgets`' Maps box and `ormi-c2-control`'s mission
+map — picks its base layer from ONE shared catalogue,
+`packages/utils/src/basemap-providers.ts`. `basemapOneOf()` turns that table into
+the `mapUrl` dropdown in both widget schemas, so the two never drift.
+
+### The raster / vector discriminator
+
+`BasemapProvider` is a discriminated union on `kind`, and **an absent `kind`
+means raster**. That is load-bearing, not shorthand: the ten pre-existing raster
+rows carry no `kind` and were left byte-identical when vector support landed, so
+every `mapUrl` already persisted on a deployed robot keeps taking the code path
+it took before. `url` stays the identity field either way — it is what
+`{ const: entry.url }` writes into the schema and what a widget config stores.
+
+| kind                | `url` holds                   | rows                                                   |
+| ------------------- | ----------------------------- | ------------------------------------------------------ |
+| absent (⇒ `raster`) | an XYZ tile template          | Carto ×1, OpenStreetMap ×3, Stadia ×2, Esri ×2, BKG ×2 |
+| `"vector"`          | an `ormi:vector/...` sentinel | OpenFreeMap Liberty, Positron, Dark                    |
+
+Carto and Stadia additionally carry a `keyParam`; `applyBasemapKey` appends the
+operator's key with the vendor's own parameter name. It is a no-op on every
+other row, sentinels included.
+
+### The sentinel format
+
+A vector row's `url` is **not a URL to fetch**. It is an opaque sentinel:
+
+```
+ormi:vector/openfreemap-liberty
+ormi:vector/openfreemap-positron
+ormi:vector/openfreemap-dark
+```
+
+The non-HTTP scheme is deliberate. Anything that mistakes a sentinel for a tile
+template or a style URL and hands it to `setStyle()` fails loudly, rather than
+quietly loading the vendor's own style — which would render, look plausible, and
+carry none of ORMI's anchor layers. `isVectorBasemap(url)` and
+`vectorBasemapStyleId(url)` are the only sanctioned readers.
+
+### Bundled styles, never fetched
+
+The three vector styles are repo modules under
+`packages/utils/src/basemap-styles/`, derived from OpenFreeMap's published
+styles. They are bundled rather than fetched so `useMapStyle` stays synchronous
+and C2's non-optional `StyleSpecification` return type holds. They are **not**
+re-exported from `@workspace/utils`' barrel — the barrel reaches worker
+entrypoints, and ~150 KB of style JSON has no business in a worker chunk.
+Consumers import `@workspace/utils/basemap-style`.
+
+Two rules the styles themselves encode:
+
+- **The `openmaptiles` source keeps its TileJSON `url`, never an inline
+  `tiles` array.** The concrete tile path behind
+  `https://tiles.openfreemap.org/planet` is date-versioned and rotates on every
+  weekly planet rebuild; an inlined path passes review and breaks in the field
+  within a week. A unit test asserts `tiles` is absent.
+- **Each style is exposed only through a factory returning a `structuredClone`
+  of a frozen literal.** MapLibre consumes and normalises the object it is
+  handed, so two map widgets on one dashboard sharing one is an intermittent,
+  hard-to-reproduce bug.
+
+Glyphs and sprites point at OpenFreeMap rather than being vendored — worldwide
+Unicode coverage for the Noto fontstacks is 100–300 MB.
+
+OpenFreeMap Liberty is the **default** in both widget schemas
+(`DEFAULT_BASEMAP_URL`), and is C2's runtime fallback for a blank `mapUrl`. This
+was a deliberate reversal of the shipped-as-opt-in position: OpenFreeMap states
+it has no SLA, so accept that an outage leaves newly added widgets without a
+basemap. Two things bound the blast radius — a persisted `mapUrl` is never
+rewritten, so dashboards already in the field keep the raster basemap they were
+saved with; and an operator recovers any affected widget from the dropdown.
+Changing the default back, however, needs a redeploy.
+
+### Layer stack order (the anchor contract)
+
+Each bundled style carries four no-op anchor layers over an empty GeoJSON source
+(`ormi-anchor`), at documented seams. Bottom to top:
+
+| anchor                  | sits                                             | who inserts there                          |
+| ----------------------- | ------------------------------------------------ | ------------------------------------------ |
+| `ormi-anchor-imagery`   | above the background, below the basemap geometry | full-coverage imagery                      |
+| `ormi-anchor-overlay`   | above all geometry, below the label stack        | COG/TiTiler layers, raster overlays, radar |
+| `ormi-anchor-graticule` | directly above `overlay`                         | the coordinate grid                        |
+| `ormi-anchor-top`       | last layer of the style                          | anything that must clear the labels        |
+
+Helpers live in `packages/utils/src/style-layers.ts` (`ORMI_STYLE_ANCHORS`,
+`insertLayersAt`, `resolveAnchor`) and are barrel-safe. `building-3d` ships with
+`visibility: "none"` in all three styles; the std map's 3D toggle flips it,
+which is why a vector basemap needs no MapTiler key.
+
+The anchors are what make raster and vector one code path: a raster style
+contains none of them, `insertLayersAt` appends when its anchor is absent, and
+`resolveAnchor` returns `undefined` (= append) — exactly the pre-anchor
+behaviour. Anything that reaches for a bare anchor constant as a `beforeId`
+blanks a raster map, because MapLibre throws on a `beforeId` naming a layer the
+style does not contain.
+
 ## Widget families that carry their own data
 
 The contract above assumes a widget is configured with topics and reads them

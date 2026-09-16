@@ -85,6 +85,39 @@ namespace (e.g. an unset `AUTONOMY_TOPIC_PREFIX`) falls back to a shortened id.
 Names appear once a widget has fed the store (accepted degradation: there is no
 central always-on profile fetch).
 
+## Basemap & overlay anchoring
+
+The mission map's base layer comes from the shared catalogue in
+`@workspace/utils` (`basemapOneOf()` builds the `Base map` dropdown), which since
+the vector work holds two kinds of row:
+
+- **raster** — an XYZ tile template; everything a deployed dashboard has
+  persisted so far;
+- **vector** — an `ormi:vector/...` sentinel selecting one of ORMI's bundled
+  MapLibre styles (OpenFreeMap Liberty / Positron / Dark). Liberty is the
+  default and the fallback for a blank `mapUrl`. `use-map-style.ts`
+  resolves it through `createVectorBasemapStyle`, which returns a FRESH deep copy
+  per call — never share one style object between two maps.
+
+The raster overlays (`MAP_OVERLAYS`, RainViewer radar) are positioned with
+`beforeId`, and that value **must** come from
+`resolveAnchor(mapStyle, ORMI_STYLE_ANCHORS.overlay) ?? "c2-features-fill"`:
+
+- on a **vector** basemap the anchor exists, so overlays land above the map
+  geometry but below the basemap's own place labels;
+- on a **raster** basemap there are no anchors, `resolveAnchor` returns
+  `undefined`, and the fallback keeps the pre-existing behaviour (overlays under
+  the C2 feature fill, which `FeatureLayers` always renders).
+
+Never pass a bare anchor constant: MapLibre throws when `beforeId` names a layer
+the style does not contain, which would blank the map for every raster user.
+Mission/feature/draw layers keep append semantics on purpose — mission geometry
+must never be occluded by a place label.
+
+3D buildings here are ORMI's own extruded GeoJSON footprints
+(`Buildings3DLayer`), not the basemap's; the bundled styles' `building-3d` layer
+stays hidden.
+
 ## Per-agent map markers (localization, frame-gated)
 
 The **Mission Map (F6)** plots agent markers PRIMARILY from each agent's own

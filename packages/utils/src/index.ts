@@ -23,3 +23,4 @@ export * from "./metrics/metrics-core";
 export * from "./metrics/metrics-reporter";
 
 export * from "./basemap-providers";
+export * from "./style-layers";
