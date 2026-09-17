@@ -37,6 +37,69 @@ this.addFilter(PluginsHooks.DASHBOARD_LAYOUTS_LIST, {
 | Grid   | `GRID` | `grid`     | react-grid-layout               |
 | Flex   | `FLEX` | `flex`     | flexlayout-react (with popouts) |
 
+## A plugin page as a dashboard surface
+
+A plugin that ships a preconfigured operator surface registers a **page**
+(`PAGES_LIST`) that assembles the shell by hand, rather than a layout engine
+plus a new dashboard type. Two live instances: the EMI cockpit
+(`/plugin-pages/teodor-emi`) and C2 mission control
+(`/plugin-pages/c2-mission-control`).
+
+The recipe, and what each part is load-bearing for:
+
+- `<DashboardShell dashboardType="FLEX">` — `DashboardEngine` resolves the engine
+  by `id` from the registry, so a page names a built-in engine as a plain string.
+  Reusing GRID or FLEX needs **no** core export.
+- **The arrangement is the loaded state, never a seeding pass.** `onLoad(apply)`
+  applies a complete `DashboardInterface` — `{layouts: {<layoutKey>: model},
+widgets, datasources, locked}` — built fresh on every call so a caller cannot
+  mutate the template. Seeding after load with `addWidget` + `updateLayouts`
+  races the persistence layer, which writes the same atoms.
+- Panel settings come from each widget definition's own `data`, **deep-copied**
+  (the C2 page; the EMI cockpit predates this and uses literals). The
+  host spreads `widget.settings` straight into the component, so a panel seeded
+  with only a title gets `undefined` for everything else and the schema's
+  `default` is never consulted (a map without `mapUrl` renders blank). Copying
+  also keeps the seed from aliasing the registry-shared definition.
+- The layout sits under the engine's own `layoutKey` (`flex` / `grid`). A layout
+  under the wrong key is not an error anywhere — FlexLayout answers a missing
+  layout by stacking every panel into one tab strip, which looks broken rather
+  than misconfigured. Assert the key in a test.
+- Persistence is the page's own — local storage, because the workspace tables are
+  reached through `apps/web` Prisma helpers a plugin cannot import and should
+  not. Version the key, validate a restored payload as a unit, and fall back to
+  the shipped default on anything suspicious.
+- `TemplatesProvider` and `GlobalDataSourcesProvider` are not optional chrome:
+  the engine and the rail call `useTemplates()`, which is a safe context and
+  throws when absent, and the datasource provider carries the Datasources dialog
+  that points the page at a host.
+- Autosave is a component **inside** the shell, keyed on `hasChanged`. The shell
+  renders a skeleton until `onLoad` resolves, so a child structurally cannot
+  overwrite saved state with the default.
+- **A page that seeds no datasource has its widget registry gated to `[]`.**
+  `GlobalDataSourcesProvider` registers a `WIDGETS_LIST` filter at
+  `Number.MAX_SAFE_INTEGER` returning `[]` when no datasource is configured,
+  which is a workspace policy that a page trips on first open. Everything reads
+  that gated list, so every placed panel resolves to the widget-not-found
+  placeholder, the rail offers nothing, and it does not heal: the FLEX engine's
+  factory caches the element per box id, so the tiles stay puzzle icons until a
+  reload even after the operator adds a datasource. A page therefore re-asserts
+  its own panels in a page-scoped filter at `Infinity` priority, appending only
+  what the gate removed, and holds `loading` until it is registered
+  (`plugins/ormi-c2-control/src/page/page-panels.ts`). The EMI cockpit registers
+  its panels page-scoped at priority 10 and is **below** the gate, so it has the
+  same first-open defect.
+
+Where the panels are registered depends on whether they mean anything elsewhere:
+page-scoped (an effect that adds the `WIDGETS_LIST` filter and removes it on
+unmount, with the page holding `loading` until it is in place) when they do not,
+as with the EMI panels; left in the plugin constructor when they gate themselves
+on a datasource type, as the C2 widgets do — page-scoping those would take them
+out of the workspaces where operators already place them.
+
+What a page does not give you: a named, shareable workspace per surface. The
+layout is per browser and the workspace create-picker does not list it.
+
 ## Getting things onto a dashboard
 
 There is exactly **one** entry point: a floating button in the bottom-right of

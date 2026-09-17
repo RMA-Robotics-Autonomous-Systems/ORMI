@@ -5,6 +5,7 @@ import {
 	DatasourceDefinition,
 } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import type { PageDefinition } from "@workspace/ormi-plugins";
 
 import { C2ControlSettings } from "./types/c2-types";
 import { C2_DATASOURCE_ID } from "./datasource/datasource-select";
@@ -16,8 +17,31 @@ import { MissionBrowserDefinition } from "./widgets/mission-browser";
 import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 import { MissionEditorDefinition } from "./widgets/mission-editor";
 import { MissionMapDefinition } from "./widgets/mission-map";
+import { MissionControlPage } from "./page/mission-control-page";
 
 export { C2_DATASOURCE_ID } from "./datasource/datasource-select";
+
+/**
+ * The mission-control surface, registered on `PAGES_LIST`.
+ *
+ * A page rather than a registered layout engine plus a new dashboard type: it
+ * needs no core re-export, no create-picker change and no widening of the
+ * workspace route's `dashboardType` validation, and the arrangement is handed to
+ * the shell as loaded state instead of seeded after load. See
+ * `page/mission-control-page.tsx` for the full argument.
+ */
+export const c2PageDefinition: PageDefinition = {
+	slug: "c2-mission-control",
+	title: "Mission Control",
+	component: MissionControlPage,
+	navItem: {
+		position: "left" as const,
+		priority: 8,
+		group: "C2",
+		description:
+			"Plan, submit and drive C2 missions, with the fleet and the live mission feedback beside the map.",
+	},
+};
 
 /**
  * Command-widget ids gated on a configured C2 datasource (§4.1).

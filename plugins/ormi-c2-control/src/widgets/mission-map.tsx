@@ -167,6 +167,7 @@ import {
 import { useAgentLocalizationTopics } from "./agent-localization-topics";
 import { FeedbackTask } from "../types/mission-feedback";
 import { useMissionFeedback } from "../state/mission-feedback-store";
+import { resolveViewOnly } from "./map-view-mode";
 import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { vehicleColor } from "./plan-metrics";
 import { useMapInit } from "./maps-shared/use-map-init";
@@ -175,8 +176,11 @@ import {
 	BASEMAPS_REQUIRING_KEY,
 	DEFAULT_BASEMAP_URL,
 	ORMI_STYLE_ANCHORS,
+	ORMI_BUILDINGS_3D_LAYER,
 	basemapOneOf,
+	isVectorBasemap,
 	resolveAnchor,
+	setLayerVisibility,
 } from "@workspace/utils";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
@@ -1011,6 +1015,8 @@ function OverlayPanel(props: {
 	onToggle: (id: string) => void;
 	onClose: () => void;
 	buildings3d: boolean;
+	/** True when the basemap answers 3D itself (vector), which has a zoom floor. */
+	buildingsFromBasemap: boolean;
 	onToggleBuildings3d: () => void;
 	plannerGraph: boolean;
 	onTogglePlannerGraph: () => void;
@@ -1052,8 +1058,15 @@ function OverlayPanel(props: {
 				/>
 				RainViewer radar (live)
 			</label>
-			{/* 3D buildings — a fill-extrusion source from Overpass footprints,
-			    not a raster overlay (held in its own toggle, not MAP_OVERLAYS). */}
+			{/* 3D buildings — the basemap's own extrusion layer on a vector
+			    basemap, an Overpass fill-extrusion source on a raster one.
+			    Either way not a raster overlay, so it has its own toggle rather
+			    than an entry in MAP_OVERLAYS.
+
+			    The zoom floor is named when it applies: the bundled styles
+			    carry `building-3d` from z14, so below that an operator would
+			    tick the box, see nothing change, and have no way to know why.
+			    The Overpass path has no floor, hence the condition. */}
 			<label className="flex items-center gap-2 text-xs cursor-pointer">
 				<input
 					type="checkbox"
@@ -1062,6 +1075,9 @@ function OverlayPanel(props: {
 					onChange={props.onToggleBuildings3d}
 				/>
 				3D buildings
+				{props.buildingsFromBasemap && (
+					<span className="text-muted-foreground">(zoom 14+)</span>
+				)}
 			</label>
 			{/* Planner navigation graph — a faint node/edge backdrop fetched from
 			    the C2 (c2.planner.graph), not a raster overlay. */}
@@ -1401,6 +1417,55 @@ function MissionMapBody(props: {
 	);
 
 	const { startingLocation } = useMapInit();
+	// True once the map instance exists. `mapRef` is a ref, so nothing re-runs
+	// when it is populated; effects that need the live map key on this instead.
+	const [mapObserved, setMapObserved] = useState(false);
+
+	// 3D buildings. On a vector basemap the bundled style already carries the
+	// geometry in a hidden `building-3d` extrusion, so there is nothing to fetch
+	// and nothing to render ourselves — only a layer to show.
+	// Null = the operator has not said, so the basemap decides (see
+	// `buildings3d` below). Only their explicit choice is stored, the same shape
+	// as the View/Edit override: a plain `false` default would mean a vector
+	// basemap opened flat despite carrying the buildings for nothing.
+	const [buildings3dChoice, setBuildings3dChoice] = useState<boolean | null>(
+		null,
+	);
+	// The Overpass fallback for a raster basemap: footprints from the SAME
+	// building fetch the risk-import path uses, as an extrusion
+	// FeatureCollection (null until the first fetch resolves). Stays null for
+	// the lifetime of a vector basemap.
+	//
+	// Stored WITH the scope it was fetched for, and rendered only while that
+	// still matches: footprints are clipped to the picked geofence, so a
+	// collection kept across a geofence change — or across a trip through a
+	// vector basemap and back — would draw the previous geofence's buildings as
+	// if they were the current ones, which is the plausible-but-wrong display
+	// this widget's other rules exist to prevent.
+	const [buildings, setBuildings] = useState<{
+		scope: string;
+		fc: BuildingExtrusionFeatureCollection;
+	} | null>(null);
+	// Whether the basemap answers "where are the buildings" by itself. The two
+	// paths are mutually exclusive: running both would extrude the same city
+	// twice, once from the tiles and once from Overpass, in two different
+	// heights and two different greys.
+	const basemapCarriesBuildings = isVectorBasemap(props.mapUrl);
+
+	// On by default wherever it is free: a vector basemap already ships the
+	// geometry, so showing it costs a visibility flip and nothing else. The
+	// raster path is off by default and stays that way — there, enabling it means
+	// an Overpass fetch, which is not something to do to a public API because a
+	// panel happened to open. An explicit choice wins over both, and because the
+	// default is derived rather than seeded into state, switching the basemap
+	// moves it too (until the operator says otherwise).
+	const buildings3d = buildings3dChoice ?? basemapCarriesBuildings;
+
+	// The style depends on the basemap and the key, and on nothing the operator
+	// toggles — see `use-map-style.ts`: a new style object makes react-map-gl
+	// call `setStyle(next, { diff: true })`, whose diff deletes every
+	// imperatively added source and layer, terra-draw's authoring layers
+	// included. The 3D flip is applied to the live map below instead.
 	const mapStyle = useMapStyle(props.mapUrl, props.basemapApiKey);
 	// Where the raster overlays (open-source tiles, radar) slot into the style.
 	// `resolveAnchor` returns undefined for a raster basemap — it carries no
@@ -1410,6 +1475,26 @@ function MissionMapBody(props: {
 	const overlayBeforeId =
 		resolveAnchor(mapStyle, ORMI_STYLE_ANCHORS.overlay) ??
 		"c2-features-fill";
+
+	// Show or hide the basemap's own 3D building layer, in place.
+	//
+	// Re-applied on `styledata` because a style swap (the operator picking a
+	// different basemap) reinstates the layer as the bundled style ships it,
+	// hidden — without this the toggle would read as on over a flat map. The
+	// helper no-ops when the layer is absent, which is every raster basemap, so
+	// this needs no basemap branch of its own.
+	useEffect(() => {
+		if (!mapObserved) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		const apply = () =>
+			setLayerVisibility(map, ORMI_BUILDINGS_3D_LAYER, buildings3d);
+		apply();
+		map.on("styledata", apply);
+		return () => {
+			map.off("styledata", apply);
+		};
+	}, [mapObserved, buildings3d]);
 	const mapRef = useRef<MapRef>(null);
 	const drawRef = useRef<TerraDraw | null>(null);
 	// terra-draw id of the feature currently loaded into the draw layer for
@@ -1460,12 +1545,43 @@ function MissionMapBody(props: {
 	const [tool, setTool] = useState<MapTool>("view");
 	// Read-only (View) mode: hides every authoring affordance and forces the
 	// `view` tool; map features + mission geometry still render and pan/zoom work.
+	//
+	// This is the operator's own choice only. The map can also be in View because
+	// the mission's plan is committed — see `viewOnly` below, which is what the
+	// UI reads.
 	const [readOnly, setReadOnly] = useState(false);
+	// The mission status under which the operator last took Edit back over a
+	// committed plan, so that permission does not silently carry across the next
+	// transition. See `map-view-mode.ts`.
+	const [editUnlockedAt, setEditUnlockedAt] = useState<MissionStatus | null>(
+		null,
+	);
 	// Operator-chosen draw shape (line / polygon / rectangle). Mission context
 	// defaults to polygon (the core "can't draw a polygon" fix); map-editor context
 	// constrains it by the selected feature_type below.
 	const [drawShape, setDrawShape] = useState<DrawShape>("polygon");
 	const selectedMission = useSelectedMission();
+
+	// The selected mission's live status, from the same store the lifecycle panel
+	// reads. Null when no feedback topic is configured, which is not a signal —
+	// see `map-view-mode.ts`.
+	const missionFeedback = useMissionFeedback(selectedMission);
+	const liveStatus = props.feedbackTopic
+		? (missionFeedback?.status ?? null)
+		: null;
+
+	// Showing rather than authoring. Derived, never stored: approving a mission
+	// commits its plan, and a map left armed over geometry the C2 has already
+	// dispatched is an invitation to edit it. Deriving also keeps this out of an
+	// effect — a status-driven `setState` would re-render on every feedback
+	// message, and silencing that lint rule would opt this whole body out of
+	// React Compiler.
+	const viewOnly = resolveViewOnly({
+		readOnly,
+		inMissionContext: context === "mission",
+		status: liveStatus,
+		editUnlockedAt,
+	});
 
 	// --- Map-editor state ---------------------------------------------------
 	const [maps, setMaps] = useState<MapRegistryEntry[]>([]);
@@ -1512,12 +1628,6 @@ function MissionMapBody(props: {
 		() => props.overlays ?? [],
 	);
 	const [overlaysOpen, setOverlaysOpen] = useState(false);
-	// 3D buildings (MapLibre fill-extrusion). The footprints come from the SAME
-	// Overpass building fetch the risk-import path uses; this holds the derived
-	// extrusion FeatureCollection (null until the first fetch resolves).
-	const [buildings3d, setBuildings3d] = useState(false);
-	const [buildingsFc, setBuildingsFc] =
-		useState<BuildingExtrusionFeatureCollection | null>(null);
 	// Planner navigation graph (faint backdrop). The FeatureCollection is fetched
 	// from the C2 on toggle-on and refreshed when the planner's loaded_map changes
 	// (a cheap, event-driven refresh — never per render). Null until first fetch.
@@ -1549,14 +1659,13 @@ function MissionMapBody(props: {
 		);
 	}, []);
 
-	// Toggle the 3D-buildings layer. Turning it off drops the cached footprints so
-	// a later re-enable always refetches for the current geofence / map view.
+	// Toggle the 3D-buildings layer. Turning it off drops any cached footprints so
+	// a later re-enable refetches for the current geofence / map view — which
+	// matters on the raster path only; a vector basemap caches nothing here.
 	const toggleBuildings3d = useCallback(() => {
-		setBuildings3d((on) => {
-			if (on) setBuildingsFc(null);
-			return !on;
-		});
-	}, []);
+		if (buildings3d) setBuildings(null);
+		setBuildings3dChoice(!buildings3d);
+	}, [buildings3d]);
 
 	// Toggle the planner-graph backdrop. Turning it off drops the cached graph so
 	// a later re-enable refetches the current graph.
@@ -1758,15 +1867,19 @@ function MissionMapBody(props: {
 	// pending authoring state, and clears the draw layer so nothing is left armed.
 	// Done in the event handler (not an effect) to avoid a cascading-render set.
 	const toggleReadOnly = useCallback(() => {
-		const enteringView = !readOnly;
+		const enteringView = !viewOnly;
 		setReadOnly(enteringView);
+		// Leaving View is also how the operator overrides a committed plan's
+		// stand-down, so remember the status it was permitted under: the next
+		// transition (approved → started) is a new fact and takes the map back.
+		setEditUnlockedAt(enteringView ? null : liveStatus);
 		if (enteringView) {
 			setTool("view");
 			setPending(null);
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
 		}
-	}, [readOnly]);
+	}, [viewOnly, liveStatus]);
 
 	// Switch editing context, resetting all transient per-context selections.
 	const changeContext = useCallback((next: MapContext) => {
@@ -1780,10 +1893,13 @@ function MissionMapBody(props: {
 		clearDraw(drawRef.current);
 	}, []);
 
-	// terra-draw lifecycle — construct on map load, tear down on unmount.
+	// terra-draw lifecycle — construct on map load, tear down on unmount. Also
+	// where the live map becomes reachable for the effects that need it.
 	const handleMapLoad = useCallback(() => {
 		const map = mapRef.current?.getMap();
-		if (!map || drawRef.current) return;
+		if (!map) return;
+		setMapObserved(true);
+		if (drawRef.current) return;
 		const draw = new TerraDraw({
 			adapter: new TerraDrawMapLibreGLAdapter({
 				map: map as MapLibreInstance,
@@ -1925,17 +2041,23 @@ function MissionMapBody(props: {
 	const drawGeometryMode = drawShapeToMode(effectiveShape);
 
 	// Drive terra-draw mode from the toolbar tool + chosen draw geometry.
+	//
+	// `viewOnly` disarms it here rather than by resetting `tool`: the map can
+	// enter View on a status change, which is not an event this widget handles,
+	// and a tool left armed would keep drawing under a toolbar that has put its
+	// authoring controls away. Static is the same neutral mode the view tool
+	// uses, so nothing on screen is removed — only the arming.
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw || !draw.enabled) return;
-		if (tool === "draw" && canEdit) {
+		if (!viewOnly && tool === "draw" && canEdit) {
 			draw.setMode(drawGeometryMode);
-		} else if (tool === "edit" && canEdit) {
+		} else if (!viewOnly && tool === "edit" && canEdit) {
 			draw.setMode("select");
 		} else {
 			draw.setMode("static");
 		}
-	}, [tool, canEdit, drawGeometryMode]);
+	}, [viewOnly, tool, canEdit, drawGeometryMode]);
 
 	/** Confirm a pending MAP-feature save: POST (create) or PUT (edit). */
 	const confirmSave = useCallback(
@@ -2623,7 +2745,7 @@ function MissionMapBody(props: {
 	// Robot allocation by clicking agent markers is the PRIMARY affordance, active
 	// only while a mission is being edited and not read-only (R2.G).
 	const markersSelectable =
-		context === "mission" && missionConfig != null && !readOnly;
+		context === "mission" && missionConfig != null && !viewOnly;
 
 	// The picked geofence both imports operate on (roads / risk-from-buildings).
 	// Null when the picked feature is not a geofence — the Import control is then
@@ -2647,11 +2769,24 @@ function MissionMapBody(props: {
 		return null;
 	}, [pickedFeature]);
 
+	// What a fetched collection is valid for. A geofence ring is its own scope;
+	// an unscoped fetch takes the map view, which is a moving target, so it gets
+	// one shared key rather than pretending to track the viewport.
+	const buildings3dScope = useMemo(
+		() => (buildings3dRing ? JSON.stringify(buildings3dRing) : "view"),
+		[buildings3dRing],
+	);
+
 	// Fetch building footprints once when 3D is toggled on (and whenever the
 	// scoping geofence changes while on); off → drop the source. The fetch is the
 	// SAME Overpass building read the risk import uses; only the output differs.
+	//
+	// Skipped entirely on a vector basemap: the style's own `building-3d` layer
+	// is already showing them, so this would be a network round trip to a public
+	// API, a second set of extrusions over the first, and one more way for the
+	// toggle to fail.
 	useEffect(() => {
-		if (!buildings3d) return;
+		if (!buildings3d || basemapCarriesBuildings) return;
 		const ring = buildings3dRing;
 		const bbox = ring
 			? ringToBbox(ring)
@@ -2675,15 +2810,21 @@ function MissionMapBody(props: {
 				setError(result.error);
 				return;
 			}
-			setBuildingsFc(
-				osmBuildingsToExtrusionFc(
+			setBuildings({
+				scope: buildings3dScope,
+				fc: osmBuildingsToExtrusionFc(
 					result.data as OverpassBuildingWay[],
 					ring ?? undefined,
 				),
-			);
+			});
 		})();
 		return () => controller.abort();
-	}, [buildings3d, buildings3dRing]);
+	}, [
+		buildings3d,
+		buildings3dRing,
+		buildings3dScope,
+		basemapCarriesBuildings,
+	]);
 
 	return (
 		<div className="h-full w-full flex flex-col text-sm">
@@ -2707,29 +2848,36 @@ function MissionMapBody(props: {
 							{label}
 						</Button>
 					))}
-					{/* Read-only (View) toggle: locks every authoring affordance. */}
+					{/* Read-only (View) toggle: locks every authoring affordance.
+					    When the map stood down by itself — the mission's plan is
+					    committed — the title says so: an operator who did not
+					    press this cannot otherwise tell why the tools went
+					    away, and would reach for the gear or reload. Pressing
+					    it still takes Edit back. */}
 					<Button
 						size="sm"
-						variant={readOnly ? "default" : "outline"}
+						variant={viewOnly ? "default" : "outline"}
 						className="h-7 text-xs"
 						title={
-							readOnly
-								? "View mode — authoring locked"
+							viewOnly
+								? readOnly
+									? "View mode — authoring locked"
+									: "View mode — this mission's plan is approved; press to edit it anyway"
 								: "Edit mode — authoring enabled"
 						}
 						onClick={toggleReadOnly}
 					>
-						{readOnly ? (
+						{viewOnly ? (
 							<Lock className="w-3.5 h-3.5 mr-1" />
 						) : (
 							<LockOpen className="w-3.5 h-3.5 mr-1" />
 						)}
-						{readOnly ? "View" : "Edit"}
+						{viewOnly ? "View" : "Edit"}
 					</Button>
 				</div>
 
 				{/* Tools */}
-				{!readOnly && (
+				{!viewOnly && (
 					<div className="flex items-center gap-1">
 						{(
 							[
@@ -2757,7 +2905,7 @@ function MissionMapBody(props: {
 				    is constrained by the feature_type (road → line only, hidden;
 				    geofence/risk → polygon or rectangle); in mission the operator
 				    chooses freely (point / line / polygon / rectangle). */}
-				{!readOnly && availableShapes.length > 1 && (
+				{!viewOnly && availableShapes.length > 1 && (
 					<div className="flex items-center gap-1">
 						{availableShapes.map((shape) => {
 							const active =
@@ -2799,7 +2947,7 @@ function MissionMapBody(props: {
 								))}
 							</SelectContent>
 						</Select>
-						{!readOnly && (
+						{!viewOnly && (
 							<>
 								<Button
 									size="sm"
@@ -2832,7 +2980,7 @@ function MissionMapBody(props: {
 						</Badge>
 						{/* Feature-type buttons — each implies its draw geometry
 						    (road → line, geofence/risk → polygon). */}
-						{!readOnly && (
+						{!viewOnly && (
 							<div className="flex items-center gap-1">
 								{(
 									[
@@ -2860,7 +3008,7 @@ function MissionMapBody(props: {
 						{/* Import ▾ — roads or risk-from-buildings into the picked
 						    geofence. Disabled (with a tooltip) until a geofence is
 						    picked; hidden in read-only mode. */}
-						{!readOnly && (
+						{!viewOnly && (
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -2962,7 +3110,7 @@ function MissionMapBody(props: {
 			)}
 
 			{/* Map-editor: picked-feature actions (edit/delete). */}
-			{context === "map-editor" && pickedFeature && !readOnly && (
+			{context === "map-editor" && pickedFeature && !viewOnly && (
 				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
 					<span className="truncate flex-1" title={pickedId ?? ""}>
 						Picked: {pickedFeature.properties?.name ?? pickedId} (
@@ -2995,7 +3143,7 @@ function MissionMapBody(props: {
 			{context === "mission" &&
 				selectedMission &&
 				missionConfig &&
-				!readOnly && (
+				!viewOnly && (
 					<div className="flex flex-col gap-2 px-2 py-2 shrink-0 border-b bg-muted/40 text-xs">
 						<div className="flex items-center gap-2 flex-wrap">
 							<Label className="text-xs">Behavior</Label>
@@ -3047,7 +3195,7 @@ function MissionMapBody(props: {
 				)}
 
 			{/* Mission: picked-geometry actions + save. */}
-			{context === "mission" && selectedMission && !readOnly && (
+			{context === "mission" && selectedMission && !viewOnly && (
 				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
 					{pickedGeomIndex != null ? (
 						<>
@@ -3135,7 +3283,7 @@ function MissionMapBody(props: {
 
 			{/* Map */}
 			<div className="relative flex-1 min-h-0">
-				{context === "map-editor" && pending && !readOnly && (
+				{context === "map-editor" && pending && !viewOnly && (
 					<SavePrompt
 						initialName={pending.name}
 						initialType={pending.featureType}
@@ -3156,6 +3304,7 @@ function MissionMapBody(props: {
 						onToggle={toggleOverlay}
 						onClose={() => setOverlaysOpen(false)}
 						buildings3d={buildings3d}
+						buildingsFromBasemap={basemapCarriesBuildings}
 						onToggleBuildings3d={toggleBuildings3d}
 						plannerGraph={plannerGraph}
 						onTogglePlannerGraph={togglePlannerGraph}
@@ -3194,9 +3343,15 @@ function MissionMapBody(props: {
 					{/* Both feature layers always render, in distinct styles. */}
 					<FeatureLayers features={features} />
 					<MissionFeatureLayers geometries={missionGeometryFc} />
-					{buildings3d && buildingsFc && (
-						<Buildings3DLayer data={buildingsFc} />
-					)}
+					{/* The raster fallback only: on a vector basemap the
+					    buildings are a layer of the style itself. Drawn only
+					    while the collection still matches the geofence it was
+					    clipped to. */}
+					{buildings3d &&
+						!basemapCarriesBuildings &&
+						buildings?.scope === buildings3dScope && (
+							<Buildings3DLayer data={buildings.fc} />
+						)}
 					{/* Primary agent markers: one localization subscription per
 					    namespaced agent, in its own signature-stable provider.
 					    The roster carries no ROS source, so subscriptions fall

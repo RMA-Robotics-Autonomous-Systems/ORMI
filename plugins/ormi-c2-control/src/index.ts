@@ -1,6 +1,12 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
+import type { PageDefinition } from "@workspace/ormi-plugins";
 import type { TopicRoutingClaims } from "@workspace/ormi-core/widgets";
-import { datasourceDefinition, widgetsExport, widgetFilters } from "./export";
+import {
+	c2PageDefinition,
+	datasourceDefinition,
+	widgetsExport,
+	widgetFilters,
+} from "./export";
 import { topicClaims } from "./topic-claims";
 
 // Public surface for widgets / external use (Phase 2+).
@@ -92,8 +98,8 @@ export type { SwarmLogEntry } from "./widgets/swarm-log";
 /**
  * ORMI C2 Control plugin — integrates the RMA Multi-Agent Framework.
  *
- * Phase 1: a C2 datasource that exposes mission commands and CRUD as remote
- * calls over REST. Widgets and the "Mission Control" dashboard type come next.
+ * A C2 datasource exposing mission commands and CRUD as remote calls over REST,
+ * the seven mission widgets, and the mission-control page that lays them out.
  */
 class C2ControlPlugin extends Plugin {
 	constructor() {
@@ -133,6 +139,23 @@ class C2ControlPlugin extends Plugin {
 			id: "c2-control-widget-gating",
 			priority: 12,
 			filter: widgetFilters,
+		});
+
+		// The mission-control surface as a plugin page: the panels above laid
+		// out for an operator, at /plugin-pages/c2-mission-control. They stay
+		// registered on WIDGETS_LIST above rather than being contributed by the
+		// page — they gate themselves on a C2 datasource (pattern 8) and are
+		// useful on any workspace that has one, so page-scoping them would take
+		// them out of the workspaces where operators already place them. The
+		// page re-asserts them past the no-datasource gate itself; see
+		// `page/page-panels.ts`.
+		this.addFilter(PluginsHooks.PAGES_LIST, {
+			id: "c2-control-page",
+			priority: 12,
+			filter: (pages: PageDefinition[]) => {
+				pages.push(c2PageDefinition);
+				return pages;
+			},
 		});
 
 		// Which topic types these widgets answer — see `topic-claims.ts`.

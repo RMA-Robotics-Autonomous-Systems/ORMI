@@ -69,7 +69,9 @@ model {
       c2Control = datasource 'C2 Control' {
         #plugin
         technology 'plugins/ormi-c2-control'
-        description 'Command-and-control plugin: mission planner/authoring, geofence, OSM/map layers, agent markers. Contributes both a datasource and widgets (odometry position is lng/lat geographic degrees).'
+        description 'Command-and-control plugin: mission planner/authoring, geofence, OSM/map layers, agent markers. Contributes a datasource (mission commands + CRUD as REST remote calls), seven mission widgets, and a page at /plugin-pages/c2-mission-control (PAGES_LIST) that lays them out on the FLEX engine: the map holds the whole left edge (it is the only panel that is better at every size), and the other half is two columns of panes - missions over the lifecycle panel, fleet over live mission feedback - above an editor/log tabset spanning both. Nothing watched while something is moving sits behind a tab, and the lifecycle panel that holds Pause and Stop never does. A page rather than a dashboard type, which is what makes it need no core change: DashboardEngine resolves FLEX by id, and the arrangement is handed to the shell as loaded state rather than seeded widget by widget after load. The panels stay registered on WIDGETS_LIST by the plugin class (unlike the EMI cockpit, which registers its panels from the page), because they already gate on a configured C2 datasource and are useful on a workspace of their own. Odometry position is lng/lat geographic degrees.'
+
+        link ../knowledge/dashboard/knowledge.md 'Dashboard surfaces'
       }
 
       flightIndicator = widget 'Flight Indicator' {
