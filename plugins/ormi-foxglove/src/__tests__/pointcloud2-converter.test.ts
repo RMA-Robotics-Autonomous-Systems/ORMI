@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { UnifiedConverter } from "../unified-converter";
+import { canUseFloatView, type FloatViewLayout } from "../pointcloud-fast-path";
 
 const pc2 =
 	UnifiedConverter.converters.PointsCloud!.conversions[
@@ -226,45 +227,105 @@ describe("PointCloud2 -> PointsCloud conversion (foxglove)", () => {
 		expect(fast.points.length).toBe(100 * 3);
 	});
 
-	it("benchmarks fast float-view vs DataView fallback (ms/cloud)", () => {
-		const points = makePoints(14000);
-		const fastMsg = buildCloud(points, {
+	/**
+	 * What the fast path is, asserted directly.
+	 *
+	 * This replaced a benchmark that timed both decode paths and required the
+	 * fast one to finish first. That assertion was a wall-clock comparison with
+	 * a margin narrower than a single GC pause: it failed about one run in six
+	 * on an idle machine and more often on a shared CI runner, which trains
+	 * people to re-run the job rather than read it. The regression it existed to
+	 * catch — the float-view path silently ceasing to engage for the common
+	 * layout — is a property of the layout predicate, so it is checked there,
+	 * deterministically.
+	 *
+	 * The timing loop is gone rather than demoted to a printed number: the
+	 * repo's pre-commit hook rejects `console` statements, and routing the
+	 * output around it would be the same statement under another name. An
+	 * unasserted benchmark nobody can read is 600 decodes of CI time for
+	 * nothing. Measure decode cost ad hoc when profiling; the regression this
+	 * file has to catch is below.
+	 */
+	describe("float-view fast path", () => {
+		const layout = (
+			over: Partial<FloatViewLayout> = {},
+		): FloatViewLayout => ({
+			littleEndian: true,
 			pointStep: 16,
-			bigEndian: false,
-			withRgb: false,
-		});
-		// Same little-endian values, non-aligned stride -> DataView per component.
-		const fallbackMsg = buildCloud(points, {
-			pointStep: 18,
-			bigEndian: false,
-			withRgb: false,
+			byteOffset: 0,
+			datatypes: [FLOAT32, FLOAT32, FLOAT32],
+			offsets: [0, 4, 8],
+			...over,
 		});
 
-		const iterations = 300;
+		it("engages for the common aligned little-endian float32 layout", () => {
+			expect(canUseFloatView(layout())).toBe(true);
+		});
 
-		// Warm up both paths so the timing reflects the optimised JIT tier.
-		for (let i = 0; i < 100; i++) {
-			pc2.fromRos2(fastMsg);
-			pc2.fromRos2(fallbackMsg);
-		}
+		it("declines a big-endian payload, which a float view would misread", () => {
+			expect(canUseFloatView(layout({ littleEndian: false }))).toBe(
+				false,
+			);
+		});
 
-		const fallbackStart = performance.now();
-		for (let i = 0; i < iterations; i++) pc2.fromRos2(fallbackMsg);
-		const fallbackMs = (performance.now() - fallbackStart) / iterations;
+		it("declines a stride that is not a multiple of four", () => {
+			// 18 bytes per point: a Float32Array index cannot address it.
+			expect(canUseFloatView(layout({ pointStep: 18 }))).toBe(false);
+		});
 
-		const fastStart = performance.now();
-		for (let i = 0; i < iterations; i++) pc2.fromRos2(fastMsg);
-		const fastMs = (performance.now() - fastStart) / iterations;
+		it("declines a payload whose buffer offset is not four-aligned", () => {
+			// `new Float32Array(buffer, 2, n)` throws outright.
+			expect(canUseFloatView(layout({ byteOffset: 2 }))).toBe(false);
+		});
 
-		// eslint-disable-next-line no-console
-		console.log(
-			`PointCloud2 decode (${points.length} pts): ` +
-				`DataView fallback ${fallbackMs.toFixed(3)} ms/cloud, ` +
-				`float-view fast ${fastMs.toFixed(3)} ms/cloud, ` +
-				`speedup ${(fallbackMs / fastMs).toFixed(2)}x`,
-		);
+		it("declines a non-float32 field, which would be reinterpreted", () => {
+			const FLOAT64 = 8;
+			expect(
+				canUseFloatView(
+					layout({ datatypes: [FLOAT32, FLOAT32, FLOAT64] }),
+				),
+			).toBe(false);
+		});
 
-		// Guard against a regression that silently defeats the fast path.
-		expect(fastMs).toBeLessThan(fallbackMs);
+		it("declines an unaligned field offset", () => {
+			expect(canUseFloatView(layout({ offsets: [0, 4, 10] }))).toBe(
+				false,
+			);
+		});
+
+		it("declines a cloud missing one of x, y or z", () => {
+			expect(
+				canUseFloatView(layout({ offsets: [0, 4, undefined] })),
+			).toBe(false);
+		});
+
+		it("agrees with what the converter decodes on both paths", () => {
+			// The two layouts the benchmark used, now asserted on their
+			// results: whichever path each takes, the decoded points match.
+			const points = makePoints(64);
+			const fast = buildCloud(points, {
+				pointStep: 16,
+				bigEndian: false,
+				withRgb: false,
+			});
+			const fallback = buildCloud(points, {
+				pointStep: 18,
+				bigEndian: false,
+				withRgb: false,
+			});
+
+			expect(canUseFloatView(layout({ pointStep: 16 }))).toBe(true);
+			expect(canUseFloatView(layout({ pointStep: 18 }))).toBe(false);
+
+			const fromFast = pc2.fromRos2(fast).points;
+			const fromFallback = pc2.fromRos2(fallback).points;
+
+			// `makePoints` plants one NaN coordinate, so the decoded count is
+			// one point short of the input — and both paths must be short by
+			// the same one. Comparing the arrays is the assertion; a literal
+			// length would only restate the fixture.
+			expect(fromFast.length).toBe((points.length - 1) * 3);
+			expect(Array.from(fromFast)).toEqual(Array.from(fromFallback));
+		});
 	});
 });

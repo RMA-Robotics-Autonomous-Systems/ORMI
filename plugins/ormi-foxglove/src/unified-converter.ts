@@ -20,6 +20,7 @@ import {
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
 import { PluginsManager } from "@workspace/ormi-plugins";
+import { canUseFloatView } from "./pointcloud-fast-path";
 
 /**
  * Current wall-clock time as a ROS 2 `builtin_interfaces/msg/Time`.
@@ -663,21 +664,17 @@ export class UnifiedConverter {
 						// component — the common Livox layout. Big-endian,
 						// non-float32, or non-4-aligned layouts keep the DataView
 						// reader as a fallback.
-						const xDatatype = fieldMap.x?.datatype;
-						const yDatatype = fieldMap.y?.datatype;
-						const zDatatype = fieldMap.z?.datatype;
-						const viewAligned =
-							littleEndian &&
-							point_step % 4 === 0 &&
-							buffer.byteOffset % 4 === 0;
-						const useFloatView =
-							viewAligned &&
-							xDatatype === 7 &&
-							yDatatype === 7 &&
-							zDatatype === 7 &&
-							xOffset % 4 === 0 &&
-							yOffset % 4 === 0 &&
-							zOffset % 4 === 0;
+						const useFloatView = canUseFloatView({
+							littleEndian,
+							pointStep: point_step,
+							byteOffset: buffer.byteOffset,
+							datatypes: [
+								fieldMap.x?.datatype,
+								fieldMap.y?.datatype,
+								fieldMap.z?.datatype,
+							],
+							offsets: [xOffset, yOffset, zOffset],
+						});
 
 						// The whole loop is wrapped once. A per-point try/catch
 						// deoptimises the hot body; an out-of-bounds read on a
