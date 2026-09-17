@@ -95,13 +95,56 @@ describe("BASEMAPS_REQUIRING_KEY", () => {
 });
 
 describe("basemapOneOf", () => {
-	test("mirrors the provider table one-for-one, in order", () => {
-		expect(basemapOneOf()).toEqual(
-			BASEMAP_PROVIDERS.map((entry) => ({
-				const: entry.url,
-				title: entry.title,
-			})),
+	test("offers every basemap in the table, and only those", () => {
+		expect(
+			basemapOneOf()
+				.map((entry) => entry.const)
+				.sort(),
+		).toEqual(BASEMAP_PROVIDERS.map((entry) => entry.url).sort());
+	});
+
+	// The picker is deliberately NOT in table order. Thirteen single-line
+	// names, several differing by one word, read as an undifferentiated list;
+	// ordering by what distinguishes them is what makes it scannable. Pinned
+	// because it is a presentation decision that would otherwise be "tidied"
+	// back to table order by someone reading the mapping as accidental.
+	test("puts the vector styles first and the key-gated ones last", () => {
+		const urls = basemapOneOf().map((entry) => entry.const);
+		const rank = (url: string) => {
+			const entry = BASEMAP_PROVIDERS.find((row) => row.url === url)!;
+			if (entry.kind === "vector") return 0;
+			return entry.keyParam ? 2 : 1;
+		};
+
+		const ranks = urls.map(rank);
+		expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+		expect(ranks[0]).toBe(0);
+		expect(ranks[ranks.length - 1]).toBe(2);
+	});
+
+	test("says when a basemap will not render without an API key", () => {
+		for (const { const: url, title } of basemapOneOf()) {
+			const entry = BASEMAP_PROVIDERS.find((row) => row.url === url)!;
+			// Otherwise the operator selects it, gets a blank map, and has no
+			// way to know the key field further down the form is the reason.
+			expect(title.includes("API key required")).toBe(
+				Boolean(entry.keyParam),
+			);
+		}
+	});
+
+	test("names the provider unless the title already opens with it", () => {
+		const esri = basemapOneOf().find((entry) =>
+			entry.const.includes("World_Imagery"),
 		);
+		expect(esri?.title).toContain("Esri");
+
+		const osm = basemapOneOf().find(
+			(entry) =>
+				entry.const ===
+				"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+		);
+		expect(osm?.title).toBe("OpenStreetMap");
 	});
 
 	test("offers all thirteen basemaps", () => {

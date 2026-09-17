@@ -7,6 +7,7 @@ import {
 	createTabConfig,
 	getDefaultFlexLayoutConfig,
 } from "../layout-serializer";
+import { measureFlexLayoutPanels, placeNewTabs } from "../widget-placement";
 
 /** Props for useFlexLayoutModel. */
 interface UseFlexLayoutModelProps {
@@ -153,37 +154,24 @@ export const useFlexLayoutModel = ({
 					return createTabConfig(id, title, id);
 				});
 
-				// Add missing widgets to the main tabset
-				const addToTabset = (node: any): boolean => {
-					if (node.type === "tabset" && node.children) {
-						node.children.push(...missingTabs);
-						return true;
-					}
-					if (node.children) {
-						for (const child of node.children) {
-							if (addToTabset(child)) return true;
-						}
-					}
-					return false;
-				};
-
-				if (newModelJson.layout) {
-					const added = addToTabset(newModelJson.layout);
-					if (!added) {
-						// Create new layout if no tabset exists
-						newModelJson.layout = {
-							type: "row" as const,
-							weight: 100,
-							children: [
-								{
-									type: "tabset" as const,
-									weight: 100,
-									children: missingTabs,
-								},
-							],
-						};
-					}
-				}
+				// Split rather than stack: measure the model that is on
+				// screen right now, then let the placement rules decide
+				// where each new widget goes. Only widgets missing from
+				// the model reach here, so a restored layout is never
+				// rearranged.
+				newModelJson.layout = placeNewTabs(
+					newModelJson.layout ?? {
+						type: "row",
+						weight: 100,
+						children: [],
+					},
+					missingTabs,
+					{
+						sizes: measureFlexLayoutPanels(model),
+						rootOrientationVertical:
+							newModelJson.global?.rootOrientationVertical,
+					},
+				);
 			}
 
 			const updatedModel = Model.fromJson(newModelJson);

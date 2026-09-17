@@ -13,6 +13,8 @@
 import { describe, test, expect } from "bun:test";
 import {
 	addWidget,
+	createWidgetBoxId,
+	placeWidgetInGridLayouts,
 	removeWidget,
 	updateWidget,
 	addDatasource,
@@ -128,6 +130,27 @@ describe("addWidget", () => {
 		expect(widget!.title).toBe("Fallback Widget");
 	});
 
+	test("falls back to widget name when the settings carry no title", () => {
+		// Stringifying the missing property put the literal "undefined" on the
+		// tile, which reads as a broken dashboard rather than an unnamed panel.
+		const def = makeWidgetDef({
+			name: "Fallback Widget",
+			titleProp: "title",
+		});
+
+		expect(
+			Array.from(addWidget(new Map(), def, {}).values())[0]!.title,
+		).toBe("Fallback Widget");
+		expect(
+			Array.from(addWidget(new Map(), def, { title: "" }).values())[0]!
+				.title,
+		).toBe("Fallback Widget");
+		expect(
+			Array.from(addWidget(new Map(), def, { title: "   " }).values())[0]!
+				.title,
+		).toBe("Fallback Widget");
+	});
+
 	test("does not mutate the input map", () => {
 		const widgets = new Map<string, Widget>();
 		addWidget(widgets, makeWidgetDef(), {});
@@ -154,6 +177,88 @@ describe("addWidget", () => {
 
 	test("handles empty settings without throwing", () => {
 		expect(() => addWidget(new Map(), makeWidgetDef(), {})).not.toThrow();
+	});
+
+	test("uses a caller-supplied box id", () => {
+		const boxId = createWidgetBoxId();
+		const result = addWidget(new Map(), makeWidgetDef(), {}, boxId);
+		expect(result.has(boxId)).toBe(true);
+	});
+
+	test("mints distinct box ids", () => {
+		expect(createWidgetBoxId()).not.toBe(createWidgetBoxId());
+	});
+});
+
+// ---------------------------------------------------------------------------
+// placeWidgetInGridLayouts
+// ---------------------------------------------------------------------------
+
+describe("placeWidgetInGridLayouts", () => {
+	const existing = {
+		grid: {
+			lg: [{ i: "a", x: 0, y: 0, w: 6, h: 8 }],
+		},
+	};
+
+	test("puts the new tile at the top-left", () => {
+		const next = placeWidgetInGridLayouts(existing, "new") as {
+			grid: Record<string, { i: string; x: number; y: number }[]>;
+		};
+		expect(next.grid.lg![0]).toMatchObject({ i: "new", x: 0, y: 0 });
+	});
+
+	test("pushes existing tiles down by the new tile's height", () => {
+		const next = placeWidgetInGridLayouts(existing, "new") as {
+			grid: Record<string, { i: string; y: number; h: number }[]>;
+		};
+		const placed = next.grid.lg!.find((item) => item.i === "new")!;
+		const moved = next.grid.lg!.find((item) => item.i === "a")!;
+		expect(moved.y).toBe(placed.h);
+	});
+
+	test("places at every breakpoint the layout describes", () => {
+		const layouts = {
+			grid: {
+				lg: [{ i: "a", x: 0, y: 0, w: 6, h: 8 }],
+				xs: [{ i: "a", x: 0, y: 0, w: 4, h: 8 }],
+			},
+		};
+		const next = placeWidgetInGridLayouts(layouts, "new") as {
+			grid: Record<string, { i: string }[]>;
+		};
+		expect(next.grid.lg!.some((item) => item.i === "new")).toBe(true);
+		expect(next.grid.xs!.some((item) => item.i === "new")).toBe(true);
+	});
+
+	test("narrows the tile on narrow breakpoints", () => {
+		const layouts = { grid: { lg: [], xxs: [] } };
+		const next = placeWidgetInGridLayouts(layouts, "new") as {
+			grid: Record<string, { w: number }[]>;
+		};
+		expect(next.grid.lg![0]!.w).toBeGreaterThan(next.grid.xxs![0]!.w);
+	});
+
+	test("leaves a dashboard with no persisted grid layout alone", () => {
+		const layouts = { flex: { layout: {} } };
+		expect(placeWidgetInGridLayouts(layouts, "new")).toBe(layouts);
+	});
+
+	test("preserves other engines' layout keys", () => {
+		const layouts = { ...existing, flex: { layout: {} } };
+		const next = placeWidgetInGridLayouts(layouts, "new");
+		expect(next.flex).toBe(layouts.flex);
+	});
+
+	test("is idempotent for a widget already placed", () => {
+		const once = placeWidgetInGridLayouts(existing, "new");
+		expect(placeWidgetInGridLayouts(once, "new")).toBe(once);
+	});
+
+	test("does not mutate the layouts it was given", () => {
+		placeWidgetInGridLayouts(existing, "new");
+		expect(existing.grid.lg.length).toBe(1);
+		expect(existing.grid.lg[0]!.y).toBe(0);
 	});
 });
 
@@ -229,6 +334,26 @@ describe("updateWidget", () => {
 			getDefinition,
 		);
 		expect(result.get("box_1")!.title).toBe("New Title");
+	});
+
+	test("falls back to the widget name when the new settings drop the title", () => {
+		const widget = makeWidget({ box_id: "box_1", title: "Old" });
+		const widgets = new Map([["box_1", widget]]);
+		const result = updateWidget(widgets, "box_1", { x: 1 }, () =>
+			makeWidgetDef({ name: "Fallback Widget", titleProp: "title" }),
+		);
+
+		expect(result.get("box_1")!.title).toBe("Fallback Widget");
+	});
+
+	test("falls back to the widget name when the title is cleared", () => {
+		const widget = makeWidget({ box_id: "box_1", title: "Old" });
+		const widgets = new Map([["box_1", widget]]);
+		const result = updateWidget(widgets, "box_1", { title: "  " }, () =>
+			makeWidgetDef({ name: "Fallback Widget", titleProp: "title" }),
+		);
+
+		expect(result.get("box_1")!.title).toBe("Fallback Widget");
 	});
 
 	test("preserves title when titleProp not in settings", () => {

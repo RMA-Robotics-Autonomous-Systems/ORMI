@@ -4,7 +4,7 @@
 import React, {
 	createContext,
 	ReactNode,
-	use,
+	useCallback,
 	useContext,
 	useEffect,
 	useRef,
@@ -15,12 +15,11 @@ import { parse } from "@foxglove/rosmsg";
 import { MessageReader } from "@foxglove/rosmsg2-serialization";
 import { WebSocketLike } from "react-use-websocket/dist/lib/types";
 
-import { UnifiedConverter } from "./unified-converter";
+import { createAvailableTopicsFilter } from "./available-topics-filter";
 import {
 	FoxgloveDataSourceSettings,
 	Subscriber,
 	FoxgloveMessageData,
-	DatasourceTopic,
 } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { toast } from "sonner";
@@ -83,19 +82,25 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 		});
 	};
 
+	// Drop back to "no connection" without minting a fresh Map identity when
+	// there are already no channels: an empty `new Map()` is a new object every
+	// time, and these two paths run on every re-render that arrives before the
+	// socket is open, waking every consumer of `channels` for nothing.
+	const clearConnection = useCallback(() => {
+		setClient(null);
+		setChannels((prev) => (prev.size === 0 ? prev : new Map()));
+		setIsConnected(false);
+	}, []);
+
 	useEffect(() => {
 		if (!webSocket || !(webSocket instanceof WebSocket)) {
-			setClient(null);
-			setChannels(new Map());
-			setIsConnected(false);
+			clearConnection();
 			return;
 		}
 
 		// Only create the client if the socket is actually open
 		if (webSocket.readyState !== WebSocket.OPEN) {
-			setClient(null);
-			setChannels(new Map());
-			setIsConnected(false);
+			clearConnection();
 			return;
 		}
 
@@ -147,43 +152,50 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 
 			setClient(null);
 		};
-	}, [webSocket, callbacks]);
+	}, [webSocket, callbacks, clearConnection]);
+
+	// `AVAILABLE_TOPICS` is a PULL filter — it runs when a consumer asks — so
+	// the answer is built from whatever the datasource looks like at call time.
+	// Reading `settings` and `channels` out of the effect's closure instead made
+	// every listed topic carry the settings of the render the effect last ran
+	// in, which is why renaming a datasource left every topic row showing the
+	// old title until the dashboard was reloaded. Re-registering the filter on
+	// each settings change is not the answer either: that churns
+	// addFilter/removeFilter through an edit, and channels change on every
+	// advertise. Both are therefore read through refs the filter dereferences
+	// when it is invoked.
+	const settingsRef = useRef(settings);
+	const channelsRef = useRef(channels);
+
+	// Synced in effects rather than during render: a render-phase ref write is
+	// what the React Compiler's lint rules reject, and silencing them would opt
+	// this component out of compilation entirely.
+	useEffect(() => {
+		settingsRef.current = settings;
+	}, [settings]);
+
+	useEffect(() => {
+		channelsRef.current = channels;
+	}, [channels]);
+
+	// Keyed on the datasource's instance id, not the settings object: the id is
+	// what the hook names are built from and it never changes for the lifetime
+	// of the instance, so an edit re-points the refs above without tearing the
+	// registration down.
+	const datasource_id = settings.id;
 
 	useEffect(() => {
 		if (!client) return;
 
-		const datasource_id = settings.id;
 		const available_topics_handler = `${datasource_id}-available-topics`;
 		const connection_client_filter = `${datasource_id}-foxglove-connection-client`;
 
 		pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 			id: available_topics_handler,
-			filter: async (topics) => {
-				try {
-					// Convert channels to DatasourceTopic objects
-					const channelsArray = Array.from(channels.values());
-
-					const newTopics = channelsArray.map((channel) => {
-						return {
-							topic: channel.topic,
-							datasource_id: datasource_id,
-							source: settings,
-							type:
-								UnifiedConverter.getWebappTypeFromROSType(
-									channel.schemaName,
-								) || "",
-							rawType: channel.schemaName,
-						} as DatasourceTopic;
-					});
-
-					// Add the new topics to the existing ones
-					const allTopics = [...topics, ...newTopics];
-					return allTopics;
-				} catch (error) {
-					console.error("Error in available topics filter:", error);
-					return topics;
-				}
-			},
+			filter: createAvailableTopicsFilter({
+				getSettings: () => settingsRef.current,
+				getChannels: () => channelsRef.current,
+			}),
 			priority: 100,
 		});
 
@@ -200,7 +212,7 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 			pluginsManager.removeFilter(available_topics_handler);
 			pluginsManager.removeFilter(connection_client_filter);
 		};
-	}, [channels]);
+	}, [client, datasource_id, pluginsManager]);
 
 	/*
         type EventTypes = {

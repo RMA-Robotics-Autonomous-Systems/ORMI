@@ -3,6 +3,38 @@ import path from "path";
 import chalk from "chalk"; // You may need to install this package
 
 /**
+ * Build-time opt-in that re-includes development-only plugins in a production
+ * registry. Set to `1` or `true`.
+ *
+ * Gating happens when the registry is generated, so a plugin left out is not in
+ * the bundle at all — no runtime switch can bring it back. Re-enabling it on a
+ * staging or benchmarking deployment therefore requires rebuilding with this
+ * variable set.
+ */
+export const DEV_PLUGINS_ENV_VAR = "ORMI_DEV_PLUGINS";
+
+/** Options accepted by {@link init}. */
+export interface InitOptions {
+	/**
+	 * Generate a production registry: plugins marked `ormi_plugin_dev_only` in
+	 * their `package.json` are excluded unless `ORMI_DEV_PLUGINS` opts them
+	 * back in. Defaults to false (development registry, everything included).
+	 */
+	production?: boolean;
+}
+
+/**
+ * Whether development-only plugins belong in the registry about to be written.
+ * @param options - Resolved CLI options.
+ * @returns True when dev-only plugins must be registered.
+ */
+function shouldIncludeDevOnly(options: InitOptions): boolean {
+	if (!options.production) return true;
+	const optIn = process.env[DEV_PLUGINS_ENV_VAR];
+	return optIn === "1" || optIn === "true";
+}
+
+/**
  * Find all node_modules directories by searching up the directory tree
  * This handles monorepo environments where node_modules might be hoisted
  * Returns an array of valid node_modules paths
@@ -76,7 +108,18 @@ function findNodeModules(): string[] {
 	return nodeModulesPaths;
 }
 
-function get_plugins(): string[] {
+/**
+ * Discover every installed ORMI plugin.
+ *
+ * A package is an ORMI plugin when its `package.json` carries
+ * `"ormi_plugin": true`. A plugin that additionally carries
+ * `"ormi_plugin_dev_only": true` is a development-only plugin (synthetic data,
+ * benchmarking fixtures) and is skipped unless `includeDevOnly` is set.
+ *
+ * @param includeDevOnly - Include plugins marked `ormi_plugin_dev_only`.
+ * @returns Package names of the plugins to register.
+ */
+function get_plugins(includeDevOnly: boolean): string[] {
 	// Find node_modules paths in monorepo environment
 	const nodeModulesPaths = findNodeModules();
 
@@ -95,6 +138,7 @@ function get_plugins(): string[] {
 	});
 
 	const allPlugins: string[] = [];
+	const skippedDevOnly: string[] = [];
 	let totalScannedCount = 0;
 
 	// Check each node_modules directory for plugins
@@ -145,13 +189,16 @@ function get_plugins(): string[] {
 
 			try {
 				const pckg = JSON.parse(fs.readFileSync(package_json, "utf-8"));
-				if (
-					pckg["ormi_plugin"] !== undefined &&
-					pckg["ormi_plugin"] === true
-				) {
-					return true;
+				if (pckg["ormi_plugin"] !== true) {
+					return false;
 				}
-				return false;
+				if (pckg["ormi_plugin_dev_only"] === true && !includeDevOnly) {
+					if (!skippedDevOnly.includes(dir)) {
+						skippedDevOnly.push(dir);
+					}
+					return false;
+				}
+				return true;
 			} catch (err) {
 				return false;
 			}
@@ -171,6 +218,22 @@ function get_plugins(): string[] {
 				allPlugins.push(plugin);
 			}
 		});
+	}
+
+	if (skippedDevOnly.length > 0) {
+		console.log(
+			chalk.yellow(
+				`\n🚫 Excluded ${skippedDevOnly.length} development-only plugin(s) from this registry:`,
+			),
+		);
+		skippedDevOnly.forEach((plugin) => {
+			console.log(chalk.gray(`  - ${plugin}`));
+		});
+		console.log(
+			chalk.gray(
+				`  Set ${DEV_PLUGINS_ENV_VAR}=1 to include them in a production registry.`,
+			),
+		);
 	}
 
 	return allPlugins;
@@ -219,11 +282,27 @@ function generate_source_file(plugins: string[]): string {
 	return source;
 }
 
-export async function init(path: string) {
-	console.log(chalk.magenta("🚀 Initializing ORMI Core..."));
+/**
+ * Generate the plugin registry source file consumed by the web app.
+ *
+ * @param path - Output path of the generated TypeScript registry.
+ * @param options - CLI options; `production` excludes dev-only plugins.
+ */
+export async function init(path: string, options: InitOptions = {}) {
+	const includeDevOnly = shouldIncludeDevOnly(options);
+
+	console.log(
+		chalk.magenta(
+			`🚀 Initializing ORMI Core (${options.production ? "production" : "development"} registry${
+				options.production && includeDevOnly
+					? `, ${DEV_PLUGINS_ENV_VAR} opt-in active`
+					: ""
+			})...`,
+		),
+	);
 
 	const startTime = Date.now();
-	const plugins = get_plugins();
+	const plugins = get_plugins(includeDevOnly);
 	const endTime = Date.now();
 
 	console.log(

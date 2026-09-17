@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
-import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import { getDashboardTypeMeta } from "@workspace/ormi-core/dashboard";
 import {
 	Table,
 	TableBody,
@@ -42,14 +42,6 @@ type SortState = { key: SortKey; direction: SortDirection } | null;
 
 /** Sentinel value used by the inline category Select for "Uncategorized". */
 const UNCATEGORIZED_VALUE = "uncategorized";
-
-/** Resolve the dashboard layout type metadata for a workspace, with a fallback. */
-function resolveDashboardType(dashboardType: string) {
-	return (
-		DASHBOARD_TYPES.find((type) => type.id === dashboardType) ??
-		DASHBOARD_TYPES[0]
-	);
-}
 
 /**
  * Extract the display names of the datasources persisted in a workspace's
@@ -193,8 +185,8 @@ const ListView: React.FC<WorkspaceViewProps> = ({
 			a: WorkspaceWithCategory,
 			b: WorkspaceWithCategory,
 		): number =>
-			resolveDashboardType(a.dashboardType).name.localeCompare(
-				resolveDashboardType(b.dashboardType).name,
+			getDashboardTypeMeta(a.dashboardType).name.localeCompare(
+				getDashboardTypeMeta(b.dashboardType).name,
 				undefined,
 				{ sensitivity: "base" },
 			);
@@ -312,7 +304,7 @@ const ListView: React.FC<WorkspaceViewProps> = ({
 				</TableHeader>
 				<TableBody>
 					{sortedWorkspaces.map((workspace, index) => {
-						const dashboardType = resolveDashboardType(
+						const dashboardType = getDashboardTypeMeta(
 							workspace.dashboardType,
 						);
 						const DashboardTypeIcon = dashboardType.icon;

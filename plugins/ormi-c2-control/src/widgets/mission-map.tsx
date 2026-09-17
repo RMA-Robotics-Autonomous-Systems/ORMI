@@ -99,6 +99,7 @@ import {
 } from "terra-draw";
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 
+import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	C2Feature,
@@ -3160,8 +3161,14 @@ function MissionMapBody(props: {
 						onTogglePlannerGraph={togglePlannerGraph}
 					/>
 				)}
+				{/* MSAA on the WebGL context — see maps-box-viewer. MapLibre
+				    shader-antialiases its own fills, lines and symbols, but not
+				    the fill-extrusion silhouettes of the 3D buildings layer.
+				    Context attributes are fixed at creation, so this is not an
+				    operator toggle. */}
 				<MapLibreMap
 					ref={mapRef}
+					canvasContextAttributes={{ antialias: true }}
 					mapStyle={mapStyle}
 					initialViewState={{
 						longitude: startingLocation[0],
@@ -3481,6 +3488,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 							accepts: [],
 							acceptsRaw: ["task_msgs/msg/Feedback"],
 						},
+						role: "secondary",
 					},
 				} as TopicSelectElement,
 			],
@@ -3492,5 +3500,6 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 			overlays: [],
 		},
 		Component: MissionMapWidget,
+		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionMapProps>;
 }

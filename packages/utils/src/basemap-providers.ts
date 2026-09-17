@@ -251,10 +251,63 @@ export const BASEMAPS_REQUIRING_KEY: readonly string[] =
  * @returns One `{ const, title }` entry per {@link BASEMAP_PROVIDERS} row.
  */
 export function basemapOneOf(): { const: string; title: string }[] {
-	return BASEMAP_PROVIDERS.map((entry) => ({
-		const: entry.url,
-		title: entry.title,
-	}));
+	return [...BASEMAP_PROVIDERS]
+		.map((entry, index) => ({ entry, index }))
+		.sort((a, b) => {
+			const rank =
+				basemapPickerRank(a.entry) - basemapPickerRank(b.entry);
+			return rank !== 0 ? rank : a.index - b.index;
+		})
+		.map(({ entry }) => ({
+			const: entry.url,
+			title: basemapPickerLabel(entry),
+		}));
+}
+
+/**
+ * Sort key deciding where a basemap sits in the picker.
+ *
+ * Thirteen single-line names, several of which differ only in a word
+ * ("Alidade Smooth Dark" / "Alidade Satellite"), read as an undifferentiated
+ * list — the operator has to know the answer before they can find it. Ordering
+ * by what actually distinguishes the entries does most of the work that a
+ * grouped list would: the vector styles first, because they need no account and
+ * one of them is the default; then the raster maps anyone can use; and last the
+ * ones that render nothing at all until an API key is entered elsewhere in the
+ * form.
+ *
+ * @param entry - Catalogue entry.
+ * @returns Group rank, lower sorts first.
+ */
+function basemapPickerRank(entry: BasemapProvider): number {
+	if (entry.kind === "vector") return 0;
+	return entry.keyParam ? 2 : 1;
+}
+
+/**
+ * The label the picker shows for a basemap.
+ *
+ * Carries the two facts the bare title omits and the operator needs before
+ * choosing: **who serves it**, which is what separates the several
+ * similarly-named styles, and **whether it needs an API key**, which is
+ * otherwise discovered by selecting it and getting a blank map. The provider is
+ * omitted when the title already opens with it, so "OpenStreetMap" does not
+ * become "OpenStreetMap — OpenStreetMap".
+ *
+ * @param entry - Catalogue entry.
+ * @returns Display label.
+ */
+function basemapPickerLabel(entry: BasemapProvider): string {
+	// Compared on the provider's first word, not the whole name: "Stadia Maps"
+	// serves "Stadia Alidade Smooth Dark", and appending the full provider
+	// there would read "Stadia Alidade Smooth Dark — Stadia Maps".
+	const vendor = entry.provider.split(" ")[0]?.toLowerCase() ?? "";
+	const redundant =
+		vendor.length > 0 && entry.title.toLowerCase().startsWith(vendor);
+	const label = redundant
+		? entry.title
+		: `${entry.title} — ${entry.provider}`;
+	return entry.keyParam ? `${label} (API key required)` : label;
 }
 
 /**

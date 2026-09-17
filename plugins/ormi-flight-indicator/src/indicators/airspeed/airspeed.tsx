@@ -43,25 +43,27 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 			return;
 		}
 
-		const value = data.data[0] as Movement;
+		const value = data.data[0] as Movement | Vector3;
 		if (!value) {
 			return;
 		}
 
-		const speeds = value.linear as
-			| Vector3
-			| { x: number; y: number; z: number };
+		// The slot takes a `Movement`, whose speed lives in `linear`, and a
+		// bare `Vector3`, which *is* the speed. Both arrive here as the same
+		// three components once the wrapper is stepped over.
+		const source = ((value as Movement).linear ?? value) as Vector3;
 
-		// convert m/s to knots
-		speeds.x = speeds.x * 1.94384;
-		speeds.y = speeds.y * 1.94384;
-		speeds.z = speeds.z * 1.94384;
-
-		if (props.invert) {
-			speeds.x = -speeds.x;
-			speeds.y = -speeds.y;
-			speeds.z = -speeds.z;
-		}
+		// A copy, never the message: `data.data` holds the datasource's own
+		// buffered message, and scaling it in place would compound on every
+		// re-run of this effect and corrupt the value for every other widget
+		// reading the same topic.
+		const sign = props.invert ? -1 : 1;
+		const KNOTS_PER_MPS = 1.94384;
+		const speeds = {
+			x: (source.x ?? 0) * KNOTS_PER_MPS * sign,
+			y: (source.y ?? 0) * KNOTS_PER_MPS * sign,
+			z: (source.z ?? 0) * KNOTS_PER_MPS * sign,
+		};
 
 		switch (props.speedAxis) {
 			case "x":
@@ -105,11 +107,16 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
  * @param data - Widget props.
  * @returns React element.
  */
-const AirspeedWidget: React.FC<AirSpeedProps> = (data) => (
-	<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
-		<WidgetAirspeedIndicator {...data} />
-	</LocalDataSourcesProvider>
-);
+const AirspeedWidget: React.FC<AirSpeedProps> = (data) =>
+	data.topic ? (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<WidgetAirspeedIndicator {...data} />
+		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
 
 /** Settings for Airspeed widget. */
 
@@ -146,7 +153,7 @@ export function AirspeedDefinition(): WidgetDefinition<AirSpeedProps> {
 					default: false,
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 		uischema: {
 			type: "VerticalLayout",
@@ -159,8 +166,37 @@ export function AirspeedDefinition(): WidgetDefinition<AirSpeedProps> {
 					type: "TopicSelect",
 					scope: "#/properties/topic",
 					options: {
+						// The type claim is true and stays: this widget reads
+						// `linear.{x,y,z}` off a Twist. What is NOT true is
+						// that a `Movement` topic wants a gauge. `Movement`
+						// covers `geometry_msgs/Twist` and `TwistStamped`
+						// alike, and in the field a bare Twist is
+						// overwhelmingly a *command* (`/cmd_vel`); a measured
+						// velocity arrives inside an odometry message, which
+						// is not a `Movement` at all. A dial reads as a
+						// measurement, so a commanded value shown on one is
+						// read as one.
+						//
+						// `dataRequirements` cannot express that difference —
+						// both are the same type — and it is not the place to:
+						// it answers whether this slot *may* take a `Movement`,
+						// which it may. Whether a `Movement` click should land
+						// here is a routing question, and the plugin's topic
+						// claims answer it — `alternative`, so the slot stays a
+						// real destination that is offered beside the teleop
+						// control that publishes the topic, and is never the
+						// answer on its own.
+						//
+						// `Vector3` is widened onto the same slot: the widget
+						// reads three components and the operator already
+						// chooses which one with `speedAxis`, so a bare
+						// velocity vector is shown honestly rather than not at
+						// all. It is claimed as an alternative for the same
+						// reason — a vector's components are not necessarily
+						// speeds, and the vector readout is the confident
+						// answer for a `Vector3` click.
 						dataRequirements: {
-							accepts: ["Movement"], // Accept both webapp type and raw type patterns
+							accepts: ["Movement", "Vector3"],
 						},
 					},
 				} as TopicSelectElement,

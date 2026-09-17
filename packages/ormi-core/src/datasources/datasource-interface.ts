@@ -38,6 +38,33 @@ interface DatasourceTopic {
 	/** Type of the data inside the datasource. */
 	rawType: string;
 	bufferSize?: number;
+	/**
+	 * The consumer needs **every** message on this topic, not the latest per
+	 * drain tick.
+	 *
+	 * A transport hint declared by whoever subscribes, exactly like
+	 * {@link DatasourceTopic.bufferSize} above it, and for the same reason: a
+	 * datasource cannot know whether a stream is a series of samples or a state
+	 * to be observed, and the operator has no basis to answer. A widget showing
+	 * a live value wants the newest message and nothing else; one building a run
+	 * out of the stream — a survey, a recorder, an analyser — is wrong by
+	 * exactly the messages it never saw, and nothing on screen says so.
+	 *
+	 * Left unset it is false, so the default stays coalesce-to-latest and no
+	 * existing topic changes behaviour.
+	 *
+	 * Two properties follow from a topic being ONE wire shared by N subscribers:
+	 * it is the **OR** across them — one consumer needing every sample makes the
+	 * topic lossless for all of them — and it is **monotonic** for the life of
+	 * the subscription, because a datasource that downgraded when a lossy
+	 * subscriber joined would silently start dropping samples underneath the
+	 * consumer that asked.
+	 *
+	 * Honouring it is a datasource's choice, and most have nothing to do: only a
+	 * datasource that coalesces reads it (foxglove does; rosbridge, the EMI
+	 * replay and the REST bag reader deliver every message already).
+	 */
+	lossless?: boolean;
 }
 
 /** Topic selected for widget configuration. */

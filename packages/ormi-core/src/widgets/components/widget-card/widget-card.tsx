@@ -8,7 +8,7 @@ import {
 } from "@jsonforms/material-renderers";
 import { shadcnRenderer, shadcnCells } from "@workspace/ormi-jsonforms";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { JsonForms } from "@jsonforms/react";
 import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 import { toast } from "sonner";
@@ -20,12 +20,17 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogDescription,
-	DialogClose,
 } from "@workspace/ui/components/dialog";
 import { SettingsIcon, CheckIcon } from "lucide-react";
 import { AddToTemplatesBtn } from "../../../templates/components/add-to-templates";
 import { coreRenderer } from "../../../renderers";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import {
+	ConfigValidationError,
+	formatConfigErrorNotice,
+	hasConfigErrors,
+	summarizeConfigErrors,
+} from "../../../forms/config-errors";
 
 import styles from "./widget-card.module.css";
 
@@ -33,7 +38,11 @@ import styles from "./widget-card.module.css";
 
 /** Props for WidgetCard. */
 interface WidgetCardProps {
-	displayType?: "card" | "list" | "gear";
+	/**
+	 * `card` (the default) is the catalogue tile the launcher grids; `gear` is
+	 * the settings affordance a mounted widget carries in its header.
+	 */
+	displayType?: "card" | "gear";
 	definition: WidgetDefinition;
 	data?: any;
 	onValidate: (
@@ -51,43 +60,57 @@ interface WidgetCardProps {
  * @returns React element.
  */
 export function WidgetCard(props: WidgetCardProps) {
-	const [data, setData] = useState(props.definition.data);
-	const [errors, setErrors] = useState<any>(null);
+	const [data, setData] = useState<any>(
+		() => props.data ?? props.definition.data,
+	);
+	const [errors, setErrors] = useState<ConfigValidationError[] | null>(null);
+	const [internalOpen, setInternalOpen] = useState(false);
 
-	const handleAdd = () => {
-		if (errors && errors.length > 0) {
-			for (const error of errors) {
-				toast("Error: " + error.message);
-			}
+	// `isDialogOpen` opts the call site into driving the dialog itself.
+	const isControlled = props.isDialogOpen !== undefined;
+	const isOpen = isControlled ? props.isDialogOpen! : internalOpen;
+
+	/** Close the dialog without committing, in either open mode. */
+	const closeDialog = () => {
+		if (!isControlled) setInternalOpen(false);
+		props.onDialogClose?.();
+	};
+
+	const handleOpenChange = (open: boolean) => {
+		if (!open) {
+			closeDialog();
+			return;
+		}
+
+		// Reopening shows the persisted settings: an abandoned edit must not
+		// survive as the starting point of the next one.
+		setData(props.data ?? props.definition.data);
+		setErrors(null);
+		if (!isControlled) setInternalOpen(true);
+	};
+
+	const handleConfirm = () => {
+		if (hasConfigErrors(errors)) {
+			// Controls render their own error inline; the notice names the
+			// fields and spells out only what has no field to appear on.
+			const notice = formatConfigErrorNotice(
+				summarizeConfigErrors(errors, props.definition.schema),
+			);
+
+			if (notice) toast.error(notice);
 
 			return;
 		}
 
 		props.onValidate(props.definition, data);
+		closeDialog();
 	};
-
-	useEffect(() => {
-		if (props.data) {
-			setData(props.data);
-		} else {
-			setData(props.definition.data);
-		}
-	}, []);
 
 	const getButton = () => {
 		if (props.displayType === "gear") {
 			return (
 				<Button variant={"ghost"}>
 					<SettingsIcon />
-				</Button>
-			);
-		}
-
-		if (props.displayType === "list") {
-			return (
-				<Button variant={"ghost"}>
-					{props.definition.icon || <SettingsIcon />}
-					<p>{props.definition.name}</p>
 				</Button>
 			);
 		}
@@ -125,7 +148,7 @@ export function WidgetCard(props: WidgetCardProps) {
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
 	return (
-		<Dialog open={props.isDialogOpen} onOpenChange={props.onDialogClose}>
+		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
 			{/* Only render trigger if not in controlled mode */}
 			{!props.isDialogOpen && (
 				<DialogTrigger asChild>{getButton()}</DialogTrigger>
@@ -144,7 +167,7 @@ export function WidgetCard(props: WidgetCardProps) {
 						cells={cellsRenderers}
 						onChange={({ data, errors }) => {
 							setData(data);
-							setErrors(errors);
+							setErrors(errors ?? null);
 						}}
 					/>
 					<div
@@ -157,15 +180,16 @@ export function WidgetCard(props: WidgetCardProps) {
 								data={data}
 							/>
 						)}
-						<DialogClose className="float-end" asChild>
-							<Button
-								onClick={() => {
-									handleAdd();
-								}}
-							>
-								<CheckIcon />
-							</Button>
-						</DialogClose>
+						<Button variant="outline" onClick={closeDialog}>
+							Cancel
+						</Button>
+						<Button
+							className="float-end"
+							aria-label="Confirm widget configuration"
+							onClick={handleConfirm}
+						>
+							<CheckIcon />
+						</Button>
 					</div>
 				</div>
 			</DialogContent>

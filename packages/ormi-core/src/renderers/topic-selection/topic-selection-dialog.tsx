@@ -8,6 +8,7 @@ import {
 } from "@workspace/ui/components/dialog";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
+import { useAutoFocus } from "@workspace/ui/hooks/use-autofocus";
 import { Separator } from "@workspace/ui/components/separator";
 import { Search, Filter } from "lucide-react";
 
@@ -22,6 +23,11 @@ import {
 	DualPropertyTree,
 	findPropertyNodeByPath,
 } from "../../widgets/topic-compatibility";
+import {
+	buildSelectedTopic,
+	deriveTopicBufferSize,
+	TopicBufferOptions,
+} from "./topic-auto-select";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
 import { TopicBrowser } from "../topic-selection/topic-browser";
@@ -40,6 +46,11 @@ interface TopicSelectionDialogProps {
 	requirements?: DataRequirements;
 	initialValue?: SelectedTopic;
 	label?: string;
+	/**
+	 * `TopicSelect` UI schema options for the slot. Only the widget-authored
+	 * buffer override is read; see `deriveTopicBufferSize`.
+	 */
+	bufferOptions?: TopicBufferOptions;
 }
 
 /**
@@ -54,6 +65,7 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 	requirements,
 	initialValue,
 	label = "Select Topic",
+	bufferOptions,
 }) => {
 	const pluginsManager = usePluginsManager();
 	const [state, dispatch] = useReducer(
@@ -61,6 +73,11 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 		initialTopicSelectionState,
 	);
 	const [isLoading, setIsLoading] = useState(false);
+
+	// Keyed on `isOpen` rather than mount: this dialog stays mounted between
+	// opens (the gear card that hosts it does), so focusing only on mount
+	// would work exactly once per dashboard.
+	const searchRef = useAutoFocus<HTMLInputElement>(isOpen);
 
 	// Load topics when dialog opens
 	useEffect(() => {
@@ -236,15 +253,11 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 		// Property path is already in dot notation, use as-is
 		const propertyPath = state.selectedProperty || "";
 
-		const selection: SelectedTopic = {
-			topic: state.selectedTopic.topic,
-			datasource_id: state.selectedTopic.datasource_id,
-			source: state.selectedTopic.source,
-			type: state.selectedTopic.type,
-			rawType: state.selectedTopic.rawType,
-			property: propertyPath,
-			bufferSize: state.bufferSize,
-		};
+		const selection = buildSelectedTopic(
+			state.selectedTopic,
+			propertyPath,
+			deriveTopicBufferSize(bufferOptions),
+		);
 
 		onSelect(selection);
 		onClose();
@@ -263,7 +276,11 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			<DialogContent size="large">
+			{/* A flex column, not the default grid: the header and footer take
+			    their own height and the panel row takes the rest, so the two
+			    panes scroll inside the dialog instead of the dialog scrolling
+			    as a whole. */}
+			<DialogContent size="large" className="flex flex-col">
 				<DialogHeader>
 					<DialogTitle>{label}</DialogTitle>
 					{!requirements && (
@@ -273,8 +290,13 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 						</p>
 					)}
 					<div className="flex items-center gap-2 mt-2">
-						<div className="relative flex-1 gap-2">
+						<div className="relative flex-1">
+							<Search
+								className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+								aria-hidden
+							/>
 							<Input
+								ref={searchRef}
 								placeholder="Search topics..."
 								value={state.searchTerm}
 								onChange={(e) =>
@@ -307,12 +329,15 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 					</div>
 				</DialogHeader>
 
-				<div className="flex gap-4 overflow-hidden">
-					{/* Left Panel - Topic Browser */}
-					<div
-						className="w-96 flex flex-col border rounded-lg"
-						style={{ height: "50dvh", overflowY: "auto" }}
-					>
+				{/* Proportional, not a fixed 384px: at `size="large"` the dialog
+				    is two thirds of the viewport, and the column carrying the
+				    long ROS topic names was the starved one while the details
+				    pane sat mostly empty. The floor keeps the dialog usable on
+				    a short viewport without pushing past it. */}
+				<div className="flex min-h-[min(18rem,50dvh)] flex-1 gap-4">
+					{/* Left Panel - Topic Browser. The panel is the frame; the
+					    browser inside owns the only scroller. */}
+					<div className="flex min-w-0 basis-2/5 flex-col overflow-hidden rounded-lg border">
 						<TopicBrowser
 							topics={state.filteredTopics}
 							selectedTopic={state.selectedTopic}
@@ -329,10 +354,7 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 					<Separator orientation="vertical" />
 
 					{/* Right Panel - Topic Details */}
-					<div
-						className="flex-1 flex flex-col"
-						style={{ height: "50dvh", overflowY: "auto" }}
-					>
+					<div className="flex min-w-0 flex-1 flex-col">
 						<TopicDetails
 							topic={state.selectedTopic}
 							analysis={
@@ -358,10 +380,6 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 							onTabChange={(tab: "webapp" | "raw") =>
 								dispatch({ type: "SWITCH_TAB", tab })
 							}
-							bufferSize={state.bufferSize}
-							onBufferSizeChange={(size: number) =>
-								dispatch({ type: "SET_BUFFER_SIZE", size })
-							}
 							requirements={requirements}
 						/>
 					</div>
@@ -370,7 +388,7 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 				<DialogFooter>
 					<div className="flex items-center justify-between w-full">
 						{/* Selection Preview */}
-						<div className="flex-1 text-sm text-muted-foreground">
+						<div className="text-muted-foreground min-w-0 flex-1 truncate text-sm">
 							{state.selectedTopic && (
 								<span>
 									Selected:{" "}
@@ -390,7 +408,7 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 						</div>
 
 						{/* Action Buttons */}
-						<div className="flex gap-2">
+						<div className="flex shrink-0 gap-2">
 							<Button variant="outline" onClick={handleCancel}>
 								Cancel
 							</Button>

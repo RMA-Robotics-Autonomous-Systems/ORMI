@@ -136,6 +136,14 @@ const SwarmLogWidget: React.FC<SwarmLogProps> = (props) => {
 		? props.mission_id.trim()
 		: active;
 
+	if (!props.topic) {
+		return (
+			<div className="flex justify-center items-center h-full text-muted-foreground">
+				Please select a topic in the widget configuration.
+			</div>
+		);
+	}
+
 	return (
 		<LocalDataSourcesProvider
 			SelectedTopics={[props.topic]}
@@ -171,7 +179,7 @@ export function SwarmLogDefinition(): WidgetDefinition<SwarmLogProps> {
 					title: "Pinned mission id (optional)",
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 
 		uischema: {

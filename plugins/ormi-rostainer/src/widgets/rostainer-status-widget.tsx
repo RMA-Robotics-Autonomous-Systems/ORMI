@@ -108,8 +108,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 		// The call reached ROSTainer; the real success is in the response body
 		// (`{ success, message }`), not the transport-level result.success.
 		const body = result.data as
-			| { success?: boolean; message?: string }
-			| undefined;
+			{ success?: boolean; message?: string } | undefined;
 		setOutcome({
 			ok: body?.success ?? true,
 			message: body?.message ?? "",
@@ -306,6 +305,14 @@ export interface RostainerStatusWidgetProps extends Record<string, unknown> {
 }
 
 const RostainerStatusWidget: React.FC<RostainerStatusWidgetProps> = (props) => {
+	if (!props.topic) {
+		return (
+			<div className="flex justify-center items-center h-full text-muted-foreground">
+				Please select a topic in the widget configuration.
+			</div>
+		);
+	}
+
 	return (
 		<LocalDataSourcesProvider
 			SelectedTopics={[props.topic]}

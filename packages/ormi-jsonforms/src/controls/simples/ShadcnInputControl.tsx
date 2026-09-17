@@ -30,6 +30,7 @@ import merge from "lodash/merge";
 
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 /**
  * Interface for components that accept an input component.
@@ -59,12 +60,21 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
 		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -85,13 +95,28 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 			<InnerComponent
 				className={cn("w-full", !isValid && "border-destructive")}
 				{...props}
+				ariaProps={ariaProps}
 			/>
 
+			{/* Description and error live in the input column; without the
+			    explicit column start they wrap into the narrow label column. */}
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="col-start-2 text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

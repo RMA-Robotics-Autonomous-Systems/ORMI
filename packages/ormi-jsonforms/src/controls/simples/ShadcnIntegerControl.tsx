@@ -34,9 +34,10 @@ import {
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
+import type { WithAria } from "../../utils/aria";
 
-const ShadcnInputInteger = (props: ControlProps) => {
-	const { id, enabled, path, handleChange, data } = props;
+const ShadcnInputInteger = (props: ControlProps & WithAria) => {
+	const { id, enabled, path, handleChange, data, ariaProps } = props;
 
 	return (
 		<Input
@@ -52,6 +53,7 @@ const ShadcnInputInteger = (props: ControlProps) => {
 			step={1}
 			disabled={!enabled}
 			id={id}
+			{...ariaProps}
 		/>
 	);
 };

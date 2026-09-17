@@ -178,6 +178,105 @@ beforeEach(() => {
 });
 
 describe("datasource-subscription-registry", () => {
+	test("wire carries the OR across intents whenever it subscribes", () => {
+		// One wire serves every subscriber, so the flag cannot belong to
+		// whichever intent happened to be first. Getting this backwards is
+		// invisible: the run is simply short, and looks complete.
+		const reg = getDatasourceSubscriptionRegistry(manager);
+		manager.registerSubscribeHook("ds1");
+		manager.emitReady("ds1");
+
+		reg.subscribe({
+			topic: { ...topic("ds1", "/emi/gnss"), lossless: true },
+			onData: () => {},
+		});
+		const lossy = reg.subscribe({
+			topic: topic("ds1", "/emi/gnss"),
+			onData: () => {},
+		});
+
+		const fired = manager.doActionCalls.filter(
+			(c) => c.name === subscribeHook("ds1"),
+		);
+		expect(fired).toHaveLength(1);
+		expect(fired[0]!.args[0].lossless).toBe(true);
+
+		// Releasing the lossy intent must not lower it, and neither must a
+		// reconnect: the consumer that asked for every sample is still there.
+		lossy.unsubscribe();
+		manager.emitDisposed("ds1");
+		manager.emitReady("ds1");
+		const afterReconnect = manager.doActionCalls.filter(
+			(c) => c.name === subscribeHook("ds1"),
+		);
+		expect(
+			afterReconnect[afterReconnect.length - 1]!.args[0].lossless,
+		).toBe(true);
+
+		reg.dispose();
+	});
+
+	test("an intent that raises the requirement on a live wire applies at the next re-flush", () => {
+		// The known limit of carrying this on the wire rather than per-intent.
+		// `-subscribe` fires once per wire (the `wireState` gate), and the
+		// datasource contract has no way to amend a live subscription without
+		// an unsubscribe/subscribe cycle — which would cost every consumer on
+		// that wire a delivery gap to serve a late joiner. So an upgrade lands
+		// on the next reconnect, and datasources close the common case
+		// themselves: two consumers binding different properties are two wire
+		// keys, so the second `-subscribe` does reach the datasource, which
+		// raises the topic monotonically (see ormi-foxglove `upgradeLossless`).
+		const reg = getDatasourceSubscriptionRegistry(manager);
+		manager.registerSubscribeHook("ds1");
+		manager.emitReady("ds1");
+
+		reg.subscribe({ topic: topic("ds1", "/emi/gnss"), onData: () => {} });
+		reg.subscribe({
+			topic: { ...topic("ds1", "/emi/gnss"), lossless: true },
+			onData: () => {},
+		});
+
+		// Not re-issued while the wire is live...
+		const fired = manager.doActionCalls.filter(
+			(c) => c.name === subscribeHook("ds1"),
+		);
+		expect(fired).toHaveLength(1);
+		expect(fired[0]!.args[0].lossless).toBeUndefined();
+
+		// ...but the wire now knows, so the reconnect carries it.
+		manager.emitDisposed("ds1");
+		manager.emitReady("ds1");
+		const afterReconnect = manager.doActionCalls.filter(
+			(c) => c.name === subscribeHook("ds1"),
+		);
+		expect(
+			afterReconnect[afterReconnect.length - 1]!.args[0].lossless,
+		).toBe(true);
+
+		reg.dispose();
+	});
+
+	test("lossless is not part of the wire key: one subscription, not two", () => {
+		const reg = getDatasourceSubscriptionRegistry(manager);
+		const hook = manager.registerSubscribeHook("ds1");
+		manager.emitReady("ds1");
+
+		reg.subscribe({
+			topic: topic("ds1", "/emi/gnss"),
+			onData: () => {},
+		});
+		reg.subscribe({
+			topic: { ...topic("ds1", "/emi/gnss"), lossless: true },
+			onData: () => {},
+		});
+
+		// Two intents, one wire — the second must join rather than open a
+		// second subscription to the same topic.
+		expect(hook.count()).toBe(1);
+
+		reg.dispose();
+	});
+
 	test("intent registered before ready: no -subscribe until READY, then exactly one", () => {
 		const reg = getDatasourceSubscriptionRegistry(manager);
 		manager.registerSubscribeHook("ds1");

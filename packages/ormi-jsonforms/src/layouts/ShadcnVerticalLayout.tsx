@@ -55,6 +55,10 @@ export const ShadcnVerticalLayoutRenderer = ({
 	renderers,
 	cells,
 }: LayoutProps) => {
+	if (visible === false) {
+		return null;
+	}
+
 	const verticalLayout = uischema as VerticalLayout;
 	const childProps: shadcnLayoutRendererProps = {
 		elements: verticalLayout.elements,

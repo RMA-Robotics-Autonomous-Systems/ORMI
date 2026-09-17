@@ -182,8 +182,18 @@ export function createRpcClient<M extends RpcMethodMap, E extends RpcEventMap>(
 
 	const dispose = () => {
 		target.removeEventListener("message", onMessage);
+		// Reject, never drop. A dropped pending entry is a promise that can
+		// never settle, and callers await these inside hooks that are applied
+		// sequentially across every datasource — `AVAILABLE_TOPICS` is one — so
+		// a single never-settling call stalls the whole chain for as long as the
+		// page is open, with nothing logged and no way back. A rejection is
+		// something the caller can see and fall back from.
+		const abandoned = Array.from(pending.values());
 		pending.clear();
 		metrics.set(rpcInflightId, pending.size);
+		for (const entry of abandoned) {
+			entry.reject(new Error("RPC client disposed"));
+		}
 		eventHandlers.clear();
 	};
 
@@ -263,4 +273,45 @@ export function createRpcServer<M extends RpcMethodMap, E extends RpcEventMap>(
 	};
 
 	return { emit, dispose };
+}
+
+/**
+ * Resolve `promise`, or give up after `ms` and resolve `fallback` instead.
+ *
+ * For calls whose blast radius is wider than the datasource making them.
+ * `AVAILABLE_TOPICS` is the case that matters: it is applied sequentially
+ * across every configured datasource with no per-contributor isolation, so a
+ * worker that never answers — one that died before `init`, for instance, which
+ * is invisible in development and only happens in a production build — leaves
+ * the whole topic list empty for every datasource, with nothing logged.
+ * Bounding the wait turns that into "this datasource lists nothing", which is
+ * both true and local.
+ *
+ * Nothing is cancelled: the underlying call is left to settle (or not) on its
+ * own, because an RPC request already sent cannot be recalled. A caller that
+ * polls simply asks again.
+ *
+ * @param promise - The call to bound.
+ * @param ms - How long to wait before giving up.
+ * @param fallback - Value to resolve with on timeout.
+ * @returns The call's value, or `fallback`.
+ */
+export function withRpcTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	fallback: T,
+): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => resolve(fallback), ms);
+		promise.then(
+			(value) => {
+				clearTimeout(timer);
+				resolve(value);
+			},
+			(error) => {
+				clearTimeout(timer);
+				reject(error);
+			},
+		);
+	});
 }

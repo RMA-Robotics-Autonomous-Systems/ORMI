@@ -31,6 +31,7 @@
 		"sonner": "^2.0.7",
 		"@workspace/ormi-plugins": "workspace:*",
 		"@workspace/ormi-core": "workspace:*",
+		"@workspace/utils": "workspace:*",
 		"@workspace/ui": "workspace:*",
 		"@workspace/ormi-jsonforms": "workspace:*",
 		"@jsonforms/core": "^3.7.0",

@@ -4,3 +4,4 @@ export * from "./use-digital-trigger";
 
 export * from "./digital-trigger";
 export * from "./analog-trigger-input";
+export * from "./trigger-chip";

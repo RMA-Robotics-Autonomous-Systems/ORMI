@@ -1,12 +1,19 @@
 "use client";
 
 import React from "react";
-import { WidgetErrorFallback } from "@workspace/ui/components/widget-error-fallback";
+import { WidgetCrashCard } from "../../widgets/components/widget-status";
 
 /** Props for {@link WidgetErrorBoundary}. */
 export interface WidgetErrorBoundaryProps {
 	/** The widget body to isolate. A throw here is contained, not propagated. */
 	children: React.ReactNode;
+	/**
+	 * Saved title of the widget instance. The fallback leads with it so the
+	 * operator is told which panel stopped, not which exception was raised.
+	 */
+	widgetTitle?: string;
+	/** Stored widget definition id, shown when no title is available. */
+	widgetTypeId?: string;
 	/**
 	 * Values that, when changed, reset the boundary so a recovered widget can
 	 * render again. Typically the widget instance id (and any input whose change
@@ -47,7 +54,7 @@ function areResetKeysEqual(
  * Per-widget React error boundary.
  *
  * Catches render and lifecycle errors thrown by the widget body it wraps and
- * renders a localized {@link WidgetErrorFallback} instead of letting the error
+ * renders a localized {@link WidgetCrashCard} instead of letting the error
  * propagate and crash the whole dashboard layout. Only the widget body is
  * isolated — the host chrome (title bar, controls) stays mounted and usable
  * because the boundary wraps the body, not the host.
@@ -119,8 +126,10 @@ export class WidgetErrorBoundary extends React.Component<
 	render(): React.ReactNode {
 		if (this.state.error !== null) {
 			return (
-				<WidgetErrorFallback
-					message={this.state.error.message}
+				<WidgetCrashCard
+					title={this.props.widgetTitle}
+					widgetTypeId={this.props.widgetTypeId}
+					detail={this.state.error.message}
 					onRetry={this.handleRetry}
 				/>
 			);

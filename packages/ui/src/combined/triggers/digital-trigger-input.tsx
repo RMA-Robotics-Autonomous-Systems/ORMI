@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 
 import { GamepadIcon, KeyboardIcon } from "lucide-react";
+import { TRIGGER_CHIP_WIDTH, triggerChipVariants } from "./trigger-chip";
 
 interface DigitalInputComponentProps {
 	onChange: (data: DigitalInput) => void;
@@ -177,41 +178,31 @@ export const DigitalInputComponent = (props: DigitalInputComponentProps) => {
 	};
 
 	return (
-		<div style={{ width: "10rem" }}>
+		<div className={TRIGGER_CHIP_WIDTH}>
 			<span
 				data-active={isKeyDown}
-				className="bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 flex justify-center items-center select-none hover:bg-black/20 hover:scale-110 hover:cursor-pointer data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20 data-[active=true]:scale-110 transition-all duration-100"
+				className={triggerChipVariants({
+					active: isKeyDown,
+					interactive: true,
+				})}
 				onClick={handleSelecting}
 			>
 				{isSelecting ? (
 					"press"
 				) : data ? (
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-evenly",
-							width: "100%",
-						}}
-					>
-						{data.type === "keyboard" ? (
-							<>
-								<KeyboardIcon />
-								{data.key?.toUpperCase()}{" "}
-								{/* Display key in uppercase */}
-							</>
-						) : (
-							<>
-								<GamepadIcon />
-								{getGamepadButtonName(
-									data.gamepadButtonIndex,
-								)}{" "}
-								{/* Use the helper function */}
-							</>
-						)}
-					</div>
+					data.type === "keyboard" ? (
+						<>
+							<KeyboardIcon />
+							{data.key?.toUpperCase()}
+						</>
+					) : (
+						<>
+							<GamepadIcon />
+							{getGamepadButtonName(data.gamepadButtonIndex)}
+						</>
+					)
 				) : (
-					"<input>"
+					<span className="text-muted-foreground">Set input</span>
 				)}
 			</span>
 		</div>

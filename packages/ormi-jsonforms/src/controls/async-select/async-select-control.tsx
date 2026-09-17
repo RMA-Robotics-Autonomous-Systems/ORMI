@@ -20,12 +20,17 @@ import {
 	SelectContent,
 	SelectItem,
 } from "@workspace/ui/components/select";
+import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, errorId } from "../../utils/aria";
 
 const AsyncSelectControl = (props: ControlProps) => {
-	const { data, handleChange, path, uischema, label } = props;
+	const { data, handleChange, path, uischema, label, id, errors, required } =
+		props;
 	const [options, setOptions] = useState<{ value: string; label: string }[]>(
 		[],
 	);
+	const isValid = errors.length === 0;
+	const ariaProps = controlAriaProps({ id, isValid, required });
 
 	useEffect(() => {
 		const asyncFunction = uischema.options?.asyncFunction;
@@ -39,12 +44,23 @@ const AsyncSelectControl = (props: ControlProps) => {
 
 	return (
 		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-			<Label>{label}</Label>
+			<Label
+				htmlFor={id}
+				className={cn(
+					required && "after:text-destructive after:content-['*']",
+				)}
+			>
+				{label}
+			</Label>
 			<Select
 				value={data}
 				onValueChange={(value) => handleChange(path, value)}
 			>
-				<SelectTrigger className="w-full">
+				<SelectTrigger
+					id={id}
+					className={cn("w-full", !isValid && "border-destructive")}
+					{...ariaProps}
+				>
 					<SelectValue placeholder="Select an option" />
 				</SelectTrigger>
 				<SelectContent>
@@ -55,6 +71,15 @@ const AsyncSelectControl = (props: ControlProps) => {
 					))}
 				</SelectContent>
 			</Select>
+
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

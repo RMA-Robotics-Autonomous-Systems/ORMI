@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Workspace, Category } from "@prisma/client";
 import { createAvatarDataUri } from "@workspace/utils";
 
-import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import { getDashboardTypeMeta } from "@workspace/ormi-core/dashboard";
 import { Badge } from "@workspace/ui/components/badge";
 import { Skeleton } from "@workspace/ui/components/skeleton";
 import {
@@ -44,9 +44,7 @@ export function WorkspaceItem({
 	onWorkspaceDeleted,
 }: WorkspaceItemProps) {
 	const avatarUrl = createAvatarDataUri("identicon", workspace.name);
-	const dashboardType =
-		DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType) ??
-		DASHBOARD_TYPES[0];
+	const dashboardType = getDashboardTypeMeta(workspace.dashboardType);
 	const DashboardTypeIcon = dashboardType.icon;
 
 	return (

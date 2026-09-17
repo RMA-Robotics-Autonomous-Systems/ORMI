@@ -80,10 +80,14 @@ interface JsonViewerProps extends Record<string, unknown> {
  * @returns Widget definition.
  */
 function JsonViewerWidget(data: JsonViewerProps) {
-	return (
+	return data.topic ? (
 		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
 			<JsonViewer sourceTitle={data.topic.source.title} />
 		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
 	);
 }
 
@@ -106,7 +110,7 @@ export function JsonViewerDefinition(): WidgetDefinition<JsonViewerProps> {
 					title: "Topic",
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 
 		uischema: {

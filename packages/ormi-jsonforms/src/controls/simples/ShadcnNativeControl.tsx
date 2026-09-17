@@ -35,13 +35,13 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
-import { useDebouncedChange, useFocus } from "../../utils";
+import { useDebouncedChange } from "../../utils";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 export const ShadcnNativeControl = (props: ControlProps) => {
-	const [focused] = useFocus();
 	const {
 		id,
 		errors,
@@ -65,12 +65,21 @@ export const ShadcnNativeControl = (props: ControlProps) => {
 		path,
 	);
 	const fieldType = appliedUiSchemaOptions.format ?? schema.format;
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		focused,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id: id + "-input",
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -98,11 +107,24 @@ export const ShadcnNativeControl = (props: ControlProps) => {
 				)}
 				value={inputValue}
 				onChange={onChange}
+				{...ariaProps}
 			/>
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id + "-input")}
+					className="text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p
+					id={errorId(id + "-input")}
+					className="text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

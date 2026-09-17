@@ -175,3 +175,99 @@ describe("bundleKey", () => {
 		);
 	});
 });
+
+describe("the robot fix", () => {
+	/**
+	 * The live graph that exposed this: the tracker publishes its placed
+	 * detections as a second `NavSatFix`, so type alone picks a winner by
+	 * enumeration order.
+	 */
+	const TARGET_GNSS = topic(
+		"/teodora/emi/target_gnss",
+		"sensor_msgs/msg/NavSatFix",
+		"ds-1",
+		"GeolocationPosition",
+	);
+
+	it("binds the antenna, not the tracker's placed detections", () => {
+		const bundle = resolveEmiTopics([...FULL, TARGET_GNSS], "ds-1");
+		expect(bundle?.fix?.topic).toBe("/teodora/xsens/gnss");
+	});
+
+	it("does not depend on enumeration order", () => {
+		// Wire order, and it differs between connects — which is what made the
+		// original bug intermittent rather than simply wrong.
+		const first = resolveEmiTopics([TARGET_GNSS, ...FULL], "ds-1");
+		const last = resolveEmiTopics([...FULL, TARGET_GNSS], "ds-1");
+		expect(first?.fix?.topic).toBe("/teodora/xsens/gnss");
+		expect(last?.fix?.topic).toBe("/teodora/xsens/gnss");
+		expect(bundleKey(first)).toBe(bundleKey(last));
+	});
+
+	it("leaves the fix unbound rather than binding an EMI-owned stream", () => {
+		// No antenna on this graph. Reconstruction from coil 0 is correct and
+		// is reported as `fixReconstructed`; a tracker output as the robot's
+		// own position is neither.
+		const noAntenna = FULL.filter((t) => t.topic !== "/teodora/xsens/gnss");
+		const bundle = resolveEmiTopics([...noAntenna, TARGET_GNSS], "ds-1");
+		expect(bundle).not.toBeNull();
+		expect(bundle?.fix).toBeUndefined();
+	});
+
+	it("still resolves an antenna this robot happens to name differently", () => {
+		const noAntenna = FULL.filter((t) => t.topic !== "/teodora/xsens/gnss");
+		const bundle = resolveEmiTopics(
+			[
+				...noAntenna,
+				TARGET_GNSS,
+				topic("/teodora/gps/fix", "sensor_msgs/msg/NavSatFix"),
+			],
+			"ds-1",
+		);
+		expect(bundle?.fix?.topic).toBe("/teodora/gps/fix");
+	});
+});
+
+describe("lossless declaration", () => {
+	/**
+	 * A coalescing datasource delivers latest-per-drain-tick unless the consumer
+	 * says otherwise, and a run built from a decimated stream is not coarser —
+	 * it is short and looks complete.
+	 */
+	it("marks the streams the run is built from", () => {
+		const bundle = resolveEmiTopics(FULL, "ds-1");
+		expect(bundle?.primary.lossless).toBe(true);
+		expect(bundle?.alert?.lossless).toBe(true);
+		expect(bundle?.targets.length).toBeGreaterThan(0);
+		for (const t of bundle!.targets) expect(t.lossless).toBe(true);
+	});
+
+	it("leaves the latest-wins topics alone", () => {
+		// `fix`, `quaternion` and `raw` are read once per primary sample and
+		// overwritten, so lossless delivery buys nothing and costs a decode per
+		// message. `/tf_static` is a delta stream the coalescer classifies itself.
+		const bundle = resolveEmiTopics(FULL, "ds-1");
+		expect(bundle?.fix?.lossless).toBeUndefined();
+		expect(bundle?.quaternion?.lossless).toBeUndefined();
+		expect(bundle?.raw?.lossless).toBeUndefined();
+		expect(bundle?.tfStatic?.lossless).toBeUndefined();
+	});
+
+	it("does not change the bundle's identity", () => {
+		// `bundleKey` decides whether discovery restarts the run. A transport
+		// hint is not a change of source.
+		expect(bundleKey(resolveEmiTopics(FULL, "ds-1"))).toBe(
+			`ds-1|${[
+				"",
+				"/teodora/emi/gnss",
+				"/teodora/emi/gnss/alert",
+				"/teodora/emi/proposed/targets",
+				"/teodora/emi/targets",
+				"/teodora/xsens/gnss",
+				"/teodora/xsens/filter/quaternion",
+				"/tf_static",
+				"/emi/raw",
+			].join(",")}`,
+		);
+	});
+});

@@ -35,6 +35,8 @@ import merge from "lodash/merge";
 import React from "react";
 
 import { Switch } from "@workspace/ui/components/switch";
+import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 export const ShadcnBooleanControl = ({
 	data,
@@ -48,16 +50,26 @@ export const ShadcnBooleanControl = ({
 	path,
 	config,
 	description,
+	required,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		false,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -70,23 +82,32 @@ export const ShadcnBooleanControl = ({
 				checked={data || false}
 				disabled={!enabled}
 				onCheckedChange={(checked) => handleChange(path, checked)}
+				{...ariaProps}
 			/>
 			<div className="grid gap-1.5 leading-none">
 				<label
 					htmlFor={id}
-					className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-						!isValid ? "text-destructive" : ""
-					}`}
+					className={cn(
+						"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+						required &&
+							"after:text-destructive after:content-['*']",
+						!isValid && "text-destructive",
+					)}
 				>
 					{label}
 				</label>
 				{showDescription && (
-					<p className="text-sm text-muted-foreground">
+					<p
+						id={descriptionId(id)}
+						className="text-sm text-muted-foreground"
+					>
 						{description}
 					</p>
 				)}
 				{!isValid && (
-					<p className="text-sm text-destructive">{errors}</p>
+					<p id={errorId(id)} className="text-sm text-destructive">
+						{errors}
+					</p>
 				)}
 			</div>
 		</div>

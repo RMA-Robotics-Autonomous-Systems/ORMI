@@ -102,7 +102,7 @@ export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 					default: "1",
 				},
 			},
-			required: ["title", "topic", "keyInput", "value"],
+			required: ["title", "value"],
 		},
 		uischema: {
 			type: "VerticalLayout",
@@ -122,6 +122,7 @@ export function BtnControlDefinition(): WidgetDefinition<BtnControlData> {
 						dataRequirements: {
 							accepts: ["number", "boolean"], // Accept primitive types for button control
 						},
+						direction: "publish",
 					},
 				} as TopicSelectElement,
 				{

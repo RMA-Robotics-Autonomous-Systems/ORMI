@@ -97,10 +97,14 @@ interface ImageViewerProps extends Record<string, unknown> {
  * @returns Widget definition.
  */
 function ImageViewerWidget(data: ImageViewerProps) {
-	return (
+	return data.topic ? (
 		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
 			<ImageViewer sourceTitle={data.topic.source.title} />
 		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
 	);
 }
 
@@ -123,7 +127,7 @@ export function ImageViewerDefinition(): WidgetDefinition<ImageViewerProps> {
 					title: "Topic",
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 
 		uischema: {
@@ -137,8 +141,16 @@ export function ImageViewerDefinition(): WidgetDefinition<ImageViewerProps> {
 					type: "TopicSelect",
 					scope: "#/properties/topic",
 					options: {
+						// The webapp type, plus the two raw schemas the
+						// transport converters map *to* it — a datasource that
+						// passes either through unconverted still reaches the
+						// viewer that can draw it.
 						dataRequirements: {
-							accepts: ["Image"], // Accept Image webtype
+							accepts: ["Image"],
+							acceptsRaw: [
+								"sensor_msgs/msg/Image",
+								"sensor_msgs/msg/CompressedImage",
+							],
 						},
 					},
 				} as TopicSelectElement,

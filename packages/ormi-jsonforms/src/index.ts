@@ -1,9 +1,6 @@
 import AsyncSelectControl, {
 	asyncSelectTester,
 } from "./controls/async-select/async-select-control";
-import colorSelect, {
-	colorSelectTester,
-} from "./controls/color-select/color-select";
 // import SwitchControl, { switchTester } from "./controls/switch/switch-render";
 // import TextControl, { TextTester } from "./controls/text-input/text-input";
 // import NumberControl, { NumberTester } from "./controls/number-input/number-input";
@@ -107,7 +104,6 @@ import {
 export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
 	{ tester: asyncSelectTester, renderer: AsyncSelectControl },
-	{ tester: colorSelectTester, renderer: colorSelect },
 	// { tester: asyncTopicTester, renderer: AsyncTopicControl },
 	{ tester: keySelectorTester, renderer: KeySelectorControl },
 	{ tester: axisSelectorTester, renderer: axisSelectorControl },
@@ -143,10 +139,6 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: shadcnDateControlTester, renderer: ShadcnDateControl },
 	{ tester: shadcnTimeControlTester, renderer: ShadcnTimeControl },
 	{ tester: shadcnSliderControlTester, renderer: ShadcnSliderControl },
-	{
-		tester: shadcnArrayControlTester,
-		renderer: ShadcnArrayControlRenderer,
-	},
 	{ tester: shadcnBooleanControlTester, renderer: ShadcnBooleanControl },
 	{
 		tester: shadcnBooleanToggleControlTester,

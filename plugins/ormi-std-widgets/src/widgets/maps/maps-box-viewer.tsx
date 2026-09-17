@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import MapLibreMap, { MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ControlElement, Categorization } from "@jsonforms/core";
@@ -31,6 +31,12 @@ import { useMapInitialization } from "./hooks/useMapInitialization";
 import { MapToolbar } from "./components/MapToolbar";
 import { GpsTopicsLayer } from "./components/GpsTopicsLayer";
 import { LocalTopicsLayer } from "./components/LocalTopicsLayer";
+import { UnconfiguredEntriesNotice } from "./components/UnconfiguredEntriesNotice";
+import {
+	findUnconfiguredEntries,
+	GPS_ENTRY_SLOTS,
+	LOCAL_ENTRY_SLOTS,
+} from "./unconfigured-entries";
 import { LocalTopic } from "./local-topic-visualizer-types";
 import { IMULocalTopic } from "./local-components/imu-local";
 
@@ -101,6 +107,28 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 		showGrid,
 	});
 
+	// Entries the map cannot draw from their stored settings. Collected here
+	// rather than in the layers because only this component sees all three
+	// lists, so the operator reads one notice instead of three stacked cards —
+	// and because a layer that renders nothing (every entry unconfigured)
+	// returns null and could not report anything at all.
+	const unconfiguredEntries = useMemo(
+		() => [
+			...findUnconfiguredEntries(props.topics, "Topics", GPS_ENTRY_SLOTS),
+			...findUnconfiguredEntries(
+				props.localTopics?.pathTopics,
+				"Path Topics",
+				LOCAL_ENTRY_SLOTS,
+			),
+			...findUnconfiguredEntries(
+				props.localTopics?.imuTopics,
+				"IMU Topics",
+				LOCAL_ENTRY_SLOTS,
+			),
+		],
+		[props.topics, props.localTopics],
+	);
+
 	// Handlers for custom layer control
 	const handleLayerVisibilityChange = (
 		layerIndex: number,
@@ -148,8 +176,15 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 				onRefresh={handleRefresh}
 			/>
 			<WidgetScopeProvider value={localScopeId}>
+				{/* MSAA on the WebGL context. MapLibre shader-antialiases its
+				    own fills, lines and symbols, but not fill-extrusion
+				    silhouettes (use3D) or the grid overlay, whose near-vertical
+				    edges alias visibly. WebGL context attributes are fixed when
+				    the context is created, so this can never be an operator
+				    toggle — it would only take effect on the next remount. */}
 				<MapLibreMap
 					key={`map-${refreshCounter}`}
+					canvasContextAttributes={{ antialias: true }}
 					initialViewState={{
 						longitude: startingLocation[0],
 						latitude: startingLocation[1],
@@ -182,6 +217,10 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 							...(props.localTopics?.imuTopics || []),
 						]}
 					/>
+
+					{/* Entries still waiting for a topic. Inside the map on
+					    purpose: the rest of the map keeps working. */}
+					<UnconfiguredEntriesNotice entries={unconfiguredEntries} />
 				</MapLibreMap>
 			</WidgetScopeProvider>
 		</div>
@@ -485,6 +524,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 												dataRequirements: {
 													accepts: ["number"], // Numerical data for heatmap visualization
 												},
+												role: "secondary",
 											},
 											rule: {
 												effect: "SHOW",
@@ -538,6 +578,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 														"GeolocationPosition",
 													], // GPS topic to use as origin
 												},
+												role: "secondary",
 											},
 										} as TopicSelectElement,
 										{
@@ -581,6 +622,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 														"GeolocationPosition",
 													], // GPS topic to use as origin
 												},
+												role: "secondary",
 											},
 										} as TopicSelectElement,
 										{

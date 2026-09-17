@@ -4,9 +4,8 @@ import { PluginsViewerDefinition } from "./widgets/misc/plugins-viewer";
 import { RemoteCallExplorerDefinition } from "./widgets/misc/remote-call-explorer";
 import { JsonViewerDefinition } from "./widgets/basic/json-viewer";
 import { TreeViewerDefinition } from "./widgets/basic/tree-viewer";
-import { KeyboardControlDefinition } from "./widgets/keyboard/cmd-vel-keyboard";
+import { TeleopControlDefinition } from "./widgets/teleop/cmd-vel-teleop";
 import { TimeSeriesChartDefinition } from "./widgets/charts/timeseries-chart";
-import { ChartEchartsWidgetDefinition } from "./widgets/charts/chart-echarts";
 import { MapsBoxViewerDefinition } from "./widgets/maps/maps-box-viewer";
 import { IntStatusIndicatorDefinition } from "./widgets/status/int-status-indicator";
 import { NotAPongDefinition } from "./widgets/nothing/not-a-pong";
@@ -14,7 +13,6 @@ import { IframeDefinition } from "./widgets/misc/iframe";
 import { CondStatusIndicatorDefinition } from "./widgets/status/cond-status-indicator";
 import { JsonListDefinition } from "./widgets/basic/json-list";
 import { TopicsListDefinition } from "./widgets/basic/topics-list";
-import { JoypadControlsDefinition } from "./widgets/joystick/cmd-vel-joystick";
 import { ToggleControlDefinition } from "./widgets/basic/toggle";
 import { BtnControlDefinition } from "./widgets/basic/btn";
 import { CycleControlDefinition } from "./widgets/basic/cycle";
@@ -23,6 +21,7 @@ import { PointsCloudDreiDefinition } from "./widgets/webgl/points-cloud-drei-def
 import { PathViewerDefinition } from "./widgets/webgl/path-viewer";
 import { Scene3DDefinition } from "./widgets/webgl/scene-3d-definition";
 import { ImageViewerDefinition } from "./widgets/basic/image";
+import { VectorReadoutDefinition } from "./widgets/basic/vector-readout";
 import { MapGridViewerDefinition } from "./widgets/basic/map-grid-viewer";
 import { BatteryStateWidgetDefinition } from "./widgets/battery/battery-state-widget";
 import { DiagnosticsWidgetDefinition } from "./widgets/diagnostics/diagnostic-widget";
@@ -34,10 +33,8 @@ import { WidgetDefinition } from "@workspace/ormi-core/widgets";
  * @returns Updated widget list.
  */
 const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
-	widgets.push(KeyboardControlDefinition());
-	widgets.push(JoypadControlsDefinition());
+	widgets.push(TeleopControlDefinition());
 	widgets.push(TimeSeriesChartDefinition());
-	widgets.push(ChartEchartsWidgetDefinition());
 	widgets.push(MapsBoxViewerDefinition());
 	widgets.push(IntStatusIndicatorDefinition());
 	widgets.push(CondStatusIndicatorDefinition());
@@ -50,6 +47,7 @@ const WidgetExport = (widgets: WidgetDefinition<any>[]) => {
 	widgets.push(JsonListDefinition());
 	widgets.push(TopicsListDefinition());
 	widgets.push(ImageViewerDefinition());
+	widgets.push(VectorReadoutDefinition());
 	widgets.push(MapGridViewerDefinition());
 	widgets.push(BatteryStateWidgetDefinition());
 	widgets.push(DiagnosticsWidgetDefinition());

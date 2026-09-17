@@ -231,6 +231,65 @@ function Body({ topic }) {
 `useLocalDataSource()` also exposes `health` and `getTopicHealth(topic)` for
 offline gating — see `../widgets/knowledge.md`.
 
+### Losslessness is declared by the consumer, never guessed by the datasource
+
+`DatasourceTopic.lossless` sits beside `bufferSize` and is the same kind of
+thing: a transport hint that only the subscriber can supply. A coalescing
+datasource delivers latest-per-drain-tick, which is correct for a widget showing
+a live value and wrong for one accumulating the stream — a survey, a recorder,
+an analyser is wrong by exactly the messages it never saw, and the result is
+short rather than visibly coarse, so nothing on screen reports it. From the wire
+a series of samples and a state to be observed are indistinguishable; the
+datasource has no basis to decide and the operator has less.
+
+A topic is **one wire shared by N subscribers**, and three properties follow.
+The flag is the **OR** across live intents. It **only ever rises** — lowering it
+when a lossy subscriber joins would start dropping samples underneath the
+consumer that asked for them. And it is **not part of the wire key**, so two
+subscribers that disagree still share one subscription instead of opening two.
+
+Only a datasource that coalesces reads it: foxglove resolves it once per
+subscriber and raises monotonically (`upgradeLossless`, both the worker and the
+main-thread `ws://` path — they mirror each other and must stay in sync).
+Rosbridge, the EMI bag replay and the REST bag reader already deliver every
+message, so ignoring the field there is correct, not a gap.
+
+The known limit: `-subscribe` fires once per wire, so an intent raising the
+requirement on an already-subscribed wire lands at the next reconnect. Amending
+a live subscription would mean an unsubscribe/subscribe cycle, charging every
+consumer on that wire a delivery gap to serve a late joiner. Subscribe with the
+flag from the start. The common case closes itself: two consumers binding
+different `property` paths are two wire keys, so the second `-subscribe` does
+reach the datasource, which raises the topic.
+
+### History depth is declared by the widget, never asked of the operator
+
+Every widget passes a `buffersSize` to `LocalDataSourcesProvider` — a gauge
+passes `1`, a timeseries chart `2000`, a diagnostics table `256`. That number is
+the widget's own statement of how much history it needs to render, so the topic
+picker has **no** buffer-size input: there is nothing an operator could usefully
+answer there, and a wrong answer is invisible.
+
+A `SelectedTopic` may still carry `bufferSize`, and the provider resolves the
+limit as:
+
+```typescript
+const bufferLimit = Math.max(topic?.bufferSize ?? 0, buffersSize);
+```
+
+**A per-topic depth is a FLOOR, never a cap.** A stored value may only ask for
+_more_ history than the widget declared. Resolving it with `||` instead capped
+the widget: dashboards saved by earlier builds carry `bufferSize: 1` stamped on
+every picked topic, which pinned every chart in them to a single sample — a
+silent, permanent live bug that looked like a broken datasource.
+
+`topic.bufferSize` is only written when the widget author asked for it, via
+`options.buffer` on the `TopicSelect` UI-schema element. `deriveTopicBufferSize`
+(`ormi-core/renderers/topic-selection/topic-auto-select.ts`) honours a positive
+integer verbatim and returns `undefined` for anything else (absent, zero,
+negative, fractional, non-finite) — nonsense is rejected rather than clamped, so
+the widget's own `buffersSize` governs.
+
 ## Bundled example datasources
 
 | Plugin                              | Protocol                               |
@@ -239,3 +298,33 @@ offline gating — see `../widgets/knowledge.md`.
 | `plugins/ormi-rosbridge-suite/`     | ROS 2 via rosbridge                    |
 | `plugins/ormi-foxglove/`            | Foxglove WebSocket protocol            |
 | `plugins/ormi-rest-bags/`           | REST-backed data                       |
+
+## A missing definition is a state, not an exception
+
+A workspace persists a `datasource_id`, not the definition behind it, and
+dev-only plugins are gated out of production builds. `GlobalDataSourcesProvider`
+therefore resolves every configured datasource through one pure pass,
+`resolveDatasourceEntries(datasources, definitions)`, which returns
+`{ kind: "supported", datasource, definition }` or
+`{ kind: "unsupported", datasource }`. The same pass feeds the mounted providers
+and the cards in the datasources dialog, so the two can never disagree.
+
+An `unsupported` entry mounts no provider and renders a card naming the missing
+`datasource_id`, keeping the saved settings and offering **Remove**. Resolution
+must never `throw`: the card list is built during the provider's own render, and
+`WidgetErrorBoundary` only wraps widget hosts — a throw there takes down the
+entire dashboard tree, not one card.
+
+## Route back from the symptom to the settings
+
+`DatasourceOffline` (`@workspace/ui`) offers a **Check configuration** action.
+`@workspace/ui` cannot depend on `@workspace/ormi-core`, so the action dispatches
+`DATASOURCE_CONFIGURE_EVENT` on `window`; `GlobalDataSourcesProvider` listens and
+opens the datasources dialog. Pass `onConfigure` to route somewhere more
+specific.
+
+## The picker is operator-facing
+
+`DatasourceDefinition.description` is rendered in the inline picker inside the
+datasources dialog (no nested dialog). Write it so an operator can tell two
+similarly named integrations apart.

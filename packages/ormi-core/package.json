@@ -30,6 +30,16 @@
 			"development": "./src/dashboard/index.ts",
 			"import": "./dist/dashboard/index.js"
 		},
+		"./dashboard/types": {
+			"types": "./dist/dashboard/types.d.ts",
+			"development": "./src/dashboard/types.ts",
+			"import": "./dist/dashboard/types.js"
+		},
+		"./dashboard/topic-list": {
+			"types": "./dist/dashboard/components/topic-list/index.d.ts",
+			"development": "./src/dashboard/components/topic-list/index.ts",
+			"import": "./dist/dashboard/components/topic-list/index.js"
+		},
 		"./templates": {
 			"types": "./dist/templates/index.d.ts",
 			"development": "./src/templates/index.ts",

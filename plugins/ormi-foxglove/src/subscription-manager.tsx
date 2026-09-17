@@ -259,6 +259,19 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// caused by StrictMode double-invoke and real reconnects. This is the source
 	// of truth the reconcile diffs against the client's live subscribers.
 	const requestedTopicsRef = useRef<Map<string, number>>(new Map());
+	/**
+	 * Topic names a consumer has asked to receive losslessly.
+	 *
+	 * Held by name rather than on the Subscriber because the reconcile
+	 * (re)subscribes from `requestedTopicsRef`, which carries only names and
+	 * counts — a flag that lived solely on the Subscriber would be lost on every
+	 * reconnect, and the run would silently start being decimated again.
+	 *
+	 * Monotonic, like the flag itself: an entry is never removed on unsubscribe.
+	 * The failure it guards is a consumer that misses samples, and the cost of
+	 * being wrong the other way is delivering more than someone asked for.
+	 */
+	const losslessTopicsRef = useRef<Set<string>>(new Set());
 
 	// Tracks whether DATASOURCE_READY has already been re-fired for the current
 	// stable (client + non-empty channels) window, so the stabilize effect fires
@@ -293,10 +306,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// transform-tree topics, any TF-schema channel, plus DiagnosticArray topics.
 	// TF streams are deltas and DiagnosticArray is multi-publisher, so last-wins
 	// coalescing would silently lose transforms / low-Hz diagnostic publishers.
+	// A consumer's own declaration (`topic.lossless` on the subscribe) is OR'd
+	// in: this datasource can classify schemas it knows, but only the subscriber
+	// knows whether it is observing a state or building on a series of samples.
 	const isLosslessTopic = (topic: string, schemaName: string): boolean =>
 		(settings.transformTreeTopics ?? []).includes(topic) ||
 		isTfLikeSchema(schemaName) ||
-		isDiagnosticSchema(schemaName);
+		isDiagnosticSchema(schemaName) ||
+		losslessTopicsRef.current.has(topic);
 
 	// Utility functions
 	const hashTopicName = (topic: string): number => {
@@ -392,6 +409,21 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 			if (existingSubscriber) {
 				existingSubscriber.count += count;
+				// One wire serves every subscriber and they do not arrive
+				// together: a widget reading the newest value can open the
+				// subscription before the panel building a run out of the same
+				// stream. Raise, never lower — dropping samples underneath the
+				// consumer that asked for them is invisible, because the run is
+				// simply short and looks complete.
+				if (
+					!existingSubscriber.lossless &&
+					isLosslessTopic(
+						existingSubscriber.topic,
+						existingSubscriber.schemaName,
+					)
+				) {
+					existingSubscriber.lossless = true;
+				}
 				return;
 			}
 
@@ -846,6 +878,9 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					topic.topic,
 					(requestedTopicsRef.current.get(topic.topic) ?? 0) + 1,
 				);
+				if (topic.lossless) {
+					losslessTopicsRef.current.add(topic.topic);
+				}
 
 				// Find the channel id
 				const channel = Array.from(channelsRef.current.values()).find(

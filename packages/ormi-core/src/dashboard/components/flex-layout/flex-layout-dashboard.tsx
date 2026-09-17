@@ -11,7 +11,9 @@ import {
 	lockedAtom,
 	hasChangedAtom,
 	layoutsAtom,
+	datasourcesAtom,
 } from "../../atoms";
+import { DashboardEmptyState } from "../dashboard-empty-state";
 import { useFlexLayoutModel } from "./hooks/useFlexLayoutModel";
 import { useWidgetFactory } from "./hooks/useWidgetFactory";
 import { renderTab } from "./components/TabRenderer";
@@ -33,12 +35,11 @@ const FlexLayoutDashboard = () => {
 	const locked = useAtomValue(lockedAtom);
 	const hasChanged = useAtomValue(hasChangedAtom);
 	const layouts = useAtomValue(layoutsAtom);
+	const datasources = useAtomValue(datasourcesAtom);
 
 	const {
-		addWidget,
 		removeWidget,
 		updateWidget,
-		addDatasource,
 		updateLayouts,
 		getDefinition,
 		toggleLock,
@@ -88,21 +89,25 @@ const FlexLayoutDashboard = () => {
 					hasChanged={hasChanged}
 					onLockToggle={toggleLock}
 					onSave={save}
-					onAddWidget={addWidget}
-					onAddDatasource={addDatasource}
 				/>
 
 				{/* Main FlexLayout */}
 				<div className="flex-1 p-1.5 pt-0">
 					<div className="w-full h-full relative">
-						<Layout
-							ref={layoutRef}
-							model={model}
-							factory={factory}
-							onAction={onAction}
-							onModelChange={onModelChange}
-							onRenderTab={onRenderTab}
-						/>
+						{widgets.size === 0 ? (
+							<DashboardEmptyState
+								hasDatasource={datasources.size > 0}
+							/>
+						) : (
+							<Layout
+								ref={layoutRef}
+								model={model}
+								factory={factory}
+								onAction={onAction}
+								onModelChange={onModelChange}
+								onRenderTab={onRenderTab}
+							/>
+						)}
 					</div>
 				</div>
 			</div>
@@ -118,7 +123,7 @@ export const flexLayoutEngineDefinition: LayoutEngineDefinition = {
 	name: "Flex Layout",
 	description: "Advanced flexible layout with popout windows support",
 	icon: React.createElement(Layers, { size: 16 }),
-	badge: "New",
+	badge: "Default",
 	layoutKey: "flex",
 	Component: FlexLayoutDashboard,
 };

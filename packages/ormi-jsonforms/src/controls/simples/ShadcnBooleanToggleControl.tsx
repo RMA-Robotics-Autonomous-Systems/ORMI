@@ -38,6 +38,8 @@ import merge from "lodash/merge";
 import React from "react";
 
 import { Switch } from "@workspace/ui/components/switch";
+import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 import {
 	TooltipProvider,
 	Tooltip,
@@ -57,10 +59,14 @@ export const ShadcnBooleanToggleControl = ({
 	path,
 	config,
 	description,
+	required,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
+	// The focus argument stays `false` here on purpose: unlike the other
+	// controls this one does not hide its help text, it moves it into a tooltip
+	// on the compact toggle row when it is not rendered inline below.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
@@ -71,6 +77,13 @@ export const ShadcnBooleanToggleControl = ({
 	const showTooltip =
 		!showDescription &&
 		!isDescriptionHidden(visible, description, true, true);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -83,10 +96,14 @@ export const ShadcnBooleanToggleControl = ({
 				checked={data || false}
 				disabled={!enabled}
 				onCheckedChange={(checked) => handleChange(path, checked)}
+				{...ariaProps}
 			/>
 			<label
 				htmlFor={id}
-				className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+				className={cn(
+					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+					required && "after:text-destructive after:content-['*']",
+				)}
 			>
 				{label}
 			</label>
@@ -107,10 +124,22 @@ export const ShadcnBooleanToggleControl = ({
 			)}
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="col-start-2 text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

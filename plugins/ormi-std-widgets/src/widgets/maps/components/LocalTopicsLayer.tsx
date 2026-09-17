@@ -6,7 +6,9 @@ import {
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { createTopicKey } from "@workspace/utils";
 import { LocalTopicVisualizer } from "../local-topic-visualizer-types";
+import { isEntryConfigured, LOCAL_ENTRY_SLOTS } from "../unconfigured-entries";
 
 /**
  * Configuration for a local coordinate topic.
@@ -42,42 +44,46 @@ export function LocalTopicsLayer({ localTopics }: LocalTopicsLayerProps) {
 		);
 	}, [pluginsManager]);
 
+	// Entries that can actually be drawn. A local frame is placed against its
+	// GPS origin, so an entry missing either topic renders nothing at all —
+	// the visualizers read `topic.source.id` and `gpsOriginTopic` directly.
+	// They are dropped here and reported by the viewer's notice, which is the
+	// difference between "not configured yet" and a map that looks broken.
+	const drawable = useMemo(
+		() =>
+			localTopics.filter((lt) =>
+				isEntryConfigured(lt, LOCAL_ENTRY_SLOTS),
+			),
+		[localTopics],
+	);
+
 	// Memoize all topics (local + GPS origin)
 	const allTopics = useMemo(() => {
 		const topicsList: SelectedTopic[] = [];
 		const seenSourceIds = new Set<string>();
 
-		localTopics.forEach((lt) => {
-			// Add the local topic itself
-			if (lt.topic) {
-				const sourceId = `${lt.topic.source.id}::${lt.topic.topic}${lt.topic.property ? "::" + lt.topic.property : ""}`;
-				if (!seenSourceIds.has(sourceId)) {
-					topicsList.push(lt.topic);
-					seenSourceIds.add(sourceId);
-				}
-			}
-			// Add the GPS origin topic
-			if (lt.gpsOriginTopic) {
-				const gpsSourceId = `${lt.gpsOriginTopic.source.id}::${lt.gpsOriginTopic.topic}${lt.gpsOriginTopic.property ? "::" + lt.gpsOriginTopic.property : ""}`;
-				if (!seenSourceIds.has(gpsSourceId)) {
-					topicsList.push(lt.gpsOriginTopic);
-					seenSourceIds.add(gpsSourceId);
-				}
-			}
+		const add = (topic: SelectedTopic) => {
+			const key = createTopicKey(topic);
+			if (key === undefined || seenSourceIds.has(key)) return;
+			topicsList.push(topic);
+			seenSourceIds.add(key);
+		};
+
+		drawable.forEach((lt) => {
+			add(lt.topic);
+			add(lt.gpsOriginTopic);
 		});
 
-		return topicsList.filter(
-			(t) => t !== undefined && t.topic !== undefined && t.topic !== "",
-		);
-	}, [localTopics]);
+		return topicsList;
+	}, [drawable]);
 
-	if (!localTopics || localTopics.length === 0) {
+	if (drawable.length === 0) {
 		return null;
 	}
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={allTopics} buffersSize={50}>
-			{localTopics.map((lt, index) => {
+			{drawable.map((lt, index) => {
 				// Find visualizer - either specified or auto-detect from topic type
 				let visualizer: LocalTopicVisualizer | undefined;
 

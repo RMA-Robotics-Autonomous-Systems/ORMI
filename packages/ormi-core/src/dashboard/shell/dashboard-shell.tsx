@@ -96,10 +96,9 @@ export interface DashboardShellProps {
 	 * Defaults to false (no external pending work).
 	 */
 	loading?: boolean;
-	/** Page-level providers (TemplatesProvider, GlobalDataSourcesProvider, WidgetsDialog, etc.). Can be ReactNode or render function. */
+	/** Page-level providers (TemplatesProvider, GlobalDataSourcesProvider, DashboardEngine, etc.). Can be ReactNode or render function. */
 	children:
-		| ReactNode
-		| ((registry: DashboardRegistryContextValue) => ReactNode);
+		ReactNode | ((registry: DashboardRegistryContextValue) => ReactNode);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,93 +1,42 @@
-import { JSX } from "react";
+import React, { JSX } from "react";
+import { PuzzleIcon } from "lucide-react";
+
 import { WidgetDefinition } from "../widget-interface";
-import { OctagonAlertIcon } from "lucide-react";
+import {
+	UnsupportedWidgetCard,
+	WIDGET_DEFINITION_MISSING_ID,
+} from "./widget-status";
 
 /**
- * Fallback widget content for missing widget definitions.
+ * Body of the placeholder definition.
+ *
+ * The placeholder is a shared singleton, so it knows neither the stored
+ * `widget_id` nor the instance title — `WidgetHost` detects the missing
+ * definition itself and renders {@link UnsupportedWidgetCard} with both. This
+ * body is the last resort for any other consumer that renders
+ * `definition.Component` directly, and says the same thing with less detail
+ * rather than falling back to a crash.
+ *
  * @returns React element.
  */
-const notFound = (): JSX.Element => {
-	return (
-		<div
-			style={{
-				height: "100%",
-				overflow: "auto",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		>
-			<div
-				style={{
-					padding: "1.5rem",
-					borderRadius: "6px",
-					backgroundColor: "#fafafa",
-					border: "1px solid #eaeaea",
-					maxWidth: "400px",
-					width: "90%",
-				}}
-			>
-				<div
-					style={{
-						fontSize: "2.5rem",
-						color: "#6b7280",
-						marginBottom: "1rem",
-						textAlign: "center",
-						display: "flex",
-						justifyContent: "center",
-					}}
-				>
-					<OctagonAlertIcon />
-				</div>
-				<h2
-					style={{
-						color: "#111827",
-						marginBottom: "0.75rem",
-						fontWeight: "500",
-						textAlign: "center",
-					}}
-				>
-					Widget Not Found
-				</h2>
-				<p
-					style={{
-						color: "#6b7280",
-						fontSize: "0.875rem",
-						textAlign: "center",
-						lineHeight: "1.5",
-					}}
-				>
-					The requested widget could not be found. This may be due to
-					a missing plugin or an incorrect widget ID.
-				</p>
-				<div
-					style={{
-						width: "100%",
-						height: "1px",
-						margin: "1rem 0",
-						backgroundColor: "#f1f1f1",
-					}}
-				></div>
-				<p
-					style={{
-						fontSize: "0.75rem",
-						color: "#6b7280",
-						textAlign: "center",
-					}}
-				>
-					Make sure that the required plugin is installed.
-				</p>
-			</div>
-		</div>
-	);
-};
+const UnsupportedWidgetPlaceholder = (): JSX.Element => (
+	<UnsupportedWidgetCard reason="missing-definition" />
+);
 
-/** Fallback widget definition used when a widget is missing. */
+/**
+ * Placeholder definition returned by the dashboard resolver when no loaded
+ * plugin provides a stored `widget_id`.
+ *
+ * The resolver's contract is non-nullable — every call site uses
+ * `definition.Component` and `definition.schema` unconditionally — so the
+ * absence of a definition is carried by this object rather than by `null`.
+ * Its reserved id is what {@link isWidgetDefinitionMissing} tests for.
+ */
 export const widgetNotFound = {
-	id: "widget-not-found",
-	name: "Widget Not Found",
-	description: "Widget Not Found",
-	icon: <></>,
+	id: WIDGET_DEFINITION_MISSING_ID,
+	name: "Unsupported widget",
+	description: "No plugin in this build provides this widget type.",
+	icon: <PuzzleIcon />,
 	schema: {
 		type: "object",
 		properties: {},
@@ -97,5 +46,5 @@ export const widgetNotFound = {
 		scope: "#",
 	},
 	data: {},
-	Component: notFound,
+	Component: UnsupportedWidgetPlaceholder,
 } as WidgetDefinition;

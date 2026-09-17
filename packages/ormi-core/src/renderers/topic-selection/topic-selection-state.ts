@@ -21,7 +21,6 @@ export interface TopicSelectionState {
 	searchTerm: string;
 	showOnlyCompatible: boolean;
 	activeTab: "webapp" | "raw";
-	bufferSize: number;
 
 	// Analysis cache
 	compatibilityAnalysis: Map<string, TopicCompatibilityResult>;
@@ -38,7 +37,6 @@ export type TopicSelectionAction =
 	| { type: "SET_SEARCH"; term: string }
 	| { type: "SELECT_TOPIC"; topic: DatasourceTopic }
 	| { type: "SELECT_PROPERTY"; path: string; source: "webapp" | "raw" }
-	| { type: "SET_BUFFER_SIZE"; size: number }
 	| { type: "TOGGLE_COMPATIBILITY_FILTER" }
 	| { type: "SWITCH_TAB"; tab: "webapp" | "raw" }
 	| {
@@ -57,7 +55,6 @@ export const initialTopicSelectionState: TopicSelectionState = {
 	searchTerm: "",
 	showOnlyCompatible: true,
 	activeTab: "webapp",
-	bufferSize: 1,
 	compatibilityAnalysis: new Map(),
 	propertyTrees: new Map(),
 	requirements: undefined,
@@ -159,12 +156,6 @@ export const topicSelectionReducer = (
 				...state,
 				selectedProperty: action.path,
 				selectedPropertySource: action.source,
-			};
-
-		case "SET_BUFFER_SIZE":
-			return {
-				...state,
-				bufferSize: action.size,
 			};
 
 		case "TOGGLE_COMPATIBILITY_FILTER":

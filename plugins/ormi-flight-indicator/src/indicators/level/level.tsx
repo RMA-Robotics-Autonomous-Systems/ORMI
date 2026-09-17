@@ -11,7 +11,8 @@ import {
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import { TopicSelectElement } from "@workspace/ormi-core/widgets";
-import { IMU, Vector3 } from "@workspace/ormi-core/types";
+import { Vector3 } from "@workspace/ormi-core/types";
+import { readOrientation } from "../orientation";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 
 /**
@@ -41,15 +42,14 @@ export function WidgetLevelIndicator(props: LevelProps) {
 			return;
 		}
 
-		const value = data.data[0] as IMU;
-		if (!value) {
+		const quaternion = readOrientation(data.data[0]);
+		if (!quaternion) {
 			return;
 		}
 
 		let orientation = { x: 0, y: 0, z: 0 } as Vector3;
 
-		// convert the value.orientation to the orientation (quaternion to euler)
-		const quaternion = value.orientation;
+		// convert the quaternion to euler angles
 		const q0 = quaternion.w;
 		const q1 = quaternion.x;
 		const q2 = quaternion.y;
@@ -141,11 +141,16 @@ const LevelIcon = () => {
  * @param data - Widget props.
  * @returns React element.
  */
-const LevelWidget: React.FC<LevelProps> = (data) => (
-	<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
-		<WidgetLevelIndicator {...data} />
-	</LocalDataSourcesProvider>
-);
+const LevelWidget: React.FC<LevelProps> = (data) =>
+	data.topic ? (
+		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
+			<WidgetLevelIndicator {...data} />
+		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
+	);
 
 /** Settings for Level widget. */
 
@@ -189,7 +194,7 @@ export function LevelDefinition(): WidgetDefinition<LevelProps> {
 					default: false,
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 		uischema: {
 			type: "VerticalLayout",
@@ -202,8 +207,27 @@ export function LevelDefinition(): WidgetDefinition<LevelProps> {
 					type: "TopicSelect",
 					scope: "#/properties/topic",
 					options: {
+						// The subject is an orientation, wherever it is
+						// published. `IMU` and `Pose` each hold exactly one
+						// field of quaternion shape, so reading it out of
+						// either is a fact and not a guess; a quaternion topic
+						// *is* the orientation. `readOrientation` is what makes
+						// the four shapes one.
+						//
+						// Which of those types a click should actually land
+						// here for is not a question `dataRequirements` can
+						// answer — it says what the slot may take, not what a
+						// topic wants — so the plugin's topic claims say it,
+						// per type rather than per slot: `IMU` is this widget's,
+						// `Pose` and a bare quaternion are alternatives,
+						// because each carries more than the one orientation
+						// these instruments read.
 						dataRequirements: {
-							accepts: ["IMU"], // Accept both webapp type and raw type patterns
+							accepts: ["IMU", "Pose"],
+							acceptsRaw: [
+								"geometry_msgs/msg/Quaternion",
+								"geometry_msgs/msg/QuaternionStamped",
+							],
 						},
 					},
 				} as TopicSelectElement,

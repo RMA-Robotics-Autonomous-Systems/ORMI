@@ -1,0 +1,31 @@
+/*
+ * Application-shell sizing for the workspace dashboard.
+ *
+ * The dashboard is not a document: it fills exactly the space the navbar leaves
+ * and every long list inside it (a robot's 100+ topic rows, the widget
+ * catalogue) scrolls in its own pane. That needs a *definite* height somewhere
+ * above `DashboardEngine`, which roots at `h-full` — against a content-sized
+ * ancestor `h-full` resolves to auto and a long list grows the document
+ * instead, which is how a side panel once made the whole page scroll.
+ *
+ * The bound is taken by making the body a flex column, so nothing has to know
+ * how tall the navbar is: the bar keeps its own height as a flex item and the
+ * shell takes the rest. A `calc()` against a hardcoded bar height would be
+ * wrong the first time the bar wraps, and `position: fixed` would take the
+ * navbar out of flow for every other route too. The body is the one thing the
+ * route's own element cannot reach, so it is the only rule here — the shell
+ * element sizes itself with the same utility classes as everything else.
+ *
+ * `:has()` keeps this inert unless the marker is actually on the page. Every
+ * other route under `(home)` — the landing page, the workspace list, the docs,
+ * the plugin pages — stays a document that scrolls, which is what they are.
+ */
+body:has(> [data-ormi-app-shell]) {
+	display: flex;
+	flex-direction: column;
+	height: 100dvh;
+	/* Overrides the body's own `min-h-screen`: a `100vh` floor under a `100dvh`
+	   box is a scrollbar's worth of page scroll on mobile. */
+	min-height: 100dvh;
+	overflow: hidden;
+}

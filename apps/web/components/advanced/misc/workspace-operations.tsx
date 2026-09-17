@@ -5,7 +5,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Workspace, Category } from "@prisma/client";
 
-import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import {
+	DASHBOARD_TYPES,
+	DEFAULT_DASHBOARD_TYPE,
+	type DashboardTypeId,
+} from "@workspace/ormi-core/dashboard";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -53,9 +57,6 @@ import { workspaceApi } from "@/lib/api/workspace-api";
 
 /** Sentinel value used by the category Select for the "Uncategorized" (null) option. */
 const UNCATEGORIZED_VALUE = "uncategorized";
-
-/** A persistable dashboard type id (the schema only accepts these two). */
-type DashboardTypeId = "GRID" | "FLEX";
 
 async function deleteWorkspace(wsId: number) {
 	return await handleDelete(wsId);
@@ -173,9 +174,8 @@ export function WorkspaceOperations({
 			: UNCATEGORIZED_VALUE,
 	);
 	const [typeDraft, setTypeDraft] = React.useState<DashboardTypeId>(
-		(DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType)
-			?.id as DashboardTypeId) ??
-			(DASHBOARD_TYPES[0].id as DashboardTypeId),
+		DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType)
+			?.id ?? DEFAULT_DASHBOARD_TYPE,
 	);
 
 	const currentCategoryValue =
@@ -183,9 +183,8 @@ export function WorkspaceOperations({
 			? String(workspace.categoryId)
 			: UNCATEGORIZED_VALUE;
 	const currentTypeId =
-		(DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType)
-			?.id as DashboardTypeId) ??
-		(DASHBOARD_TYPES[0].id as DashboardTypeId);
+		DASHBOARD_TYPES.find((type) => type.id === workspace.dashboardType)
+			?.id ?? DEFAULT_DASHBOARD_TYPE;
 
 	/** Reset all drafts to the workspace's current values. */
 	const seedDrafts = React.useCallback(() => {
@@ -353,9 +352,7 @@ export function WorkspaceOperations({
 											key={type.id}
 											type="button"
 											onClick={() =>
-												setTypeDraft(
-													type.id as DashboardTypeId,
-												)
+												setTypeDraft(type.id)
 											}
 											aria-pressed={selected}
 											className={cn(

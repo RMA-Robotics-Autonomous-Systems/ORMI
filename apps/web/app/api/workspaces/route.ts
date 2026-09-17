@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+import { resolveDashboardType } from "@workspace/ormi-core/dashboard/types";
+
 import { db } from "@/server/db";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
@@ -96,7 +98,7 @@ export const POST = withAuth(async (req: NextRequest, session) => {
 				createdById: payload.userId,
 				createdAT: new Date(),
 				updatedAT: new Date(),
-				dashboardType: payload.dashboardType || "GRID",
+				dashboardType: resolveDashboardType(payload.dashboardType),
 			},
 		});
 

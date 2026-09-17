@@ -24,9 +24,16 @@ import {
 	createSafeContext,
 	createTopicKey,
 	getDatasourceSubscriptionRegistry,
+	isBoundTopic,
 	metrics,
 	type SubscriptionHandle,
 } from "@workspace/utils";
+import {
+	createSourcesKey,
+	prunePendingUpdates,
+	reconcileSources,
+	type TopicBuffer,
+} from "../source-reconcile";
 
 /**
  * Flush-pump metric ids, registered once per runtime (cold path).
@@ -40,33 +47,61 @@ const flushUpdatesId = metrics.counter("flush.updates");
 const flushOverwritesId = metrics.counter("flush.overwrites");
 const flushTickMsRing = metrics.ring("flush.tickMs");
 
-/** Local datasource context value. */
+/**
+ * Key of one selected topic, or `undefined` when that topic is unbound.
+ *
+ * Overloaded so a caller whose own type already guarantees a bound topic keeps
+ * a plain `string`, while a caller holding a possibly-unconfigured slot is
+ * forced by the type to decide what an absent key means for it. See
+ * {@link createTopicKey}.
+ */
+interface TopicIdResolver {
+	(topic: SelectedTopic): string;
+	(topic: SelectedTopic | null | undefined): string | undefined;
+}
+
+/**
+ * Local datasource context value.
+ *
+ * Every topic-taking member accepts a possibly-unbound topic on purpose. A
+ * widget is configured one field at a time, so a settings object legitimately
+ * holds empty topic slots, and a widget body reads them during render. An
+ * operator-facing failure is a named state, never a `TypeError` thrown out of
+ * a render path: an unbound topic has no buffer (`undefined`), no key
+ * (`undefined`) and no datasource to be healthy or unhealthy (`connecting`).
+ */
 interface LocalDataSources {
 	sources: Map<string, Source>;
 	version: number; // Increment on every update to force re-renders
-	getSource: (topic: SelectedTopic) => Source | undefined;
-	getSourceId: (topic: SelectedTopic) => string;
+	/** Buffered samples for a topic, or `undefined` when unbound or unsubscribed. */
+	getSource: (topic: SelectedTopic | null | undefined) => Source | undefined;
+	/** Stable per-topic key, or `undefined` when the topic is unbound. */
+	getSourceId: TopicIdResolver;
 	/**
 	 * Widget-facing health of a single topic's backing datasource, derived from
 	 * the global per-datasource status. Returns `connecting` when the datasource
-	 * is not yet tracked.
+	 * is not yet tracked, and likewise for an unbound topic — there is no
+	 * datasource behind it to call offline.
 	 */
-	getTopicHealth: (topic: SelectedTopic) => DatasourceHealth;
+	getTopicHealth: (
+		topic: SelectedTopic | null | undefined,
+	) => DatasourceHealth;
 	/**
 	 * Aggregate worst-case health across all of this provider's selected topics,
 	 * ordered `offline > connecting > online` (any topic offline → `offline`;
 	 * else any connecting → `connecting`; else `online`). For a single-topic
 	 * widget this is just that topic's health. `online` when there are no topics.
+	 *
+	 * Unbound topics are skipped rather than counted as `connecting`: they own
+	 * no wire, and letting an unconfigured slot hold a fully connected widget at
+	 * `connecting` forever would gate its body on a datasource that does not
+	 * exist.
 	 */
 	health: DatasourceHealth;
 }
 
-/** Buffered source data. */
-interface Source {
-	data: unknown[];
-	times: number[];
-	referenceFrameId: string;
-}
+/** Buffered source data (see `source-reconcile`). */
+type Source = TopicBuffer;
 
 /** Props for LocalDataSourcesProvider. */
 interface LocalDataSourcesProviderProps {
@@ -108,18 +143,21 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	// Access the pendingUpdates through the .current property
 	const pendingUpdates = pendingUpdatesRef.current;
 
-	// getSource reads from sources state
+	// getSource reads from sources state. An unbound topic has no key, so it
+	// has no buffer either — the same answer as a topic whose first sample has
+	// not arrived, which every caller already handles.
 	const getSource = useCallback(
-		(topic: SelectedTopic): Source | undefined => {
+		(topic: SelectedTopic | null | undefined): Source | undefined => {
 			const key = createTopicKey(topic);
-			return sources.get(key);
+			return key === undefined ? undefined : sources.get(key);
 		},
 		[sources],
 	);
 
-	const getSourceId = useCallback((topic: SelectedTopic): string => {
-		return createTopicKey(topic);
-	}, []);
+	const getSourceId = useCallback(
+		(topic: SelectedTopic | null | undefined) => createTopicKey(topic),
+		[],
+	) as TopicIdResolver;
 
 	// Read the raw per-datasource statuses from the always-present global
 	// provider so widgets can gate on derived health. Status changes flow through
@@ -127,19 +165,58 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	const { datasourceStatuses } = useGlobalDataSources();
 
 	const getTopicHealth = useCallback(
-		(topic: SelectedTopic): DatasourceHealth =>
-			deriveHealth(datasourceStatuses.get(topic.source.id)),
+		(topic: SelectedTopic | null | undefined): DatasourceHealth =>
+			isBoundTopic(topic)
+				? deriveHealth(datasourceStatuses.get(topic.source.id))
+				: // No datasource behind an unconfigured slot, so nothing to
+					// report as offline. `connecting` is what `deriveHealth`
+					// already answers for a datasource it does not track.
+					deriveHealth(undefined),
 		[datasourceStatuses],
 	);
 
 	const pluginsManager = usePluginsManager();
 	const Topics = SelectedTopics;
 
+	/**
+	 * Content-addressed identity of the subscription this provider owns.
+	 *
+	 * Every consumer builds `SelectedTopics` inline, so the array is a new
+	 * object on every render while describing the same wires. Keying the
+	 * lifecycle effect on this string instead of on the array identity is what
+	 * stops an unrelated re-render from tearing down and re-establishing every
+	 * subscription (and, before the reconcile below, wiping every buffer).
+	 *
+	 * The body genuinely reads `SelectedTopics`, which the React Compiler
+	 * requires: a memo keyed on a value its body does not read is stripped and
+	 * frozen on its first result.
+	 */
+	const topicsKey = useMemo(
+		() => createSourcesKey(SelectedTopics),
+		[SelectedTopics],
+	);
+
+	// Live reads for everything the effect needs but must NOT re-subscribe for:
+	// the flush pump resolves each topic's trim depth on every tick, and a depth
+	// change must not cost the operator the history already collected.
+	//
+	// Synced in an effect rather than assigned during render. Writing a ref
+	// while rendering is what the React Compiler's lint rules reject, and this
+	// app compiles with the compiler on; the sync effect is declared before the
+	// lifecycle effect below, so that effect always reads the current values.
+	const topicsRef = useRef(SelectedTopics);
+	const buffersSizeRef = useRef(buffersSize);
+	useEffect(() => {
+		topicsRef.current = SelectedTopics;
+		buffersSizeRef.current = buffersSize;
+	});
+
 	// Aggregate worst-case health across this provider's topics:
 	// offline > connecting > online.
 	const health = useMemo<DatasourceHealth>(() => {
 		let sawConnecting = false;
 		for (const topic of Topics) {
+			if (!isBoundTopic(topic)) continue;
 			const topicHealth = deriveHealth(
 				datasourceStatuses.get(topic.source.id),
 			);
@@ -170,20 +247,25 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 	);
 
 	useEffect(() => {
-		// Clear any pending updates
-		pendingUpdates.clear();
+		// Snapshot the topics this run owns. Safe to read off the ref: the
+		// effect re-runs exactly when `topicsKey` changes, and `topicsKey` is
+		// derived from these topics' wire identity.
+		// Unbound entries are dropped before anything else: they own no wire,
+		// so they get no buffer, no pending slot and — critically — no intent
+		// in the subscription registry, which refcounts on a key they do not
+		// have. `topicsKey` filters identically, so this run owns exactly the
+		// wires that key describes.
+		const topics = topicsRef.current.filter(isBoundTopic);
+		const keys = topics.map((topic) => createTopicKey(topic));
 
-		// Initialize the sources map with empty sources for all topics
-		const newSources = new Map<string, Source>();
-		Topics.forEach((topic) => {
-			const sourceId = createTopicKey(topic);
-			newSources.set(sourceId, {
-				data: [],
-				times: [],
-				referenceFrameId: "unknown",
-			});
-		});
-		setSources(newSources);
+		// Reconcile rather than rebuild: a topic that is still selected keeps
+		// the buffer it has already filled, a newly added topic starts empty,
+		// and a removed topic is dropped. Rebuilding the map here is what made
+		// appending a second series to a live chart restart the first one from
+		// zero. An unchanged set returns the same Map instance, so Jotai bails
+		// out and no consumer re-renders.
+		prunePendingUpdates(pendingUpdates, keys);
+		setSources((previous) => reconcileSources(previous, keys));
 
 		const propertiesGetter = (data: any, property: string) => {
 			if (!property || property === "") {
@@ -234,11 +316,20 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 					const newTimes = [...currentSource.times, update.time];
 
 					// Apply buffer limit
-					const topic = Topics.find(
+					const topic = topicsRef.current.find(
 						(t) => createTopicKey(t) === sourceId,
 					);
 
-					const bufferLimit = topic?.bufferSize || buffersSize;
+					// A per-topic depth is a FLOOR, never a cap: the widget
+					// declares what it needs to render, and a value stored on
+					// the topic may only ask for more history, never less.
+					// Dashboards saved by earlier builds carry `bufferSize: 1`
+					// stamped on every picked topic, and resolving that with
+					// `||` capped every chart at a single sample.
+					const bufferLimit = Math.max(
+						topic?.bufferSize ?? 0,
+						buffersSizeRef.current,
+					);
 					if (newData.length > bufferLimit) {
 						newData.shift(); // Remove oldest element
 						newTimes.shift(); // Remove corresponding time
@@ -263,7 +354,7 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 		// per wire key, re-flushes on reconnect, and is StrictMode/unmount-safe.
 		// Each intent's onData runs the existing propertiesGetter then writes the
 		// last value into pendingUpdatesRef (drained by the 30 Hz pump above).
-		const handles: SubscriptionHandle[] = Topics.map((topic) => {
+		const handles: SubscriptionHandle[] = topics.map((topic) => {
 			const sourceId = createTopicKey(topic);
 			return registry.subscribe({
 				topic,
@@ -309,16 +400,17 @@ const LocalDataSourcesProvider = (props: LocalDataSourcesProviderProps) => {
 			// Release every intent; the registry handles wire unsubscribe/cleanup.
 			handles.forEach((handle) => handle.unsubscribe());
 		};
-	}, [
-		SelectedTopics,
-		buffersSize,
-		updateFrequency,
-		pluginsManager,
-		registry,
-	]);
-	// Note: Removed datasources from deps - it's only used for subscription lifecycle
-	// which is controlled by SelectedTopics. Including it causes unnecessary re-subscriptions
-	// when dashboard layout changes.
+		// Keyed on the topics' wire identity, never on the array's — every
+		// consumer rebuilds `SelectedTopics` inline, so the array is a new object
+		// on every render. `buffersSize` and the topic list itself are read
+		// through refs above, so a widget that only changes its trim depth keeps
+		// its subscriptions and its history. `setSources` is a Jotai setter and
+		// the pending map lives in a ref, so both are stable for the provider's
+		// lifetime.
+	}, [topicsKey, updateFrequency, registry, setSources]);
+	// Note: datasource statuses are deliberately absent - they drive health
+	// gating, not the subscription lifecycle, and including them would
+	// re-subscribe every widget on every reconnect.
 
 	return (
 		<LocalDataSourcesContextProvider value={contextValue}>

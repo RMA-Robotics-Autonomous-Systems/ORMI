@@ -1,4 +1,7 @@
-import { topicPreviewRegistry } from "../topic-preview-registry";
+import {
+	TOPIC_PREVIEW_FALLBACK,
+	type TopicPreviewRegistry,
+} from "@workspace/ormi-core/dashboard/topic-list";
 import {
 	DatasourceTopic,
 	SelectedTopic,
@@ -9,7 +12,7 @@ import { useMemo, memo } from "react";
 import { ImageViewerDefinition } from "../image";
 import { JsonViewerDefinition } from "../json-viewer";
 import { CondStatusIndicatorDefinition } from "../../status/cond-status-indicator";
-import { ChartEchartsWidgetDefinition } from "../../charts/chart-echarts";
+import { TimeSeriesChartDefinition } from "../../charts/timeseries-chart";
 import { PathViewerDefinition } from "../../webgl/path-viewer";
 import { PointsCloudDreiDefinition } from "../../webgl/points-cloud-drei-definition";
 
@@ -178,15 +181,18 @@ const ConditionalPreview = memo(function ConditionalPreview({
 });
 
 /**
- * Wrapper component for echart widget (number values)
+ * Wrapper component for the time series chart (number values)
  * Props are memoized to prevent re-subscription in LocalDataSourcesProvider
+ *
+ * The axis is left to auto-range: a preview is opened on an arbitrary topic,
+ * so any fixed bounds would flatten most of them against an edge.
  */
-const EchartPreview = memo(function EchartPreview({
+const NumberChartPreview = memo(function NumberChartPreview({
 	topic,
 }: {
 	topic: DatasourceTopic;
 }) {
-	const echartWidget = useMemo(() => ChartEchartsWidgetDefinition(), []);
+	const chartWidget = useMemo(() => TimeSeriesChartDefinition(), []);
 
 	const {
 		topic: topicName,
@@ -202,8 +208,8 @@ const EchartPreview = memo(function EchartPreview({
 			title: topicName,
 			timeHistory: 5,
 			updateFrequency: 30,
-			axis: { yMin: 0, yMax: 100, yLabel: "Value" },
-			series: [
+			axis: { yLabel: "Value" },
+			topics: [
 				{
 					title: topicName,
 					fill: false,
@@ -215,7 +221,6 @@ const EchartPreview = memo(function EchartPreview({
 						rawType,
 						bufferSize,
 					}),
-					name: topicName,
 					color: "#3b82f6",
 					smooth: true,
 				},
@@ -226,7 +231,7 @@ const EchartPreview = memo(function EchartPreview({
 
 	return (
 		<div style={{ height: "200px" }}>
-			{<echartWidget.Component {...widgetProps} />}
+			{<chartWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -240,7 +245,7 @@ const IMUPreview = memo(function IMUPreview({
 }: {
 	topic: DatasourceTopic;
 }) {
-	const echartWidget = useMemo(() => ChartEchartsWidgetDefinition(), []);
+	const chartWidget = useMemo(() => TimeSeriesChartDefinition(), []);
 
 	const {
 		topic: topicName,
@@ -256,8 +261,8 @@ const IMUPreview = memo(function IMUPreview({
 			title: topicName,
 			timeHistory: 10,
 			updateFrequency: 30,
-			axis: { yMin: -20, yMax: 20, yLabel: "Value" },
-			series: [
+			axis: { yLabel: "Value" },
+			topics: [
 				{
 					title: "X",
 					fill: false,
@@ -272,7 +277,6 @@ const IMUPreview = memo(function IMUPreview({
 						},
 						"angular_velocity.x",
 					),
-					name: "X",
 					color: "#ef4444",
 					smooth: true,
 				},
@@ -290,7 +294,6 @@ const IMUPreview = memo(function IMUPreview({
 						},
 						"angular_velocity.y",
 					),
-					name: "Y",
 					color: "#22c55e",
 					smooth: true,
 				},
@@ -308,7 +311,6 @@ const IMUPreview = memo(function IMUPreview({
 						},
 						"angular_velocity.z",
 					),
-					name: "Z",
 					color: "#3b82f6",
 					smooth: true,
 				},
@@ -319,7 +321,7 @@ const IMUPreview = memo(function IMUPreview({
 
 	return (
 		<div style={{ height: "250px" }}>
-			{<echartWidget.Component {...widgetProps} />}
+			{<chartWidget.Component {...widgetProps} />}
 		</div>
 	);
 });
@@ -424,27 +426,28 @@ const PointCloudPreview = memo(function PointCloudPreview({
 });
 
 /**
- * Register default topic preview configurations.
+ * The live previews this plugin contributes to the topics panel.
+ *
+ * Registered as a `TOPIC_PREVIEWS` filter rather than written into a registry
+ * core owns: every preview here mounts a real widget of this plugin's — an
+ * image decoder, a chart, a point-cloud scene — which core must be handed, not
+ * import. Keying is on the webapp type name; `TOPIC_PREVIEW_FALLBACK` is the
+ * JSON viewer, so a type nothing here knows about is still inspectable.
+ *
+ * @param previews - Previews contributed so far.
+ * @returns The same map, with this plugin's entries added.
  */
-export function registerDefaultTopicPreviews() {
+export function registerDefaultTopicPreviews(
+	previews: TopicPreviewRegistry,
+): TopicPreviewRegistry {
 	// Image type - reuse ImageViewer widget
-	topicPreviewRegistry.register("Image", {
+	previews.set("Image", {
 		component: (topic: DatasourceTopic) => <ImagePreview topic={topic} />,
 		minHeight: "200px",
 	});
 
-	// // Register JSON preview for various types
-	// topicPreviewRegistry.register("Vector2", jsonPreview);
-	// topicPreviewRegistry.register("Vector3", jsonPreview);
-	// topicPreviewRegistry.register("Vector4", jsonPreview);
-	// topicPreviewRegistry.register("Quaternion", jsonPreview);
-	// topicPreviewRegistry.register("Color", jsonPreview);
-	// topicPreviewRegistry.register("Movement", jsonPreview);
-	// topicPreviewRegistry.register("IMU", jsonPreview);
-	// topicPreviewRegistry.register("string", jsonPreview);
-
 	// Boolean type - use conditional widget
-	topicPreviewRegistry.register("boolean", {
+	previews.set("boolean", {
 		component: (topic: DatasourceTopic) => (
 			<ConditionalPreview topic={topic} />
 		),
@@ -452,25 +455,27 @@ export function registerDefaultTopicPreviews() {
 	});
 
 	// Number type - use echart widget
-	topicPreviewRegistry.register("number", {
-		component: (topic: DatasourceTopic) => <EchartPreview topic={topic} />,
+	previews.set("number", {
+		component: (topic: DatasourceTopic) => (
+			<NumberChartPreview topic={topic} />
+		),
 		minHeight: "200px",
 	});
 
 	// IMU type - use chart with multiple series for axes
-	topicPreviewRegistry.register("IMU", {
+	previews.set("IMU", {
 		component: (topic: DatasourceTopic) => <IMUPreview topic={topic} />,
 		minHeight: "250px",
 	});
 
 	// Path type - use path viewer widget
-	topicPreviewRegistry.register("Path", {
+	previews.set("Path", {
 		component: (topic: DatasourceTopic) => <PathPreview topic={topic} />,
 		minHeight: "250px",
 	});
 
 	// PointCloud type - use pointcloud widget
-	topicPreviewRegistry.register("PointsCloud", {
+	previews.set("PointsCloud", {
 		component: (topic: DatasourceTopic) => (
 			<PointCloudPreview topic={topic} />
 		),
@@ -478,8 +483,10 @@ export function registerDefaultTopicPreviews() {
 	});
 
 	// Fallback for all unregistered types - use JSON viewer
-	topicPreviewRegistry.register("__fallback__", {
+	previews.set(TOPIC_PREVIEW_FALLBACK, {
 		component: (topic: DatasourceTopic) => <JsonPreview topic={topic} />,
 		minHeight: "150px",
 	});
+
+	return previews;
 }

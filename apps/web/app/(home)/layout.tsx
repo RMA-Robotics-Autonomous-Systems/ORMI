@@ -12,6 +12,8 @@ import { useSession } from "next-auth/react";
 import { NavbarItem } from "@workspace/ui/combined/navbar";
 import { Button } from "@workspace/ui/components/button";
 
+import "./layout.css";
+
 interface HomeLayoutProps {
 	children: React.ReactNode;
 }
@@ -19,6 +21,12 @@ interface HomeLayoutProps {
 export default function HomeLayout({ children }: HomeLayoutProps) {
 	const { data: session, status } = useSession();
 	const pathname = usePathname();
+
+	// The workspace dashboard is an application shell rather than a document:
+	// it is bounded to the viewport so the widget canvas scrolls inside itself
+	// rather than growing the page. See `layout.css` — the marker arms the rule,
+	// so no other route under `(home)` changes shape.
+	const isAppShell = pathname.startsWith("/dashboard/ws/");
 
 	// Eagerly start the workspace-list request when an authenticated user
 	// enters somewhere other than the dashboard (the splash), so the
@@ -54,7 +62,18 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 					</Link>
 				</NavbarItem>
 			)}
-			<div style={{ minHeight: "96dvh", display: "grid" }}>
+			<div
+				data-ormi-app-shell={isAppShell ? "" : undefined}
+				className={
+					isAppShell
+						? // `grid-rows-[minmax(0,1fr)]`, not the implicit `auto`
+							// row: an auto row is sized by its content, which
+							// would hand the height straight back to the thing
+							// being bounded.
+							"grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]"
+						: "grid min-h-[96dvh]"
+				}
+			>
 				{children}
 				{/* <SiteFooter className="container mx-auto px-2 mb-1 bg-background/95 backdrop-blur rounded-2xl border z-50" /> */}
 			</div>

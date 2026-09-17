@@ -23,9 +23,9 @@ import { BagViewer } from "./bag-viewer";
 // Interfaces for bag data
 import { RestBagClient } from "../rest-bag-client";
 import { BagPlayer } from "../player/bag-player";
-import { Datasource } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { createRestBagDatasourceSelectHook } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import { Button } from "@workspace/ui/components/button";
@@ -556,9 +556,11 @@ const BagList = (props: BagListProps) => {
 	);
 };
 
-export function BagListDefinition(): WidgetDefinition<BagListProps> {
-	const pluginsManager = usePluginsManager();
+/** Pick-list of the configured RestBag datasources for this widget. */
+const bagListDatasourceSelectHook =
+	createRestBagDatasourceSelectHook("datasource_id");
 
+export function BagListDefinition(): WidgetDefinition<BagListProps> {
 	return {
 		id: "ros2-bag-list",
 		name: "ROS2 Bag List",
@@ -583,32 +585,11 @@ export function BagListDefinition(): WidgetDefinition<BagListProps> {
 				{
 					type: "Control",
 					scope: "#/properties/datasource_id",
-					options: {
-						async: true,
-						asyncFunction: async () => {
-							const datasources = Array.from(
-								pluginsManager.applyFilter<Datasource[]>(
-									PluginsHooks.AVAILABLE_DATASOURCES,
-									[],
-								),
-							).filter(
-								(ds) => ds.datasource_id === "rest-bag-source",
-							);
-
-							const values = Array.from(datasources).map(
-								(ds) => ({
-									value: ds.settings.id,
-									label: ds.settings.title,
-								}),
-							);
-
-							return values;
-						},
-					},
 				} as ControlElement,
 			],
 		} as VerticalLayout,
 		data: { title: "ROS2 Bag List" },
 		Component: BagList,
+		extensibilityHook: bagListDatasourceSelectHook,
 	};
 }

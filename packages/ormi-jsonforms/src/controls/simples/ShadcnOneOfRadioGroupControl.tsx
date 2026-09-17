@@ -40,6 +40,7 @@ import {
 	RadioGroupItem,
 } from "@workspace/ui/components/radio-group";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 import merge from "lodash/merge";
 
 export const ShadcnRadioGroup = ({
@@ -54,21 +55,32 @@ export const ShadcnRadioGroup = ({
 	description,
 	config,
 	uischema,
+	required,
 }: ControlProps & OwnPropsOfEnum) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		true,
 		description,
-		false,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	return (
 		<div className="space-y-2">
 			<Label
 				className={cn(
 					"text-sm font-medium",
+					required && "after:text-destructive after:content-['*']",
 					!isValid && "text-destructive",
 				)}
 			>
@@ -79,6 +91,7 @@ export const ShadcnRadioGroup = ({
 				onValueChange={(value) => handleChange(path, value)}
 				disabled={!enabled}
 				className="space-y-1"
+				{...ariaProps}
 			>
 				{options!.map((option) => (
 					<div
@@ -97,10 +110,19 @@ export const ShadcnRadioGroup = ({
 			</RadioGroup>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p id={errorId(id)} className="text-sm text-destructive">
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

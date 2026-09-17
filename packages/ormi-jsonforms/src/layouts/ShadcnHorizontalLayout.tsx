@@ -56,6 +56,10 @@ export const ShadcnHorizontalLayoutRenderer = ({
 	enabled,
 	visible,
 }: LayoutProps) => {
+	if (visible === false) {
+		return null;
+	}
+
 	const layout = uischema as GroupLayout;
 	const childProps: shadcnLayoutRendererProps = {
 		elements: layout.elements,

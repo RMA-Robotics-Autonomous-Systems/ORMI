@@ -1,6 +1,10 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
-import type { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import type {
+	TopicRoutingClaims,
+	WidgetDefinition,
+} from "@workspace/ormi-core/widgets";
 import { widgetDefinitions } from "./export";
+import { topicClaims } from "./topic-claims";
 
 class RostainerPlugin extends Plugin {
 	constructor() {
@@ -19,6 +23,17 @@ class RostainerPlugin extends Plugin {
 			filter: (widgets: WidgetDefinition<any>[]) => {
 				widgets.push(...widgetDefinitions);
 				return widgets;
+			},
+		});
+
+		// Which topic types this plugin's widget answers — see
+		// `topic-claims.ts`.
+		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
+			id: "rostainer-topic-routing-claims",
+			priority: 12,
+			filter: (claims: TopicRoutingClaims) => {
+				claims.push(...topicClaims);
+				return claims;
 			},
 		});
 	}

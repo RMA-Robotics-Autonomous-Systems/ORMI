@@ -18,6 +18,7 @@ export * from "./colors";
 export * from "./topic-key";
 export * from "./transform-topics";
 export * from "./datasource-subscription-registry";
+export * from "./datasource-select-schema";
 
 export * from "./metrics/metrics-core";
 export * from "./metrics/metrics-reporter";

@@ -19,15 +19,16 @@ import {
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import { Loader2, AlertTriangle } from "lucide-react";
 
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
-import {
-	DatasourceDefinition,
-	DatasourceProviderSettings,
-	DatasourceTopic,
-} from "../../datasources/datasource-interface";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { DatasourceTopic } from "../../datasources/datasource-interface";
+import { getCreatedTopicsStore } from "../../datasources/created-topics";
 import { DataRequirements } from "../../widgets/widget-interface";
 import { useAtomValue } from "jotai";
-import { datasourcesAtom } from "../../dashboard";
+// The atom module directly, never the dashboard barrel: this dialog is
+// rendered from the topics panel, which is published as its own package
+// subpath precisely so a consumer does not drag the dashboard barrel — client
+// components and `react-grid-layout`'s stylesheet — in behind it.
+import { datasourcesAtom } from "../../dashboard/atoms";
 import { WebTypes } from "../../types/jsonSchema";
 
 /** Props for TopicCreatorDialog. */
@@ -36,6 +37,16 @@ interface TopicCreatorDialogProps {
 	onClose: () => void;
 	onTopicCreated: (topic: DatasourceTopic) => void;
 	requirements?: DataRequirements;
+	/**
+	 * What the operator is creating this topic for.
+	 *
+	 * `"publish"` says the topic is being created so a control can command the
+	 * robot with it, which is the only reason to create one that does not exist
+	 * on the wire. It changes the wording and nothing else — the topic that
+	 * comes out is an ordinary {@link DatasourceTopic}, because a topic does not
+	 * know who will read or write it.
+	 */
+	purpose?: "publish" | "any";
 }
 
 /** Form state for topic creation. */
@@ -49,8 +60,23 @@ interface TopicCreationForm {
 // Use the centralized WebTypes from the type system
 // This ensures we stay decoupled from specific protocols like ROS
 
+/** Empty form, so "open" and "reset" are the same statement. */
+const EMPTY_FORM: TopicCreationForm = {
+	datasourceId: "",
+	topicName: "",
+	webappType: "",
+	rawType: "",
+};
+
 /**
- * Dialog for creating custom topics.
+ * Dialog for creating a topic the datasource does not advertise.
+ *
+ * The created topic is registered with the created-topics store, so it reaches
+ * `AVAILABLE_TOPICS` like any enumerated topic and every surface in the app
+ * sees it at once. Handing it back through `onTopicCreated` alone is what made
+ * a new publisher invisible everywhere except the picker that created it, which
+ * an operator could only resolve by reloading the page.
+ *
  * @param props - Component props.
  * @returns React element.
  */
@@ -59,16 +85,12 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 	onClose,
 	onTopicCreated,
 	requirements,
+	purpose = "any",
 }) => {
 	const pluginsManager = usePluginsManager();
 	const datasources = useAtomValue(datasourcesAtom);
 
-	const [form, setForm] = useState<TopicCreationForm>({
-		datasourceId: "",
-		topicName: "",
-		webappType: "",
-		rawType: "",
-	});
+	const [form, setForm] = useState<TopicCreationForm>(EMPTY_FORM);
 
 	const [availableRawTypes, setAvailableRawTypes] = useState<string[]>([]);
 	const [isLoadingRawTypes, setIsLoadingRawTypes] = useState(false);
@@ -77,6 +99,26 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 
 	// Get available datasources
 	const availableDatasources = Array.from(datasources.values());
+
+	// The only datasource, when there is only one — the usual case in the
+	// field, where a dashboard watches one robot. Asking which robot when there
+	// is one possible answer is a click that carries no decision.
+	const soleDatasourceId =
+		availableDatasources.length === 1
+			? availableDatasources[0]!.settings.id
+			: "";
+
+	// Reset on every OPEN, not once on mount: the hosts keep this dialog
+	// mounted between opens, so an abandoned draft would otherwise become the
+	// starting point of the next topic the operator creates.
+	useEffect(() => {
+		if (!isOpen) return;
+		setForm({ ...EMPTY_FORM, datasourceId: soleDatasourceId });
+		setError(null);
+		setAvailableRawTypes([]);
+		// `soleDatasourceId` is read deliberately: a datasource added while the
+		// dialog is closed must be the one preselected on the next open.
+	}, [isOpen, soleDatasourceId]);
 
 	// Filter webapp types based on requirements
 	const filteredWebappTypes = requirements?.accepts
@@ -176,19 +218,18 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 				source: selectedDatasource.settings,
 				type: form.webappType,
 				rawType: form.rawType || "unknown", // Use selected raw type or 'unknown' if none available
-				bufferSize: 100, // Default buffer size
 			};
+
+			// Register it before handing it back. A created topic exists on
+			// no wire yet, so the store is the only thing that can answer
+			// `AVAILABLE_TOPICS` for it — without this the topic is visible
+			// only to the picker that opened this dialog.
+			getCreatedTopicsStore(pluginsManager).declare(newTopic);
 
 			onTopicCreated(newTopic);
 			onClose();
 
-			// Reset form
-			setForm({
-				datasourceId: "",
-				topicName: "",
-				webappType: "",
-				rawType: "",
-			});
+			setForm({ ...EMPTY_FORM, datasourceId: soleDatasourceId });
 		} catch (error) {
 			setError(
 				error instanceof Error
@@ -216,7 +257,11 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 		<Dialog open={isOpen} onOpenChange={onClose}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Create New Topic</DialogTitle>
+					<DialogTitle>
+						{purpose === "publish"
+							? "New topic to command"
+							: "Create New Topic"}
+					</DialogTitle>
 				</DialogHeader>
 
 				<div className="space-y-4">
@@ -349,9 +394,9 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 					{/* Info about topic creation */}
 					<Alert>
 						<AlertDescription className="text-xs">
-							This will create a topic definition that can be
-							selected in widgets. The actual data flow depends on
-							the datasource supporting this topic.
+							{purpose === "publish"
+								? "The topic is listed straight away, so you can place the control that commands it. It reaches the robot once a control widget advertises it."
+								: "This will create a topic definition that can be selected in widgets. The actual data flow depends on the datasource supporting this topic."}
 						</AlertDescription>
 					</Alert>
 				</div>

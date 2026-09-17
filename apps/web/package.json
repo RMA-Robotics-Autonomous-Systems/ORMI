@@ -5,8 +5,10 @@
 	"private": true,
 	"scripts": {
 		"dev": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts && bun --bun next dev",
-		"build": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts && bun run db-generate && bun --bun next build",
-		"start": "bun run db-deploy && bun --bun next start",
+		"build": "bun ../../packages/utils/dist/cli/index.js init ormi-plugins.ts --production && bun run db-generate && bun --bun next build",
+		"start": "bun run db-deploy && bun run start:standalone",
+		"start:standalone": "rm -rf .next/standalone/apps/web/.next/static && cp -r .next/static .next/standalone/apps/web/.next/static && bun .next/standalone/apps/web/server.js",
+		"test": "bun run plugin-init && bun test __tests__ lib",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"typecheck": "bun run plugin-init && bun run db-generate && tsc --noEmit",

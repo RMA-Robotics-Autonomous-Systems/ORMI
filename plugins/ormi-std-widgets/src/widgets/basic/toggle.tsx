@@ -197,7 +197,7 @@ export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 					minimum: 1,
 				},
 			},
-			required: ["title", "topic", "keyInput", "valueOn", "valueOff"],
+			required: ["title", "valueOn", "valueOff"],
 		},
 		uischema: {
 			type: "VerticalLayout",
@@ -217,6 +217,7 @@ export function ToggleControlDefinition(): WidgetDefinition<ToggleControlData> {
 						dataRequirements: {
 							accepts: ["number", "boolean"],
 						},
+						direction: "publish",
 					},
 				} as TopicSelectElement,
 				{

@@ -32,13 +32,12 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
-import { useFocus } from "../../utils";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 export const ShadcnTimeControl = (props: ControlProps) => {
-	const [focused, onFocus, onBlur] = useFocus();
 	const {
 		id,
 		description,
@@ -57,12 +56,21 @@ export const ShadcnTimeControl = (props: ControlProps) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		focused,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -85,17 +93,25 @@ export const ShadcnTimeControl = (props: ControlProps) => {
 				id={id}
 				value={data || ""}
 				onChange={(e) => handleChange(path, e.target.value)}
-				onFocus={onFocus}
-				onBlur={onBlur}
 				disabled={!enabled}
 				className={cn("w-full", !isValid && "border-destructive")}
+				{...ariaProps}
 			/>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p id={errorId(id)} className="text-sm text-destructive">
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

@@ -100,6 +100,7 @@ export const ShadcnCategorizationStepperLayoutRenderer = (
 		schema,
 		uischema,
 		visible,
+		enabled,
 		cells,
 		config,
 		ajv,
@@ -128,6 +129,7 @@ export const ShadcnCategorizationStepperLayoutRenderer = (
 		path,
 		direction: "column",
 		visible,
+		enabled,
 		renderers,
 		cells,
 	};

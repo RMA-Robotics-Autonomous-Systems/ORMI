@@ -23,7 +23,6 @@ interface ConditionStatusIndicatorProps extends Record<string, unknown> {
 		condition: string;
 		value: number;
 	}[];
-	use3D?: boolean;
 }
 
 /**
@@ -231,7 +230,6 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 		} as VerticalLayout,
 		data: {
 			title: "Status",
-			use3D: false,
 		},
 		Component: CondStatusIndicatorWidget,
 	};

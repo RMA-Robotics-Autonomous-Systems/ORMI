@@ -23,7 +23,7 @@ import type {
 	DatasourceWorkerMethods,
 	RemoteCallHandleWire,
 } from "./protocol";
-import { createRpcClient } from "./rpc";
+import { createRpcClient, withRpcTimeout } from "./rpc";
 
 /** Options for configuring a worker datasource host. */
 interface WorkerDatasourceHostOptions<Settings = DatasourceProviderSettings> {
@@ -32,6 +32,19 @@ interface WorkerDatasourceHostOptions<Settings = DatasourceProviderSettings> {
 	settings: Settings;
 	pluginsManager: PluginsManager;
 }
+
+/**
+ * Longest the topic list waits for one worker datasource before listing none
+ * for it.
+ *
+ * `AVAILABLE_TOPICS` is applied sequentially across every configured
+ * datasource, so this is the bound on how long ONE datasource can hold up
+ * everyone else's rows. Generous next to a healthy round-trip (single-digit
+ * ms) and short next to the poll that will ask again in two seconds, so a
+ * datasource that is merely slow to connect loses nothing: it lists no topics
+ * until it has some, which is the truth.
+ */
+const LIST_TOPICS_TIMEOUT_MS = 4000;
 
 /** Worker host that proxies datasource hooks to a Web Worker. */
 export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
@@ -54,6 +67,8 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 		(result: RemoteCallResult) => void
 	>();
 	private initPromise: Promise<void> | null = null;
+	/** Set once `init` has rejected; see {@link WorkerDatasourceHost.ready}. */
+	private initFailed = false;
 
 	constructor(options: WorkerDatasourceHostOptions<Settings>) {
 		this.worker = options.worker;
@@ -69,8 +84,35 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 	}
 
 	async init(): Promise<void> {
-		this.initPromise = this.rpc.call("init", this.settings);
-		await this.initPromise;
+		const pending = this.rpc.call("init", this.settings);
+		this.initPromise = pending;
+		// Recorded here rather than at each await site: the stored promise is
+		// awaited from every hook, and a rejection has to be remembered, not
+		// re-thrown forever.
+		pending.catch(() => {
+			this.initFailed = true;
+		});
+		await pending;
+	}
+
+	/**
+	 * Wait for the worker's `init` when waiting can still help.
+	 *
+	 * `init` rejects on an unreachable endpoint or after its connect timeout —
+	 * an ordinary outcome for a datasource the operator is still configuring.
+	 * The promise is created once and never replaced, so awaiting it after a
+	 * failure re-throws the same rejection for the rest of the session, long
+	 * after the worker has reconnected on its own. Once init has failed the
+	 * host stops waiting and simply asks the worker, which answers from its
+	 * current connection state.
+	 */
+	private async ready(): Promise<void> {
+		if (!this.initPromise || this.initFailed) return;
+		try {
+			await this.initPromise;
+		} catch {
+			this.initFailed = true;
+		}
 	}
 
 	registerHooks(): void {
@@ -80,6 +122,12 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 		const definitionHook = `${this.datasourceId}-definition`;
 		const executeRemoteCallHook = `${this.datasourceId}-execute-remote-call`;
 
+		// `AVAILABLE_TOPICS` is applied sequentially across every datasource in
+		// the workspace and has no per-contributor isolation: whatever this
+		// filter throws takes the ENTIRE topic list down, including the topics
+		// of datasources that are perfectly healthy, and the list stays empty
+		// for as long as the page is open. A datasource that cannot connect
+		// contributes no rows; it does not get to blank the panel.
 		this.pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 			id: availableTopicsHook,
 			priority: 10,
@@ -87,14 +135,28 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 				topics: DatasourceTopic[],
 				filter?: DatasourceTopicFilter,
 			) => {
-				if (this.initPromise) {
-					await this.initPromise;
+				try {
+					// Bounded end to end: `ready()` can wait on a worker that
+					// never answers at all (one that failed to load never runs
+					// its own connect timeout), and so can the call itself.
+					const workerTopics = await withRpcTimeout(
+						(async () => {
+							await this.ready();
+							return await this.rpc.call("listTopics");
+						})(),
+						LIST_TOPICS_TIMEOUT_MS,
+						[] as DatasourceTopic[],
+					);
+					const toAdd = filter
+						? workerTopics.filter((t) => filter.filter(t))
+						: workerTopics;
+					topics.push(...toAdd);
+				} catch (error) {
+					console.warn(
+						`[${this.datasourceId}] failed to list topics`,
+						error,
+					);
 				}
-				const workerTopics = await this.rpc.call("listTopics");
-				const toAdd = filter
-					? workerTopics.filter((t) => filter.filter(t))
-					: workerTopics;
-				topics.push(...toAdd);
 				return topics;
 			},
 		});
@@ -103,9 +165,7 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 			id: subscribeHook,
 			priority: 10,
 			action: async (topic: SelectedTopic) => {
-				if (this.initPromise) {
-					await this.initPromise;
-				}
+				await this.ready();
 				await this.rpc.call("subscribe", topic);
 			},
 		});
@@ -114,9 +174,7 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 			id: unsubscribeHook,
 			priority: 10,
 			action: async (topic: SelectedTopic, ignoreCount?: boolean) => {
-				if (this.initPromise) {
-					await this.initPromise;
-				}
+				await this.ready();
 				await this.rpc.call("unsubscribe", topic, ignoreCount);
 			},
 		});
@@ -141,9 +199,7 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 				}
 
 				try {
-					if (this.initPromise) {
-						await this.initPromise;
-					}
+					await this.ready();
 					const handleWire = await this.rpc.call(
 						"executeRemoteCall",
 						definition,

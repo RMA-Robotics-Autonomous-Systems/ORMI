@@ -11,8 +11,11 @@ import { PluginsManager, usePluginsManager } from "@workspace/ormi-plugins";
 import {
 	createSafeContext,
 	getDatasourceSubscriptionRegistry,
+	isBoundTopic,
 	type AdvertiseHandle,
 } from "@workspace/utils";
+import { createSourcesKey } from "../source-reconcile";
+import { getCreatedTopicsStore } from "../created-topics";
 
 /** Publisher datasource context value. */
 interface PublisherDataSources {
@@ -75,9 +78,15 @@ const PublisherDataSourcesProvider = (
 
 	// Stable key: only changes when the actual topic set changes.
 	// Prevents the effect from re-running (and tearing down publishers) when
-	// a parent re-render passes a new array with the same topics.
+	// a parent re-render passes a new array with the same topics — every
+	// consumer builds that array inline.
+	//
+	// Built from the same `createTopicKey` the registry refcounts advertise
+	// intents on, so two slots that differ only by `property` are two keys here
+	// too; a hand-rolled `id:topic` key collapsed them and left the second one
+	// un-advertised.
 	const topicsKey = useMemo(
-		() => SelectedTopics.map((t) => `${t.source.id}:${t.topic}`).join(","),
+		() => createSourcesKey(SelectedTopics),
 		[SelectedTopics],
 	);
 
@@ -92,6 +101,16 @@ const PublisherDataSourcesProvider = (
 		[pluginsManager],
 	);
 
+	// The topics this dashboard declares. A publish topic usually does not
+	// exist on the wire — that is the whole reason the operator created it — so
+	// nothing else can answer `AVAILABLE_TOPICS` for it. Retaining it here is
+	// also what makes a control widget restored from a saved workspace put its
+	// own topic back in the list on mount, with nothing persisted anywhere.
+	const createdTopics = useMemo(
+		() => getCreatedTopicsStore(pluginsManager),
+		[pluginsManager],
+	);
+
 	useEffect(() => {
 		const Topics = selectedTopicsRef.current;
 
@@ -102,12 +121,33 @@ const PublisherDataSourcesProvider = (
 		// immediately for the publish path; advertise resolves in the
 		// background once the datasource is READY.
 		const handles: AdvertiseHandle[] = [];
+		const releases: (() => void)[] = [];
 		const nextPublishers = new Map<string, Publisher>();
 
-		Topics.forEach((topic) => {
+		// Unbound slots are dropped first, exactly as `LocalDataSourcesProvider`
+		// drops them: a widget is configured one field at a time, so a settings
+		// object legitimately holds publish slots the operator has not filled.
+		// They own no wire — `createTopicKey` has no key for them, so a whole
+		// set of them collapsed onto one registry entry and fired `-advertise`
+		// for a topic with no name. `topicsKey` filters identically, so this run
+		// owns exactly the wires that key describes.
+		Topics.filter((topic) => isBoundTopic(topic)).forEach((topic) => {
 			const publisher = new Publisher(topic, pluginsManager);
 			nextPublishers.set(topic.topic, publisher);
 			handles.push(registry.advertise(topic));
+			// Listed as a topic, not as this widget's binding: `property` and
+			// `bufferSize` are one consumer's view of a message, and a list
+			// entry carrying them would hand the next widget a pre-narrowed
+			// topic it never asked for.
+			releases.push(
+				createdTopics.retain({
+					topic: topic.topic,
+					datasource_id: topic.datasource_id,
+					source: topic.source,
+					type: topic.type,
+					rawType: topic.rawType,
+				}),
+			);
 		});
 
 		setPublishers(nextPublishers);
@@ -118,12 +158,13 @@ const PublisherDataSourcesProvider = (
 
 		return () => {
 			handles.forEach((handle) => handle.unadvertise());
+			releases.forEach((release) => release());
 			setPublishers(new Map());
 			setInitialized(false);
 		};
 
 		// Rerun effect only when the topic set content changes, not on array reference churn.
-	}, [topicsKey, pluginsManager, registry]);
+	}, [topicsKey, pluginsManager, registry, createdTopics]);
 
 	return (
 		<PublisherDataSourcesContextProvider value={{ publishers }}>

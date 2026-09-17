@@ -44,6 +44,7 @@ import {
 	DigitalInput,
 	useDigitalTrigger,
 } from "@workspace/ui/combined/triggers";
+import { isTypingInEditableElement } from "@workspace/ui/lib/input-guards";
 
 import { PosePublisherConfig } from "../types/scene-3d-types";
 import { GoalPoseMarker } from "./goal-pose-marker";
@@ -156,14 +157,6 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 		onModeChange?.(mode);
 	}, [mode, onModeChange]);
 
-	const isTypingInEditableElement = useCallback(() => {
-		const activeEl = document.activeElement;
-		if (!activeEl) return false;
-		if (activeEl instanceof HTMLInputElement) return true;
-		if (activeEl instanceof HTMLTextAreaElement) return true;
-		return activeEl instanceof HTMLElement && activeEl.isContentEditable;
-	}, []);
-
 	const handleGoalInputActive = useCallback(() => {
 		if (!goalInputArmedRef.current) return;
 		goalInputArmedRef.current = false;
@@ -174,7 +167,7 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 
 		setMode((prev) => (prev === "goalPose" ? "idle" : "goalPose"));
 		setDrag(null);
-	}, [config.enabled, goalTopic, mode, isTypingInEditableElement]);
+	}, [config.enabled, goalTopic, mode]);
 
 	const handleGoalInputInactive = useCallback(() => {
 		goalInputArmedRef.current = true;
@@ -190,7 +183,7 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 
 		setMode((prev) => (prev === "initialPose" ? "idle" : "initialPose"));
 		setDrag(null);
-	}, [config.enabled, initialTopic, mode, isTypingInEditableElement]);
+	}, [config.enabled, initialTopic, mode]);
 
 	const handleInitialInputInactive = useCallback(() => {
 		initialInputArmedRef.current = true;
@@ -201,7 +194,6 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 		onActive: handleGoalInputActive,
 		onInactive: handleGoalInputInactive,
 		enabled: Boolean(config.enabled && goalTopic),
-		shouldHandleKeyboardEvent: () => !isTypingInEditableElement(),
 	});
 
 	useDigitalTrigger({
@@ -209,7 +201,6 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 		onActive: handleInitialInputActive,
 		onInactive: handleInitialInputInactive,
 		enabled: Boolean(config.enabled && initialTopic),
-		shouldHandleKeyboardEvent: () => !isTypingInEditableElement(),
 	});
 
 	// -----------------------------------------------------------------------

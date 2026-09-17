@@ -7,6 +7,7 @@ import {
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 
 import { C2ControlSettings } from "./types/c2-types";
+import { C2_DATASOURCE_ID } from "./datasource/datasource-select";
 import { C2SourceProvider } from "./datasource/c2-source";
 import { FleetStatusDefinition } from "./widgets/fleet-status";
 import { MissionFeedbackDefinition } from "./widgets/mission-feedback";
@@ -16,8 +17,7 @@ import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 import { MissionEditorDefinition } from "./widgets/mission-editor";
 import { MissionMapDefinition } from "./widgets/mission-map";
 
-/** The C2 datasource definition id — gated command widgets key on it. */
-export const C2_DATASOURCE_ID = "c2-control-source";
+export { C2_DATASOURCE_ID } from "./datasource/datasource-select";
 
 /**
  * Command-widget ids gated on a configured C2 datasource (§4.1).

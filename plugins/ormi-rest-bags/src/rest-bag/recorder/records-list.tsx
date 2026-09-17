@@ -5,9 +5,9 @@ import { RestBagClient } from "../rest-bag-client";
 import { RecordingStatus } from "../recording-types";
 import { Recorder } from "./recorder";
 import { RecorderCreator } from "./recorder-creator";
-import { Datasource } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { createRestBagDatasourceSelectHook } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 
@@ -91,9 +91,11 @@ const BagsRecorders = (props: RecorderListProps) => {
 	);
 };
 
-export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
-	const pluginsManager = usePluginsManager();
+/** Pick-list of the configured RestBag datasources for this widget. */
+const bagRecorderDatasourceSelectHook =
+	createRestBagDatasourceSelectHook("api_datasource_id");
 
+export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 	return {
 		id: "ros2-bag-recorder",
 		name: "ROS2 Bags recorders",
@@ -121,33 +123,12 @@ export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 				{
 					type: "Control",
 					scope: "#/properties/api_datasource_id",
-					options: {
-						async: true,
-						asyncFunction: async () => {
-							const datasources = Array.from(
-								pluginsManager.applyFilter<Datasource[]>(
-									PluginsHooks.AVAILABLE_DATASOURCES,
-									[],
-								),
-							).filter(
-								(ds) => ds.datasource_id === "rest-bag-source",
-							);
-
-							const values = Array.from(datasources).map(
-								(ds) => ({
-									value: ds.settings.id,
-									label: ds.settings.title,
-								}),
-							);
-
-							return values;
-						},
-					},
 				} as ControlElement,
 			],
 		} as VerticalLayout,
 		data: { title: "ROS2 Bag Recorders" },
 
 		Component: BagsRecorders,
+		extensibilityHook: bagRecorderDatasourceSelectHook,
 	};
 }

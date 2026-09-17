@@ -544,12 +544,17 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 		type: "TopicSelect",
 		scope: "#/properties/topic",
 		options: {
+			// `Image` only. The two raw schema names that used to sit beside
+			// it were in the wrong field — a raw ROS type belongs in
+			// `acceptsRaw` — and were misspelled besides (no `/msg/`), so they
+			// matched nothing. Their one live effect was to inflate how
+			// specific the old routing ladder thought this slot was, which is
+			// how a typo came to decide where an image opened. Routing now
+			// reads this plugin's topic claims instead: this viewer needs a
+			// video server beside the robot, so it claims `Image` as an
+			// alternative and the plain viewer is the destination.
 			dataRequirements: {
-				accepts: [
-					"sensor_msgs/Image",
-					"sensor_msgs/CompressedImage",
-					"Image",
-				], // Accept various image types
+				accepts: ["Image"],
 			},
 		},
 	};
@@ -590,7 +595,7 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 					default: [],
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 		uischema: layout,
 		data: {
