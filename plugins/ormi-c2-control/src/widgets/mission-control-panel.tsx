@@ -274,7 +274,12 @@ function ControlPanelBody(props: {
 			return run(action, async () => {
 				setError(null);
 				setMessage(null);
-				const result = await call.execute({});
+				// Name the mission explicitly rather than relying on :5001's
+				// "last initialized" global, which is empty after a backend
+				// restart and silently commanded nothing.
+				const result = await call.execute(
+					missionId ? { mission_id: missionId } : {},
+				);
 				if (!result.success) {
 					setError(result.error ?? `${action} failed`);
 					return;
@@ -285,7 +290,7 @@ function ControlPanelBody(props: {
 				setPendingTransition({ fromStatus: liveStatus });
 			});
 		},
-		[run, liveStatus],
+		[run, liveStatus, missionId],
 	);
 
 	/**

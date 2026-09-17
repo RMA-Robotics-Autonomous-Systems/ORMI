@@ -48,7 +48,7 @@ describe("REST mapping (spec.build)", () => {
 		expect(JSON.parse(body.mission_config).name).toBe("x");
 	});
 
-	it("approve: change_status with requested_state=APPROVE and no mission_id", () => {
+	it("approve: change_status with requested_state=APPROVE", () => {
 		const { url, init } = findC2CallSpec(C2Call.MissionApprove)!.build(
 			settings,
 			{},
@@ -57,7 +57,33 @@ describe("REST mapping (spec.build)", () => {
 		const body = JSON.parse(String(init.body));
 		expect(body.action).toBe("change_status");
 		expect(body.requested_state).toBe(MissionStatusRequest.APPROVE);
-		expect(body.mission_id).toBeUndefined();
+	});
+
+	it("names the mission when the caller provides one", () => {
+		// The alternative — relying on :5001's "last initialized" global — is
+		// empty after a backend restart, so a running mission became
+		// unstoppable and the request silently commanded nothing.
+		const { init } = findC2CallSpec(C2Call.MissionStop)!.build(settings, {
+			mission_id: "m-42",
+		});
+		const body = JSON.parse(String(init.body));
+		expect(body.action).toBe("change_status");
+		expect(body.requested_state).toBe(MissionStatusRequest.STOP);
+		expect(body.mission_id).toBe("m-42");
+	});
+
+	it("omits mission_id rather than sending an empty one", () => {
+		// The backend falls back to its old behaviour on an absent
+		// `mission_id`; an empty string is a different thing and would target a
+		// mission called "".
+		for (const request of [{}, { mission_id: "" }]) {
+			const { init } = findC2CallSpec(C2Call.MissionStop)!.build(
+				settings,
+				request,
+			);
+			const body = JSON.parse(String(init.body));
+			expect("mission_id" in body).toBe(false);
+		}
 	});
 
 	it("maps.list / create / delete: registry CRUD on :5000/maps", () => {

@@ -67,8 +67,18 @@ function changeStatus(
 	return {
 		name,
 		description,
-		requestSchema: empty, // command targets the last-initialized mission (§2.2)
-		build: (s) => ({
+		// Target the mission explicitly. :5001 used to ignore mission_id and
+		// command whatever was last initialized THROUGH THAT NODE - which is
+		// nothing at all after a c2-backend-ros2-node restart, so a running
+		// mission became unstoppable. The backend now honours mission_id and
+		// falls back to the old behaviour when it is absent.
+		requestSchema: {
+			type: "object",
+			properties: {
+				mission_id: { type: "string", title: "Mission ID" },
+			},
+		},
+		build: (s, req) => ({
 			url: `${s.missionControlUrl}/mission_control`,
 			init: {
 				method: "POST",
@@ -76,6 +86,9 @@ function changeStatus(
 				body: JSON.stringify({
 					action: "change_status",
 					requested_state: state,
+					...(typeof req?.mission_id === "string" && req.mission_id
+						? { mission_id: req.mission_id }
+						: {}),
 				}),
 			},
 		}),
