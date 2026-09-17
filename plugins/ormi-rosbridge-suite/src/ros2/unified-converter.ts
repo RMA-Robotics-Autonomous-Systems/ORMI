@@ -9,6 +9,7 @@ import {
 	BatteryState,
 	DiagnosticArray,
 	DiagnosticStatus,
+	Vector3,
 } from "@workspace/ormi-core/types";
 
 /**
@@ -59,6 +60,26 @@ function rosTimeNow(): { sec: number; nanosec: number } {
 	const ms = Date.now();
 	const sec = Math.floor(ms / 1000);
 	return { sec, nanosec: Math.round((ms - sec * 1000) * 1e6) };
+}
+
+/**
+ * Read the three components of a `geometry_msgs/msg/Vector3`, stamped or not.
+ *
+ * `Vector3Stamped` nests the components under `vector` beside the header,
+ * while a bare `Vector3` carries them at the top level. Reading only the
+ * nested field turns every bare vector into `{0, 0, 0}` — a reading an
+ * operator cannot tell apart from a robot that is genuinely stationary.
+ *
+ * @param data - The ROS 2 message as rosbridge delivered it.
+ * @returns The vector, with missing components read as `0`.
+ */
+function readVector3(data: any): Vector3 {
+	const source = data?.vector ?? data ?? {};
+	return {
+		x: source.x ?? 0,
+		y: source.y ?? 0,
+		z: source.z ?? 0,
+	};
 }
 
 // Modified interface to handle multiple ros2 conversion logics per webapp type.
@@ -277,6 +298,33 @@ export class UnifiedConverter {
 				},
 			},
 			isPrimitive: true,
+		},
+		// Foxglove has mapped these two schemas to `Vector3` since it was
+		// written; rosbridge did not, so the same topic on the same robot
+		// reached the dashboard as a different webapp type depending on which
+		// transport the operator happened to connect with — and therefore
+		// offered a different set of widgets. The entry is the fix.
+		Vector3: {
+			conversions: {
+				"geometry_msgs/msg/Vector3Stamped": {
+					toRos2: (data: Vector3) => ({
+						vector: {
+							x: data.x,
+							y: data.y,
+							z: data.z,
+						},
+					}),
+					fromRos2: (data: any): Vector3 => readVector3(data),
+				},
+				"geometry_msgs/msg/Vector3": {
+					toRos2: (data: Vector3) => ({
+						x: data.x,
+						y: data.y,
+						z: data.z,
+					}),
+					fromRos2: (data: any): Vector3 => readVector3(data),
+				},
+			},
 		},
 		PointsCloud: {
 			conversions: {

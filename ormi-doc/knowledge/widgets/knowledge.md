@@ -47,6 +47,15 @@ export function MyWidgetDefinition(): WidgetDefinition<{ title: string }> {
 > connections/timers. Remap props inside the hoisted component or a module-scope
 > wrapper — never an inline arrow.
 
+> **A registry definition is shared, so consumers only ever read it.** One
+> `WidgetDefinition` backs every widget of its type; writing instance settings
+> back onto it (`definition.data = props.data`, as the "save as template" button
+> used to do) hands one operator's configuration to every widget of that type
+> added afterwards, in the same session, with nothing to show where it came
+> from. Build a new payload instead and copy the settings — see
+> `buildWidgetTemplate` (`ormi-core/templates/build-widget-template.ts`), which
+> also keeps the template from aliasing the live widget's settings object.
+
 ### Special JSON Forms UI elements
 
 | Element       | Purpose                            | Usage                                                                                                          |
@@ -56,6 +65,67 @@ export function MyWidgetDefinition(): WidgetDefinition<{ title: string }> {
 
 `dataRequirements.accepts` is how a widget declares which webapp types it can bind
 to (there is no `supportedTypes` field).
+
+#### Compatibility is not routing
+
+`dataRequirements` answers one question — _may_ this slot take this topic? — and
+drives the configuration dialog, the topic pickers, auto-bind and
+`isTopicCompatible`. It does **not** decide where a clicked topic goes.
+
+Topic-first routing is **claimed, never inferred**. The plugin that ships a
+widget registers a `TopicClaim` on `PluginsHooks.TOPIC_ROUTING_CLAIMS` naming the
+topic type (webapp name or raw schema name), the widget id, the `TopicSelect`
+slot (`"topic"`, or `"topics[].topic"` for an array-backed one) and a role:
+`default` (opened on a click), `alternative` (offered, never automatic),
+`command` (publishes to the topic) or `fallback` (a raw viewer, offered for any
+type, last). `resolveTopicRoute` reads nothing else; a type nothing claims gives
+an explicit "no widget claims this type".
+
+It used to infer the mapping by walking every `accepts` list and running a ladder
+(sole candidate, narrowest list, sole array-backed), so the mapping fell out of
+declaration order and list lengths — `Image` routed correctly only because a
+competing widget's list held two misspelled raw names that inflated its apparent
+specificity. Widening an `accepts` list is therefore now a local change: it makes
+the widget selectable for one more type in the pickers and moves no mapping.
+
+Claims are validated against the live registry and **dropped with a warning**
+when they name a missing widget, a missing slot, a publish slot without
+`role: "command"`, or a `role: "secondary"` slot. `isTopicReachable` — the count
+the topics panel footer shows — is simply "some plugin claims this widget".
+
+#### Auto-binding an unambiguous slot
+
+Both pickers bind themselves when there is only one answer, so the common case —
+one robot, one matching topic — costs no modal trip.
+
+- **`TopicSelect`** binds when exactly one available topic is a **direct type
+  match** (`topic.type ∈ accepts`, or `topic.rawType ∈ acceptsRaw`). Direct match
+  only: `analyzeTopicCompatibility` also reports `isCompatible: true` for
+  **property** matches (an `Odometry` satisfies a number slot through
+  `pose.pose.position.x`), and binding one of those unattended would plot a
+  number that is plausible and wrong — the one failure mode nobody catches. A
+  property match is still offered in the dialog, it is just never chosen for the
+  operator. Two distinct direct matches (the same message type on two robots)
+  are ambiguous and bind nothing.
+- **`FrameSelect`** waits for the transform tree to **settle** (~1.5 s with an
+  unchanged frame list) before deciding. A TF tree fills in edge by edge, so the
+  first non-empty list routinely holds one frame that is about to be joined by
+  others; settling is what makes "exactly one frame" mean the tree has one
+  rather than has one _so far_.
+
+Two mechanics follow from how each list is obtained. `AVAILABLE_TOPICS` is a
+**pull filter with no change notification**, so `TopicSelect` polls it (1.5 s,
+capped attempts) and the first non-empty list decides; the frame list is a
+reactive store, so `FrameSelect` keys its settle timer on the frame list's
+content instead. Either way **the decision is taken once and never revisited** —
+a topic or frame appearing later must not re-bind under an operator who is
+already reading the widget. The operator can always change the value.
+
+Pure decision logic (`findSoleDirectMatch`, `deriveTopicBufferSize`,
+`buildSelectedTopic`) lives in
+`ormi-core/renderers/topic-selection/topic-auto-select.ts`, apart from the React
+control, because a silently wrong answer from either question is invisible in the
+running dashboard.
 
 ### Per-widget error boundary
 
@@ -95,6 +165,36 @@ body only while `online` and otherwise shows a clear offline/connecting card.
 - **Control/publisher** and **history/last-known-value** widgets — keep showing
   buffered data / stay interactive.
 
+### Control widgets: a bound key is not always a command
+
+Control widgets (`btn`, `toggle`, `cycle`, the cmd_vel keyboard/joystick panels,
+the Tello command panel) bind a single character and listen on `window`. Without
+a guard, that character typed into the widget search box, a JSON-Forms config
+field or a workspace name reaches the robot — every `cmd_vel` and Tello control
+published on a raw global keydown.
+
+`useDigitalTrigger` (`@workspace/ui`) therefore applies a **default-on** guard:
+a bound key is ignored while the operator is typing in an editable element
+(`input`/`textarea`/`select`/`contenteditable`, resolved through
+`event.composedPath()` so a shadow-root field is not missed) or while a Radix
+dialog/alert-dialog is open. The predicates are pure and live on their own in
+`packages/ui/src/lib/input-guards.ts`, so they are unit-testable without a DOM
+and fail **open on a missing DOM** — they never manufacture a block where there
+is no document to inspect.
+
+Three properties are load-bearing:
+
+- **Opt-out, not opt-in.** `allowKeyboardWhileTyping` exists for bindings that
+  genuinely must fire inside a field (a binding picker); anything reaching a
+  robot leaves it `false`. A widget author who forgets the guard gets the safe
+  behaviour.
+- **`shouldHandleKeyboardEvent` can only narrow.** It runs after the guard and
+  can reject a press the guard accepted — never re-admit one it rejected.
+- **Release is symmetric by state, not by predicate.** A keyup deactivates only a
+  press the keydown path actually started. Re-testing the guard on release would
+  strand a control active — focus can move into a text field while a key is
+  held, and a suppressed release leaves the robot moving.
+
 ### Widget picker
 
 The floating "+" picker groups widgets by the contributing plugin. Attribution is
@@ -132,6 +232,59 @@ Plugins register extra `{ tester, renderer }` entries on `JSON_FORMS_RENDERER`.
 Selection is by tester rank — there is **no** `options.renderer` string id and no
 `RENDERERS_LIST` hook. Real example:
 `plugins/ormi-foxglove/` → `url-with-button-renderer.tsx`.
+
+### Datasource pick-lists
+
+A widget that pins itself to ONE configured datasource stores that datasource's
+_instance_ id (`datasource_<uuid>`, i.e. `Datasource.settings.id` — not the
+definition id). As a plain `{ type: "string" }` property that renders as a text
+box the operator has to fill from memory, so the field is rewritten into a
+`oneOf` of `{ const, title }` members — the same shape `basemapOneOf()` produces,
+but built at runtime from the datasources actually configured.
+
+`createDatasourceSelectHook({ field, definitionId, autoLabel? })`
+(`packages/utils/src/datasource-select-schema.ts`) returns a
+`WidgetDefinition.extensibilityHook`. The dashboard shell runs that hook on every
+render with the live `PluginsManager`, so the hook resolves
+`AVAILABLE_DATASOURCES`, keeps the instances whose _definition_ id matches, and
+replaces the property with the pick-list. Persisted values are unchanged.
+
+Two rules keep it safe:
+
+- **No match → no rewrite.** An empty `oneOf` is invalid schema, and a widget
+  whose datasource is not configured (or not loaded yet) must stay configurable,
+  so the property is left as the free-text field.
+- **`autoLabel` only where unset is meaningful.** The five C2 widgets resolve
+  their `c2.*` remote calls across every datasource when the field is blank, so
+  they get a leading `{ const: "" }` "automatic" member — the value they already
+  treat as unset — and the operator can go back to it. Widgets that build a
+  per-instance hook name from the id (`rqt-graph`, the Tello command widget, both
+  RestBag widgets) need a concrete datasource and get no empty member.
+
+### Config dialogs commit only valid input
+
+`WidgetCard` and `DatasourceCard` render the JSON Forms config surface in a
+dialog. The confirm button **does not close the dialog when AJV reports errors**:
+it keeps the dialog open and raises one notice naming the offending fields.
+Previously the trigger was a `DialogClose`, so an invalid confirm toasted and
+closed anyway — dropping the edit with no way back to it.
+
+The notice is built by `ormi-core/forms/config-errors.ts`, which splits errors by
+whether the operator can already see them: a field that carries its own inline
+error contributes only its **label**, and only errors that resolve to no field
+(and would therefore appear nowhere) contribute their message. `required` errors
+are reported by AJV on the parent object, so the missing property name is what
+names the field.
+
+Two supporting rules: reopening the dialog reloads the persisted settings, so an
+abandoned edit is not the starting point of the next one; and the dialog seeds
+its state from `props.data ?? definition.data` at mount rather than through a
+mount-only effect.
+
+This is why definitions must be **valid on open** (see `AGENTS.md`): the card
+feeds `schema` + `data` straight into JsonForms/AJV, so a `schema.required`
+property with neither a value in `data` nor a `default` now makes the dialog
+un-confirmable before the operator has touched anything.
 
 ---
 

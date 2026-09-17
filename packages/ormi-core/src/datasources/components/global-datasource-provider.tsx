@@ -24,6 +24,8 @@ import {
 import { NavbarItem } from "@workspace/ui/combined/navbar";
 
 import { Button } from "@workspace/ui/components/button";
+import { Card } from "@workspace/ui/components/card";
+import { DATASOURCE_CONFIGURE_EVENT } from "@workspace/ui/components/datasource-offline";
 import {
 	Dialog,
 	DialogTrigger,
@@ -37,8 +39,9 @@ import {
 import { WidgetDefinition } from "../../widgets/widget-interface";
 import DatasourceAdder from "./datasource-adder";
 import DatasourceCard from "./datasource-card";
+import { getCreatedTopicsStore } from "../created-topics";
 import { DatasourceStatusBadges } from "./datasource-status-badges";
-import { CheckIcon, CloudCogIcon, XCircle } from "lucide-react";
+import { CheckIcon, CloudCogIcon, PuzzleIcon, Trash2Icon } from "lucide-react";
 import { Template, useTemplates } from "../../templates";
 import { createSafeContext } from "@workspace/utils";
 
@@ -54,6 +57,104 @@ interface GlobalDataSources {
 
 const [GlobalDataSourcesContextProvider, useGlobalDataSourcesContext] =
 	createSafeContext<GlobalDataSources>("GlobalDataSources");
+
+/**
+ * A configured datasource paired with the definition that backs it.
+ *
+ * `unsupported` is an expected state, not an error: dev-only plugins are gated
+ * out of production builds, so a saved workspace can legitimately reference a
+ * `datasource_id` that no plugin in this build provides.
+ */
+type ResolvedDatasourceEntry =
+	| {
+			kind: "supported";
+			datasource: Datasource;
+			definition: DatasourceDefinition<DatasourceProviderSettings>;
+	  }
+	| { kind: "unsupported"; datasource: Datasource };
+
+/**
+ * Pair each configured datasource with its definition, marking the ones no
+ * plugin in this build provides as `unsupported` instead of throwing.
+ *
+ * Pure: the single resolution path used both to mount providers and to render
+ * configuration cards, so the two can never disagree about what is supported.
+ *
+ * @param datasources - Configured datasource instances.
+ * @param definitions - Definitions contributed by the loaded plugins, keyed by id.
+ * @returns One entry per datasource, in input order.
+ */
+function resolveDatasourceEntries(
+	datasources: Iterable<Datasource>,
+	definitions: ReadonlyMap<
+		string,
+		DatasourceDefinition<DatasourceProviderSettings>
+	>,
+): ResolvedDatasourceEntry[] {
+	return Array.from(datasources, (datasource) => {
+		const definition = definitions.get(datasource.datasource_id);
+		return definition
+			? ({ kind: "supported", datasource, definition } as const)
+			: ({ kind: "unsupported", datasource } as const);
+	});
+}
+
+/** Props for {@link UnsupportedDatasourceCard}. */
+interface UnsupportedDatasourceCardProps {
+	/** The configured datasource whose definition is missing. */
+	datasource: Datasource;
+	/** Removes the datasource from the workspace. */
+	onRemove: (source_id: string) => void;
+}
+
+/**
+ * Configuration card for a datasource whose definition no plugin provides.
+ *
+ * Names the missing `datasource_id` and requires an operator decision — keep
+ * it (and restore the plugin) or remove it — rather than crashing the
+ * dashboard or dropping the entry silently.
+ *
+ * @param props - Component props.
+ * @returns React element.
+ */
+const UnsupportedDatasourceCard = (props: UnsupportedDatasourceCardProps) => {
+	const { datasource, onRemove } = props;
+
+	return (
+		<Card className="my-1.5 flex flex-row items-start gap-3 border-dashed p-4">
+			<PuzzleIcon
+				className="text-muted-foreground mt-0.5 size-5 shrink-0"
+				aria-hidden
+			/>
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
+				<span className="text-sm font-medium">
+					{datasource.title || datasource.settings.id}
+				</span>
+				<p className="text-muted-foreground text-xs">
+					Unsupported configuration: no plugin in this build provides
+					the datasource type{" "}
+					<code className="font-mono">
+						{datasource.datasource_id}
+					</code>
+					. Its settings are kept as saved and it will not connect.
+				</p>
+				<p className="text-muted-foreground text-xs">
+					Enable the plugin that provides this type, or remove the
+					datasource from this workspace.
+				</p>
+			</div>
+			<Button
+				variant="outline"
+				size="sm"
+				aria-label={`Remove unsupported datasource ${datasource.title || datasource.settings.id}`}
+				onClick={() => onRemove(datasource.settings.id)}
+			>
+				<Trash2Icon aria-hidden />
+				Remove
+			</Button>
+		</Card>
+	);
+};
 
 /**
  * Global datasource provider wiring datasource providers and navbar UI.
@@ -84,21 +185,34 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 	const { addTemplate } = useTemplates();
 
-	function getDatasourceDef(
-		datasource_id: string,
-	): DatasourceDefinition<DatasourceProviderSettings> {
-		if (!dataSourcesTypes.has(datasource_id)) {
-			console.error(`Datasource ${datasource_id} not found`);
-			throw new Error(`Datasource ${datasource_id} not found`);
-		}
-		return dataSourcesTypes.get(datasource_id)!;
-	}
+	const [datasourcesDialogOpen, setDatasourcesDialogOpen] = useState(false);
+
+	// A widget reporting an offline/connecting datasource offers a
+	// "Check configuration" action; it announces the intent on `window` because
+	// `@workspace/ui` cannot reach into core. Opening this dialog is the route
+	// back from the symptom to the settings that cause it.
+	useEffect(() => {
+		const openDatasources = () => setDatasourcesDialogOpen(true);
+
+		window.addEventListener(DATASOURCE_CONFIGURE_EVENT, openDatasources);
+		return () => {
+			window.removeEventListener(
+				DATASOURCE_CONFIGURE_EVENT,
+				openDatasources,
+			);
+		};
+	}, []);
 
 	function handleAdd(datasource_id: string) {
 		addDatasource(datasource_id);
 	}
 
 	function handleRemove(source_id: string) {
+		// A topic the operator declared on this datasource describes a wire
+		// that is about to stop existing. Leaving it listed offers every topic
+		// picker a destination nothing can deliver, and the row looks exactly
+		// like a live one.
+		getCreatedTopicsStore(pluginsManager).forgetSource(source_id);
 		removeDatasource(source_id);
 	}
 
@@ -160,14 +274,30 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 	// Track datasource readiness via lifecycle actions
 	// Register listeners immediately to avoid race conditions
+	//
+	// Both updaters return the PREVIOUS collection when the reported state is
+	// already the recorded one. `DATASOURCE_READY` is deliberately idempotent
+	// and is re-fired by several providers (the foxglove subscription manager
+	// re-fires it once per stable connection window so the registry re-flushes
+	// parked intents), so a repeat is normal traffic, not an anomaly.
+	//
+	// Minting a fresh Set/Map for one of those repeats is not a wasted render —
+	// it is a feedback loop. This component's output is memoised on these two
+	// values, so a new identity rebuilds every `<Provider {...settings} />`
+	// element with a fresh props object; any datasource provider whose
+	// connection effect depends on the settings OBJECT then tears its transport
+	// down and rebuilds it, which fires READY again on reconnect. The datasource
+	// reconnects for as long as the dashboard is open.
 	useEffect(() => {
 		const handleDatasourceReady = (datasourceId: string) => {
 			setReadyDatasources((prev) => {
+				if (prev.has(datasourceId)) return prev;
 				const next = new Set(prev);
 				next.add(datasourceId);
 				return next;
 			});
 			setDatasourceStatuses((prev) => {
+				if (prev.get(datasourceId) === "ready") return prev;
 				const next = new Map(prev);
 				next.set(datasourceId, "ready");
 				return next;
@@ -176,11 +306,13 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 
 		const handleDatasourceDisposed = (datasourceId: string) => {
 			setReadyDatasources((prev) => {
+				if (!prev.has(datasourceId)) return prev;
 				const next = new Set(prev);
 				next.delete(datasourceId);
 				return next;
 			});
 			setDatasourceStatuses((prev) => {
+				if (prev.get(datasourceId) === "disposed") return prev;
 				const next = new Map(prev);
 				next.set(datasourceId, "disposed");
 				return next;
@@ -274,24 +406,25 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	const allDatasourcesReady =
 		datasources.size === 0 || readyDatasources.size === datasources.size;
 
-	// Render datasources as parallel siblings
-	const datasourceComponents = initialized
-		? Array.from(datasources.values()).map((datasource) => {
-				const dataSourceType = dataSourcesTypes.get(
-					datasource.datasource_id,
-				);
-				if (!dataSourceType) {
-					console.error(
-						`Datasource ${datasource.datasource_id} not found`,
-					);
-					return null;
-				}
+	// One resolution pass feeds both the mounted providers and the cards in the
+	// dialog, so a datasource can never be mounted but unrenderable, or listed
+	// as configurable while nothing backs it.
+	const datasourceEntries = resolveDatasourceEntries(
+		datasources.values(),
+		dataSourcesTypes,
+	);
 
-				const Provider = dataSourceType.Provider;
+	// Render datasources as parallel siblings. Unsupported entries mount no
+	// provider — they surface as a card in the dialog instead.
+	const datasourceComponents = initialized
+		? datasourceEntries.map((entry) => {
+				if (entry.kind === "unsupported") return null;
+
+				const Provider = entry.definition.Provider;
 				return (
 					<Provider
-						key={datasource.settings.id}
-						{...datasource.settings}
+						key={entry.datasource.settings.id}
+						{...entry.datasource.settings}
 					/>
 				);
 			})
@@ -315,7 +448,10 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 			)}
 			{initialized && (
 				<NavbarItem id="datasources_combo" zone="center" priority={0}>
-					<Dialog>
+					<Dialog
+						open={datasourcesDialogOpen}
+						onOpenChange={setDatasourcesDialogOpen}
+					>
 						<DialogTrigger asChild>
 							<Button
 								variant={"ghost"}
@@ -345,52 +481,72 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 									Setup the different datasources used in this
 									workspace.
 								</DialogDescription>
-								<div>
-									<div>
-										{Array.from(datasources.values()).map(
-											(datasource) => {
-												return (
-													<DatasourceCard
-														addTemplate={
-															addTemplate
-														}
-														onRemove={handleRemove}
-														data={
-															datasource.settings
-														}
-														key={
-															datasource.settings
-																.id
-														}
-														definition={getDatasourceDef(
-															datasource.datasource_id,
-														)}
-														onValidate={function (
-															datasource_def,
-															settings: DatasourceProviderSettings,
-														): void {
-															updateDatasource(
-																settings,
-															);
-														}}
-													/>
-												);
-											},
+								<div className="flex flex-col gap-4 pt-2">
+									<div className="flex flex-col gap-2">
+										{datasourceEntries.length === 0 ? (
+											<p className="text-muted-foreground text-sm">
+												No datasource configured yet.
+												Add one below to start receiving
+												data.
+											</p>
+										) : (
+											<h3 className="text-sm font-medium">
+												In this workspace
+												<span className="text-muted-foreground ml-1.5 font-normal">
+													({datasourceEntries.length})
+												</span>
+											</h3>
+										)}
+										{datasourceEntries.map((entry) =>
+											entry.kind === "unsupported" ? (
+												<UnsupportedDatasourceCard
+													key={
+														entry.datasource
+															.settings.id
+													}
+													datasource={
+														entry.datasource
+													}
+													onRemove={handleRemove}
+												/>
+											) : (
+												<DatasourceCard
+													key={
+														entry.datasource
+															.settings.id
+													}
+													addTemplate={addTemplate}
+													onRemove={handleRemove}
+													data={
+														entry.datasource
+															.settings
+													}
+													definition={
+														entry.definition
+													}
+													onValidate={function (
+														datasource_def,
+														settings: DatasourceProviderSettings,
+													): void {
+														updateDatasource(
+															settings,
+														);
+													}}
+												/>
+											),
 										)}
 									</div>
-									<div
-										className="flex justify-end mt-1.5 gap-3"
-										style={{ justifyContent: "flex-end" }}
-									>
-										<DatasourceAdder
-											handleAdd={handleAdd}
-										/>
-										<DialogClose
-											className="float-end"
-											asChild
-										>
-											<Button onClick={() => {}}>
-												<CheckIcon />
+									<DatasourceAdder
+										handleAdd={handleAdd}
+										hasDatasources={
+											datasourceEntries.length > 0
+										}
+									/>
+									<div className="mt-3 flex justify-end gap-3">
+										<DialogClose asChild>
+											<Button aria-label="Close datasource settings">
+												<CheckIcon aria-hidden />
+												Done
 											</Button>
 										</DialogClose>
 									</div>
@@ -424,4 +580,9 @@ const useGlobalDataSources = () => {
 	return useGlobalDataSourcesContext();
 };
 
-export { GlobalDataSourcesProvider, useGlobalDataSources };
+export {
+	GlobalDataSourcesProvider,
+	useGlobalDataSources,
+	resolveDatasourceEntries,
+};
+export type { ResolvedDatasourceEntry };

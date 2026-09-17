@@ -3,6 +3,7 @@ import React, { CSSProperties, useEffect, useState, useRef } from "react";
 
 import { JoystickIcon } from "lucide-react";
 import { AnalogInput, getGamepadAxisName } from "./analog-trigger-input";
+import { TRIGGER_CHIP_WIDTH, triggerChipVariants } from "./trigger-chip";
 
 interface AnalogInputComponentProps {
 	analogInput: AnalogInput;
@@ -81,29 +82,21 @@ export const AnalogComponent = (props: AnalogInputComponentProps) => {
 		// Remove activationLevel from dependencies to prevent reset loops
 	}, [onValueChange, analogInput, activationLevel]);
 
+	// Analog activation is continuous, so the success tint is mixed live rather
+	// than switched by the chip's boolean `active` variant.
 	const dynamicStyles: CSSProperties = {
-		backgroundColor: `rgba(0, 155, 0, ${activationLevel * 0.2})`,
-		transform: `scale(${1 + activationLevel * 0.1})`,
-		transition: "background-color 0.05s ease-out, transform 0.05s ease-out",
+		backgroundColor: `color-mix(in oklab, var(--success) ${activationLevel * 25}%, var(--muted))`,
+		borderColor:
+			activationLevel > 0
+				? `color-mix(in oklab, var(--success) ${activationLevel * 100}%, var(--input))`
+				: undefined,
 	};
 
 	return (
-		<div style={{ width: "10rem" }}>
-			<span
-				className="bg-black/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-black/10 flex justify-center items-center select-none hover:bg-black/20 hover:scale-110 hover:cursor-pointer data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20 data-[active=true]:scale-110 transition-all duration-100"
-				style={dynamicStyles}
-			>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-evenly",
-						width: "100%",
-					}}
-				>
-					<JoystickIcon />
-					{`${getGamepadAxisName(props.analogInput.gamepadAxisIndex)} ${props.analogInput.direction === "positive" ? "+" : "-"}`}
-				</div>
+		<div className={TRIGGER_CHIP_WIDTH}>
+			<span className={triggerChipVariants()} style={dynamicStyles}>
+				<JoystickIcon />
+				{`${getGamepadAxisName(props.analogInput.gamepadAxisIndex)} ${props.analogInput.direction === "positive" ? "+" : "-"}`}
 			</span>
 		</div>
 	);

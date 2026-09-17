@@ -32,13 +32,12 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import merge from "lodash/merge";
-import { useFocus } from "../../utils";
 import { Label } from "@workspace/ui/components/label";
 import { Slider } from "@workspace/ui/components/slider";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 export const ShadcnSliderControl = (props: ControlProps) => {
-	const [focused] = useFocus();
 	const {
 		id,
 		data,
@@ -56,12 +55,21 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		focused,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -90,15 +98,25 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 					disabled={!enabled}
 					onValueChange={([value]) => handleChange(path, value)}
 					className={cn("flex-1", !isValid && "border-destructive")}
+					{...ariaProps}
 				/>
 				<span className="text-sm">{schema.maximum || 100}</span>
 			</div>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p id={errorId(id)} className="text-sm text-destructive">
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

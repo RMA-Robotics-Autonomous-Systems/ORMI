@@ -1,5 +1,7 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
+import type { TopicRoutingClaims } from "@workspace/ormi-core/widgets";
 import { datasourceDefinition, widgetsExport, widgetFilters } from "./export";
+import { topicClaims } from "./topic-claims";
 
 // Public surface for widgets / external use (Phase 2+).
 export { C2SourceProvider } from "./datasource/c2-source";
@@ -131,6 +133,16 @@ class C2ControlPlugin extends Plugin {
 			id: "c2-control-widget-gating",
 			priority: 12,
 			filter: widgetFilters,
+		});
+
+		// Which topic types these widgets answer — see `topic-claims.ts`.
+		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
+			id: "c2-control-topic-routing-claims",
+			priority: 12,
+			filter: (claims: TopicRoutingClaims) => {
+				claims.push(...topicClaims);
+				return claims;
+			},
 		});
 	}
 }

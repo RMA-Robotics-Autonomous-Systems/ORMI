@@ -53,11 +53,26 @@ interface SubscriberEntry {
 	webtype: string;
 	count: number;
 	reader: MessageReader;
+	/**
+	 * Resolved once at subscribe: this datasource's own schema rules OR'd with
+	 * whatever the consumers asked for. Read on every arrival, so it must not be
+	 * recomputed per message.
+	 */
+	lossless: boolean;
 }
 
 interface PendingSubscriptionEntry {
 	topic: string;
 	count: number;
+	/**
+	 * A consumer asked for every message while the topic was still pending.
+	 *
+	 * Carried here because a subscribe that arrives before the channel is
+	 * advertised is completed later by {@link processPendingSubscriptions},
+	 * which has only this entry to build the Subscriber from — dropping the
+	 * flag would decimate exactly the streams subscribed earliest.
+	 */
+	lossless?: boolean;
 }
 
 interface PublisherEntry {
@@ -309,6 +324,9 @@ const processPendingSubscriptions = () => {
 			webtype,
 			count: pending.count,
 			reader,
+			lossless:
+				isLosslessTopic(channel.topic, channel.schemaName) ||
+				pending.lossless === true,
 		};
 
 		subscribersById.set(subscriptionId, subscriber);
@@ -424,11 +442,38 @@ const isTfLikeSchema = (schemaName: string): boolean =>
 const isDiagnosticSchema = (schemaName: string): boolean =>
 	schemaName === "diagnostic_msgs/msg/DiagnosticArray";
 
-/** Topics whose coalescing must be lossless (delta / multi-publisher streams). */
+/**
+ * Topics whose coalescing must be lossless (delta / multi-publisher streams).
+ *
+ * The schema predicates below cover the cases this datasource can decide on its
+ * own. Everything else is the **consumer's** call and arrives as
+ * `topic.lossless` on the subscribe — see {@link upgradeLossless}: a stream of
+ * samples and a state to be observed look identical from here, and only the
+ * subscriber knows which one it is building on.
+ */
 const isLosslessTopic = (topic: string, schemaName: string): boolean =>
 	(settings?.transformTreeTopics ?? []).includes(topic) ||
 	isTfLikeSchema(schemaName) ||
 	isDiagnosticSchema(schemaName);
+
+/**
+ * Raise an existing subscriber to lossless, never lower it.
+ *
+ * One wire per topic serves every subscriber, and they do not arrive together:
+ * a map widget reading the newest value can open the subscription before the
+ * panel that is building a run out of the same stream. Deciding losslessness
+ * from whoever happened to be first would then drop samples underneath the
+ * consumer that asked for all of them, which is invisible — the run is simply
+ * short, and looks complete. So the flag only ever rises, for the life of the
+ * subscription; refcounting is untouched, and the wire is rebuilt from its own
+ * subscribers the next time it is opened.
+ */
+const upgradeLossless = (
+	subscriber: { lossless: boolean },
+	requested: boolean | undefined,
+): void => {
+	if (requested) subscriber.lossless = true;
+};
 
 // Wire-rate arrival counters, coalesced into a 1 Hz "metrics-snapshot" that the
 // host folds into `ds.<id>.topic.<topic>.produced` (the WIRE rate). The host's
@@ -571,7 +616,7 @@ const handleMessage = (messageData: MessageData) => {
 	publisher.push(
 		messageData.subscriptionId,
 		messageData,
-		isLosslessTopic(subscriber.topic, subscriber.schemaName),
+		subscriber.lossless,
 		decodeCapMsForSchema(subscriber.schemaName),
 	);
 };
@@ -854,6 +899,9 @@ const server = createRpcServer<
 					topic: topic.topic,
 					count:
 						(pendingSubscriptions.get(topic.topic)?.count ?? 0) + 1,
+					lossless:
+						pendingSubscriptions.get(topic.topic)?.lossless ||
+						topic.lossless,
 				});
 				return;
 			}
@@ -866,6 +914,9 @@ const server = createRpcServer<
 					topic: topic.topic,
 					count:
 						(pendingSubscriptions.get(topic.topic)?.count ?? 0) + 1,
+					lossless:
+						pendingSubscriptions.get(topic.topic)?.lossless ||
+						topic.lossless,
 				});
 				return;
 			}
@@ -873,6 +924,7 @@ const server = createRpcServer<
 			const existing = subscribersByTopic.get(topic.topic);
 			if (existing) {
 				existing.count += 1;
+				upgradeLossless(existing, topic.lossless);
 				return;
 			}
 
@@ -894,6 +946,9 @@ const server = createRpcServer<
 				webtype,
 				count: 1,
 				reader,
+				lossless:
+					isLosslessTopic(channel.topic, channel.schemaName) ||
+					topic.lossless === true,
 			};
 
 			subscribersById.set(subscriptionId, subscriber);

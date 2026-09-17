@@ -1,5 +1,7 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
+import type { TopicRoutingClaims } from "@workspace/ormi-core/widgets";
 import WidgetExport from "./export";
+import { topicClaims } from "./topic-claims";
 import PathLocalMarker from "./widgets/maps/local-components/marker-path-local";
 import IMULocalMarker from "./widgets/maps/local-components/imu-local";
 // import PointCloudLocalMarker from "./widgets/maps/marker-pointcloud-local";
@@ -17,8 +19,12 @@ class StdWidgetsPlugin extends Plugin {
 		this.author = "Lbcqu Florian";
 		this.email = "florian.lebecque@mil.be";
 
-		// Register topic preview components
-		registerDefaultTopicPreviews();
+		// Live previews for the topics panel, read by core through the hook.
+		this.addFilter(PluginsHooks.TOPIC_PREVIEWS, {
+			id: this.name + "-topic-previews",
+			priority: 10,
+			filter: registerDefaultTopicPreviews,
+		});
 
 		const widgetFilter = {
 			id: this.name + "-widget-export",
@@ -69,6 +75,18 @@ class StdWidgetsPlugin extends Plugin {
 			PluginsHooks.MAP_LOCAL_VISUALIZERS,
 			localVisualizersFilter,
 		);
+
+		// Where a topic of a given type goes when the operator clicks it.
+		// Stated, never inferred — see `topic-claims.ts` for the table and the
+		// reasoning behind each entry.
+		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
+			id: this.name + "-topic-routing-claims",
+			priority: 10,
+			filter: (claims: TopicRoutingClaims) => {
+				claims.push(...topicClaims);
+				return claims;
+			},
+		});
 	}
 }
 

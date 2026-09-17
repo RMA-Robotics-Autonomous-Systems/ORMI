@@ -238,6 +238,18 @@ class Registry implements DatasourceSubscriptionRegistry {
 			this.wires.set(key, entry);
 		}
 
+		// One wire, N intents, so the wire's transport requirement is the OR
+		// across them — and it only ever rises. A consumer that needs every
+		// message is wrong by exactly the ones it never saw, with nothing on
+		// screen to say so, while a consumer that only wanted the latest is
+		// merely handed more than it asked for. Downgrading when a lossy intent
+		// joins would therefore start dropping samples underneath the one that
+		// asked for them, so the flag is never cleared here; the wire is torn
+		// down at refcount 0 and the next one starts from its own intents.
+		if (topic.lossless && !entry.topic.lossless) {
+			entry.topic = { ...entry.topic, lossless: true };
+		}
+
 		const wasEmpty = entry.fanout.size === 0;
 		entry.fanout.set(intentId, onData);
 		metrics.set(entry.fanoutId, entry.fanout.size);

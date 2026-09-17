@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { Separator } from "@workspace/ui/components/separator";
@@ -7,7 +6,11 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { CheckCircle2, XCircle, Info, Plus, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@workspace/ui/lib/utils";
 
-import { DatasourceTopic } from "../../datasources/datasource-interface";
+import {
+	DatasourceTopic,
+	deriveHealth,
+} from "../../datasources/datasource-interface";
+import { useGlobalDataSources } from "../../datasources/components/global-datasource-provider";
 import { DataRequirements } from "../../widgets/widget-interface";
 import { TopicCompatibilityResult } from "../../widgets/topic-compatibility";
 import { TopicCreatorDialog } from "./topic-creator-dialog";
@@ -42,6 +45,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	onTopicCreated,
 }) => {
 	const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+	const { datasourceStatuses } = useGlobalDataSources();
 
 	const handleTopicCreated = (newTopic: DatasourceTopic) => {
 		if (onTopicCreated) {
@@ -76,46 +80,82 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 		}
 	};
 
+	// Badges are `whitespace-nowrap shrink-0` by default, so a ROS type string
+	// walks straight out of a narrow column. They wrap as a group and the text
+	// inside breaks, rather than the row deciding how wide the panel is.
+	const badgeClass = "max-w-full text-xs break-all whitespace-normal";
+
 	const getTypeDisplay = (topic: DatasourceTopic) => {
 		if (topic.type) {
 			return (
-				<div className="flex items-center gap-1">
-					<Badge variant="secondary" className="text-xs">
+				<>
+					<Badge variant="secondary" className={badgeClass}>
 						{topic.type}
 					</Badge>
 					{topic.rawType && topic.rawType !== topic.type && (
-						<Badge variant="outline" className="text-xs">
+						<Badge variant="outline" className={badgeClass}>
 							{topic.rawType}
 						</Badge>
 					)}
-				</div>
+				</>
 			);
 		}
 
 		if (topic.rawType) {
 			return (
-				<Badge variant="outline" className="text-xs">
+				<Badge variant="outline" className={badgeClass}>
 					{topic.rawType}*
 				</Badge>
 			);
 		}
 
 		return (
-			<Badge variant="outline" className="text-xs text-muted-foreground">
+			<Badge
+				variant="outline"
+				className={cn(badgeClass, "text-muted-foreground")}
+			>
 				unknown
 			</Badge>
 		);
 	};
 
+	// A topic appearing in the list means its datasource enumerated it at some
+	// point, which is not the same as that datasource being online now: a robot
+	// that dropped keeps its topics in the list until the next poll. Reporting
+	// every row as live told the operator a disconnected robot was reachable,
+	// and the picker is exactly where that costs them a wasted configuration.
 	const getConnectionStatus = (topic: DatasourceTopic) => {
-		// This could be enhanced to show actual connection status
-		// For now, assume all topics are connected if they're in the list
-		return <Wifi className="w-3 h-3 text-green-600 dark:text-green-400" />;
+		const health = deriveHealth(datasourceStatuses.get(topic.source.id));
+
+		if (health === "online") {
+			return (
+				<Wifi
+					className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400"
+					aria-label="Datasource online"
+				/>
+			);
+		}
+
+		if (health === "offline") {
+			return (
+				<WifiOff
+					className="text-destructive h-3 w-3 shrink-0"
+					aria-label="Datasource offline"
+				/>
+			);
+		}
+
+		return (
+			<Spinner
+				className="h-3 w-3 shrink-0"
+				aria-label="Datasource connecting"
+			/>
+		);
 	};
 
 	if (isLoading) {
 		return (
-			<div className="flex flex-col h-full">
+			<div className="flex h-full min-h-0 flex-col">
 				{/* Header */}
 				<div className="p-3 border-b flex-shrink-0">
 					<div className="flex items-center justify-between">
@@ -136,7 +176,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 
 	if (topics.length === 0) {
 		return (
-			<div className="flex flex-col h-full">
+			<div className="flex h-full min-h-0 flex-col">
 				{/* Header */}
 				<div className="p-3 border-b flex-shrink-0">
 					<div className="flex items-center justify-between">
@@ -179,7 +219,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col h-full">
+		<div className="flex h-full min-h-0 flex-col">
 			{/* Header */}
 			<div className="p-3 border-b flex-shrink-0">
 				<div className="flex items-center justify-between">
@@ -198,8 +238,13 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 				</div>
 			</div>
 
-			{/* Topic List */}
-			<ScrollArea className="flex-1 min-h-0">
+			{/* Topic List. A plain overflow container rather than a Radix
+			    ScrollArea: the ScrollArea viewport puts `display: table` on its
+			    child, so the child sizes to its content and neither `min-w-0`
+			    nor `truncate` can engage — long topic names ran past the
+			    panel's own border. This is also the only scroller in the
+			    column; the panel around it must not add a second. */}
+			<div className="min-h-0 flex-1 overflow-y-auto">
 				<div className="p-2 space-y-1">
 					{topics.map((topic) => {
 						const isSelected =
@@ -212,35 +257,48 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 							<div
 								key={`${topic.topic}@${topic.source.id}`}
 								className={cn(
-									"p-3 rounded-lg border cursor-pointer transition-colors",
+									"min-w-0 cursor-pointer rounded-lg border p-3 transition-colors",
 									"hover:bg-muted/50",
 									isSelected &&
 										"bg-primary/10 border-primary",
 								)}
 								onClick={() => onTopicSelect(topic)}
 							>
-								{/* Topic Header */}
-								<div className="flex items-start justify-between gap-2 mb-2">
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2 mb-1">
-											<span className="font-medium text-sm truncate">
+								{/* Topic Header. Every level between the row and
+								    the truncating text needs `min-w-0`, or the
+								    flex item floors at its content width and
+								    `truncate` never applies. */}
+								<div className="mb-2 flex min-w-0 items-start justify-between gap-2">
+									<div className="min-w-0 flex-1">
+										<div className="mb-1 flex min-w-0 items-center gap-2">
+											<span
+												className="min-w-0 truncate text-sm font-medium"
+												title={topic.topic}
+											>
 												{topic.topic}
 											</span>
-											{getCompatibilityIcon(
-												compatibilityStatus,
-											)}
+											<span className="shrink-0">
+												{getCompatibilityIcon(
+													compatibilityStatus,
+												)}
+											</span>
 										</div>
-										<div className="flex items-center gap-2 text-xs text-muted-foreground">
-											<span className="truncate">
+										<div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+											<span
+												className="min-w-0 truncate"
+												title={topic.source.title}
+											>
 												{topic.source.title}
 											</span>
-											{getConnectionStatus(topic)}
+											<span className="shrink-0">
+												{getConnectionStatus(topic)}
+											</span>
 										</div>
 									</div>
 								</div>
 
 								{/* Topic Types */}
-								<div className="flex flex-wrap gap-1">
+								<div className="flex min-w-0 flex-wrap items-center gap-1">
 									{getTypeDisplay(topic)}
 								</div>
 
@@ -266,7 +324,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 						);
 					})}
 				</div>
-			</ScrollArea>
+			</div>
 
 			{/* Topic Creator Dialog */}
 			<TopicCreatorDialog

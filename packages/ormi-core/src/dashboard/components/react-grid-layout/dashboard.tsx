@@ -14,11 +14,11 @@ import "react-resizable/css/styles.css";
 import {
 	ArrowLeftFromLine,
 	ArrowUpFromLine,
-	BombIcon,
 	Check,
 	Columns3,
 	Grid3X3,
 	LayoutGrid,
+	LayoutTemplate,
 	LockIcon,
 	LockOpenIcon,
 	Rows3,
@@ -33,23 +33,24 @@ import { ButtonHolderHost } from "@workspace/ui/combined/ButtonHolder";
 
 import { Button } from "@workspace/ui/components/button";
 import {
-	ContextMenu,
-	ContextMenuTrigger,
-	ContextMenuContent,
-	ContextMenuItem,
-} from "@workspace/ui/components/context-menu";
-import { WidgetTemplateDrawer } from "../../../templates/components/templates-drawer";
-import { useTemplates } from "../../../templates/templates-provider";
+	DropdownMenu,
+	DropdownMenuTrigger,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+} from "@workspace/ui/components/dropdown-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@workspace/ui/components/tooltip";
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
-import { WidgetsCombo } from "../../../widgets/components/widget-combo/widget-combo";
 import { WidgetDefinition } from "../../../widgets/widget-interface";
+import { DashboardEmptyState } from "../dashboard-empty-state";
 import { LayoutEngineDefinition } from "../../layout/layout-engine";
 import { WidgetHost } from "../../layout/widget-host";
 import { useDashboardActions } from "../../state/use-dashboard-actions";
-import {
-	useDashboardShell,
-	useDashboardRegistry,
-} from "../../shell/dashboard-shell";
+import { useDashboardShell } from "../../shell/dashboard-shell";
 import { useAtomValue } from "jotai";
 import {
 	widgetsAtom,
@@ -57,6 +58,7 @@ import {
 	lockedAtom,
 	hasChangedAtom,
 	widgetAtomFamily,
+	datasourcesAtom,
 } from "../../atoms";
 
 /** Cols per breakpoint — mirrors the cols prop on ResponsiveGridLayout. */
@@ -160,21 +162,19 @@ const Dashboard = () => {
 	const layouts = useAtomValue(layoutsAtom);
 	const locked = useAtomValue(lockedAtom);
 	const hasChanged = useAtomValue(hasChangedAtom);
+	const datasources = useAtomValue(datasourcesAtom);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerWidth, setContainerWidth] = useState(1200);
 
 	const {
 		updateWidget,
 		removeWidget,
-		addWidget,
 		getDefinition,
 		toggleLock,
-		addDatasource,
 		updateLayouts,
 	} = useDashboardActions();
 
 	const { save } = useDashboardShell();
-	const { widgetDefinitions, datasourceDefinitions } = useDashboardRegistry();
 
 	// Track container width
 	useEffect(() => {
@@ -242,11 +242,7 @@ const Dashboard = () => {
 	const exploseLayout = useCallback(
 		(
 			type:
-				| "custom"
-				| "rows"
-				| "columns"
-				| "masonry"
-				| "single" = "custom",
+				"custom" | "rows" | "columns" | "masonry" | "single" = "custom",
 		) => {
 			if (locked) {
 				toast.error(
@@ -483,8 +479,6 @@ const Dashboard = () => {
 		[gridLayouts, layoutsChanged, locked, widgets.size],
 	);
 
-	const { templates, removeTemplate, updateTemplate } = useTemplates();
-
 	const handleLayoutChange = useCallback(
 		(currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
 			const serialized = JSON.stringify(allLayouts);
@@ -503,19 +497,20 @@ const Dashboard = () => {
 		[removeWidget],
 	);
 
-	const handleValidate = useCallback(
-		(widget: WidgetDefinition, settings: Record<string, unknown>) => {
-			addWidget(widget, settings);
-		},
-		[addWidget],
-	);
-
 	const handleSaveWidget = useCallback(
 		(boxId: string, settings: Record<string, unknown>) => {
 			updateWidget(boxId, settings);
 		},
 		[updateWidget],
 	);
+
+	const lockLabel = locked ? "Unlock dashboard" : "Lock dashboard";
+
+	// Pulse discipline: only the next required step pulses. The datasources
+	// button owns the first step (no datasource configured); saving is the last
+	// one, so it stays quiet until there is a configured datasource and at
+	// least one widget to persist.
+	const savePulses = hasChanged && datasources.size > 0 && widgets.size > 0;
 
 	const widgets_elements = useMemo(() => {
 		return Array.from(widgets.keys()).map((widgetId) => (
@@ -546,125 +541,174 @@ const Dashboard = () => {
 
 	return (
 		<>
-			<NavbarItem id="template_drawer" zone="right">
-				<WidgetTemplateDrawer
-					templates={templates}
-					addWidget={addWidget}
-					addDatasource={addDatasource}
-					removeTemplate={removeTemplate}
-					updateTemplate={updateTemplate}
-					widgetDefinitions={widgetDefinitions}
-					datasourceDefinitions={datasourceDefinitions}
-				/>
-			</NavbarItem>
-			<NavbarItem id="widgets_combo" zone="center">
-				<WidgetsCombo
-					widgetDefinitions={widgetDefinitions}
-					onValidate={handleValidate}
-				/>
-			</NavbarItem>
 			<NavbarItem id="lock_unlock" zone="center">
-				<Button variant={"ghost"} onClick={toggleLock}>
-					{!locked ? <LockIcon /> : <LockOpenIcon />}
-				</Button>
-			</NavbarItem>
-			<NavbarItem id="moveToHorizontal" zone="center">
-				<Button variant={"ghost"} onClick={moveToHorizontal}>
-					<ArrowLeftFromLine />
-				</Button>
-			</NavbarItem>
-			<NavbarItem id="moveToVertical" zone="center">
-				<Button variant={"ghost"} onClick={moveToVertical}>
-					<ArrowUpFromLine />
-				</Button>
-			</NavbarItem>
-			<NavbarItem id="exploseLayout" zone="center">
-				<ContextMenu>
-					<ContextMenuTrigger>
+				<Tooltip>
+					<TooltipTrigger asChild>
 						<Button
 							variant={"ghost"}
-							onClick={() => exploseLayout()}
+							aria-label={lockLabel}
+							onClick={toggleLock}
 						>
-							<BombIcon />
+							{!locked ? (
+								<LockIcon aria-hidden />
+							) : (
+								<LockOpenIcon aria-hidden />
+							)}
 						</Button>
-					</ContextMenuTrigger>
-					<ContextMenuContent>
-						<ContextMenuItem
+					</TooltipTrigger>
+					<TooltipContent>{lockLabel}</TooltipContent>
+				</Tooltip>
+			</NavbarItem>
+			<NavbarItem id="moveToHorizontal" zone="center">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={"ghost"}
+							aria-label="Compact widgets to the left"
+							onClick={moveToHorizontal}
+						>
+							<ArrowLeftFromLine aria-hidden />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Compact widgets to the left</TooltipContent>
+				</Tooltip>
+			</NavbarItem>
+			<NavbarItem id="moveToVertical" zone="center">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={"ghost"}
+							aria-label="Compact widgets to the top"
+							onClick={moveToVertical}
+						>
+							<ArrowUpFromLine aria-hidden />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Compact widgets to the top</TooltipContent>
+				</Tooltip>
+			</NavbarItem>
+			<NavbarItem id="exploseLayout" zone="center">
+				<DropdownMenu>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant={"ghost"}
+									aria-label="Arrange widgets with a layout preset"
+								>
+									Arrange <LayoutTemplate aria-hidden />
+								</Button>
+							</DropdownMenuTrigger>
+						</TooltipTrigger>
+						<TooltipContent>
+							Re-arrange every widget with a layout preset
+						</TooltipContent>
+					</Tooltip>
+					<DropdownMenuContent align="center">
+						<DropdownMenuLabel>Layout preset</DropdownMenuLabel>
+						<DropdownMenuItem
 							onClick={() => exploseLayout("custom")}
 						>
-							<Grid3X3 size={16} className="mr-2" />
+							<Grid3X3 size={16} className="mr-2" aria-hidden />
 							Custom
-						</ContextMenuItem>
-						<ContextMenuItem onClick={() => exploseLayout("rows")}>
-							<Rows3 size={16} className="mr-2" />
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => exploseLayout("rows")}>
+							<Rows3 size={16} className="mr-2" aria-hidden />
 							Row Layout
-						</ContextMenuItem>
-						<ContextMenuItem
+						</DropdownMenuItem>
+						<DropdownMenuItem
 							onClick={() => exploseLayout("columns")}
 						>
-							<Columns3 size={16} className="mr-2" />
+							<Columns3 size={16} className="mr-2" aria-hidden />
 							Column Layout
-						</ContextMenuItem>
-						<ContextMenuItem
+						</DropdownMenuItem>
+						<DropdownMenuItem
 							onClick={() => exploseLayout("masonry")}
 						>
-							<LayoutGrid size={16} className="mr-2" />
+							<LayoutGrid
+								size={16}
+								className="mr-2"
+								aria-hidden
+							/>
 							Masonry Layout
-						</ContextMenuItem>
-						<ContextMenuItem
+						</DropdownMenuItem>
+						<DropdownMenuItem
 							onClick={() => exploseLayout("single")}
 						>
-							<Square size={16} className="mr-2" />
+							<Square size={16} className="mr-2" aria-hidden />
 							Single Layout
-						</ContextMenuItem>
-					</ContextMenuContent>
-				</ContextMenu>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</NavbarItem>
 			<NavbarItem id="save" zone="center">
-				<Button
-					variant={"ghost"}
-					className={hasChanged ? "animate-pulse" : ""}
-					style={
-						hasChanged
-							? {
-									animation:
-										"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-									boxShadow: "0 0 0 0 hsl(var(--primary))",
-								}
-							: {}
-					}
-					onClick={save}
-				>
-					{hasChanged ? <Save /> : <Check />}
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={"ghost"}
+							aria-label={
+								hasChanged
+									? "Save dashboard"
+									: "Dashboard saved"
+							}
+							className={savePulses ? "animate-pulse" : ""}
+							style={
+								savePulses
+									? {
+											animation:
+												"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
+											boxShadow:
+												"0 0 0 0 hsl(var(--primary))",
+										}
+									: {}
+							}
+							onClick={save}
+						>
+							{hasChanged ? (
+								<Save aria-hidden />
+							) : (
+								<Check aria-hidden />
+							)}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{hasChanged
+							? "Save dashboard"
+							: "Dashboard saved — no pending changes"}
+					</TooltipContent>
+				</Tooltip>
 			</NavbarItem>
 			<div ref={containerRef} style={{ width: "100%", height: "100%" }}>
-				<ResponsiveGridLayout
-					width={containerWidth}
-					className="layout"
-					margin={[2, 2]}
-					layouts={gridLayouts}
-					breakpoints={{
-						lg: 1200,
-						md: 996,
-						sm: 768,
-						xs: 480,
-						xxs: 0,
-					}}
-					cols={COLS_MAP}
-					dragConfig={{
-						enabled: !locked,
-						handle: `.drag-handle`,
-					}}
-					resizeConfig={{
-						enabled: !locked,
-					}}
-					onLayoutChange={handleLayoutChange}
-					compactor={freePositionCompactor}
-					rowHeight={30}
-				>
-					{widgets_elements}
-				</ResponsiveGridLayout>
+				{widgets.size === 0 ? (
+					<DashboardEmptyState hasDatasource={datasources.size > 0} />
+				) : (
+					<ResponsiveGridLayout
+						width={containerWidth}
+						className="layout"
+						margin={[2, 2]}
+						layouts={gridLayouts}
+						breakpoints={{
+							lg: 1200,
+							md: 996,
+							sm: 768,
+							xs: 480,
+							xxs: 0,
+						}}
+						cols={COLS_MAP}
+						dragConfig={{
+							enabled: !locked,
+							handle: `.drag-handle`,
+						}}
+						resizeConfig={{
+							enabled: !locked,
+						}}
+						onLayoutChange={handleLayoutChange}
+						compactor={freePositionCompactor}
+						rowHeight={30}
+					>
+						{widgets_elements}
+					</ResponsiveGridLayout>
+				)}
 			</div>
 		</>
 	);

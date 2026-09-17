@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DashboardShell,
 	DashboardEngine,
+	DEFAULT_DASHBOARD_TYPE,
+	resolveDashboardType,
 } from "@workspace/ormi-core/dashboard";
 import { GlobalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { WidgetsDialog } from "@workspace/ormi-core/widgets";
 import { TemplatesProvider } from "@workspace/ormi-core/templates";
 import {
 	handleLoad as tl,
@@ -23,7 +24,9 @@ import { useParams } from "next/navigation";
 export default function Page() {
 	const params = useParams();
 	const workspaceId = params.wsId as string;
-	const [dashboardType, setDashboardType] = useState<string>("GRID");
+	const [dashboardType, setDashboardType] = useState<string>(
+		DEFAULT_DASHBOARD_TYPE,
+	);
 	const [loading, setLoading] = useState(true);
 
 	// One workspace fetch per navigation, shared by both consumers below
@@ -73,10 +76,10 @@ export default function Page() {
 							};
 
 							setDashboardType(
-								parsedDraft.dashboardType || "GRID",
+								resolveDashboardType(parsedDraft.dashboardType),
 							);
 						} catch {
-							setDashboardType("GRID");
+							setDashboardType(DEFAULT_DASHBOARD_TYPE);
 						}
 					}
 				}
@@ -88,10 +91,12 @@ export default function Page() {
 			try {
 				const result = await getWorkspace();
 				if (result.ok) {
-					setDashboardType(result.data?.dashboardType || "GRID");
+					setDashboardType(
+						resolveDashboardType(result.data?.dashboardType),
+					);
 				}
 			} catch {
-				setDashboardType("GRID");
+				setDashboardType(DEFAULT_DASHBOARD_TYPE);
 			} finally {
 				setLoading(false);
 			}
@@ -139,22 +144,18 @@ export default function Page() {
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>
-			{({ widgetDefinitions, widgetGroups }) => (
-				<TemplatesProvider
-					onLoad={tl}
-					addTemplate={ts}
-					removeTemplate={td}
-					updateTemplate={tu}
-				>
-					<GlobalDataSourcesProvider>
-						<DashboardEngine />
-						<WidgetsDialog
-							widgetDefinitions={widgetDefinitions}
-							widgetGroups={widgetGroups}
-						/>
-					</GlobalDataSourcesProvider>
-				</TemplatesProvider>
-			)}
+			<TemplatesProvider
+				onLoad={tl}
+				addTemplate={ts}
+				removeTemplate={td}
+				updateTemplate={tu}
+			>
+				<GlobalDataSourcesProvider>
+					{/* The engine carries the launcher, which is where widgets,
+					    topics and templates are reached from. */}
+					<DashboardEngine />
+				</GlobalDataSourcesProvider>
+			</TemplatesProvider>
 		</DashboardShell>
 	);
 }

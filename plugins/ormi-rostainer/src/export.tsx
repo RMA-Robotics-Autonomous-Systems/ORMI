@@ -24,21 +24,38 @@ const rostainerStatusWidget = {
 			title: { type: "string", title: "Title" },
 			topic: { type: "object", title: "Status topic" },
 		},
-		required: ["title", "topic"],
+		required: ["title"],
 	},
 	uischema: {
 		type: "VerticalLayout",
 		elements: [
 			{ type: "Control", scope: "#/properties/title" },
-			// No dataRequirements: ROSTainer publishes a raw
-			// `diagnostic_msgs/msg/DiagnosticArray` topic and the datasource is
-			// content-agnostic — it exposes no webapp `type` for it, so the core
-			// `accepts` filter (which matches on webapp type only) cannot select
-			// it. The widget consumes the raw message directly and parses it
-			// defensively instead of relying on a type mapping.
+			// This widget reads a `diagnostic_msgs/msg/DiagnosticArray` and
+			// nothing else. It used to declare no `dataRequirements` at all,
+			// on the belief that the type was invisible to the picker — it is
+			// not: this plugin ships no datasource of its own, so the topic
+			// arrives through Foxglove or ROSBridge, both of which convert
+			// that schema to the `DiagnosticArray` webapp type. The effect of
+			// the missing declaration was that routing counted the slot as a
+			// universal raw viewer and offered ROSTainer for every topic in
+			// the build, including ones it can only fail to parse. Being a raw
+			// viewer is now something a plugin claims, so the inference is
+			// gone — but the declaration is still what makes the picker offer
+			// the right topics.
+			//
+			// Both forms are declared because they answer different questions:
+			// `accepts` matches the converted webapp type, `acceptsRaw` the
+			// wire schema, which is what a datasource that passes the message
+			// through unconverted reports.
 			{
 				type: "TopicSelect",
 				scope: "#/properties/topic",
+				options: {
+					dataRequirements: {
+						accepts: ["DiagnosticArray"],
+						acceptsRaw: ["diagnostic_msgs/msg/DiagnosticArray"],
+					},
+				},
 			} as TopicSelectElement,
 		],
 	},

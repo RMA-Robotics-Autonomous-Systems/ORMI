@@ -65,6 +65,7 @@ specification {
   tag plugin     // plugins/ormi-*
   tag mainThread // runs on the main thread (ws:// robots)
   tag store      // shared reactive state
+  tag devOnly    // ormi_plugin_dev_only — never in a production registry
   tag deprecated
 
   // Deployment nodes.

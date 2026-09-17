@@ -60,6 +60,13 @@ COPY . .
 # back to reading git, and then to "dev".
 ARG APP_VERSION=""
 ENV APP_VERSION=${APP_VERSION}
+# Development-only plugins (synthetic datasources, benchmarking fixtures) are
+# left out of the generated plugin registry by `next build`, so they are not in
+# this image at all. Set to 1 to build a staging image that keeps them — e.g. to
+# run the load generator against a production build, which is the only build
+# worth profiling.
+ARG ORMI_DEV_PLUGINS=""
+ENV ORMI_DEV_PLUGINS=${ORMI_DEV_PLUGINS}
 # APP_URL is a server-only variable; it is NOT baked into the client bundle.
 # It is injected at container start via docker-compose environment, so runtime
 # env validation is skipped here and runs normally in the runtime stage.

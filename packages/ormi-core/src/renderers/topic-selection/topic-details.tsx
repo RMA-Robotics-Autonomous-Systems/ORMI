@@ -7,7 +7,6 @@ import {
 } from "@workspace/ui/components/card";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
-import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import {
 	Tabs,
@@ -15,7 +14,6 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@workspace/ui/components/tabs";
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import {
 	CheckCircle2,
 	XCircle,
@@ -46,8 +44,6 @@ interface TopicDetailsProps {
 	onPropertySelect: (path: string, source: "webapp" | "raw") => void;
 	activeTab: "webapp" | "raw";
 	onTabChange: (tab: "webapp" | "raw") => void;
-	bufferSize: number;
-	onBufferSizeChange: (size: number) => void;
 	requirements?: DataRequirements;
 }
 
@@ -65,13 +61,11 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 	onPropertySelect,
 	activeTab,
 	onTabChange,
-	bufferSize,
-	onBufferSizeChange,
 	requirements,
 }) => {
 	if (!topic) {
 		return (
-			<div className="flex-1 flex items-center justify-center">
+			<div className="flex min-h-0 flex-1 items-center justify-center">
 				<div className="text-center">
 					<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
 					<p className="text-sm text-muted-foreground">
@@ -85,18 +79,24 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 	const tabInfo = propertyTree ? getPropertyTreeTabInfo(propertyTree) : null;
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="flex flex-col gap-4 p-4">
+		// One scroller for the whole pane. A Radix ScrollArea cannot be used
+		// here: its viewport gives its child `display: table`, so the child
+		// sizes to its content and a long topic name or ROS type string pushes
+		// past the pane instead of wrapping inside it.
+		<div className="h-full min-h-0 overflow-y-auto">
+			<div className="flex min-w-0 flex-col gap-4 p-4">
 				{/* Topic Info Card */}
 				<Card>
 					<CardHeader>
-						<CardTitle className="flex items-center gap-2">
-							<span>{topic.topic}</span>
+						<CardTitle className="flex min-w-0 items-start gap-2">
+							<span className="min-w-0 break-all">
+								{topic.topic}
+							</span>
 							{analysis &&
 								(analysis.isCompatible ? (
-									<CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+									<CheckCircle2 className="w-5 h-5 shrink-0 text-green-600 dark:text-green-400" />
 								) : (
-									<XCircle className="w-5 h-5 text-destructive" />
+									<XCircle className="w-5 h-5 shrink-0 text-destructive" />
 								))}
 						</CardTitle>
 					</CardHeader>
@@ -106,7 +106,7 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 								<Label className="text-muted-foreground">
 									Source
 								</Label>
-								<p className="font-medium">
+								<p className="font-medium break-words">
 									{topic.source.title}
 								</p>
 							</div>
@@ -116,14 +116,20 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 							<Label className="text-muted-foreground">
 								Types
 							</Label>
-							<div className="flex flex-wrap gap-2">
+							<div className="flex min-w-0 flex-wrap gap-2">
 								{topic.type && (
-									<Badge variant="secondary">
+									<Badge
+										variant="secondary"
+										className="max-w-full break-all whitespace-normal"
+									>
 										Webapp: {topic.type}
 									</Badge>
 								)}
 								{topic.rawType && (
-									<Badge variant="outline">
+									<Badge
+										variant="outline"
+										className="max-w-full break-all whitespace-normal"
+									>
 										Raw: {topic.rawType}
 									</Badge>
 								)}
@@ -192,31 +198,6 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 						)}
 					</CardContent>
 				</Card>
-				{/* Buffer Configuration */}
-				<Card>
-					<CardContent className="pt-6">
-						<div className="space-y-2">
-							<Label htmlFor="buffer-size">Buffer Size</Label>
-							<Input
-								id="buffer-size"
-								type="number"
-								min="1"
-								max="1000"
-								value={bufferSize}
-								onChange={(e) =>
-									onBufferSizeChange(
-										parseInt(e.target.value) || 1,
-									)
-								}
-								className="w-full"
-							/>
-							<p className="text-xs text-muted-foreground">
-								Number of messages to keep in buffer for this
-								topic
-							</p>
-						</div>
-					</CardContent>
-				</Card>
 				{/* Property Trees */}
 				{propertyTree &&
 					tabInfo &&
@@ -253,59 +234,51 @@ export const TopicDetails: React.FC<TopicDetailsProps> = ({
 										</TabsTrigger>
 									</TabsList>
 
+									{/* The pane above is the scroller; a nested one
+									    here only ever resolved to `height: auto` and
+									    never scrolled anything. */}
 									<TabsContent
 										value="webapp"
-										className="flex-1 mt-4"
+										className="mt-4 min-w-0 flex-1"
 									>
-										<ScrollArea className="h-full">
-											<PropertyTree
-												nodes={propertyTree.webapp}
-												selectedProperty={
-													selectedPropertySource ===
-													"webapp"
-														? selectedProperty
-														: null
-												}
-												onPropertySelect={(path) =>
-													onPropertySelect(
-														path,
-														"webapp",
-													)
-												}
-												requirements={requirements}
-											/>
-										</ScrollArea>
+										<PropertyTree
+											nodes={propertyTree.webapp}
+											selectedProperty={
+												selectedPropertySource ===
+												"webapp"
+													? selectedProperty
+													: null
+											}
+											onPropertySelect={(path) =>
+												onPropertySelect(path, "webapp")
+											}
+											requirements={requirements}
+										/>
 									</TabsContent>
 
 									<TabsContent
 										value="raw"
-										className="flex-1 mt-4"
+										className="mt-4 min-w-0 flex-1"
 									>
-										<ScrollArea className="h-full">
-											<PropertyTree
-												nodes={propertyTree.raw}
-												selectedProperty={
-													selectedPropertySource ===
-													"raw"
-														? selectedProperty
-														: null
-												}
-												onPropertySelect={(path) =>
-													onPropertySelect(
-														path,
-														"raw",
-													)
-												}
-												requirements={requirements}
-											/>
-										</ScrollArea>
+										<PropertyTree
+											nodes={propertyTree.raw}
+											selectedProperty={
+												selectedPropertySource === "raw"
+													? selectedProperty
+													: null
+											}
+											onPropertySelect={(path) =>
+												onPropertySelect(path, "raw")
+											}
+											requirements={requirements}
+										/>
 									</TabsContent>
 								</Tabs>
 							</CardContent>
 						</Card>
 					)}
 			</div>
-		</ScrollArea>
+		</div>
 	);
 };
 
@@ -347,7 +320,7 @@ const PropertyTree: React.FC<PropertyTreeProps> = ({
 			<div key={node.path} className="select-none">
 				<div
 					className={cn(
-						"flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-muted/50",
+						"flex min-w-0 cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-muted/50",
 						isSelected && "bg-primary/10 border border-primary",
 						node.isCompatible &&
 							"text-green-600 dark:text-green-400",
@@ -363,29 +336,35 @@ const PropertyTree: React.FC<PropertyTreeProps> = ({
 				>
 					{hasChildren ? (
 						isExpanded ? (
-							<ChevronDown className="w-4 h-4 text-muted-foreground" />
+							<ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
 						) : (
-							<ChevronRight className="w-4 h-4 text-muted-foreground" />
+							<ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />
 						)
 					) : (
-						<span className="w-4" />
+						<span className="w-4 shrink-0" />
 					)}
 
-					<span className="flex-1 text-sm">{node.name}</span>
+					<span
+						className="min-w-0 flex-1 truncate text-sm"
+						title={node.name}
+					>
+						{node.name}
+					</span>
 
 					{node.type && (
 						<Badge
 							variant={
 								node.isCompatible ? "default" : "secondary"
 							}
-							className="text-xs"
+							className="max-w-[45%] truncate text-xs"
+							title={node.type}
 						>
 							{node.type}
 						</Badge>
 					)}
 
 					{node.isCompatible && (
-						<CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" />
+						<CheckCircle2 className="w-3 h-3 shrink-0 text-green-600 dark:text-green-400" />
 					)}
 				</div>
 
@@ -414,6 +393,8 @@ const PropertyTree: React.FC<PropertyTreeProps> = ({
 	}
 
 	return (
-		<div className="space-y-1">{nodes.map((node) => renderNode(node))}</div>
+		<div className="min-w-0 space-y-1">
+			{nodes.map((node) => renderNode(node))}
+		</div>
 	);
 };

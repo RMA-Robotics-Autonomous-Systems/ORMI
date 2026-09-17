@@ -18,6 +18,10 @@ program
 program
 	.command("init")
 	.argument("<path>", "The path of the output source file")
+	.option(
+		"--production",
+		'Generate a production registry: plugins marked "ormi_plugin_dev_only" are excluded (override with ORMI_DEV_PLUGINS=1)',
+	)
 	.description(
 		"Generate a typescript file containing the imports for all the plugins",
 	)

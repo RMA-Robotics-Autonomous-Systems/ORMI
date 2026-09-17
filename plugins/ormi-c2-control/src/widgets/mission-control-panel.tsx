@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { MissionStatus } from "../types/c2-types";
 import { missionStatusLabel } from "../types/status-labels";
@@ -635,5 +636,6 @@ export function MissionControlPanelDefinition(): WidgetDefinition<MissionControl
 			title: "Mission Control",
 		},
 		Component: MissionControlPanelWidget,
+		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionControlPanelProps>;
 }

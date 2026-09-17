@@ -70,7 +70,7 @@ model {
 
     renderers = component 'JSON Forms Renderers' {
       technology 'packages/ormi-jsonforms · ormi-core/renderers'
-      description 'Renders widget/datasource config forms. Composes shadcn/material base controls + coreRenderer (TopicSelect, FrameSelect pickers) + any plugin renderers added via JSON_FORMS_RENDERER; JSON Forms selects the highest-ranked tester per control.'
+      description 'Renders widget/datasource config forms. Composes shadcn/material base controls + coreRenderer (TopicSelect, FrameSelect pickers) + any plugin renderers added via JSON_FORMS_RENDERER; JSON Forms selects the highest-ranked tester per control. The two core pickers bind an unambiguous slot themselves: TopicSelect polls AVAILABLE_TOPICS (a pull filter with no change notification) and binds the sole DIRECT type match — never a property match, which analyzeTopicCompatibility also calls compatible and which would plot a plausible wrong number; FrameSelect waits for the TF frame list to settle so "exactly one frame" means the tree has one rather than has one so far. Taken once, never revisited. The hosting cards (WidgetCard / DatasourceCard) commit only on valid input: an invalid confirm keeps the dialog open and names the offending fields instead of closing and dropping the edit.'
     }
 
     templates = component 'Templates' {
@@ -80,7 +80,7 @@ model {
 
     ui = component 'Shared UI Kit' {
       technology 'packages/ui — Radix UI + shadcn/ui + Tailwind'
-      description 'Primitive components and tokens (buttons, dialogs, cards, DatasourceGate offline card) reused across dashboard, widgets, and plugins.'
+      description 'Primitive components and tokens (buttons, dialogs, cards, DatasourceGate offline card) reused across dashboard, widgets, and plugins. Also owns the keyboard-safety guards every control widget publishes behind (input-guards.ts + useDigitalTrigger): a bound key is ignored while the operator types in an editable element or while a modal is open, default-on with an explicit opt-out. It cannot depend on ormi-core, so the offline card asks for its datasource settings by dispatching a window event rather than calling into the dashboard.'
     }
 
     // ---- Server side --------------------------------------------------------

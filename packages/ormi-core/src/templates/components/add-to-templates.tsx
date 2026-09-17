@@ -15,6 +15,7 @@ import {
 	DialogFooter,
 } from "@workspace/ui/components/dialog";
 import { WidgetDefinition } from "../../widgets";
+import { buildWidgetTemplate } from "../build-widget-template";
 
 /**
  * Button to save a widget configuration as a template.
@@ -29,24 +30,10 @@ export function AddToTemplatesBtn(props: {
 	const { addTemplate } = useTemplates();
 
 	const handleSaveTemplate = () => {
-		// Implementation for saving to templates
-		props.widget.data = props.data;
-
-		const widget = {
-			widget_id: props.widget.id,
-			box_id: "",
-			title: props.widget.name,
-			settings: props.widget.data,
-		};
-
-		const template: WidgetTemplate = {
-			name: props.widget.name,
-			type: "widget",
-			widget: widget,
-			public: false,
-			tags: [],
-			yours: true,
-		};
+		const template: WidgetTemplate = buildWidgetTemplate(
+			props.widget,
+			props.data,
+		);
 
 		addTemplate(template);
 

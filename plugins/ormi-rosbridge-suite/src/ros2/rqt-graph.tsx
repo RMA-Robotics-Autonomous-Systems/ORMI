@@ -4,9 +4,20 @@ import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import * as ROSLIB from "roslib";
 import * as d3 from "d3";
 import { useTheme } from "next-themes";
-import { Datasource } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { createDatasourceSelectHook } from "@workspace/utils";
+
+/**
+ * Widget extensibility hook turning the `datasource_id` setting into a
+ * pick-list of the configured rosbridge datasources. The widget needs a
+ * concrete datasource to build its connection hook name, so no "automatic"
+ * member is offered.
+ */
+const rosbridgeDatasourceSelectHook = createDatasourceSelectHook({
+	field: "datasource_id",
+	definitionId: "rosbridge-suite-source",
+});
 
 interface RQTGraphProps extends Record<string, unknown> {
 	title: string;
@@ -331,8 +342,6 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 /** Settings for RQTGraph widget. */
 
 export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "rqt-graph",
 		name: "RQT Graph",
@@ -381,30 +390,6 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 				{
 					type: "Control",
 					scope: "#/properties/datasource_id",
-					options: {
-						async: true,
-						asyncFunction: async () => {
-							const datasources = Array.from(
-								pluginsManager.applyFilter<Datasource[]>(
-									PluginsHooks.AVAILABLE_DATASOURCES,
-									[],
-								),
-							).filter(
-								(ds) =>
-									ds.datasource_id ===
-									"rosbridge-suite-source",
-							);
-
-							const values = Array.from(datasources).map(
-								(ds) => ({
-									value: ds.settings.id,
-									label: ds.settings.title,
-								}),
-							);
-
-							return values;
-						},
-					},
 				} as ControlElement,
 				{
 					type: "Control",
@@ -422,5 +407,6 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 		} as VerticalLayout,
 		data: { title: "RQT Graph", poolingRateHz: 5 },
 		Component: RQTGraph,
+		extensibilityHook: rosbridgeDatasourceSelectHook,
 	};
 }

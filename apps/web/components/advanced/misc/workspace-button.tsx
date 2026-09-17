@@ -24,7 +24,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@workspace/ui/components/card";
-import { DASHBOARD_TYPES } from "@workspace/ormi-core/dashboard";
+import {
+	DASHBOARD_TYPES,
+	DEFAULT_DASHBOARD_TYPE,
+} from "@workspace/ormi-core/dashboard";
 import { workspaceApi } from "@/lib/api/workspace-api";
 
 interface CreateWSButtonProps {
@@ -42,7 +45,7 @@ export function CreateWSButton({
 
 	const availableTypes = DASHBOARD_TYPES;
 	const [dashboardType, setDashboardType] = React.useState<string>(
-		availableTypes[0]?.id || "GRID",
+		DEFAULT_DASHBOARD_TYPE,
 	);
 
 	function handleOpenDialog() {
@@ -54,7 +57,7 @@ export function CreateWSButton({
 
 	function resetForm() {
 		setWorkspaceName("");
-		setDashboardType(availableTypes[0]?.id || "GRID");
+		setDashboardType(DEFAULT_DASHBOARD_TYPE);
 		setIsLoading(false);
 	}
 

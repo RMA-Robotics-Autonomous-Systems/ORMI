@@ -601,6 +601,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 								dataRequirements: {
 									accepts: ["Pose"],
 								},
+								direction: "publish",
 							},
 						} as TopicSelectElement,
 						{
@@ -610,6 +611,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 								dataRequirements: {
 									accepts: ["InitialPose"],
 								},
+								direction: "publish",
 							},
 						} as TopicSelectElement,
 						{

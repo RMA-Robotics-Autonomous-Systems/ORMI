@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	MissionConfigIssue,
@@ -430,5 +431,6 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 			title: "Missions",
 		},
 		Component: MissionBrowserWidget,
+		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionBrowserProps>;
 }

@@ -21,7 +21,6 @@ interface IntStatusIndicatorProps extends Record<string, unknown> {
 		name: string;
 		color: string;
 	}[];
-	use3D?: boolean;
 }
 
 /**
@@ -177,7 +176,6 @@ export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndica
 		} as VerticalLayout,
 		data: {
 			title: "Status",
-			use3D: false,
 		},
 		Component: IntStatusIndicatorWidget,
 	};

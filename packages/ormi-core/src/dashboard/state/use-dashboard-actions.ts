@@ -18,10 +18,15 @@ import * as actions from "./actions";
 export interface DashboardActions {
 	/** Resolve a widget definition by its type ID. */
 	getDefinition: (widgetId: string) => WidgetDefinition;
+	/**
+	 * Add a widget and place it where the operator is looking.
+	 * @returns The new widget instance's box id, so the caller can undo,
+	 * update or reveal the widget it just created.
+	 */
 	addWidget: <TSettings extends Record<string, unknown>>(
 		widget: WidgetDefinition<TSettings>,
 		settings: TSettings,
-	) => void;
+	) => string;
 	removeWidget: (boxId: string) => void;
 	updateWidget: <TSettings extends Record<string, unknown>>(
 		boxId: string,
@@ -78,10 +83,19 @@ export function useDashboardActions(): DashboardActions {
 		<TSettings extends Record<string, unknown>>(
 			widget: WidgetDefinition<TSettings>,
 			settings: TSettings,
-		) => {
-			setWidgets((prev) => actions.addWidget(prev, widget, settings));
+		): string => {
+			// The box id is minted here rather than inside the reducer so the
+			// same update can claim a spot for the tile in the layout. A widget
+			// added without one lands wherever the engine defaults to, which on
+			// a populated grid is below the fold.
+			const boxId = actions.createWidgetBoxId();
+			setWidgets((prev) =>
+				actions.addWidget(prev, widget, settings, boxId),
+			);
+			setLayouts((prev) => actions.placeWidgetInGridLayouts(prev, boxId));
+			return boxId;
 		},
-		[setWidgets],
+		[setWidgets, setLayouts],
 	);
 
 	const removeWidget = useCallback(

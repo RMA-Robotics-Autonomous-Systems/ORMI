@@ -36,9 +36,10 @@ import {
 import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
+import type { WithAria } from "../../utils/aria";
 
-const ShadcnInputColor = (props: ControlProps) => {
-	const { id, enabled, schema, path, handleChange, data } = props;
+const ShadcnInputColor = (props: ControlProps & WithAria) => {
+	const { id, enabled, schema, path, handleChange, data, ariaProps } = props;
 
 	return (
 		<Input
@@ -47,6 +48,7 @@ const ShadcnInputColor = (props: ControlProps) => {
 			onChange={(ev) => handleChange(path, ev.target.value)}
 			disabled={!enabled}
 			id={id}
+			{...ariaProps}
 		/>
 	);
 };

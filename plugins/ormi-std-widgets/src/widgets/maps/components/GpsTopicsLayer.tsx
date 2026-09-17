@@ -7,6 +7,9 @@ import {
 	LocalDataSourcesProvider,
 } from "@workspace/ormi-core/datasources";
 import { usePluginsManager } from "@workspace/ormi-plugins";
+import { createTopicKey, isBoundTopic } from "@workspace/utils";
+
+import { GPS_ENTRY_SLOTS, isEntryConfigured } from "../unconfigured-entries";
 
 import { MapControlPanel } from "../topics-overlay";
 import { CustomLayer } from "../layers-overlay";
@@ -51,31 +54,27 @@ export function GpsTopicsLayer({
 }: GpsTopicsLayerProps) {
 	const pluginsManager = usePluginsManager();
 
-	// Memoize all topics to prevent unnecessary re-computation
+	// Memoize all topics to prevent unnecessary re-computation. Unbound slots
+	// are skipped here rather than filtered afterwards: an entry the operator
+	// has not finished configuring carries no key to dedupe on, and the
+	// provider would drop it anyway.
 	const allTopics = useMemo(() => {
 		const topicsList: SelectedTopic[] = [];
 		const seenSourceIds = new Set<string>();
 
+		const add = (topic: SelectedTopic | undefined) => {
+			const key = createTopicKey(topic);
+			if (key === undefined || seenSourceIds.has(key)) return;
+			topicsList.push(topic as SelectedTopic);
+			seenSourceIds.add(key);
+		};
+
 		topics.forEach((t) => {
-			if (t.topic) {
-				const sourceId = `${t.topic.source.id}::${t.topic.topic}${t.topic.property ? "::" + t.topic.property : ""}`;
-				if (!seenSourceIds.has(sourceId)) {
-					topicsList.push(t.topic);
-					seenSourceIds.add(sourceId);
-				}
-			}
-			if (t.numericalTopic) {
-				const numericalSourceId = `${t.numericalTopic.source.id}::${t.numericalTopic.topic}${t.numericalTopic.property ? "::" + t.numericalTopic.property : ""}`;
-				if (!seenSourceIds.has(numericalSourceId)) {
-					topicsList.push(t.numericalTopic);
-					seenSourceIds.add(numericalSourceId);
-				}
-			}
+			add(t.topic);
+			add(t.numericalTopic);
 		});
 
-		return topicsList.filter(
-			(t) => t !== undefined && t.topic !== undefined && t.topic !== "",
-		);
+		return topicsList;
 	}, [topics]);
 
 	// Per-entry instance identity. A topic can legitimately appear in several
@@ -83,14 +82,22 @@ export function GpsTopicsLayer({
 	// topic key alone is not unique: compose it with the list index. Markers and
 	// the control panel must agree on this id — it keys the ButtonHolder toggle,
 	// the panel rows and the MapLibre source/layer ids.
+	//
+	// An entry whose own topic is not bound is not drawable at all — every
+	// marker reads `topic.source.id` — so it is skipped here and reported by
+	// the viewer's notice instead. Skipping it silently is what made a
+	// half-configured entry look like a map bug.
 	const entries = useMemo(
 		() =>
-			topics.map((t, i) => ({
-				...t,
-				instanceId: t.topic
-					? `${t.topic.source.id}::${t.topic.topic}::${t.topic.property ?? ""}::${i}`
-					: `gps-topic-${i}`,
-			})),
+			topics
+				.map((t, i) => ({ entry: t, index: i }))
+				.filter(({ entry }) =>
+					isEntryConfigured(entry, GPS_ENTRY_SLOTS),
+				)
+				.map(({ entry, index }) => ({
+					...entry,
+					instanceId: `${entry.topic.source.id}::${entry.topic.topic}::${entry.topic.property ?? ""}::${index}`,
+				})),
 		[topics],
 	);
 
@@ -124,7 +131,11 @@ export function GpsTopicsLayer({
 							topic={t.topic}
 							name={t.name}
 							scale={1}
-							numericalTopic={t.numericalTopic}
+							numericalTopic={
+								isBoundTopic(t.numericalTopic)
+									? t.numericalTopic
+									: undefined
+							}
 						/>
 					);
 				} else if (t.makerType === "path") {

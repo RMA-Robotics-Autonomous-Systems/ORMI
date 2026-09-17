@@ -307,6 +307,14 @@ const MissionFeedbackWidget: React.FC<MissionFeedbackProps> = (props) => {
 		[props.topic, props.plannerTopic],
 	);
 
+	if (!props.topic) {
+		return (
+			<div className="flex justify-center items-center h-full text-muted-foreground">
+				Please select a topic in the widget configuration.
+			</div>
+		);
+	}
+
 	return (
 		<LocalDataSourcesProvider SelectedTopics={topics} buffersSize={1}>
 			<MissionFeedbackBody
@@ -344,7 +352,7 @@ export function MissionFeedbackDefinition(): WidgetDefinition<MissionFeedbackPro
 					title: "Pinned mission id (optional)",
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 
 		uischema: {
@@ -372,6 +380,7 @@ export function MissionFeedbackDefinition(): WidgetDefinition<MissionFeedbackPro
 							accepts: [],
 							acceptsRaw: ["std_msgs/msg/String"],
 						},
+						role: "secondary",
 					},
 				} as TopicSelectElement,
 				{

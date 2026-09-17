@@ -226,7 +226,7 @@ interface MapGridViewerProps extends Record<string, unknown> {
  * or `nav2_msgs/Costmap`).
  */
 function MapGridViewerWidget(data: MapGridViewerProps) {
-	return (
+	return data.topic ? (
 		<LocalDataSourcesProvider SelectedTopics={[data.topic]} buffersSize={1}>
 			<MapGridViewerBody
 				colorMode={data.colorMode ?? "costmap"}
@@ -235,6 +235,10 @@ function MapGridViewerWidget(data: MapGridViewerProps) {
 				sourceTitle={data.topic.source.title}
 			/>
 		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
 	);
 }
 
@@ -269,7 +273,7 @@ export function MapGridViewerDefinition(): WidgetDefinition<MapGridViewerProps> 
 					default: true,
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 		uischema: {
 			type: "VerticalLayout",

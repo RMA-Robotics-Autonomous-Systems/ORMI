@@ -1,13 +1,24 @@
 import { useState } from "react"; // Import useCallback
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { Datasource } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginsManager } from "@workspace/ormi-plugins";
+import { createDatasourceSelectHook } from "@workspace/utils";
 import {
 	DigitalInput,
 	DigitalComponent,
 } from "@workspace/ui/combined/triggers";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
+
+/**
+ * Widget extensibility hook turning the `telloSourceId` setting into a
+ * pick-list of the configured Tello datasources. The widget needs a concrete
+ * datasource to build its connection hook name, so no "automatic" member is
+ * offered.
+ */
+const telloDatasourceSelectHook = createDatasourceSelectHook({
+	field: "telloSourceId",
+	definitionId: "tello-data-source",
+});
 
 /**
  * Props for Tello commands control widget.
@@ -363,8 +374,6 @@ const TelloDroneSVGIcon = () => {
  * @returns Widget definition.
  */
 export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommandsControlData> {
-	const pluginsManager = usePluginsManager();
-
 	return {
 		id: "command-tello-widget",
 		name: "Tello commands",
@@ -418,29 +427,6 @@ export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommands
 				{
 					type: "Control",
 					scope: "#/properties/telloSourceId",
-					options: {
-						async: true,
-						asyncFunction: async () => {
-							const datasources = Array.from(
-								pluginsManager.applyFilter<Datasource[]>(
-									PluginsHooks.AVAILABLE_DATASOURCES,
-									[],
-								),
-							).filter(
-								(ds) =>
-									ds.datasource_id === "tello-data-source",
-							);
-
-							const values = Array.from(datasources).map(
-								(ds) => ({
-									value: ds.settings.id,
-									label: ds.settings.title,
-								}),
-							);
-
-							return values;
-						},
-					},
 				} as ControlElement,
 				{
 					type: "Key",
@@ -472,5 +458,6 @@ export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommands
 			title: "TelloCommands Control",
 		},
 		Component: TelloCommandsControl,
+		extensibilityHook: telloDatasourceSelectHook,
 	};
 }

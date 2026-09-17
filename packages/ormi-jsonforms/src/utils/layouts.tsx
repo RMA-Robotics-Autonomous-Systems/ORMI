@@ -65,11 +65,14 @@ const shadcnLayoutRendererComponent = ({
 	schema,
 	path,
 	enabled,
+	visible,
 	direction,
 	renderers,
 	cells,
 }: shadcnLayoutRendererProps) => {
-	if (isEmpty(elements)) {
+	// JSON Forms core resolves HIDE rules into `visible`; a layout that ignores
+	// it renders its whole section regardless of the rule.
+	if (visible === false || isEmpty(elements)) {
 		return null;
 	} else {
 		return (

@@ -61,21 +61,30 @@ import {
 	PopoverContent,
 } from "@workspace/ui/components/popover";
 import { cn } from "@workspace/ui/lib/utils";
+import { ShadcnInputControl } from "./ShadcnInputControl";
+import type { WithAria } from "../../utils/aria";
 
 const ShadcnSelect = ({
 	data,
 	enabled,
+	id,
 	path,
 	options,
 	handleChange,
+	errors,
 	label,
-}: ControlProps & OwnPropsOfEnum) => (
+	ariaProps,
+}: ControlProps & OwnPropsOfEnum & WithAria) => (
 	<Select
 		value={data || ""}
 		onValueChange={(value) => handleChange(path, value)}
 		disabled={!enabled}
 	>
-		<SelectTrigger>
+		<SelectTrigger
+			id={id}
+			className={cn("w-full", errors.length > 0 && "border-destructive")}
+			{...ariaProps}
+		>
 			<SelectValue placeholder={label} />
 		</SelectTrigger>
 		<SelectContent>
@@ -91,18 +100,21 @@ const ShadcnSelect = ({
 const ShadcnCombobox = ({
 	data,
 	enabled,
+	id,
 	path,
 	options,
 	handleChange,
 	errors,
 	label,
-}: ControlProps & OwnPropsOfEnum) => {
+	ariaProps,
+}: ControlProps & OwnPropsOfEnum & WithAria) => {
 	const [open, setOpen] = React.useState(false);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
+					id={id}
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
@@ -111,15 +123,21 @@ const ShadcnCombobox = ({
 						errors.length > 0 && "border-destructive",
 					)}
 					disabled={!enabled}
+					{...ariaProps}
 				>
-					{data
-						? options!.find((option) => option.value === data)
-								?.label
-						: label}
+					<span className="min-w-0 truncate text-left">
+						{data
+							? options!.find((option) => option.value === data)
+									?.label
+							: label}
+					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-full p-0">
+			<PopoverContent
+				className="w-[var(--radix-popover-trigger-width)] p-0"
+				align="start"
+			>
 				<Command>
 					<CommandInput placeholder={`Search ${label}...`} />
 					<CommandList>
@@ -135,13 +153,15 @@ const ShadcnCombobox = ({
 								>
 									<Check
 										className={cn(
-											"mr-2 h-4 w-4",
+											"mr-2 h-4 w-4 shrink-0",
 											data === option.value
 												? "opacity-100"
 												: "opacity-0",
 										)}
 									/>
-									{option.label}
+									<span className="min-w-0 flex-1">
+										{option.label}
+									</span>
 								</CommandItem>
 							))}
 						</CommandGroup>
@@ -152,6 +172,17 @@ const ShadcnCombobox = ({
 	);
 };
 
+/**
+ * Shadcn enum control component.
+ *
+ * Both the select and the combobox variant are wrapped in
+ * {@link ShadcnInputControl} so the field keeps a visible label, required
+ * marker, description and error message once a value has been picked — the
+ * chosen value replaces the placeholder, which otherwise carried the only
+ * occurrence of the field name.
+ *
+ * @param props - Component props
+ */
 export const ShadcnEnumControl = (
 	props: ControlProps & OwnPropsOfEnum & TranslateProps,
 ) => {
@@ -159,9 +190,9 @@ export const ShadcnEnumControl = (
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	return appliedUiSchemaOptions.autocomplete === false ? (
-		<ShadcnSelect {...props} />
+		<ShadcnInputControl {...props} input={ShadcnSelect} />
 	) : (
-		<ShadcnCombobox {...props} />
+		<ShadcnInputControl {...props} input={ShadcnCombobox} />
 	);
 };
 

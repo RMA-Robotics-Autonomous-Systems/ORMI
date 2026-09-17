@@ -594,3 +594,103 @@
 		height: 1rem;
 	}
 }
+/* -------------------------------------------------------------------------
+ * Overlay drawers (left / right borders)
+ *
+ * FlexLayout lays a border's opened content pane out as a flex item in the
+ * same row as the centre area, so opening a drawer narrows the centre and
+ * every widget reflows: maps re-project, 3D canvases resize, charts
+ * re-decimate. A drawer opened for a glance must not cost that.
+ *
+ * This is safe to do in CSS because flexlayout-react 0.8 lays out *with*
+ * CSS and measures every rect back from the DOM: Row, TabSet and BorderTab
+ * each call getBoundingClientRect in a layout effect and feed the result to
+ * node.setRect / node.setContentRect, and the content of a tab is an
+ * absolutely positioned element placed at its parent's measured content
+ * rect. Nothing computes the centre's size from the border's size, so the
+ * model believes whatever CSS produces - drawn geometry, widget sizing and
+ * pointer hit-testing stay in agreement.
+ *
+ * The drawer row becomes a grid: the centre area is taken out of flow and
+ * spans the whole row, while the pane and its splitter keep their own
+ * tracks. The splitter therefore still lands exactly at the pane's inner
+ * edge without any width being plumbed through CSS, and its drag maths
+ * (splitter x minus the tab rail's right edge) is unchanged.
+ *
+ * Top/bottom borders are deliberately left alone - they keep FlexLayout's
+ * push behaviour. The dashboard only ever creates left and right borders.
+ *
+ * Stacking, against FlexLayout's own scale (splitter 10, tab overlay 20,
+ * off-screen tab stamps 100, drag rect / outline / popup menu 1000):
+ * drawer surface 30, drawer content 31, drawer splitter 32. Above every
+ * dashboard widget, below FlexLayout's drag overlays, and below the
+ * widget config dialog, which Radix portals to the document body.
+ * ------------------------------------------------------------------------- */
+
+/* The row holding [left pane, splitter, centre, splitter, right pane]. */
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main) {
+	position: relative;
+	display: grid;
+	grid-template-columns:
+		min-content min-content minmax(0, 1fr) min-content min-content;
+	grid-template-rows: minmax(0, 1fr);
+}
+
+/* Out of flow, so an open pane cannot resize it and it contributes nothing
+   to the track sizing that positions the panes. */
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main)
+	> .flexlayout__layout_main {
+	position: absolute;
+	inset: 0;
+}
+
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main)
+	> .flexlayout__border_tab_contents:first-child {
+	grid-row: 1;
+	grid-column: 1;
+	z-index: 30;
+	box-shadow: 6px 0 20px var(--shadow-color), 2px 0 8px var(--shadow-color);
+}
+
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main)
+	> .flexlayout__border_tab_contents:first-child
+	+ .flexlayout__splitter_border {
+	grid-row: 1;
+	grid-column: 2;
+	z-index: 32;
+}
+
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main)
+	> .flexlayout__splitter_border:has(
+		+ .flexlayout__border_tab_contents:last-child
+	) {
+	grid-row: 1;
+	grid-column: 4;
+	z-index: 32;
+}
+
+.flexlayout__layout_border_container_inner:has(> .flexlayout__layout_main)
+	> .flexlayout__border_tab_contents:last-child {
+	grid-row: 1;
+	grid-column: 5;
+	z-index: 30;
+	box-shadow: -6px 0 20px var(--shadow-color), -2px 0 8px var(--shadow-color);
+}
+
+/* The pane's actual content: an absolutely positioned sibling of the whole
+   border container, drawn at the pane's measured rect, so it covers the
+   surface above and carries the edge that separates drawer from canvas.
+   .flexlayout__tab already reserves a transparent border on every side and
+   is border-box, so colouring one edge costs no layout. */
+.flexlayout__tab_border_left,
+.flexlayout__tab_border_right {
+	z-index: 31;
+}
+
+.flexlayout__tab_border_left {
+	border-right-color: var(--panel-border-color);
+}
+
+.flexlayout__tab_border_right {
+	border-left-color: var(--panel-border-color);
+}

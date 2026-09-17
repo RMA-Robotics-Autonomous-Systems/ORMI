@@ -44,8 +44,14 @@ import { Button } from "@workspace/ui/components/button";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@workspace/ui/lib/utils";
 import { Calendar } from "@workspace/ui/components/calendar";
+import { Label } from "@workspace/ui/components/label";
+import { format } from "date-fns";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 export const ShadcnDateControl = ({
+	id,
+	label,
+	required,
 	description,
 	errors,
 	uischema,
@@ -58,14 +64,31 @@ export const ShadcnDateControl = ({
 }: ControlProps) => {
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
-	const format = appliedUiSchemaOptions.dateFormat ?? "yyyy-MM-dd";
+	const dateFormat = appliedUiSchemaOptions.dateFormat ?? "yyyy-MM-dd";
 
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		false,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
+
+	// Guarded so a garbage stored value renders the placeholder instead of
+	// throwing out of the whole form.
+	const parsed = data ? new Date(data) : undefined;
+	const formatted =
+		parsed && !Number.isNaN(parsed.getTime())
+			? format(parsed, dateFormat)
+			: undefined;
 
 	if (!visible) {
 		return null;
@@ -73,9 +96,20 @@ export const ShadcnDateControl = ({
 
 	return (
 		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
+			<Label
+				htmlFor={id}
+				className={cn(
+					"text-sm font-medium leading-none",
+					required && "after:text-destructive after:content-['*']",
+				)}
+			>
+				{label}
+			</Label>
+
 			<Popover>
 				<PopoverTrigger asChild>
 					<Button
+						id={id}
 						variant={"outline"}
 						className={cn(
 							"w-full justify-start text-left font-normal",
@@ -83,19 +117,16 @@ export const ShadcnDateControl = ({
 							!isValid && "border-destructive",
 						)}
 						disabled={!enabled}
+						{...ariaProps}
 					>
 						<CalendarIcon className="mr-2 h-4 w-4" />
-						{data ? (
-							format(new Date(data), format)
-						) : (
-							<span>Pick a date</span>
-						)}
+						{formatted ?? <span>Pick a date</span>}
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent className="w-auto p-0" align="start">
 					<Calendar
 						mode="single"
-						selected={data ? new Date(data) : undefined}
+						selected={formatted ? parsed : undefined}
 						onSelect={(newDate) =>
 							handleChange(path, newDate?.toISOString())
 						}
@@ -106,10 +137,22 @@ export const ShadcnDateControl = ({
 			</Popover>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="col-start-2 text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

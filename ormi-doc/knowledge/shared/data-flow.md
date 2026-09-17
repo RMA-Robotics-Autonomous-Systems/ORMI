@@ -85,6 +85,10 @@ There is no `ctx.publishError` or `ctx.onAction`.
 ## Performance contract
 
 - **30Hz buffering** — `LocalDataSourcesProvider` batches updates per widget.
+- **Buffer depth is declared, not configured** — the widget's `buffersSize`
+  sets the history it needs; a `SelectedTopic.bufferSize` is a **floor**
+  (`Math.max(topic?.bufferSize ?? 0, buffersSize)`), never a cap. See
+  `../datasources/knowledge.md`.
 - **Zero-copy** — pass transferables for `Float32Array`/`ArrayBuffer` payloads.
 - **Worker isolation** — I/O never blocks the main thread; a worker crash does
   not take down the app.

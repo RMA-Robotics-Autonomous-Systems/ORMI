@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { C2Vehicle, MissionBehavior, MissionConfig } from "../types/c2-types";
 import {
@@ -436,8 +437,7 @@ function MissionEditorBody(props: {
 					},
 					{
 						transit: next.transit as
-							| MissionConfig["transit"]
-							| undefined,
+							MissionConfig["transit"] | undefined,
 						start: next.start as MissionConfig["start"] | undefined,
 					},
 				),
@@ -831,5 +831,6 @@ export function MissionEditorDefinition(): WidgetDefinition<MissionEditorProps> 
 			title: "Mission Editor",
 		},
 		Component: MissionEditorWidget,
+		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionEditorProps>;
 }

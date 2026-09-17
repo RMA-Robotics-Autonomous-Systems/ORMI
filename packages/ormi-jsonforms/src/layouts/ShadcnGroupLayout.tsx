@@ -50,6 +50,12 @@ const GroupComponent = React.memo(function GroupComponent({
 }: shadcnLabelableLayoutRendererProps) {
 	const groupLayout = uischema as GroupLayout;
 
+	// Hiding the children is not enough: the framed box and its heading would
+	// stay on screen as an empty section.
+	if (visible === false) {
+		return null;
+	}
+
 	return (
 		<div className="mb-4 space-y-3 rounded-md border p-3">
 			{!isEmpty(label) && (

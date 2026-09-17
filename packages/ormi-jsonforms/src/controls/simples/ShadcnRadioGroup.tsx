@@ -29,13 +29,13 @@ import {
 	isDescriptionHidden,
 	OwnPropsOfEnum,
 } from "@jsonforms/core";
-import { useFocus } from "../../utils";
 import { Label } from "@workspace/ui/components/label";
 import {
 	RadioGroup,
 	RadioGroupItem,
 } from "@workspace/ui/components/radio-group";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 /**
  * Shadcn radio group component.
@@ -43,7 +43,6 @@ import { cn } from "@workspace/ui/lib/utils";
  * @param props - Component props
  */
 export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
-	const [focused, onFocus, onBlur] = useFocus();
 	const {
 		config,
 		label,
@@ -61,12 +60,21 @@ export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 
 	const isValid = errors.length === 0;
 	const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
+	// `true` for the focus argument: help text is always shown, never gated on
+	// the field being focused.
 	const showDescription = !isDescriptionHidden(
 		visible,
 		description,
-		focused,
+		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	if (!visible) {
 		return null;
@@ -78,8 +86,6 @@ export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 				"space-y-2",
 				!appliedUiSchemaOptions.trim && "w-full",
 			)}
-			onFocus={onFocus}
-			onBlur={onBlur}
 		>
 			<Label
 				className={cn(
@@ -96,6 +102,7 @@ export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 				onValueChange={(value) => handleChange(path, value)}
 				disabled={!enabled}
 				className="space-y-1"
+				{...ariaProps}
 			>
 				{options!.map((option) => (
 					<div
@@ -114,10 +121,19 @@ export const ShadcnRadioGroup = (props: ControlProps & OwnPropsOfEnum) => {
 			</RadioGroup>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p id={errorId(id)} className="text-sm text-destructive">
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };

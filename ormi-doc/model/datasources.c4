@@ -49,7 +49,7 @@ model {
 
       localData = component 'LocalDataSourcesProvider' {
         technology 'ormi-core/datasources · 30Hz buffer'
-        description 'Per-widget context that declares subscribe intents for the widget selected topics and buffers incoming values at 30Hz. Widgets read via useLocalDataSource() (data/times/referenceFrameId + health, getTopicHealth) — never a datasource object directly.'
+        description 'Per-widget context that declares subscribe intents for the widget selected topics and buffers incoming values at 30Hz. Widgets read via useLocalDataSource() (data/times/referenceFrameId + health, getTopicHealth) — never a datasource object directly. History depth is DECLARED BY THE WIDGET through buffersSize, never asked of the operator (the topic picker has no buffer input); a SelectedTopic.bufferSize is resolved as Math.max(topic.bufferSize ?? 0, buffersSize), i.e. a FLOOR that may only ask for more history, never a cap. Resolving it with || instead capped every chart in a dashboard saved by an earlier build at the one sample those builds stamped onto each picked topic.'
 
         link ../knowledge/datasources/knowledge.md 'Consuming data'
       }

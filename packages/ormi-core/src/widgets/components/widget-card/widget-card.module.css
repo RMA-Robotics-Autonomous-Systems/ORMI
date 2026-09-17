@@ -4,6 +4,12 @@
     aspect-ratio: 1/1;
     overflow: hidden;
     border-radius: var(--radius);
+    /* Carries its own surface: the tile sits on the dialog's own background,
+       so a shadow alone left it edgeless on light themes and invisible on
+       dark ones. */
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: scale 0.2s ease;
@@ -24,16 +30,16 @@
 }
 
 .title {
-    color: #313131;
-    /* font-weight: bold; */
-    /* text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6); */
-    /* position: absolute; */
+    /* The theme token, never a literal: a hardcoded near-black title is
+       unreadable on the dark theme's card surface. */
+    color: var(--card-foreground);
     z-index: 1;
     align-self: last baseline;
     transition: opacity 0.2s ease;
 }
 
-.card:hover .title {
+.card:hover .title,
+.card:focus-visible .title {
     opacity: 0;
 }
 
@@ -64,7 +70,10 @@
     z-index: 5;
 }
 
-.card:hover .overlay {
+/* `:focus-visible` as well as `:hover`: the description is the only place a
+   widget says what it does, and a keyboard operator never hovers. */
+.card:hover .overlay,
+.card:focus-visible .overlay {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;

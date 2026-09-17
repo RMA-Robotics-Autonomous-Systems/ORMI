@@ -462,7 +462,7 @@ describe("RPC Client-Server Integration", () => {
 });
 
 describe("RPC Edge Cases & Production Scenarios", () => {
-	test("should handle response arriving after dispose (memory leak prevention)", async () => {
+	test("should reject in-flight calls on dispose, and ignore a late response", async () => {
 		const clientTarget = new MockRpcTarget();
 		const client = createRpcClient<{ test: () => string }, {}>(
 			clientTarget,
@@ -474,24 +474,25 @@ describe("RPC Edge Cases & Production Scenarios", () => {
 		// Dispose before response arrives
 		client.dispose();
 
-		// Simulate delayed response
-		clientTarget.simulateMessage({
-			type: "rpc/response",
-			id: clientTarget.sentMessages[0]!.message.id,
-			ok: true,
-			result: "too late",
-		});
+		// A call that can never be answered must SETTLE, not be dropped. This
+		// previously left the promise pending forever, which was recorded as
+		// "memory leak prevention" and is the opposite: the awaiter's
+		// continuation is kept alive, and callers await these inside hooks
+		// applied sequentially across every datasource (`AVAILABLE_TOPICS`), so
+		// one dropped entry stalls the whole chain for the life of the page with
+		// nothing logged. A rejection is something the caller can fall back from.
+		await expect(promise).rejects.toThrow("RPC client disposed");
 
-		// Promise should not resolve/reject after dispose
-		// This prevents memory leaks from stale promises
-		await expect(
-			Promise.race([
-				promise,
-				new Promise((resolve) =>
-					setTimeout(() => resolve("timeout"), 10),
-				),
-			]),
-		).resolves.toBe("timeout");
+		// A response that arrives after dispose is ignored: the listener is
+		// detached and the entry is gone, so it cannot double-settle.
+		expect(() =>
+			clientTarget.simulateMessage({
+				type: "rpc/response",
+				id: clientTarget.sentMessages[0]!.message.id,
+				ok: true,
+				result: "too late",
+			}),
+		).not.toThrow();
 	});
 
 	test("should handle duplicate response IDs (prevents double-resolve)", async () => {

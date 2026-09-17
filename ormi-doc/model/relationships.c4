@@ -81,9 +81,12 @@ model {
 
   ormi.web.dashboard -> ormi.web.appStore 'reads/writes widgets, layouts, locked, datasources'
   ormi.web.dashboard -> ormi.web.renderers 'renders widget/datasource config forms'
+  ormi.web.renderers -> ormi.web.pluginsManager 'AVAILABLE_TOPICS (pull filter): topic picker list + auto-bind of a sole direct type match'
+  ormi.web.transforms -> ormi.web.renderers 'frame list for FrameSelect (auto-binds once the tree settles)'
   ormi.web.dashboard -> ormi.web.ui 'uses primitives'
   ormi.web.widgetHost -> ormi.web.ui 'uses primitives (DatasourceGate offline card)'
   ormi.web.dashboard -> ormi.web.templates 'save/apply widget & datasource templates'
+  ormi.web.ui -> ormi.web.dashboard 'DATASOURCE_CONFIGURE_EVENT (offline card → datasource settings dialog)'
 
   // ---- Client → server -----------------------------------------------------
 

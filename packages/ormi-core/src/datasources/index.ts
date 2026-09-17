@@ -1,4 +1,6 @@
 export * from "./datasource-interface";
+export * from "./datasource-configured";
+export * from "./created-topics";
 export * from "./remote-call-interface";
 export * from "./remote-call-atoms";
 export * from "./hooks";

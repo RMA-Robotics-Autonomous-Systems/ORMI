@@ -45,7 +45,7 @@ function isReplaySettings(settings: unknown): boolean {
 
 /** ROS type of the transform tree. */
 const TF_TYPE = "tf2_msgs/msg/TFMessage";
-/** ROS type of the robot fix. */
+/** ROS type of the robot fix. See {@link pickFix} — the type alone does not identify it. */
 const NAVSAT_TYPE = "sensor_msgs/msg/NavSatFix";
 /** Webapp type the fix converter produces. */
 const NAVSAT_WEBAPP = "GeolocationPosition";
@@ -124,6 +124,38 @@ export function pickDatasource(
 }
 
 /**
+ * The platform antenna, among the NavSatFix topics on one datasource.
+ *
+ * The type alone does not identify it, and getting this wrong is silent. This
+ * robot carries at least two `sensor_msgs/msg/NavSatFix` streams — the antenna
+ * at `/teodora/xsens/gnss`, and `/teodora/emi/target_gnss`, where the tracker
+ * writes the detections it has already placed. Topics arrive in the order the
+ * datasource enumerates them, which is wire order and differs between connects,
+ * so taking the first match bound the *detections* as the robot's own position
+ * on some connects and not others. Nothing downstream could tell: the driven
+ * track, the robot ghosts and the projection origin all stayed plausible and
+ * all moved.
+ *
+ * Having no fix is a supported state and a correct one — `bodyOrigin`
+ * reconstructs the body frame by undoing the rotation the robot applied to
+ * place coil 0, which lands on the same point, and `status.fixReconstructed`
+ * says it happened. That asymmetry is why this is strict rather than
+ * best-effort: an unrecognisable NavSatFix is left unbound, never guessed at.
+ *
+ * @param candidates - Every NavSatFix topic on the chosen datasource.
+ * @returns The antenna topic, or undefined when none is recognisable.
+ */
+function pickFix(candidates: DatasourceTopic[]): DatasourceTopic | undefined {
+	// The documented antenna, pinned by name the way `/emi/raw` is.
+	const antenna = candidates.find((t) => /\/xsens\/gnss$/.test(t.topic));
+	if (antenna) return antenna;
+	// A robot whose antenna is named differently still resolves, as long as the
+	// topic is not one the EMI stack owns: everything under an `emi/` path is a
+	// sensor or a tracker output, never the platform.
+	return candidates.find((t) => !/(^|\/)emi\//.test(t.topic));
+}
+
+/**
  * Resolve every topic the builder needs from one datasource.
  *
  * @param available - Every topic `AVAILABLE_TOPICS` reports.
@@ -141,10 +173,38 @@ export function resolveEmiTopics(
 		...t,
 		property: "",
 	});
+	/**
+	 * A topic the run is *built* from, rather than one it observes.
+	 *
+	 * A coalescing datasource delivers the newest message per drain tick, which
+	 * is right for a panel showing a value and wrong for these three: the
+	 * primary stream is the run's timebase and every message is one row, an
+	 * alert is a detection that happened, and a target list is the tracker's
+	 * answer at that moment. A survey missing the samples that fell between
+	 * ticks is not a coarser survey — it is a shorter one that looks complete,
+	 * and it exports as though it were whole.
+	 *
+	 * The rest of the bundle is deliberately *not* marked. `fix`, `quaternion`
+	 * and `raw` are latest-wins in the builder by construction — read once per
+	 * primary sample and overwritten — so lossless delivery there would buy
+	 * nothing and cost a decode per message. `tfStatic` is already lossless
+	 * wherever it matters: TF is a delta stream, which every coalescer that
+	 * knows about TF at all classifies for itself.
+	 */
+	const sampled = (t: DatasourceTopic): SelectedTopic => ({
+		...select(t),
+		lossless: true,
+	});
 
 	const gnss = mine.filter((t) => t.rawType === EMI_TYPES.emiGnss);
 	const primary = gnss.find((t) => !isAlertName(t.topic));
 	if (!primary) return null;
+
+	const fix = pickFix(
+		mine.filter(
+			(t) => t.rawType === NAVSAT_TYPE || t.type === NAVSAT_WEBAPP,
+		),
+	);
 
 	const settings = primary.source as unknown as Record<string, unknown>;
 	return {
@@ -152,23 +212,18 @@ export function resolveEmiTopics(
 		datasourceTitle: primary.source?.title ?? datasourceId,
 		isReplay: isReplaySettings(settings),
 		recording: String(settings?.bagName ?? ""),
-		primary: select(primary),
+		primary: sampled(primary),
 		alert: firstOrUndefined(
 			gnss.filter((t) => isAlertName(t.topic)),
-			select,
+			sampled,
 		),
 		// Both trackers, and only the full lists: the `/new` companions carry a
 		// single target each and would be counted twice, since a target on
 		// `/new` is also present in the next full list.
 		targets: mine
 			.filter((t) => t.rawType === EMI_TYPES.targetList)
-			.map(select),
-		fix: firstOrUndefined(
-			mine.filter(
-				(t) => t.rawType === NAVSAT_TYPE || t.type === NAVSAT_WEBAPP,
-			),
-			select,
-		),
+			.map(sampled),
+		fix: fix ? select(fix) : undefined,
 		quaternion: firstOrUndefined(
 			mine.filter((t) => t.rawType === QUAT_TYPE),
 			select,

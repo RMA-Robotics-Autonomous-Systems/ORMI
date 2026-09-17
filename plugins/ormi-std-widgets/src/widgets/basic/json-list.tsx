@@ -243,13 +243,17 @@ function JsonList(props: JsonListProps) {
  * @returns Widget definition.
  */
 function JsonListWidget(data: JsonListProps) {
-	return (
+	return data.topic ? (
 		<LocalDataSourcesProvider
 			SelectedTopics={[data.topic]}
 			buffersSize={1000}
 		>
 			<JsonList {...data} />
 		</LocalDataSourcesProvider>
+	) : (
+		<div className="flex justify-center items-center h-full text-muted-foreground">
+			Please select a topic in the widget configuration.
+		</div>
 	);
 }
 
@@ -272,7 +276,7 @@ export function JsonListDefinition(): WidgetDefinition<JsonListProps> {
 					title: "Topic",
 				},
 			},
-			required: ["title", "topic"],
+			required: ["title"],
 		},
 
 		uischema: {

@@ -19,6 +19,7 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { ChevronDown, ChevronRight, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	publishAgentProfiles,
@@ -662,6 +663,7 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 							accepts: [],
 							acceptsRaw: ["std_msgs/msg/String"],
 						},
+						role: "secondary",
 					},
 				} as TopicSelectElement,
 				{
@@ -675,5 +677,6 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 			title: "Fleet Status",
 		},
 		Component: FleetStatusWidget,
+		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<FleetStatusProps>;
 }

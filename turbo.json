@@ -14,7 +14,8 @@
 				"NEXTAUTH_SECRET",
 				"DATABASE_URL",
 				"APP_URL",
-				"APP_VERSION"
+				"APP_VERSION",
+				"ORMI_DEV_PLUGINS"
 			]
 		},
 		"lint": {

@@ -1,7 +1,10 @@
 import { Plugin, PluginsHooks } from "@workspace/ormi-plugins";
 import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 
+import type { TopicRoutingClaims } from "@workspace/ormi-core/widgets";
+
 import { dataSourceExport, widgetFilters, widgetsExport } from "./export";
+import { topicClaims } from "./topic-claims";
 
 class RosBridgeSuitePlugin extends Plugin {
 	constructor() {
@@ -30,6 +33,17 @@ class RosBridgeSuitePlugin extends Plugin {
 			id: "ros-2-widgets-with-datasource",
 			priority: 12,
 			filter: widgetFilters,
+		});
+
+		// Which topic types this plugin's widgets answer — see
+		// `topic-claims.ts`.
+		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
+			id: "ros-2-topic-routing-claims",
+			priority: 12,
+			filter: (claims: TopicRoutingClaims) => {
+				claims.push(...topicClaims);
+				return claims;
+			},
 		});
 	}
 }

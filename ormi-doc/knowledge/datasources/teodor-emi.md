@@ -202,6 +202,47 @@ meanings. The test fixture carried the definition id, a value the runtime never
 produces, so the bug passed its tests; the only symptom was every replayed
 survey being archived and exported as though collected live.
 
+### Three topics are subscribed lossless, and only three
+
+Live, the cockpit reads through foxglove, which coalesces to latest per drain
+tick. A run built from that is not a coarser survey — it is a shorter one that
+looks complete and exports as though it were whole. So `resolveEmiTopics` marks
+`lossless: true` on the streams the run is _built_ from: the primary
+(`/teodora/emi/gnss`, whose every message is one row of the timebase), the alert
+stream (each one a detection that happened), and the target lists.
+
+The rest is deliberately left lossy. `fix`, `quaternion` and `raw` are
+latest-wins in the builder by construction — read once per primary sample and
+overwritten — so lossless delivery would buy nothing and cost a decode per
+message, and the quaternion alone is ~59% of the traffic. `/tf_static` is a
+delta stream every coalescer classifies for itself.
+
+This never mattered for a bag: the replay drains through a k-way merge and
+delivers wire order in full. It is purely a live-path concern.
+
+### The robot fix is resolved by name, and strictly
+
+Every other topic in the bundle is identified by its ROS type. The fix cannot
+be: this robot carries at least two `sensor_msgs/msg/NavSatFix` streams — the
+antenna at `/teodora/xsens/gnss`, and `/teodora/emi/target_gnss`, where the
+tracker publishes detections it has already placed. `resolveEmiTopics` took the
+first NavSatFix it saw, and topics arrive in the order the datasource
+enumerates them, which is wire order and differs between connects. So the
+tracker's output became the robot's own position on some connects and not
+others, and nothing downstream could tell — the driven track, the robot ghosts
+and the projection origin all stayed plausible and all moved.
+
+`pickFix` prefers `…/xsens/gnss` by name, falls back to a NavSatFix that is not
+under an `emi/` path, and otherwise **leaves the fix unbound**. Unbound is the
+right answer rather than a degraded one: `bodyOrigin` reconstructs the body
+frame by undoing the rotation the robot applied to place coil 0, which lands on
+the same point, and `status.fixReconstructed` reports that it happened. A
+missing fix is therefore correct and visible, while a wrong one is invisible —
+which is the whole reason the resolution is strict instead of best-effort.
+
+The `emi_msgs` topics are also why this was only ever seen live: a recorded bag
+carries the topics the survey recorded, and the reference set has one NavSatFix.
+
 ### Nothing fails silently
 
 Four failures used to end in the console with ten panels reading "offline" and

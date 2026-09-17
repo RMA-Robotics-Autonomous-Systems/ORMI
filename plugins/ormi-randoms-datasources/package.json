@@ -34,5 +34,6 @@
 		"@workspace/ui": "workspace:*",
 		"@workspace/utils": "workspace:*"
 	},
-	"ormi_plugin": true
+	"ormi_plugin": true,
+	"ormi_plugin_dev_only": true
 }

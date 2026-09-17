@@ -232,7 +232,7 @@ export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 					minimum: 1,
 				},
 			},
-			required: ["title", "topic", "keyInput", "values"],
+			required: ["title", "values"],
 		},
 		uischema: {
 			type: "VerticalLayout",
@@ -252,6 +252,7 @@ export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 						dataRequirements: {
 							accepts: ["number", "boolean"],
 						},
+						direction: "publish",
 					},
 				} as TopicSelectElement,
 				{
@@ -280,6 +281,7 @@ export function CycleControlDefinition(): WidgetDefinition<CycleControlData> {
 		} as VerticalLayout,
 		data: {
 			title: "Cycle Control",
+			values: [],
 		},
 		Component: CycleWidget,
 	};

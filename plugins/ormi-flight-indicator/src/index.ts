@@ -1,5 +1,7 @@
 import { PluginsHooks, Plugin } from "@workspace/ormi-plugins";
+import type { TopicRoutingClaims } from "@workspace/ormi-core/widgets";
 import WidgetExport from "./export";
+import { topicClaims } from "./topic-claims";
 
 class FlightIndicator extends Plugin {
 	constructor() {
@@ -19,6 +21,16 @@ class FlightIndicator extends Plugin {
 		};
 
 		this.addFilter(PluginsHooks.WIDGETS_LIST, widgetFilter);
+
+		// Which topic types these instruments answer — see `topic-claims.ts`.
+		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
+			id: this.name + "-topic-routing-claims",
+			priority: 10,
+			filter: (claims: TopicRoutingClaims) => {
+				claims.push(...topicClaims);
+				return claims;
+			},
+		});
 	}
 }
 

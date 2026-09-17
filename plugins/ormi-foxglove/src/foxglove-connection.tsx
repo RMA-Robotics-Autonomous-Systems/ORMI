@@ -162,7 +162,26 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 	onConnectionStatus,
 	onInitialized,
 }) => {
+	// `GlobalDataSourcesProvider` renders `<Provider {...datasource.settings} />`,
+	// so the settings object this component receives is a NEW object on every
+	// one of that provider's renders even when nothing about the datasource
+	// changed. Keying the effect on its identity therefore terminated the worker
+	// and built a new one for unrelated reasons — opening the Datasources
+	// dialog, another datasource connecting — each restart costing a full
+	// reconnect and re-subscribe. The content is what decides whether a new
+	// worker is warranted; settings are plain JSON (they are persisted as JSON),
+	// so serializing them is a faithful identity for that question.
+	const settingsKey = JSON.stringify(settings);
+	const settingsRef = useRef(settings);
+
+	// Synced in an effect, never during render: a render-phase ref write is what
+	// the React Compiler's lint rules reject.
 	useEffect(() => {
+		settingsRef.current = settings;
+	}, [settings]);
+
+	useEffect(() => {
+		const settings = settingsRef.current;
 		let disposed = false;
 		let host: FoxgloveWorkerHost<FoxgloveDataSourceSettings> | null = null;
 		let unsubscribe: (() => void) | null = null;
@@ -221,7 +240,7 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 			if (host) host.dispose();
 			onInitialized(false);
 		};
-	}, [settings, pluginsManager, onConnectionStatus, onInitialized]);
+	}, [settingsKey, pluginsManager, onConnectionStatus, onInitialized]);
 
 	return null;
 };

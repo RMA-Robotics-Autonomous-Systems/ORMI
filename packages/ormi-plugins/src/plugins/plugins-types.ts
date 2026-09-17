@@ -34,6 +34,35 @@ enum PluginsHooks {
 	MAP_LOCAL_VISUALIZERS = "map-local-visualizers",
 
 	/**
+	 * Filter that collects the live preview shown when an operator hovers a
+	 * topic in the topics panel, keyed by webapp type name (`DatasourceTopic.type`),
+	 * plus the `__fallback__` entry used for every unregistered type.
+	 *
+	 * A pull filter rather than a registry core hands out: previews are built
+	 * from real widget components — an image decoder, a chart, a point-cloud
+	 * scene — which must stay inside the plugin that owns them and be read by
+	 * core, never imported by it. Plugin priority resolves conflicting keys.
+	 * @param previews - Map of webapp type name to preview configuration.
+	 */
+	TOPIC_PREVIEWS = "plugins-topic-previews",
+
+	/**
+	 * Filter that collects topic-first routing claims: one entry per topic type
+	 * a plugin's widget answers, naming the widget, the `TopicSelect` slot the
+	 * topic is written into, and whether the widget is that type's default
+	 * destination, an alternative, a control that commands it, or a raw viewer
+	 * offered for any type.
+	 *
+	 * Routing reads **only** this — it never infers a destination from a
+	 * widget's `dataRequirements`, which answer compatibility rather than
+	 * routing. A type nothing claims resolves to an explicit "nothing claims
+	 * this type". Claims are registered by the plugin that ships the widget,
+	 * because that is the only one that can keep the widget id honest.
+	 * @param claims - Array of TopicClaim.
+	 */
+	TOPIC_ROUTING_CLAIMS = "plugins-topic-routing-claims",
+
+	/**
 	 * Filter that returns all registered layout engine definitions.
 	 * Plugins push a LayoutEngineDefinition to extend available dashboard layouts.
 	 * @param engines - Array of LayoutEngineDefinition.

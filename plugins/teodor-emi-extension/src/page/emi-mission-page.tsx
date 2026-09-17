@@ -38,7 +38,6 @@ import {
 } from "@workspace/ormi-core/dashboard";
 import type { DashboardInterface } from "@workspace/ormi-core/dashboard";
 import { GlobalDataSourcesProvider } from "@workspace/ormi-core/datasources";
-import { WidgetsDialog } from "@workspace/ormi-core/widgets";
 import {
 	temphandleLoad,
 	temphandleSave,
@@ -298,30 +297,28 @@ export function EmiMissionPage() {
 			// so the restored layout never resolves against an empty registry.
 			loading={!widgetsReady}
 		>
-			{({ widgetDefinitions, widgetGroups }) => (
-				// Not optional chrome: `GlobalDataSourcesProvider` and the layout
-				// engine both call `useTemplates()` — the flex engine through its
-				// navbar integration — and that is a safe context, which throws
-				// when its provider is absent. Without this the page does not
-				// render at all.
-				<TemplatesProvider
-					onLoad={loadTemplates}
-					addTemplate={addTemplate}
-					removeTemplate={removeTemplate}
-					updateTemplate={updateTemplate}
-				>
-					<GlobalDataSourcesProvider>
-						{/* Inside the shell, so it only ever runs after the
-						    saved cockpit has been loaded. */}
-						<CockpitAutosave />
-						<DashboardEngine />
-						<WidgetsDialog
-							widgetDefinitions={widgetDefinitions}
-							widgetGroups={widgetGroups}
-						/>
-					</GlobalDataSourcesProvider>
-				</TemplatesProvider>
-			)}
+			{/* Not optional chrome: `GlobalDataSourcesProvider` and the layout
+			    engine both call `useTemplates()` — the rail's Templates tab
+			    among them — and that is a safe context, which throws when its
+			    provider is absent. Without this the page does not render at
+			    all. */}
+			<TemplatesProvider
+				onLoad={loadTemplates}
+				addTemplate={addTemplate}
+				removeTemplate={removeTemplate}
+				updateTemplate={updateTemplate}
+			>
+				<GlobalDataSourcesProvider>
+					{/* Inside the shell, so it only ever runs after the
+					    saved cockpit has been loaded. */}
+					<CockpitAutosave />
+					{/* The cockpit gets the rail like any other dashboard: it
+					    is the only way to put a panel back after closing one,
+					    and its Widgets tab resolves the same page-scoped
+					    registry, so it offers exactly the EMI panels. */}
+					<DashboardEngine />
+				</GlobalDataSourcesProvider>
+			</TemplatesProvider>
 		</DashboardShell>
 	);
 }

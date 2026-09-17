@@ -38,6 +38,7 @@ import { format } from "date-fns";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
+import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 
 /**
  * Date + time control.
@@ -72,6 +73,13 @@ const ShadcnDateTimeControl = ({
 		true,
 		appliedUiSchemaOptions.showUnfocusedDescription,
 	);
+
+	const ariaProps = controlAriaProps({
+		id,
+		isValid,
+		required,
+		showDescription,
+	});
 
 	// Local input value "yyyy-MM-ddTHH:mm" from the stored ISO string (guarded
 	// against an invalid/garbage date so a bad value renders empty, not a throw).
@@ -111,13 +119,26 @@ const ShadcnDateTimeControl = ({
 				value={localValue}
 				onChange={onChange}
 				disabled={!enabled}
+				{...ariaProps}
 			/>
 
 			{showDescription && (
-				<p className="text-sm text-muted-foreground">{description}</p>
+				<p
+					id={descriptionId(id)}
+					className="col-start-2 text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
 			)}
 
-			{!isValid && <p className="text-sm text-destructive">{errors}</p>}
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errors}
+				</p>
+			)}
 		</div>
 	);
 };
