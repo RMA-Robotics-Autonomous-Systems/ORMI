@@ -9,7 +9,7 @@ import {
 } from "./export";
 import { topicClaims } from "./topic-claims";
 
-// Public surface for widgets / external use (Phase 2+).
+// Public surface for widgets / external use.
 export { C2SourceProvider } from "./datasource/c2-source";
 export {
 	buildC2RemoteCalls,
@@ -27,23 +27,23 @@ export type {
 export { missionStatusLabel } from "./types/status-labels";
 export * from "./types/c2-types";
 
-// S3 — C2 selection store (D8).
+// C2 selection store: the mission the widgets follow.
 export {
 	setSelectedMission,
 	getSelectedMission,
 	useSelectedMission,
 } from "./state/selection-store";
 
-// Read-only widget definitions + helpers (Phase 2).
+// Read-only widget definitions + helpers.
 export { FleetStatusDefinition } from "./widgets/fleet-status";
 export { MissionFeedbackDefinition } from "./widgets/mission-feedback";
 export { SwarmLogDefinition } from "./widgets/swarm-log";
 
-// Command widget definitions + helpers (Phase 3).
+// Command widget definitions + helpers.
 export { MissionBrowserDefinition } from "./widgets/mission-browser";
 export { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 
-// Authoring widget definitions + helpers (Phase 4 — F5 editor, F6 map).
+// Authoring widget definitions + helpers (mission editor, mission map).
 export { MissionEditorDefinition } from "./widgets/mission-editor";
 export { MissionMapDefinition } from "./widgets/mission-map";
 export {
@@ -65,7 +65,7 @@ export {
 } from "./widgets/feature-geojson";
 export type { DrawFeature, FeatureMeta } from "./widgets/feature-geojson";
 
-// Map-editing store (F5/F6 geometry hand-off).
+// Map-editing store (geometry hand-off from the map to the editor).
 export {
 	setPickedFeature,
 	setDraftGeometry,
@@ -121,7 +121,8 @@ class C2ControlPlugin extends Plugin {
 			},
 		});
 
-		// Display widgets (F7/F10/F11) + command widgets (F4/F8) are all
+		// Display widgets (fleet status, mission feedback, swarm log) + command
+		// widgets (mission browser, control panel) are all
 		// registered on WIDGETS_LIST. The display widgets read rosbridge/foxglove
 		// topics (not the C2 datasource, which has no topics) so they are never
 		// gated; the command widgets call :5000/:5001 and are gated below.
@@ -131,8 +132,8 @@ class C2ControlPlugin extends Plugin {
 			filter: widgetsExport,
 		});
 
-		// Phase 3 — command-widget gating (§4.1): hide the mission browser (F4)
-		// and lifecycle control panel (F8) unless an enabled C2 datasource exists,
+		// Command-widget gating: hide the mission browser and lifecycle control
+		// panel unless an enabled C2 datasource exists,
 		// since they require the C2 remote-call transport. Display widgets are NOT
 		// gated here.
 		this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {

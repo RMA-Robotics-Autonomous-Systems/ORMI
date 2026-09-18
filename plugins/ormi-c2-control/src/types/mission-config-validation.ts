@@ -1,7 +1,11 @@
-import { MissionBehavior } from "./c2-types";
+import {
+	MissionBehavior,
+	VehicleFormation,
+	VEHICLE_FORMATION_VALUES,
+} from "./c2-types";
 
 /**
- * S1 — Mission-config validator (defensive frontend guard for the C2 planner).
+ * Mission-config validator (defensive frontend guard for the C2 planner).
  *
  * The C2 planner ingests a "MissionConfig" JSON (sent via `c2.mission.init` and
  * stored via `c2.missions.save`). C2's own parser (`MissionConfig.hpp`) reads
@@ -15,7 +19,7 @@ import { MissionBehavior } from "./c2-types";
  * `warning` — advisory (allowed, but surfaced — operator-error or upstream bug).
  *
  * This is a pure function: no React, no fetch, no side effects. It is shared
- * infrastructure — the Phase-4 mission editor (F5) reuses it.
+ * infrastructure — the mission editor reuses it.
  */
 
 /** Severity of a validation issue. */
@@ -65,9 +69,24 @@ const VALID_BEHAVIORS = new Set<number>([
 	MissionBehavior.NAVIGATE_NO_PLANNING,
 ]);
 
-/** Vehicle-formation enum range (0=NONE … 6=RIGHT_FLANK). */
-const FORMATION_MIN = 0;
-const FORMATION_MAX = 6;
+/**
+ * Valid `VehicleFormation` values — DERIVED from the enum, not restated.
+ *
+ * This was a hard-coded `0`/`6` pair, one of three independent definitions of
+ * the same 0–6 set (the others: the `VehicleFormation` enum and the JSON-Forms
+ * `oneOf` in `mission-config-schema.ts`). All three now come from
+ * `VEHICLE_FORMATION_LABELS`, so widening the C2 `Formation` enum is one edit.
+ */
+const VALID_FORMATIONS = new Set<number>(VEHICLE_FORMATION_VALUES);
+/** Human list of the accepted values, for the error message. */
+const FORMATION_NAMES = VEHICLE_FORMATION_VALUES.map(
+	(value) => VehicleFormation[value],
+).join(", ");
+/**
+ * The accepted range as the operator reads it ("0–6"), derived from the same
+ * values so the message cannot contradict the check when the enum widens.
+ */
+const FORMATION_RANGE = `${Math.min(...VEHICLE_FORMATION_VALUES)}–${Math.max(...VEHICLE_FORMATION_VALUES)}`;
 
 /** Loose ISO-8601 date-time shape (date, optional time, optional offset/Z). */
 const ISO8601 =
@@ -114,17 +133,16 @@ function checkOptionalFormation(
 	if (!(key in parent) || parent[key] === undefined) return;
 	const value = parent[key];
 	if (!isNumber(value)) {
-		issues.error(path, "Vehicle formation must be a number (0–6).");
-		return;
-	}
-	if (
-		value < FORMATION_MIN ||
-		value > FORMATION_MAX ||
-		!Number.isInteger(value)
-	) {
 		issues.error(
 			path,
-			`Vehicle formation must be one of 0–6 (NONE, COLUMN, LINE, WEDGE, VEE, LEFT_FLANK, RIGHT_FLANK); got ${String(value)}.`,
+			`Vehicle formation must be a number (${FORMATION_RANGE}).`,
+		);
+		return;
+	}
+	if (!VALID_FORMATIONS.has(value)) {
+		issues.error(
+			path,
+			`Vehicle formation must be one of ${FORMATION_RANGE} (${FORMATION_NAMES}); got ${String(value)}.`,
 		);
 	}
 }

@@ -2,17 +2,18 @@
 
 /**
  * Shared mission-draft store — the operator's working copy of a mission keyed by
- * `mission_id`, so the editor (F5) and the map (F6) author the SAME draft.
+ * `mission_id`, so the mission editor and the mission map author the SAME draft.
  *
- * THE PROBLEM — F5 and F6 each held a private working copy of the active mission
- * via `useState` (F5 a {@link MissionDraft}, F6 a {@link MissionConfig}). An edit
+ * THE PROBLEM — the editor and the map each held a private working copy of the
+ * active mission via `useState` (the editor a {@link MissionDraft}, the map a
+ * {@link MissionConfig}). An edit
  * in one widget (draw a geometry on the map, toggle a vehicle, change a name) did
  * NOT propagate to the other: the two views drifted, and a save in one used a
  * config the other had never seen.
  *
  * THE FIX — a single module-level store maps a mission's `mission_id` to its
- * working {@link MissionDraft} (a superset of {@link MissionConfig}, so F6 can read
- * a slot directly as a `MissionConfig`). Both widgets BIND to the same slot via
+ * working {@link MissionDraft} (a superset of {@link MissionConfig}, so the map can
+ * read a slot directly as a `MissionConfig`). Both widgets BIND to the same slot via
  * {@link useMissionDraft}; an edit through {@link editMissionDraft} replaces the
  * slot immutably and notifies, so both views re-render off the same data. Each slot
  * also carries a `dirty` flag (operator has unsaved edits) read via
@@ -104,7 +105,7 @@ export function setMissionDraft(draft: MissionDraft): void {
  * The `updater` receives the current draft and returns the next one (immutably).
  * The slot object is always replaced (a real operator edit), so consumers see a
  * fresh value and re-render. A NO-OP when the slot is absent (the same null-guard
- * semantics as F5's old `editDraft`/F6's `setMissionConfig(prev => prev ? … :
+ * semantics as the editor's old `editDraft` / the map's `setMissionConfig(prev => prev ? … :
  * prev)`): an edit can only land on a loaded mission.
  *
  * @param missionId - The mission whose draft to edit.
@@ -122,6 +123,72 @@ export function editMissionDraft(
 		[missionId]: { sig: draftSignature(next), draft: next, dirty: true },
 	};
 	emit();
+}
+
+/**
+ * How {@link commitSavedDraft} folds a saved config into the stored draft.
+ */
+export interface CommitSavedDraftOptions {
+	/**
+	 * Build the committed draft from the CURRENT stored one. Defaults to
+	 * replacing it with `saved` outright — right for a save that wrote the whole
+	 * draft. A save that wrote only part of the mission (the map writes its owned
+	 * fields) supplies this to fold just that part in, so fields it did not write
+	 * keep their unsaved edits.
+	 */
+	apply?: (current: MissionDraft) => MissionDraft;
+	/**
+	 * Whether the committed draft now equals what was persisted, i.e. whether
+	 * `dirty` may be cleared. Defaults to `true`. A partial save whose `apply`
+	 * kept other unsaved edits returns `false` here so the draft stays dirty.
+	 */
+	isSaved?: (next: MissionDraft) => boolean;
+}
+
+/**
+ * Commit a just-saved config as the mission's draft, but ONLY while the stored
+ * draft still matches what was saved.
+ *
+ * THE PROBLEM — both save paths (`mission-map.tsx` and `mission-editor.tsx`)
+ * captured the config from the render closure, awaited one or two round trips,
+ * then unconditionally called {@link setMissionDraft} with the captured value
+ * and cleared `dirty`. An edit made in the OTHER widget during those awaits was
+ * overwritten and its dirty flag cleared, so the operator lost the edit AND lost
+ * the "unsaved" warning that would have told them.
+ *
+ * THE FIX — the caller supplies `matches`, a predicate over the CURRENT stored
+ * draft. When it holds, nothing raced us: the slot becomes the saved config
+ * (or, with `options.apply`, the current draft with the saved part folded in),
+ * clean unless `options.isSaved` says otherwise. When it does not, a concurrent
+ * edit landed, so the slot is left exactly as it is — still dirty, still
+ * carrying the newer edit — and the caller is told so it can say "saved, but
+ * you have newer edits" instead of silently eating them.
+ *
+ * @param missionId - The mission whose slot to commit.
+ * @param saved - The config that was persisted.
+ * @param matches - Predicate: does the current draft still equal what we read
+ *   when the save was written?
+ * @param options - Partial-save folding; see {@link CommitSavedDraftOptions}.
+ * @returns `"committed"` (slot replaced), `"kept-dirty"` (a concurrent edit was
+ *   preserved), or `"absent"` (no slot — nothing to commit).
+ */
+export function commitSavedDraft(
+	missionId: string,
+	saved: MissionDraft,
+	matches: (current: MissionDraft) => boolean,
+	options: CommitSavedDraftOptions = {},
+): "committed" | "kept-dirty" | "absent" {
+	const prev = drafts[missionId];
+	if (!prev) return "absent";
+	if (!matches(prev.draft)) return "kept-dirty";
+	const next = options.apply ? options.apply(prev.draft) : saved;
+	const dirty = options.isSaved ? !options.isSaved(next) : false;
+	drafts = {
+		...drafts,
+		[missionId]: { sig: draftSignature(next), draft: next, dirty },
+	};
+	emit();
+	return "committed";
 }
 
 /**
@@ -151,7 +218,7 @@ export function isMissionDraftDirty(id: string | null | undefined): boolean {
 /**
  * Whether a mission's working draft is loaded (a slot exists) — the load-
  * coordination guard. A widget that finds `true` adopts the existing shared draft
- * instead of re-fetching, so F5 and F6 never double-load the same mission and an
+ * instead of re-fetching, so the editor and the map never double-load the same mission and an
  * in-progress edit in one widget is not clobbered by a load in the other.
  *
  * @param id - The mission id to check.

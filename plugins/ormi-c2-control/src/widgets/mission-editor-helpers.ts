@@ -7,7 +7,7 @@ import { generateMissionId } from "./mission-list";
 import type { DraftGeometry } from "../state/map-editing-store";
 
 /**
- * F5 — pure mission-editor draft logic (build / hydrate / push-geometry /
+ * Pure mission-editor draft logic (build / hydrate / push-geometry /
  * merge-vehicles).
  *
  * No React, no fetch — the editor widget owns the draft via `useState` and calls
@@ -26,7 +26,7 @@ export type MissionDraft = MissionConfig & {
 /**
  * Decide whether the editor should (re)load the active mission into the draft.
  *
- * The F5 editor follows the active mission from the selection store: it loads a
+ * The mission editor follows the active mission from the selection store: it loads a
  * mission whenever the active id is a non-empty id that differs from the one
  * already loaded in the draft. A `null`/empty active id (no selection) and an
  * active id that already matches the draft both yield `false` — the latter is
@@ -191,7 +191,7 @@ export function pushFeatureRef(
  * single-number pairs (`[5]`), and non-array inputs all yield `false`.
  *
  * This is the authoring-side counterpart to the validator — it stops a degenerate
- * draw from ever being appended to a draft (audit #10).
+ * draw from ever being appended to a draft.
  *
  * @param coords - The drawn geometry's coordinates (any nesting depth).
  * @returns `true` when at least one valid `[lon, lat]` leaf exists.
@@ -217,10 +217,10 @@ export function hasUsableCoordinates(coords: unknown): boolean {
  * Coordinates pass through unchanged (`[lng, lat]`). A drawn geometry whose
  * coordinates have no usable `[lon, lat]` leaf (an empty or degenerate draw) is
  * REFUSED — the draft is returned unchanged so a degenerate geometry can never be
- * added (audit #10). Does not throw.
+ * added. Does not throw.
  *
  * @param draft - The current draft.
- * @param drawn - The drawn geometry handed off from the map (F6).
+ * @param drawn - The drawn geometry handed off from the mission map.
  * @returns A new draft (the original is not mutated); unchanged if the draw is unusable.
  */
 export function pushInlineGeometry(
@@ -346,9 +346,9 @@ export function drawShapeToMode(shape: DrawShape): DrawGeometryMode {
 }
 
 /**
- * The slice of a {@link MissionConfig} the MAP (F6) owns and may overwrite on
+ * The slice of a {@link MissionConfig} the MAP owns and may overwrite on
  * save: the objective geometries, the vehicle allocation, the behavior, and the
- * (optional) display name. Everything else — F5's advanced `transit` / `start`
+ * (optional) display name. Everything else — the editor's advanced `transit` / `start`
  * blocks, `arrival_time`, etc. — is owned elsewhere and must be preserved.
  */
 export interface MissionOwnedFields {
@@ -360,15 +360,15 @@ export interface MissionOwnedFields {
 
 /**
  * Merge the MAP-owned fields into a freshly-fetched mission config, preserving
- * every other field verbatim (so the map's save never clobbers F5's advanced
+ * every other field verbatim (so the map's save never clobbers the editor's advanced
  * `transit` / `start` / `arrival_time` blocks).
  *
  * Only `objective.geometries`, top-level `vehicles`, `behavior`, and `name` are
  * replaced; the rest of `objective` and the rest of the config carry through.
  * `name` is only written when provided (a non-empty string), so the map never
- * blanks an F5-set name. Pure (no fetch / no React) so the merge is testable.
+ * blanks a name set in the editor. Pure (no fetch / no React) so the merge is testable.
  *
- * This is the deadlock fix: a mission F4 created (empty) gains behavior +
+ * This is the deadlock fix: a mission the browser created (empty) gains behavior +
  * geometry + vehicles here, so `validateMissionConfig` passes and the save
  * succeeds. Concurrent edits to the same field are last-writer-wins by design.
  *
@@ -392,6 +392,90 @@ export function mergeMissionOwnedFields(
 	const name = owned.name?.trim();
 	if (name) merged.name = name;
 	return merged;
+}
+
+/**
+ * Stable signature of the MAP-owned slice of a config (`objective.geometries`,
+ * `vehicles`, `behavior`, `name`).
+ *
+ * The concurrency check for the map's save path. The map only authors these four
+ * fields, so "did someone else change the draft while my save was in flight?"
+ * means "did any of THESE change?" — a full-draft comparison would also fire on
+ * an editor-only change to `transit`/`start`, which the map's write does not
+ * touch and must not treat as a conflict.
+ *
+ * @param config - The config (or draft) to fingerprint.
+ * @returns A stable signature over the map-owned fields only.
+ */
+export function missionOwnedFieldsSignature(config: MissionConfig): string {
+	return JSON.stringify({
+		geometries: config.objective?.geometries ?? [],
+		vehicles: config.vehicles ?? [],
+		behavior: config.behavior,
+		name: config.name ?? null,
+	});
+}
+
+/**
+ * Fold the MAP-owned fields of a saved config into a working draft, keeping
+ * every other field of the draft as it is.
+ *
+ * The map's save writes only its owned slice, so committing its result must not
+ * replace the draft wholesale: the saved config carries the SERVER's `transit` /
+ * `start` / `arrival_time`, and adopting them would silently discard the
+ * editor's unsaved edits to those blocks.
+ *
+ * @param draft - The current working draft.
+ * @param saved - The config the map just persisted.
+ * @returns A new draft (neither input is mutated).
+ */
+export function applyMissionOwnedFields(
+	draft: MissionDraft,
+	saved: MissionConfig,
+): MissionDraft {
+	return {
+		...draft,
+		name: saved.name ?? draft.name,
+		behavior: saved.behavior,
+		vehicles: saved.vehicles ?? [],
+		objective: {
+			...draft.objective,
+			geometries: saved.objective?.geometries ?? [],
+		},
+	};
+}
+
+/** JSON with object keys sorted, so key order never reads as a difference. */
+function canonicalJson(value: unknown): string {
+	return JSON.stringify(value, (_key, v: unknown) => {
+		if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+		const sorted: Record<string, unknown> = {};
+		for (const key of Object.keys(v).sort()) {
+			sorted[key] = (v as Record<string, unknown>)[key];
+		}
+		return sorted;
+	});
+}
+
+/**
+ * Whether two drafts describe the same mission once cleaned — the "is there
+ * anything left unsaved?" test after a partial save. Key order is ignored (a
+ * draft built by spreading the stored one and a config built by spreading the
+ * server's copy order their keys differently), and empty optional blocks are
+ * pruned first, exactly as {@link cleanMissionConfig} prunes them before a save.
+ *
+ * @param a - One draft.
+ * @param b - The other draft.
+ * @returns `true` when their cleaned content is equal.
+ */
+export function missionContentEquals(
+	a: MissionDraft,
+	b: MissionDraft,
+): boolean {
+	return (
+		canonicalJson(cleanMissionConfig(a)) ===
+		canonicalJson(cleanMissionConfig(b))
+	);
 }
 
 /**

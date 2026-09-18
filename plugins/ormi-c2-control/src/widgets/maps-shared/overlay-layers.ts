@@ -1,5 +1,5 @@
 /**
- * Open-source raster **overlay** layers for the C2 mission map (F6).
+ * Open-source raster **overlay** layers for the C2 mission map.
  *
  * These are transparent XYZ tile layers that stack ON TOP of the chosen raster
  * base map and UNDER the C2 feature / draw / live-overlay layers. Unlike the

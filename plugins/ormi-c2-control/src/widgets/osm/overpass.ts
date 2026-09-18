@@ -63,8 +63,7 @@ interface OverpassResponse {
  * callers branch on `ok` rather than catching exceptions.
  */
 export type OverpassResult =
-	| { ok: true; data: OverpassWay[] }
-	| { ok: false; error: string };
+	{ ok: true; data: OverpassWay[] } | { ok: false; error: string };
 
 /**
  * Build the Overpass QL query string for drivable highways within `bbox`.
@@ -88,10 +87,13 @@ export function buildOverpassQuery(bbox: OsmBbox): string {
 }
 
 /**
- * Narrow an arbitrary Overpass element to an {@link OverpassWay}, keeping only
- * ways that carry an inline `geometry` array.
+ * Narrow an arbitrary Overpass element to a way with inline geometry.
+ *
+ * Shared by the road and building clients — both want exactly "a `way` that
+ * carries an inline `geometry` array", and both used to define this separately
+ * under different names.
  */
-function asOverpassWay(element: unknown): OverpassWay | null {
+export function asOverpassWay(element: unknown): OverpassWay | null {
 	if (typeof element !== "object" || element === null) return null;
 	const el = element as Record<string, unknown>;
 	if (el.type !== "way") return null;
@@ -100,22 +102,26 @@ function asOverpassWay(element: unknown): OverpassWay | null {
 }
 
 /**
- * Query the Overpass API for drivable roads within `bbox`.
+ * Run one Overpass QL query and return the ways it matched.
  *
- * Thin wrapper — keep all pure logic in {@link buildOverpassQuery} and
- * `osm-to-features.ts` so unit tests never reach the network. Never throws:
- * network / CORS / timeout / non-OK / non-JSON responses all resolve to
+ * THE SINGLE NETWORK READ for every Overpass consumer in this plugin. The roads
+ * client and the buildings client were ~95 % identical — same endpoint, same POST
+ * shape, same never-throw contract, same four failure branches, duplicated
+ * verbatim — so a fix to one (a timeout, a mirror, a rate-limit backoff) reached
+ * only half the callers. They differ ONLY in the query text, which is what each
+ * still owns.
+ *
+ * Never throws: network / CORS / abort / non-OK / non-JSON all resolve to
  * `{ ok: false, error }`.
  *
- * @param bbox - The geographic bounding box to query.
+ * @param query - The Overpass QL query text.
  * @param signal - Optional abort signal to cancel the request.
- * @returns An {@link OverpassResult} with the matched ways or an error message.
+ * @returns The matched ways, or an error message.
  */
-export async function fetchOsmRoads(
-	bbox: OsmBbox,
+export async function runOverpassQuery(
+	query: string,
 	signal?: AbortSignal,
 ): Promise<OverpassResult> {
-	const query = buildOverpassQuery(bbox);
 	let response: Response;
 	try {
 		response = await fetch(OVERPASS_ENDPOINT, {
@@ -151,4 +157,23 @@ export async function fetchOsmRoads(
 		.map(asOverpassWay)
 		.filter((w): w is OverpassWay => w !== null);
 	return { ok: true, data: ways };
+}
+
+/**
+ * Query the Overpass API for drivable roads within `bbox`.
+ *
+ * Thin wrapper — keep all pure logic in {@link buildOverpassQuery} and
+ * `osm-to-features.ts` so unit tests never reach the network. Never throws:
+ * network / CORS / timeout / non-OK / non-JSON responses all resolve to
+ * `{ ok: false, error }`.
+ *
+ * @param bbox - The geographic bounding box to query.
+ * @param signal - Optional abort signal to cancel the request.
+ * @returns An {@link OverpassResult} with the matched ways or an error message.
+ */
+export async function fetchOsmRoads(
+	bbox: OsmBbox,
+	signal?: AbortSignal,
+): Promise<OverpassResult> {
+	return runOverpassQuery(buildOverpassQuery(bbox), signal);
 }

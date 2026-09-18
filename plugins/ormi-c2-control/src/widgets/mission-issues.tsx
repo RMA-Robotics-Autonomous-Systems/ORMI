@@ -6,8 +6,8 @@ import { MissionConfigIssue } from "../types/mission-config-validation";
 
 /**
  * Shared presentational helper for rendering mission-config validation issues
- * (used by F4 mission browser and F8 control panel). Module-level stable
- * component (Pattern #10). Purely presentational — no validation logic here.
+ * (used by the mission browser and the mission control panel). Module-level
+ * stable component. Purely presentational — no validation logic here.
  */
 
 /** Props for {@link MissionIssueList}. */
@@ -47,9 +47,9 @@ const MissionIssueList: React.FC<MissionIssueListProps> = ({
 							}`}
 						>
 							{isError ? (
-								<XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+								<XCircle className="size-3.5 mt-0.5 shrink-0" />
 							) : (
-								<AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+								<AlertTriangle className="size-3.5 mt-0.5 shrink-0" />
 							)}
 							<span className="min-w-0">
 								{issue.path && (

@@ -4,10 +4,9 @@
  * C2 catalog store — shared UUID→human-name maps.
  *
  * A tiny module-level store mapping `mission_id → name` and `feature_id → name`.
- * The widgets that already fetch these lists (the mission browser F4 and editor
- * F5 for missions, the map F6 for features) publish names here; the read-only
- * display widgets (control panel F7, feedback F10, swarm log F11, editor
- * geometry list) resolve a UUID to its human name without each one refetching
+ * The widgets that already fetch these lists (the mission browser and editor
+ * for missions, the map for features) publish names here; the read-only
+ * display widgets (control panel, feedback, swarm log, editor geometry list) resolve a UUID to its human name without each one refetching
  * the list (the redundant-request anti-pattern — see AGENTS.md "prefer
  * structural fix over caching").
  *
@@ -35,6 +34,8 @@
  */
 
 import { useCallback, useSyncExternalStore } from "react";
+
+import { uuidKey } from "../types/uuid";
 
 /** mission_id → operator-facing mission name. */
 let missionNames: Record<string, string> = {};
@@ -133,6 +134,27 @@ export function publishFeatureNames(
 export function getMissionName(id: string | null | undefined): string {
 	if (!id) return "";
 	return missionNames[id] ?? shortId(id);
+}
+
+/**
+ * Look up a KNOWN mission name, tolerant of `-` vs `_` and case in the id.
+ *
+ * Unlike {@link getMissionName} this does not fall back to a shortened id: it
+ * returns null when no name is known, so a caller can choose its own fallback.
+ *
+ * @param id - The mission id, in any separator/case spelling.
+ * @returns The published name, or null.
+ */
+export function findMissionName(id: string | null | undefined): string | null {
+	if (!id) return null;
+	const direct = missionNames[id];
+	if (direct) return direct;
+	const key = uuidKey(id);
+	if (!key) return null;
+	for (const [known, name] of Object.entries(missionNames)) {
+		if (uuidKey(known) === key) return name;
+	}
+	return null;
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 import { createVectorBasemapStyle } from "@workspace/utils/basemap-style";
 
 /**
- * MapLibre style for the C2 map widget (F6) — raster XYZ tiles, or one of
+ * MapLibre style for the C2 map widget — raster XYZ tiles, or one of
  * ORMI's bundled vector styles.
  *
  * COPIED-AND-TRIMMED from `ormi-std-widgets`

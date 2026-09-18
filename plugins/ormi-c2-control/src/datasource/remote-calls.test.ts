@@ -26,7 +26,11 @@ describe("buildC2RemoteCalls", () => {
 			expect(d.rawRequestType).toBe("application/json");
 			expect(d.responseType).toBeTruthy();
 			expect(d.rawResponseType).toBe("application/json");
-			expect(d.cancelable).toBe(false);
+			// `rest.ts` aborts the in-flight fetch on cancel(), so reads and
+			// DB writes advertise it. A command does not: aborting the fetch
+			// does not un-send a Stop the C2 may already have applied.
+			const scope = findC2CallSpec(d.name)!.scope;
+			expect(d.cancelable).toBe(scope !== "command");
 		}
 	});
 });
@@ -72,6 +76,24 @@ describe("REST mapping (spec.build)", () => {
 		expect(body.mission_id).toBe("m-42");
 	});
 
+	it("sends the trimmed mission_id it validated", () => {
+		const stop = findC2CallSpec(C2Call.MissionStop)!;
+		expect(stop.validate!({ mission_id: "  m-42 " })).toBeNull();
+		const body = JSON.parse(
+			String(stop.build(settings, { mission_id: "  m-42 " }).init.body),
+		);
+		expect(body.mission_id).toBe("m-42");
+
+		const initSpec = findC2CallSpec(C2Call.MissionInit)!;
+		const request = { mission_id: " m-1 ", mission_config: { name: "x" } };
+		expect(initSpec.validate!(request)).toBeNull();
+		const initBody = JSON.parse(
+			String(initSpec.build(settings, request).init.body),
+		);
+		expect(initBody.mission_id).toBe("m-1");
+		expect(JSON.parse(initBody.mission_config).mission_id).toBe("m-1");
+	});
+
 	it("omits mission_id rather than sending an empty one", () => {
 		// The backend falls back to its old behaviour on an absent
 		// `mission_id`; an empty string is a different thing and would target a
@@ -112,7 +134,10 @@ describe("REST mapping (spec.build)", () => {
 		const del = findC2CallSpec(C2Call.MapsDelete)!.build(settings, {
 			name: "ma p/1",
 		});
-		expect(del.url).toBe("http://host:5000/maps/ma%20p%2F1");
+		// The backend now requires ?confirm=<name> on a (cascading) map delete.
+		expect(del.url).toBe(
+			"http://host:5000/maps/ma%20p%2F1?confirm=ma%20p%2F1",
+		);
 		expect(del.init.method).toBe("DELETE");
 	});
 
@@ -174,5 +199,18 @@ describe("REST mapping (spec.build)", () => {
 		expect(
 			findC2CallSpec(C2Call.MissionsList)!.build(settings, {}).url,
 		).toBe("http://host:5000/missions");
+	});
+
+	it("feedback history reads hit :5000/mission-feedback (GET, no token scope)", () => {
+		const latest = findC2CallSpec(C2Call.FeedbackLatest)!;
+		expect(latest.scope).toBe("db");
+		expect(latest.build(settings, {}).url).toBe(
+			"http://host:5000/mission-feedback/latest",
+		);
+		const one = findC2CallSpec(C2Call.FeedbackGet)!.build(settings, {
+			mission_id: "a b/c",
+		});
+		expect(one.url).toBe("http://host:5000/mission-feedback/a%20b%2Fc");
+		expect(one.init.method).toBe("GET");
 	});
 });

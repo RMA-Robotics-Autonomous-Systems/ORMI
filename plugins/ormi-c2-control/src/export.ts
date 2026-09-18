@@ -44,9 +44,9 @@ export const c2PageDefinition: PageDefinition = {
 };
 
 /**
- * Command-widget ids gated on a configured C2 datasource (§4.1).
+ * Command-widget ids gated on a configured C2 datasource.
  *
- * The mission map (F6) is included here because its draw/feature CRUD core needs
+ * The mission map is included here because its draw/feature CRUD core needs
  * the C2 datasource (`c2.features.*`); its live telemetry overlay degrades
  * independently via the topic health, so gating the whole widget on the C2
  * datasource does not over-restrict the overlay.
@@ -62,7 +62,7 @@ const C2_COMMAND_WIDGET_IDS = [
  * C2 Control datasource definition.
  *
  * Config holds the two C2 REST base URLs. Telemetry rides ORMI's own
- * rosbridge/foxglove datasource (D2); this datasource only exposes commands +
+ * rosbridge/foxglove datasource; this datasource only exposes commands +
  * CRUD as remote calls.
  */
 export const datasourceDefinition = {
@@ -85,6 +85,17 @@ export const datasourceDefinition = {
 				type: "string",
 				title: "Mongo REST URL (:5000)",
 			},
+			// Optional against the old (unauthenticated) backend, required by
+			// the new one. Blank sends nothing, so the old backend is
+			// unaffected. Sent on every :5001 request and every :5000 mutation
+			// (never on a :5000 GET) — see `datasource/remote-calls.ts` →
+			// `requiresC2Auth`.
+			missionControlToken: {
+				type: "string",
+				title: "Mission Control auth token (optional)",
+				description:
+					"Bearer token (the backend's C2_API_TOKEN). Sent on every Mission Control (:5001) request and on every Mongo REST (:5000) write; never on a :5000 read. Leave blank against an unauthenticated C2.",
+			},
 		},
 	},
 
@@ -94,6 +105,7 @@ export const datasourceDefinition = {
 		enable: true,
 		missionControlUrl: "http://localhost:5001",
 		dbUrl: "http://localhost:5000",
+		missionControlToken: "",
 	},
 
 	Provider: (props) => C2SourceProvider(props),
@@ -102,12 +114,12 @@ export const datasourceDefinition = {
 /**
  * Register the C2 widgets.
  *
- * Phase 2 — **display** widgets on rosbridge/foxglove topics: fleet status (F7),
- * mission feedback (F10), swarm log (F11). These do NOT gate on the C2 datasource
- * (§4.1: the C2 datasource publishes no topics).
+ * **Display** widgets on rosbridge/foxglove topics: fleet status, mission
+ * feedback, swarm log. These do NOT gate on the C2 datasource, because the C2
+ * datasource publishes no topics.
  *
- * Phase 3 — **command** widgets on the C2 remote calls: mission browser (F4) and
- * lifecycle control panel (F8). These DO require a C2 datasource, so they are
+ * **Command** widgets on the C2 remote calls: mission browser and lifecycle
+ * control panel. These DO require a C2 datasource, so they are
  * additionally gated in {@link widgetFilters} via `WIDGET_LIST_WITH_DATASOURCE`.
  * @param widgets - Widget list to extend.
  * @returns The extended widget list.
@@ -118,19 +130,20 @@ export const widgetsExport = (
 	widgets.push(FleetStatusDefinition());
 	widgets.push(MissionFeedbackDefinition());
 	widgets.push(SwarmLogDefinition());
-	// Phase 3 — command widgets (gated by widgetFilters below).
+	// Command widgets (gated by widgetFilters below).
 	widgets.push(MissionBrowserDefinition());
 	widgets.push(MissionControlPanelDefinition());
-	// Phase 4 — authoring widgets (also gated): mission editor (F5) and map (F6).
+	// Authoring widgets (also gated): mission editor and mission map.
 	widgets.push(MissionEditorDefinition());
 	widgets.push(MissionMapDefinition());
 	return widgets;
 };
 
 /**
- * `WIDGET_LIST_WITH_DATASOURCE` filter: hide the C2 **command** widgets (F4/F8)
- * unless an enabled C2 datasource is configured (§4.1 — command widgets gate on
- * `DATASOURCE_READY`). The display widgets (F7/F10/F11) are never filtered here
+ * `WIDGET_LIST_WITH_DATASOURCE` filter: hide the C2 **command** widgets (mission
+ * browser, control panel, editor, map) unless an enabled C2 datasource is
+ * configured, since they need its remote calls. The display widgets (fleet
+ * status, mission feedback, swarm log) are never filtered here
  * — they ride the rosbridge/foxglove datasource and gate on its topic health.
  * @param widgets - The current widget list.
  * @param datasources - The configured datasources in the workspace.

@@ -1,7 +1,7 @@
 import { MissionBehavior, MissionConfig } from "../types/c2-types";
 
 /**
- * F4 mission-list normalization + minimal-create helpers (pure, testable).
+ * Mission-browser list normalization + minimal-create helpers (pure, testable).
  *
  * The `:5000 /missions` endpoint returns stored mission definitions (C2DB). The
  * exact shape is the C2's concern; we normalize defensively into a small row
@@ -65,10 +65,11 @@ export function normalizeMissions(data: unknown): MissionRow[] {
 /**
  * Build a minimal valid mission object for "create".
  *
- * ⚠ This is a **stub**, not the full authoring form (F5/Phase 4). It carries
+ * ⚠ This is a **stub**, not the full authoring form (that is the mission
+ * editor). It carries
  * only what `c2.missions.save` needs to store a definition: a fresh id, a name,
  * a behavior, and an empty objective/vehicle allocation. The operator fills in
- * geometries/vehicles/constraints later via the mission editor (F5).
+ * geometries/vehicles/constraints later via the mission editor.
  *
  * @param name - The new mission's display name.
  * @param behavior - The mission behavior (defaults to NAVIGATE).

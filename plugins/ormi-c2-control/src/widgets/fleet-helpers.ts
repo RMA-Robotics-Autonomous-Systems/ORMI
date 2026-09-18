@@ -1,11 +1,11 @@
 import { C2Vehicle } from "../types/c2-types";
 
 /**
- * Pure helpers for the F7 fleet widget: defensively read the live
+ * Pure helpers for the fleet status widget: defensively read the live
  * `task_msgs/msg/Feedback` agent telemetry and merge it with the
  * `c2.vehicles.list` roster.
  *
- * ⚠ Per §7 the `Feedback.msg` shape has two divergent variants in the C2
+ * ⚠ The `Feedback.msg` shape has two divergent variants in the C2
  * submodules — a `nav_msgs/Odometry` copy and a `Localization` + `speed` copy.
  * Everything here reads defensively: tolerate either, or missing position
  * fields, and never throw on an unexpected shape.

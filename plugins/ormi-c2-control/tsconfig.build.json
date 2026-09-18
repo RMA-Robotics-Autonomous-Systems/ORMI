@@ -1,0 +1,22 @@
+{
+	// Build config. Identical to `tsconfig.json` except that it EXCLUDES the
+	// tests, so `dist/` does not ship them.
+	//
+	// `dist/` carried 36 compiled `*.test.js` files (plus their `.d.ts` and
+	// source maps) because `tsconfig.json` includes `src/**/*` and the build and
+	// the typecheck shared it. Tests are not part of the plugin's runtime surface,
+	// they pull `bun:test` into a published bundle, and `main`/`exports` never
+	// reference them.
+	//
+	// The typecheck deliberately still uses `tsconfig.json` (tests included):
+	// excluding them from `tsc --noEmit` too would have silently dropped ~36 files
+	// of type coverage as the price of a smaller `dist/`.
+	"extends": "./tsconfig.json",
+	"exclude": [
+		"dist",
+		"node_modules",
+		"src/**/*.test.ts",
+		"src/**/*.test.tsx",
+		"src/**/__tests__/**"
+	]
+}

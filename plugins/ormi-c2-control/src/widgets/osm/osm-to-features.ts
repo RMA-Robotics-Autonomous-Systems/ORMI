@@ -25,8 +25,14 @@ export type GeofenceRing = LonLat[];
 /**
  * Convert an Overpass `out geom;` node list to a `[lon, lat]` coordinate array,
  * dropping any node missing a finite lon/lat.
+ *
+ * Exported because `osm-buildings.ts` carried a verbatim copy of it — one
+ * function, two definitions, two places to fix a coordinate bug. Both OSM
+ * translators read the same `out geom;` node list, so there is one of these.
  */
-function geomToCoordinates(geometry: OverpassGeomNode[] | undefined): LonLat[] {
+export function geomToCoordinates(
+	geometry: OverpassGeomNode[] | undefined,
+): LonLat[] {
 	if (!Array.isArray(geometry)) return [];
 	const coords: LonLat[] = [];
 	for (const node of geometry) {

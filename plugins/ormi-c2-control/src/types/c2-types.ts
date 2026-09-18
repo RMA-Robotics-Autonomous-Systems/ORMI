@@ -1,7 +1,7 @@
 import { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 
 /**
- * S1 — C2 type definitions and lifecycle enums.
+ * C2 type definitions and lifecycle enums.
  *
  * Ground truth: the RMA Multi-Agent Framework C2 source
  * (`c2_msgs/json/Enums.hpp`, `MissionConfig.hpp`, `MissionFeedback.hpp`).
@@ -57,6 +57,33 @@ export enum VehicleFormation {
 	LEFT_FLANK = 5,
 	RIGHT_FLANK = 6,
 }
+
+/**
+ * Display labels for {@link VehicleFormation} — the SINGLE source for the 0–6
+ * set.
+ *
+ * The range used to be restated three times (this enum, the JSON-Forms `oneOf`
+ * in `types/mission-config-schema.ts`, and a `FORMATION_MIN`/`FORMATION_MAX`
+ * pair in `types/mission-config-validation.ts`), so widening the C2 enum meant
+ * finding all three. Both of those now derive from this map via
+ * {@link VEHICLE_FORMATION_VALUES}.
+ */
+export const VEHICLE_FORMATION_LABELS: Record<VehicleFormation, string> = {
+	[VehicleFormation.NONE]: "None",
+	[VehicleFormation.COLUMN]: "Column",
+	[VehicleFormation.LINE]: "Line",
+	[VehicleFormation.WEDGE]: "Wedge",
+	[VehicleFormation.VEE]: "Vee",
+	[VehicleFormation.LEFT_FLANK]: "Left flank",
+	[VehicleFormation.RIGHT_FLANK]: "Right flank",
+};
+
+/** Every valid {@link VehicleFormation} numeric value, ascending. */
+export const VEHICLE_FORMATION_VALUES: VehicleFormation[] = Object.keys(
+	VEHICLE_FORMATION_LABELS,
+)
+	.map(Number)
+	.sort((a, b) => a - b) as VehicleFormation[];
 
 /**
  * A point/window in time. When present in a config, all three fields are
@@ -193,9 +220,24 @@ export interface C2Vehicle {
  * `dbUrl`             → the Mongo Express REST service (CRUD, default :5000).
  *
  * Live telemetry does NOT flow through this datasource — it rides ORMI's own
- * rosbridge/foxglove datasource pointed at the same ROS graph (D2).
+ * rosbridge/foxglove datasource pointed at the same ROS graph.
  */
 export interface C2ControlSettings extends DatasourceProviderSettings {
 	missionControlUrl: string;
 	dbUrl: string;
+	/**
+	 * OPTIONAL bearer token for the C2 REST surfaces.
+	 *
+	 * The old backend is unauthenticated; the new one fails closed and requires
+	 * a token. Leave it blank against an unauthenticated C2 (nothing is sent, so
+	 * the old backend is unaffected), fill it in when the new one lands. It is
+	 * sent on EVERY `:5001` (`missionControlUrl`) request and on every `:5000`
+	 * (`dbUrl`) mutation — POST/PUT/PATCH/DELETE. `:5000` reads (GET) never
+	 * carry it, so the read path is not preflighted for a credential the server
+	 * does not check there.
+	 *
+	 * See `datasource/remote-calls.ts` → `applyC2Auth` / `requiresC2Auth` for
+	 * the exact rule and headers.
+	 */
+	missionControlToken?: string;
 }
