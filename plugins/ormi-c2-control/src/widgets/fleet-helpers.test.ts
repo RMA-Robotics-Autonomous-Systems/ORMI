@@ -49,7 +49,7 @@ describe("readNamespace (namespace probe order)", () => {
 	});
 });
 
-describe("extractAgentPosition (defensive, §7 two variants)", () => {
+describe("extractAgentPosition (defensive, two Feedback.msg variants)", () => {
 	it("reads the nav_msgs/Odometry variant", () => {
 		const raw = { pose: { pose: { position: { x: 1, y: 2, z: 3 } } } };
 		expect(extractAgentPosition(raw)).toEqual({ x: 1, y: 2, z: 3 });

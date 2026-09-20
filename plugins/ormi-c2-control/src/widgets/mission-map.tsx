@@ -3,7 +3,7 @@
 // ⚠ COORDINATE RULE — everything in this widget that touches MapLibre,
 // terra-draw, GeoJSON, the saved MapDB C2Feature, and mission
 // objective.geometries[].geometry.coordinates uses [lng, lat]. The ONLY swap in
-// the system is mission_feedback waypoints (already swapped by S2; use .lngLat,
+// the system is mission_feedback waypoints (already swapped by the feedback parser; use .lngLat,
 // never re-swap).
 //
 // Agent markers are driven PRIMARILY by each agent's per-agent localization
@@ -42,8 +42,14 @@ import {
 } from "@workspace/ui/components/alert-dialog";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
+import { Separator } from "@workspace/ui/components/separator";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -115,7 +121,9 @@ import { publishFeatureNames } from "../state/c2-catalog-store";
 import { useAgentName, useAgents } from "../state/c2-agents-store";
 import { useSelectedMission } from "../state/selection-store";
 import {
+	commitSavedDraft,
 	editMissionDraft,
+	getMissionDraft,
 	hasMissionDraft,
 	setMissionDraft,
 	useMissionDraft,
@@ -123,15 +131,20 @@ import {
 import {
 	DrawFeature,
 	c2FeatureToDrawFeature,
+	describeUneditableGeometry,
 	drawFeatureToC2Feature,
 	drawFeatureToInlineGeometry,
 	readFeatureId,
 } from "./feature-geojson";
 import {
 	DrawShape,
+	applyMissionOwnedFields,
+	cleanMissionConfig,
 	drawShapeToMode,
 	hydrateMissionDraft,
 	mergeMissionOwnedFields,
+	missionContentEquals,
+	missionOwnedFieldsSignature,
 } from "./mission-editor-helpers";
 import {
 	GeoJsonFeatureCollection,
@@ -157,6 +170,7 @@ import {
 	type GeofenceRing,
 } from "./osm/osm-to-features";
 import { objectivesOutsideGeofence } from "./mission-geofence-check";
+import { PanelEmptyState } from "./panel-empty-state";
 import { fetchOsmBuildings } from "./osm/buildings";
 import type { OverpassBuildingWay } from "./osm/buildings";
 import {
@@ -164,26 +178,55 @@ import {
 	osmBuildingsToRiskFeatures,
 	type BuildingExtrusionFeatureCollection,
 } from "./osm/osm-buildings";
-import { useAgentLocalizationTopics } from "./agent-localization-topics";
+import {
+	TRAJECTORY_RAW_TYPE,
+	useAgentLocalizationTopics,
+	useAgentTopics,
+} from "./agent-localization-topics";
 import { FeedbackTask } from "../types/mission-feedback";
-import { useMissionFeedback } from "../state/mission-feedback-store";
+import {
+	useMissionFeedbackExact,
+	useMissionFeedbackOrigin,
+} from "../state/mission-feedback-store";
+import {
+	freshTrajectories,
+	recordTrajectory,
+	useTrajectories,
+} from "../state/trajectory-store";
+import { useWaypointHighlight } from "../state/waypoint-highlight-store";
+import { recordBreadcrumb, useBreadcrumbs } from "../state/breadcrumb-store";
+import { isMissionCommitted, resolveViewOnly } from "./map-view-mode";
 import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { vehicleColor } from "./plan-metrics";
+import {
+	formatClock,
+	formatTaskProgressLine,
+	splitRoute,
+	taskProgress,
+} from "./mission-progress";
+import { AutoSelectActiveMission, useNow } from "./now-playing";
+import { parseAutonomyTrajectory } from "./robot-track";
+import { useContainerSize } from "./responsive";
+import { MissionFeedbackHistorySync } from "./feedback-history";
 import { useMapInit } from "./maps-shared/use-map-init";
 import { useMapStyle } from "./maps-shared/use-map-style";
 import {
 	BASEMAPS_REQUIRING_KEY,
 	DEFAULT_BASEMAP_URL,
 	ORMI_STYLE_ANCHORS,
+	ORMI_BUILDINGS_3D_LAYER,
 	basemapOneOf,
+	isVectorBasemap,
 	resolveAnchor,
+	setLayerVisibility,
 } from "@workspace/utils";
+import { crossMapEdit, crossMapEditMessage } from "./map-editing-guards";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
 import { RainviewerOverlay } from "./rainviewer-overlay";
 
 /**
- * F6 — Map widget on the first-class maps API, with a two-mode editing model.
+ * Mission map widget on the first-class maps API, with a two-mode editing model.
  *
  * Two editing CONTEXTS (toolbar segmented toggle):
  *  - `map-editor` — edits per-map road/geofence/risk features in MapDB, scoped
@@ -201,7 +244,7 @@ import { RainviewerOverlay } from "./rainviewer-overlay";
  *  (b) mission-feature layer — the active mission's inline objective geometries
  *      (distinct accent), projected by `mission-geometry.ts`.
  *  (c) terra-draw authoring layer — bright editing style.
- *  (d) live overlay: `mission_feedback` waypoint paths (S2 `.lngLat`) + agent
+ *  (d) live overlay: `mission_feedback` waypoint paths (parsed `.lngLat`) + agent
  *      position markers. Markers come PRIMARILY from each agent's per-agent
  *      `{namespace}/edge/multi_robot/localization` Odometry stream, gated on
  *      `header.frame_id === "map"` (geographic); the shared `/edge/feedback`
@@ -222,6 +265,13 @@ type MapContext = "map-editor" | "mission";
 /** The active tool within a context. */
 type MapTool = "view" | "draw" | "edit" | "delete";
 
+/**
+ * Toolbar segmented-control items size to their label. The stock item is
+ * `flex-1`, which splits a group into equal columns — fine for "On / Off", but it
+ * squeezes the longest label ("Geofence", "Rectangle") against its borders.
+ */
+const TOGGLE_ITEM_CLASS = "flex-none px-2.5";
+
 /** MapDB feature_type — the only valid feature types the C2 accepts. */
 type FeatureType = "road" | "geofence" | "risk";
 
@@ -240,7 +290,7 @@ const SHAPE_LABELS: Record<DrawShape, string> = {
 	rectangle: "Rectangle",
 };
 
-/** Behavior options for the mission-panel enum select (mirrors F5). */
+/** Behavior options for the mission-panel enum select (mirrors the mission editor). */
 const BEHAVIOR_OPTIONS: [MissionBehavior, string][] = [
 	[MissionBehavior.NAVIGATE, "0 — NAVIGATE"],
 	[MissionBehavior.COVERAGE, "1 — COVERAGE"],
@@ -251,7 +301,7 @@ const BEHAVIOR_OPTIONS: [MissionBehavior, string][] = [
  * One allocated-vehicle chip in the mission-panel read-only summary. Hoisted
  * (module-level) so it can call {@link useAgentName} for the namespace name —
  * hooks can't run in the parent's `.map`. Identity is stable (Pattern #10). The
- * primary allocation affordance is clicking the agent markers (R2.G); this is the
+ * primary allocation affordance is clicking the agent markers; this is the
  * "who's assigned" readout.
  */
 function AllocatedVehicleChip(props: { id: string }) {
@@ -433,6 +483,16 @@ function AgentLocalizationOverlayBody(props: {
 		return out;
 	}, [sources, props.agentByKey]);
 
+	// "Where it has been": every geographic fix feeds the per-robot breadcrumb
+	// (decimated ~0.5 m and capped in `robot-track.ts`). In an effect — it
+	// mutates a store — and keyed on the marker list, which is rebuilt exactly
+	// when a localization message arrived.
+	useEffect(() => {
+		for (const marker of agentMarkers) {
+			recordBreadcrumb(marker.id, marker.lngLat);
+		}
+	}, [agentMarkers]);
+
 	return (
 		<>
 			{agentMarkers.map((agent) => (
@@ -480,22 +540,195 @@ function AgentLocalizationOverlay(props: {
 	);
 }
 
+/** A robot's breadcrumb line feature. */
+interface BreadcrumbFeature {
+	type: "Feature";
+	properties: { color: string };
+	geometry: { type: "LineString"; coordinates: [number, number][] };
+}
+
+/**
+ * Breadcrumb features keyed by the published trail they were built from. The
+ * store keeps an unchanged robot's trail identity across publishes, so only the
+ * robots that actually moved get a new feature.
+ */
+const breadcrumbFeatures = new WeakMap<[number, number][], BreadcrumbFeature>();
+
+/**
+ * The line feature for one robot's trail, reused while the trail is unchanged.
+ *
+ * @param agentId - The robot (colours the line).
+ * @param trail - Its published trail, `[lng, lat]`.
+ * @returns The feature.
+ */
+function breadcrumbFeature(
+	agentId: string,
+	trail: [number, number][],
+): BreadcrumbFeature {
+	const cached = breadcrumbFeatures.get(trail);
+	if (cached) return cached;
+	const feature: BreadcrumbFeature = {
+		type: "Feature",
+		properties: { color: vehicleColor(agentId) },
+		geometry: { type: "LineString", coordinates: trail },
+	};
+	breadcrumbFeatures.set(trail, feature);
+	return feature;
+}
+
+/**
+ * "Where it has been": each robot's session breadcrumb (see
+ * `state/breadcrumb-store.ts`), a thin line in the robot's colour. Fed by
+ * {@link AgentLocalizationOverlayBody}; drawn for every robot with a geographic
+ * localization stream, whatever mission is selected — it is the robot's own
+ * trail, not a mission's.
+ */
+function BreadcrumbLayer() {
+	const trails = useBreadcrumbs();
+	const fc = useMemo(
+		() => ({
+			type: "FeatureCollection" as const,
+			features: Object.entries(trails)
+				.filter(([, trail]) => trail.length >= 2)
+				.map(([agentId, trail]) => breadcrumbFeature(agentId, trail)),
+		}),
+		[trails],
+	);
+	if (fc.features.length === 0) return null;
+	return (
+		<Source id="c2-breadcrumbs" type="geojson" data={fc}>
+			<Layer
+				id="c2-breadcrumbs-line"
+				type="line"
+				layout={{ "line-cap": "round", "line-join": "round" }}
+				paint={{
+					"line-color": ["get", "color"],
+					"line-width": 2,
+					"line-opacity": 0.55,
+				}}
+			/>
+		</Source>
+	);
+}
+
+/**
+ * Trajectory overlay body: parses each robot's latest `autonomy_trajectory` (v2
+ * only — see `robot-track.ts`) into a line in the robot's colour.
+ */
+function AgentTrajectoryOverlayBody(props: {
+	agentByKey: Map<string, string>;
+	agentIds: readonly string[];
+}) {
+	const { sources } = useLocalDataSource();
+
+	// Record each NEWLY arrived plan with its arrival time (a new buffer array
+	// is a new message), so a plan that stopped arriving can age out.
+	const seenRef = useRef<WeakSet<object>>(new WeakSet());
+	useEffect(() => {
+		const seen = seenRef.current;
+		for (const [key, source] of (
+			sources as Map<string, BufferedSource>
+		).entries()) {
+			if (seen.has(source.data)) continue;
+			seen.add(source.data);
+			const agentId = props.agentByKey.get(key);
+			if (!agentId) continue;
+			const line = parseAutonomyTrajectory(
+				source.data[source.data.length - 1],
+			);
+			if (line) recordTrajectory(agentId, line);
+		}
+	}, [sources, props.agentByKey]);
+
+	// Draw only plans younger than TRAJECTORY_MAX_AGE_MS: the bridge republishes
+	// at 1 Hz while it drives, so an older plan belongs to a goal that is over.
+	const trajectories = useTrajectories();
+	const now = useNow(1000);
+	const fc = useMemo(
+		() => ({
+			type: "FeatureCollection" as const,
+			features: freshTrajectories(trajectories, props.agentIds, now).map(
+				([agentId, line]) => ({
+					type: "Feature" as const,
+					properties: { color: vehicleColor(agentId) },
+					geometry: {
+						type: "LineString" as const,
+						coordinates: line,
+					},
+				}),
+			),
+		}),
+		[trajectories, props.agentIds, now],
+	);
+	if (fc.features.length === 0) return null;
+	return (
+		<Source id="c2-trajectories" type="geojson" data={fc}>
+			{/* White casing so the plan reads over the route of the same colour. */}
+			<Layer
+				id="c2-trajectories-casing"
+				type="line"
+				layout={{ "line-cap": "round", "line-join": "round" }}
+				paint={{ "line-color": "#ffffff", "line-width": 4.5 }}
+			/>
+			<Layer
+				id="c2-trajectories-line"
+				type="line"
+				layout={{ "line-cap": "round", "line-join": "round" }}
+				paint={{
+					"line-color": ["get", "color"],
+					"line-width": 2,
+					"line-dasharray": [1, 1.5],
+				}}
+			/>
+		</Source>
+	);
+}
+
+/**
+ * "What the robot is planning": the Nav2 global plan of each robot of the
+ * selected mission, from `{namespace}/edge/multi_robot/autonomy_trajectory`.
+ *
+ * Subscribed only for the vehicles of the selected mission while it is
+ * STARTED (live, not a stored snapshot), and each plan is dropped once it is
+ * older than 5 s — a plan left over from a finished goal is a lie. Through the same
+ * per-agent topic derivation as the localization markers — no new topic
+ * configuration. Renders nothing until a v2 trajectory arrives: the legacy
+ * payload is metric and is ignored.
+ */
+function AgentTrajectoryOverlay(props: {
+	fallbackSource?: DatasourceProviderSettings;
+	agentIds: readonly string[];
+}) {
+	const { topics, agentByKey } = useAgentTopics(
+		"autonomy_trajectory",
+		TRAJECTORY_RAW_TYPE,
+		props.fallbackSource,
+		props.agentIds,
+	);
+	if (topics.length === 0) return null;
+	return (
+		<LocalDataSourcesProvider SelectedTopics={topics} buffersSize={1}>
+			<AgentTrajectoryOverlayBody
+				agentByKey={agentByKey}
+				agentIds={props.agentIds}
+			/>
+		</LocalDataSourcesProvider>
+	);
+}
+
 /**
  * Whether a feedback `status` is a PREVIEW (planned) state — rendered dashed —
- * vs a committed/executing one (ACCEPTED/STARTED/PAUSED) — rendered solid.
- * Unknown / terminal states default to dashed (treated as not-yet-committed).
+ * vs a committed/executing one — rendered solid. Unknown / terminal states
+ * default to dashed (treated as not-yet-committed).
+ *
+ * The ACCEPTED/STARTED/PAUSED triple is {@link isMissionCommitted}, NOT a second
+ * copy of it: this widget spelled the same three states out again, so "committed"
+ * could drift between the line style here and the authoring stand-down rule that
+ * decides whether the operator may edit at all — two answers to one question,
+ * on the same screen.
  */
 function isPreviewStatus(status: MissionStatus): boolean {
-	return (
-		status === MissionStatus.PLANNED ||
-		status === MissionStatus.PLANNED_ALTERNATIVE ||
-		status === MissionStatus.PLANNED_FAILED ||
-		!(
-			status === MissionStatus.ACCEPTED ||
-			status === MissionStatus.STARTED ||
-			status === MissionStatus.PAUSED
-		)
-	);
+	return !isMissionCommitted(status);
 }
 
 /** A waypoint hover/click popover payload. */
@@ -506,6 +739,10 @@ interface WaypointPopover {
 	index: number;
 	averageSpeed?: number;
 	eta?: string | null;
+	/** v2: when the robot reached it. */
+	reachedAt?: string | null;
+	/** v2: stop point (true) / pass-through (false) / unknown. */
+	stop?: boolean;
 }
 
 /**
@@ -549,34 +786,37 @@ function LiveOverlay(props: {
 	agentTopic?: SelectedTopic;
 	/** agent_ids already plotted by the per-agent localization overlay. */
 	namespacedAgentIds: Set<string>;
-	/** Marker selection threading (R2.G) — see {@link AgentMarker}. */
+	/** Marker selection threading — see {@link AgentMarker}. */
 	selectable?: boolean;
 	selectedAgents?: Set<string>;
 	onSelectAgent?: (agentId: string) => void;
 }) {
 	const { sources, getTopicHealth } = useLocalDataSource();
 
-	// Per-vehicle tasks from mission_feedback (S2 .lngLat — already [lng,lat]),
+	// Per-vehicle tasks from mission_feedback (parsed .lngLat — already [lng,lat]),
 	// carrying the feedback `status` so the style can gate preview vs committed.
 	//
 	// `/multi_robot/mission_feedback` is a SINGLE shared topic carrying feedback
 	// for ALL missions, interleaved. Reading the buffer tail directly redrew
 	// whichever mission published last, flickering between plans. Instead: PUBLISH
 	// every message into the per-mission feedback store (keyed by `mission_id`),
-	// then READ ONLY the selected mission's slot — with no selection the store
-	// returns the latest mission's slot, preserving the old "show whatever
-	// published last" fallback. The store hands back a reference-stable, change-
-	// fresh value per mission (deduped on `feedbackPlanSignature`), so an
-	// interleaved message for ANOTHER mission updates THAT slot and never changes
-	// `fb`'s identity here. `tasks` therefore stays referentially stable while the
-	// shown plan is unchanged, the route/waypoint/label FC memos (keyed on `tasks`)
-	// don't rebuild, and MapLibre stops repainting an unchanged plan — no flicker.
+	// then READ ONLY the selected mission's slot — with no selection, nothing
+	// (the old "show whatever published last" fallback drew another mission's
+	// plan with no tell; the map banner now says what is playing instead). The
+	// store hands back a reference-stable, change-fresh value per mission
+	// (deduped on `feedbackSignature`), so an interleaved message for ANOTHER
+	// mission updates THAT slot and never changes `fb`'s identity here — no
+	// flicker. While a v2 mission runs its content does change about once a
+	// second (position, distance, ETA), and the FC memos below rebuild with it:
+	// that is the done/remaining split following the robot, not churn.
 	usePublishMissionFeedback(
 		sources as Map<string, { data: unknown[] }>,
 		Boolean(props.feedbackTopic),
 	);
 	const selectedMission = useSelectedMission();
-	const fb = useMissionFeedback(selectedMission);
+	// EXACTLY the selected mission: with nothing selected the map draws no
+	// routes (the banner says so) instead of whichever mission published last.
+	const fb = useMissionFeedbackExact(selectedMission);
 	const tasks = useMemo<{ status: MissionStatus; task: FeedbackTask }[]>(
 		() =>
 			(fb?.tasks ?? [])
@@ -627,48 +867,140 @@ function LiveOverlay(props: {
 		);
 	}, []);
 
-	// Route line features — one LineString per task, data-driven colour + a
-	// `dashed` flag (split into two filtered layers, since line-dasharray can't be
-	// data-driven within one layer).
+	// Route line features — per task, the REMAINING part in the vehicle colour
+	// (solid when committed, dashed for a planned preview — two filtered layers,
+	// since line-dasharray can't be data-driven within one layer) and the DONE
+	// part in grey, split at `current_waypoint_index` (MissionFeedback v2; with a
+	// v1 producer everything is "remaining", which draws exactly as before).
 	const lineFc = useMemo(
 		() => ({
 			type: "FeatureCollection" as const,
-			features: tasks.map(({ status, task }) => ({
-				type: "Feature" as const,
-				properties: {
-					vehicleId: task.vehicle_id,
-					color: vehicleColor(task.vehicle_id),
-					status,
-					dashed: isPreviewStatus(status),
-				},
-				geometry: {
-					type: "LineString" as const,
-					coordinates: task.waypoints.map((w) => w.lngLat),
-				},
-			})),
+			features: tasks.flatMap(({ status, task }) => {
+				const split = splitRoute(task);
+				const color = vehicleColor(task.vehicle_id);
+				const out = [];
+				if (split.remaining.length >= 2) {
+					out.push({
+						type: "Feature" as const,
+						properties: {
+							vehicleId: task.vehicle_id,
+							color,
+							status,
+							dashed: isPreviewStatus(status),
+							done: false,
+						},
+						geometry: {
+							type: "LineString" as const,
+							coordinates: split.remaining,
+						},
+					});
+				}
+				if (split.done.length >= 2) {
+					out.push({
+						type: "Feature" as const,
+						properties: {
+							vehicleId: task.vehicle_id,
+							color,
+							status,
+							dashed: false,
+							done: true,
+						},
+						geometry: {
+							type: "LineString" as const,
+							coordinates: split.done,
+						},
+					});
+				}
+				return out;
+			}),
 		}),
 		[tasks],
 	);
 
-	// Numbered waypoint point features (1-based index, colour, orientation).
+	// Numbered waypoint point features (1-based index, colour, orientation),
+	// flagged `done` (passed → grey), `current` (the next waypoint → ringed and
+	// labelled) and `stop`.
 	const pointFc = useMemo(
 		() => ({
 			type: "FeatureCollection" as const,
-			features: tasks.flatMap(({ task }) =>
-				task.waypoints.map((w, i) => ({
+			features: tasks.flatMap(({ task }) => {
+				const progress = taskProgress(task);
+				return task.waypoints.map((w, i) => ({
 					type: "Feature" as const,
 					properties: {
 						color: vehicleColor(task.vehicle_id),
 						index: i + 1,
 						orientation: w.orientation ?? 0,
 						hasOrientation: w.orientation != null,
+						done: i < progress.done,
+						current: i === progress.currentIndex,
+						stop: w.stop === true,
 					},
 					geometry: {
 						type: "Point" as const,
 						coordinates: w.lngLat,
 					},
-				})),
-			),
+				}));
+			}),
+		}),
+		[tasks],
+	);
+
+	// The waypoint hovered / pinned in the feedback widget (route graph station
+	// or Gantt tick), for the selected mission only.
+	const highlight = useWaypointHighlight();
+	const highlightFc = useMemo(() => {
+		const empty = { type: "FeatureCollection" as const, features: [] };
+		if (!highlight || !fb || highlight.missionId !== fb.mission_id) {
+			return empty;
+		}
+		const task = fb.tasks.find((t) => t.vehicle_id === highlight.vehicleId);
+		const wp = task?.waypoints[highlight.index];
+		if (!task || !wp) return empty;
+		return {
+			type: "FeatureCollection" as const,
+			features: [
+				{
+					type: "Feature" as const,
+					properties: {
+						color: vehicleColor(task.vehicle_id),
+						label: `WP ${highlight.index + 1}`,
+					},
+					geometry: {
+						type: "Point" as const,
+						coordinates: wp.lngLat,
+					},
+				},
+			],
+		};
+	}, [highlight, fb]);
+
+	// The next waypoint's label: "Next · WP 22/56 · 14 m · ETA 10:42".
+	const nextFc = useMemo(
+		() => ({
+			type: "FeatureCollection" as const,
+			features: tasks.flatMap(({ task }) => {
+				const progress = taskProgress(task);
+				const wp =
+					progress.currentIndex != null
+						? task.waypoints[progress.currentIndex]
+						: undefined;
+				const line = formatTaskProgressLine(task);
+				if (!wp || !line) return [];
+				return [
+					{
+						type: "Feature" as const,
+						properties: {
+							color: vehicleColor(task.vehicle_id),
+							label: `Next · ${line}`,
+						},
+						geometry: {
+							type: "Point" as const,
+							coordinates: wp.lngLat,
+						},
+					},
+				];
+			}),
 		}),
 		[tasks],
 	);
@@ -713,11 +1045,26 @@ function LiveOverlay(props: {
 			{visible && (
 				<>
 					<Source id="c2-feedback-paths" type="geojson" data={lineFc}>
+						{/* Already driven: grey, under the remaining route. */}
+						<Layer
+							id="c2-feedback-paths-done"
+							type="line"
+							filter={["get", "done"]}
+							paint={{
+								"line-color": "#9ca3af",
+								"line-width": 3,
+								"line-opacity": 0.8,
+							}}
+						/>
 						{/* Committed/executing routes: solid. */}
 						<Layer
 							id="c2-feedback-paths-solid"
 							type="line"
-							filter={["!", ["get", "dashed"]]}
+							filter={[
+								"all",
+								["!", ["get", "dashed"]],
+								["!", ["get", "done"]],
+							]}
 							paint={{
 								"line-color": ["get", "color"],
 								"line-width": 3,
@@ -727,7 +1074,11 @@ function LiveOverlay(props: {
 						<Layer
 							id="c2-feedback-paths-dashed"
 							type="line"
-							filter={["get", "dashed"]}
+							filter={[
+								"all",
+								["get", "dashed"],
+								["!", ["get", "done"]],
+							]}
 							paint={{
 								"line-color": ["get", "color"],
 								"line-width": 2.5,
@@ -740,14 +1091,49 @@ function LiveOverlay(props: {
 						type="geojson"
 						data={pointFc}
 					>
+						{/* The next waypoint: a wide halo under its dot. */}
+						<Layer
+							id="c2-feedback-waypoints-next"
+							type="circle"
+							filter={["get", "current"]}
+							paint={{
+								"circle-radius": 14,
+								"circle-color": ["get", "color"],
+								"circle-opacity": 0.25,
+								"circle-stroke-color": ["get", "color"],
+								"circle-stroke-width": 2.5,
+							}}
+						/>
 						<Layer
 							id="c2-feedback-waypoints-circle"
 							type="circle"
 							paint={{
-								"circle-radius": 8,
-								"circle-color": ["get", "color"],
-								"circle-stroke-color": "#ffffff",
-								"circle-stroke-width": 1.5,
+								"circle-radius": [
+									"case",
+									["get", "current"],
+									10,
+									8,
+								],
+								"circle-color": [
+									"case",
+									["get", "done"],
+									"#9ca3af",
+									["get", "color"],
+								],
+								// A stop point gets a dark ring; pass-through
+								// points keep the white one.
+								"circle-stroke-color": [
+									"case",
+									["get", "stop"],
+									"#111827",
+									"#ffffff",
+								],
+								"circle-stroke-width": [
+									"case",
+									["get", "stop"],
+									2.5,
+									1.5,
+								],
 							}}
 						/>
 						<Layer
@@ -779,6 +1165,58 @@ function LiveOverlay(props: {
 								"text-color": ["get", "color"],
 								"text-halo-color": "#ffffff",
 								"text-halo-width": 1,
+							}}
+						/>
+					</Source>
+					<Source id="c2-feedback-next" type="geojson" data={nextFc}>
+						<Layer
+							id="c2-feedback-next-label"
+							type="symbol"
+							layout={{
+								"text-field": ["get", "label"],
+								"text-size": 12,
+								"text-offset": [0, 1.6],
+								"text-anchor": "top",
+								"text-allow-overlap": true,
+								"text-ignore-placement": true,
+							}}
+							paint={{
+								"text-color": ["get", "color"],
+								"text-halo-color": "#ffffff",
+								"text-halo-width": 2,
+							}}
+						/>
+					</Source>
+					<Source
+						id="c2-waypoint-highlight"
+						type="geojson"
+						data={highlightFc}
+					>
+						<Layer
+							id="c2-waypoint-highlight-ring"
+							type="circle"
+							paint={{
+								"circle-radius": 18,
+								"circle-color": "rgba(0,0,0,0)",
+								"circle-stroke-color": ["get", "color"],
+								"circle-stroke-width": 4,
+							}}
+						/>
+						<Layer
+							id="c2-waypoint-highlight-label"
+							type="symbol"
+							layout={{
+								"text-field": ["get", "label"],
+								"text-size": 12,
+								"text-offset": [0, -2.2],
+								"text-anchor": "bottom",
+								"text-allow-overlap": true,
+								"text-ignore-placement": true,
+							}}
+							paint={{
+								"text-color": ["get", "color"],
+								"text-halo-color": "#ffffff",
+								"text-halo-width": 2,
 							}}
 						/>
 					</Source>
@@ -820,7 +1258,20 @@ function LiveOverlay(props: {
 								{popover.averageSpeed != null && (
 									<div>speed: {popover.averageSpeed} m/s</div>
 								)}
-								{popover.eta && <div>eta: {popover.eta}</div>}
+								{popover.stop != null && (
+									<div>
+										{popover.stop
+											? "stop point"
+											: "pass-through"}
+									</div>
+								)}
+								{popover.reachedAt ? (
+									<div>
+										reached {formatClock(popover.reachedAt)}
+									</div>
+								) : (
+									popover.eta && <div>eta: {popover.eta}</div>
+								)}
 							</div>
 						</Popup>
 					)}
@@ -884,6 +1335,8 @@ function WaypointInteractions(props: {
 						index,
 						averageSpeed: w.average_speed,
 						eta: w.eta,
+						reachedAt: w.reached_at,
+						stop: w.stop,
 					});
 					return;
 				}
@@ -944,7 +1397,7 @@ function OverlayLayers(props: { active: string[]; beforeId: string }) {
 }
 
 /**
- * R2.F — extrude OSM building footprints as a MapLibre `fill-extrusion` 3D layer.
+ * Extrude OSM building footprints as a MapLibre `fill-extrusion` 3D layer.
  * `fill-extrusion-height` reads the numeric `height` (metres) baked onto each
  * footprint by `osmBuildingsToExtrusionFc`; `fill-extrusion-base` is 0 (footprint
  * sits on the ground). Stable module-level component (Pattern #10).
@@ -1005,75 +1458,106 @@ function PlannerGraphLayer(props: { data: GeoJsonFeatureCollection }) {
 	);
 }
 
+/** One labelled checkbox row in the overlay panel. */
+function OverlayToggle(props: {
+	id: string;
+	checked: boolean;
+	onToggle: () => void;
+	children: React.ReactNode;
+}) {
+	const controlId = `c2-overlay-${props.id}`;
+	return (
+		<div className="flex items-center gap-2">
+			<Checkbox
+				id={controlId}
+				checked={props.checked}
+				onCheckedChange={props.onToggle}
+			/>
+			<Label
+				htmlFor={controlId}
+				className="text-xs font-normal cursor-pointer"
+			>
+				{props.children}
+			</Label>
+		</div>
+	);
+}
+
 /** In-map checklist to toggle overlays live (session-only; config seeds it). */
 function OverlayPanel(props: {
 	active: string[];
 	onToggle: (id: string) => void;
 	onClose: () => void;
 	buildings3d: boolean;
+	/** True when the basemap answers 3D itself (vector), which has a zoom floor. */
+	buildingsFromBasemap: boolean;
 	onToggleBuildings3d: () => void;
 	plannerGraph: boolean;
 	onTogglePlannerGraph: () => void;
 }) {
 	return (
-		<div className="absolute top-2 right-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-1.5 shadow-md w-56">
-			<div className="flex items-center justify-between">
-				<div className="text-xs font-medium">Overlay layers</div>
-				<Button
-					size="sm"
-					variant="ghost"
-					className="h-6 w-6 p-0"
-					onClick={props.onClose}
-				>
-					<X className="w-3.5 h-3.5" />
-				</Button>
+		<div className="absolute top-2 right-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-56 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto">
+			<div className="flex items-center gap-2 min-w-0">
+				<div className="text-xs font-medium truncate">
+					Overlay layers
+				</div>
+				<div className="ml-auto flex shrink-0 items-center gap-1">
+					<Button
+						size="icon-sm"
+						variant="ghost"
+						aria-label="Close overlay layers"
+						onClick={props.onClose}
+					>
+						<X />
+					</Button>
+				</div>
 			</div>
 			{MAP_OVERLAYS.map((overlay) => (
-				<label
+				<OverlayToggle
 					key={overlay.id}
-					className="flex items-center gap-2 text-xs cursor-pointer"
+					id={overlay.id}
+					checked={props.active.includes(overlay.id)}
+					onToggle={() => props.onToggle(overlay.id)}
 				>
-					<input
-						type="checkbox"
-						className="h-3.5 w-3.5"
-						checked={props.active.includes(overlay.id)}
-						onChange={() => props.onToggle(overlay.id)}
-					/>
 					{overlay.title}
-				</label>
+				</OverlayToggle>
 			))}
 			{/* Dynamic (time-stamped, animated) overlay — not in MAP_OVERLAYS. */}
-			<label className="flex items-center gap-2 text-xs cursor-pointer">
-				<input
-					type="checkbox"
-					className="h-3.5 w-3.5"
-					checked={props.active.includes(RAINVIEWER_OVERLAY_ID)}
-					onChange={() => props.onToggle(RAINVIEWER_OVERLAY_ID)}
-				/>
+			<OverlayToggle
+				id={RAINVIEWER_OVERLAY_ID}
+				checked={props.active.includes(RAINVIEWER_OVERLAY_ID)}
+				onToggle={() => props.onToggle(RAINVIEWER_OVERLAY_ID)}
+			>
 				RainViewer radar (live)
-			</label>
-			{/* 3D buildings — a fill-extrusion source from Overpass footprints,
-			    not a raster overlay (held in its own toggle, not MAP_OVERLAYS). */}
-			<label className="flex items-center gap-2 text-xs cursor-pointer">
-				<input
-					type="checkbox"
-					className="h-3.5 w-3.5"
-					checked={props.buildings3d}
-					onChange={props.onToggleBuildings3d}
-				/>
+			</OverlayToggle>
+			{/* 3D buildings — the basemap's own extrusion layer on a vector
+			    basemap, an Overpass fill-extrusion source on a raster one.
+			    Either way not a raster overlay, so it has its own toggle rather
+			    than an entry in MAP_OVERLAYS.
+
+			    The zoom floor is named when it applies: the bundled styles
+			    carry `building-3d` from z14, so below that an operator would
+			    tick the box, see nothing change, and have no way to know why.
+			    The Overpass path has no floor, hence the condition. */}
+			<OverlayToggle
+				id="buildings-3d"
+				checked={props.buildings3d}
+				onToggle={props.onToggleBuildings3d}
+			>
 				3D buildings
-			</label>
+				{props.buildingsFromBasemap && (
+					<span className="text-muted-foreground">(zoom 14+)</span>
+				)}
+			</OverlayToggle>
 			{/* Planner navigation graph — a faint node/edge backdrop fetched from
 			    the C2 (c2.planner.graph), not a raster overlay. */}
-			<label className="flex items-center gap-2 text-xs cursor-pointer">
-				<input
-					type="checkbox"
-					className="h-3.5 w-3.5"
-					checked={props.plannerGraph}
-					onChange={props.onTogglePlannerGraph}
-				/>
+			<OverlayToggle
+				id="planner-graph"
+				checked={props.plannerGraph}
+				onToggle={props.onTogglePlannerGraph}
+			>
 				Planner graph
-			</label>
+			</OverlayToggle>
 		</div>
 	);
 }
@@ -1229,19 +1713,19 @@ function SavePrompt(props: {
 		props.initialType,
 	);
 	return (
-		<div className="absolute top-2 left-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64">
+		<div className="absolute top-2 left-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto">
 			<div className="text-xs font-medium">Save map feature</div>
 			<Input
 				value={name}
 				onChange={(e) => setName(e.target.value)}
 				placeholder="Feature name"
-				className="h-7 text-xs"
+				className="h-8"
 			/>
 			<Select
 				value={featureType}
 				onValueChange={(value) => setFeatureType(value as FeatureType)}
 			>
-				<SelectTrigger className="h-7 text-xs">
+				<SelectTrigger size="sm" className="w-full">
 					<SelectValue placeholder="Feature type" />
 				</SelectTrigger>
 				<SelectContent>
@@ -1253,21 +1737,21 @@ function SavePrompt(props: {
 			<div className="flex items-center gap-2">
 				<Button
 					size="sm"
-					className="h-7 flex-1"
+					className="flex-1"
 					disabled={props.busy || name.trim().length === 0}
 					onClick={() => props.onConfirm(name.trim(), featureType)}
 				>
-					<Save className="w-3.5 h-3.5 mr-1" />
+					<Save />
 					Save
 				</Button>
 				<Button
-					size="sm"
+					size="icon-sm"
 					variant="ghost"
-					className="h-7"
+					aria-label="Cancel"
 					disabled={props.busy}
 					onClick={props.onCancel}
 				>
-					<X className="w-3.5 h-3.5" />
+					<X />
 				</Button>
 			</div>
 		</div>
@@ -1283,6 +1767,15 @@ interface PendingSave {
 	feature: DrawFeature;
 	/** Preserved feature_id when editing; undefined when creating. */
 	featureId?: string;
+	/**
+	 * The map this edit was opened against.
+	 *
+	 * Provenance for the cross-map upsert guard (`map-editing-guards.ts`):
+	 * `c2.map.features.update` is a PUT upsert, so a pending edit carried across a
+	 * map switch would silently copy one map's feature into another. Recorded at
+	 * the moment the edit starts and checked again at the write.
+	 */
+	mapName?: string;
 	name: string;
 	featureType: FeatureType;
 }
@@ -1301,6 +1794,8 @@ interface DrawContextRef {
 	/** The active mission id (so the once-registered finish handler edits the
 	 *  right shared draft slot without re-registering on every selection). */
 	selectedMission: string | null;
+	/** The selected map, stamped onto a pending save for the cross-map guard. */
+	selectedMap: string;
 }
 
 /**
@@ -1400,7 +1895,56 @@ function MissionMapBody(props: {
 		props.missionsSaveDef ?? fallbackDef,
 	);
 
-	const { startingLocation } = useMapInit();
+	const { startingLocation, resolvedLocation } = useMapInit();
+	// True once the map instance exists. `mapRef` is a ref, so nothing re-runs
+	// when it is populated; effects that need the live map key on this instead.
+	const [mapObserved, setMapObserved] = useState(false);
+
+	// 3D buildings. On a vector basemap the bundled style already carries the
+	// geometry in a hidden `building-3d` extrusion, so there is nothing to fetch
+	// and nothing to render ourselves — only a layer to show.
+	// Null = the operator has not said, so the basemap decides (see
+	// `buildings3d` below). Only their explicit choice is stored, the same shape
+	// as the View/Edit override: a plain `false` default would mean a vector
+	// basemap opened flat despite carrying the buildings for nothing.
+	const [buildings3dChoice, setBuildings3dChoice] = useState<boolean | null>(
+		null,
+	);
+	// The Overpass fallback for a raster basemap: footprints from the SAME
+	// building fetch the risk-import path uses, as an extrusion
+	// FeatureCollection (null until the first fetch resolves). Stays null for
+	// the lifetime of a vector basemap.
+	//
+	// Stored WITH the scope it was fetched for, and rendered only while that
+	// still matches: footprints are clipped to the picked geofence, so a
+	// collection kept across a geofence change — or across a trip through a
+	// vector basemap and back — would draw the previous geofence's buildings as
+	// if they were the current ones, which is the plausible-but-wrong display
+	// this widget's other rules exist to prevent.
+	const [buildings, setBuildings] = useState<{
+		scope: string;
+		fc: BuildingExtrusionFeatureCollection;
+	} | null>(null);
+	// Whether the basemap answers "where are the buildings" by itself. The two
+	// paths are mutually exclusive: running both would extrude the same city
+	// twice, once from the tiles and once from Overpass, in two different
+	// heights and two different greys.
+	const basemapCarriesBuildings = isVectorBasemap(props.mapUrl);
+
+	// On by default wherever it is free: a vector basemap already ships the
+	// geometry, so showing it costs a visibility flip and nothing else. The
+	// raster path is off by default and stays that way — there, enabling it means
+	// an Overpass fetch, which is not something to do to a public API because a
+	// panel happened to open. An explicit choice wins over both, and because the
+	// default is derived rather than seeded into state, switching the basemap
+	// moves it too (until the operator says otherwise).
+	const buildings3d = buildings3dChoice ?? basemapCarriesBuildings;
+
+	// The style depends on the basemap and the key, and on nothing the operator
+	// toggles — see `use-map-style.ts`: a new style object makes react-map-gl
+	// call `setStyle(next, { diff: true })`, whose diff deletes every
+	// imperatively added source and layer, terra-draw's authoring layers
+	// included. The 3D flip is applied to the live map below instead.
 	const mapStyle = useMapStyle(props.mapUrl, props.basemapApiKey);
 	// Where the raster overlays (open-source tiles, radar) slot into the style.
 	// `resolveAnchor` returns undefined for a raster basemap — it carries no
@@ -1410,8 +1954,32 @@ function MissionMapBody(props: {
 	const overlayBeforeId =
 		resolveAnchor(mapStyle, ORMI_STYLE_ANCHORS.overlay) ??
 		"c2-features-fill";
+
+	// Show or hide the basemap's own 3D building layer, in place.
+	//
+	// Re-applied on `styledata` because a style swap (the operator picking a
+	// different basemap) reinstates the layer as the bundled style ships it,
+	// hidden — without this the toggle would read as on over a flat map. The
+	// helper no-ops when the layer is absent, which is every raster basemap, so
+	// this needs no basemap branch of its own.
+	useEffect(() => {
+		if (!mapObserved) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		const apply = () =>
+			setLayerVisibility(map, ORMI_BUILDINGS_3D_LAYER, buildings3d);
+		apply();
+		map.on("styledata", apply);
+		return () => {
+			map.off("styledata", apply);
+		};
+	}, [mapObserved, buildings3d]);
 	const mapRef = useRef<MapRef>(null);
 	const drawRef = useRef<TerraDraw | null>(null);
+	// The widget's own box (shared responsive helper): a narrow panel gets a
+	// compact toolbar so the map keeps most of the height.
+	const [mapRootRef, { size: mapSize }] = useContainerSize<HTMLDivElement>();
+	const compactToolbar = mapSize === "xs";
 	// terra-draw id of the feature currently loaded into the draw layer for
 	// editing. Captured when `editFeature`/`editMissionGeometry` add it, so the
 	// save path can read the LIVE (post-drag/reshape) geometry by id rather than
@@ -1460,12 +2028,62 @@ function MissionMapBody(props: {
 	const [tool, setTool] = useState<MapTool>("view");
 	// Read-only (View) mode: hides every authoring affordance and forces the
 	// `view` tool; map features + mission geometry still render and pan/zoom work.
+	//
+	// This is the operator's own choice only. The map can also be in View because
+	// the mission's plan is committed — see `viewOnly` below, which is what the
+	// UI reads.
 	const [readOnly, setReadOnly] = useState(false);
+	// The mission status under which the operator last took Edit back over a
+	// committed plan, so that permission does not silently carry across the next
+	// transition. See `map-view-mode.ts`.
+	const [editUnlockedAt, setEditUnlockedAt] = useState<MissionStatus | null>(
+		null,
+	);
 	// Operator-chosen draw shape (line / polygon / rectangle). Mission context
 	// defaults to polygon (the core "can't draw a polygon" fix); map-editor context
 	// constrains it by the selected feature_type below.
 	const [drawShape, setDrawShape] = useState<DrawShape>("polygon");
 	const selectedMission = useSelectedMission();
+
+	// The selected mission's live status, from the same store the lifecycle panel
+	// reads. Null when no feedback topic is configured, which is not a signal —
+	// see `map-view-mode.ts`.
+	const missionFeedback = useMissionFeedbackExact(selectedMission);
+	const missionOrigin = useMissionFeedbackOrigin(selectedMission);
+	const liveStatus = props.feedbackTopic
+		? (missionFeedback?.status ?? null)
+		: null;
+
+	// The vehicles whose Nav2 plan is drawn: the selected mission's, while it is
+	// STARTED and heard live. A stable, sorted id list so the subscription set only changes when
+	// the membership does.
+	const trajectoryAgentIdsKey =
+		props.feedbackTopic &&
+		missionFeedback &&
+		missionOrigin === "live" &&
+		missionFeedback.status === MissionStatus.STARTED
+			? [...new Set(missionFeedback.tasks.map((t) => t.vehicle_id))]
+					.filter(Boolean)
+					.sort()
+					.join(",")
+			: "";
+	const trajectoryAgentIds = useMemo(
+		() => (trajectoryAgentIdsKey ? trajectoryAgentIdsKey.split(",") : []),
+		[trajectoryAgentIdsKey],
+	);
+
+	// Showing rather than authoring. Derived, never stored: approving a mission
+	// commits its plan, and a map left armed over geometry the C2 has already
+	// dispatched is an invitation to edit it. Deriving also keeps this out of an
+	// effect — a status-driven `setState` would re-render on every feedback
+	// message, and silencing that lint rule would opt this whole body out of
+	// React Compiler.
+	const viewOnly = resolveViewOnly({
+		readOnly,
+		inMissionContext: context === "mission",
+		status: liveStatus,
+		editUnlockedAt,
+	});
 
 	// --- Map-editor state ---------------------------------------------------
 	const [maps, setMaps] = useState<MapRegistryEntry[]>([]);
@@ -1481,7 +2099,7 @@ function MissionMapBody(props: {
 	// --- Mission state ------------------------------------------------------
 	/**
 	 * Working copy of the active mission, bound to the SHARED draft store so edits
-	 * here (draw / vehicle / behavior / geometry) propagate to the editor (F5) and
+	 * here (draw / vehicle / behavior / geometry) propagate to the mission editor and
 	 * vice-versa. A {@link MissionDraft} is a superset of {@link MissionConfig}, so
 	 * all the reads/memos below treat it as a `MissionConfig` unchanged.
 	 */
@@ -1512,12 +2130,6 @@ function MissionMapBody(props: {
 		() => props.overlays ?? [],
 	);
 	const [overlaysOpen, setOverlaysOpen] = useState(false);
-	// 3D buildings (MapLibre fill-extrusion). The footprints come from the SAME
-	// Overpass building fetch the risk-import path uses; this holds the derived
-	// extrusion FeatureCollection (null until the first fetch resolves).
-	const [buildings3d, setBuildings3d] = useState(false);
-	const [buildingsFc, setBuildingsFc] =
-		useState<BuildingExtrusionFeatureCollection | null>(null);
 	// Planner navigation graph (faint backdrop). The FeatureCollection is fetched
 	// from the C2 on toggle-on and refreshed when the planner's loaded_map changes
 	// (a cheap, event-driven refresh — never per render). Null until first fetch.
@@ -1532,6 +2144,7 @@ function MissionMapBody(props: {
 		tool: "view",
 		mapFeatureType: "road",
 		selectedMission: null,
+		selectedMap: "",
 	});
 	useEffect(() => {
 		drawCtxRef.current = {
@@ -1539,8 +2152,9 @@ function MissionMapBody(props: {
 			tool,
 			mapFeatureType,
 			selectedMission,
+			selectedMap,
 		};
-	}, [context, tool, mapFeatureType, selectedMission]);
+	}, [context, tool, mapFeatureType, selectedMission, selectedMap]);
 
 	// Toggle a single overlay on/off (session-only; config seeds the initial set).
 	const toggleOverlay = useCallback((id: string) => {
@@ -1549,14 +2163,13 @@ function MissionMapBody(props: {
 		);
 	}, []);
 
-	// Toggle the 3D-buildings layer. Turning it off drops the cached footprints so
-	// a later re-enable always refetches for the current geofence / map view.
+	// Toggle the 3D-buildings layer. Turning it off drops any cached footprints so
+	// a later re-enable refetches for the current geofence / map view — which
+	// matters on the raster path only; a vector basemap caches nothing here.
 	const toggleBuildings3d = useCallback(() => {
-		setBuildings3d((on) => {
-			if (on) setBuildingsFc(null);
-			return !on;
-		});
-	}, []);
+		if (buildings3d) setBuildings(null);
+		setBuildings3dChoice(!buildings3d);
+	}, [buildings3d]);
 
 	// Toggle the planner-graph backdrop. Turning it off drops the cached graph so
 	// a later re-enable refetches the current graph.
@@ -1584,11 +2197,19 @@ function MissionMapBody(props: {
 		return list;
 	}, [executeMapsList]);
 
+	/**
+	 * True once the camera has been placed by something more specific than the
+	 * operator's own coordinates (a selected map's bounds). Gates the geolocation
+	 * fly below so the two never fight over the viewport.
+	 */
+	const cameraPlacedRef = useRef(false);
+
 	// Fit the map view to a registry entry's bounds, when present.
 	const fitToBounds = useCallback((entry?: MapRegistryEntry) => {
 		const map = mapRef.current?.getMap();
 		if (!map || !entry?.bounds) return;
 		const { minLon, minLat, maxLon, maxLat } = entry.bounds;
+		cameraPlacedRef.current = true;
 		map.fitBounds(
 			[
 				[minLon, minLat],
@@ -1597,6 +2218,30 @@ function MissionMapBody(props: {
 			{ padding: 40, duration: 600 },
 		);
 	}, []);
+
+	/**
+	 * Fly to the operator's resolved location, once.
+	 *
+	 * `initialViewState` is read once at map creation, long before the browser's
+	 * geolocation prompt can be answered — so the resolved position used to be
+	 * computed and then thrown away, and every operator always started at the
+	 * hard-coded Brussels default. An imperative move is the only thing MapLibre
+	 * accepts afterwards.
+	 *
+	 * Skipped when a selected map's bounds have already placed the camera: the map
+	 * the operator is working on beats where they happen to be sitting, and a late
+	 * geolocation answer yanking the view away from it would be worse than the bug.
+	 */
+	const flownToLocationRef = useRef(false);
+	useEffect(() => {
+		if (!mapObserved || !resolvedLocation) return;
+		if (flownToLocationRef.current || cameraPlacedRef.current) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		flownToLocationRef.current = true;
+		cameraPlacedRef.current = true;
+		map.flyTo({ center: resolvedLocation, zoom: 14, duration: 800 });
+	}, [mapObserved, resolvedLocation]);
 
 	// Initial maps fetch on mount; keep the persisted/last-used map if it exists.
 	useEffect(() => {
@@ -1636,22 +2281,60 @@ function MissionMapBody(props: {
 		return nextFeatures;
 	}, [selectedMap, executeFeaturesList]);
 
+	/**
+	 * Monotonic sequence for feature fetches.
+	 *
+	 * `fetchFeatures` closes over `selectedMap`. The MOUNT effect below had a
+	 * `cancelled` flag, but the post-write refetches (`confirmSave`,
+	 * `deleteFeature`, both OSM imports) had nothing at all: switching maps while
+	 * one was in flight let it resolve afterwards and call `setFeatures` with map
+	 * **A**'s features while **B** was selected — the operator then edits, picks
+	 * and deletes against a list that belongs to another map. Every path now takes
+	 * a ticket and drops its result if a newer fetch has started.
+	 *
+	 * The ticket alone orders fetches; it does not say WHICH map a result is for.
+	 * A write that resolves after a switch (a delete, a save, a confirmed import
+	 * whose closure still names the old map) starts the newest fetch — for the
+	 * map being left. Its features would then be edited under the new map's name,
+	 * and the PUT upsert copies them there. So each fetch also records the map it
+	 * asked for and is dropped unless that is still the selected map.
+	 */
+	const featuresSeqRef = useRef(0);
+	/**
+	 * The currently selected map, readable from an async continuation. Written
+	 * by {@link changeSelectedMap} at the moment of the switch (so a fetch that
+	 * resolves before the re-render is already recognised as stale) and kept in
+	 * step with every other `setSelectedMap` by the effect below.
+	 */
+	const selectedMapRef = useRef(selectedMap);
+	useEffect(() => {
+		selectedMapRef.current = selectedMap;
+	}, [selectedMap]);
+
 	// Apply a fresh feature fetch to state (shared by the effect + writes).
 	const refetchFeatures = useCallback(async () => {
+		const seq = ++featuresSeqRef.current;
+		const requestedMap = selectedMap;
 		const next = await fetchFeatures();
+		if (seq !== featuresSeqRef.current) return; // superseded
+		if (requestedMap !== selectedMapRef.current) return; // another map now
 		if (next) setFeatures(next);
-	}, [fetchFeatures]);
+	}, [fetchFeatures, selectedMap]);
 
 	useEffect(() => {
+		const seq = ++featuresSeqRef.current;
+		const requestedMap = selectedMap;
 		let cancelled = false;
 		void (async () => {
 			const next = await fetchFeatures();
-			if (!cancelled && next) setFeatures(next);
+			if (cancelled || seq !== featuresSeqRef.current) return;
+			if (requestedMap !== selectedMapRef.current) return;
+			if (next) setFeatures(next);
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [fetchFeatures]);
+	}, [fetchFeatures, selectedMap]);
 
 	// Fit to the selected map's bounds when its registry entry is known.
 	useEffect(() => {
@@ -1728,9 +2411,9 @@ function MissionMapBody(props: {
 	);
 
 	// Load the working copy into the shared draft store whenever the active mission
-	// changes. Load coordination: if a slot already exists (F5 loaded it, or an
+	// changes. Load coordination: if a slot already exists (the mission editor loaded it, or an
 	// in-progress edit lives there), ADOPT it — do not refetch and clobber the
-	// edit. Only fetch + `setMissionDraft` when no slot exists, so F5 and F6 never
+	// edit. Only fetch + `setMissionDraft` when no slot exists, so the editor and the map never
 	// double-fetch the same mission and a cross-widget edit survives the bind.
 	useEffect(() => {
 		let cancelled = false;
@@ -1758,15 +2441,71 @@ function MissionMapBody(props: {
 	// pending authoring state, and clears the draw layer so nothing is left armed.
 	// Done in the event handler (not an effect) to avoid a cascading-render set.
 	const toggleReadOnly = useCallback(() => {
-		const enteringView = !readOnly;
+		const enteringView = !viewOnly;
 		setReadOnly(enteringView);
+		// Leaving View is also how the operator overrides a committed plan's
+		// stand-down, so remember the status it was permitted under: the next
+		// transition (approved → started) is a new fact and takes the map back.
+		setEditUnlockedAt(enteringView ? null : liveStatus);
 		if (enteringView) {
 			setTool("view");
 			setPending(null);
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
 		}
-	}, [readOnly]);
+	}, [viewOnly, liveStatus]);
+
+	/**
+	 * Abort handle for the operator-triggered Overpass imports.
+	 *
+	 * `fetchOsmRoads` / `fetchOsmBuildings` both accept a signal and both import
+	 * paths passed nothing, so a query against a large geofence kept running after
+	 * the operator switched maps or closed the panel, held `busy` true, and could
+	 * still write `setError` into an unmounted-or-moved-on widget. The 3D-buildings
+	 * effect already did this correctly; the two imports now match it. Starting a
+	 * new import aborts the previous one — there is one shared busy flag, so two
+	 * concurrent imports could not be represented anyway. A map switch aborts
+	 * it too ({@link resetMapEditingState}).
+	 */
+	const osmAbortRef = useRef<AbortController | null>(null);
+	useEffect(
+		() => () => {
+			osmAbortRef.current?.abort();
+		},
+		[],
+	);
+
+	/**
+	 * Drop every transient map-editor selection.
+	 *
+	 * Shared by the map switch and the create/delete paths so they cannot drift.
+	 * `pending` is the one that mattered: it carries the `featureId` of a feature
+	 * on the map being left, and `c2.map.features.update` is a PUT **upsert**, so
+	 * confirming it after a switch copied that feature into the newly selected map
+	 * — live data corruption with no error and nothing on screen. Clearing
+	 * `pickedId` alone (the old behaviour) left exactly that state behind.
+	 */
+	const resetMapEditingState = useCallback(() => {
+		setPickedId(null);
+		setPending(null);
+		// An Overpass import and its confirm dialog both target the map being
+		// left: abort the one and close the other, so neither lands on the new map.
+		osmAbortRef.current?.abort();
+		setConfirmState(null);
+		editingDrawIdRef.current = null;
+		clearDraw(drawRef.current);
+		setTool("view");
+	}, []);
+
+	/** Select a different map, discarding any edit scoped to the previous one. */
+	const changeSelectedMap = useCallback(
+		(name: string) => {
+			selectedMapRef.current = name;
+			setSelectedMap(name);
+			resetMapEditingState();
+		},
+		[resetMapEditingState],
+	);
 
 	// Switch editing context, resetting all transient per-context selections.
 	const changeContext = useCallback((next: MapContext) => {
@@ -1780,10 +2519,13 @@ function MissionMapBody(props: {
 		clearDraw(drawRef.current);
 	}, []);
 
-	// terra-draw lifecycle — construct on map load, tear down on unmount.
+	// terra-draw lifecycle — construct on map load, tear down on unmount. Also
+	// where the live map becomes reachable for the effects that need it.
 	const handleMapLoad = useCallback(() => {
 		const map = mapRef.current?.getMap();
-		if (!map || drawRef.current) return;
+		if (!map) return;
+		setMapObserved(true);
+		if (drawRef.current) return;
 		const draw = new TerraDraw({
 			adapter: new TerraDrawMapLibreGLAdapter({
 				map: map as MapLibreInstance,
@@ -1853,6 +2595,9 @@ function MissionMapBody(props: {
 					feature: drawn,
 					name: "",
 					featureType: ctx.mapFeatureType,
+					// Provenance for the cross-map guard (a create cannot corrupt,
+					// but stamping both origins keeps the invariant simple).
+					mapName: ctx.selectedMap,
 				});
 				return;
 			}
@@ -1925,17 +2670,23 @@ function MissionMapBody(props: {
 	const drawGeometryMode = drawShapeToMode(effectiveShape);
 
 	// Drive terra-draw mode from the toolbar tool + chosen draw geometry.
+	//
+	// `viewOnly` disarms it here rather than by resetting `tool`: the map can
+	// enter View on a status change, which is not an event this widget handles,
+	// and a tool left armed would keep drawing under a toolbar that has put its
+	// authoring controls away. Static is the same neutral mode the view tool
+	// uses, so nothing on screen is removed — only the arming.
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw || !draw.enabled) return;
-		if (tool === "draw" && canEdit) {
+		if (!viewOnly && tool === "draw" && canEdit) {
 			draw.setMode(drawGeometryMode);
-		} else if (tool === "edit" && canEdit) {
+		} else if (!viewOnly && tool === "edit" && canEdit) {
 			draw.setMode("select");
 		} else {
 			draw.setMode("static");
 		}
-	}, [tool, canEdit, drawGeometryMode]);
+	}, [viewOnly, tool, canEdit, drawGeometryMode]);
 
 	/** Confirm a pending MAP-feature save: POST (create) or PUT (edit). */
 	const confirmSave = useCallback(
@@ -1943,6 +2694,14 @@ function MissionMapBody(props: {
 			if (!pending) return;
 			if (!selectedMap) {
 				setError("Select a map first.");
+				return;
+			}
+			// Second line of defence against the PUT-upsert corruption. The map
+			// switch already clears `pending`; this refuses the write even if some
+			// future path forgets to, because the cost of being wrong is a feature
+			// silently cloned into another operator's map.
+			if (crossMapEdit(pending, selectedMap)) {
+				setError(crossMapEditMessage(pending, selectedMap));
 				return;
 			}
 			const editing = pending.featureId != null;
@@ -2006,12 +2765,19 @@ function MissionMapBody(props: {
 	);
 
 	/** Load a stored map feature into the draw layer for editing (same id). */
-	const editFeature = useCallback((feature: C2Feature) => {
+	const editFeature = useCallback((feature: C2Feature, mapName: string) => {
 		const draw = drawRef.current;
 		if (!draw) return;
 		const drawn = c2FeatureToDrawFeature(feature);
 		if (!drawn) {
-			setError("Feature geometry can't be edited.");
+			// Name the actual reason. terra-draw authors single-part geometry
+			// only, so a MultiPolygon / MultiLineString the backend accepts and
+			// this map RENDERS cannot be loaded into the draw layer — "can't be
+			// edited" alone left the operator clicking Edit repeatedly.
+			setError(
+				describeUneditableGeometry(feature) ??
+					"Feature geometry can't be edited.",
+			);
 			return;
 		}
 		const storedType = feature.properties?.feature_type;
@@ -2029,6 +2795,9 @@ function MissionMapBody(props: {
 		setPending({
 			feature: drawn,
 			featureId: readFeatureId(feature) ?? undefined,
+			// Provenance: which map this edit belongs to. The write path
+			// refuses to upsert it into a different one.
+			mapName,
 			name:
 				typeof feature.properties?.name === "string"
 					? feature.properties.name
@@ -2110,7 +2879,7 @@ function MissionMapBody(props: {
 			}
 			setBusy(true);
 			// The add call POSTs `feature` verbatim; the backend accepts a batch
-			// `{ features: [...] }` in the same body (MAP_API §2).
+			// `{ features: [...] }` in the same body (the C2 maps API contract).
 			const result = await featuresAddCall.execute({
 				name: selectedMap,
 				feature: { features: roads },
@@ -2125,6 +2894,14 @@ function MissionMapBody(props: {
 		},
 		[selectedMap, props.featuresAddDef, featuresAddCall, refetchFeatures],
 	);
+
+	/** Begin an OSM query, aborting any previous one; returns its signal. */
+	const beginOsmFetch = useCallback((): AbortSignal => {
+		osmAbortRef.current?.abort();
+		const controller = new AbortController();
+		osmAbortRef.current = controller;
+		return controller.signal;
+	}, []);
 
 	/**
 	 * Import drivable OSM roads for the selected geofence: derive its bbox, query
@@ -2147,9 +2924,14 @@ function MissionMapBody(props: {
 				setError("Geofence has no usable polygon to import roads for.");
 				return;
 			}
+			const signal = beginOsmFetch();
 			setBusy(true);
-			const result = await fetchOsmRoads(bbox);
-			setBusy(false);
+			const result = await fetchOsmRoads(bbox, signal);
+			// A replaced import must not re-enable the controls while its
+			// successor still runs: only the latest import releases `busy` (an
+			// import aborted by a map switch is still the latest, and does).
+			if (osmAbortRef.current?.signal === signal) setBusy(false);
+			if (signal.aborted) return;
 			if (!result.ok) {
 				setError(result.error);
 				return;
@@ -2168,7 +2950,7 @@ function MissionMapBody(props: {
 				onConfirm: () => void importOsmRoads(roads),
 			});
 		},
-		[selectedMap, props.featuresAddDef, importOsmRoads],
+		[selectedMap, props.featuresAddDef, importOsmRoads, beginOsmFetch],
 	);
 
 	/**
@@ -2231,9 +3013,14 @@ function MissionMapBody(props: {
 				);
 				return;
 			}
+			const signal = beginOsmFetch();
 			setBusy(true);
-			const result = await fetchOsmBuildings(bbox);
-			setBusy(false);
+			const result = await fetchOsmBuildings(bbox, signal);
+			// A replaced import must not re-enable the controls while its
+			// successor still runs: only the latest import releases `busy` (an
+			// import aborted by a map switch is still the latest, and does).
+			if (osmAbortRef.current?.signal === signal) setBusy(false);
+			if (signal.aborted) return;
 			if (!result.ok) {
 				setError(result.error);
 				return;
@@ -2252,7 +3039,7 @@ function MissionMapBody(props: {
 				onConfirm: () => void importOsmBuildings(risks),
 			});
 		},
-		[selectedMap, props.featuresAddDef, importOsmBuildings],
+		[selectedMap, props.featuresAddDef, importOsmBuildings, beginOsmFetch],
 	);
 
 	/** Create a new map (prompt for a name); select it on success. */
@@ -2274,9 +3061,8 @@ function MissionMapBody(props: {
 		}
 		setError(null);
 		await refetchMaps();
-		setSelectedMap(name);
-		setPickedId(null);
-	}, [props.mapsCreateDef, mapsCreateCall, refetchMaps]);
+		changeSelectedMap(name);
+	}, [props.mapsCreateDef, mapsCreateCall, refetchMaps, changeSelectedMap]);
 
 	/**
 	 * Delete the selected map, then reselect the first map. The caller confirms
@@ -2295,10 +3081,15 @@ function MissionMapBody(props: {
 			return;
 		}
 		setError(null);
-		setPickedId(null);
 		const list = await refetchMaps();
-		setSelectedMap(list[0]?.name ?? "");
-	}, [props.mapsDeleteDef, selectedMap, mapsDeleteCall, refetchMaps]);
+		changeSelectedMap(list[0]?.name ?? "");
+	}, [
+		props.mapsDeleteDef,
+		selectedMap,
+		mapsDeleteCall,
+		refetchMaps,
+		changeSelectedMap,
+	]);
 
 	// --- Destructive-action confirmation (AlertDialog) ----------------------
 
@@ -2412,9 +3203,9 @@ function MissionMapBody(props: {
 	 * apply ONLY the `objective.geometries[]` change, validate, then save the full
 	 * config. The map owns `objective.geometries`, `vehicles`, `behavior`, and
 	 * `name` — only those are overlaid (via {@link mergeMissionOwnedFields}), so
-	 * F5's advanced `transit` / `start` / `arrival_time` blocks are preserved.
+	 * The mission editor's advanced `transit` / `start` / `arrival_time` blocks are preserved.
 	 * Authoring all four owned fields here is what breaks the save deadlock: a
-	 * mission F4 created (empty) gains the required quartet and validates.
+	 * mission the browser created (empty) gains the required quartet and validates.
 	 *
 	 * When a geometry is being edited in the draw layer, its LIVE (post drag /
 	 * reshape) geometry is captured by terra-draw id and overlaid onto the saved
@@ -2437,8 +3228,15 @@ function MissionMapBody(props: {
 			setError("Could not re-fetch the mission for saving.");
 			return;
 		}
+		// ⚠ RE-READ AT WRITE TIME. `missionConfig` is the render closure's draft,
+		// captured before the `loadMissionConfig` await above. Using it meant an
+		// edit made in the mission editor during that round trip was
+		// overwritten by the pre-await value and its dirty flag cleared — the
+		// operator lost the edit AND the warning that would have told them.
+		const current = getMissionDraft(selectedMission) ?? missionConfig;
+
 		// Capture the live in-draw edit (if any) into the geometry list by index.
-		let geometries = missionConfig.objective?.geometries ?? [];
+		let geometries = current.objective?.geometries ?? [];
 		const liveId = editingDrawIdRef.current;
 		if (pickedGeomIndex != null && liveId != null) {
 			const live = drawRef.current?.getSnapshotFeature(liveId) as
@@ -2450,12 +3248,18 @@ function MissionMapBody(props: {
 				);
 			}
 		}
-		const merged = mergeMissionOwnedFields(fresh, {
-			geometries,
-			vehicles: missionConfig.vehicles ?? [],
-			behavior: missionConfig.behavior,
-			name: missionConfig.name,
-		});
+		const merged = cleanMissionConfig(
+			hydrateMissionDraft(
+				mergeMissionOwnedFields(fresh, {
+					geometries,
+					vehicles: current.vehicles ?? [],
+					behavior: current.behavior,
+					name: current.name,
+				}),
+			),
+		);
+		// Validate the CLEANED config — the same object that is about to be sent,
+		// and the same thing the editor validates. See `liveMissionIssues` below.
 		const issues = validateMissionConfig(merged);
 		setMissionIssues(issues);
 		if (issues.some((i) => i.severity === "error")) {
@@ -2472,9 +3276,51 @@ function MissionMapBody(props: {
 			return;
 		}
 		setError(null);
-		// Write the merged config back as the shared draft (dirty=false), so F5
-		// reflects the saved state and the shared dirty flag clears.
-		setMissionDraft(hydrateMissionDraft(merged));
+		// Commit the saved config as the shared draft ONLY while nothing raced
+		// us. The comparison is over the MAP-OWNED fields alone, and against the
+		// draft as it was READ at write time (`current`) — never against `merged`.
+		// `merged` carries the live in-draw reshape (which the shared draft never
+		// held) and the name as normalised for the wire, so comparing against it
+		// reported a conflict on every reshape save. An editor change to
+		// `transit`/`start` is not a conflict with a write that never touched
+		// them; a change to the fields this save persisted is.
+		//
+		// Only the owned fields are folded in: the editor's unsaved
+		// `transit`/`start` edits survive, and the draft stays dirty while they
+		// still differ from what the server now holds.
+		const readSignature = missionOwnedFieldsSignature(current);
+		const outcome = commitSavedDraft(
+			selectedMission,
+			merged,
+			(draft) => missionOwnedFieldsSignature(draft) === readSignature,
+			{
+				apply: (draft) => applyMissionOwnedFields(draft, merged),
+				isSaved: (next) => missionContentEquals(next, merged),
+			},
+		);
+		if (outcome === "kept-dirty") {
+			// The save still persisted the live reshape. Fold it into the draft
+			// when its geometry list is untouched by the concurrent edit, so
+			// clearing the draw layer below does not drop it and the next save
+			// does not revert it.
+			if (geometries !== current.objective?.geometries) {
+				const readGeometries = JSON.stringify(
+					current.objective?.geometries ?? [],
+				);
+				editMissionDraft(selectedMission, (draft) =>
+					JSON.stringify(draft.objective?.geometries ?? []) ===
+					readGeometries
+						? {
+								...draft,
+								objective: { ...draft.objective, geometries },
+							}
+						: draft,
+				);
+			}
+			setError(
+				"Saved — but the mission changed while the save was in flight, so your newer edits were kept and are still unsaved.",
+			);
+		}
 		setPickedGeomIndex(null);
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
@@ -2548,7 +3394,7 @@ function MissionMapBody(props: {
 			if (!hit) return;
 			if (hit.kind === "feature") {
 				setPickedId(hit.id);
-				if (tool === "edit") editFeature(hit.feature);
+				if (tool === "edit") editFeature(hit.feature, selectedMap);
 				else if (tool === "delete") requestDeleteFeature(hit.feature);
 				return;
 			}
@@ -2558,6 +3404,7 @@ function MissionMapBody(props: {
 		},
 		[
 			tool,
+			selectedMap,
 			pickAt,
 			editFeature,
 			requestDeleteFeature,
@@ -2581,9 +3428,25 @@ function MissionMapBody(props: {
 	// operator sees blocking issues and the disabled Save without a save attempt.
 	// The save path re-runs `validateMissionConfig` on the freshly-merged config
 	// (catching server-side drift) and stores those in `missionIssues`.
-	const liveMissionIssues = useMemo(
-		() => (missionConfig ? validateMissionConfig(missionConfig) : []),
+	// ⚠ Validated on the CLEANED config, not the raw draft.
+	//
+	// THE DEADLOCK THIS BREAKS — the map validated `missionConfig` raw while the
+	// editor validated `cleanMissionConfig(draft)`. JSON-Forms materializes the
+	// optional blocks as empty objects, so a draft carrying `transit: {}` failed
+	// C2's all-or-nothing transit rule HERE and passed THERE: the same mission
+	// showed as savable in the editor and permanently un-savable in the map, with
+	// an error naming a field the map has no control to fix. Both paths now
+	// validate exactly what gets sent.
+	const cleanedMissionConfig = useMemo(
+		() => (missionConfig ? cleanMissionConfig(missionConfig) : null),
 		[missionConfig],
+	);
+	const liveMissionIssues = useMemo(
+		() =>
+			cleanedMissionConfig
+				? validateMissionConfig(cleanedMissionConfig)
+				: [],
+		[cleanedMissionConfig],
 	);
 
 	// Issues to surface: prefer the post-save merged issues when present, else the
@@ -2592,7 +3455,7 @@ function MissionMapBody(props: {
 		missionIssues.length > 0 ? missionIssues : liveMissionIssues
 	).filter((i) => i.severity === "error");
 
-	// Whether the working mission would pass validation (mirrors F5's `submittable`);
+	// Whether the working mission would pass validation (mirrors the mission editor's `submittable`);
 	// drives the Save button's disabled state so an invalid save is unreachable.
 	const missionSubmittable = useMemo(
 		() => !liveMissionIssues.some((i) => i.severity === "error"),
@@ -2621,9 +3484,9 @@ function MissionMapBody(props: {
 	);
 
 	// Robot allocation by clicking agent markers is the PRIMARY affordance, active
-	// only while a mission is being edited and not read-only (R2.G).
+	// only while a mission is being edited and not read-only.
 	const markersSelectable =
-		context === "mission" && missionConfig != null && !readOnly;
+		context === "mission" && missionConfig != null && !viewOnly;
 
 	// The picked geofence both imports operate on (roads / risk-from-buildings).
 	// Null when the picked feature is not a geofence — the Import control is then
@@ -2647,11 +3510,24 @@ function MissionMapBody(props: {
 		return null;
 	}, [pickedFeature]);
 
+	// What a fetched collection is valid for. A geofence ring is its own scope;
+	// an unscoped fetch takes the map view, which is a moving target, so it gets
+	// one shared key rather than pretending to track the viewport.
+	const buildings3dScope = useMemo(
+		() => (buildings3dRing ? JSON.stringify(buildings3dRing) : "view"),
+		[buildings3dRing],
+	);
+
 	// Fetch building footprints once when 3D is toggled on (and whenever the
 	// scoping geofence changes while on); off → drop the source. The fetch is the
 	// SAME Overpass building read the risk import uses; only the output differs.
+	//
+	// Skipped entirely on a vector basemap: the style's own `building-3d` layer
+	// is already showing them, so this would be a network round trip to a public
+	// API, a second set of extrusions over the first, and one more way for the
+	// toggle to fail.
 	useEffect(() => {
-		if (!buildings3d) return;
+		if (!buildings3d || basemapCarriesBuildings) return;
 		const ring = buildings3dRing;
 		const bbox = ring
 			? ringToBbox(ring)
@@ -2675,120 +3551,183 @@ function MissionMapBody(props: {
 				setError(result.error);
 				return;
 			}
-			setBuildingsFc(
-				osmBuildingsToExtrusionFc(
+			setBuildings({
+				scope: buildings3dScope,
+				fc: osmBuildingsToExtrusionFc(
 					result.data as OverpassBuildingWay[],
 					ring ?? undefined,
 				),
-			);
+			});
 		})();
 		return () => controller.abort();
-	}, [buildings3d, buildings3dRing]);
+	}, [
+		buildings3d,
+		buildings3dRing,
+		buildings3dScope,
+		basemapCarriesBuildings,
+	]);
 
 	return (
-		<div className="h-full w-full flex flex-col text-sm">
-			{/* Toolbar */}
-			<div className="flex items-center gap-2 p-2 shrink-0 flex-wrap border-b">
-				{/* Context toggle */}
-				<div className="flex items-center gap-1">
-					{(
-						[
-							["map-editor", "Map editor"],
-							["mission", "Mission"],
-						] as [MapContext, string][]
-					).map(([value, label]) => (
-						<Button
-							key={value}
-							size="sm"
-							variant={context === value ? "default" : "outline"}
-							className="h-7 text-xs"
-							onClick={() => changeContext(value)}
-						>
-							{label}
-						</Button>
-					))}
-					{/* Read-only (View) toggle: locks every authoring affordance. */}
-					<Button
-						size="sm"
-						variant={readOnly ? "default" : "outline"}
-						className="h-7 text-xs"
-						title={
-							readOnly
-								? "View mode — authoring locked"
-								: "Edit mode — authoring enabled"
-						}
-						onClick={toggleReadOnly}
+		<div
+			ref={mapRootRef}
+			className="h-full w-full min-w-0 flex flex-col text-sm"
+		>
+			{/* Toolbar — wraps; in a narrow panel labels shorten so it stays
+			    at most two rows and does not eat the map. */}
+			<div
+				className={`flex items-center p-2 shrink-0 flex-wrap border-b min-w-0 ${compactToolbar ? "gap-1" : "gap-2"}`}
+			>
+				{/* Context toggle — which thing the map is authoring. */}
+				<ToggleGroup
+					type="single"
+					variant="outline"
+					size="sm"
+					aria-label="Map context"
+					value={context}
+					onValueChange={(value) => {
+						if (value) changeContext(value as MapContext);
+					}}
+				>
+					<ToggleGroupItem
+						value="map-editor"
+						className={TOGGLE_ITEM_CLASS}
 					>
-						{readOnly ? (
-							<Lock className="w-3.5 h-3.5 mr-1" />
-						) : (
-							<LockOpen className="w-3.5 h-3.5 mr-1" />
-						)}
-						{readOnly ? "View" : "Edit"}
-					</Button>
-				</div>
+						{compactToolbar ? "Map" : "Map editor"}
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						value="mission"
+						className={TOGGLE_ITEM_CLASS}
+					>
+						Mission
+					</ToggleGroupItem>
+				</ToggleGroup>
+				{/* Mode switch: View locks every authoring affordance, Author
+				    unlocks them. Labelled "Author" rather than "Edit" so it cannot
+				    be mistaken for the geometry Edit tool beside it. When the map
+				    stood down by itself — the mission's plan is committed — the
+				    title says so: an operator who did not press this cannot
+				    otherwise tell why the tools went away, and would reach for the
+				    gear or reload. Choosing Author still takes the map back. */}
+				<ToggleGroup
+					type="single"
+					variant="outline"
+					size="sm"
+					aria-label="Map mode"
+					title={
+						viewOnly
+							? readOnly
+								? "View mode — authoring locked"
+								: "View mode — this mission's plan is approved; choose Author to edit it anyway"
+							: "Author mode — authoring enabled"
+					}
+					value={viewOnly ? "view" : "author"}
+					onValueChange={(value) => {
+						if (value && (value === "view") !== viewOnly)
+							toggleReadOnly();
+					}}
+				>
+					<ToggleGroupItem
+						value="view"
+						aria-label="View mode"
+						className={TOGGLE_ITEM_CLASS}
+					>
+						<Lock />
+						{compactToolbar ? null : "View"}
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						value="author"
+						aria-label="Author mode"
+						className={TOGGLE_ITEM_CLASS}
+					>
+						<LockOpen />
+						{compactToolbar ? null : "Author"}
+					</ToggleGroupItem>
+				</ToggleGroup>
 
 				{/* Tools */}
-				{!readOnly && (
-					<div className="flex items-center gap-1">
-						{(
-							[
-								["view", "Pick"],
-								["draw", "Draw"],
-								["edit", "Edit"],
-								["delete", "Delete"],
-							] as [MapTool, string][]
-						).map(([value, label]) => (
-							<Button
-								key={value}
-								size="sm"
-								variant={tool === value ? "default" : "outline"}
-								className="h-7 text-xs"
-								disabled={value !== "view" && !canEdit}
-								onClick={() => setTool(value)}
-							>
-								{label}
-							</Button>
-						))}
-					</div>
+				{!viewOnly && (
+					<>
+						<Separator
+							orientation="vertical"
+							className="data-[orientation=vertical]:h-6"
+						/>
+						<ToggleGroup
+							type="single"
+							variant="outline"
+							size="sm"
+							aria-label="Map tool"
+							value={tool}
+							onValueChange={(value) => {
+								if (value) setTool(value as MapTool);
+							}}
+						>
+							{(
+								[
+									["view", "Pick"],
+									["draw", "Draw"],
+									["edit", "Edit"],
+									["delete", "Delete"],
+								] as [MapTool, string][]
+							).map(([value, label]) => (
+								<ToggleGroupItem
+									key={value}
+									value={value}
+									className={TOGGLE_ITEM_CLASS}
+									disabled={value !== "view" && !canEdit}
+								>
+									{label}
+								</ToggleGroupItem>
+							))}
+						</ToggleGroup>
+					</>
 				)}
 
 				{/* Shape buttons — the geometry the Draw tool authors. In map-editor it
 				    is constrained by the feature_type (road → line only, hidden;
 				    geofence/risk → polygon or rectangle); in mission the operator
 				    chooses freely (point / line / polygon / rectangle). */}
-				{!readOnly && availableShapes.length > 1 && (
-					<div className="flex items-center gap-1">
-						{availableShapes.map((shape) => {
-							const active =
-								(availableShapes.includes(drawShape)
-									? drawShape
-									: effectiveShape) === shape;
-							return (
-								<Button
-									key={shape}
-									size="sm"
-									variant={active ? "default" : "outline"}
-									className="h-7 text-xs"
-									onClick={() => setDrawShape(shape)}
-								>
-									{SHAPE_LABELS[shape]}
-								</Button>
-							);
-						})}
-					</div>
+				{!viewOnly && availableShapes.length > 1 && (
+					<ToggleGroup
+						type="single"
+						variant="outline"
+						size="sm"
+						aria-label="Draw shape"
+						value={
+							availableShapes.includes(drawShape)
+								? drawShape
+								: effectiveShape
+						}
+						onValueChange={(value) => {
+							if (value) setDrawShape(value as DrawShape);
+						}}
+					>
+						{availableShapes.map((shape) => (
+							<ToggleGroupItem
+								key={shape}
+								value={shape}
+								className={TOGGLE_ITEM_CLASS}
+							>
+								{SHAPE_LABELS[shape]}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
 				)}
+
+				<Separator
+					orientation="vertical"
+					className="data-[orientation=vertical]:h-6"
+				/>
 
 				{context === "map-editor" ? (
 					<>
 						<Select
 							value={selectedMap || undefined}
-							onValueChange={(value) => {
-								setSelectedMap(value);
-								setPickedId(null);
-							}}
+							onValueChange={changeSelectedMap}
 						>
-							<SelectTrigger className="h-7 w-44 text-xs">
+							<SelectTrigger
+								size="sm"
+								className="w-44 max-w-full"
+							>
 								<SelectValue placeholder="Map" />
 							</SelectTrigger>
 							<SelectContent>
@@ -2799,31 +3738,32 @@ function MissionMapBody(props: {
 								))}
 							</SelectContent>
 						</Select>
-						{!readOnly && (
+						{!viewOnly && (
 							<>
 								<Button
-									size="sm"
+									size={compactToolbar ? "icon-sm" : "sm"}
 									variant="outline"
-									className="h-7 text-xs"
+									aria-label="New map"
 									disabled={busy || !props.mapsCreateDef}
 									onClick={() => void createMap()}
 								>
-									<Plus className="w-3.5 h-3.5 mr-1" />
-									New map
+									<Plus />
+									{compactToolbar ? null : "New map"}
 								</Button>
 								<Button
-									size="sm"
-									variant="ghost"
-									className="h-7 w-7 p-0 text-destructive"
+									size="icon-sm"
+									variant="outline"
+									className="text-destructive"
 									disabled={
 										busy ||
 										!selectedMap ||
 										!props.mapsDeleteDef
 									}
 									title="Delete map"
+									aria-label="Delete map"
 									onClick={requestDeleteMap}
 								>
-									<Trash2 className="w-3.5 h-3.5" />
+									<Trash2 />
 								</Button>
 							</>
 						)}
@@ -2832,35 +3772,47 @@ function MissionMapBody(props: {
 						</Badge>
 						{/* Feature-type buttons — each implies its draw geometry
 						    (road → line, geofence/risk → polygon). */}
-						{!readOnly && (
-							<div className="flex items-center gap-1">
-								{(
-									[
-										["road", "Road"],
-										["geofence", "Geofence"],
-										["risk", "Risk"],
-									] as [FeatureType, string][]
-								).map(([value, label]) => (
-									<Button
-										key={value}
-										size="sm"
-										variant={
-											mapFeatureType === value
-												? "default"
-												: "outline"
-										}
-										className="h-7 text-xs"
-										onClick={() => setMapFeatureType(value)}
-									>
-										{label}
-									</Button>
-								))}
-							</div>
+						{!viewOnly && (
+							<>
+								<Separator
+									orientation="vertical"
+									className="data-[orientation=vertical]:h-6"
+								/>
+								<ToggleGroup
+									type="single"
+									variant="outline"
+									size="sm"
+									aria-label="Feature type to draw"
+									value={mapFeatureType}
+									onValueChange={(value) => {
+										if (value)
+											setMapFeatureType(
+												value as FeatureType,
+											);
+									}}
+								>
+									{(
+										[
+											["road", "Road"],
+											["geofence", "Geofence"],
+											["risk", "Risk"],
+										] as [FeatureType, string][]
+									).map(([value, label]) => (
+										<ToggleGroupItem
+											key={value}
+											value={value}
+											className={TOGGLE_ITEM_CLASS}
+										>
+											{label}
+										</ToggleGroupItem>
+									))}
+								</ToggleGroup>
+							</>
 						)}
 						{/* Import ▾ — roads or risk-from-buildings into the picked
 						    geofence. Disabled (with a tooltip) until a geofence is
 						    picked; hidden in read-only mode. */}
-						{!readOnly && (
+						{!viewOnly && (
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -2872,16 +3824,15 @@ function MissionMapBody(props: {
 													<Button
 														size="sm"
 														variant="outline"
-														className="h-7 text-xs"
 														disabled={
 															busy ||
 															!importGeofence ||
 															!props.featuresAddDef
 														}
 													>
-														<Download className="w-3.5 h-3.5 mr-1" />
+														<Download />
 														Import
-														<ChevronDown className="w-3.5 h-3.5 ml-1" />
+														<ChevronDown />
 													</Button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="start">
@@ -2929,14 +3880,15 @@ function MissionMapBody(props: {
 
 				<Button
 					size="sm"
-					variant={overlaysOpen ? "default" : "outline"}
-					className="h-7 text-xs ml-auto"
+					variant={overlaysOpen ? "secondary" : "outline"}
+					className="ml-auto"
+					aria-pressed={overlaysOpen}
 					onClick={() => setOverlaysOpen((open) => !open)}
 				>
-					<Layers className="w-3.5 h-3.5 mr-1" />
+					<Layers />
 					Layers
 					{activeOverlays.length > 0 && (
-						<Badge variant="secondary" className="ml-1 px-1">
+						<Badge variant="secondary" className="px-1">
 							{activeOverlays.length}
 						</Badge>
 					)}
@@ -2962,7 +3914,7 @@ function MissionMapBody(props: {
 			)}
 
 			{/* Map-editor: picked-feature actions (edit/delete). */}
-			{context === "map-editor" && pickedFeature && !readOnly && (
+			{context === "map-editor" && pickedFeature && !viewOnly && (
 				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
 					<span className="truncate flex-1" title={pickedId ?? ""}>
 						Picked: {pickedFeature.properties?.name ?? pickedId} (
@@ -2971,31 +3923,32 @@ function MissionMapBody(props: {
 					<Button
 						size="sm"
 						variant="outline"
-						className="h-6 text-xs"
-						onClick={() => editFeature(pickedFeature)}
+						onClick={() => editFeature(pickedFeature, selectedMap)}
 					>
 						Edit
 					</Button>
 					<Button
-						size="sm"
-						variant="ghost"
-						className="h-6 w-6 p-0 text-destructive"
+						size="icon-sm"
+						variant="outline"
+						className="text-destructive"
+						title="Delete feature"
+						aria-label="Delete feature"
 						disabled={busy}
 						onClick={() => requestDeleteFeature(pickedFeature)}
 					>
-						<Trash2 className="w-3.5 h-3.5" />
+						<Trash2 />
 					</Button>
 				</div>
 			)}
 
 			{/* Mission: behavior + a read-only vehicle-allocation summary (the
-			    PRIMARY allocation affordance is clicking the agent markers,
-			    R2.G). The map authors the full required quartet, so a new mission
-			    can save without F5. */}
+			    PRIMARY allocation affordance is clicking the agent
+			    markers). The map authors the full required quartet, so a new mission
+			    can save without the mission editor. */}
 			{context === "mission" &&
 				selectedMission &&
 				missionConfig &&
-				!readOnly && (
+				!viewOnly && (
 					<div className="flex flex-col gap-2 px-2 py-2 shrink-0 border-b bg-muted/40 text-xs">
 						<div className="flex items-center gap-2 flex-wrap">
 							<Label className="text-xs">Behavior</Label>
@@ -3007,7 +3960,10 @@ function MissionMapBody(props: {
 									)
 								}
 							>
-								<SelectTrigger className="h-7 w-52 text-xs">
+								<SelectTrigger
+									size="sm"
+									className="w-52 max-w-full"
+								>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -3047,7 +4003,7 @@ function MissionMapBody(props: {
 				)}
 
 			{/* Mission: picked-geometry actions + save. */}
-			{context === "mission" && selectedMission && !readOnly && (
+			{context === "mission" && selectedMission && !viewOnly && (
 				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
 					{pickedGeomIndex != null ? (
 						<>
@@ -3057,7 +4013,6 @@ function MissionMapBody(props: {
 							<Button
 								size="sm"
 								variant="outline"
-								className="h-6 text-xs"
 								onClick={() =>
 									editMissionGeometry(pickedGeomIndex)
 								}
@@ -3065,14 +4020,16 @@ function MissionMapBody(props: {
 								Edit
 							</Button>
 							<Button
-								size="sm"
-								variant="ghost"
-								className="h-6 w-6 p-0 text-destructive"
+								size="icon-sm"
+								variant="outline"
+								className="text-destructive"
+								title="Delete geometry"
+								aria-label="Delete geometry"
 								onClick={() =>
 									deleteMissionGeometry(pickedGeomIndex)
 								}
 							>
-								<Trash2 className="w-3.5 h-3.5" />
+								<Trash2 />
 							</Button>
 						</>
 					) : (
@@ -3082,7 +4039,6 @@ function MissionMapBody(props: {
 					)}
 					<Button
 						size="sm"
-						className="h-6 text-xs"
 						disabled={
 							busy || missionConfig == null || !missionSubmittable
 						}
@@ -3093,7 +4049,7 @@ function MissionMapBody(props: {
 						}
 						onClick={() => void saveMission()}
 					>
-						<Save className="w-3.5 h-3.5 mr-1" />
+						<Save />
 						Save mission
 					</Button>
 				</div>
@@ -3135,7 +4091,18 @@ function MissionMapBody(props: {
 
 			{/* Map */}
 			<div className="relative flex-1 min-h-0">
-				{context === "map-editor" && pending && !readOnly && (
+				{/* Land on the running mission when the page opens mid-mission
+				    with nothing selected (exactly one live active mission;
+				    never overrides a selection). */}
+				<AutoSelectActiveMission
+					enabled={Boolean(props.feedbackTopic)}
+				/>
+				{/* Stored snapshot of the selected mission when nothing live
+				    is known (e.g. a finished mission after a reload). */}
+				{props.feedbackTopic && (
+					<MissionFeedbackHistorySync selectedId={selectedMission} />
+				)}
+				{context === "map-editor" && pending && !viewOnly && (
 					<SavePrompt
 						initialName={pending.name}
 						initialType={pending.featureType}
@@ -3156,6 +4123,7 @@ function MissionMapBody(props: {
 						onToggle={toggleOverlay}
 						onClose={() => setOverlaysOpen(false)}
 						buildings3d={buildings3d}
+						buildingsFromBasemap={basemapCarriesBuildings}
 						onToggleBuildings3d={toggleBuildings3d}
 						plannerGraph={plannerGraph}
 						onTogglePlannerGraph={togglePlannerGraph}
@@ -3194,14 +4162,29 @@ function MissionMapBody(props: {
 					{/* Both feature layers always render, in distinct styles. */}
 					<FeatureLayers features={features} />
 					<MissionFeatureLayers geometries={missionGeometryFc} />
-					{buildings3d && buildingsFc && (
-						<Buildings3DLayer data={buildingsFc} />
-					)}
+					{/* The raster fallback only: on a vector basemap the
+					    buildings are a layer of the style itself. Drawn only
+					    while the collection still matches the geofence it was
+					    clipped to. */}
+					{buildings3d &&
+						!basemapCarriesBuildings &&
+						buildings?.scope === buildings3dScope && (
+							<Buildings3DLayer data={buildings.fc} />
+						)}
 					{/* Primary agent markers: one localization subscription per
 					    namespaced agent, in its own signature-stable provider.
 					    The roster carries no ROS source, so subscriptions fall
 					    back to the operator's configured telemetry source (the
 					    edge-feedback topic, else the mission-feedback topic). */}
+					{/* Where each robot has been (session breadcrumb) and what
+					    it is planning (Nav2 global plan, v2 trajectories only). */}
+					<BreadcrumbLayer />
+					{trajectoryAgentIds.length > 0 && (
+						<AgentTrajectoryOverlay
+							fallbackSource={localizationFallbackSource}
+							agentIds={trajectoryAgentIds}
+						/>
+					)}
 					<AgentLocalizationOverlay
 						fallbackSource={localizationFallbackSource}
 						selectable={markersSelectable}
@@ -3342,10 +4325,10 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 
 	if (!mapsListDef) {
 		return (
-			<div className="h-full flex items-center justify-center p-3 text-sm text-muted-foreground text-center">
+			<PanelEmptyState>
 				No C2 datasource available. Add a C2 Control datasource to draw
 				and manage maps and mission geometry.
-			</div>
+			</PanelEmptyState>
 		);
 	}
 
@@ -3373,7 +4356,7 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 };
 
 /**
- * Widget definition for the mission map widget (F6).
+ * Widget definition for the mission map widget.
  * @returns Widget definition.
  */
 export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {

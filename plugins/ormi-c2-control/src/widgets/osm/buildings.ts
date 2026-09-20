@@ -1,27 +1,29 @@
 /**
- * Overpass building import — thin client over the public Overpass API.
+ * Overpass building import — the building-specific half of the Overpass client.
  *
- * Sibling to {@link ./overpass}: same `ApiResult`-style contract, same
- * `out geom;` strategy, same never-throw discipline. A single building-footprint
- * fetch feeds BOTH outputs in `osm-buildings.ts`: the `risk` polygon import
- * (R2.E) and the MapLibre `fill-extrusion` 3D source (R2.F). This module owns
- * ONLY the network read; the geometry/property translation is pure and lives in
- * `osm-buildings.ts` so it is unit-testable without the network.
+ * ⚠ THE NETWORK READ LIVES IN `./overpass`. This module used to carry its own
+ * ~95 %-identical copy of it (same endpoint constant, same POST, same four
+ * failure branches, same element narrowing) so that a fix to one client reached
+ * only half the callers. What remains here is what is genuinely building-specific:
+ * the query text and the distinct type name that keeps building and road
+ * call-sites self-documenting.
  *
- * Like the roads client this is a third-party HTTP read (not the mongodb-server
- * backend); it returns `{ ok }`-shaped output (Pattern #9 style) rather than
- * throwing, so callers handle rate-limit / timeout / CORS / network failures
- * uniformly. Overpass error responses (HTML / plain text) are tolerated.
+ * A single building-footprint fetch feeds BOTH outputs in `osm-buildings.ts`: the
+ * `risk` polygon import and the MapLibre `fill-extrusion` 3D source.
+ * The geometry/property translation is pure and lives there, so it is testable
+ * without the network.
  */
 
-import type { OsmBbox, OverpassGeomNode } from "./overpass";
-
-const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
+import {
+	runOverpassQuery,
+	type OsmBbox,
+	type OverpassGeomNode,
+} from "./overpass";
 
 /**
- * A single OSM `building` way from an Overpass `out geom;` response. Mirrors
- * {@link import("./overpass").OverpassWay} but is named distinctly so building
- * and road call-sites stay self-documenting.
+ * A single OSM `building` way from an Overpass `out geom;` response. Structurally
+ * identical to {@link import("./overpass").OverpassWay}, named distinctly so
+ * building and road call-sites stay self-documenting.
  */
 export interface OverpassBuildingWay {
 	type: "way";
@@ -31,18 +33,12 @@ export interface OverpassBuildingWay {
 	geometry?: OverpassGeomNode[];
 }
 
-/** Shape of the Overpass JSON response (only the fields we read). */
-interface OverpassResponse {
-	elements?: unknown[];
-}
-
 /**
  * Result of {@link fetchOsmBuildings}: `ApiResult`-style discriminated union so
  * callers branch on `ok` rather than catching exceptions.
  */
 export type OverpassBuildingsResult =
-	| { ok: true; data: OverpassBuildingWay[] }
-	| { ok: false; error: string };
+	{ ok: true; data: OverpassBuildingWay[] } | { ok: false; error: string };
 
 /**
  * Build the Overpass QL query string for building footprints within `bbox`.
@@ -68,24 +64,10 @@ export function buildOsmBuildingsQuery(bbox: OsmBbox): string {
 }
 
 /**
- * Narrow an arbitrary Overpass element to an {@link OverpassBuildingWay}, keeping
- * only ways that carry an inline `geometry` array.
- */
-function asBuildingWay(element: unknown): OverpassBuildingWay | null {
-	if (typeof element !== "object" || element === null) return null;
-	const el = element as Record<string, unknown>;
-	if (el.type !== "way") return null;
-	if (!Array.isArray(el.geometry)) return null;
-	return el as unknown as OverpassBuildingWay;
-}
-
-/**
  * Query the Overpass API for building footprints within `bbox`.
  *
- * Thin wrapper — keep all pure logic in {@link buildOsmBuildingsQuery} and
- * `osm-buildings.ts` so unit tests never reach the network. Never throws:
- * network / CORS / timeout / non-OK / non-JSON responses all resolve to
- * `{ ok: false, error }`.
+ * Never throws: network / CORS / timeout / non-OK / non-JSON responses all
+ * resolve to `{ ok: false, error }` (see {@link runOverpassQuery}).
  *
  * @param bbox - The geographic bounding box to query.
  * @param signal - Optional abort signal to cancel the request.
@@ -95,40 +77,10 @@ export async function fetchOsmBuildings(
 	bbox: OsmBbox,
 	signal?: AbortSignal,
 ): Promise<OverpassBuildingsResult> {
-	const query = buildOsmBuildingsQuery(bbox);
-	let response: Response;
-	try {
-		response = await fetch(OVERPASS_ENDPOINT, {
-			method: "POST",
-			headers: { "Content-Type": "text/plain" },
-			body: query,
-			signal,
-		});
-	} catch (err) {
-		const reason = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: `Overpass request failed: ${reason}` };
-	}
-
-	if (!response.ok) {
-		// Overpass returns HTML/text on errors (429 rate-limit, 504 timeout, …).
-		const detail = await response.text().catch(() => "");
-		const snippet = detail.trim().slice(0, 200);
-		return {
-			ok: false,
-			error: `Overpass error ${response.status}${snippet ? `: ${snippet}` : ""}`,
-		};
-	}
-
-	let json: OverpassResponse;
-	try {
-		json = (await response.json()) as OverpassResponse;
-	} catch {
-		return { ok: false, error: "Overpass returned a non-JSON response." };
-	}
-
-	const elements = Array.isArray(json.elements) ? json.elements : [];
-	const ways = elements
-		.map(asBuildingWay)
-		.filter((w): w is OverpassBuildingWay => w !== null);
-	return { ok: true, data: ways };
+	const result = await runOverpassQuery(buildOsmBuildingsQuery(bbox), signal);
+	// The two way types are structurally identical; the cast keeps the distinct
+	// name at the call sites without a pointless per-element rebuild.
+	return result.ok
+		? { ok: true, data: result.data as OverpassBuildingWay[] }
+		: result;
 }

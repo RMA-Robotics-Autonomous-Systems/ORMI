@@ -12,12 +12,12 @@
  * ⚠ STABILITY — `LocalDataSourcesProvider`'s subscription effect depends on its
  * `SelectedTopics` array BY REFERENCE: a fresh array every render thrashes every
  * per-agent subscribe/unsubscribe. {@link useAgentLocalizationTopics} therefore
- * keys its `useMemo` on the pure {@link agentsTopicSignature} STRING (not the
- * roster array), so the returned `topics` array keeps a stable identity until
+ * rebuilds only when the pure {@link agentsTopicSignature} STRING (not the
+ * roster array) changes, so the returned `topics` array keeps a stable identity until
  * membership / namespace / source actually changes.
  */
 
-import { useMemo } from "react";
+import { useState } from "react";
 
 import type {
 	DatasourceProviderSettings,
@@ -73,16 +73,44 @@ export function buildLocalizationTopic(
 	agent: AgentRecord,
 	fallbackSource?: DatasourceProviderSettings,
 ): SelectedTopic | null {
+	return buildAgentTopic(
+		agent,
+		"localization",
+		LOCALIZATION_RAW_TYPE,
+		fallbackSource,
+	);
+}
+
+/** Raw ROS type of the per-agent Nav2 global-plan stream. */
+export const TRAJECTORY_RAW_TYPE = "autonomy_msgs/msg/AutonomyTrajectory";
+
+/**
+ * Build any per-agent `{namespace}/edge/multi_robot/{suffix}` topic, or null
+ * when the agent lacks a namespace or a resolvable source. The generalisation of
+ * {@link buildLocalizationTopic} (same source rule, same shape).
+ *
+ * @param agent - The agent record.
+ * @param suffix - The topic suffix (`localization`, `autonomy_trajectory`, …).
+ * @param rawType - The ROS message type of that topic.
+ * @param fallbackSource - The ROS source to use when the agent has no `source`.
+ * @returns The SelectedTopic, or null when not subscribable.
+ */
+export function buildAgentTopic(
+	agent: AgentRecord,
+	suffix: string,
+	rawType: string,
+	fallbackSource?: DatasourceProviderSettings,
+): SelectedTopic | null {
 	const namespace = agent.namespace;
 	const source = agent.source ?? fallbackSource ?? null;
 	if (!namespace || !source) return null;
-	const topic = buildNamespacedTopic(namespace, "localization");
+	const topic = buildNamespacedTopic(namespace, suffix);
 	return {
 		topic,
 		datasource_id: (source as DatasourceProviderSettings).id,
 		source,
-		type: LOCALIZATION_RAW_TYPE,
-		rawType: LOCALIZATION_RAW_TYPE,
+		type: rawType,
+		rawType,
 		property: "",
 	};
 }
@@ -113,26 +141,89 @@ export function useAgentLocalizationTopics(
 	topics: SelectedTopic[];
 	agentByKey: Map<string, string>;
 } {
-	const agents = useAgents();
-	const signature = `${agentsTopicSignature(agents)}@${fallbackSource?.id ?? ""}`;
-
-	// Keyed on the pure `signature` string (NOT `agents`) so the returned array
-	// identity is stable until membership/namespace/source (or the fallback
-	// source id) changes — see the module header. The `agents` and `fallbackSource`
-	// reads inside are intentional, not missing deps.
-	return useMemo(
-		() => {
-			const topics: SelectedTopic[] = [];
-			const agentByKey = new Map<string, string>();
-			for (const agent of agents) {
-				const topic = buildLocalizationTopic(agent, fallbackSource);
-				if (!topic) continue;
-				topics.push(topic);
-				agentByKey.set(createTopicKey(topic), agent.agent_id);
-			}
-			return { topics, agentByKey };
-		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[signature],
+	return useAgentTopics(
+		"localization",
+		LOCALIZATION_RAW_TYPE,
+		fallbackSource,
 	);
+}
+
+/**
+ * React hook: one per-agent topic per roster agent (optionally only the agents
+ * in `onlyAgentIds`), plus a `topic-key → agent_id` map. Same stability rule as
+ * {@link useAgentLocalizationTopics}: the memo is keyed on a signature STRING,
+ * so the returned array keeps its identity until the subscription set changes.
+ *
+ * @param suffix - The topic suffix.
+ * @param rawType - The ROS message type.
+ * @param fallbackSource - The ROS source for agents without their own.
+ * @param onlyAgentIds - When given, restrict to these agents (e.g. the
+ *   vehicles of the selected mission), so no idle robot is subscribed.
+ * @returns `{ topics, agentByKey }`.
+ */
+export function useAgentTopics(
+	suffix: string,
+	rawType: string,
+	fallbackSource?: DatasourceProviderSettings,
+	onlyAgentIds?: readonly string[],
+): {
+	topics: SelectedTopic[];
+	agentByKey: Map<string, string>;
+} {
+	const allAgents = useAgents();
+	const only = onlyAgentIds ? [...onlyAgentIds].sort().join(",") : null;
+	const agents =
+		only == null
+			? allAgents
+			: allAgents.filter((a) => onlyAgentIds!.includes(a.agent_id));
+	const signature = `${suffix}|${rawType}|${only ?? "*"}|${agentsTopicSignature(agents)}@${fallbackSource?.id ?? ""}`;
+
+	// Identity is held across renders in state, tagged with the `signature` it
+	// was built from, and rebuilt only when that signature changes — so the
+	// returned array stays stable until membership/namespace/source (or the
+	// fallback source id) changes, see the module header. This is React's
+	// "adjust state while rendering" pattern: the comparison really reads the
+	// signature, so there is no dead memo key for the compiler to strip, and no
+	// dependency list to silence.
+	const [built, setBuilt] = useState<{
+		signature: string;
+		value: { topics: SelectedTopic[]; agentByKey: Map<string, string> };
+	} | null>(null);
+	if (built === null || built.signature !== signature) {
+		const value = buildAgentTopicSet(
+			agents,
+			suffix,
+			rawType,
+			fallbackSource,
+		);
+		setBuilt({ signature, value });
+		return value;
+	}
+	return built.value;
+}
+
+/**
+ * Build the per-agent topic set and its `topic-key → agent_id` map. Pure.
+ *
+ * @param agents - The (already filtered) roster.
+ * @param suffix - The topic suffix.
+ * @param rawType - The ROS message type.
+ * @param fallbackSource - The ROS source for agents without their own.
+ * @returns `{ topics, agentByKey }`.
+ */
+function buildAgentTopicSet(
+	agents: readonly AgentRecord[],
+	suffix: string,
+	rawType: string,
+	fallbackSource?: DatasourceProviderSettings,
+): { topics: SelectedTopic[]; agentByKey: Map<string, string> } {
+	const topics: SelectedTopic[] = [];
+	const agentByKey = new Map<string, string>();
+	for (const agent of agents) {
+		const topic = buildAgentTopic(agent, suffix, rawType, fallbackSource);
+		if (!topic) continue;
+		topics.push(topic);
+		agentByKey.set(createTopicKey(topic), agent.agent_id);
+	}
+	return { topics, agentByKey };
 }

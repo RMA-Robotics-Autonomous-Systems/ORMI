@@ -1,5 +1,5 @@
 /**
- * RainViewer live weather-radar overlay helpers for the C2 mission map (F6).
+ * RainViewer live weather-radar overlay helpers for the C2 mission map.
  *
  * RainViewer is the one weather-tile provider that needs **no API key and no
  * registration**. Unlike the static `MAP_OVERLAYS` entries it is a two-step,

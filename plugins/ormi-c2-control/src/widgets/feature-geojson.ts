@@ -4,14 +4,14 @@ import { C2Feature } from "../types/c2-types";
 import { generateMissionId } from "./mission-list";
 
 /**
- * F6 — pure terra-draw-snapshot ↔ `C2Feature` (MapDB) mapping.
+ * Pure terra-draw-snapshot ↔ `C2Feature` (MapDB) mapping.
  *
  * No map, no React, no fetch — just the geometry/property translation so it can
  * be unit-tested directly.
  *
  * ⚠ COORDINATE RULE — `[lng, lat]` order is preserved end-to-end; there is NO
  * swap in this module (the only swap in the whole system is the
- * `mission_feedback` waypoints, handled by S2 in `mission-feedback.ts`).
+ * `mission_feedback` waypoints, handled by the parser in `mission-feedback.ts`).
  *
  * ⚠ NESTING RULE — the terra-draw snapshot and the saved MapDB `C2Feature` are
  * full GeoJSON (a Polygon's `coordinates` is triple-nested `[[[lng,lat],…]]`).
@@ -104,12 +104,27 @@ export function readFeatureId(feature: C2Feature): string | null {
  */
 export function c2FeatureToDrawFeature(feature: C2Feature): DrawFeature | null {
 	const geometry = feature.geometry;
-	const type = geometry?.type;
-	if (
-		!geometry ||
-		(type !== "Point" && type !== "LineString" && type !== "Polygon") ||
-		geometry.coordinates === undefined
-	) {
+	if (!geometry || geometry.coordinates === undefined) return null;
+
+	// MULTI-PART GEOMETRY. The C2 backend accepts (and MapLibre renders)
+	// `MultiLineString` / `MultiPolygon`, but this converter used to return null
+	// for them, so such a feature displayed on the map and then refused to open
+	// for editing with no explanation.
+	//
+	// A SINGLE-part multi is unwrapped: it is the same shape wearing a different
+	// type tag, which is how most backends emit one polygon, and refusing it lost
+	// nothing but cost the operator the edit. A genuinely multi-part geometry is
+	// still refused — terra-draw authors one part, and silently editing part 0
+	// would drop the rest on save, which is worse than not editing at all. The
+	// caller surfaces {@link describeUneditableGeometry} to say which case it hit.
+	const unwrapped = unwrapSinglePartGeometry(
+		geometry.type,
+		geometry.coordinates,
+	);
+	const type = unwrapped?.type ?? geometry.type;
+	const coordinates = unwrapped?.coordinates ?? geometry.coordinates;
+
+	if (type !== "Point" && type !== "LineString" && type !== "Polygon") {
 		return null;
 	}
 
@@ -128,9 +143,62 @@ export function c2FeatureToDrawFeature(feature: C2Feature): DrawFeature | null {
 		properties: props as DrawFeature["properties"],
 		geometry: {
 			type,
-			coordinates: geometry.coordinates,
+			coordinates,
 		} as DrawFeature["geometry"],
 	};
+}
+
+/** GeoJSON multi-part types and the single-part type each collapses to. */
+const MULTI_TO_SINGLE: Record<string, "Point" | "LineString" | "Polygon"> = {
+	MultiPoint: "Point",
+	MultiLineString: "LineString",
+	MultiPolygon: "Polygon",
+};
+
+/**
+ * Collapse a single-part `Multi*` geometry to its singular form.
+ *
+ * @param type - The GeoJSON geometry type.
+ * @param coordinates - Its coordinates.
+ * @returns The unwrapped `{ type, coordinates }`, or null when `type` is not a
+ *   `Multi*` or the geometry genuinely has more (or fewer) than one part.
+ */
+export function unwrapSinglePartGeometry(
+	type: string | undefined,
+	coordinates: unknown,
+): { type: "Point" | "LineString" | "Polygon"; coordinates: unknown } | null {
+	if (!type) return null;
+	const single = MULTI_TO_SINGLE[type];
+	if (!single) return null;
+	if (!Array.isArray(coordinates) || coordinates.length !== 1) return null;
+	return { type: single, coordinates: coordinates[0] };
+}
+
+/**
+ * Explain why a stored feature cannot be loaded into the authoring layer, or
+ * null when it can.
+ *
+ * Exists so the map can say *which* limitation it hit instead of the flat
+ * "Feature geometry can't be edited" it used to show for every cause — a
+ * multi-part geometry, an unsupported type and a malformed one need different
+ * responses from the operator.
+ *
+ * @param feature - The stored MapDB feature.
+ * @returns A message, or null when the feature is editable.
+ */
+export function describeUneditableGeometry(feature: C2Feature): string | null {
+	if (c2FeatureToDrawFeature(feature) != null) return null;
+	const type = feature.geometry?.type;
+	if (type && MULTI_TO_SINGLE[type]) {
+		const parts = Array.isArray(feature.geometry?.coordinates)
+			? (feature.geometry.coordinates as unknown[]).length
+			: 0;
+		return `This feature is a ${type} with ${parts} parts. It is stored and drawn correctly, but the drawing tools edit one part at a time — editing it here would drop the others. Delete and redraw it, or edit it outside the map.`;
+	}
+	if (!feature.geometry || feature.geometry.coordinates === undefined) {
+		return "This feature has no geometry to edit.";
+	}
+	return `Geometry type "${String(type)}" can't be edited on the map.`;
 }
 
 /**

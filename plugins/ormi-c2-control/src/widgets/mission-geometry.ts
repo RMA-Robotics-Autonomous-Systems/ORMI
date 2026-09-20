@@ -32,6 +32,28 @@ export type MissionGeometryFeature = Feature<
 	{ index: number; geometry_type: string }
 >;
 
+/**
+ * Whether a value is a single `[lng, lat]` vertex (1 level).
+ *
+ * THE CANONICAL DEFINITION. This predicate existed twice with **different**
+ * semantics — this copy accepted `NaN` / `Infinity`, the copy in
+ * `mission-geofence-check.ts` rejected them via `Number.isFinite`. So a geometry
+ * carrying a NaN coordinate was "valid" to the renderer and "absent" to the
+ * geofence check: MapLibre drew nothing while the advisory stayed silent, which
+ * reads to an operator as a geometry that is simply inside the fence. The strict
+ * (finite) rule wins — a non-finite coordinate is not a place.
+ */
+export function isVertex(coords: unknown): coords is [number, number] {
+	return (
+		Array.isArray(coords) &&
+		coords.length >= 2 &&
+		typeof coords[0] === "number" &&
+		typeof coords[1] === "number" &&
+		Number.isFinite(coords[0]) &&
+		Number.isFinite(coords[1])
+	);
+}
+
 /** Whether a value is a 2-level vertex list (`[[lng,lat],…]`). */
 function isVertexList(coords: unknown): coords is [number, number][] {
 	return (
@@ -42,13 +64,10 @@ function isVertexList(coords: unknown): coords is [number, number][] {
 	);
 }
 
-/** Whether a value is a single `[lng, lat]` vertex (1 level). */
-function isVertex(coords: unknown): coords is [number, number] {
+/** Whether a value is a 3-level list of vertex lists (`[[[lng,lat],…],…]`). */
+function isVertexListList(coords: unknown): coords is [number, number][][] {
 	return (
-		Array.isArray(coords) &&
-		coords.length >= 2 &&
-		typeof coords[0] === "number" &&
-		typeof coords[1] === "number"
+		Array.isArray(coords) && coords.length > 0 && isVertexList(coords[0])
 	);
 }
 
@@ -87,6 +106,28 @@ export function inlineGeometryToGeoJSON(
 			// Flat C2 form keeps only the outer ring; re-wrap for GeoJSON.
 			return isVertexList(coordinates)
 				? { type: "Polygon", coordinates: [coordinates] }
+				: null;
+		// MULTI-PART: the C2 accepts these and they were silently dropped here —
+		// the geometry was stored, counted in the mission, and drawn as nothing.
+		// A multi-part geometry renders as its FIRST part rather than vanishing;
+		// MapLibre would happily draw the whole thing, but the surrounding
+		// pick/edit/delete plumbing addresses geometries by index and assumes one
+		// part each, so the honest option is to show something recognisable at the
+		// right place rather than an empty map.
+		case "MultiLineString":
+			return isVertexListList(coordinates) && coordinates[0]
+				? { type: "LineString", coordinates: coordinates[0] }
+				: null;
+		case "MultiPolygon": {
+			// C2 flat form: each part is a ring (2-level), so the collection is
+			// 3-level — the same shape as a GeoJSON Polygon's rings.
+			if (!isVertexListList(coordinates)) return null;
+			const ring = coordinates[0];
+			return ring ? { type: "Polygon", coordinates: [ring] } : null;
+		}
+		case "MultiPoint":
+			return isVertexList(coordinates) && coordinates[0]
+				? { type: "Point", coordinates: coordinates[0] }
 				: null;
 		default:
 			return null;

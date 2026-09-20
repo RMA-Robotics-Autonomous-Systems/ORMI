@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * S3 / D8 — C2 selection store.
+ * C2 selection store.
  *
  * A tiny module-level store holding the operator's active mission id. Display
- * widgets (F7/F10/F11/…) follow this selection so selecting a mission in the
- * browser (F4) drives the rest; a widget may instead pin a fixed `mission_id`
+ * widgets (fleet status, mission feedback, swarm log, …) follow this selection
+ * so selecting a mission in the mission browser drives the rest; a widget may instead pin a fixed `mission_id`
  * in its config and ignore the active selection.
  *
  * Read through `useSyncExternalStore` with an identity-stable, change-fresh

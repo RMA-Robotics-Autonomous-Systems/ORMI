@@ -1,7 +1,7 @@
 import { MissionStatus } from "./c2-types";
 
 /**
- * Human-readable labels for the `MissionStatus` enum (§2.6), for display
+ * Human-readable labels for the `MissionStatus` enum, for display
  * widgets that render the live mission state.
  */
 const MISSION_STATUS_LABELS: Record<MissionStatus, string> = {

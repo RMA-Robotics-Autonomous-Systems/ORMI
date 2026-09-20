@@ -36,6 +36,21 @@ let states: PlannerStateMap = {};
 /** Signature of the current `states` map — the content-change detector. */
 let statesSig = "";
 
+/**
+ * `Date.now()` of the last publish — including identical republishes, which
+ * prove the planner is still reporting even though they change no content.
+ *
+ * This store only ever replaced the map; nothing expired, so a mission the
+ * planner had stopped reporting kept rendering its last planning badge forever.
+ * Readers poll this on their own ticker (see the feedback store's
+ * `useFeedbackFreshness`) rather than being notified, so an unchanged topic does
+ * not re-render every consumer at topic rate.
+ */
+let updatedAt: number | null = null;
+
+/** Past this age with no publish, the planner's state is shown as stale. */
+export const PLANNER_STALE_AFTER_MS = 15_000;
+
 /** Subscribers notified on every change. */
 const listeners = new Set<() => void>();
 
@@ -57,6 +72,7 @@ function emit(): void {
  */
 export function publishPlannerState(map: PlannerStateMap): void {
 	const sig = plannerStateSignature(map);
+	updatedAt = Date.now();
 	if (sig === statesSig) return;
 	states = map;
 	statesSig = sig;
@@ -75,6 +91,14 @@ export function getPlannerState(
 ): PlannerState | null {
 	if (!missionId) return null;
 	return states[missionId] ?? null;
+}
+
+/**
+ * When the planner state was last published, outside React.
+ * @returns The `Date.now()` of the last publish, or null when none has arrived.
+ */
+export function getPlannerStateUpdatedAt(): number | null {
+	return updatedAt;
 }
 
 /**
@@ -118,5 +142,6 @@ export function usePlannerState(
 export function __resetPlannerStateStore(): void {
 	states = {};
 	statesSig = "";
+	updatedAt = null;
 	listeners.clear();
 }

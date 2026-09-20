@@ -1,7 +1,9 @@
 import type { JsonSchema7, UISchemaElement } from "@jsonforms/core";
 
+import { VEHICLE_FORMATION_LABELS, VEHICLE_FORMATION_VALUES } from "./c2-types";
+
 /**
- * F5 — JSON Schema + UI schema for the DEEP OPTIONAL portion of a mission
+ * JSON Schema + UI schema for the DEEP OPTIONAL portion of a mission
  * config, rendered with embedded JSON-Forms inside the mission editor.
  *
  * Scope: the blocks the custom React form does NOT handle directly —
@@ -119,20 +121,22 @@ const optimalizationSchema: JsonSchema7 = {
 	},
 };
 
-/** Vehicle-formation enum, shared by start/objective/transit blocks. */
+/**
+ * Vehicle-formation enum, shared by start/objective/transit blocks.
+ *
+ * DERIVED from {@link VEHICLE_FORMATION_LABELS} rather than restated: the 0–6
+ * set used to be written out independently here, in the `VehicleFormation` enum,
+ * and as a `FORMATION_MIN`/`FORMATION_MAX` pair in `mission-config-validation.ts`
+ * — three places to keep in step when the C2 widens its `Formation` enum.
+ */
 const formationSchema: JsonSchema7 = {
 	type: "integer",
 	title: "Vehicle formation",
 	description: "Geometric pattern the vehicles hold together.",
-	oneOf: [
-		{ const: 0, title: "None" },
-		{ const: 1, title: "Column" },
-		{ const: 2, title: "Line" },
-		{ const: 3, title: "Wedge" },
-		{ const: 4, title: "Vee" },
-		{ const: 5, title: "Left flank" },
-		{ const: 6, title: "Right flank" },
-	],
+	oneOf: VEHICLE_FORMATION_VALUES.map((value) => ({
+		const: value,
+		title: VEHICLE_FORMATION_LABELS[value],
+	})),
 };
 
 /**

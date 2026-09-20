@@ -6,14 +6,14 @@
  * and matches the widget's COORDINATE RULE (no swap).
  *
  *  1. {@link osmBuildingsToRiskFeatures} — each footprint → a `risk` **Polygon**
- *     `C2Feature` for the batch `c2.map.features.add` import (R2.E). The emitted
+ *     `C2Feature` for the batch `c2.map.features.add` import. The emitted
  *     shape matches `drawFeatureToC2Feature`'s output exactly (full GeoJSON
  *     Polygon, `[lon, lat]`, `properties.feature_type = "risk"`), minus
- *     `feature_id` which the server assigns. MAP_API.md §1 requires `risk` to
- *     carry `Polygon` geometry.
+ *     `feature_id` which the server assigns. The C2 map API requires `risk`
+ *     to carry `Polygon` geometry.
  *  2. {@link osmBuildingsToExtrusionFc} — the same footprints → a GeoJSON
  *     `FeatureCollection` carrying a numeric `height` per polygon, for a MapLibre
- *     `fill-extrusion` 3D layer (R2.F).
+ *     `fill-extrusion` 3D layer.
  *
  * Clipping is the MVP form shared with the roads importer: keep a footprint when
  * ≥1 of its vertices falls inside the geofence ring (ray-casting
@@ -25,8 +25,8 @@
 
 import type { C2Feature } from "../../types/c2-types";
 import type { OverpassBuildingWay } from "./buildings";
-import type { OverpassGeomNode } from "./overpass";
 import {
+	geomToCoordinates,
 	pointInPolygon,
 	type GeofenceRing,
 	type LonLat,
@@ -37,21 +37,6 @@ const DEFAULT_BUILDING_HEIGHT_M = 6;
 
 /** Assumed storey height (metres) used with `building:levels`. */
 const METRES_PER_LEVEL = 3;
-
-/**
- * Convert an Overpass `out geom;` node list to a `[lon, lat]` coordinate array,
- * dropping any node missing a finite lon/lat.
- */
-function geomToCoordinates(geometry: OverpassGeomNode[] | undefined): LonLat[] {
-	if (!Array.isArray(geometry)) return [];
-	const coords: LonLat[] = [];
-	for (const node of geometry) {
-		if (node && Number.isFinite(node.lon) && Number.isFinite(node.lat)) {
-			coords.push([node.lon, node.lat]);
-		}
-	}
-	return coords;
-}
 
 /**
  * Count the distinct vertices in a `[lon, lat]` list (ignoring an explicit

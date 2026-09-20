@@ -5,7 +5,7 @@
  *
  * `/multi_robot/planner/state` is a SINGLE shared rosbridge topic
  * (`std_msgs/String`) carrying the planning state for ALL missions in each
- * message. The Mission Feedback widget (F10) subscribes to it through a local
+ * message. The Mission Feedback widget subscribes to it through a local
  * datasource with a size-1 buffer, parses the latest message into a per-mission
  * state map, and publishes it into the per-mission planner-state store
  * (`state/planner-state-store.ts`) so each widget can READ ONLY its own
@@ -70,7 +70,14 @@ export function usePublishPlannerState(
 	const latest = enabled ? latestPlannerState(sources) : {};
 	const latestSig = plannerStateSignature(latest);
 	const latestRef = useRef(latest);
-	latestRef.current = latest;
+	// ⚠ The ref is written in an EFFECT, never during render (the project's own
+	// `react-hooks/refs` lint flags a render-phase write, and a render that React
+	// discards would otherwise leave the ref holding a value that was never
+	// committed). Effects run in declaration order within a commit, so this one
+	// has refreshed the ref before the publish effect below reads it.
+	useEffect(() => {
+		latestRef.current = latest;
+	});
 	// Publish in an effect, not in render (AGENTS.md forbids side effects in
 	// render). Keyed on the signature so we only re-publish on a real content
 	// change; the ref hands the effect the current parsed map without making it

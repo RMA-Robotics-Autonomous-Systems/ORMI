@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * F5/F6 — C2 map-editing store.
+ * C2 map-editing store.
  *
- * A tiny module-level store that hands geometry from the map widget (F6) to the
- * mission editor (F5):
+ * A tiny module-level store that hands geometry from the map widget to the
+ * mission editor:
  *  - `pickedFeatureId` — the MapDB feature the operator last clicked (View mode),
- *    which F5 can drop into `objective.geometries[]` as `{ feature_id }`.
+ *    which the editor can drop into `objective.geometries[]` as `{ feature_id }`.
  *  - `draftGeometry` — a geometry the operator drew in the map's authoring layer,
- *    which F5 can drop in as `{ geometry }`.
+ *    which the editor can drop in as `{ geometry }`.
  *
  * Kept SEPARATE from the selection store (`selection-store.ts`): the active
  * mission (`selectedMissionId`) and a geometry hand-off are independent concerns,
- * and conflating them would couple F6 picking to mission selection.
+ * and conflating them would couple map picking to mission selection.
  *
  * Read through `useSyncExternalStore` with an identity-stable, change-fresh
  * snapshot — same contract as the transform store

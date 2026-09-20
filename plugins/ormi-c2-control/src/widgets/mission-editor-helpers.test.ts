@@ -372,7 +372,7 @@ describe("mergeMissionOwnedFields (map save-merge)", () => {
 		behavior: MissionBehavior.NAVIGATE,
 		objective: {
 			geometries: [{ feature_id: "old" }],
-			// An advanced block F5 owns — must be preserved verbatim.
+			// An advanced block the editor owns — must be preserved verbatim.
 			arrival_time: { earliest: "t0", latest: "t1", target: "t2" },
 		},
 		vehicles: ["v-old"],
@@ -393,7 +393,7 @@ describe("mergeMissionOwnedFields (map save-merge)", () => {
 		expect(merged.name).toBe("New name");
 	});
 
-	it("preserves F5's advanced blocks (transit / start / arrival_time)", () => {
+	it("preserves the editor's advanced blocks (transit / start / arrival_time)", () => {
 		const merged = mergeMissionOwnedFields(fresh(), {
 			geometries: [{ feature_id: "new" }],
 			vehicles: ["v-a"],
@@ -441,7 +441,7 @@ describe("mergeMissionOwnedFields (map save-merge)", () => {
 	});
 
 	it("makes a new empty mission submittable once the quartet is filled", () => {
-		// A mission F4 just created: behavior + empty objective + no vehicles.
+		// A mission the browser just created: behavior + empty objective + no vehicles.
 		const empty: MissionConfig = {
 			mission_id: "m2",
 			behavior: MissionBehavior.NAVIGATE,

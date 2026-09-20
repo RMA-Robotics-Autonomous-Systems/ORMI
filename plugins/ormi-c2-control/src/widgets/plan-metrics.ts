@@ -72,7 +72,10 @@ function toRadians(deg: number): number {
  * @param b - End `[lng, lat]`.
  * @returns Distance in metres.
  */
-function haversineMeters(a: [number, number], b: [number, number]): number {
+export function haversineMeters(
+	a: [number, number],
+	b: [number, number],
+): number {
 	const [lng1, lat1] = a;
 	const [lng2, lat2] = b;
 	const dLat = toRadians(lat2 - lat1);

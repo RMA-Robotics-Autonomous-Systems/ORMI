@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import { MissionStatus } from "../types/c2-types";
-import { latestFeedback } from "./mission-feedback-source";
+import {
+	latestFeedback,
+	publishNewFeedbackMessages,
+} from "./mission-feedback-source";
 
 /** A minimal valid `mission_feedback` JSON payload for `mission_id`. */
 function feedbackJson(missionId: string, status = MissionStatus.NONE): string {
@@ -66,5 +69,53 @@ describe("latestFeedback", () => {
 	it("returns null when no source carries a parseable mission id", () => {
 		const sources = sourcesOf([{ foo: "bar" }] as unknown[]);
 		expect(latestFeedback(sources)).toBeNull();
+	});
+});
+
+describe("publishNewFeedbackMessages (freshness)", () => {
+	it("publishes an IDENTICAL republish, so the store's updatedAt moves", () => {
+		const seen = new WeakSet<object>();
+		const got: string[] = [];
+		const publish = (fb: { mission_id: string }) => got.push(fb.mission_id);
+		const msg = () => ({ mission_feedback: feedbackJson("m", 5) });
+
+		publishNewFeedbackMessages(sourcesOf([msg()]), seen, publish);
+		// Same content, new message (a new buffer array, as the provider makes).
+		publishNewFeedbackMessages(sourcesOf([msg()]), seen, publish);
+		expect(got).toEqual(["m", "m"]);
+	});
+
+	it("does not re-publish when no new message arrived", () => {
+		const seen = new WeakSet<object>();
+		const got: string[] = [];
+		const publish = (fb: { mission_id: string }) => got.push(fb.mission_id);
+		const sources = sourcesOf([{ mission_feedback: feedbackJson("m") }]);
+		publishNewFeedbackMessages(sources, seen, publish);
+		publishNewFeedbackMessages(sources, seen, publish); // a re-render
+		expect(got).toEqual(["m"]);
+	});
+
+	it("hands over every unseen message of a deeper buffer, in order", () => {
+		const seen = new WeakSet<object>();
+		const got: string[] = [];
+		const publish = (fb: { mission_id: string }) => got.push(fb.mission_id);
+		const a = { mission_feedback: feedbackJson("a") };
+		const b = { mission_feedback: feedbackJson("b") };
+		const c = { mission_feedback: feedbackJson("c") };
+		publishNewFeedbackMessages(sourcesOf([a, b]), seen, publish);
+		publishNewFeedbackMessages(sourcesOf([a, b, c]), seen, publish);
+		expect(got).toEqual(["a", "b", "c"]);
+	});
+
+	it("publishes only the tail of a bare-string buffer", () => {
+		const seen = new WeakSet<object>();
+		const got: string[] = [];
+		const publish = (fb: { mission_id: string }) => got.push(fb.mission_id);
+		publishNewFeedbackMessages(
+			sourcesOf([feedbackJson("old"), feedbackJson("new")]),
+			seen,
+			publish,
+		);
+		expect(got).toEqual(["new"]);
 	});
 });

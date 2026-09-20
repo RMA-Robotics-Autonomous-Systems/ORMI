@@ -8,7 +8,7 @@ import {
 	normalizeMissions,
 } from "./mission-list";
 
-describe("normalizeMissions (F4 list normalization)", () => {
+describe("normalizeMissions (mission-browser list normalization)", () => {
 	it("returns [] for null / non-array / unwrapped junk", () => {
 		expect(normalizeMissions(null)).toEqual([]);
 		expect(normalizeMissions(undefined)).toEqual([]);
@@ -73,7 +73,7 @@ describe("normalizeMissions (F4 list normalization)", () => {
 	});
 });
 
-describe("newMissionStub (F4 minimal create)", () => {
+describe("newMissionStub (minimal create)", () => {
 	it("builds a minimal valid mission with a fresh id by default", () => {
 		const stub = newMissionStub("My mission");
 		expect(stub.name).toBe("My mission");
@@ -95,7 +95,7 @@ describe("newMissionStub (F4 minimal create)", () => {
 	});
 });
 
-describe("duplicateMission (F4 save-a-copy)", () => {
+describe("duplicateMission (save-a-copy)", () => {
 	it("clones under a fresh id + new name, dropping Mongo _id", () => {
 		const source = {
 			_id: "mongo-internal",

@@ -15,9 +15,11 @@ import {
 	WidgetDefinition,
 } from "@workspace/ormi-core/widgets";
 import { Badge } from "@workspace/ui/components/badge";
+import { Button } from "@workspace/ui/components/button";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
-import { ChevronDown, ChevronRight, Truck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, RefreshCw, Truck } from "lucide-react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
@@ -39,19 +41,21 @@ import {
 	readNamespace,
 	vehicleAgentId,
 } from "./fleet-helpers";
+import { PanelEmptyState } from "./panel-empty-state";
+import { useContainerSize } from "./responsive";
 
 /**
- * F7 — Fleet / vehicle widget.
+ * Fleet / vehicle widget.
  *
  * Combines two sources:
- *  - **Roster** from the `c2.vehicles.list` remote call (imperative, one-shot,
- *    fetch-on-mount — §4.1 F3) — a last-known-value list that must NOT blank
+ *  - **Roster** from the `c2.vehicles.list` remote call (imperative, fetched on
+ *    mount and polled slowly) — a last-known-value list that must NOT blank
  *    when telemetry goes offline.
  *  - **Live presence/health** from `/multi_robot/edge/feedback`, read
- *    defensively (§7: the `Feedback.msg` shape has two divergent variants).
+ *    defensively (the `Feedback.msg` shape has two divergent variants).
  *
  * This is a multi-topic-plus-roster widget, so it degrades per-series via
- * `getTopicHealth` rather than blanking the whole body (§13).
+ * `getTopicHealth` rather than blanking the whole body.
  */
 
 /** Props for the FleetStatus widget. */
@@ -75,6 +79,14 @@ interface BufferedSource {
 }
 
 /**
+ * How often the vehicle roster is refetched in the background.
+ *
+ * 30 s: the roster changes when a robot is commissioned, which is a human-scale
+ * event, and the call is a single small GET against the Mongo REST service.
+ */
+const ROSTER_POLL_MS = 30_000;
+
+/**
  * Roster fetcher: runs `c2.vehicles.list` once on mount (and when the call
  * definition changes), exposing the last-known roster + a live error string.
  *
@@ -85,16 +97,37 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 	vehicles: C2Vehicle[];
 	error: string | null;
 	loading: boolean;
+	/** Force an immediate refetch (the toolbar's refresh control). */
+	refresh: () => void;
 } {
 	const { execute } = useRemoteCall<Record<string, never>, unknown>(
 		definition,
 	);
 	const [vehicles, setVehicles] = useState<C2Vehicle[]>([]);
 	const [error, setError] = useState<string | null>(null);
-	// Starts true; the one-shot fetch flips it false on resolution. Resetting it
-	// on refetch isn't needed — the call definition only changes when the C2
-	// datasource itself changes, which remounts this subtree.
+	// Starts true; the first fetch flips it false on resolution.
 	const [loading, setLoading] = useState(true);
+	/**
+	 * Bumped to force a refetch. The roster used to be fetch-on-mount ONLY, with
+	 * no refresh control anywhere on this widget: a vehicle registered after the
+	 * dashboard opened never appeared, and the only way to see it was to reload
+	 * the page. It is a cheap REST read, so it now also polls slowly — slowly
+	 * enough that it is not a load concern, often enough that the roster is not
+	 * simply wrong.
+	 */
+	const [nonce, setNonce] = useState(0);
+	// A MANUAL refresh shows the spinner; the background poll does not, so the
+	// widget does not blink every 30 s for a read the operator did not ask for.
+	const refresh = useCallback(() => {
+		setLoading(true);
+		setNonce((n) => n + 1);
+	}, []);
+
+	// Low-frequency background poll. Off-cycle from anything else in the plugin.
+	useEffect(() => {
+		const id = setInterval(() => setNonce((n) => n + 1), ROSTER_POLL_MS);
+		return () => clearInterval(id);
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -136,9 +169,9 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 		return () => {
 			cancelled = true;
 		};
-	}, [execute]);
+	}, [execute, nonce]);
 
-	return { vehicles, error, loading };
+	return { vehicles, error, loading, refresh };
 }
 
 /** Parsed battery/fuel/sensor telemetry, keyed by agent_id (widget-local). */
@@ -161,10 +194,13 @@ type ProfileTelemetryMap = Record<
  * buffer (via the provider's own `getSource`), so the feedback topic's messages
  * are never folded in.
  *
- * The detail's battery/fuel/sensor lines do NOT consume this — they read the
- * roster `row.vehicle` (`vehicle_info`) directly. The returned telemetry map is
- * retained for compatibility but is otherwise unused; the store publish is the
- * meaningful side effect here.
+ * ⚠ The returned telemetry map is the PRIMARY source for the detail's
+ * battery/fuel/sensor lines. It used to be discarded at the call site while those
+ * lines read the roster `row.vehicle` instead — and the `:5000 /Vehicles` schema
+ * is `{agent_id}` only, so `vehicle_info` is never present there and battery and
+ * fuel could not populate under any circumstances. The parse below reads exactly
+ * the fields the rows need, off the `agent_profile` topic, which does carry them
+ * today. The roster stays a fallback for whenever the backend widens its schema.
  *
  * @param source - The buffered agent_profile source (or undefined).
  * @param profileTopic - The agent_profile SelectedTopic (for its `.source`).
@@ -220,12 +256,54 @@ function useAgentProfilePublisher(
 	return telemetry;
 }
 
+/**
+ * Choose which parsed telemetry a row renders: the live `agent_profile` topic
+ * stash when it carries anything, else the roster record.
+ *
+ * "Carries anything" means a battery reading, a fuel reading, or at least one
+ * sensor — a profile message that parsed to all-empty is not better than the
+ * roster and must not mask it.
+ *
+ * Pure and exported so the precedence is testable without a renderer.
+ *
+ * @param stash - Telemetry parsed off the agent_profile topic, if any.
+ * @param roster - Telemetry parsed off the `c2.vehicles.list` record, if any.
+ * @returns Whichever should be rendered (possibly undefined).
+ */
+export function pickProfileTelemetry(
+	stash: ReturnType<typeof parseAgentProfileTelemetry> | undefined,
+	roster: ReturnType<typeof parseAgentProfileTelemetry> | undefined,
+): ReturnType<typeof parseAgentProfileTelemetry> | undefined {
+	const stashHasData =
+		stash != null &&
+		(stash.batteryPct != null ||
+			stash.fuelPct != null ||
+			stash.sensors.length > 0);
+	return stashHasData ? stash : (roster ?? stash);
+}
+
+/**
+ * Badge variant for a telemetry health reading: a status, so it is coloured by
+ * meaning (never the default fill, which reads as a button).
+ */
+function healthBadgeVariant(
+	health: string,
+): "success" | "warning" | "destructive" {
+	if (health === "online") return "success";
+	if (health === "offline") return "destructive";
+	return "warning";
+}
+
 /** A small labelled key/value line inside the expanded detail. */
 function DetailLine(props: { label: string; value: React.ReactNode }) {
 	return (
-		<div className="flex items-center justify-between gap-2">
-			<span className="text-muted-foreground">{props.label}</span>
-			<span className="font-medium text-right">{props.value}</span>
+		<div className="flex items-baseline justify-between gap-2 min-w-0">
+			<span className="text-muted-foreground shrink-0">
+				{props.label}
+			</span>
+			<span className="font-medium text-right min-w-0 break-words">
+				{props.value}
+			</span>
 		</div>
 	);
 }
@@ -239,7 +317,7 @@ function DetailLine(props: { label: string; value: React.ReactNode }) {
  * unmounts it, which tears the provider down and auto-unsubscribes. The
  * single-topic array is inline (the child mounts/unmounts as a unit, so a fresh
  * array per render does not thrash a long-lived subscription). Degrades per
- * series via `getTopicHealth` (§13); shows an unavailable note with no
+ * series via `getTopicHealth`; shows an unavailable note with no
  * namespace/source.
  */
 function AgentAutonomyDetail(props: {
@@ -318,8 +396,8 @@ function AgentAutonomyBody({ topic }: { topic: SelectedTopic }) {
  *
  * A hoisted (module-level) component so it can call {@link useAgentName} for the
  * agent's namespace name — hooks can't run inside the `.map` of the parent. Its
- * identity is stable across renders, so rows don't remount (Component-identity
- * rule §10 / the Group A `GeometryRow` pattern). The full `agent_id` stays in
+ * identity is stable across renders, so rows don't remount (the stable
+ * component-identity rule in AGENTS.md). The full `agent_id` stays in
  * the `title` tooltip.
  *
  * Collapsed: status dot, name, state, position. Expanded: Position & speed,
@@ -329,11 +407,17 @@ function AgentAutonomyBody({ topic }: { topic: SelectedTopic }) {
 function FleetRowItem({
 	row,
 	telemetrySource,
+	profileStash,
+	narrow,
 }: {
 	row: FleetRow;
+	/** Narrow container: the collapsed row drops the position readout. */
+	narrow?: boolean;
 	/** The fleet's configured feedback-topic ROS source, used as the autonomy
 	 *  subscription source for roster-fed agents (which carry no ROS source). */
 	telemetrySource?: DatasourceProviderSettings;
+	/** This agent's telemetry parsed off the `agent_profile` topic, if any. */
+	profileStash?: ReturnType<typeof parseAgentProfileTelemetry>;
 }) {
 	const name = useAgentName(row.agent_id);
 	const record = useAgentRecord(row.agent_id);
@@ -341,12 +425,21 @@ function FleetRowItem({
 	const live = row.telemetry != null;
 	const pos = row.telemetry?.position;
 
-	// Battery/fuel/sensors come from the ROSTER vehicle record (the
-	// `c2.vehicles.list` response carries `vehicle_info` at top level), NOT the
-	// optional agent_profile-topic stash.
-	const profileTelemetry = row.vehicle
+	// Battery/fuel/sensors: the `agent_profile` TOPIC stash first (it carries
+	// `vehicle_info` today), the roster record only as a fallback.
+	//
+	// This was the other way round, which meant they could never populate: the
+	// `:5000 /Vehicles` schema is `{agent_id}` only, so `parseAgentProfileTelemetry`
+	// was handed a record with no `vehicle_info` in it and both lines rendered "—"
+	// forever, while the parsed topic values sat in a map the call site threw away.
+	// The roster fallback keeps working the moment the backend widens that schema.
+	const rosterTelemetry = row.vehicle
 		? parseAgentProfileTelemetry(row.vehicle)
 		: undefined;
+	const profileTelemetry = pickProfileTelemetry(
+		profileStash,
+		rosterTelemetry,
+	);
 
 	// Autonomy subscription identity: the namespace from the store record (ROS
 	// agent_profile) or the roster vehicle; the source from the store record or
@@ -356,16 +449,17 @@ function FleetRowItem({
 	const autonomySource = record?.source ?? telemetrySource ?? null;
 	return (
 		<div className="border rounded-md text-xs">
+			{/* Disclosure, not a toolbar action: a full-width row button. */}
 			<button
 				type="button"
-				className="w-full p-2 flex items-center gap-2 text-left"
+				className="w-full p-2 flex items-center gap-2 text-left rounded-md transition-colors hover:bg-muted/50 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 				onClick={() => setOpen((v) => !v)}
 				aria-expanded={open}
 			>
 				{open ? (
-					<ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />
+					<ChevronDown className="size-3 shrink-0 text-muted-foreground" />
 				) : (
-					<ChevronRight className="w-3 h-3 shrink-0 text-muted-foreground" />
+					<ChevronRight className="size-3 shrink-0 text-muted-foreground" />
 				)}
 				<span
 					className={`inline-block w-2 h-2 rounded-full shrink-0 ${
@@ -373,7 +467,7 @@ function FleetRowItem({
 					}`}
 				/>
 				<span
-					className="font-medium truncate flex-1"
+					className="font-medium truncate flex-1 min-w-0"
 					title={row.agent_id}
 				>
 					{name}
@@ -386,8 +480,8 @@ function FleetRowItem({
 						{agentStateLabel(row.telemetry.state)}
 					</span>
 				)}
-				{pos && (
-					<span className="text-muted-foreground shrink-0">
+				{pos && !narrow && (
+					<span className="text-muted-foreground shrink-0 tabular-nums">
 						({pos.x.toFixed(2)}, {pos.y.toFixed(2)})
 					</span>
 				)}
@@ -480,7 +574,11 @@ function FleetBody(props: {
 	topic?: SelectedTopic;
 	profileTopic?: SelectedTopic;
 }) {
-	const { vehicles, error, loading } = useVehicleRoster(props.definition);
+	const [rootRef, { size }] = useContainerSize<HTMLDivElement>();
+	const narrow = size === "xs";
+	const { vehicles, error, loading, refresh } = useVehicleRoster(
+		props.definition,
+	);
 	const { getSource, getTopicHealth } = useLocalDataSource();
 
 	// Still runs the agent_profile publisher when that optional topic is
@@ -490,7 +588,9 @@ function FleetBody(props: {
 	const profileSource = props.profileTopic
 		? getSource(props.profileTopic)
 		: undefined;
-	useAgentProfilePublisher(
+	// The returned map is CONSUMED (it used to be discarded): it is where the
+	// rows' battery/fuel/sensor readings come from. See `pickProfileTelemetry`.
+	const profileTelemetry = useAgentProfilePublisher(
 		profileSource as BufferedSource | undefined,
 		props.profileTopic,
 	);
@@ -515,50 +615,75 @@ function FleetBody(props: {
 		return mergeFleet(vehicles, collectTelemetry([feedbackSource.data]));
 	}, [vehicles, hasTopic, feedbackSource]);
 
-	// Per-series telemetry health (does not blank the roster, §13).
+	// Per-series telemetry health (does not blank the roster).
 	const telemetryHealth = props.topic
 		? getTopicHealth(props.topic)
 		: "offline";
 
 	return (
-		<div className="h-full flex flex-col p-3 gap-2 text-sm">
-			<div className="flex items-center gap-2 shrink-0 text-xs">
-				<Badge variant="secondary">{vehicles.length} registered</Badge>
-				{props.hasTopic ? (
-					<Badge
-						variant={
-							telemetryHealth === "online" ? "default" : "outline"
-						}
-					>
-						telemetry: {telemetryHealth}
+		<div
+			ref={rootRef}
+			className={`h-full min-w-0 flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
+		>
+			{/* Header: badges wrap among themselves; refresh keeps its own
+			    non-wrapping slot on the right, so it never drops to a line of
+			    its own. */}
+			<div className="flex items-center gap-2 shrink-0 min-w-0">
+				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+					<Badge variant="secondary">
+						{vehicles.length} registered
 					</Badge>
-				) : (
-					<Badge variant="outline">no telemetry topic</Badge>
-				)}
-				{error && <Badge variant="destructive">roster: {error}</Badge>}
-			</div>
-
-			<ScrollArea className="flex-1 min-h-0">
-				<div className="flex flex-col gap-1 pr-2">
-					{loading && rows.length === 0 && (
-						<div className="text-muted-foreground text-xs">
-							Loading roster…
-						</div>
+					{props.hasTopic ? (
+						<Badge variant={healthBadgeVariant(telemetryHealth)}>
+							telemetry: {telemetryHealth}
+						</Badge>
+					) : (
+						<Badge variant="outline">no telemetry topic</Badge>
 					)}
-					{!loading && rows.length === 0 && (
-						<div className="text-muted-foreground text-xs">
-							No vehicles registered.
-						</div>
-					)}
-					{rows.map((row) => (
-						<FleetRowItem
-							key={row.agent_id}
-							row={row}
-							telemetrySource={props.topic?.source}
-						/>
-					))}
 				</div>
-			</ScrollArea>
+				<div className="ml-auto flex shrink-0 items-center gap-1">
+					<Button
+						size="icon-sm"
+						variant="ghost"
+						onClick={refresh}
+						disabled={loading}
+						title="Refresh the vehicle roster"
+						aria-label="Refresh the vehicle roster"
+					>
+						<RefreshCw className={loading ? "animate-spin" : ""} />
+					</Button>
+				</div>
+			</div>
+			{/* A roster failure is a sentence, not a chip: it can be long, and
+			    in a badge it forced the header to wrap around it. */}
+			{error && (
+				<div className="text-xs text-destructive bg-destructive/10 p-2 rounded-md shrink-0 break-words">
+					Could not refresh the vehicle roster — {error}
+				</div>
+			)}
+
+			{/* Radix wraps the content in a `display: table` div that grows to
+			    its widest row, so `truncate` never engaged; forcing it to block
+			    keeps every row at the viewport's width. */}
+			{rows.length === 0 ? (
+				<PanelEmptyState>
+					{loading ? "Loading roster…" : "No vehicles registered."}
+				</PanelEmptyState>
+			) : (
+				<ScrollArea className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block">
+					<div className="flex flex-col gap-1 pr-2">
+						{rows.map((row) => (
+							<FleetRowItem
+								key={row.agent_id}
+								row={row}
+								telemetrySource={props.topic?.source}
+								profileStash={profileTelemetry[row.agent_id]}
+								narrow={narrow}
+							/>
+						))}
+					</div>
+				</ScrollArea>
+			)}
 		</div>
 	);
 }
@@ -583,10 +708,10 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
 
 	if (!definition) {
 		return (
-			<div className="h-full flex items-center justify-center p-3 text-sm text-muted-foreground text-center">
+			<PanelEmptyState>
 				No C2 datasource available. Add a C2 Control datasource to load
 				the vehicle roster.
-			</div>
+			</PanelEmptyState>
 		);
 	}
 
@@ -610,7 +735,7 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
 };
 
 /**
- * Widget definition for the fleet / vehicle widget (F7).
+ * Widget definition for the fleet / vehicle widget.
  * @returns Widget definition.
  */
 export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {

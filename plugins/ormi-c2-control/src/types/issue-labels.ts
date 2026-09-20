@@ -235,3 +235,92 @@ export function isPlannerReachabilityIssue(
 ): boolean {
 	return code != null && PLANNER_REACHABILITY_ISSUE_CODES.has(code);
 }
+
+/**
+ * Short labels and severities for the optional string `issue_code`
+ * coordination sends next to the numeric `issue`. More specific than the
+ * numeric label (issue 13 "Status change ignored" says nothing about WHY;
+ * `VEHICLE_BUSY` does). Each severity matches the numeric issue coordination
+ * pairs the code with. An unknown code keeps the numeric label and severity.
+ */
+const ISSUE_CODES: Record<
+	string,
+	{ label: string; severity: MissionIssueSeverity }
+> = {
+	/** Issue 13: the vehicle is held by another mission. */
+	VEHICLE_BUSY: { label: "Vehicle busy", severity: "warn" },
+	/** Issue 15: no edge feedback for a while (not yet lost). */
+	EDGE_SILENT: { label: "Robot silent", severity: "warn" },
+	/**
+	 * Issue 15: the robot's supervisor restarted and lost its task; coordination
+	 * re-sent the remaining waypoints and PAUSED the mission (operator resumes).
+	 */
+	EDGE_RESTARTED: {
+		label: "Robot restarted — task recovered, paused",
+		severity: "warn",
+	},
+	/**
+	 * Issue 15: the robot reported another task / no task; coordination re-sent
+	 * ours and PAUSED the mission.
+	 */
+	TASK_RECOVERED: { label: "Task recovered, paused", severity: "warn" },
+	/** Issue 22: another mission's task replaced ours on the robot. */
+	TASK_DISPLACED: { label: "Task displaced", severity: "fail" },
+	/** Issue 22: the robot lost our task and bounded recovery failed. */
+	EDGE_TASK_LOST: { label: "Task lost", severity: "fail" },
+	/**
+	 * Issue 24: no edge feedback for `edge_lost_fail_timeout_s`; task aborted,
+	 * mission FAILED, robot released.
+	 */
+	EDGE_LOST: { label: "Robot lost", severity: "fail" },
+};
+
+/** A {@link MissionIssue} plus the optional string detail from the feedback. */
+export interface FeedbackIssueView extends MissionIssue {
+	/** The feedback's `issue_code`, or null when it carried none. */
+	reason: string | null;
+	/** The feedback's `issue_message`, or null when it carried none. */
+	detail: string | null;
+}
+
+/**
+ * The display form of a feedback document's CURRENT issue.
+ *
+ * Numeric-only documents (no `issue_code` / `issue_message`) resolve exactly as
+ * {@link getMissionIssue} does, with `reason`/`detail` null. When the string
+ * keys are present, the label is sharpened from `issue_code` and the
+ * description becomes `issue_message`. A document that carries only the string
+ * keys (no numeric issue) still yields an issue rather than hiding it.
+ *
+ * @param fb - The feedback's `issue` and optional `issue_code`/`issue_message`.
+ * @returns The issue to show, or null when there is none.
+ */
+export function describeFeedbackIssue(fb: {
+	issue: number | null | undefined;
+	issue_code?: string | null;
+	issue_message?: string | null;
+}): FeedbackIssueView | null {
+	const reason = fb.issue_code?.trim() || null;
+	const detail = fb.issue_message?.trim() || null;
+	const base = getMissionIssue(fb.issue);
+	const known = reason ? ISSUE_CODES[reason] : undefined;
+	if (base) {
+		return {
+			...base,
+			label: known?.label ?? base.label,
+			severity: known?.severity ?? base.severity,
+			description: detail ?? base.description,
+			reason,
+			detail,
+		};
+	}
+	if (!reason && !detail) return null;
+	return {
+		code: fb.issue ?? 0,
+		label: known?.label ?? reason ?? "Issue",
+		description: detail ?? reason ?? "",
+		severity: known?.severity ?? "warn",
+		reason,
+		detail,
+	};
+}

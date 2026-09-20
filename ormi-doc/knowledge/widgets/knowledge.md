@@ -522,9 +522,54 @@ Each bundled style carries four no-op anchor layers over an empty GeoJSON source
 | `ormi-anchor-top`       | last layer of the style                          | anything that must clear the labels        |
 
 Helpers live in `packages/utils/src/style-layers.ts` (`ORMI_STYLE_ANCHORS`,
-`insertLayersAt`, `resolveAnchor`) and are barrel-safe. `building-3d` ships with
-`visibility: "none"` in all three styles; the std map's 3D toggle flips it,
-which is why a vector basemap needs no MapTiler key.
+`insertLayersAt`, `resolveAnchor`) and are barrel-safe.
+
+### 3D buildings: the basemap answers it when it can
+
+`building-3d` ships with `visibility: "none"` in all three vector styles, under
+the id exported as `ORMI_BUILDINGS_3D_LAYER` (same module as the anchors — it is
+a property of the bundled styles, so both map widgets read one constant rather
+than repeating the literal; a rename upstream is caught by
+`basemap-styles.test.ts`, which looks it up through the constant, not by the type
+system). A 3D toggle shows it, which is why a vector basemap needs no MapTiler
+key and no fetch: the geometry is already on the wire, the heights are the real
+`render_height` / `render_min_height` per building, and it follows the operator
+as they pan. The layer is `minzoom: 14`, so a toggle reachable below z14 names
+the floor rather than appearing to do nothing.
+
+Because it is free there, the C2 map's toggle **defaults on for a vector
+basemap** and off for raster, where enabling it means an Overpass fetch that
+nothing asked for. The default is derived from the basemap rather than seeded
+into state, with only the operator's explicit choice stored — so switching
+basemap moves the default too, until they say otherwise.
+
+**Flip it in place, not by rewriting the style.** A style object that changes
+with the toggle makes react-map-gl call `setStyle(next, {diff: true})`, and
+MapLibre's diff removes every source and layer added imperatively rather than
+declared in the spec. react-map-gl's own `<Source>`/`<Layer>` children re-add
+themselves; terra-draw does not — it registers `td-*` once and listens for no
+style event — so the C2 map's authoring tool would vanish on a 3D toggle and its
+next `setData` would throw. `setLayerVisibility` (`style-layers.ts`) does the
+flip on the live map, re-applied on `styledata` because a basemap swap reinstates
+the layer as shipped. The std map has no imperative layers and flips inside its
+style. Corollary: changing the basemap on the C2 map still drops the draw layers
+(pre-existing — terra-draw is never re-registered), which is a reason not to add
+further style-rebuilding toggles there.
+
+A raster basemap carries no vector geometry, so the same operator toggle has to
+be served differently, and the two paths are mutually exclusive — running both
+extrudes the same city twice, in two heights and two greys:
+
+| widget                     | vector basemap      | raster basemap                                              |
+| -------------------------- | ------------------- | ----------------------------------------------------------- |
+| std map (`map-box-viewer`) | flips `building-3d` | a MapTiler vector source + its own `3d-buildings` layer     |
+| C2 mission map             | flips `building-3d` | Overpass footprints → `fill-extrusion` (`Buildings3DLayer`) |
+
+On the C2 map the raster path is one Overpass fetch scoped to the picked geofence
+or the view at toggle time, so it does not follow panning and can fail — the
+vector path has neither property. The Overpass read is shared with the
+risk-feature import, which is a **mission-planning** function and keeps fetching
+real footprints on any basemap; only the display branch is basemap-dependent.
 
 The anchors are what make raster and vector one code path: a raster style
 contains none of them, `insertLayersAt` appends when its anchor is absent, and
@@ -532,6 +577,38 @@ contains none of them, `insertLayersAt` appends when its anchor is absent, and
 behaviour. Anything that reaches for a bare anchor constant as a `beforeId`
 blanks a raster map, because MapLibre throws on a `beforeId` naming a layer the
 style does not contain.
+
+## Mission map: authoring stands down on an approved plan
+
+The C2 mission map has two modes behind one toolbar button — **Edit** (draw and
+reshape) and **View** (the same geometry, nothing armed). The operator picks
+between them, and the map also picks for them: approving a mission commits its
+plan to the C2, so leaving the map armed over dispatched geometry is an
+invitation to edit something that is already on its way to a robot.
+
+The rule is a pure function (`widgets/map-view-mode.ts`), not state:
+
+- `isMissionCommitted(status)` — `ACCEPTED`, `STARTED`, `PAUSED`. Terminal and
+  failed states are **not** committed: those missions get refined and
+  re-submitted, which is authoring, and `allowedActions` keeps Submit available
+  there. A status that still offers Approve must never read as committed; the
+  test asserts that across the whole enum.
+- `resolveViewOnly({readOnly, inMissionContext, status, editUnlockedAt})` — the
+  operator's own View choice wins; otherwise a committed plan stands authoring
+  down, unless the operator has deliberately taken Edit back _at that status_.
+
+Three things it is careful about. It is **derived** — a status-driven `setState`
+in an effect would re-render on every feedback message, and silencing the lint
+rule would cost the whole map body its React Compiler pass. It is a
+**transition, not a lock** — the remembered `editUnlockedAt` is what lets an
+operator edit an approved plan on purpose while the next transition
+(approved → started) still stands the map down. And it is **scoped to the
+mission context**, because roads, geofences and risk areas belong to the map, not
+to a mission: an operator mid-polygon must not be thrown into View because
+someone else approved a mission elsewhere. Disarming happens in the effect that
+already decides the terra-draw mode (to `static`), not by resetting the tool, and
+the toggle's title names the reason so a stand-down nobody asked for does not
+read as a broken toolbar.
 
 ## Widget families that carry their own data
 

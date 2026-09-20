@@ -168,3 +168,61 @@ describe("objectivesOutsideGeofence", () => {
 		expect(objectivesOutsideGeofence([], [geofence()])).toEqual([]);
 	});
 });
+
+describe("objectivesOutsideGeofence — multi-part geometries", () => {
+	/** A 3-level multi-part objective (lines or rings, C2 flat form). */
+	const multiObjective = (
+		geometry_type: "MultiLineString" | "MultiPolygon",
+		parts: [number, number][][],
+	): MissionGeometry =>
+		({
+			geometry: { geometry_type, coordinates: parts },
+		}) as unknown as MissionGeometry;
+
+	const outsideRing: [number, number][] = [
+		[50, 50],
+		[60, 50],
+		[60, 60],
+		[50, 50],
+	];
+	const insideRing: [number, number][] = [
+		[2, 2],
+		[4, 2],
+		[4, 4],
+		[2, 2],
+	];
+
+	it("reports a MultiPolygon whose every part is outside", () => {
+		expect(
+			objectivesOutsideGeofence(
+				[multiObjective("MultiPolygon", [outsideRing, outsideRing])],
+				[geofence()],
+			),
+		).toEqual([0]);
+	});
+
+	it("reports a MultiLineString whose every part is outside", () => {
+		expect(
+			objectivesOutsideGeofence(
+				[
+					multiObjective("MultiLineString", [
+						[
+							[20, 20],
+							[30, 30],
+						],
+					]),
+				],
+				[geofence()],
+			),
+		).toEqual([0]);
+	});
+
+	it("treats a multi-part objective as inside when any part is", () => {
+		expect(
+			objectivesOutsideGeofence(
+				[multiObjective("MultiPolygon", [outsideRing, insideRing])],
+				[geofence()],
+			),
+		).toEqual([]);
+	});
+});

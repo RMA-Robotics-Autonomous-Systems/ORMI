@@ -2,8 +2,14 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import {
 	__resetMissionFeedbackStore,
+	FEEDBACK_STALE_AFTER_MS,
+	getAllMissionFeedback,
+	getLiveMissionFeedback,
 	getMissionFeedback,
+	getMissionFeedbackOrigin,
+	getMissionFeedbackUpdatedAt,
 	publishMissionFeedback,
+	seedMissionFeedbackHistory,
 	subscribe,
 } from "./mission-feedback-store";
 import {
@@ -131,5 +137,132 @@ describe("mission-feedback-store", () => {
 		unsubscribe();
 		publishMissionFeedback(feedback("m-a", 5));
 		expect(notified).toBe(0);
+	});
+});
+
+describe("mission-feedback-store — all missions + freshness", () => {
+	it("lists every mission, reference-stable while nothing changed", () => {
+		publishMissionFeedback(feedback("m-a", 5));
+		publishMissionFeedback(feedback("m-b", 10));
+		const all = getAllMissionFeedback();
+		expect(all.map((f) => f.mission_id)).toEqual(["m-a", "m-b"]);
+		// Identical republish → same snapshot object.
+		publishMissionFeedback(feedback("m-b", 10));
+		expect(getAllMissionFeedback()).toBe(all);
+		// Real change → new snapshot, finished missions kept.
+		publishMissionFeedback(feedback("m-a", 6));
+		expect(getAllMissionFeedback()).not.toBe(all);
+		expect(getAllMissionFeedback()).toHaveLength(2);
+	});
+
+	it("an identical republish refreshes updatedAt (freshness)", async () => {
+		publishMissionFeedback(feedback("m-a", 5));
+		const first = getMissionFeedbackUpdatedAt("m-a")!;
+		await new Promise((r) => setTimeout(r, 5));
+		publishMissionFeedback(feedback("m-a", 5));
+		expect(getMissionFeedbackUpdatedAt("m-a")!).toBeGreaterThan(first);
+	});
+});
+
+describe("mission-feedback-store — history vs live merge rule", () => {
+	it("seeds a history snapshot with no age and no 'latest' claim", () => {
+		expect(seedMissionFeedbackHistory(feedback("m-h", 10))).toBe(true);
+		expect(getMissionFeedback("m-h")?.status).toBe(10);
+		expect(getMissionFeedbackOrigin("m-h")).toBe("history");
+		// Never fresh, never stale: it has no age at all.
+		expect(getMissionFeedbackUpdatedAt("m-h")).toBeNull();
+		// Not the "latest published" mission, and not in the live list.
+		expect(getMissionFeedback(null)).toBeNull();
+		expect(getLiveMissionFeedback()).toEqual([]);
+		expect(getAllMissionFeedback().map((f) => f.mission_id)).toEqual([
+			"m-h",
+		]);
+	});
+
+	it("a live message always replaces a history snapshot", () => {
+		seedMissionFeedbackHistory(feedback("m-a", 5));
+		const live = feedback("m-a", 10);
+		publishMissionFeedback(live);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("live");
+		expect(getMissionFeedback("m-a")).toBe(live);
+		expect(getMissionFeedbackUpdatedAt("m-a")).not.toBeNull();
+		expect(getLiveMissionFeedback().map((f) => f.mission_id)).toEqual([
+			"m-a",
+		]);
+	});
+
+	it("a live message with the SAME content still flips the origin and notifies", () => {
+		const stored = feedback("m-a", 5);
+		seedMissionFeedbackHistory(stored);
+		let notified = 0;
+		const unsubscribe = subscribe(() => {
+			notified += 1;
+		});
+		publishMissionFeedback(feedback("m-a", 5));
+		expect(notified).toBe(1);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("live");
+		// Same content → the value object is kept (no needless re-render).
+		expect(getMissionFeedback("m-a")).toBe(stored);
+		unsubscribe();
+	});
+
+	it("a history snapshot never replaces a live slot", () => {
+		const live = feedback("m-a", 5);
+		publishMissionFeedback(live);
+		const at = getMissionFeedbackUpdatedAt("m-a");
+		expect(seedMissionFeedbackHistory(feedback("m-a", 10))).toBe(false);
+		expect(getMissionFeedback("m-a")).toBe(live);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("live");
+		expect(getMissionFeedbackUpdatedAt("m-a")).toBe(at);
+	});
+
+	it("a differing history snapshot replaces a live slot that has gone stale", () => {
+		// The publisher died with the mission still reading "Started" here while
+		// the C2 recorded it ending: the stored snapshot is the newer truth.
+		publishMissionFeedback(feedback("m-a", 5));
+		const at = getMissionFeedbackUpdatedAt("m-a")!;
+		expect(
+			seedMissionFeedbackHistory(
+				feedback("m-a", 7),
+				at + FEEDBACK_STALE_AFTER_MS,
+			),
+		).toBe(false);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("live");
+		expect(
+			seedMissionFeedbackHistory(
+				feedback("m-a", 7),
+				at + FEEDBACK_STALE_AFTER_MS + 1,
+			),
+		).toBe(true);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("history");
+		expect(getMissionFeedback("m-a")?.status).toBe(7);
+		expect(getMissionFeedbackUpdatedAt("m-a")).toBeNull();
+		expect(getLiveMissionFeedback()).toEqual([]);
+	});
+
+	it("an identical history snapshot leaves a stale live slot alone", () => {
+		publishMissionFeedback(feedback("m-a", 5));
+		const at = getMissionFeedbackUpdatedAt("m-a")!;
+		expect(
+			seedMissionFeedbackHistory(
+				feedback("m-a", 5),
+				at + FEEDBACK_STALE_AFTER_MS + 1,
+			),
+		).toBe(false);
+		expect(getMissionFeedbackOrigin("m-a")).toBe("live");
+	});
+
+	it("a newer history snapshot replaces an older one; an identical one is a no-op", () => {
+		seedMissionFeedbackHistory(feedback("m-a", 5));
+		let notified = 0;
+		const unsubscribe = subscribe(() => {
+			notified += 1;
+		});
+		expect(seedMissionFeedbackHistory(feedback("m-a", 5))).toBe(false);
+		expect(notified).toBe(0);
+		expect(seedMissionFeedbackHistory(feedback("m-a", 10))).toBe(true);
+		expect(notified).toBe(1);
+		expect(getMissionFeedback("m-a")?.status).toBe(10);
+		unsubscribe();
 	});
 });

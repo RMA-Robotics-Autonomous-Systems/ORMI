@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { StyleSpecification } from "react-map-gl/maplibre";
 import {
+	ORMI_BUILDINGS_3D_LAYER,
 	ORMI_STYLE_ANCHORS,
 	applyBasemapKey,
 	insertLayersAt,
@@ -33,12 +34,6 @@ interface UseMapStyleProps {
 	customLayers: CustomLayer[];
 	showGrid: boolean;
 }
-
-/**
- * Layer id of the 3D building extrusion carried by every ORMI-bundled vector
- * style. It ships hidden; the widget flips its visibility from the 3D toggle.
- */
-const VECTOR_BUILDINGS_3D_LAYER = "building-3d";
 
 /**
  * Generates MapLibre style specification with custom layers and grid.
@@ -180,7 +175,7 @@ export function useMapStyle({
 					...customSources,
 				},
 				layers: vectorStyle.layers.map((layer) =>
-					layer.id === VECTOR_BUILDINGS_3D_LAYER
+					layer.id === ORMI_BUILDINGS_3D_LAYER
 						? {
 								...layer,
 								layout: {

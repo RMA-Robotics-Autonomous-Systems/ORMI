@@ -58,7 +58,9 @@ import {
 } from "../state/selection-store";
 import {
 	clearMissionDraft,
+	commitSavedDraft,
 	editMissionDraft,
+	getMissionDraft,
 	hasMissionDraft,
 	setMissionDraft,
 	useMissionDraft,
@@ -88,31 +90,34 @@ import {
 	toggleVehicle,
 } from "./mission-editor-helpers";
 import { MissionIssueList } from "./mission-issues";
+import { PanelEmptyState } from "./panel-empty-state";
+import { useContainerSize } from "./responsive";
 import { normalizeMissions } from "./mission-list";
 import { useAsyncAction } from "./use-async-action";
 
 /**
- * F5 — Mission editor widget.
+ * Mission editor widget.
  *
  * Hybrid form: bespoke React for name / behavior / vehicle allocation /
  * objective-geometries list, plus embedded JSON-Forms for the deep OPTIONAL
  * blocks (arrival_time / transit / start) via {@link missionAdvancedSchema}.
  *
  * The editor FOLLOWS the active mission from the selection store — creation and
- * selection live in the F4 mission browser. When the active mission id changes,
+ * selection live in the mission browser. When the active mission id changes,
  * the editor hydrates that mission's config from `c2.missions.list` into the
- * draft (D9: the plan stays read-only — this authors the config only). With no
+ * draft (the planned route stays read-only — this authors the config only). With no
  * active mission it shows a placeholder. The draft is owned here via `useState`.
  *
  * Switching the active mission while the draft has unsaved edits does NOT discard
  * them silently: a warning bar offers "Discard & edit ‹new›" (load the new one)
  * or "Resume editing ‹current›" (re-point the shared selection back to the draft
- * so F8/F10 stay coherent). A clean draft follows the selection silently.
+ * so the control panel and feedback widgets stay coherent). A clean draft
+ * follows the selection silently.
  *
- * Geometry hand-off from the map (F6) is consumed via `useC2MapEditing` —
+ * Geometry hand-off from the mission map is consumed via `useC2MapEditing` —
  * explicit "Add picked feature" and "Add drawn geometry" actions COPY into the
  * draft. Live validation runs on every change; error-severity issues disable
- * Save. Save persists via `c2.missions.save`, then sets the active mission so F8
+ * Save. Save persists via `c2.missions.save`, then sets the active mission so the control panel
  * drives it.
  *
  * Command widget — gated on a C2 datasource via `WIDGET_LIST_WITH_DATASOURCE`.
@@ -164,18 +169,20 @@ function GeometryRow(props: {
 	const featureName = useFeatureName(props.feature_id);
 	return (
 		<div className="border rounded-md p-2 text-xs flex items-center gap-2">
-			<span className="flex-1 truncate" title={props.feature_id}>
+			<span className="flex-1 min-w-0 truncate" title={props.feature_id}>
 				{props.feature_id
 					? `feature: ${featureName}`
 					: `inline: ${props.geometry_type ?? "geometry"}`}
 			</span>
 			<Button
-				size="sm"
+				size="icon-sm"
 				variant="ghost"
-				className="h-6 w-6 p-0 text-destructive"
+				className="shrink-0 text-destructive"
+				title="Remove geometry"
+				aria-label="Remove geometry"
 				onClick={props.onRemove}
 			>
-				<Trash2 className="w-3.5 h-3.5" />
+				<Trash2 />
 			</Button>
 		</div>
 	);
@@ -199,12 +206,12 @@ function VehicleAllocationRow(props: {
 }) {
 	const name = useAgentName(props.id);
 	return (
-		<label className="flex items-center gap-2 text-xs cursor-pointer">
+		<label className="flex items-center gap-2 text-xs cursor-pointer min-w-0">
 			<Checkbox
 				checked={props.checked}
 				onCheckedChange={props.onToggle}
 			/>
-			<span className="truncate" title={props.id}>
+			<span className="truncate min-w-0" title={props.id}>
 				{name}
 			</span>
 		</label>
@@ -243,15 +250,19 @@ function MissionEditorBody(props: {
 	// mission is loaded. The follow effect is the sole writer.
 	const [loadedMissionId, setLoadedMissionId] = useState<string | null>(null);
 	// The working copy + dirty flag, bound to the SHARED draft store for the
-	// loaded mission so edits on the map (F6) propagate here live and vice-versa.
+	// loaded mission so edits on the mission map propagate here live and vice-versa.
 	// Saving in either widget clears the shared dirty flag.
 	const draft = useMissionDraft(loadedMissionId);
 	const dirty = useMissionDraftDirty(loadedMissionId);
 	// An active mission id we have NOT loaded because the draft is dirty — drives
 	// the discard/resume warning bar. `null` when there is nothing pending.
-	const [pendingMissionId, setPendingMissionId] = useState<string | null>(
-		null,
-	);
+	// Derived rather than stored: it is exactly "the selection moved away from a
+	// dirty draft", so it clears itself when the operator resumes (selection
+	// points back) or discards (the draft is no longer dirty).
+	const pendingMissionId: string | null =
+		dirty && shouldLoadActiveMission(active, loadedMissionId)
+			? (active as string)
+			: null;
 	const [roster, setRoster] = useState<C2Vehicle[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -262,6 +273,9 @@ function MissionEditorBody(props: {
 	// Advanced block is collapsed by default so it doesn't compete with the
 	// required fields above it.
 	const [advancedOpen, setAdvancedOpen] = useState(false);
+	// The panel measures its own box so a narrow dock gets the tighter padding.
+	const [rootRef, { size }] = useContainerSize<HTMLDivElement>();
+	const narrow = size === "xs";
 
 	const { execute: executeVehicles } = vehicles;
 	const { execute: executeList } = list;
@@ -326,9 +340,9 @@ function MissionEditorBody(props: {
 	 * Load a mission by id into the shared draft (hydrate from `c2.missions.list`).
 	 *
 	 * Load coordination: if the shared store already holds a slot for this id (e.g.
-	 * F6 loaded it, or the operator has an in-progress edit), ADOPT it — do not
+	 * the mission map loaded it, or the operator has an in-progress edit), ADOPT it — do not
 	 * refetch and overwrite. Only fetch + `setMissionDraft` when the store has no
-	 * slot for the mission, so F5 and F6 never double-fetch the same mission and a
+	 * slot for the mission, so the editor and the map never double-fetch the same mission and a
 	 * cross-widget edit is never clobbered. Guards against stale writes via the
 	 * caller-provided `isCancelled` check.
 	 */
@@ -338,7 +352,6 @@ function MissionEditorBody(props: {
 			if (hasMissionDraft(id)) {
 				setError(null);
 				setLoadedMissionId(id);
-				setPendingMissionId(null);
 				return;
 			}
 			setBusy(true);
@@ -360,37 +373,28 @@ function MissionEditorBody(props: {
 			setError(null);
 			setMissionDraft(hydrateMissionDraft(match.raw));
 			setLoadedMissionId(id);
-			setPendingMissionId(null);
 		},
 		[executeList],
 	);
 
 	// Follow the active mission: when it changes to a different, non-empty id,
 	// load it into the shared draft (adopting an existing slot, or fetching). A
-	// dirty draft is NOT discarded — the active id is parked in `pendingMissionId`,
-	// which renders the discard/resume warning bar. A clean draft (or initial
-	// mount) loads silently. `shouldLoadActiveMission` is the loop-avoidance guard:
-	// once `loadedMissionId` holds the active id, no reload.
+	// dirty draft is NOT discarded — the active id surfaces as `pendingMissionId`,
+	// which renders the discard/resume warning bar, and nothing loads until the
+	// operator decides. A clean draft (or initial mount) loads silently.
+	// `shouldLoadActiveMission` is the loop-avoidance guard: once
+	// `loadedMissionId` holds the active id, no reload.
 	useEffect(() => {
-		if (!shouldLoadActiveMission(active, loadedMissionId)) {
-			// Active matches the loaded mission (or cleared): clear any stale bar.
-			if (pendingMissionId !== null) setPendingMissionId(null);
-			return;
-		}
-		if (dirty) {
-			// Defer to the operator via the warning bar.
-			setPendingMissionId(active);
-			return;
-		}
+		if (!shouldLoadActiveMission(active, loadedMissionId) || dirty) return;
 		let cancelled = false;
 		void loadMission(active as string, () => cancelled);
 		return () => {
 			cancelled = true;
 		};
-	}, [active, loadedMissionId, dirty, pendingMissionId, loadMission]);
+	}, [active, loadedMissionId, dirty, loadMission]);
 
 	/**
-	 * Add the currently picked MapDB feature (F6 hand-off) by reference, then clear
+	 * Add the currently picked MapDB feature (mission-map hand-off) by reference, then clear
 	 * the hand-off so the same feature can't be double-added.
 	 */
 	const addPickedFeature = useCallback(() => {
@@ -400,7 +404,7 @@ function MissionEditorBody(props: {
 	}, [pickedFeatureId, editDraft]);
 
 	/**
-	 * Add the currently drawn geometry (F6 hand-off) inline, then clear the hand-off
+	 * Add the currently drawn geometry (mission-map hand-off) inline, then clear the hand-off
 	 * so the same geometry can't be double-added. An unusable draw is a no-op append
 	 * inside `pushInlineGeometry`; clearing regardless keeps the map state tidy.
 	 */
@@ -461,34 +465,71 @@ function MissionEditorBody(props: {
 
 	/**
 	 * Keep editing the current draft: re-point the shared selection back to the
-	 * draft's mission so the rest of the dashboard (F8/F10) stays coherent, and
+	 * draft's mission so the rest of the dashboard (control panel, feedback) stays coherent, and
 	 * dismiss the warning bar.
 	 */
 	const resumeEditingCurrent = useCallback(() => {
 		if (!draft) return;
-		setPendingMissionId(null);
+		// Pointing the selection back is what dismisses the bar: the derived
+		// `pendingMissionId` clears once active matches the loaded mission.
 		setSelectedMission(draft.mission_id);
 	}, [draft]);
 
-	/** Save the draft, then make it the active mission (so F8 drives it). */
+	/**
+	 * Save the draft, then make it the active mission (so the control panel drives it).
+	 *
+	 * ⚠ THE DRAFT IS RE-READ AT WRITE TIME. `cleaned` comes from the render
+	 * closure; this used to send it and then unconditionally write it back as the
+	 * shared draft with `dirty` cleared. An edit made on the mission map between the
+	 * click and the response was therefore overwritten by the pre-click value AND
+	 * lost its "unsaved" flag — the operator lost the edit and the warning about
+	 * it in the same step. Now: read the live draft, clean THAT, send it, and
+	 * commit it back only while nothing else changed meanwhile.
+	 */
 	const handleSave = useCallback(() => {
-		if (!submittable || !cleaned) return;
+		if (!submittable || !loadedMissionId) return;
+		const missionId = loadedMissionId;
 		return runSave("save", async () => {
-			const result = await save.execute({ mission: cleaned });
+			const live = getMissionDraft(missionId);
+			if (!live) {
+				setError("The mission draft is no longer loaded.");
+				return;
+			}
+			const toSave = cleanMissionConfig(live);
+			// Re-validate what is actually being sent: the live draft may differ
+			// from the one the disabled-state was computed against.
+			if (!isMissionConfigSubmittable(toSave)) {
+				setError(
+					"The mission changed and no longer validates — review the issues below.",
+				);
+				return;
+			}
+			const result = await save.execute({ mission: toSave });
 			if (!result.success) {
 				setError(result.error ?? "Failed to save mission");
 				return;
 			}
-			setError(null);
-			// Write the cleaned config back as the shared draft (dirty=false), so
-			// the map (F6) reflects the saved state and the shared dirty flag clears.
-			setMissionDraft(cleaned);
-			setSelectedMission(cleaned.mission_id);
+			// Commit the saved config as the shared draft (dirty=false) so the map
+			// (mission map) reflects it — unless a concurrent edit landed, in which case the
+			// newer edit and its dirty flag are kept and the operator is told.
+			const outcome = commitSavedDraft(
+				missionId,
+				toSave,
+				(draft) =>
+					JSON.stringify(cleanMissionConfig(draft)) ===
+					JSON.stringify(toSave),
+			);
+			setError(
+				outcome === "kept-dirty"
+					? "Saved — but the mission changed while the save was in flight, so your newer edits were kept and are still unsaved."
+					: null,
+			);
+			setSelectedMission(toSave.mission_id);
 		});
-	}, [submittable, save, cleaned, runSave]);
+	}, [submittable, save, loadedMissionId, runSave]);
 
 	// Friendly names for the discard/resume bar (UUID → human name, reactive so
-	// the bar updates once F4's name publish lands).
+	// the bar updates once the browser's name publish lands).
 	const currentName = useMissionName(draft?.mission_id);
 	const pendingName = useMissionName(pendingMissionId);
 
@@ -497,44 +538,59 @@ function MissionEditorBody(props: {
 		[draft?.vehicles],
 	);
 
-	// No mission loaded → placeholder (creation/selection live in F4). Matches the
-	// host's "No C2 datasource" placeholder styling.
+	// No mission loaded → placeholder (creation/selection live in the mission
+	// browser), the same empty body as the host's "No C2 datasource" state.
 	if (!draft) {
 		return (
-			<div className="h-full flex items-center justify-center p-3 text-sm text-muted-foreground text-center">
+			<PanelEmptyState>
 				{error ?? "Select a mission in the browser to edit."}
-			</div>
+			</PanelEmptyState>
 		);
 	}
 
 	return (
-		<div className="h-full flex flex-col gap-2 p-3 text-sm">
-			{/* Toolbar */}
-			<div className="flex items-center gap-2 shrink-0 flex-wrap">
-				<div className="flex-1" />
-				<Button
-					size="sm"
-					className="h-7 text-xs"
-					onClick={() => void handleSave()}
-					disabled={busy || saving || !submittable}
-					title={
-						submittable
-							? "Save mission"
-							: "Resolve the errors below before saving"
-					}
+		<div
+			ref={rootRef}
+			className={`h-full min-w-0 flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
+		>
+			{/* Header: which mission is being edited and whether it has unsaved
+			    edits on the left, the one primary action (Save) on the right. */}
+			<div className="flex items-center gap-2 min-w-0 shrink-0">
+				<span
+					className="truncate font-medium min-w-0"
+					title={draft.mission_id}
 				>
-					{saving ? (
-						<Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-					) : (
-						<Save className="w-3.5 h-3.5 mr-1" />
-					)}
-					{saving ? "Saving…" : "Save"}
-				</Button>
+					{draft.name || "Unnamed mission"}
+				</span>
+				{dirty && (
+					<Badge variant="warning" className="shrink-0">
+						Unsaved
+					</Badge>
+				)}
+				<div className="ml-auto flex shrink-0 items-center gap-1">
+					<Button
+						size="sm"
+						onClick={() => void handleSave()}
+						disabled={busy || saving || !submittable}
+						title={
+							submittable
+								? "Save mission"
+								: "Resolve the errors below before saving"
+						}
+					>
+						{saving ? (
+							<Loader2 className="animate-spin" />
+						) : (
+							<Save />
+						)}
+						{saving ? "Saving…" : "Save"}
+					</Button>
+				</div>
 			</div>
 
 			{/* Unsaved-edits guard: the active mission changed while this draft is
 			    dirty. Offer to discard & follow, or resume editing (re-point the
-			    shared selection back so F8/F10 stay coherent). */}
+			    shared selection back so the control panel and feedback widgets stay coherent). */}
 			{pendingMissionId && (
 				<div className="text-xs text-warning bg-warning/10 p-2 rounded-md shrink-0 flex flex-col gap-2">
 					<span title={draft.mission_id}>
@@ -544,7 +600,7 @@ function MissionEditorBody(props: {
 						<Button
 							size="sm"
 							variant="outline"
-							className="h-7 text-xs"
+							className="text-destructive"
 							onClick={discardAndLoadPending}
 							disabled={busy || saving}
 							title={pendingMissionId}
@@ -554,7 +610,6 @@ function MissionEditorBody(props: {
 						<Button
 							size="sm"
 							variant="outline"
-							className="h-7 text-xs"
 							onClick={resumeEditingCurrent}
 							disabled={busy || saving}
 						>
@@ -572,7 +627,7 @@ function MissionEditorBody(props: {
 
 			<MissionIssueList issues={issues} title="Mission config issues:" />
 
-			<ScrollArea className="flex-1 min-h-0">
+			<ScrollArea className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block">
 				<div className="flex flex-col gap-3 pr-2">
 					{/* Name */}
 					<div className="flex flex-col gap-1">
@@ -584,7 +639,7 @@ function MissionEditorBody(props: {
 									patchDraft(c, { name: e.target.value }),
 								)
 							}
-							className="h-7 text-xs"
+							className="h-8"
 						/>
 					</div>
 
@@ -603,7 +658,7 @@ function MissionEditorBody(props: {
 								)
 							}
 						>
-							<SelectTrigger className="h-7 text-xs">
+							<SelectTrigger size="sm" className="w-full">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -660,27 +715,25 @@ function MissionEditorBody(props: {
 							Objective geometries (
 							{draft.objective.geometries.length})
 						</Label>
-						<div className="flex items-center gap-2">
+						<div className="flex flex-wrap items-center gap-2">
 							<Button
 								size="sm"
 								variant="outline"
-								className="h-7 text-xs"
 								disabled={!pickedFeatureId}
 								onClick={addPickedFeature}
 								title="Add the feature picked on the map by reference"
 							>
-								<MapPin className="w-3.5 h-3.5 mr-1" />
+								<MapPin />
 								Add picked feature
 							</Button>
 							<Button
 								size="sm"
 								variant="outline"
-								className="h-7 text-xs"
 								disabled={!draftGeometry}
 								onClick={addDrawnGeometry}
 								title="Add the geometry drawn on the map inline"
 							>
-								<Plus className="w-3.5 h-3.5 mr-1" />
+								<Plus />
 								Add drawn geometry
 							</Button>
 						</div>
@@ -735,12 +788,6 @@ function MissionEditorBody(props: {
 							/>
 						</CollapsibleContent>
 					</Collapsible>
-
-					<div className="text-[11px] text-muted-foreground">
-						<Badge variant="outline" title={draft.mission_id}>
-							{draft.name || "Unnamed mission"}
-						</Badge>
-					</div>
 				</div>
 			</ScrollArea>
 		</div>
@@ -773,10 +820,10 @@ const MissionEditorWidget: React.FC<MissionEditorProps> = (props) => {
 
 	if (!saveDef) {
 		return (
-			<div className="h-full flex items-center justify-center p-3 text-sm text-muted-foreground text-center">
+			<PanelEmptyState>
 				No C2 datasource available. Add a C2 Control datasource to
 				author missions.
-			</div>
+			</PanelEmptyState>
 		);
 	}
 
@@ -790,7 +837,7 @@ const MissionEditorWidget: React.FC<MissionEditorProps> = (props) => {
 };
 
 /**
- * Widget definition for the mission editor widget (F5).
+ * Widget definition for the mission editor widget.
  * @returns Widget definition.
  */
 export function MissionEditorDefinition(): WidgetDefinition<MissionEditorProps> {

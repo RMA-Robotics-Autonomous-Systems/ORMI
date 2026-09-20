@@ -6,6 +6,10 @@ import {
 	type GeofenceRing,
 	type LonLat,
 } from "./osm/osm-to-features";
+// ONE definition of "is this a coordinate", shared with the renderer. This file
+// used to carry its own (stricter) copy, so the two disagreed about a NaN
+// vertex — see the note on `isVertex` in `mission-geometry.ts`.
+import { isVertex } from "./mission-geometry";
 
 /**
  * Mission objective ↔ geofence containment check (pure, testable).
@@ -20,27 +24,19 @@ import {
  *
  * ⚠ NESTING RULE — inline mission geometry is the FLAT C2 vertex form: a Point
  * is `[[lon,lat]]` (a single-vertex list), a LineString / Polygon outer ring is
- * `[[lon,lat],…]` (both 2-level). Pure `feature_id` references carry no inline
+ * `[[lon,lat],…]` (both 2-level), and a MultiLineString / MultiPolygon is a list
+ * of those (3-level). Pure `feature_id` references carry no inline
  * coordinates — they resolve to a stored map feature and are SKIPPED here (the
  * referenced feature's own placement is the map's concern, not the mission's).
  */
 
-/** Whether a value is a single finite `[lon, lat]` vertex. */
-function isVertex(value: unknown): value is LonLat {
-	return (
-		Array.isArray(value) &&
-		value.length >= 2 &&
-		typeof value[0] === "number" &&
-		typeof value[1] === "number" &&
-		Number.isFinite(value[0]) &&
-		Number.isFinite(value[1])
-	);
-}
-
 /**
  * Extract every finite `[lon, lat]` vertex from one inline mission geometry's
  * flat C2 coordinates (Point `[[lon,lat]]`, LineString / Polygon ring
- * `[[lon,lat],…]`). Returns an empty list for malformed or non-vertex input.
+ * `[[lon,lat],…]`, and the 3-level multi-part forms — a MultiLineString's lines
+ * or a MultiPolygon's rings `[[[lon,lat],…],…]`). Every part contributes, so a
+ * multi-part objective counts as inside when any part is. Returns an empty list
+ * for malformed or non-vertex input.
  *
  * @param coordinates - The inline geometry's flat C2 coordinates (`unknown`).
  * @returns The geometry's vertices as `[lon, lat]`.
@@ -48,8 +44,12 @@ function isVertex(value: unknown): value is LonLat {
 function geometryVertices(coordinates: unknown): LonLat[] {
 	if (!Array.isArray(coordinates)) return [];
 	const vertices: LonLat[] = [];
+	const collect = (entry: unknown) => {
+		if (isVertex(entry)) vertices.push([entry[0], entry[1]] as LonLat);
+	};
 	for (const entry of coordinates) {
-		if (isVertex(entry)) vertices.push([entry[0], entry[1]]);
+		if (isVertex(entry)) collect(entry);
+		else if (Array.isArray(entry)) entry.forEach(collect);
 	}
 	return vertices;
 }

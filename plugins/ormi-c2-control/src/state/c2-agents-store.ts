@@ -61,6 +61,7 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import type { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 
+import { uuidKey } from "../types/uuid";
 import { shortId } from "./c2-catalog-store";
 
 /** One agent's roster record: name + namespace + the datasource it arrived on. */
@@ -201,6 +202,28 @@ export function getAgentName(id: string | null | undefined): string {
 	if (!id) return "";
 	const record = agents[id];
 	return record && record.name !== "" ? record.name : shortId(id);
+}
+
+/**
+ * Look up a KNOWN agent (vehicle) name, tolerant of `-` vs `_` and case in the
+ * id. A `vehicle_id` in the C2 is the agent's `agent_id`.
+ *
+ * Unlike {@link getAgentName} this does not fall back to a shortened id: it
+ * returns null when no name is known, so a caller can choose its own fallback.
+ *
+ * @param id - The agent/vehicle id, in any separator/case spelling.
+ * @returns The known name, or null.
+ */
+export function findAgentName(id: string | null | undefined): string | null {
+	if (!id) return null;
+	const direct = agents[id];
+	if (direct && direct.name) return direct.name;
+	const key = uuidKey(id);
+	if (!key) return null;
+	for (const record of Object.values(agents)) {
+		if (record.name && uuidKey(record.agent_id) === key) return record.name;
+	}
+	return null;
 }
 
 /**

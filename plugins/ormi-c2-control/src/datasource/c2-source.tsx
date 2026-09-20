@@ -18,7 +18,7 @@ import { executeC2Call } from "./rest";
  * C2 Control datasource Provider (Pattern 5 — plain lifecycle component, no
  * children, no context). It advertises the C2 remote-call catalog and routes
  * executions to the REST transport (`rest.ts`). Live telemetry is NOT handled
- * here — it rides ORMI's rosbridge/foxglove datasource (D2).
+ * here — it rides ORMI's rosbridge/foxglove datasource.
  *
  * Health: fires `DATASOURCE_READY` once on mount (so the status badge shows the
  * source and command widgets gate via `WIDGET_LIST_WITH_DATASOURCE`). It does

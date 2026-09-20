@@ -7,6 +7,8 @@ import {
 	createOpenFreeMapPositronStyle,
 	createVectorBasemapStyle,
 } from "../basemap-styles";
+import { ORMI_BUILDINGS_3D_LAYER } from "../style-layers";
+
 import { ORMI_STYLE_ANCHORS } from "../style-layers";
 import { BASEMAP_PROVIDERS, VECTOR_BASEMAPS } from "../basemap-providers";
 
@@ -149,8 +151,13 @@ for (const spec of STYLES) {
 			}
 		});
 
-		test("ships building-3d hidden", () => {
-			const buildings = style.layers.find((l) => l.id === "building-3d");
+		test("ships the 3D building layer hidden, under the shared id", () => {
+			// Through the constant, not the literal: both map widgets flip this
+			// layer by id, so a style that renamed it would leave their 3D
+			// toggles doing nothing and a literal here would still pass.
+			const buildings = style.layers.find(
+				(l) => l.id === ORMI_BUILDINGS_3D_LAYER,
+			);
 			expect(buildings?.type).toBe("fill-extrusion");
 			expect(buildings).toMatchObject({
 				source: "openmaptiles",

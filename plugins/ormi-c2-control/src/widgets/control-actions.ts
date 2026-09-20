@@ -3,33 +3,35 @@ import type { MissionDraft } from "./mission-editor-helpers";
 import { cleanMissionConfig } from "./mission-editor-helpers";
 
 /**
- * F8 lifecycle-control gating (pure, testable).
+ * Lifecycle-control gating for the mission control panel (pure, testable).
  *
- * Maps the live `MissionStatus` (from `mission_feedback`, parsed by S2) to which
- * lifecycle commands the operator may issue. Drives button enable/disable in the
- * control panel so the UI cannot send a forbidden transition.
+ * Maps the live `MissionStatus` (from `mission_feedback`) to which lifecycle
+ * commands the operator may issue. Drives button enable/disable in the control
+ * panel so the UI cannot send a forbidden transition.
  *
- * Authoritative state machine: §2.6. The two rules that bite:
+ * The C2's mission state machine has two rules that bite:
  *  - **Submit/initialize** is always available — it (re)targets the single-mission
- *    `:5001` command surface at the active mission (§2.2). Re-submitting is also
- *    how the operator refines a Draft and re-plans.
+ *    `:5001` command surface at the active mission. Re-submitting is also how the
+ *    operator refines a Draft and re-plans.
  *  - **Approve precedes Start** — `PLANNED → STARTED` is forbidden; the path is
- *    `PLANNED → ACCEPTED (APPROVE) → STARTED (START)` (§2.2/§2.6). So Start is
- *    enabled only once the mission has reached `ACCEPTED` (or is `PAUSED`, where
- *    Start resumes).
+ *    `PLANNED → ACCEPTED (APPROVE) → STARTED (START)`. So Start is enabled only
+ *    once the mission has reached `ACCEPTED` (or is `PAUSED`, where Start
+ *    resumes).
  *
- * Defensive default (§ task): when status is unknown/missing, allow only Submit —
- * never offer Approve/Start/Pause/Stop/Delete against an unknown state.
+ * Unknown/missing status is asymmetric, because the two kinds of error are:
+ *  - Approve/Start/Pause/Delete stay OFF — never advance a mission from a state
+ *    nobody has confirmed.
+ *  - **Stop stays ON** in every state that is not known to be terminal
+ *    ({@link isTerminalStatus}), including no status at all. The panel reads
+ *    live feedback only, so a history snapshot, a missing topic or a silent
+ *    publisher all arrive here as null — and a robot moving under a panel that
+ *    cannot hear it is exactly when the operator needs Stop. A redundant Stop
+ *    costs a refused command; a missing one cost a robot driving on.
  */
 
 /** The lifecycle actions the control panel can issue. */
 export type ControlAction =
-	| "submit"
-	| "approve"
-	| "start"
-	| "pause"
-	| "stop"
-	| "delete";
+	"submit" | "approve" | "start" | "pause" | "stop" | "delete";
 
 /** Which actions are currently allowed, keyed by action. */
 export type AllowedActions = Record<ControlAction, boolean>;
@@ -45,6 +47,28 @@ const NONE: AllowedActions = {
 };
 
 /**
+ * Whether a status is known to be final — the mission is over and there is
+ * nothing left to stop. Anything else (including null and a numeric status this
+ * build does not know) may still have robots moving.
+ *
+ * @param status - The live `MissionStatus`, or null/undefined when unknown.
+ * @returns True only for STOPPED / FAILED / COMPLETED / DELETED.
+ */
+export function isTerminalStatus(
+	status: MissionStatus | null | undefined,
+): boolean {
+	switch (status) {
+		case MissionStatus.STOPPED:
+		case MissionStatus.FAILED:
+		case MissionStatus.COMPLETED:
+		case MissionStatus.DELETED:
+			return true;
+		default:
+			return false;
+	}
+}
+
+/**
  * Compute which lifecycle actions are allowed for a given live mission status.
  *
  * @param status - The live `MissionStatus` from `mission_feedback`, or
@@ -55,17 +79,23 @@ export function allowedActions(
 	status: MissionStatus | null | undefined,
 ): AllowedActions {
 	// Submit/initialize is always available — it targets/retargets the active
-	// mission on :5001 and doubles as re-plan. Everything else is gated below.
-	const base: AllowedActions = { ...NONE, submit: true };
+	// mission on :5001 and doubles as re-plan. Stop is available whenever the
+	// mission is not known to be over. Everything else is gated below.
+	const base: AllowedActions = {
+		...NONE,
+		submit: true,
+		stop: !isTerminalStatus(status),
+	};
 
 	if (status == null) {
-		// Unknown/missing status → conservative: only Submit (defensive, § task).
+		// Unknown/missing status → advance nothing, but never withhold Stop.
 		return base;
 	}
 
 	switch (status) {
 		case MissionStatus.NONE:
-			// Pre-submit / no live mission: only Submit.
+			// Pre-submit / no live mission reported: Submit, and Stop in case
+			// the C2 still has a runtime this panel has not heard about.
 			return base;
 
 		case MissionStatus.PLANNED:
@@ -91,7 +121,7 @@ export function allowedActions(
 
 		case MissionStatus.STOPPED:
 		case MissionStatus.FAILED:
-			// Terminal-ish: only Delete (and a fresh Submit).
+			// Terminal: only Delete (and a fresh Submit).
 			return { ...base, delete: true };
 
 		case MissionStatus.COMPLETED:
@@ -100,9 +130,89 @@ export function allowedActions(
 			return base;
 
 		default:
-			// Unknown numeric status the C2 may add → conservative: only Submit.
+			// Unknown numeric status the C2 may add → advance nothing; Stop
+			// stays available (it is not a known terminal state).
 			return base;
 	}
+}
+
+/**
+ * Whether a mission's live status shows that a dispatched command took effect.
+ *
+ * A 2xx from the C2 only says the command was accepted for processing; the
+ * mission's own feedback is the confirmation. Stop is confirmed only by a
+ * terminal status — any other movement (say a first feedback message arriving
+ * with `STARTED`) is not evidence the robot stood down. Every other command is
+ * confirmed by the status moving off the one it was dispatched from.
+ *
+ * @param action - The command that was sent.
+ * @param fromStatus - The live status when it was sent (null when unknown).
+ * @param status - The mission's live status now (null when unknown).
+ * @returns True once the feedback confirms the command.
+ */
+export function isCommandConfirmed(
+	action: ControlAction,
+	fromStatus: MissionStatus | null,
+	status: MissionStatus | null | undefined,
+): boolean {
+	if (status == null) return false;
+	if (action === "stop") return isTerminalStatus(status);
+	return status !== fromStatus;
+}
+
+/** What the control panel knows when it decides whether a command may be sent. */
+export interface GatingInput {
+	/** Whether a mission is selected/pinned — i.e. whether a target exists. */
+	hasMission: boolean;
+	/** Whether a mission-feedback topic is configured. */
+	hasTopic: boolean;
+	/**
+	 * The status in the feedback store's slot. ⚠ With no mission selected the
+	 * store returns the LATEST mission's feedback, which is why this must be
+	 * filtered rather than used directly.
+	 */
+	storeStatus: MissionStatus | null | undefined;
+}
+
+/**
+ * The status that may gate a lifecycle command — or `null` when none may.
+ *
+ * THE BUG THIS CLOSES — `useMissionFeedback(null)` deliberately returns the
+ * **latest** mission's feedback so a panel with nothing pinned is not blank. The
+ * control panel fed that straight into {@link allowedActions}, so with no mission
+ * selected it showed another mission's status AND enabled that mission's Stop
+ * button — while `change_status` was dispatched with no `mission_id`, landing on
+ * whatever `:5001` had last initialized. Three different missions could be
+ * involved in one click: the one displayed, the one intended, and the one acted
+ * on.
+ *
+ * The rule: a status gates a command only when it is THIS panel's mission's
+ * status. No selection, or no feedback topic, means no gating status — and
+ * {@link allowedActions} then permits only Submit and Stop, both of which are
+ * additionally gated on a selection ({@link gatedActions}).
+ *
+ * @param input - {@link GatingInput}.
+ * @returns The gating status, or null.
+ */
+export function gatingStatus(input: GatingInput): MissionStatus | null {
+	if (!input.hasTopic) return null;
+	if (!input.hasMission) return null;
+	return input.storeStatus ?? null;
+}
+
+/**
+ * Which lifecycle actions a control panel may offer, given everything it knows.
+ *
+ * {@link allowedActions} answers "what does this status permit"; this answers
+ * "may we act at all". Without a selected mission the answer is nothing —
+ * including Submit, which needs a `mission_id` just as much as the others.
+ *
+ * @param input - {@link GatingInput}.
+ * @returns The allowed-actions map after the no-target gate.
+ */
+export function gatedActions(input: GatingInput): AllowedActions {
+	if (!input.hasMission) return { ...NONE };
+	return allowedActions(gatingStatus(input));
 }
 
 /**
@@ -166,6 +276,13 @@ export interface CanSubmitArgs {
 	currentSig: string | null;
 	/** Signature last submitted for this mission (or `null` if never). */
 	lastSubmittedSig: string | null;
+	/**
+	 * The C2 answered a command for this mission with `NO_TARGET_MISSION`: it
+	 * holds no runtime for it (typically after a backend restart), whatever the
+	 * last feedback still says. Nothing is in flight to duplicate, so Submit is
+	 * the operator's next step and the dirty-gate must not block it.
+	 */
+	c2HasNoRuntime?: boolean;
 }
 
 /**
@@ -181,14 +298,81 @@ export interface CanSubmitArgs {
  * PAUSED) mission whose config is unchanged since it was submitted → Submit
  * disabled, so the operator can't accidentally re-plan an in-flight mission.
  *
+ * A `NO_TARGET_MISSION` answer ({@link CanSubmitArgs.c2HasNoRuntime}) also
+ * re-enables it: the C2 has nothing to duplicate.
+ *
  * @param args - {@link CanSubmitArgs}.
  * @returns `true` when Submit should be enabled by the dirty-gate.
  */
 export function canSubmit(args: CanSubmitArgs): boolean {
+	if (args.c2HasNoRuntime) return true;
 	if (isMissionIdle(args.status)) return true;
 	return (
 		args.currentSig != null &&
 		args.lastSubmittedSig != null &&
 		args.currentSig !== args.lastSubmittedSig
 	);
+}
+
+/** The lifecycle actions that can be the panel's "next step" (never Stop). */
+export type PrimaryControlAction = "submit" | "approve" | "start";
+
+/**
+ * Which lifecycle command is the operator's next step, so the panel can give
+ * exactly that one button the primary (filled) treatment and leave the others
+ * outlined. Two filled buttons side by side say nothing about what to press.
+ *
+ * The progression is Submit → Approve → Start. Submit comes first because,
+ * once narrowed by {@link canSubmit}, it is only offered on an active mission
+ * when the config has changed since it was submitted — and then re-planning is
+ * the next step, since Approve would approve the plan the operator just edited
+ * away from. Otherwise Approve (PLANNED) or Start (ACCEPTED / PAUSED). Pause,
+ * Stop and Delete are never "next" — Stop is the safety control and carries its
+ * own destructive styling, and a teardown is never the suggested step. Returns
+ * null when none applies (a running, unedited mission).
+ *
+ * Takes the gate's answer before transient holds (a command in flight, one
+ * awaiting feedback), so the emphasis does not flicker while a click settles.
+ *
+ * @param allowed - What the status permits ({@link gatedActions}), with
+ *   `submit` already narrowed by {@link canSubmit}.
+ * @returns The action to render as primary, or null.
+ */
+export function primaryAction(
+	allowed: Pick<AllowedActions, PrimaryControlAction>,
+): PrimaryControlAction | null {
+	if (allowed.submit) return "submit";
+	if (allowed.approve) return "approve";
+	if (allowed.start) return "start";
+	return null;
+}
+
+/** The mission status the panel displays, and whether it is being heard now. */
+export interface DisplayedStatus {
+	/** The status to render (null when nothing at all is known). */
+	status: MissionStatus | null;
+	/** True when it is this panel's live gating status; false for a stored one. */
+	live: boolean;
+}
+
+/**
+ * The status the control panel DISPLAYS — distinct from the one it gates on.
+ *
+ * Gating rests on live feedback only ({@link gatingStatus}). Displaying only that
+ * printed "Unknown" for a mission whose last feedback (a history snapshot, or
+ * live feedback heard by another panel) said Completed, right beside a feedback
+ * panel showing Completed — two panels contradicting each other about one
+ * mission. The live status wins when there is one; otherwise the last known
+ * status is shown, flagged as not live so it is never read as current.
+ *
+ * @param liveStatus - The gating status ({@link gatingStatus}), or null.
+ * @param lastKnown - The mission's last stored status (any origin), or null.
+ * @returns What to display and whether it is live.
+ */
+export function displayedStatus(
+	liveStatus: MissionStatus | null,
+	lastKnown: MissionStatus | null | undefined,
+): DisplayedStatus {
+	if (liveStatus != null) return { status: liveStatus, live: true };
+	return { status: lastKnown ?? null, live: false };
 }
