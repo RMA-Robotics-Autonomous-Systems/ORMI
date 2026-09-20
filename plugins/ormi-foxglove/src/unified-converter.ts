@@ -20,7 +20,7 @@ import {
 	convertQuaternion,
 } from "@workspace/ormi-core/transforms";
 import { PluginsManager } from "@workspace/ormi-plugins";
-import { canUseFloatView } from "./pointcloud-fast-path";
+import { canReadRgb, canUseFloatView } from "./pointcloud-fast-path";
 
 /**
  * Current wall-clock time as a ROS 2 `builtin_interfaces/msg/Time`.
@@ -52,6 +52,17 @@ interface ConverterEntry {
 /**
  * Unified converter for ros2 and webapp types.
  */
+/**
+ * Dimmest grey the reflectivity ramp produces.
+ *
+ * Also what a point whose message carried no reflectivity is given. The packed
+ * arrays are one geometry and there is no per-point "absent": leaving such a
+ * point at the buffer's initial zero paints it black, below the floor every
+ * real reading is held above, and black on a dark scene is a point the operator
+ * cannot see at all.
+ */
+const REFLECTIVITY_FLOOR = 0.2;
+
 export class UnifiedConverter {
 	static pluginManager: PluginsManager | null = null;
 	static externalConverters: { [webType: string]: ConverterEntry } | null =
@@ -519,7 +530,11 @@ export class UnifiedConverter {
 							fieldMap.rgb?.offset ?? fieldMap.rgba?.offset;
 						const rgbDatatype =
 							fieldMap.rgb?.datatype ?? fieldMap.rgba?.datatype;
-						const hasRgba = fieldMap.rgba !== undefined;
+						// Asked once: `readRgb` returns null on the datatype,
+						// never on a point, so an unreadable rgb field must not
+						// reach the per-point path *or* produce a colors array.
+						const rgbReadable =
+							rgbOffset !== undefined && canReadRgb(rgbDatatype);
 
 						if (
 							xOffset === undefined ||
@@ -714,11 +729,7 @@ export class UnifiedConverter {
 									? intensityOffset! / 4
 									: 0;
 								const rgbViewFast =
-									rgbOffset !== undefined &&
-									rgbOffset % 4 === 0 &&
-									(rgbDatatype === 5 ||
-										rgbDatatype === 6 ||
-										rgbDatatype === 7);
+									rgbReadable && rgbOffset! % 4 === 0;
 								const rgbFloat = rgbViewFast
 									? rgbOffset! / 4
 									: 0;
@@ -737,10 +748,7 @@ export class UnifiedConverter {
 										packedPoints[idx + 1] = z;
 										packedPoints[idx + 2] = -x;
 
-										if (
-											rgbOffset !== undefined &&
-											rgbDatatype !== undefined
-										) {
+										if (rgbReadable) {
 											// A float32/uint32 rgb field reads its
 											// raw 32-bit pattern straight from the
 											// uint view (identical bytes to the
@@ -815,10 +823,7 @@ export class UnifiedConverter {
 										packedPoints[idx + 1] = z;
 										packedPoints[idx + 2] = -x;
 
-										if (
-											rgbOffset !== undefined &&
-											rgbDatatype !== undefined
-										) {
+										if (rgbReadable) {
 											const color = readRgb(
 												dataView,
 												baseOffset + rgbOffset,
@@ -861,7 +866,7 @@ export class UnifiedConverter {
 							validPointCount * 3,
 						);
 						const finalColors =
-							validPointCount > 0 && rgbOffset !== undefined
+							validPointCount > 0 && rgbReadable
 								? packedColors.subarray(0, validPointCount * 3)
 								: undefined;
 						const finalIntensities =
@@ -897,6 +902,7 @@ export class UnifiedConverter {
 						const packedColors = new Float32Array(numPoints * 3);
 						const intensities = new Float32Array(numPoints);
 						let validPointCount = 0;
+						let reflectivityCount = 0;
 
 						// Process each custom point
 						for (const point of data.points) {
@@ -918,23 +924,27 @@ export class UnifiedConverter {
 									packedPoints[idx + 1] = point.z;
 									packedPoints[idx + 2] = -point.x;
 
-									// Convert reflectivity to color if needed
-									if (point.reflectivity !== undefined) {
-										// Simple grayscale based on reflectivity (0-255 -> 0.2 to 1.0)
-										const intensity = Math.min(
-											Math.max(
-												point.reflectivity / 255,
-												0.2,
-											),
-											1.0,
-										);
+									// Grayscale from reflectivity (0-255 -> floor..1.0)
+									const reflectivity = point.reflectivity;
+									const hasReflectivity =
+										typeof reflectivity === "number" &&
+										Number.isFinite(reflectivity);
+									if (hasReflectivity) reflectivityCount++;
 
-										intensities[validPointCount] =
-											intensity;
-										packedColors[idx] = intensity;
-										packedColors[idx + 1] = intensity;
-										packedColors[idx + 2] = intensity;
-									}
+									const intensity = hasReflectivity
+										? Math.min(
+												Math.max(
+													reflectivity / 255,
+													REFLECTIVITY_FLOOR,
+												),
+												1.0,
+											)
+										: REFLECTIVITY_FLOOR;
+
+									intensities[validPointCount] = intensity;
+									packedColors[idx] = intensity;
+									packedColors[idx + 1] = intensity;
+									packedColors[idx + 2] = intensity;
 
 									validPointCount++;
 								}
@@ -947,13 +957,11 @@ export class UnifiedConverter {
 							validPointCount * 3,
 						);
 						const finalColors =
-							validPointCount > 0 &&
-							data.points[0]?.reflectivity !== undefined
+							validPointCount > 0 && reflectivityCount > 0
 								? packedColors.subarray(0, validPointCount * 3)
 								: undefined;
 						const finalIntensities =
-							validPointCount > 0 &&
-							data.points[0]?.reflectivity !== undefined
+							validPointCount > 0 && reflectivityCount > 0
 								? intensities.subarray(0, validPointCount)
 								: undefined;
 

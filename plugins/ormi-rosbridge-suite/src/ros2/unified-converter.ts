@@ -93,6 +93,17 @@ interface ConverterEntry {
 	isPrimitive?: boolean;
 }
 
+/**
+ * Dimmest grey the reflectivity ramp produces.
+ *
+ * Also what a point whose message carried no reflectivity is given. The packed
+ * arrays are one geometry and there is no per-point "absent": leaving such a
+ * point at the buffer's initial zero paints it black, below the floor every
+ * real reading is held above, and black on a dark scene is a point the operator
+ * cannot see at all.
+ */
+const REFLECTIVITY_FLOOR = 0.2;
+
 export class UnifiedConverter {
 	// Updated mapping: each webapp type now contains a conversion mapping keyed by ros2 type.
 	static converters: { [webType: string]: ConverterEntry } = {
@@ -467,6 +478,7 @@ export class UnifiedConverter {
 						const packedColors = new Float32Array(numPoints * 3);
 						const intensities = new Float32Array(numPoints);
 						let validPointCount = 0;
+						let reflectivityCount = 0;
 
 						// Process each custom point
 						for (const point of pointsInput) {
@@ -488,23 +500,27 @@ export class UnifiedConverter {
 									packedPoints[idx + 1] = point.z;
 									packedPoints[idx + 2] = -point.x;
 
-									// Convert reflectivity to color if needed
-									if (point.reflectivity !== undefined) {
-										// Simple grayscale based on reflectivity (0-255 -> 0.2 to 1.0)
-										const intensity = Math.min(
-											Math.max(
-												point.reflectivity / 255,
-												0.2,
-											),
-											1.0,
-										);
+									// Grayscale from reflectivity (0-255 -> floor..1.0)
+									const reflectivity = point.reflectivity;
+									const hasReflectivity =
+										typeof reflectivity === "number" &&
+										Number.isFinite(reflectivity);
+									if (hasReflectivity) reflectivityCount++;
 
-										intensities[validPointCount] =
-											intensity;
-										packedColors[idx] = intensity;
-										packedColors[idx + 1] = intensity;
-										packedColors[idx + 2] = intensity;
-									}
+									const intensity = hasReflectivity
+										? Math.min(
+												Math.max(
+													reflectivity / 255,
+													REFLECTIVITY_FLOOR,
+												),
+												1.0,
+											)
+										: REFLECTIVITY_FLOOR;
+
+									intensities[validPointCount] = intensity;
+									packedColors[idx] = intensity;
+									packedColors[idx + 1] = intensity;
+									packedColors[idx + 2] = intensity;
 
 									validPointCount++;
 								}
@@ -516,13 +532,11 @@ export class UnifiedConverter {
 							validPointCount * 3,
 						);
 						const finalColors =
-							validPointCount > 0 &&
-							pointsInput[0]?.reflectivity !== undefined
+							validPointCount > 0 && reflectivityCount > 0
 								? packedColors.subarray(0, validPointCount * 3)
 								: undefined;
 						const finalIntensities =
-							validPointCount > 0 &&
-							pointsInput[0]?.reflectivity !== undefined
+							validPointCount > 0 && reflectivityCount > 0
 								? intensities.subarray(0, validPointCount)
 								: undefined;
 

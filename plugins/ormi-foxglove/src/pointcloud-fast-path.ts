@@ -67,3 +67,34 @@ export function canUseFloatView(layout: FloatViewLayout): boolean {
 		offsets.every((offset) => offset !== undefined && offset % 4 === 0)
 	);
 }
+
+/** `sensor_msgs/PointField` datatypes an rgb/rgba field can be unpacked from. */
+const RGB_DATATYPES: ReadonlySet<number> = new Set([
+	5, // INT32
+	6, // UINT32
+	POINT_FIELD_FLOAT32, // the float32 reinterpret of the packed uint
+]);
+
+/**
+ * Whether a packed rgb/rgba field of this datatype can actually be unpacked.
+ *
+ * Load-bearing for honesty, not for speed. A cloud that *declares* an rgb field
+ * used to be enough for the converter to ship a `colors` array, but the reader
+ * only understands the three datatypes above — so an rgb field of any other
+ * type left the pre-allocated (zeroed) buffer untouched and the widget received
+ * a cloud it had every reason to believe was genuinely, uniformly black. That is
+ * invisible on a dark scene and indistinguishable from real data.
+ *
+ * Nullness here is a property of the datatype alone and never of an individual
+ * point, so the question can be asked once per message and the answer used both
+ * to skip the per-point work and to decide whether `colors` exists at all.
+ *
+ * Declared as a type predicate so the one question also narrows the datatype
+ * for the reader, rather than leaving a non-null assertion at each call site.
+ *
+ * @param datatype - The field's `PointField.datatype`, if it declares one.
+ * @returns True when {@link RGB_DATATYPES} covers it.
+ */
+export function canReadRgb(datatype: number | undefined): datatype is number {
+	return datatype !== undefined && RGB_DATATYPES.has(datatype);
+}

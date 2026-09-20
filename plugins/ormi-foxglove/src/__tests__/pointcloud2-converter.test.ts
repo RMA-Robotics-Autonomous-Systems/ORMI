@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
 import { UnifiedConverter } from "../unified-converter";
-import { canUseFloatView, type FloatViewLayout } from "../pointcloud-fast-path";
+import {
+	canReadRgb,
+	canUseFloatView,
+	type FloatViewLayout,
+} from "../pointcloud-fast-path";
 
 const pc2 =
 	UnifiedConverter.converters.PointsCloud!.conversions[
@@ -27,6 +31,8 @@ interface BuildOptions {
 	bigEndian: boolean;
 	/** Add a float32 rgb field between z and intensity. */
 	withRgb: boolean;
+	/** Datatype to declare for that rgb field. Defaults to float32. */
+	rgbDatatype?: number;
 }
 
 /**
@@ -51,7 +57,11 @@ function buildCloud(points: LivoxPoint[], options: BuildOptions) {
 		{ name: "z", offset: zOffset, datatype: FLOAT32 },
 	];
 	if (rgbOffset !== undefined) {
-		fields.push({ name: "rgb", offset: rgbOffset, datatype: FLOAT32 });
+		fields.push({
+			name: "rgb",
+			offset: rgbOffset,
+			datatype: options.rgbDatatype ?? FLOAT32,
+		});
 	}
 	fields.push({
 		name: "intensity",
@@ -327,5 +337,74 @@ describe("PointCloud2 -> PointsCloud conversion (foxglove)", () => {
 			expect(fromFast.length).toBe((points.length - 1) * 3);
 			expect(Array.from(fromFast)).toEqual(Array.from(fromFallback));
 		});
+	});
+});
+
+describe("canReadRgb", () => {
+	it("covers the three datatypes the unpacker understands", () => {
+		expect(canReadRgb(5)).toBe(true); // INT32
+		expect(canReadRgb(6)).toBe(true); // UINT32
+		expect(canReadRgb(FLOAT32)).toBe(true);
+	});
+
+	it("rejects a missing field and every other datatype", () => {
+		expect(canReadRgb(undefined)).toBe(false);
+		expect(canReadRgb(1)).toBe(false); // INT8
+		expect(canReadRgb(8)).toBe(false); // FLOAT64
+	});
+});
+
+describe("a declared rgb field the reader cannot unpack", () => {
+	/** FLOAT64: a legal PointField datatype `readRgb` has no branch for. */
+	const FLOAT64 = 8;
+
+	it("yields no colors rather than a cloud of black points", () => {
+		// The regression: `colors` was shipped whenever the cloud *declared*
+		// rgb, so the untouched (zeroed) buffer arrived as a uniformly black
+		// cloud the widget had no way to tell from real data — and black is
+		// invisible on a dark scene, exactly as white was on a light one.
+		const points = makePoints(64);
+		const decoded = pc2.fromRos2(
+			buildCloud(points, {
+				pointStep: 20,
+				bigEndian: false,
+				withRgb: true,
+				rgbDatatype: FLOAT64,
+			}),
+		);
+
+		expect(decoded.colors).toBeUndefined();
+		// The geometry itself is unaffected: only the colours are withheld.
+		expect(decoded.points.length).toBe((points.length - 1) * 3);
+	});
+
+	it("still yields colors when the datatype is one the reader knows", () => {
+		const decoded = pc2.fromRos2(
+			buildCloud(makePoints(64), {
+				pointStep: 20,
+				bigEndian: false,
+				withRgb: true,
+			}),
+		);
+
+		expect(decoded.colors).toBeDefined();
+		expect(decoded.colors!.some((channel: number) => channel > 0)).toBe(
+			true,
+		);
+	});
+
+	it("withholds them on the DataView path too", () => {
+		// An unaligned stride forces the fallback reader; the two paths must
+		// agree about whether a colour exists at all.
+		const decoded = pc2.fromRos2(
+			buildCloud(makePoints(64), {
+				pointStep: 22,
+				bigEndian: false,
+				withRgb: true,
+				rgbDatatype: FLOAT64,
+			}),
+		);
+
+		expect(decoded.colors).toBeUndefined();
 	});
 });
