@@ -15,6 +15,7 @@ import { CondStatusIndicatorDefinition } from "../../status/cond-status-indicato
 import { TimeSeriesChartDefinition } from "../../charts/timeseries-chart";
 import { PathViewerDefinition } from "../../webgl/path-viewer";
 import { PointsCloudDreiDefinition } from "../../webgl/points-cloud-drei-definition";
+import { DEFAULT_POINT_CLOUD_THEME } from "../../webgl/types/points-cloud-drei-types";
 
 /**
  * Create a stable SelectedTopic from a DatasourceTopic
@@ -410,7 +411,7 @@ const PointCloudPreview = memo(function PointCloudPreview({
 			pointSize: 0.05,
 			rollingBuffer: false,
 			decayTime: 1000,
-			theme: "Default" as const,
+			theme: DEFAULT_POINT_CLOUD_THEME,
 			colorMode: "source" as const,
 			useTransparency: false,
 			sourceConvention: "ROS" as const,

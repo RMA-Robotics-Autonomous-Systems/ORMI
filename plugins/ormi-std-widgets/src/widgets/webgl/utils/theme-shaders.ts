@@ -12,7 +12,6 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
-            uniform bool useTransparency;
             uniform bool useIntensity;
             uniform mat4 pointTransform;
             uniform float nowTime;
@@ -76,7 +75,6 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
-            uniform bool useTransparency;
             uniform bool useIntensity;
             uniform mat4 pointTransform;
             uniform float nowTime;
@@ -143,7 +141,6 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
-            uniform bool useTransparency;
             uniform bool useIntensity;
             uniform mat4 pointTransform;
             uniform float nowTime;
@@ -213,7 +210,6 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
             varying vec3 vColor;
             varying float vFade;
             uniform float pointSize;
-            uniform bool useTransparency;
             uniform bool useIntensity;
             uniform mat4 pointTransform;
             uniform float nowTime;
@@ -261,14 +257,10 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                     discard;
                 }
                 
-                // Apply thermal-like color enhancement
-                // Use vertex color directly - colors are computed on CPU based on colorMode
-                vec3 thermalColor = vColor;
-                
                 // Apply smooth edges or solid points based on transparency setting
                 float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;
                 
-                gl_FragColor = vec4(thermalColor, opacity);
+                gl_FragColor = vec4(vColor, opacity);
             }
         `,
 	},
@@ -276,7 +268,6 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
 	Solid: {
 		vertexShader: `
             uniform float pointSize;
-            uniform vec3 customColor;
             uniform mat4 pointTransform;
             uniform float nowTime;
             uniform float decayTime;
@@ -316,12 +307,12 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
 	Distance: {
 		vertexShader: `
             uniform float pointSize;
-            uniform bool useTransparency;
             uniform mat4 pointTransform;
             uniform float nowTime;
             uniform float decayTime;
+            uniform float distanceRange;
             attribute float timestamp;
-            varying float vDistance;
+            varying float vNormalizedDistance;
             varying float vFade;
             
             void main() {
@@ -334,23 +325,27 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                 vec4 worldPos = pointTransform * vec4(position, 1.0);
                 vec4 mvPosition = modelViewMatrix * worldPos;
                 
-                // Calculate distance from origin (0,0,0) for distance-based coloring
-                vDistance = length(worldPos.xyz);
+                // Range from the cloud's own origin (the sensor), normalized over
+                // the extent the CPU observed. Measured before pointTransform: in
+                // the target frame every point of a robot 500 m from the map
+                // origin sits at ~500 m, which is a fact about where the robot is
+                // and not about what it sees.
+                vNormalizedDistance = clamp(
+                    length(position) / max(distanceRange, 0.001), 0.0, 1.0
+                );
                 
                 gl_PointSize = pointSize * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
 		fragmentShader: `
-            varying float vDistance;
+            varying float vNormalizedDistance;
             varying float vFade;
             uniform bool useTransparency;
 
-            // Helper function to map distance to color
-            vec3 getDistanceColor(float distance) {
-                // Normalized distance (0-1 range, adjust multiplier as needed)
-                float normalizedDist = clamp(distance * 0.1, 0.0, 1.0);
-                
+            // Map an already-normalized range (0 = at the sensor, 1 = the far
+            // edge of the cloud) onto the near-to-far ramp.
+            vec3 getDistanceColor(float normalizedDist) {
                 // Near (blues)
                 if (normalizedDist < 0.25) {
                     return mix(
@@ -392,9 +387,9 @@ export const themeShaders: Record<PointCloudTheme, ThemeShaders> = {
                     discard;
                 }
                 
-                // Get color based on distance from origin
+                // Get color based on range from the sensor
                 // This theme intentionally ignores vertex colors and colorMode
-                vec3 distanceColor = getDistanceColor(vDistance);
+                vec3 distanceColor = getDistanceColor(vNormalizedDistance);
                 
                 // Apply smooth edges or solid points based on transparency setting
                 float opacity = (useTransparency ? smoothstep(0.5, 0.4, distance) : 1.0) * vFade;

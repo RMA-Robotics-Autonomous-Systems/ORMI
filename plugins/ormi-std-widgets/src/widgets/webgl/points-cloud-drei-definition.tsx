@@ -1,6 +1,9 @@
 import { CloudIcon } from "lucide-react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
-import { PointsCloudProps } from "./types/points-cloud-drei-types";
+import {
+	DEFAULT_POINT_CLOUD_THEME,
+	PointsCloudProps,
+} from "./types/points-cloud-drei-types";
 import { PointsCloudScene } from "./components/points-cloud-scene";
 import { LocalDataSourcesProvider } from "@workspace/ormi-core/datasources";
 import {
@@ -78,7 +81,7 @@ export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> 
 						"Solid",
 						"Distance",
 					],
-					default: "Default",
+					default: DEFAULT_POINT_CLOUD_THEME,
 				},
 				colorMode: {
 					type: "string",
@@ -191,7 +194,7 @@ export function PointsCloudDreiDefinition(): WidgetDefinition<PointsCloudProps> 
 			pointSize: 0.05,
 			rollingBuffer: false,
 			decayTime: 1000,
-			theme: "Default",
+			theme: DEFAULT_POINT_CLOUD_THEME,
 			colorMode: "source",
 			useTransparency: false,
 			customColor: "#ffffff",

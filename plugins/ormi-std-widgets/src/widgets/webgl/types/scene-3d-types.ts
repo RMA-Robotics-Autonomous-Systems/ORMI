@@ -1,14 +1,11 @@
 import { SelectedTopic } from "@workspace/ormi-core/datasources";
+import type { PointCloudTheme } from "./points-cloud-drei-types";
 import { DigitalInput } from "@workspace/ui/combined/triggers";
 
-// Theme options for point cloud visualization
-export type PointCloudTheme =
-	| "Default"
-	| "Neon"
-	| "Plasma"
-	| "Thermal"
-	| "Solid"
-	| "Distance";
+// Theme options for point cloud visualization. Declared once, beside the shader
+// map that keys on it, so the union and `themeShaders` cannot drift apart.
+export type { PointCloudTheme } from "./points-cloud-drei-types";
+export { DEFAULT_POINT_CLOUD_THEME } from "./points-cloud-drei-types";
 
 // Point Cloud layer configuration
 export interface PointCloudLayerConfig {

@@ -12,7 +12,10 @@ import {
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 import { Box as Box3DIcon } from "lucide-react";
 import { Scene3DComp } from "./components/scene-3d-comp";
-import { Scene3DProps } from "./types/scene-3d-types";
+import {
+	DEFAULT_POINT_CLOUD_THEME,
+	Scene3DProps,
+} from "./types/scene-3d-types";
 
 /**
  * Unified 3D Scene widget definition
@@ -203,7 +206,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 									"Solid",
 									"Distance",
 								],
-								default: "Default",
+								default: DEFAULT_POINT_CLOUD_THEME,
 							},
 							colorMode: {
 								type: "string",

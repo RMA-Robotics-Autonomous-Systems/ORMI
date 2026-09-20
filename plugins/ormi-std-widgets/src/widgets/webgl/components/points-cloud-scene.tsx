@@ -9,7 +9,10 @@ import {
 	GizmoViewport,
 } from "@react-three/drei";
 import { createTopicKey } from "@workspace/utils";
-import { PointsCloudProps } from "../types/points-cloud-drei-types";
+import {
+	DEFAULT_POINT_CLOUD_THEME,
+	PointsCloudProps,
+} from "../types/points-cloud-drei-types";
 import {
 	FramePump,
 	SceneEngineProvider,
@@ -38,7 +41,7 @@ export const PointsCloudScene: React.FC<PointsCloudProps> = (props) => {
 	const pointSize = props.pointSize ?? 0.05;
 	const decayTime = props.decayTime ?? 0;
 	const rollingBuffer = props.rollingBuffer ?? false;
-	const theme = props.theme ?? "Default";
+	const theme = props.theme ?? DEFAULT_POINT_CLOUD_THEME;
 	const useTransparency = props.useTransparency ?? false;
 	const customColor = props.customColor ?? "#ffffff";
 	const colorMode = props.colorMode ?? "source";

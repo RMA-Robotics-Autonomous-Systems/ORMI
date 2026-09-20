@@ -29,7 +29,10 @@ import { buildTransformMatrix } from "../transform-resolve";
 import {
 	applyWriteSpans,
 	clampRollingCapacity,
+	MIN_DISTANCE_RANGE,
 	nextPowerOfTwo,
+	observePointRange,
+	relaxDistanceRange,
 	setStreamedAttributes,
 } from "../streamed-geometry";
 import { qualifyFrame } from "../../components/scene-transform-context";
@@ -40,7 +43,10 @@ import type {
 	LayerTransformStatus,
 	SceneLayer,
 } from "../scene-layer";
-import type { PointCloudTheme } from "../../types/scene-3d-types";
+import {
+	DEFAULT_POINT_CLOUD_THEME,
+	type PointCloudTheme,
+} from "../../types/scene-3d-types";
 
 /** Seconds of relative time before the rolling buffer rebases for float32 precision. */
 const TIME_RESET_SECONDS = 300;
@@ -106,12 +112,21 @@ export class PointCloudLayer implements SceneLayer {
 	private lastProcessedTime = 0;
 	private startTime = 0;
 
+	/**
+	 * Running extent the `Distance` theme normalizes its gradient over, metres.
+	 *
+	 * A shader cannot derive this itself — a vertex knows its own position and
+	 * nothing about any other, so there is no pass in which the maximum exists.
+	 * It is observed on the CPU as clouds arrive and handed down as a uniform.
+	 */
+	private distanceRange = MIN_DISTANCE_RANGE;
+
 	// Config state (human-rate), applied by setConfig.
 	private pointSize = 0.05;
 	private decayTime = 0;
 	private rollingBuffer = false;
 	private rollingCapacity = clampRollingCapacity(undefined);
-	private theme: PointCloudTheme = "Default";
+	private theme: PointCloudTheme = DEFAULT_POINT_CLOUD_THEME;
 	private useTransparency = false;
 	private customColor = "#ffffff";
 	private colorMode: "source" | "reflectivity" = "source";
@@ -163,6 +178,7 @@ export class PointCloudLayer implements SceneLayer {
 				pointTransform: { value: new THREE.Matrix4() },
 				nowTime: { value: 0 },
 				decayTime: { value: this.decayTime || 0 },
+				distanceRange: { value: this.distanceRange },
 			},
 			vertexShader: shaders.vertexShader,
 			fragmentShader: shaders.fragmentShader,
@@ -192,7 +208,7 @@ export class PointCloudLayer implements SceneLayer {
 		this.decayTime = config.decayTime ?? 0;
 		this.rollingBuffer = config.rollingBuffer ?? false;
 		this.rollingCapacity = clampRollingCapacity(config.maxPoints);
-		this.theme = config.theme ?? "Default";
+		this.theme = config.theme ?? DEFAULT_POINT_CLOUD_THEME;
 		this.useTransparency = config.useTransparency ?? false;
 		this.customColor = config.customColor ?? "#ffffff";
 		this.colorMode = config.colorMode ?? "source";
@@ -287,6 +303,7 @@ export class PointCloudLayer implements SceneLayer {
 
 				let latestRawTime = this.lastProcessedTime;
 				let pushedCount = 0;
+				let observedRange = 0;
 
 				for (let i = 0; i < dataArray.length; i++) {
 					const cloud = dataArray[i];
@@ -367,12 +384,18 @@ export class PointCloudLayer implements SceneLayer {
 						messageTimeSeconds,
 					);
 
+					observedRange = Math.max(
+						observedRange,
+						observePointRange(cloud.points, pointCount),
+					);
+
 					pushedCount++;
 					latestRawTime = rawTime;
 				}
 
 				if (pushedCount > 0) {
 					this.lastProcessedTime = latestRawTime;
+					this.applyObservedRange(observedRange);
 					ingested = true;
 				}
 			} else {
@@ -399,6 +422,20 @@ export class PointCloudLayer implements SceneLayer {
 		}
 
 		return ingested;
+	}
+
+	/**
+	 * Fold a freshly observed extent into the running range and publish it.
+	 *
+	 * Only the `Distance` theme declares the uniform; the write is guarded rather
+	 * than themed so a theme swap needs no bookkeeping here.
+	 *
+	 * @param observed - Range seen in the message(s) just ingested, in metres.
+	 */
+	private applyObservedRange(observed: number): void {
+		this.distanceRange = relaxDistanceRange(this.distanceRange, observed);
+		const uniform = this.material.uniforms.distanceRange;
+		if (uniform) uniform.value = this.distanceRange;
 	}
 
 	/** Latest-message (non-rolling) ingest path. Returns whether it wrote new data. */
@@ -470,6 +507,8 @@ export class PointCloudLayer implements SceneLayer {
 
 		scratch.timestamps!.fill(nowSeconds, 0, pointCount);
 		scratch.count = pointCount;
+
+		this.applyObservedRange(observePointRange(cloud.points, pointCount));
 
 		if (Number.isFinite(rawTime)) {
 			this.lastProcessedTime = rawTime;
@@ -543,8 +582,7 @@ export class PointCloudLayer implements SceneLayer {
 			const spans = ring.drainWriteSpans();
 			const data = ring.getData();
 			const posAttr = geometry.getAttribute("position") as
-				| THREE.BufferAttribute
-				| undefined;
+				THREE.BufferAttribute | undefined;
 			if (!posAttr || posAttr.array !== data.positions) {
 				// New ring instance: alias its arrays directly (one full upload).
 				setStreamedAttributes(geometry, data);
@@ -560,8 +598,7 @@ export class PointCloudLayer implements SceneLayer {
 				return;
 			}
 			const posAttr = geometry.getAttribute("position") as
-				| THREE.BufferAttribute
-				| undefined;
+				THREE.BufferAttribute | undefined;
 			if (!posAttr || posAttr.array !== scratch.positions) {
 				// Scratch grew (or mode switched): rebind (one full upload).
 				setStreamedAttributes(geometry, {

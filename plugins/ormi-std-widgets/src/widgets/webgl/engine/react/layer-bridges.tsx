@@ -28,6 +28,7 @@ import type {
 	PathLayerConfig,
 	LayerTransformStatus,
 } from "../../types/scene-3d-types";
+import { DEFAULT_POINT_CLOUD_THEME } from "../../types/scene-3d-types";
 import { useSceneEngine } from "./scene-engine-context";
 
 interface PointCloudLayerBridgeProps {
@@ -84,7 +85,7 @@ export function PointCloudLayerBridge({
 			pointSize: pointSize ?? 0.05,
 			decayTime: decayTime ?? 0,
 			rollingBuffer: rollingBuffer ?? false,
-			theme: theme ?? "Default",
+			theme: theme ?? DEFAULT_POINT_CLOUD_THEME,
 			colorMode: colorMode ?? "source",
 			customColor: customColor ?? "#ffffff",
 			useTransparency: useTransparency ?? false,
