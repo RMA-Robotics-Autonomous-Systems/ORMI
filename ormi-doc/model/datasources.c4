@@ -47,6 +47,13 @@ model {
         link ../knowledge/datasources/knowledge.md 'Subscription lifecycle'
       }
 
+      knownDatasources = component 'KnownDatasourcesProvider' {
+        technology 'ormi-core/datasources · optional context'
+        description 'Supplies the add-datasource picker with the configurations the operator already has in their OTHER workspaces, read on dialog open through GET /api/datasources/known and held behind a short freshness window. Persistence is injected as a prop (as TemplatesProvider takes its own); state is a discriminated union (idle/loading/ready/error), never a nullable array. Identity of a configuration is datasource_id + canonical settings minus the DatasourceProviderSettings base fields (id/title/enable), computed by the React-free datasource-identity module that the server route imports through its own subpath. Mounting it is OPTIONAL: useKnownDatasources tolerates an absent provider and answers idle, which is what keeps plugin pages that assemble their own shell unchanged. A configuration whose definition this build lacks is filtered out CLIENT-side (the server has no DATASOURCES_LIST) and the only values out of the settings blob that reach the screen are the keys the definition itself allowlists in summaryProps (its remote: a url, a host, a recording name) — those blobs carry credentials, so there is no fallback and no name heuristic, and a definition that declares nothing renders nothing.'
+
+        link ../knowledge/datasources/knowledge.md 'Known configurations'
+      }
+
       localData = component 'LocalDataSourcesProvider' {
         technology 'ormi-core/datasources · 30Hz buffer'
         description 'Per-widget context that declares subscribe intents for the widget selected topics and buffers incoming values at 30Hz. Widgets read via useLocalDataSource() (data/times/referenceFrameId + health, getTopicHealth) — never a datasource object directly. History depth is DECLARED BY THE WIDGET through buffersSize, never asked of the operator (the topic picker has no buffer input); a SelectedTopic.bufferSize is resolved as Math.max(topic.bufferSize ?? 0, buffersSize), i.e. a FLOOR that may only ask for more history, never a cap. Resolving it with || instead capped every chart in a dashboard saved by an earlier build at the one sample those builds stamped onto each picked topic.'

@@ -14,6 +14,9 @@ const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 		name: "Tello",
 		description: "Tello data source",
 
+		/** The drone's address is what tells two Tello configurations apart. */
+		summaryProps: ["ip"],
+
 		schema: {
 			title: "Tello Data Source",
 			type: "object",

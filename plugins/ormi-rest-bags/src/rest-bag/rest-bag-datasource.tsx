@@ -61,6 +61,9 @@ export const RestBagDatasourceDefinition = {
 	name: "RestBag API",
 	description: "Connect to a RestBag API",
 
+	/** The endpoint is what tells two RestBag configurations apart. */
+	summaryProps: ["url"],
+
 	schema: {
 		title: "RestBag API",
 		type: "object",

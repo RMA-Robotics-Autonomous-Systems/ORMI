@@ -71,6 +71,11 @@ export const datasourceDefinition = {
 	description:
 		"RMA Multi-Agent Framework C2: mission commands + CRUD as remote calls (REST). Telemetry uses your ROS datasource.",
 
+	// Mission Control names the C2 an operator is looking at; `dbUrl` moves
+	// with it and only adds noise. `missionControlToken` is a bearer
+	// credential and must never be listed here.
+	summaryProps: ["missionControlUrl"],
+
 	schema: {
 		title: "C2 Control",
 		type: "object",

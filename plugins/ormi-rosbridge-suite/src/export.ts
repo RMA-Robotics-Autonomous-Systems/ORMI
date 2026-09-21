@@ -19,6 +19,9 @@ export const dataSourceExport = (datasources: DatasourceDefinition<any>[]) => {
 		name: "ROSBridge Suite",
 		description: "ROS2 connection using ROSBridge suite",
 
+		/** The endpoint is what tells two ROSBridge configurations apart. */
+		summaryProps: ["url"],
+
 		schema: {
 			title: "ROSBridge Suite",
 			type: "object",

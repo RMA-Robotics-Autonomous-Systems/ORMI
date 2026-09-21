@@ -7,7 +7,10 @@ import {
 	DEFAULT_DASHBOARD_TYPE,
 	resolveDashboardType,
 } from "@workspace/ormi-core/dashboard";
-import { GlobalDataSourcesProvider } from "@workspace/ormi-core/datasources";
+import {
+	GlobalDataSourcesProvider,
+	KnownDatasourcesProvider,
+} from "@workspace/ormi-core/datasources";
 import { TemplatesProvider } from "@workspace/ormi-core/templates";
 import {
 	handleLoad as tl,
@@ -17,9 +20,27 @@ import {
 } from "@/lib/data/prisma-templates";
 import { handleSave } from "@/lib/data/prisma-dashboard";
 import { toDashboardState } from "@/lib/api/dashboard-api";
+import { datasourceApi } from "@/lib/api/datasource-api";
+import type { KnownDatasourceConfig } from "@workspace/ormi-core/datasources/identity";
 import { workspaceApi, type Workspace } from "@/lib/api/workspace-api";
 import type { ApiResult } from "@/lib/http/client";
 import { useParams } from "next/navigation";
+
+/**
+ * Read the operator's datasource configurations from their other workspaces.
+ *
+ * Module-level so its identity is stable across renders — the provider syncs
+ * it into a ref and a new function per render would churn that for nothing.
+ * Rejecting puts the provider in its `error` state, where the add-datasource
+ * dialog degrades to today's catalogue plus a quiet retry.
+ *
+ * @returns The known configurations.
+ */
+async function loadKnownDatasources(): Promise<KnownDatasourceConfig[]> {
+	const result = await datasourceApi.getKnown();
+	if (!result.ok) throw new Error(result.error);
+	return result.data;
+}
 
 export default function Page() {
 	const params = useParams();
@@ -150,11 +171,13 @@ export default function Page() {
 				removeTemplate={td}
 				updateTemplate={tu}
 			>
-				<GlobalDataSourcesProvider>
-					{/* The engine carries the launcher, which is where widgets,
-					    topics and templates are reached from. */}
-					<DashboardEngine />
-				</GlobalDataSourcesProvider>
+				<KnownDatasourcesProvider onLoad={loadKnownDatasources}>
+					<GlobalDataSourcesProvider>
+						{/* The engine carries the launcher, which is where
+						    widgets, topics and templates are reached from. */}
+						<DashboardEngine />
+					</GlobalDataSourcesProvider>
+				</KnownDatasourcesProvider>
 			</TemplatesProvider>
 		</DashboardShell>
 	);

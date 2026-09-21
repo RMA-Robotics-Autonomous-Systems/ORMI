@@ -10,6 +10,22 @@ interface DatasourceDefinition<T = DatasourceProviderSettings> {
 
 	titleProp?: string;
 
+	/**
+	 * Settings keys whose values may be shown to an operator as a short summary
+	 * of *which remote this is* — a url, a host, a recording name.
+	 *
+	 * An allowlist, declared by the plugin that owns the schema, because only it
+	 * knows which of its fields are safe to display: settings blobs carry
+	 * credentials, and a name heuristic over them fails silently as a leak
+	 * rather than loudly as an error. Omit it and nothing from the blob is ever
+	 * rendered, which is the correct default for a datasource that has no remote
+	 * to name (a generator, a fixture). There is no fallback — a fallback is the
+	 * leak.
+	 *
+	 * Never list a field that holds a token, password or key.
+	 */
+	summaryProps?: string[];
+
 	schema: JsonSchema;
 	uischema?: UISchemaElement;
 	data: T;

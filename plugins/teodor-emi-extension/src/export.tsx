@@ -158,6 +158,9 @@ export const EmiReplayDatasourceDefinition: DatasourceDefinition<EmiReplaySettin
 			"Replay a recorded ROS 2 bag as a live datasource. Every widget sees the same topics it would from the robot.",
 		titleProp: "title",
 
+		/** The recording is what tells two replay configurations apart. */
+		summaryProps: ["bagName"],
+
 		schema: {
 			title: "Teodor EMI recording",
 			type: "object",
