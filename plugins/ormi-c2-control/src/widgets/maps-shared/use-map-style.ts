@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { StyleSpecification } from "react-map-gl/maplibre";
 import {
 	applyBasemapKey,
+	basemapMaxSourceZoom,
 	isVectorBasemap,
 	vectorBasemapStyleId,
 } from "@workspace/utils";
@@ -79,6 +80,13 @@ export function buildMapStyle(
 		: undefined;
 	if (vectorStyleId) return createVectorBasemapStyle(vectorStyleId);
 
+	// Zoom limits, mirroring the std map's `useMapStyle` — change both together.
+	// The SOURCE `maxzoom` is how deep the vendor publishes, so MapLibre
+	// overzooms the deepest real level instead of requesting tiles that 404;
+	// the LAYER carries none, because a layer `maxzoom` HIDES the layer at and
+	// above that zoom (the `22` that used to sit here blanked the basemap past
+	// z22, which is the ceiling this lifts).
+	const sourceMaxZoom = basemapMaxSourceZoom(mapUrl);
 	return {
 		version: 8,
 		sources: {
@@ -86,6 +94,7 @@ export function buildMapStyle(
 				type: "raster",
 				tiles: [applyBasemapKey(mapUrl, basemapApiKey)],
 				tileSize: 256,
+				...(sourceMaxZoom !== undefined && { maxzoom: sourceMaxZoom }),
 			},
 		},
 		layers: [
@@ -94,7 +103,6 @@ export function buildMapStyle(
 				type: "raster",
 				source: "raster-tiles",
 				minzoom: 0,
-				maxzoom: 22,
 			},
 		],
 	};

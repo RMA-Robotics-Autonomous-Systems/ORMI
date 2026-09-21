@@ -509,6 +509,68 @@ rewritten, so dashboards already in the field keep the raster basemap they were
 saved with; and an operator recovers any affected widget from the dropdown.
 Changing the default back, however, needs a redeploy.
 
+### Zoom depth: the map's limit vs the source's
+
+Both maps run to `MAP_MAX_ZOOM` (**24**, exported beside the catalogue), two
+levels past MapLibre's own default of 22. That is a deliberate over-reach: at 24
+and 50°N one CSS pixel is roughly 3 mm, and no basemap in the catalogue
+publishes anything like that depth. It works because MapLibre **overzooms** —
+it keeps stretching the deepest tile a source actually published, while every
+layer ORMI draws on top (GeoJSON tracks, markers, mission geometry, the
+graticule) is re-rasterised at the real zoom and stays sharp. The basemap goes
+soft; the robot data does not.
+
+Three numbers are involved and only two of them are limits:
+
+| where                             | what it means                                             |
+| --------------------------------- | --------------------------------------------------------- |
+| `<MapLibreMap maxZoom>`           | how far the operator may zoom — `MAP_MAX_ZOOM`            |
+| `sources["raster-tiles"].maxzoom` | how deep the vendor publishes — stop requesting past this |
+| `layers["simple-tiles"].maxzoom`  | **hides** the layer at and above this — never set it      |
+
+The source value is `RasterBasemapProvider.maxSourceZoom`, **required** on every
+raster row and resolved through `basemapMaxSourceZoom(url)`. Undeclared, the
+style spec defaults a raster source to 22, so MapLibre requests `{z}` values the
+vendor never generated — OpenStreetMap stops at 19, OpenTopoMap at 17, Esri at
+19 — they 404, and the basemap goes **blank** on the way in rather than
+stretching. A url the catalogue does not carry (an operator's own tile server)
+declares nothing: it may well go deeper than anything vendored here, and
+capping it would be a guess.
+
+The third row is the trap. A layer `maxzoom` is not a cap but a _hide_, and the
+`maxzoom: 22` that used to sit on `simple-tiles` in **both** style builders is
+what made every raster basemap vanish past z22 — read by operators as "the map
+has a zoom limit". Both builders assert its absence
+(`use-map-style.test.ts`, `hooks/__tests__/useMapStyle.test.ts`): they are
+separate code with one contract, so the invariant is stated twice on purpose.
+
+### Reading distance: `MapScaleBar`, not MapLibre's `ScaleControl`
+
+Past a basemap's own tile depth its detail no longer indicates distance — a
+stretched z19 tile looks the same at z20 and at z24 — so both maps render
+`MapScaleBar` unconditionally (`@workspace/utils/map-scale-bar`): a metric bar,
+the exact metres-per-pixel, and the current zoom. Three facts because they
+answer three different questions: how far is that on screen, how much finer can
+this get, and where am I relative to the basemap's own depth.
+
+It is deliberately **not** MapLibre's built-in `ScaleControl`. That control
+rounds through `pow10 = 10 ** (String(Math.floor(d)).length - 1)`, which
+evaluates to `1` for every distance below 10 m and therefore cannot produce a
+bar under one metre: asked for 0.8 m it reports "1 m" and draws the bar 25% too
+long. Below roughly z20 that never comes up; at `MAP_MAX_ZOOM` it is the only
+range the operator is in, and a scale bar that is quietly wrong is worse than
+none — it is the thing being trusted to read a distance off.
+
+The rounding (a 1/2/3/5-per-decade ladder, always rounding **down** so the
+label is exact rather than approximate) is pure and unit-tested in
+`packages/utils/src/map-scale.ts`. The component itself is kept **out** of the
+`@workspace/utils` barrel and given its own subpath, for the same reason the
+bundled styles are: it imports `react-map-gl` at runtime and the barrel is
+reachable from worker entrypoints. It reads the live map through
+`useSyncExternalStore` (external mutable state, React Compiler) and quantises
+the resolution to three significant digits before it becomes state, so a pan
+does not re-render it once per animation frame.
+
 ### Layer stack order (the anchor contract)
 
 Each bundled style carries four no-op anchor layers over an empty GeoJSON source

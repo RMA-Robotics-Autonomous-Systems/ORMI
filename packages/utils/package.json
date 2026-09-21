@@ -11,6 +11,7 @@
 		"@workspace/ui": "workspace:*",
 		"chalk": "^5.6.2",
 		"commander": "^14.0.3",
+		"react-map-gl": "^8.1.0",
 		"react-use-websocket": "^4.13.0"
 	},
 	"devDependencies": {
@@ -44,6 +45,11 @@
 			"types": "./dist/basemap-styles/index.d.ts",
 			"development": "./src/basemap-styles/index.ts",
 			"import": "./dist/basemap-styles/index.js"
+		},
+		"./map-scale-bar": {
+			"types": "./dist/map-scale-bar.d.ts",
+			"development": "./src/map-scale-bar.tsx",
+			"import": "./dist/map-scale-bar.js"
 		},
 		"./coalesced-publisher": {
 			"types": "./dist/coalesced-publisher.d.ts",

@@ -52,6 +52,18 @@ export interface RasterBasemapProvider extends BasemapProviderBase {
 	/** Always omitted or `"raster"`; absent is the raster default. */
 	kind?: "raster";
 	/**
+	 * Deepest zoom this provider actually publishes tiles for.
+	 *
+	 * Required, and deliberately so: a raster source that does not declare a
+	 * `maxzoom` defaults to 22 in the style spec, so MapLibre keeps requesting
+	 * `{z}` values the vendor never generated — OpenStreetMap stops at 19,
+	 * OpenTopoMap at 17 — and the operator sees the basemap go BLANK on the way
+	 * in rather than stretch. Declared, MapLibre overzooms the deepest real
+	 * level instead: coarser, but present, while the robot geometry drawn on top
+	 * stays vector-sharp all the way to {@link MAP_MAX_ZOOM}.
+	 */
+	maxSourceZoom: number;
+	/**
 	 * Query-parameter name carrying the API key, present only when this
 	 * provider requires a key.
 	 */
@@ -100,11 +112,34 @@ export type BasemapProvider = RasterBasemapProvider | VectorBasemapProvider;
 export const DEFAULT_BASEMAP_URL = "ormi:vector/openfreemap-liberty";
 
 /**
+ * Deepest zoom the ORMI map widgets let an operator reach.
+ *
+ * MapLibre's own default is 22; ORMI goes two levels further because the maps
+ * are read at robot scale — a survey track, a docking approach, a point cloud
+ * projected onto the basemap — where 22 still spans several metres per screen.
+ * At 24 and 50°N one CSS pixel is roughly 3 mm.
+ *
+ * It is the MAP's limit, not a tile limit, and the distinction is the whole
+ * reason zooming this far is usable: no raster vendor publishes tiles at 24
+ * (see {@link RasterBasemapProvider.maxSourceZoom}) and the bundled vector
+ * styles stop at 14. MapLibre overzooms whatever the source last published, so
+ * the basemap turns soft while everything ORMI draws on top — GeoJSON tracks,
+ * markers, the graticule, mission geometry — is re-rasterised at the real zoom
+ * and stays sharp. Read the ground distance off the scale bar
+ * (`@workspace/utils/map-scale-bar`), never off the basemap's own detail.
+ *
+ * 24 is also the ceiling of the style spec's `maxzoom` field, so every limit
+ * involved stays declarative.
+ */
+export const MAP_MAX_ZOOM = 24;
+
+/**
  * Every basemap ORMI's map widgets offer, in dropdown order.
  */
 export const BASEMAP_PROVIDERS: readonly BasemapProvider[] = [
 	{
 		url: "https://b.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png",
+		maxSourceZoom: 20,
 		title: "Carto Voyager (labels under)",
 		provider: "Carto",
 		keyParam: "key",
@@ -112,21 +147,25 @@ export const BASEMAP_PROVIDERS: readonly BasemapProvider[] = [
 	},
 	{
 		url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+		maxSourceZoom: 19,
 		title: "OpenStreetMap",
 		provider: "OpenStreetMap",
 	},
 	{
 		url: "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+		maxSourceZoom: 20,
 		title: "OpenStreetMap Humanitarian",
 		provider: "OpenStreetMap France",
 	},
 	{
 		url: "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+		maxSourceZoom: 17,
 		title: "OpenTopoMap",
 		provider: "OpenTopoMap",
 	},
 	{
 		url: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png",
+		maxSourceZoom: 20,
 		title: "Stadia Alidade Smooth Dark",
 		provider: "Stadia Maps",
 		keyParam: "api_key",
@@ -134,6 +173,7 @@ export const BASEMAP_PROVIDERS: readonly BasemapProvider[] = [
 	},
 	{
 		url: "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg",
+		maxSourceZoom: 20,
 		title: "Stadia Alidade Satellite",
 		provider: "Stadia Maps",
 		keyParam: "api_key",
@@ -141,21 +181,25 @@ export const BASEMAP_PROVIDERS: readonly BasemapProvider[] = [
 	},
 	{
 		url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+		maxSourceZoom: 19,
 		title: "ArcGIS World Imagery",
 		provider: "Esri",
 	},
 	{
 		url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+		maxSourceZoom: 19,
 		title: "ArcGIS World Topo Map",
 		provider: "Esri",
 	},
 	{
 		url: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web_grau/default/WEBMERCATOR/{z}/{y}/{x}.png",
+		maxSourceZoom: 18,
 		title: "TopPlus Open (gray)",
 		provider: "BKG",
 	},
 	{
 		url: "https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png",
+		maxSourceZoom: 18,
 		title: "TopPlus Open (color)",
 		provider: "BKG",
 	},
@@ -198,6 +242,11 @@ const VECTOR_BASEMAPS_BY_URL: ReadonlyMap<string, VectorBasemapProvider> =
 		).map((entry) => [entry.url, entry]),
 	);
 
+/** Every catalogue entry, raster and vector, keyed by its persisted url. */
+const BASEMAPS_BY_URL: ReadonlyMap<string, BasemapProvider> = new Map(
+	BASEMAP_PROVIDERS.map((entry) => [entry.url, entry]),
+);
+
 /**
  * The sentinel urls of every vector basemap, in catalogue order.
  *
@@ -230,6 +279,24 @@ export function vectorBasemapStyleId(
 	url: string,
 ): VectorBasemapStyleId | undefined {
 	return VECTOR_BASEMAPS_BY_URL.get(url)?.styleId;
+}
+
+/**
+ * Deepest zoom the basemap behind a persisted `mapUrl` publishes tiles for.
+ *
+ * Callers put this on the SOURCE (`sources[...].maxzoom`), never on the layer:
+ * a source `maxzoom` tells MapLibre to stop requesting deeper tiles and
+ * overzoom the last real level, whereas a layer `maxzoom` HIDES the layer at
+ * and above that zoom — which is the blank basemap this is here to prevent.
+ *
+ * @param url - A persisted basemap value.
+ * @returns The provider's deepest published zoom, or `undefined` for a url the
+ *   catalogue does not carry (an operator's own tile template). Undefined means
+ *   "declare nothing and let MapLibre default", because a custom server may
+ *   well go deeper than any entry here and capping it would be a guess.
+ */
+export function basemapMaxSourceZoom(url: string): number | undefined {
+	return BASEMAPS_BY_URL.get(url)?.maxSourceZoom;
 }
 
 /**

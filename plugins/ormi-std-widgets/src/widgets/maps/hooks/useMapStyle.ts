@@ -4,6 +4,7 @@ import {
 	ORMI_BUILDINGS_3D_LAYER,
 	ORMI_STYLE_ANCHORS,
 	applyBasemapKey,
+	basemapMaxSourceZoom,
 	insertLayersAt,
 	isVectorBasemap,
 	vectorBasemapStyleId,
@@ -189,12 +190,28 @@ export function useMapStyle({
 		}
 
 		// --- Raster basemap: the original XYZ path ---------------------------
+		// Two zoom limits, and only one of them belongs on the layer.
+		//
+		// The SOURCE declares how deep the vendor actually publishes, so
+		// MapLibre stops asking for tiles that 404 and overzooms the deepest
+		// real level instead — soft imagery rather than a blank map on the way
+		// in. An unknown url (an operator's own tile server) declares nothing
+		// and keeps MapLibre's default.
+		//
+		// The LAYER declares nothing at all. A layer `maxzoom` HIDES the layer
+		// at and above that zoom: the `22` that used to sit here made the
+		// basemap vanish entirely past z22, which is the hard ceiling this
+		// change is lifting.
+		const sourceMaxZoom = basemapMaxSourceZoom(mapUrl);
 		const baseStyle = withOverlays({
 			version: 8,
 			sources: {
 				"raster-tiles": {
 					type: "raster",
 					tiles: [applyBasemapKey(mapUrl, basemapApiKey)],
+					...(sourceMaxZoom !== undefined && {
+						maxzoom: sourceMaxZoom,
+					}),
 				},
 				grid: gridSource,
 				...customSources,
@@ -205,7 +222,6 @@ export function useMapStyle({
 					type: "raster",
 					source: "raster-tiles",
 					minzoom: 0,
-					maxzoom: 22,
 				},
 			],
 		});

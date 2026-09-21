@@ -3,7 +3,9 @@ import {
 	BASEMAP_PROVIDERS,
 	BASEMAPS_REQUIRING_KEY,
 	VECTOR_BASEMAPS,
+	MAP_MAX_ZOOM,
 	applyBasemapKey,
+	basemapMaxSourceZoom,
 	basemapOneOf,
 	isVectorBasemap,
 	vectorBasemapStyleId,
@@ -266,5 +268,42 @@ describe("vector basemaps", () => {
 			expect(applyBasemapKey(url, "abc123")).toBe(url);
 			expect(applyBasemapKey(url)).toBe(url);
 		}
+	});
+});
+
+describe("tile depth", () => {
+	test("every raster provider declares how deep it publishes", () => {
+		// Required on the interface, so this cannot be forgotten silently —
+		// but the VALUE still has to be plausible. An entry left at 22 would
+		// reintroduce the blank-basemap failure it exists to prevent, because
+		// no raster vendor in this catalogue goes past 20.
+		for (const entry of BASEMAP_PROVIDERS) {
+			if (entry.kind === "vector") continue;
+			expect(Number.isInteger(entry.maxSourceZoom)).toBe(true);
+			expect(entry.maxSourceZoom).toBeGreaterThanOrEqual(15);
+			expect(entry.maxSourceZoom).toBeLessThanOrEqual(20);
+		}
+	});
+
+	test("the map goes deeper than any basemap, which is the point", () => {
+		// MAP_MAX_ZOOM is the MAP's limit: past every entry here the basemap
+		// is overzoomed and the vector geometry ORMI draws on top stays sharp.
+		for (const entry of BASEMAP_PROVIDERS) {
+			expect(entry.maxSourceZoom).toBeLessThan(MAP_MAX_ZOOM);
+		}
+	});
+
+	test("basemapMaxSourceZoom answers for every catalogue url", () => {
+		for (const entry of BASEMAP_PROVIDERS) {
+			expect(basemapMaxSourceZoom(entry.url)).toBe(entry.maxSourceZoom);
+		}
+	});
+
+	test("an unknown url declares nothing rather than guessing", () => {
+		// A custom tile server may go deeper than anything vendored here.
+		expect(
+			basemapMaxSourceZoom("https://tiles.example.org/{z}/{x}/{y}.png"),
+		).toBeUndefined();
+		expect(basemapMaxSourceZoom("")).toBeUndefined();
 	});
 });

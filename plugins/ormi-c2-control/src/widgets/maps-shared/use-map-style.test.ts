@@ -12,7 +12,12 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { ORMI_BUILDINGS_3D_LAYER, BASEMAP_PROVIDERS } from "@workspace/utils";
+import {
+	ORMI_BUILDINGS_3D_LAYER,
+	BASEMAP_PROVIDERS,
+	MAP_MAX_ZOOM,
+	basemapMaxSourceZoom,
+} from "@workspace/utils";
 
 import { buildMapStyle } from "./use-map-style";
 
@@ -63,5 +68,45 @@ describe("a raster basemap", () => {
 			type: "raster",
 			tiles: [RASTER_URL],
 		});
+	});
+
+	it("never caps the basemap LAYER, at any zoom", () => {
+		// A layer `maxzoom` hides the layer at and above that zoom. The `22`
+		// that used to sit here made every raster basemap disappear past z22 —
+		// the operator's "the map has a zoom limit". Tile depth belongs on the
+		// source, never here.
+		for (const entry of BASEMAP_PROVIDERS) {
+			const layer = buildMapStyle(entry.url).layers.find(
+				(candidate) => candidate.id === "simple-tiles",
+			);
+			expect(layer?.maxzoom).toBeUndefined();
+		}
+		expect(
+			buildMapStyle(RASTER_URL).layers.find(
+				(candidate) => candidate.id === "simple-tiles",
+			)?.maxzoom,
+		).toBeUndefined();
+	});
+
+	it("declares the vendor's real tile depth on the source", () => {
+		// Without it MapLibre keeps requesting `{z}` the vendor never
+		// generated; they 404 and the basemap goes blank on the way in,
+		// instead of overzooming the deepest real level.
+		for (const entry of BASEMAP_PROVIDERS) {
+			if (entry.kind === "vector") continue;
+			const source = buildMapStyle(entry.url).sources["raster-tiles"];
+			expect(source).toMatchObject({
+				maxzoom: basemapMaxSourceZoom(entry.url),
+			});
+			expect(entry.maxSourceZoom).toBeLessThan(MAP_MAX_ZOOM);
+		}
+	});
+
+	it("declares nothing for a url the catalogue does not carry", () => {
+		// An operator's own tile server may well go deeper than any vendor
+		// here; capping it would be a guess, so MapLibre's default stands.
+		expect(
+			buildMapStyle(RASTER_URL).sources["raster-tiles"],
+		).not.toHaveProperty("maxzoom");
 	});
 });
