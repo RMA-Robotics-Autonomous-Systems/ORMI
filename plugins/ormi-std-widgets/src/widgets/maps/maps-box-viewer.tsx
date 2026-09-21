@@ -19,9 +19,11 @@ import { PluginsManager } from "@workspace/ormi-plugins";
 import {
 	BASEMAPS_REQUIRING_KEY,
 	DEFAULT_BASEMAP_URL,
+	MAP_MAX_ZOOM,
 	VECTOR_BASEMAPS,
 	basemapOneOf,
 } from "@workspace/utils";
+import { MapScaleBar } from "@workspace/utils/map-scale-bar";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
@@ -194,12 +196,19 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					}}
 					style={{ width: "100%", height: "100%" }}
 					mapStyle={mapStyle}
+					maxZoom={MAP_MAX_ZOOM}
 					ref={mapRef}
 					onMoveEnd={gridHook.updateGridForViewport}
 					onZoomEnd={gridHook.updateGridForViewport}
 				>
 					{/* Grid overlay */}
 					<MapsGrid mapRef={mapRef} showGrid={showGrid} />
+
+					{/* Ground scale. Always on: past the basemap's own tile
+					    depth the imagery is overzoomed, so its detail no longer
+					    indicates distance and this is the only thing on screen
+					    that does. */}
+					<MapScaleBar />
 
 					{/* GPS Topics Layer (also hosts the consolidated control panel) */}
 					<GpsTopicsLayer

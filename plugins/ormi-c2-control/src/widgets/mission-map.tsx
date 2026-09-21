@@ -213,6 +213,7 @@ import { useMapStyle } from "./maps-shared/use-map-style";
 import {
 	BASEMAPS_REQUIRING_KEY,
 	DEFAULT_BASEMAP_URL,
+	MAP_MAX_ZOOM,
 	ORMI_STYLE_ANCHORS,
 	ORMI_BUILDINGS_3D_LAYER,
 	basemapOneOf,
@@ -220,6 +221,7 @@ import {
 	resolveAnchor,
 	setLayerVisibility,
 } from "@workspace/utils";
+import { MapScaleBar } from "@workspace/utils/map-scale-bar";
 import { crossMapEdit, crossMapEditMessage } from "./map-editing-guards";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
@@ -4143,10 +4145,16 @@ function MissionMapBody(props: {
 						latitude: startingLocation[1],
 						zoom: 14,
 					}}
+					maxZoom={MAP_MAX_ZOOM}
 					onLoad={handleMapLoad}
 					onClick={handleMapClick}
 					style={{ width: "100%", height: "100%" }}
 				>
+					{/* Ground scale. Always on: past the basemap's own tile
+					    depth the imagery is overzoomed, so its detail no longer
+					    indicates distance and this is the only thing on screen
+					    that does. */}
+					<MapScaleBar />
 					<OverlayLayers
 						active={activeOverlays}
 						beforeId={overlayBeforeId}
