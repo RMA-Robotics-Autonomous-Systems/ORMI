@@ -116,3 +116,29 @@ TF topic (/tf, /tf_static)
 The flat table keeps per-message updates O(1) (no tree clone), makes re-parenting
 and idempotent `/tf_static` re-delivery free, and lets a 100Hz stream coalesce to
 ~one React render per ~16ms window.
+
+## Configuration read flow: known datasources
+
+Separate from the live value pipeline: a **read** of persisted configuration,
+one request per dialog open rather than a stream.
+
+```
+Workspace rows (PostgreSQL, content JSON)
+  → prisma-datasources.getKnownDatasourceConfigs(session.user.id)
+      db.workspace.findMany({ where: { createdById }, select: id/name/updatedAT/content })
+  → groupKnownDatasources(rows)        // total over garbage, one row per configuration
+  → GET /api/datasources/known (withAuth, apiResponse)
+  → datasourceApi.getKnown() : ApiResult<KnownDatasourceConfig[]>
+  → KnownDatasourcesProvider           // idle | loading | ready | error, ~30s freshness
+  → DatasourceAdder (add-datasource dialog)
+      ↳ client-side filter against the live DATASOURCES_LIST
+      ↳ mark rows already present in live dashboard state
+  → addDatasource(datasource_id, settings)   // the existing seed path, unchanged
+```
+
+Two properties of the edge are load-bearing. The owner is the session user and
+is never taken from the request, because these payloads carry endpoints and
+credentials. And the definition filter can only live at the last step — the
+server has no `DATASOURCES_LIST`, since the datasource registry is a
+client-side plugin registry whose dev-only entries are removed at registry
+generation.

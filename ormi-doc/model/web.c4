@@ -87,7 +87,7 @@ model {
 
     apiRoutes = component 'API Route Handlers' {
       technology 'apps/web/app/api — Next.js route handlers'
-      description 'REST endpoints for workspaces, dashboards, categories, templates, users, devlogs. Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
+      description 'REST endpoints for workspaces, dashboards, categories, templates, users, devlogs, and the read-only GET /api/datasources/known (the datasource configurations owned by the session user across their workspaces — session-scoped, never a user id from the request). Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
     }
 
     httpClient = component 'HTTP Client + API Wrappers' {
@@ -97,7 +97,7 @@ model {
 
     serverData = component 'Prisma Data Helpers' {
       technology 'apps/web/lib/data/prisma-*.ts'
-      description 'The only place Prisma is called. prisma-workspaces / prisma-dashboard / prisma-templates encapsulate all DB access for the route handlers.'
+      description 'The only place Prisma is called. prisma-workspaces / prisma-dashboard / prisma-templates / prisma-datasources encapsulate all DB access for the route handlers. prisma-datasources reads the workspaces owned by the session user with a narrow select and groups them into one entry per datasource configuration.'
     }
 
     auth = component 'NextAuth' {

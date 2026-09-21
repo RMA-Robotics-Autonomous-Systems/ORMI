@@ -15,6 +15,9 @@ export const datasourceDefinition = {
 	name: "ROS2 Foxglove",
 	description: "Connecting to Foxglove WebSocket servers",
 
+	/** The endpoint is what tells two Foxglove configurations apart. */
+	summaryProps: ["url"],
+
 	schema: {
 		title: "Foxglove WebSocket",
 		type: "object",

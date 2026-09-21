@@ -299,6 +299,107 @@ the widget's own `buffersSize` governs.
 | `plugins/ormi-foxglove/`            | Foxglove WebSocket protocol            |
 | `plugins/ormi-rest-bags/`           | REST-backed data                       |
 
+## Known configurations: reusing a datasource from another workspace
+
+The add-datasource picker offers, above the catalogue, the datasource
+configurations the operator already set up in their **other** workspaces.
+Clicking one seeds a new instance with those settings.
+
+**Read path.** `KnownDatasourcesProvider` (mounted in the workspace page beside
+`TemplatesProvider`) calls `datasourceApi.getKnown()` →
+`GET /api/datasources/known` → `withAuth` → `getKnownDatasourceConfigs(session.user.id)`
+in `apps/web/lib/data/prisma-datasources.ts` → `db.workspace.findMany`
+(`where: { createdById }`, select `id, name, updatedAT, content`) →
+`groupKnownDatasources(rows)`. The owner is read from the session and **never**
+accepted from the request — these payloads carry endpoints and credentials.
+No body, no query params, so there is nothing to validate and no shape a caller
+can widen.
+
+`groupKnownDatasources` runs over arbitrary historical `Workspace.content`, so
+it is **total over garbage**: null, an array, a missing `datasources` map, an
+entry with no or non-object `settings` — each contributes nothing and nothing
+throws. One malformed legacy row must not 500 that operator's endpoint forever.
+
+**Identity key** (`packages/ormi-core/src/datasources/datasource-identity.ts`,
+exposed as `@workspace/ormi-core/datasources/identity`): `datasource_id` plus
+the canonical JSON of the settings with the `DatasourceProviderSettings` base
+fields removed. The excluded set is derived from that interface through an
+exhaustive mapped type, so identity is **what the plugin declared** and a base
+field added later drops out without anyone remembering. Canonicalisation sorts
+object keys **recursively** and **never sorts arrays** — over-splitting is
+visible and harmless, over-merging offers the wrong configuration. `undefined`
+is equivalent to an absent key.
+
+The module is deliberately React-, icon- and barrel-free and has **its own
+subpath** because a server route imports it; reaching it through the
+datasources barrel would drag the dashboard barrel — and
+`react-grid-layout/css/styles.css` — into the server bundle. Same hazard class
+as the worker-entrypoint rule, verified the same way, against built output.
+It is not `datasource-configured.ts`, which answers "has anybody touched this
+instance yet?" and keeps its own comparison and ignored keys.
+
+**Grouping is by configuration only.** The same endpoint titled differently in
+two dashboards is one row: the primary title comes from the most recently
+updated workspace, the rest are listed as `also: …` (deduped, newest first).
+Grouping by name would merge configurations that connect to different robots.
+
+**The definition filter is client-side, and it omits silently.** The server has
+no `DATASOURCES_LIST` — the registry is a client-side plugin registry and
+dev-only plugins are gated out of it at registry generation — so the UI drops
+any configuration whose `datasource_id` resolves to no live definition. This is
+deliberately the opposite of the missing-definition rule below, which governs
+_restoring_ committed work and names what it cannot honour. A surface that only
+_proposes_ must not manufacture an unsupported card out of a clean click.
+
+**Already-in-this-dashboard is marked, never hidden**: a disabled row with a
+badge, sorted after the actionable rows, compared against **live** state rather
+than the saved copy. Same reasoning as the topic-routing `kind: "present"`
+decision — "it is already on screen" and "nothing can show this" are different
+answers.
+
+**The settings blob is displayed through a declared allowlist, and through
+nothing else.** A row prints the values of the settings keys its definition
+lists in `DatasourceDefinition.summaryProps` — the url, the ip, the recording
+name — as one muted line under the title, because two rovers on two endpoints
+are otherwise indistinguishable. Everything else on the row is identity and
+usage: alternates, definition name, how many dashboards, when, which ones.
+
+The allowlist is declared by the plugin that owns the schema, because only it
+knows which of its fields are safe: `c2-control-source` declares
+`missionControlUrl` and persists `missionControlToken` one prefix away from it.
+That prefix is the whole argument against a heuristic — `/token|secret|
+password/i` works by luck today and fails silently the day a plugin names a
+field `pw` or `c2Auth`, and the failure is a leak rather than an error.
+**There is no fallback**: a definition that declares nothing shows nothing,
+which is the right answer for a datasource with no remote to name (the loadgen
+and randoms fixtures declare nothing, deliberately).
+
+`resolveDatasourceSummary(settings, definition)` (pure, beside the list
+component) reads only the declared keys, in declaration order, and skips an
+absent key, a non-`string`/non-finite-`number` value and an empty string —
+an unconfigured instance renders no line rather than a blank one. Values are
+verbatim; the row truncates in CSS and keeps the full value in a `title`.
+
+The banned heuristic survives as a **repo-wide test** over `DATASOURCES_LIST`
+(`apps/web/__tests__/datasource-summary-props.test.tsx`) that rejects any
+declared key reading as a credential, or absent from the definition's own
+`data`. At runtime such a filter fails **open**; as a test it fails **closed**,
+which is why it belongs there and nowhere else. The row test renders the real
+C2 shape carrying both a sentinel token and a real url, and asserts the url IS
+rendered while the sentinel is NOT — a regression that swaps the two fields has
+to break a test to land.
+
+**The state is a discriminated union**, `idle | loading | ready | error`, never
+a nullable array: "still loading" rendered as "you have none" sends the
+operator off to retype a configuration that was about to appear. A failed read
+never breaks the dialog — the catalogue renders unchanged plus a quiet retry.
+
+**Mounting the provider is optional.** `useKnownDatasources` reads the context
+through the third, optional hook `createSafeContext` now returns
+(`[Provider, useCtx, useCtxOptional]`) and answers `idle` when there is none,
+so plugin pages that assemble their own shell (C2, EMI) render the picker
+exactly as before — and `GlobalDataSourcesProvider` needed no change at all.
+
 ## A missing definition is a state, not an exception
 
 A workspace persists a `datasource_id`, not the definition behind it, and

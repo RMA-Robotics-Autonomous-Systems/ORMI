@@ -92,6 +92,8 @@ model {
 
   ormi.web.dashboard -> ormi.web.httpClient 'load/save dashboards & workspaces'
   ormi.web.templates -> ormi.web.httpClient 'persist via /api/templates'
+  ormi.web.datasourceRuntime.knownDatasources -> ormi.web.httpClient 'read known configurations (GET /api/datasources/known, on dialog open)'
+  ormi.web.datasourceRuntime.knownDatasources -> ormi.web.dashboard 'offers a saved configuration to the add-datasource picker; adding seeds a new instance'
   ormi.web.httpClient -> ormi.web.apiRoutes 'HTTP (ApiResult<T>)'
   ormi.web.apiRoutes -> ormi.web.auth 'withAuth guard'
   ormi.web.apiRoutes -> ormi.web.serverData 'DB access via Prisma helpers'

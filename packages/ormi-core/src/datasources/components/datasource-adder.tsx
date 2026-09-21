@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 
 import { DatasourceDefinition } from "../datasource-interface";
+import { useKnownDatasources } from "../known-datasources-provider";
+import { KnownDatasourceSection } from "./known-datasource-list";
 import { Button } from "@workspace/ui/components/button";
 import {
 	Collapsible,
@@ -52,6 +55,61 @@ const DatasourceAdder = (props: DatasourceAdderProps) => {
 
 	const collapsible = props.hasDatasources === true;
 
+	// Fetched when this mounts, which inside the datasources dialog is when
+	// the operator opens it: the dialog content unmounts on close, and what
+	// they configured in another dashboard is exactly what changes between
+	// two opens. The provider holds a short freshness window, so a run of
+	// opens still costs one request. A surface with no provider above it
+	// hands back a no-op and this costs nothing.
+	const { state: knownState, refresh: refreshKnown } = useKnownDatasources();
+
+	useEffect(() => {
+		refreshKnown();
+	}, [refreshKnown]);
+
+	const known = (() => {
+		switch (knownState.status) {
+			case "loading":
+				// Never "you have no saved configurations" — an operator who
+				// reads that retypes a configuration that was about to appear.
+				return (
+					<p className="text-muted-foreground text-xs">
+						Looking for datasources you have already configured…
+					</p>
+				);
+			case "ready":
+				return knownState.configs.length > 0 ? (
+					<KnownDatasourceSection
+						configs={knownState.configs}
+						definitions={datasources_definitions}
+					/>
+				) : null;
+			case "error":
+				// The catalogue above is untouched: this list is a
+				// convenience, and a failed read of it must not cost the
+				// operator the ability to add a datasource.
+				return (
+					<div className="flex flex-wrap items-center gap-2">
+						<p className="text-muted-foreground text-xs">
+							Could not load datasources from your other
+							dashboards.
+						</p>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={refreshKnown}
+							aria-label="Retry loading datasources from your other dashboards"
+						>
+							Retry
+						</Button>
+					</div>
+				);
+			case "idle":
+			default:
+				return null;
+		}
+	})();
+
 	const catalogue =
 		datasources_definitions.length === 0 ? (
 			<p className="text-muted-foreground text-sm">
@@ -83,25 +141,52 @@ const DatasourceAdder = (props: DatasourceAdderProps) => {
 			</div>
 		);
 
+	// Each block is named and ruled off from the other. The two render the
+	// same outline rows, the same plus icons and the same two-column grid, so
+	// without a heading apiece they read as one list — which is how the
+	// from-scratch catalogue came to look as though it had been removed.
+	const catalogueSection = (
+		<section
+			aria-labelledby="datasource-catalogue-heading"
+			className="flex flex-col gap-2"
+		>
+			<div>
+				<h4
+					id="datasource-catalogue-heading"
+					className="text-sm font-medium"
+				>
+					Set up a new one
+				</h4>
+				<p className="text-muted-foreground text-xs">
+					Pick the integration that matches the system you want to
+					connect. You can configure it right after adding it.
+				</p>
+			</div>
+			{catalogue}
+		</section>
+	);
+
+	// The reuse list sits second and carries the rule, so it is separated
+	// from the catalogue without a stray line above an empty workspace's
+	// only block.
+	const knownSection = known ? (
+		<div className="flex flex-col gap-2 border-t pt-3">{known}</div>
+	) : null;
+
 	if (!collapsible) {
 		return (
 			<section
 				aria-labelledby="datasource-adder-heading"
 				className="flex flex-col gap-2"
 			>
-				<div>
-					<h3
-						id="datasource-adder-heading"
-						className="text-sm font-medium"
-					>
-						Add a datasource
-					</h3>
-					<p className="text-muted-foreground text-xs">
-						Pick the integration that matches the system you want to
-						connect. You can configure it right after adding it.
-					</p>
-				</div>
-				{catalogue}
+				<h3
+					id="datasource-adder-heading"
+					className="text-sm font-medium"
+				>
+					Add a datasource
+				</h3>
+				{catalogueSection}
+				{knownSection}
 			</section>
 		);
 	}
@@ -123,11 +208,8 @@ const DatasourceAdder = (props: DatasourceAdderProps) => {
 				</Button>
 			</CollapsibleTrigger>
 			<CollapsibleContent className="flex flex-col gap-2">
-				<p className="text-muted-foreground text-xs">
-					Pick the integration that matches the system you want to
-					connect. You can configure it right after adding it.
-				</p>
-				{catalogue}
+				{catalogueSection}
+				{knownSection}
 			</CollapsibleContent>
 		</Collapsible>
 	);
