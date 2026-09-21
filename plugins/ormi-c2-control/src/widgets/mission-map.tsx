@@ -221,7 +221,7 @@ import {
 	resolveAnchor,
 	setLayerVisibility,
 } from "@workspace/utils";
-import { MapScaleBar } from "@workspace/utils/map-scale-bar";
+import { MapChrome } from "@workspace/utils/map-chrome";
 import { crossMapEdit, crossMapEditMessage } from "./map-editing-guards";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
@@ -4150,11 +4150,12 @@ function MissionMapBody(props: {
 					onClick={handleMapClick}
 					style={{ width: "100%", height: "100%" }}
 				>
-					{/* Ground scale. Always on: past the basemap's own tile
-					    depth the imagery is overzoomed, so its detail no longer
-					    indicates distance and this is the only thing on screen
-					    that does. */}
-					<MapScaleBar />
+					{/* North indicator + ground scale. Always on: rotation is
+					    enabled here and nothing else says which way is north,
+					    and past the basemap's own tile depth the imagery is
+					    overzoomed, so its detail no longer indicates distance
+					    either. Bottom-right: both panels own the top corners. */}
+					<MapChrome />
 					<OverlayLayers
 						active={activeOverlays}
 						beforeId={overlayBeforeId}

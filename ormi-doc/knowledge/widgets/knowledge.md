@@ -544,32 +544,75 @@ has a zoom limit". Both builders assert its absence
 (`use-map-style.test.ts`, `hooks/__tests__/useMapStyle.test.ts`): they are
 separate code with one contract, so the invariant is stated twice on purpose.
 
-### Reading distance: `MapScaleBar`, not MapLibre's `ScaleControl`
+### Corner chrome: `MapChrome` (north + scale), not MapLibre's controls
 
-Past a basemap's own tile depth its detail no longer indicates distance — a
-stretched z19 tile looks the same at z20 and at z24 — so both maps render
-`MapScaleBar` unconditionally (`@workspace/utils/map-scale-bar`): a metric bar,
-the exact metres-per-pixel, and the current zoom. Three facts because they
-answer three different questions: how far is that on screen, how much finer can
-this get, and where am I relative to the basemap's own depth.
+Both maps render `MapChrome` unconditionally (`@workspace/utils/map-chrome`):
+a north indicator and a metric scale bar, in **one** positioned cluster at the
+bottom-right.
 
-It is deliberately **not** MapLibre's built-in `ScaleControl`. That control
-rounds through `pow10 = 10 ** (String(Math.floor(d)).length - 1)`, which
-evaluates to `1` for every distance below 10 m and therefore cannot produce a
-bar under one metre: asked for 0.8 m it reports "1 m" and draws the bar 25% too
-long. Below roughly z20 that never comes up; at `MAP_MAX_ZOOM` it is the only
-range the operator is in, and a scale bar that is quietly wrong is worse than
-none — it is the thing being trusted to read a distance off.
+Each answers a question the map stopped answering for itself:
 
-The rounding (a 1/2/3/5-per-decade ladder, always rounding **down** so the
-label is exact rather than approximate) is pure and unit-tested in
-`packages/utils/src/map-scale.ts`. The component itself is kept **out** of the
-`@workspace/utils` barrel and given its own subpath, for the same reason the
-bundled styles are: it imports `react-map-gl` at runtime and the barrel is
-reachable from worker entrypoints. It reads the live map through
-`useSyncExternalStore` (external mutable state, React Compiler) and quantises
-the resolution to three significant digits before it becomes state, so a pan
-does not re-render it once per animation frame.
+- **Scale.** Past a basemap's own tile depth its detail no longer indicates
+  distance — a stretched z19 tile looks the same at z20 and at z24. The bar
+  carries the rounded ground distance, the exact metres-per-pixel and the
+  current zoom: how far is that on screen, how much finer can this get, and
+  where am I relative to the basemap's own depth.
+- **North.** Both maps enable MapLibre's default `dragRotate`, so a right-drag
+  or a two-finger twist rotates the view. Nothing on screen said so and nothing
+  offered the way back; an operator who rotated by accident had to rotate back
+  by hand, against a basemap whose labels stay upright and give no cue.
+
+Four properties, each of them the difference between this and a worse version.
+
+**One cluster, not N absolutely-positioned siblings.** This had already bitten:
+the standard map draws `UnconfiguredEntriesNotice` at `bottom-2 left-2`, and a
+scale bar placed there independently sat straight on top of it. One cluster is
+one placement decision, and a third indicator later inherits it rather than
+guessing a corner and a magic offset. Bottom-right is the free corner on both
+maps — C2's two panels and the standard map's topics overlay own the top ones.
+
+**Always on screen, never only-when-rotated.** An indicator that appears on a
+state change is one the operator has not learnt the position of, so at the
+moment they need it they are hunting for something that was not there a second
+ago. Facing north it is a quiet confirmation in muted grey reading "N";
+rotated, it takes the accent colour and states the heading in figures — an
+arrow gives a direction, only a number gives a bearing. The needle tilts with
+pitch the way MapLibre's compass does, because a flat needle over a pitched map
+claims a plan view the map is not showing.
+
+**Reset is bearing-only.** `resetNorth`, never `resetNorthPitch`: the standard
+map _opens_ at `pitch: 45`, so flattening it would undo the widget's own
+default view in answer to a request about rotation.
+
+**One subscription for the cluster.** `move` covers pan, zoom, rotate and pitch,
+so a second listener would only duplicate work. It is read through
+`useSyncExternalStore` (external mutable state, React Compiler) over a snapshot
+quantised before it becomes state — three significant digits on the resolution,
+one decimal on the angles — because MapLibre fires `move` once per animation
+frame and latitude alone changes the resolution continuously during a pan.
+
+Neither half is MapLibre's built-in control, for two separate reasons.
+`maplibre-gl.css` styles `.maplibregl-ctrl-group` with a hardcoded white
+background, so `ScaleControl` and `NavigationControl` both render as a white box
+on ORMI's dark theme. And the stock scale bar rounds through
+`pow10 = 10 ** (String(Math.floor(d)).length - 1)`, which evaluates to `1` for
+every distance below 10 m and therefore cannot produce a bar under one metre:
+asked for 0.8 m it reports "1 m" and draws the bar 25% too long. Below roughly
+z20 that never comes up; at `MAP_MAX_ZOOM` it is the only range the operator is
+in, and a scale bar that is quietly wrong is worse than none — it is the thing
+being trusted to read a distance off.
+
+The arithmetic is pure and unit-tested, in `map-scale.ts` (a 1/2/3/5-per-decade
+ladder, always rounding **down** so the label is exact rather than approximate)
+and `map-orientation.ts` (rounding before folding, so 359.6° reads `000°` and
+never `360°`). The component is kept **out** of the `@workspace/utils` barrel
+and given its own subpath, for the same reason the bundled styles are: it
+imports `react-map-gl` at runtime and the barrel is reachable from worker
+entrypoints.
+
+Standing limit, deliberately not papered over: on a pitched map a single scale
+bar is exact only along the centre line, which is where it samples. MapLibre's
+own control has the same limit.
 
 ### Layer stack order (the anchor contract)
 

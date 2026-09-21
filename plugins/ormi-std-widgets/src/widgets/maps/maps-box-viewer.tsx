@@ -23,7 +23,7 @@ import {
 	VECTOR_BASEMAPS,
 	basemapOneOf,
 } from "@workspace/utils";
-import { MapScaleBar } from "@workspace/utils/map-scale-bar";
+import { MapChrome } from "@workspace/utils/map-chrome";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
@@ -204,11 +204,13 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					{/* Grid overlay */}
 					<MapsGrid mapRef={mapRef} showGrid={showGrid} />
 
-					{/* Ground scale. Always on: past the basemap's own tile
-					    depth the imagery is overzoomed, so its detail no longer
-					    indicates distance and this is the only thing on screen
-					    that does. */}
-					<MapScaleBar />
+					{/* North indicator + ground scale. Always on: rotation is
+					    enabled here and nothing else says which way is north,
+					    and past the basemap's own tile depth the imagery is
+					    overzoomed, so its detail no longer indicates distance
+					    either. Bottom-RIGHT: the unconfigured-entries notice
+					    below owns bottom-left. */}
+					<MapChrome />
 
 					{/* GPS Topics Layer (also hosts the consolidated control panel) */}
 					<GpsTopicsLayer

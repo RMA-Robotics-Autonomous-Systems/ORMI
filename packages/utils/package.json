@@ -46,10 +46,10 @@
 			"development": "./src/basemap-styles/index.ts",
 			"import": "./dist/basemap-styles/index.js"
 		},
-		"./map-scale-bar": {
-			"types": "./dist/map-scale-bar.d.ts",
-			"development": "./src/map-scale-bar.tsx",
-			"import": "./dist/map-scale-bar.js"
+		"./map-chrome": {
+			"types": "./dist/map-chrome.d.ts",
+			"development": "./src/map-chrome.tsx",
+			"import": "./dist/map-chrome.js"
 		},
 		"./coalesced-publisher": {
 			"types": "./dist/coalesced-publisher.d.ts",

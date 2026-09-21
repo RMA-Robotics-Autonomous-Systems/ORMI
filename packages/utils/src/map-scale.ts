@@ -3,7 +3,7 @@
  *
  * Dependency-free on purpose — no React, no MapLibre — so the rounding and the
  * wording can be unit-tested directly. The component that measures a live map
- * and renders this is `map-scale-bar.tsx`, on its own subpath.
+ * and renders this is `map-chrome.tsx`, on its own subpath.
  *
  * ORMI does not use MapLibre's own `ScaleControl`, and the reason is the exact
  * range this work opens up. That control rounds through

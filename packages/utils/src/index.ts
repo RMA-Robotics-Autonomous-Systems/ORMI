@@ -25,7 +25,8 @@ export * from "./metrics/metrics-reporter";
 
 export * from "./basemap-providers";
 export * from "./style-layers";
-// `map-scale-bar.tsx` is deliberately absent: it imports react-map-gl at
-// runtime and this barrel is reachable from worker code. Use the
-// `@workspace/utils/map-scale-bar` subpath.
+// `map-chrome.tsx` is deliberately absent: it imports react-map-gl at runtime
+// and this barrel is reachable from worker code. Use the
+// `@workspace/utils/map-chrome` subpath.
 export * from "./map-scale";
+export * from "./map-orientation";

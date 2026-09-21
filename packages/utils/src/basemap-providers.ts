@@ -126,7 +126,7 @@ export const DEFAULT_BASEMAP_URL = "ormi:vector/openfreemap-liberty";
  * the basemap turns soft while everything ORMI draws on top — GeoJSON tracks,
  * markers, the graticule, mission geometry — is re-rasterised at the real zoom
  * and stays sharp. Read the ground distance off the scale bar
- * (`@workspace/utils/map-scale-bar`), never off the basemap's own detail.
+ * (`@workspace/utils/map-chrome`), never off the basemap's own detail.
  *
  * 24 is also the ceiling of the style spec's `maxzoom` field, so every limit
  * involved stays declarative.
