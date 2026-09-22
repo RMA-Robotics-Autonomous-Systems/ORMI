@@ -114,6 +114,7 @@ function target(over: Partial<Target> = {}): Target {
 /** Only the fields the exporter reads. */
 function result(over: Partial<ReplayResult> = {}): ReplayResult {
 	return {
+		n: 0,
 		value: new Int32Array(0),
 		detsNew: [],
 		detsOld: [],

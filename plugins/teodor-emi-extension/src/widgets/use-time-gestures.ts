@@ -8,20 +8,28 @@
  * the other two. Keeping the gesture handling in one hook is what makes that
  * true by construction rather than by three implementations agreeing.
  *
+ * This hook keeps the arithmetic that needs the DOM — pixels to seconds,
+ * `getBoundingClientRect`, the drag-versus-click distinction, the rAF cursor
+ * coalescing — and hands `applyGesture` an *intent*. Whether a gesture detaches
+ * from the live edge or re-arms it is decided there, beside the state, and never
+ * here: five consumers read the window and only this hook writes it, so this is
+ * exactly where those rules would drift apart.
+ *
  * Pointer moves are coalesced onto the frame: a pointer fires faster than a
  * canvas can be repainted, and every playhead write re-renders every widget
  * subscribed to the cursor.
  */
 
 import { useCallback, useEffect, useRef } from "react";
-import { useEmiView, useSetEmiCursor, useSetEmiView } from "../state/atoms";
+import { useSetEmiCursor, useSetEmiView } from "../state/atoms";
+import {
+	applyGesture,
+	WHEEL_PAN_FRACTION,
+	type EmiView,
+	type ViewGesture,
+} from "../state/emi-view";
+import { useEmiWindow } from "./use-emi-window";
 import { PAD } from "../charts/canvas-chart";
-
-/** Widest zoom-in, as a fraction of the whole run. */
-const MIN_VIEW_FRACTION = 0.0025;
-
-/** Fraction of the visible window one wheel notch scrubs sideways. */
-const WHEEL_PAN_FRACTION = 0.0015;
 
 /** What the hook hands back. */
 export interface TimeGestures {
@@ -29,17 +37,33 @@ export interface TimeGestures {
 	vt0: number;
 	/** Right edge. */
 	vt1: number;
-	/** True while the whole run is shown. */
-	full: boolean;
+	/**
+	 * What the window is doing: the whole run, riding the newest sample, or
+	 * held where the operator put it.
+	 *
+	 * Reported instead of a `full` boolean because three states now drive the
+	 * transport's controls, and two booleans that can disagree is the failure
+	 * this replaced.
+	 */
+	mode: EmiView["mode"];
 	/**
 	 * The same window changes the gestures make, as callable actions.
 	 *
 	 * A transport and a wheel must not be two implementations of "zoom" that
-	 * drift apart — every route to a window goes through {@link setView} via
+	 * drift apart — every route to a window goes through `applyGesture` via
 	 * these, which is why the buttons can never disagree with the chart.
 	 */
 	controls: {
-		/** Multiply the visible span, anchored on its centre. `<1` zooms in. */
+		/**
+		 * Multiply the visible span. `<1` zooms in.
+		 *
+		 * Passes **no anchor**: a button has no pointer, so it has nothing honest
+		 * to name, and the reducer anchors it on what the operator is demonstrably
+		 * attending to — the live edge while they are at it (`full`, `follow`, so
+		 * that zooming starts following), and the window they placed while they
+		 * are not (`pinned`, anchored on its centre in both directions). The wheel
+		 * does state a place and keeps it.
+		 */
 		zoomBy: (factor: number) => void;
 		/** Slide the window by a fraction of its own width. */
 		panBy: (fraction: number) => void;
@@ -47,6 +71,10 @@ export interface TimeGestures {
 		panTo: (fraction: number) => void;
 		/** Back to the whole run. */
 		reset: () => void;
+		/** Jump to the newest sample and stay on it. */
+		follow: () => void;
+		/** Stop following: hold the window that is on screen now. */
+		pin: () => void;
 		/** Where the window starts, as a fraction of the run. Drives the slider. */
 		offset: number;
 	};
@@ -100,13 +128,23 @@ const CLICK_SLOP = 4;
  */
 export function useTimeGestures(options: TimeGestureOptions): TimeGestures {
 	const { host, fullRange, enabled, resolve, onPick } = options;
-	const view = useEmiView();
 	const setView = useSetEmiView();
 	const setCursor = useSetEmiCursor();
 
 	const [f0, f1] = fullRange;
-	const vt0 = view ? view.t0 : f0;
-	const vt1 = view ? view.t1 : f1;
+	const { t0: vt0, t1: vt1, mode } = useEmiWindow(fullRange);
+
+	/**
+	 * Hand the reducer an intent.
+	 *
+	 * Through the updater form, so the decision is taken against whatever the
+	 * shared state holds at the moment of the gesture rather than what this
+	 * render closed over — five panels write this atom.
+	 */
+	const dispatch = useCallback(
+		(g: ViewGesture) => setView((prev) => applyGesture(prev, fullRange, g)),
+		[fullRange, setView],
+	);
 
 	const rafRef = useRef<number>(0);
 	const dragRef = useRef<{ x: number; t0: number; t1: number } | null>(null);
@@ -181,10 +219,12 @@ export function useTimeGestures(options: TimeGestureOptions): TimeGestures {
 			if (plotW <= 0) return;
 			const width = drag.t1 - drag.t0;
 			const dt = ((ev.clientX - drag.x) / plotW) * width;
-			const a = Math.min(Math.max(drag.t0 - dt, f0), f1 - width);
-			setView({ t0: a, t1: a + width });
+			// The request goes out **unclamped**. That is what lets a drag to
+			// the newest sample re-arm following: a request already clamped
+			// into the run can no longer say that it reached the end.
+			dispatch({ kind: "panTo", t0: drag.t0 - dt });
 		},
-		[f0, f1, host, hover, setView],
+		[dispatch, host, hover],
 	);
 
 	const onPointerDown = useCallback(
@@ -234,52 +274,36 @@ export function useTimeGestures(options: TimeGestureOptions): TimeGestures {
 		setCursor(null);
 	}, [setCursor]);
 
-	/** Move the window to start at `a`, clamped into the run. */
-	const windowAt = useCallback(
-		(a: number, width: number) => {
-			const span = f1 - f0;
-			if (!(span > 0)) return;
-			if (width >= span * 0.999) {
-				setView(null);
-				return;
-			}
-			const t0 = Math.min(Math.max(a, f0), f1 - width);
-			setView({ t0, t1: t0 + width });
-		},
-		[f0, f1, setView],
-	);
-
 	const zoomBy = useCallback(
 		(factor: number) => {
-			const span = f1 - f0;
-			if (!(span > 0)) return;
-			const width = vt1 - vt0;
-			const next = Math.min(
-				span,
-				Math.max(span * MIN_VIEW_FRACTION, width * factor),
-			);
-			// Anchored on the centre, because a button has no pointer to
-			// anchor on and drifting toward one edge on every press is worse
-			// than staying put.
-			windowAt((vt0 + vt1) / 2 - next / 2, next);
+			// No anchor, deliberately: a button has no pointer, so the only
+			// honest place to anchor is the one the mode implies, and the
+			// reducer is where the mode lives. Passing `f1` from here and
+			// letting the reducer override it would be a value invented by a
+			// caller that cannot know — and it is what sent an operator
+			// studying a detection mid-run to the end of the survey the moment
+			// they pressed zoom-out for context.
+			dispatch({ kind: "zoomTo", width: (vt1 - vt0) * factor });
 		},
-		[f0, f1, vt0, vt1, windowAt],
+		[dispatch, vt0, vt1],
 	);
 
 	const panBy = useCallback(
 		(fraction: number) => {
-			const width = vt1 - vt0;
-			windowAt(vt0 + width * fraction, width);
+			dispatch({ kind: "panTo", t0: vt0 + (vt1 - vt0) * fraction });
 		},
-		[vt0, vt1, windowAt],
+		[dispatch, vt0, vt1],
 	);
 
 	const panTo = useCallback(
 		(fraction: number) => {
+			// At fraction 1 this asks for `t0 = f1 - width`, so the request
+			// lands exactly on the newest sample and the reducer re-arms
+			// following — the slider's far end needs no special case.
 			const width = vt1 - vt0;
-			windowAt(f0 + (f1 - f0 - width) * fraction, width);
+			dispatch({ kind: "panTo", t0: f0 + (f1 - f0 - width) * fraction });
 		},
-		[f0, f1, vt0, vt1, windowAt],
+		[dispatch, f0, f1, vt0, vt1],
 	);
 
 	const onWheel = useCallback(
@@ -303,23 +327,29 @@ export function useTimeGestures(options: TimeGestureOptions): TimeGestures {
 
 			const t = timeAt(ev.clientX);
 			if (t == null) return;
+			// The wheel keeps the **pointer** anchor, unlike the buttons: a
+			// wheel over mid-run says "look here", not "look at the end", so
+			// zooming there correctly resolves to `pinned`.
+			//
 			// Exponential in the wheel delta: a linear zoom spends nine tenths
 			// of its travel between "the whole run" and "half the run".
-			const next = Math.min(
-				span,
-				Math.max(
-					span * MIN_VIEW_FRACTION,
-					width * Math.exp(ev.deltaY * 0.0015),
-				),
-			);
-			// Zoom about the pointer, so the sample under it stays put.
-			const frac = (t - vt0) / width;
-			windowAt(t - frac * next, next);
+			dispatch({
+				kind: "zoomTo",
+				width: width * Math.exp(ev.deltaY * 0.0015),
+				anchor: { t, fraction: (t - vt0) / width },
+			});
 		},
-		[enabled, f0, f1, panBy, timeAt, vt0, vt1, windowAt],
+		[dispatch, enabled, f0, f1, panBy, timeAt, vt0, vt1],
 	);
 
-	const onDoubleClick = useCallback(() => setView(null), [setView]);
+	const onDoubleClick = useCallback(
+		() => dispatch({ kind: "reset" }),
+		[dispatch],
+	);
+
+	const follow = useCallback(() => dispatch({ kind: "follow" }), [dispatch]);
+
+	const pin = useCallback(() => dispatch({ kind: "pin" }), [dispatch]);
 
 	const width = vt1 - vt0;
 	const room = f1 - f0 - width;
@@ -327,12 +357,14 @@ export function useTimeGestures(options: TimeGestureOptions): TimeGestures {
 	return {
 		vt0,
 		vt1,
-		full: view === null,
+		mode,
 		controls: {
 			zoomBy,
 			panBy,
 			panTo,
 			reset: onDoubleClick,
+			follow,
+			pin,
 			offset: room > 1e-9 ? (vt0 - f0) / room : 0,
 		},
 		handlers: {

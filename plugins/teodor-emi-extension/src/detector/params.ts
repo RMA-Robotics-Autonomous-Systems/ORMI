@@ -139,36 +139,3 @@ export function matchRecordingParams(recordedThreshold: number): EmiParams {
 		assoc: "gate",
 	};
 }
-
-/**
- * Parameters that invalidate the cached MAD rolling medians.
- *
- * Moving any of these costs a full recompute over the run, so the UI coalesces
- * them while a slider is in motion; everything else — the factor especially —
- * is free to sweep because the medians do not depend on it.
- */
-export const MAD_BASELINE_KEYS = [
-	"alpha",
-	"madBaseS",
-	"madDetS",
-	"madStride",
-] as const satisfies readonly (keyof EmiParams)[];
-
-/**
- * Cache key for the MAD baseline: changes exactly when the rolling medians must
- * be recomputed.
- *
- * @param params - Current parameters.
- * @param runId - Identity of the run the baseline was computed over.
- * @param n - Sample count, so a growing mission invalidates the cache.
- * @returns An opaque key.
- */
-export function madBaselineKey(
-	params: EmiParams,
-	runId: string,
-	n: number,
-): string {
-	return [runId, n, ...MAD_BASELINE_KEYS.map((k) => String(params[k]))].join(
-		"|",
-	);
-}

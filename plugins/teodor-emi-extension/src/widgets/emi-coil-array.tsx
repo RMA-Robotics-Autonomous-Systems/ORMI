@@ -15,7 +15,7 @@ import type { ControlElement, VerticalLayout } from "@jsonforms/core";
 import type { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { drawCoilArray, MIN_ARRAY_PX } from "../charts/coil-array";
 import { useEmiTheme } from "../charts/emi-theme";
-import { useEmiCursor, useEmiView } from "../state/atoms";
+import { useEmiCursor } from "../state/atoms";
 import { useEmiReplay } from "../state/use-emi-run";
 import {
 	EmiPanelFrame,
@@ -23,6 +23,7 @@ import {
 	useHostElement,
 } from "./emi-panel-frame";
 import { useRunExtent } from "./use-run-extent";
+import { useEmiWindow } from "./use-emi-window";
 
 /** Settings for the coil array. */
 interface CoilArraySettings extends Record<string, unknown> {
@@ -38,18 +39,19 @@ interface CoilArraySettings extends Record<string, unknown> {
 const CoilArray = (props: CoilArraySettings) => {
 	const { run, result, params, stale, snapshot } = useEmiReplay();
 	const cursor = useEmiCursor();
-	const view = useEmiView();
 
 	const [hostRef, host] = useHostElement<HTMLDivElement>();
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const theme = useEmiTheme(host);
 	const size = useElementSize(host);
-	const extent = useRunExtent(run);
+	// The **committed** sample count, not `run.n`: under `follow` the right edge
+	// is the extent, and `run.n` runs ahead of what the replay has placed.
+	const extent = useRunExtent(run, snapshot.n);
+	const { t0: vt0, t1: vt1 } = useEmiWindow(extent);
 
-	const midpoint = view
-		? (view.t0 + view.t1) / 2
-		: (extent[0] + extent[1]) / 2;
-	const atTime = cursor?.t ?? midpoint;
+	// With no playhead, the middle of the *visible* window — so the rake follows
+	// a zoom and a pan rather than sitting at the middle of the whole run.
+	const atTime = cursor?.t ?? (vt0 + vt1) / 2;
 
 	useEffect(() => {
 		const cv = canvasRef.current;

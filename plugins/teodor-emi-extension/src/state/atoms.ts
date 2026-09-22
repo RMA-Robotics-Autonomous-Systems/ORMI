@@ -20,6 +20,7 @@
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { appStore } from "@workspace/ormi-core";
 import { PROPOSED_PARAMS, type EmiParams } from "../detector/params";
+import { EMI_VIEW_FULL, type EmiView } from "./emi-view";
 
 /** The tuning parameters — everything that changes what the detector decides. */
 export const emiParamsAtom = atom<EmiParams>(PROPOSED_PARAMS);
@@ -37,14 +38,15 @@ export interface EmiCursor {
 /** Playhead shared by every time-domain panel. Null when nothing is hovered. */
 export const emiCursorAtom = atom<EmiCursor | null>(null);
 
-/** The visible time window, shared so the panels stay aligned. */
-export interface EmiView {
-	t0: number;
-	t1: number;
-}
-
-/** Visible window; null means "the whole run". */
-export const emiViewAtom = atom<EmiView | null>(null);
+/**
+ * The visible time window, shared so the panels stay aligned.
+ *
+ * Held as the *intent* — full, follow or pinned — rather than as two absolute
+ * seconds, so a window the operator zoomed into can still ride the live edge.
+ * `emi-view.ts` owns the union and the two pure functions that read it; nothing
+ * persists it, so there is no stored shape to migrate.
+ */
+export const emiViewAtom = atom<EmiView>(EMI_VIEW_FULL);
 
 /**
  * Detections the operator has picked out by hand, for export.
@@ -136,8 +138,8 @@ export const useEmiCursor = (): EmiCursor | null =>
 export const useSetEmiCursor = () =>
 	useSetAtom(emiCursorAtom, { store: appStore });
 
-/** Read the shared visible window. */
-export const useEmiView = (): EmiView | null =>
+/** Read the shared visible window's intent. Resolve it with `useEmiWindow`. */
+export const useEmiView = (): EmiView =>
 	useAtomValue(emiViewAtom, { store: appStore });
 
 /** Set the shared visible window. */

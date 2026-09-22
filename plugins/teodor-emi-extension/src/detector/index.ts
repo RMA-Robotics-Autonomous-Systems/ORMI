@@ -43,3 +43,4 @@ export * from "./georeference";
 export * from "./associate";
 export * from "./geometry";
 export * from "./replay";
+export * from "./stream";

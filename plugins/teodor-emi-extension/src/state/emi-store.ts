@@ -31,7 +31,6 @@ import {
 	type SubscriptionManagerLike,
 } from "@workspace/utils";
 import type { EmiRun } from "../detector/run-types";
-import { clearMadCache } from "../detector/replay";
 import { clearReplayCache } from "./use-emi-run";
 import { EmiRunBuilder, type BuilderStatus } from "./run-builder";
 import { bundleKey, type EmiTopicBundle } from "./emi-topics";
@@ -306,6 +305,12 @@ export function setEmiSource(
 	// Only `releaseAdoptedRun` ends a review, and `startIngest` stays refused
 	// until it does.
 	if (!s.adopted) archiveCurrentRun();
+	// The run on show is being replaced, so the streamed sample domain computed
+	// over it is dead weight from here. The invalidation contract would catch it
+	// anyway — the new builder mints a new run object — but dropping it here is
+	// what keeps the ceiling at one stream instead of holding the last one until
+	// somebody opens the cockpit again.
+	clearReplayCache();
 	s.manager = manager;
 	s.bundle = bundle;
 	s.runSeq += 1;
@@ -444,6 +449,8 @@ export function adoptEmiRun(run: EmiRun): void {
 	archiveCurrentRun();
 	s.builder?.reset();
 	s.adopted = run;
+	// Same reason as in `setEmiSource`: the displayed run just left the screen.
+	clearReplayCache();
 	commit();
 }
 
@@ -457,6 +464,8 @@ export function releaseAdoptedRun(): boolean {
 	if (!s.adopted) return false;
 	archiveCurrentRun();
 	s.adopted = null;
+	// Same reason again: the reviewed mission is no longer what is drawn.
+	clearReplayCache();
 	startIngest();
 	commit();
 	return true;
@@ -480,7 +489,6 @@ export function __resetEmiStoreForTests(): void {
 	// The shared replay is keyed on `rev`, which restarts from 0 here — without
 	// this, the first commit after a reset returns the previous run's result.
 	clearReplayCache();
-	clearMadCache();
 	s.listeners.clear();
 	if (s.timer) clearTimeout(s.timer);
 	s.timer = null;
