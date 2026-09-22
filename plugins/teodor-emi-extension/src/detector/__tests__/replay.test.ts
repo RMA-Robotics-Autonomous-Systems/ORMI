@@ -9,15 +9,15 @@
  * degenerate baseline.
  */
 
-import { beforeEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import reference from "./fixtures/detector-reference.json";
 
 import {
 	armThresholdAt,
-	clearMadCache,
 	madWindows,
 	releaseThresholdAt,
 	replay,
+	sampleDomain,
 	sweepThreshold,
 } from "../replay";
 import { countAtr, runAtr } from "../atr";
@@ -82,8 +82,6 @@ const LEVER: readonly [number, number] = [
 	FIX.coilOffsets.base_link!["1"]![0] - FIX.coilOffsets.xsens_link!["1"]![0],
 	FIX.coilOffsets.base_link!["1"]![1] - FIX.coilOffsets.xsens_link!["1"]![1],
 ];
-
-beforeEach(() => clearMadCache());
 
 describe("replay()", () => {
 	test("produces both series, and finds something", () => {
@@ -160,35 +158,62 @@ describe("replay()", () => {
 	});
 });
 
-describe("MAD baseline caching", () => {
-	test("changing only the factor reuses the cached medians", () => {
+// `replay()` is stateless: the baseline cache it used to carry at module scope
+// was replaced by the streamed sample domain, and the identity claims that block
+// asserted now live where the retained state does — see
+// `stream.test.ts` ("reusing the open stream"). What is still `replay()`'s own
+// claim is that a parameter the baseline does not depend on changes the answer
+// while one it does depend on changes the baseline.
+describe("what the MAD baseline depends on", () => {
+	test("the factor moves the answer and not the medians", () => {
 		const a = replay(run, PROPOSED_PARAMS, LEVER);
 		const b = replay(
 			run,
 			{ ...PROPOSED_PARAMS, madFactor: PROPOSED_PARAMS.madFactor + 5 },
 			LEVER,
 		);
-		// Same object identity means the rolling medians were not recomputed —
-		// which is what makes the factor slider free to sweep.
-		expect(b.mad).toBe(a.mad);
-		// ...and it still changed the answer.
+		expect([...b.mad!.med]).toEqual([...a.mad!.med]);
+		expect([...b.mad!.mad]).toEqual([...a.mad!.mad]);
 		expect(b.detsNew.length).not.toBe(a.detsNew.length);
 	});
 
-	test("changing a window length invalidates the cache", () => {
+	test("a window length moves the medians", () => {
 		const a = replay(run, PROPOSED_PARAMS, LEVER);
 		const b = replay(
 			run,
 			{ ...PROPOSED_PARAMS, madBaseS: PROPOSED_PARAMS.madBaseS / 2 },
 			LEVER,
 		);
-		expect(b.mad).not.toBe(a.mad);
+		expect([...b.mad!.med]).not.toEqual([...a.mad!.med]);
 	});
 
-	test("freeze changes the result without recomputing the medians", () => {
+	test("freeze moves the answer and not the medians", () => {
 		const a = replay(run, PROPOSED_PARAMS, LEVER);
 		const b = replay(run, { ...PROPOSED_PARAMS, madFreeze: true }, LEVER);
-		expect(b.mad).toBe(a.mad);
+		expect([...b.mad!.med]).toEqual([...a.mad!.med]);
+	});
+});
+
+describe("replay() is replayFrom() over sampleDomain()", () => {
+	test("the composed entry point and its two halves agree", () => {
+		// `replay()` is now a one-liner over the two halves. This pins the
+		// composition itself, so a future change to the default `n` or to which
+		// half owns a stage cannot pass unnoticed.
+		const whole = replay(run, PROPOSED_PARAMS, LEVER);
+		const sample = sampleDomain(run, PROPOSED_PARAMS);
+		expect(sample.n).toBe(run.n);
+		expect(sample.value.length).toBe(run.n * run.ncoil);
+		expect(sample.speed.length).toBe(run.n);
+		expect([...sample.value]).toEqual([...whole.value]);
+		expect([...sample.speed]).toEqual([...whole.speed]);
+		expect([...sample.turn]).toEqual([...whole.turn]);
+	});
+
+	test("a prefix resolves exactly the prefix", () => {
+		const half = sampleDomain(run, PROPOSED_PARAMS, 1000);
+		expect(half.n).toBe(1000);
+		expect(half.value.length).toBe(1000 * run.ncoil);
+		expect(half.mad!.med.length).toBe(1000 * run.ncoil);
 	});
 });
 

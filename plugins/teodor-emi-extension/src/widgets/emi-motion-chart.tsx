@@ -63,7 +63,9 @@ const MotionChart = (props: MotionSettings) => {
 	const depsRef = useRef<unknown[]>([]);
 	const noteRef = useRef<HTMLParagraphElement>(null);
 
-	const extent = useRunExtent(run);
+	// The **committed** sample count, not `run.n`: under `follow` the right edge
+	// is the extent, and `run.n` runs ahead of what the replay has placed.
+	const extent = useRunExtent(run, snapshot.n);
 	const gestures = useTimeGestures({
 		host,
 		fullRange: extent,

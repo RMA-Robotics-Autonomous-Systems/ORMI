@@ -101,7 +101,7 @@ model {
 
         emiDetector = component 'EMI Detector' {
           technology 'plugins/teodor-emi-extension/src/detector · pure TS'
-          description 'Port of the offline report tool detector (emi_ws/tools/report/detector.js, itself verified against pipeline.py and the C++ nodes): EMA, ATR Schmitt trigger, experimental per-coil MAD, georeferencing, gate and chain association, cross-coil geometry. No React, no DOM. Held to the Python reference by a committed fixture.'
+          description 'Port of the offline report tool detector (emi_ws/tools/report/detector.js, itself verified against pipeline.py and the C++ nodes): EMA, ATR Schmitt trigger, experimental per-coil MAD, georeferencing, gate and chain association, cross-coil geometry. No React, no DOM. Held to the Python reference by a committed fixture, plus an incremental sample-domain stage held to that same fixture by a chunk-boundary equivalence test (streamed in N chunks must equal one whole sweep, bit for bit).'
         }
 
         emiSchemas = component 'EMI Message Schemas' {
@@ -111,7 +111,7 @@ model {
 
         emiRunStore = component 'EMI Run Store' {
           technology 'plugins/teodor-emi-extension/src/state · module singleton + Jotai on appStore'
-          description 'One run, one replay, one set of subscriptions for every EMI panel. A globalThis-pinned refcounted store subscribes through the datasource subscription registry and builds a column-oriented EmiRun on the /teodora/emi/gnss timebase; widgets read it through useSyncExternalStore, and useEmiReplay memoises a single detector pass across all of them with the parameters deferred so a slider drag coalesces.'
+          description 'One run, one replay, one set of subscriptions for every EMI panel. A globalThis-pinned refcounted store subscribes through the datasource subscription registry and builds a column-oriented EmiRun on the /teodora/emi/gnss timebase; widgets read it through useSyncExternalStore, and useEmiReplay memoises a single detector pass across all of them with the parameters deferred so a slider drag coalesces. The O(n) sample domain (decision variable, MAD medians, speed/turn) is STREAMED rather than re-swept: it is extended by the samples a commit added, keyed on the run OBJECT and not its id, because a confirmed backwards seek mints a new run under the same id. Only the O(detections) stages - triggers, georeferencing, pairs, association - re-run whole, which is what a parameter change pays for.'
         }
 
         emiCockpit = component 'EMI Cockpit Widgets' {

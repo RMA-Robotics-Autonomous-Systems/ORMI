@@ -177,9 +177,11 @@ export function drawCoilArray(
 	// appended to continuously while the replay is recomputed on a 100 ms
 	// commit, so between commits `run.n` runs ahead of every column in
 	// `result` — and an index past the end reads as `undefined`, which turns
-	// the coil fill into a silently ignored NaN alpha.
-	const nResult = Math.floor(result.value.length / Math.max(1, run.ncoil));
-	const nSafe = Math.max(1, Math.min(run.n, nResult));
+	// the coil fill into a silently ignored NaN alpha. Read off `result.n`
+	// rather than divided out of `value.length`: the count is a property of the
+	// result, and inferring it from an array length is only right while every
+	// published column is an exact-length view.
+	const nSafe = Math.max(1, Math.min(run.n, result.n));
 	const i = Math.min(
 		nSafe - 1,
 		Math.max(0, lowerBound(run.t, o.atTime, nSafe)),

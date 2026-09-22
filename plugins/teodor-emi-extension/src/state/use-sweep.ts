@@ -77,16 +77,23 @@ export function useSweep(
 		// Whole buckets only, so a growing mission re-sweeps every
 		// GROWTH_BUCKET samples instead of on every 100 ms commit — and never
 		// past the sample count the replay was computed at, whose columns are
-		// what `sweepThreshold` indexes.
+		// what `sweepThreshold` indexes. That count is `n`: the replay is
+		// resolved at the snapshot's committed count, which is what this hook
+		// is handed.
 		// Below one bucket there is nothing to throttle, so a short recording
 		// sweeps all of itself. Above it, the last partial bucket is left out
 		// while the run grows — up to 512 samples, sixteen seconds at 32 Hz, on
 		// a curve whose shape a sixteen-second tail does not move.
-		const quantised = n < GROWTH_BUCKET ? n : bucket * GROWTH_BUCKET;
-		const nSweep = Math.min(
-			quantised,
-			Math.floor(result.value.length / Math.max(1, run.ncoil)),
-		);
+		// Clamped on the committed count and nothing else. It used to be
+		// clamped on `result.value.length / ncoil` as well, which inferred a
+		// sample count from an array length — and the decision variable is now
+		// an exact-length view over an over-allocated buffer, so any drift in
+		// that inference would have the sweep read the zeroed slack. Forty-four
+		// passes over zeros produce detection-count curves that flatten
+		// plausibly, in the panel whose whole job is to be trusted. `n` is the
+		// snapshot's own count and the replay was computed at exactly it, so
+		// there is nothing left to infer.
+		const nSweep = n < GROWTH_BUCKET ? n : bucket * GROWTH_BUCKET;
 		if (nSweep === 0) return null;
 		return sweepThreshold(
 			{ ...run, n: nSweep },

@@ -12,6 +12,10 @@
  * zooms and a shift-wheel that scrubs are excellent once you know; a panel with
  * no visible control offers no way to find out, and a trackpad user who has
  * never pressed shift over a chart will conclude the run cannot be zoomed.
+ *
+ * The same argument is why following the live edge has a **button** and not only
+ * an implicit rule: a window that re-anchors itself when a drag reaches the end
+ * is excellent once you know, and invisible until then.
  */
 
 import { Button } from "@workspace/ui/components/button";
@@ -21,6 +25,7 @@ import {
 	MinusIcon,
 	PlusIcon,
 } from "lucide-react";
+import type { EmiView } from "../state/emi-view";
 import type { TimeGestures } from "./use-time-gestures";
 
 /** How much one zoom press changes the visible span. */
@@ -33,18 +38,37 @@ const PAN_STEP = 0.25;
 export interface EmiTimeTransportProps {
 	/** The gesture hook's control surface, from the panel that owns the host. */
 	controls: TimeGestures["controls"];
-	/** True while the whole run is shown — the panning controls do nothing then. */
-	full: boolean;
+	/**
+	 * What the shared window is doing.
+	 *
+	 * Three states drive four controls, so this replaces the `full` boolean it
+	 * used to take rather than sitting beside it: a second flag would be a
+	 * second answer to the same question.
+	 */
+	mode: EmiView["mode"];
 }
 
+/** What the follow toggle says about itself, per mode. */
+const FOLLOW_TITLE: Record<EmiView["mode"], string> = {
+	// Reads as on, and does nothing — so it says why. Without this the operator
+	// goes looking for the setting that is "stuck".
+	full: "The whole run is shown, so the newest sample is always visible",
+	follow: "Following the newest sample — click to pin this window",
+	pinned: "Jump to the newest sample and follow it",
+};
+
 /**
- * Zoom, pan and reset for a time-domain panel.
+ * Zoom, pan, follow and reset for a time-domain panel.
  *
- * @param props - Controls and whether the whole run is visible.
+ * @param props - Controls and what the window is currently doing.
  * @returns React element.
  */
 export function EmiTimeTransport(props: EmiTimeTransportProps) {
-	const { controls, full } = props;
+	const { controls, mode } = props;
+	const full = mode === "full";
+	// Lit for `follow` and for `full`, because in both the newest sample is on
+	// screen and stays there. Only `pinned` is not keeping up.
+	const following = mode !== "pinned";
 
 	return (
 		<div className="flex items-center gap-1">
@@ -99,16 +123,40 @@ export function EmiTimeTransport(props: EmiTimeTransportProps) {
 					controls.panTo(Number(ev.target.value) / 1000)
 				}
 			/>
+			{/*
+			  Under `follow` the slider sits at its far end and creeps by itself
+			  as the run grows, which is the feedback that "later" would give —
+			  so the arrow is disabled and says so instead of nudging a window
+			  that is already at the end.
+			*/}
 			<Button
 				size="sm"
 				variant="ghost"
 				className="h-6 w-6 p-0"
-				title="Later"
+				title={following ? "Already at the newest sample" : "Later"}
 				aria-label="Later"
-				disabled={full}
+				disabled={following}
 				onClick={() => controls.panBy(PAN_STEP)}
 			>
 				<ChevronRightIcon className="h-3 w-3" />
+			</Button>
+			{/*
+			  States itself in a word, not in a colour. The variant change is a
+			  second, redundant signal — an operator who cannot read the accent
+			  (a wall console at an angle, reduced motion, colour vision) must
+			  still be able to tell whether the panel is keeping up, and
+			  `aria-pressed` is what says it to a screen reader.
+			*/}
+			<Button
+				size="sm"
+				variant={following ? "secondary" : "ghost"}
+				className="h-6 px-2 text-[11px]"
+				title={FOLLOW_TITLE[mode]}
+				aria-pressed={following}
+				disabled={full}
+				onClick={following ? controls.pin : controls.follow}
+			>
+				follow
 			</Button>
 			<Button
 				size="sm"

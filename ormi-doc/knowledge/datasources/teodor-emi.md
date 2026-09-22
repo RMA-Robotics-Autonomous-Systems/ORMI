@@ -360,6 +360,64 @@ own index and the id of the target it belongs to — so branching on `target` fi
 made a detection click select the chain and a barycentre click select the chain
 rather than the barycentre.
 
+### The window has a mode, and follow is not a tolerance
+
+The shared time window was two absolute seconds or `null` for "the whole run".
+Live, `null` _incidentally_ followed, because the run's extent widens under it —
+but any zoom pinned an absolute window that never re-anchored, so new samples
+landed off the right edge forever and the panel read as though it had stopped
+updating. Zoomed and following were mutually exclusive by construction.
+
+It is now a discriminated union in `src/state/emi-view.ts` — `full` /
+`follow{width}` / `pinned{t0,t1}` — for the reason `AGENTS.md` gives for the
+settled-topics union: three different answers must not share one nullable
+representation. One resolver turns a mode plus the live extent into two numbers,
+and returns **no derived booleans**, because two booleans that can disagree is
+what this replaced; one reducer owns every transition, because five panels read
+the window and only the gesture hook writes it, so the handlers are exactly where
+the rules would drift. The resolver clamps and the state keeps the _intent_:
+`follow{width: 60}` on a 30-second run shows 30 s now and 60 s once the run is
+longer, and must not be normalised into `full`.
+
+**Re-arming needs no tolerance, because re-arming is what the clamp means.** A
+pinned window dragged to the end already sits at `t1 === f1` and then drifts left
+as the extent widens, so testing the _resolved_ window against `f1 - eps` cannot
+work: an eps large enough to survive one commit's worth of samples is
+source-rate-dependent, and it would re-arm a window an operator deliberately
+pinned at the end of a finished bag. The decision is taken from the **unclamped
+request** instead — `requestedT1 >= f1` means "the operator asked for more than
+exists", whose only honest answer is follow. Exact, frame-rate independent,
+source-rate independent. A drag that stops one pixel short stays pinned, which is
+correct: they stopped short on purpose.
+
+The zoom **anchor** is derived from the mode, not from the caller and not from the
+direction: `f1` under `full` and `follow` (which is what makes "zooming starts
+following" true with no mode check in the caller), and the **window's own centre**
+under `pinned`. That last one is not symmetry for its own sake — anchoring a
+button on `f1` from `pinned` meant an operator studying a detection mid-run who
+pressed zoom-out for context was taken to the end of the survey, which is the
+window sliding out from under them, the failure detach-on-pan exists to prevent.
+A gesture that _names_ a place keeps it: the wheel always anchors on the pointer,
+so a wheel zoom at the live edge still re-arms, because that gesture really does
+mean "zoom about here". Re-arming from `pinned` is otherwise reachable only by
+deliberate acts — a pan, the slider at 1.0, the Follow button.
+
+**Follow is keyed on the extent alone and never on `run.source`.** A drained bag
+has a static extent, so follow resolves to a window at the end that never moves
+and is observationally identical to pinned — inert and free. A bag played in real
+time (`drain: false`) grows, and follow is exactly as useful as it is live. A
+source check would be a branch that can be wrong: `EmiRun.source` is provenance,
+not liveness, and one code path over offline and online is this plugin's defining
+move.
+
+Two consequences worth keeping. The run extent must come from the **committed**
+`snapshot.n`, not `run.n`, which advances at wire rate between commits — invisible
+while `null` meant "whole", and visible under follow as an axis whose newest
+samples have nothing drawn under them. And the transport lives only in the signal
+stack's header, so an operator looking at the motion chart alone cannot tell
+follow from pinned; the honest fix is rendering the transport in each time panel's
+header rather than drawing five separate indicators. Not done.
+
 ### Picking marks by hand
 
 Export takes a hand-picked subset, and **a click picks the mark that was clicked
@@ -431,10 +489,12 @@ through `useSyncExternalStore` with an identity-stable, change-fresh snapshot �
 the React-Compiler rule in `AGENTS.md`, not a preference.
 
 `useEmiReplay()` memoises **one** replay across every mounted panel, keyed on the
-run revision and the parameter object's identity. Parameters are read through
-`useDeferredValue`, which is the coalescing the tuning loop needs: a slider that
-invalidates the rolling medians must not recompute the baseline per pixel of
-travel.
+run revision and the parameter object's identity — over a sample domain that is
+_streamed_ rather than re-swept, which is the next section. Parameters are read
+through `useDeferredValue`, which is the coalescing the tuning loop needs: a
+slider that invalidates the rolling medians must not recompute the baseline per
+pixel of travel — and since the streaming change that is the **only** expensive
+event left, so the deferral matters more than it did, not less.
 
 The timebase is `/teodora/emi/gnss` — nothing else is sampled at the EMI rate, so
 nothing else can define the row index every per-sample column is keyed on. The
@@ -443,6 +503,101 @@ and still stored, though nothing displays it since the walkthrough was removed �
 the detector never touched it either. Dropping the subscription and its five
 columns would shrink every stored mission, and would change the mission format,
 so it is a deliberate separate change rather than a tidy-up.
+
+### The replay is streamed, not re-swept
+
+The parameter-dependent pipeline used to re-derive the **whole run from sample 0
+on every commit**, which made the cockpit quadratic in survey duration. Two
+independent things arranged it: `useEmiReplay`'s memo is keyed on the snapshot,
+whose identity changes every `COMMIT_MS = 100`, and the cached MAD baseline's key
+carried `run.n`, which grows on every commit. So the cache missed, always.
+
+Measured, one full `replay()` pass, 32 Hz x 5 coils:
+
+| survey | n      | MAD (the page default) | fixed detector |
+| ------ | ------ | ---------------------- | -------------- |
+| 1 min  | 1 920  | 27 ms                  | 0.3 ms         |
+| 5 min  | 9 600  | 153 ms                 | 1.0 ms         |
+| 10 min | 19 200 | 315 ms                 | 1.7 ms         |
+| 20 min | 38 400 | **617 ms**             | 3.1 ms         |
+
+The 100 ms budget is gone at **~3.5 minutes**, and a 20-minute survey asks for
+~3 760 s of main-thread time inside 1 200 s — **314% of one core**, with the ratio
+still climbing. The fixed detector is ~200x cheaper, so the failure only appears
+on MAD, which is what `PROPOSED_PARAMS` opens the page on. Worth naming as a
+symptom: _the tab gets slower the longer you record_, which reads as a leak and
+is not one.
+
+Nearly all of it is `madBaseline` — per coil, a `wBase = 512` median re-sorted
+every `madStride = 8` samples (two sorts of 512: the median, then the median of
+absolute deviations), plus a `wDet = 16` median sorted on **every** sample.
+
+**The split is by output size, and that is the rule rather than a list:**
+
+> A stage whose output is an array of size **O(n)** is streamed. A stage whose
+> output is **O(detections)** is recomputed whole, every commit.
+
+Streamed (`src/detector/stream.ts`): the decision variable, the MAD
+`med`/`mad`/`det`, and `speed`/`turn`. Recomputed whole: both triggers,
+georeferencing, the cross-coil pairs and the association. At 20 minutes the
+remainder is **1.3 ms** per commit and at 60 minutes **3.7 ms**, so the triggers
+are deliberately left whole: streaming them needs a second latch-carry and hence
+a second invalidation contract, and folding it into one key would make every
+`madFactor` tick discard the expensive baseline — a regression on the one slider
+operators actually drag.
+
+This works because every streamed stage is already **causal** and the builder is
+strictly **append-only**. `madBaseline`'s window is `[max(0, i-wBase+1) .. i]`,
+backwards only, and its `i % stride === 0` phase is absolute from sample 0, so
+carrying `lastMed`/`lastMad` per coil reproduces the sweep exactly. The EMA
+carries one accumulator per coil per channel. `speed`/`turn` are the exception
+that proves the rule: they are **centred** over +/-k, so their last k samples are
+provisional and are rewritten in place on the next extend — nothing may cache,
+persist or **export** a value read from that tail.
+
+`replay()` keeps its signature and is now **stateless** (the module-level MAD
+cache is gone), redefined as `replayFrom(run, params, sampleDomain(run, params))`.
+That makes the equivalence claim structural instead of promised: the only thing a
+test must prove is that the stream equals `sampleDomain`. `sampleDomain()` must
+therefore stay a composition of the _existing fixture-pinned stages_ and must
+never be "simplified" into a one-chunk call to the stream, which would degenerate
+the test into `x === x`.
+
+**The invalidation key is the run object, not `run.id`** — and the section below
+is why. `EmiRunBuilder.reset()` on a confirmed backwards seek nulls the run so
+`ensureRun` mints a **new object under the same id**, since `runSeq` only bumps in
+`setEmiSource`. An id-keyed cache would serve a 20-minute stream over a recording
+that just restarted at sample 0, and the symptom would be real numbers about the
+wrong recording — the same class of failure as the seek census below. A shrink on
+the same object is impossible today and is therefore defensively a _rebuild_
+rather than an assertion: a slow correct answer beats a crashed panel. The rest
+of the key is the **clamped** windows (`wBase`, `wDet`, `stride`, `k`), `alpha`,
+`ncoil` and whether MAD is needed — strictly better than the old string key,
+because `madBaseS: 16 -> 16.0001` clamps to the same 512 and must not rebuild.
+
+Deliberately **not** in the key: `run.offsets`, which `onTfStatic` replaces in
+place. It reaches only `offsetsForFrame`/`georeference`, i.e. the
+recomputed-whole domain — which is _why_ that in-place mutation is safe. Nor any
+trigger or association parameter, which is what keeps the factor slider free.
+
+The cache is single-entry and pinned on `globalThis` beside the replay cache, in
+one record because the two must invalidate together. The derived set is 3.4 MB at
+20 minutes against the run's own 8.6 MB; with `LIBRARY_MAX = 6` a per-run cache
+would add ~24 MB _and_ need an eviction policy, and an eviction policy that
+evicts the live run mid-survey is the exact failure this change removes.
+
+Two things this does not fix, recorded rather than discovered. **The quadratic is
+reduced ~200x, not removed** — and the consequence is that the rebuild on a
+stats-key parameter change (617 ms at 20 min, 1.7 s at 60 min) is now the only
+stall left, and becomes _newly perceptible_ because it is no longer hidden in
+continuous fog. A sliding-window median would take `madBaseline` from
+`O(n·w log w)` to `O(n log w)` and that rebuild into the tens of milliseconds; it
+is the named follow-up, and it is the one change that would need the exact-equality
+tests re-argued, being a different algorithm rather than a different schedule.
+And `charts/run-overlay.ts` is a **second** whole-sweep site this did not touch:
+it sweeps every library run plus the growing one, up to seven, on a
+`floor(n / 2048)` bucket. It is opt-in and not in the shipped cockpit, so an
+operator who adds the repeatability panel mid-survey still pays for it.
 
 ### The EMI device's stamps are not monotonic, and that is not a seek
 
@@ -518,18 +673,18 @@ projection, min/max decimation. Roughly forty lines of axis code buy the rest.
 
 ### What each panel is for
 
-| widget                  | question it answers                                                         |
-| ----------------------- | --------------------------------------------------------------------------- |
-| `emi-coil-signal-stack` | What did each coil see, against the threshold it was actually judged by?    |
-| `emi-motion`            | Was this stretch a survey at all — or was the robot parked, or turning?     |
-| `emi-coil-array`        | Where is an object relative to the rake, and which coil should see it next? |
-| `emi-params-rail`       | Every number that changes the result, with the result beside it.            |
-| `emi-threshold-sweep`   | How much of the difference is the algorithm rather than the setting?        |
-| `emi-lag-scatter`       | Does the cross-coil geometry hold?                                          |
-| `emi-repeatability`     | Does a detection come back on another pass?                                 |
-| `emi-tables`            | The counts, the targets, and whether the replay reproduces the recording.   |
-| `emi-mission-control`   | Start a survey, stop it, reopen a stored one.                               |
-| `emi-export`            | Write the run out as GeoJSON, with the tuning it was read at.               |
+| widget                  | question it answers                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `emi-coil-signal-stack` | What did each coil see, against the threshold it was actually judged by? Carries the shared time transport, including the Follow control. |
+| `emi-motion`            | Was this stretch a survey at all — or was the robot parked, or turning?                                                                   |
+| `emi-coil-array`        | Where is an object relative to the rake, and which coil should see it next?                                                               |
+| `emi-params-rail`       | Every number that changes the result, with the result beside it.                                                                          |
+| `emi-threshold-sweep`   | How much of the difference is the algorithm rather than the setting?                                                                      |
+| `emi-lag-scatter`       | Does the cross-coil geometry hold?                                                                                                        |
+| `emi-repeatability`     | Does a detection come back on another pass?                                                                                               |
+| `emi-tables`            | The counts, the targets, and whether the replay reproduces the recording.                                                                 |
+| `emi-mission-control`   | Start a survey, stop it, reopen a stored one.                                                                                             |
+| `emi-export`            | Write the run out as GeoJSON, with the tuning it was read at.                                                                             |
 
 Four map marker types (`TeodorEMITrack`, `TeodorEMIDetections`,
 `TeodorEMITargets`, `TeodorEMIGhosts`) extend the standard map widget. They draw
@@ -746,3 +901,15 @@ Deliberate deltas from the reference are listed in `src/detector/index.ts`: a
 non-finite heading is guarded (unguarded, it turns every `>` acceptance test
 into an unconditional accept and collapses a run into one target), and the
 cross-coil spatial hash is sized on `hypot(along, cross)` rather than `max`.
+
+`src/detector/stream.ts` adds a fourth link to that chain. It extends the O(n)
+sample domain a chunk at a time instead of re-sweeping it, and is held to the
+same fixture by a **chunk-boundary equivalence test**: streamed in N chunks must
+equal one whole sweep, bit for bit, under schedules that include 1 sample,
+zero-length chunks, the live rate, and 7 / 8 / 9 — 8 is stride-aligned and hides a
+phase bug, so 7 and 9 are the test, and the live rate of ~3.2 samples per commit
+is not stride-aligned either. Comparison is exact and never `toBeCloseTo`: the
+claim is bit-for-bit, and a tolerance would let the deferred sliding-window-median
+rewrite pass while changing results. A separate assertion pins the _work_
+(`samplesSwept === n`, not `n^2/2`) rather than a wall-clock budget, which is what
+stops a later refactor quietly reintroducing the quadratic.

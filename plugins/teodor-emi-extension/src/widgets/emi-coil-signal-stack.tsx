@@ -37,7 +37,6 @@ import {
 	useEmiCursor,
 	useEmiSelection,
 	useEmiDisplayState,
-	useEmiView,
 	type EmiDisplay,
 } from "../state/atoms";
 import { useEmiReplay } from "../state/use-emi-run";
@@ -49,6 +48,7 @@ import {
 import { useTimeGestures } from "./use-time-gestures";
 import { EmiTimeTransport } from "./emi-time-transport";
 import { useRunExtent } from "./use-run-extent";
+import { useEmiWindow } from "./use-emi-window";
 
 /** Settings for the signal stack. */
 interface SignalStackSettings extends Record<string, unknown> {
@@ -101,13 +101,14 @@ const CoilSignalStack = (props: SignalStackSettings) => {
 	const panelDepsRef = useRef<unknown[]>([]);
 
 	const ncoil = run?.ncoil ?? 0;
-	const extent = useRunExtent(run);
-	// Read here as well as through the gesture hook: the hit tolerance is in
+	// The **committed** sample count, not `run.n`: under `follow` the right edge
+	// is the extent, and `run.n` runs ahead of what the replay has placed.
+	const extent = useRunExtent(run, snapshot.n);
+	// Resolved here as well as inside the gesture hook: the hit tolerance is in
 	// seconds per pixel of the *visible* window, and `resolve` is handed to the
-	// hook, so it cannot read the window back out of it.
-	const view = useEmiView();
-	const vt0 = view ? view.t0 : extent[0];
-	const vt1 = view ? view.t1 : extent[1];
+	// hook, so it cannot read the window back out of it. One resolver, so the
+	// two cannot disagree about which slice is on screen.
+	const { t0: vt0, t1: vt1 } = useEmiWindow(extent);
 
 	// Hit-test on the frame the pointer settled on, not on every move: the
 	// detection list is scanned per call.
@@ -268,7 +269,7 @@ const CoilSignalStack = (props: SignalStackSettings) => {
 					))}
 					<EmiTimeTransport
 						controls={gestures.controls}
-						full={gestures.full}
+						mode={gestures.mode}
 					/>
 				</div>
 			}

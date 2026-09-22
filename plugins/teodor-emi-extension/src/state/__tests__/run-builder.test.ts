@@ -216,6 +216,34 @@ describe("EmiRunBuilder — ordering and seeks", () => {
 		expect(run.n).toBe(5);
 	});
 
+	it("mints a NEW run object under the SAME id when it restarts", () => {
+		// This is the producer half of the streamed sample domain's
+		// invalidation contract (`detector/stream.ts`): the cache key holds the
+		// run *object*, because a seek replaces the object while the id —
+		// `${datasourceId}#${runSeq}`, and `runSeq` only bumps in
+		// `setEmiSource` — stays exactly the same. An id-keyed cache would
+		// serve a twenty-minute accumulated stream over a recording that just
+		// restarted at sample zero: real numbers about the wrong run.
+		const b = new EmiRunBuilder(init);
+		b.onQuaternion(quat(0));
+		for (let i = 0; i < 10; i++) {
+			b.onEmiGnss(gnssMessage(100 + i, [i, i, i, i, i]));
+		}
+		const before = b.finalize()!;
+
+		// SEEK_CONFIRM_SAMPLES is 8; twelve is comfortably past it.
+		for (let i = 0; i < 12; i++) {
+			b.onEmiGnss(gnssMessage(i * 0.03, [7, 7, 7, 7, 7]));
+		}
+		const after = b.finalize()!;
+
+		expect(b.status.seeks).toBe(1);
+		expect(after).not.toBe(before);
+		expect(after.id).toBe(before.id);
+		// And the new object really is a different recording: it starts over.
+		expect(after.n).toBeLessThan(before.n);
+	});
+
 	it("refuses a message whose coil set disagrees with the run's", () => {
 		const b = new EmiRunBuilder(init);
 		b.onQuaternion(quat(0));

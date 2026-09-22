@@ -26,6 +26,62 @@ import type { EmiRun } from "./run-types";
 const PATH_CELL = 0.5;
 
 /**
+ * Half-width of the window the motion series difference over, in samples.
+ *
+ * ±0.25 s of the fix, floored at one sample so the difference is never taken
+ * against the sample itself. Exported because three places need exactly this
+ * number — the two series below and the streamed sample domain, which has to
+ * know how long its provisional tail is — and a third hand-written
+ * `Math.round(rate * 0.25)` is how the three come to disagree without anything
+ * failing.
+ *
+ * @param run - The run.
+ * @returns Half-window in samples, at least 1.
+ */
+export function motionHalfWindow(run: EmiRun): number {
+	return Math.max(1, Math.round(run.sampleRateHz * 0.25));
+}
+
+/**
+ * Ground speed for samples `[from, n)`, written into `out`.
+ *
+ * Range-addressed rather than array-returning so the whole-sweep
+ * {@link speedSeries} and the streamed sample domain (`detector/stream.ts`)
+ * share ONE copy of the arithmetic. They do not share the *range* logic, which
+ * is the part that can be wrong and the part the stream's equivalence tests
+ * exercise.
+ *
+ * `n` is the clamp the window closes against, so a sample within `k` of `n` is
+ * centred on a window that is still truncated on the right. Its value is
+ * correct for that `n` and changes when `n` grows — which is exactly why the
+ * stream rewrites its last `k` samples on every extend.
+ *
+ * @param run - The run.
+ * @param n - Sample count the window clamps against.
+ * @param k - Half-window from {@link motionHalfWindow}.
+ * @param from - First sample to write.
+ * @param out - Destination, at least `n` long.
+ */
+export function fillSpeedSeries(
+	run: EmiRun,
+	n: number,
+	k: number,
+	from: number,
+	out: Float32Array,
+): void {
+	for (let i = from; i < n; i++) {
+		const a = Math.max(0, i - k);
+		const b = Math.min(n - 1, i + k);
+		const dt = run.t[b]! - run.t[a]!;
+		out[i] =
+			dt > 1e-6
+				? Math.hypot(run.sx[b]! - run.sx[a]!, run.sy[b]! - run.sy[a]!) /
+					dt
+				: 0;
+	}
+}
+
+/**
  * Ground speed in m/s, differenced over ±0.25 s of the fix.
  *
  * An unsigned magnitude: reversing and crabbing are indistinguishable from
@@ -33,23 +89,45 @@ const PATH_CELL = 0.5;
  * distrust while the robot is manoeuvring.
  *
  * @param run - The run.
+ * @param n - Samples to resolve; defaults to the whole run. A live run is
+ *   replayed at the *committed* sample count rather than at `run.n`, which
+ *   advances between commits, so the caller supplies it.
  * @returns Speed per sample, `[n]`.
  */
-export function speedSeries(run: EmiRun): Float32Array {
-	const n = run.n;
-	const k = Math.max(1, Math.round(run.sampleRateHz * 0.25));
+export function speedSeries(run: EmiRun, n: number = run.n): Float32Array {
 	const v = new Float32Array(n);
-	for (let i = 0; i < n; i++) {
+	fillSpeedSeries(run, n, motionHalfWindow(run), 0, v);
+	return v;
+}
+
+/**
+ * Yaw rate for samples `[from, n)`, written into `out`.
+ *
+ * The range counterpart of {@link turnSeries}, for the reason
+ * {@link fillSpeedSeries} gives.
+ *
+ * @param run - The run.
+ * @param n - Sample count the window clamps against.
+ * @param k - Half-window from {@link motionHalfWindow}.
+ * @param from - First sample to write.
+ * @param out - Destination, at least `n` long.
+ */
+export function fillTurnSeries(
+	run: EmiRun,
+	n: number,
+	k: number,
+	from: number,
+	out: Float32Array,
+): void {
+	for (let i = from; i < n; i++) {
 		const a = Math.max(0, i - k);
 		const b = Math.min(n - 1, i + k);
 		const dt = run.t[b]! - run.t[a]!;
-		v[i] =
-			dt > 1e-6
-				? Math.hypot(run.sx[b]! - run.sx[a]!, run.sy[b]! - run.sy[a]!) /
-					dt
-				: 0;
+		let d = run.yaw[b]! - run.yaw[a]!;
+		while (d > Math.PI) d -= 2 * Math.PI;
+		while (d < -Math.PI) d += 2 * Math.PI;
+		out[i] = dt > 1e-6 ? ((d / dt) * 180) / Math.PI : 0;
 	}
-	return v;
 }
 
 /**
@@ -59,21 +137,13 @@ export function speedSeries(run: EmiRun): Float32Array {
  * 20 000 °/s spin.
  *
  * @param run - The run.
+ * @param n - Samples to resolve; defaults to the whole run. See
+ *   {@link speedSeries}.
  * @returns Turn rate per sample, `[n]`.
  */
-export function turnSeries(run: EmiRun): Float32Array {
-	const n = run.n;
-	const k = Math.max(1, Math.round(run.sampleRateHz * 0.25));
+export function turnSeries(run: EmiRun, n: number = run.n): Float32Array {
 	const v = new Float32Array(n);
-	for (let i = 0; i < n; i++) {
-		const a = Math.max(0, i - k);
-		const b = Math.min(n - 1, i + k);
-		const dt = run.t[b]! - run.t[a]!;
-		let d = run.yaw[b]! - run.yaw[a]!;
-		while (d > Math.PI) d -= 2 * Math.PI;
-		while (d < -Math.PI) d += 2 * Math.PI;
-		v[i] = dt > 1e-6 ? ((d / dt) * 180) / Math.PI : 0;
-	}
+	fillTurnSeries(run, n, motionHalfWindow(run), 0, v);
 	return v;
 }
 
