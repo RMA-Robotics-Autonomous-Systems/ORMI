@@ -5,6 +5,7 @@ import {
 	compiledDraftSlice,
 	formatCondition,
 	NO_CONDITION_LABEL,
+	programMarks,
 	resolveGraphDraftWrite,
 	shouldHandleGraphShortcut,
 	sortIssuesBySeverity,
@@ -17,6 +18,7 @@ import {
 	type MissionGraphIssue,
 } from "./mission-graph";
 import { MissionBehavior } from "../types/c2-types";
+import { parseMissionFeedback } from "../types/mission-feedback";
 
 /** A condition literal, so each case only states what it is about. */
 function condition(patch: Partial<GraphCondition>): GraphCondition {
@@ -658,5 +660,129 @@ describe("resolveGraphDraftWrite — an unauthored graph", () => {
 				graph_compiles: true,
 			}),
 		).toBeNull();
+	});
+});
+
+describe("the graph shows where each agent is while the mission runs", () => {
+	// The fog's own progress for the 2026-09-23 screenshot graph, 12 s in:
+	// Es sweeps, Ge waits at its 30 s gate.
+	const program = parseMissionFeedback(
+		JSON.stringify({
+			mission_id: "m1",
+			status: 5,
+			tasks: [],
+			program: {
+				"agent-es": {
+					chain: 0,
+					step_index: 0,
+					steps_total: 1,
+					step_id: "go-es",
+					state: "RUNNING",
+					steps: [{ step_id: "go-es", gate_nodes: [] }],
+				},
+				"agent-ge": {
+					chain: 1,
+					step_index: 0,
+					steps_total: 2,
+					step_id: "go-ge",
+					state: "GATED",
+					steps: [
+						{ step_id: "go-ge", gate_nodes: ["when"] },
+						{ step_id: "back-ge", gate_nodes: ["es-holds"] },
+					],
+					gate: {
+						node_ids: ["when"],
+						waited_s: 12.4,
+						conditions: [
+							{
+								node_id: "when",
+								op: "ElapsedSeconds",
+								key: "",
+								threshold: 30,
+								negate: false,
+								holds: false,
+							},
+						],
+					},
+				},
+			},
+		}),
+	)?.program;
+	const agentNodes = new Map([
+		["agent-es", ["es"]],
+		["agent-ge", ["ge"]],
+	]);
+
+	it("parses the fog's program progress", () => {
+		expect(program?.["agent-ge"]?.gate?.waited_s).toBe(12.4);
+		expect(program?.["agent-ge"]?.steps).toHaveLength(2);
+	});
+
+	it("marks the running step, the gate countdown and the agents", () => {
+		const marks = programMarks(agentNodes, program, { "agent-es": "Es" });
+		expect(marks.get("go-es")).toEqual({
+			tone: "running",
+			text: "running",
+		});
+		expect(marks.get("when")).toEqual({
+			tone: "waiting",
+			text: "waiting 12/30 s",
+		});
+		expect(marks.get("go-ge")).toEqual({ tone: "starting", text: "next" });
+		expect(marks.get("es")?.text).toBe("step 1/1 · running");
+		expect(marks.get("ge")?.text).toBe("step 1/2 · waiting");
+		// Ge's second step is ahead: no mark yet.
+		expect(marks.has("back-ge")).toBe(false);
+	});
+
+	it("marks finished steps and their gates done, and a failed step failed", () => {
+		const later = {
+			"agent-ge": {
+				...program!["agent-ge"]!,
+				step_index: 1,
+				state: "FAILED" as const,
+				gate: undefined,
+			},
+		};
+		const marks = programMarks(agentNodes, later);
+		expect(marks.get("go-ge")?.tone).toBe("done");
+		expect(marks.get("when")?.tone).toBe("done");
+		expect(marks.get("back-ge")?.tone).toBe("failed");
+		expect(marks.get("es-holds")?.tone).toBe("done");
+	});
+
+	it("says who a gate waits for", () => {
+		const waiting = {
+			"agent-ge": {
+				...program!["agent-ge"]!,
+				step_index: 1,
+				state: "GATED" as const,
+				gate: {
+					node_ids: ["es-holds"],
+					waited_s: 40,
+					conditions: [
+						{
+							node_id: "es-holds",
+							op: "AgentHolding",
+							key: "agent-es",
+							threshold: 1,
+							negate: false,
+							holds: false,
+						},
+					],
+				},
+			},
+		};
+		expect(
+			programMarks(agentNodes, waiting, { "agent-es": "Es" }).get(
+				"es-holds",
+			)?.text,
+		).toBe("waiting for Es");
+	});
+
+	it("draws nothing without progress, and nothing for nodes that are gone", () => {
+		expect(programMarks(agentNodes, undefined).size).toBe(0);
+		const marks = programMarks(new Map(), program);
+		expect(marks.has("es")).toBe(false);
 	});
 });

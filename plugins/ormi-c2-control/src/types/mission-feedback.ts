@@ -128,6 +128,47 @@ export interface MissionFeedback {
 	issue_message?: string;
 	/** `VEHICLE_BUSY` only: which vehicles are held by which missions. */
 	issue_conflicts?: FeedbackIssueConflict[];
+	/**
+	 * Where each agent is in its behaviour-graph chain, keyed by agent id (the
+	 * fog's program executor). Absent from producers without one.
+	 */
+	program?: Record<string, ProgramProgress>;
+}
+
+/** A chain step's state in the fog's program executor. */
+export type ProgramStepState =
+	"WAITING" | "GATED" | "PLANNING" | "READY" | "RUNNING" | "DONE" | "FAILED";
+
+/** One condition of the gate an agent waits at. */
+export interface ProgramGateCondition {
+	/** The graph condition node. */
+	node_id: string;
+	op: string;
+	key: string;
+	threshold: number;
+	negate: boolean;
+	/** Whether this condition holds right now. */
+	holds: boolean;
+}
+
+/** One agent's position in its chain. */
+export interface ProgramProgress {
+	chain: number;
+	/** Index of the current step; the steps before it are done. */
+	step_index: number;
+	steps_total: number;
+	/** Graph node of the current step (the last one once DONE). */
+	step_id: string;
+	state: ProgramStepState;
+	/** The whole chain in order: each step's action node and its gate nodes. */
+	steps: { step_id: string; gate_nodes: string[] }[];
+	/** Present while the step waits at its gate. */
+	gate?: {
+		node_ids: string[];
+		/** Run time spent at the gate (paused time excluded); null until START. */
+		waited_s: number | null;
+		conditions: ProgramGateCondition[];
+	};
 }
 
 /**
@@ -252,6 +293,7 @@ interface RawFeedback {
 	issue_code?: unknown;
 	issue_message?: unknown;
 	issue_conflicts?: unknown;
+	program?: unknown;
 }
 
 /** A finite number, else undefined. */
@@ -313,6 +355,87 @@ function issueConflicts(value: unknown): FeedbackIssueConflict[] | undefined {
 		const vehicle = str(e.vehicle_id);
 		if (!vehicle) continue;
 		out.push({ vehicle_id: vehicle, mission_id: str(e.mission_id) ?? "" });
+	}
+	return out;
+}
+
+const PROGRAM_STATES: readonly ProgramStepState[] = [
+	"WAITING",
+	"GATED",
+	"PLANNING",
+	"READY",
+	"RUNNING",
+	"DONE",
+	"FAILED",
+];
+
+/** Parse `program`, dropping agents whose entry is not usable. */
+function programProgress(
+	value: unknown,
+): Record<string, ProgramProgress> | undefined {
+	if (value == null || typeof value !== "object" || Array.isArray(value))
+		return undefined;
+	const out: Record<string, ProgramProgress> = {};
+	for (const [agent, entry] of Object.entries(value)) {
+		if (entry == null || typeof entry !== "object") continue;
+		const e = entry as Record<string, unknown>;
+		const state = e.state as ProgramStepState;
+		const stepIndex = index(e.step_index);
+		const stepsTotal = index(e.steps_total);
+		if (
+			!PROGRAM_STATES.includes(state) ||
+			stepIndex == null ||
+			stepsTotal == null
+		)
+			continue;
+		const progress: ProgramProgress = {
+			chain: index(e.chain) ?? 0,
+			step_index: stepIndex,
+			steps_total: stepsTotal,
+			step_id: str(e.step_id) ?? "",
+			state,
+			steps: (Array.isArray(e.steps) ? e.steps : [])
+				.filter(
+					(st): st is Record<string, unknown> =>
+						st != null && typeof st === "object",
+				)
+				.map((st) => ({
+					step_id: str(st.step_id) ?? "",
+					gate_nodes: Array.isArray(st.gate_nodes)
+						? st.gate_nodes.filter(
+								(n): n is string => typeof n === "string",
+							)
+						: [],
+				})),
+		};
+		const gate = e.gate as Record<string, unknown> | undefined;
+		if (gate != null && typeof gate === "object") {
+			const conditions = Array.isArray(gate.conditions)
+				? gate.conditions
+				: [];
+			progress.gate = {
+				node_ids: Array.isArray(gate.node_ids)
+					? gate.node_ids.filter(
+							(n): n is string => typeof n === "string",
+						)
+					: [],
+				waited_s: num(gate.waited_s) ?? null,
+				conditions: conditions
+					.filter(
+						(c): c is Record<string, unknown> =>
+							c != null && typeof c === "object",
+					)
+					.map((c) => ({
+						node_id: str(c.node_id) ?? "",
+						op: str(c.op) ?? "",
+						key: str(c.key) ?? "",
+						threshold: num(c.threshold) ?? 0,
+						negate: c.negate === true,
+						holds: c.holds === true,
+					})),
+			};
+		}
+		out[agent] = progress;
 	}
 	return out;
 }
@@ -436,6 +559,7 @@ export function parseMissionFeedback(
 			issue_code: str(obj.issue_code),
 			issue_message: str(obj.issue_message),
 			issue_conflicts: issueConflicts(obj.issue_conflicts),
+			program: programProgress(obj.program),
 		},
 	);
 }

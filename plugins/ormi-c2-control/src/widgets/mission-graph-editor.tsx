@@ -63,6 +63,7 @@ import {
 	type CatalogFeature,
 } from "../state/c2-catalog-store";
 import { useAgents } from "../state/c2-agents-store";
+import { useMissionFeedbackExact } from "../state/mission-feedback-store";
 import {
 	editMissionDraft,
 	useMissionDraft,
@@ -83,7 +84,10 @@ import { readFeatureId } from "./feature-geojson";
 import {
 	applySelectionChanges,
 	formatCondition,
+	programMarks,
 	resolveGraphDraftWrite,
+	type RunMark,
+	type RunTone,
 	shouldHandleGraphShortcut,
 	sortIssuesBySeverity,
 } from "./mission-graph-editor-helpers";
@@ -199,7 +203,21 @@ interface CanvasNodeData extends Record<string, unknown> {
 	 * to render it honestly, so the parent formats it.
 	 */
 	conditionText: string;
+	/** Where the running mission is on this node (the fog's `program`). */
+	run?: RunMark;
 }
+
+/** Ring + text colour of a node's live mark. */
+const RUN_STYLE: Record<RunTone, { ring: string; text: string }> = {
+	running: { ring: "ring-2 ring-info", text: "text-info" },
+	starting: {
+		ring: "ring-1 ring-muted-foreground/50",
+		text: "text-muted-foreground",
+	},
+	waiting: { ring: "ring-2 ring-warning", text: "text-warning" },
+	done: { ring: "ring-1 ring-success/60", text: "text-success" },
+	failed: { ring: "ring-2 ring-destructive", text: "text-destructive" },
+};
 
 /** Icon + accent per node kind. */
 const KIND_STYLE: Record<
@@ -240,8 +258,9 @@ const DATA_HANDLE_STYLE = {
  * meant, and nothing has to be picked from a menu afterwards.
  */
 function GraphNodeCard({ data, selected }: NodeProps) {
-	const { node, assigned, agentNames, featureName, conditionText } =
+	const { node, assigned, agentNames, featureName, conditionText, run } =
 		data as CanvasNodeData;
+	const runStyle = run ? RUN_STYLE[run.tone] : null;
 	const style = KIND_STYLE[node.kind];
 	const Icon = style.icon;
 
@@ -267,7 +286,7 @@ function GraphNodeCard({ data, selected }: NodeProps) {
 	return (
 		<div
 			className={`rounded-md border border-l-4 bg-background px-2.5 py-1.5 text-xs shadow-sm min-w-40 max-w-56 ${style.border} ${
-				selected ? "ring-2 ring-ring" : ""
+				selected ? "ring-2 ring-ring" : (runStyle?.ring ?? "")
 			} ${incomplete ? "border-dashed" : ""}`}
 		>
 			{/* Execution in / out (left ⇄ right), then data in / out
@@ -324,6 +343,14 @@ function GraphNodeCard({ data, selected }: NodeProps) {
 						.join(", ")}
 				</div>
 			)}
+			{run && runStyle && (
+				<div
+					className={`truncate text-[10px] font-medium ${runStyle.text}`}
+					title={run.text}
+				>
+					● {run.text}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -366,6 +393,7 @@ function toCanvasNodes(
 	agentNames: Record<string, string>,
 	featureNames: Record<string, string>,
 	selected: ReadonlySet<string> = new Set(),
+	marks: ReadonlyMap<string, RunMark> = new Map(),
 ): Node[] {
 	return graph.nodes.map((node) => ({
 		id: node.id,
@@ -383,6 +411,7 @@ function toCanvasNodes(
 				featureNames,
 				agentNames,
 			}),
+			run: marks.get(node.id),
 		} satisfies CanvasNodeData,
 	}));
 }
@@ -682,6 +711,22 @@ function MissionGraphEditorBody(props: {
 		[selectedEdgeIds],
 	);
 
+	// Live progress of the mission this graph belongs to: the fog reports, per
+	// agent, its step and gate. History snapshots count too, so a finished
+	// mission still shows where each chain ended.
+	const feedback = useMissionFeedbackExact(missionId);
+	const runMarks = useMemo(() => {
+		const agentNodes = new Map<string, string[]>();
+		for (const node of graph?.nodes ?? []) {
+			if (node.kind !== "agent" || !node.agent_id) continue;
+			agentNodes.set(node.agent_id, [
+				...(agentNodes.get(node.agent_id) ?? []),
+				node.id,
+			]);
+		}
+		return programMarks(agentNodes, feedback?.program, agentNames);
+	}, [graph, feedback?.program, agentNames]);
+
 	const canvasNodes = useMemo(
 		() =>
 			graph
@@ -691,9 +736,10 @@ function MissionGraphEditorBody(props: {
 						agentNames,
 						featureNames,
 						nodeSelection,
+						runMarks,
 					)
 				: [],
-		[graph, assignment, agentNames, featureNames, nodeSelection],
+		[graph, assignment, agentNames, featureNames, nodeSelection, runMarks],
 	);
 	const canvasEdges = useMemo(
 		() => (graph ? toCanvasEdges(graph, edgeSelection) : []),

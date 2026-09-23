@@ -16,6 +16,11 @@ import {
 } from "@workspace/ui/lib/input-guards";
 
 import type { MissionBehavior, MissionGeometry } from "../types/c2-types";
+import type {
+	ProgramGateCondition,
+	ProgramProgress,
+	ProgramStepState,
+} from "../types/mission-feedback";
 import {
 	CONDITION_OP_SHAPE,
 	graphCompiles,
@@ -397,4 +402,125 @@ export function resolveGraphDraftWrite(
 		draft.behavior === slice.behavior &&
 		draft.graph_compiles === slice.graph_compiles;
 	return unchanged ? null : slice;
+}
+
+// ============================================================================
+// Live progress: where each agent is in its chain
+// ============================================================================
+
+/** How a node is drawn while the mission runs. */
+export type RunTone = "running" | "starting" | "waiting" | "done" | "failed";
+
+/** One node's live mark. */
+export interface RunMark {
+	tone: RunTone;
+	/** Short operator-facing line, e.g. "waiting 12/30 s" or "step 2/3 · running". */
+	text: string;
+}
+
+const STATE_WORD: Record<ProgramStepState, string> = {
+	WAITING: "starting",
+	GATED: "waiting",
+	PLANNING: "planning",
+	READY: "planned",
+	RUNNING: "running",
+	DONE: "done",
+	FAILED: "failed",
+};
+
+/**
+ * Turn the fog's `program` progress into a mark per graph node.
+ *
+ * Marks are by node id, from the chain the FOG compiled (its `steps`), so a
+ * graph edited after submit shows fewer marks, never wrong ones: an id that no
+ * longer exists is simply not drawn. Steps before the current one are done
+ * with their gates; the current step and its gate carry the live state; agent
+ * nodes carry "step i/n · state".
+ * @param agentNodes - `agent_id → agent node ids` in the graph.
+ * @param program - `MissionFeedback.program`.
+ * @param agentNames - `agent_id → name`, for AgentHolding.
+ * @returns `node id → mark`.
+ */
+export function programMarks(
+	agentNodes: ReadonlyMap<string, readonly string[]>,
+	program: Readonly<Record<string, ProgramProgress>> | undefined,
+	agentNames: Readonly<Record<string, string>> = {},
+): Map<string, RunMark> {
+	const marks = new Map<string, RunMark>();
+	if (!program) return marks;
+	for (const [agentId, p] of Object.entries(program)) {
+		const total = Math.max(p.steps_total, p.steps.length);
+		const shown = Math.min(p.step_index + 1, total);
+		for (const nodeId of agentNodes.get(agentId) ?? []) {
+			marks.set(nodeId, {
+				tone: toneOf(p.state),
+				text:
+					p.state === "DONE"
+						? `done · ${total} step${total === 1 ? "" : "s"}`
+						: `step ${shown}/${total} · ${STATE_WORD[p.state]}`,
+			});
+		}
+		p.steps.forEach((step, index) => {
+			const finished =
+				index < p.step_index ||
+				(index === p.step_index && p.state === "DONE");
+			if (finished) {
+				marks.set(step.step_id, { tone: "done", text: "done" });
+				for (const g of step.gate_nodes)
+					marks.set(g, { tone: "done", text: "held" });
+				return;
+			}
+			if (index !== p.step_index) return;
+			if (p.state === "GATED") {
+				marks.set(step.step_id, { tone: "starting", text: "next" });
+				for (const c of p.gate?.conditions ?? []) {
+					marks.set(c.node_id, {
+						tone: c.holds ? "done" : "waiting",
+						text: gateText(c, p.gate?.waited_s ?? null, agentNames),
+					});
+				}
+				return;
+			}
+			for (const g of step.gate_nodes)
+				marks.set(g, { tone: "done", text: "held" });
+			marks.set(step.step_id, {
+				tone: toneOf(p.state),
+				text: STATE_WORD[p.state],
+			});
+		});
+	}
+	return marks;
+}
+
+function toneOf(state: ProgramStepState): RunTone {
+	switch (state) {
+		case "RUNNING":
+			return "running";
+		case "DONE":
+			return "done";
+		case "FAILED":
+			return "failed";
+		case "GATED":
+			return "waiting";
+		default:
+			return "starting";
+	}
+}
+
+function gateText(
+	c: ProgramGateCondition,
+	waited: number | null,
+	agentNames: Readonly<Record<string, string>>,
+): string {
+	if (c.holds) return "holds";
+	if (c.op === "ElapsedSeconds") {
+		return waited == null
+			? `waits ${c.threshold} s from start`
+			: `waiting ${Math.floor(waited)}/${c.threshold} s`;
+	}
+	if (c.op === "AgentHolding") {
+		const name = agentNames[c.key] ?? c.key.slice(0, 8);
+		return c.negate ? `waiting for ${name} to move` : `waiting for ${name}`;
+	}
+	return "waiting";
 }
