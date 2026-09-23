@@ -91,10 +91,16 @@ const KNOWN_OPS = new Set([
 	"Never",
 ]);
 
-/** The ops the fog can evaluate today. */
+/**
+ * The ops the fog can evaluate today. The two finding counts are the
+ * mission's own: its robots' contacts, and the items they corroborate into.
+ * Zone coverage, cues and flags have no source yet.
+ */
 export const EVALUABLE_OPS: readonly string[] = [
 	"ElapsedSeconds",
 	"AgentHolding",
+	"ContactsFound",
+	"ItemsFound",
 	"Always",
 ];
 
@@ -269,7 +275,7 @@ export function compileProgram(
 				issue(
 					"CONDITION_NOT_EVALUABLE",
 					id,
-					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, AgentHolding and Always.`,
+					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, AgentHolding, ContactsFound, ItemsFound and Always.`,
 				);
 			} else if (
 				op === "AgentHolding" &&

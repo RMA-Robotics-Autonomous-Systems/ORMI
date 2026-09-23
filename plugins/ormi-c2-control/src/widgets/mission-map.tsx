@@ -4016,7 +4016,11 @@ function MissionMapBody(props: {
 				    `lossless` is a request the datasource may not honour, and a
 				    findings layer that is quietly short is the failure this
 				    pipeline exists to avoid. */}
-				<FindingsReadout cueFeatures={features} bound={findingsBound} />
+				<FindingsReadout
+					cueFeatures={features}
+					bound={findingsBound}
+					missionId={selectedMission}
+				/>
 
 				<Button
 					size="sm"
@@ -4300,7 +4304,10 @@ function MissionMapBody(props: {
 					    one record at different support depths. Operator-placed
 					    `cue` map features are lifted into the same record and
 					    drawn here, which is why `FeatureLayers` skips them. */}
-					<FindingsLayer cueFeatures={features} />
+					<FindingsLayer
+						cueFeatures={features}
+						missionId={selectedMission}
+					/>
 					{trajectoryAgentIds.length > 0 && (
 						<AgentTrajectoryOverlay
 							fallbackSource={localizationFallbackSource}

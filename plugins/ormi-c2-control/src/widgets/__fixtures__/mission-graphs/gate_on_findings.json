@@ -1,0 +1,223 @@
+{
+	"name": "gate_on_findings",
+	"description": "Ge goes in once Es's sweep has produced a contact, and on again once an item is corroborated: the mission's own finding counts gate a chain.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "contact",
+				"kind": "condition",
+				"label": "contact",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ContactsFound",
+					"threshold": 1,
+					"negate": false
+				}
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "item",
+				"kind": "condition",
+				"label": "item",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ItemsFound",
+					"threshold": 2,
+					"negate": false
+				}
+			},
+			{
+				"id": "back",
+				"kind": "action",
+				"label": "back",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp2",
+				"kind": "asset",
+				"label": "wp2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->sweep",
+				"source": "es",
+				"target": "sweep",
+				"kind": "exec"
+			},
+			{
+				"id": "sweep->zone",
+				"source": "sweep",
+				"target": "zone",
+				"kind": "exec"
+			},
+			{
+				"id": "ge->contact",
+				"source": "ge",
+				"target": "contact",
+				"kind": "exec"
+			},
+			{
+				"id": "contact->go",
+				"source": "contact",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "wp->item",
+				"source": "wp",
+				"target": "item",
+				"kind": "exec"
+			},
+			{
+				"id": "item->back",
+				"source": "item",
+				"target": "back",
+				"kind": "exec"
+			},
+			{
+				"id": "back->wp2",
+				"source": "back",
+				"target": "wp2",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"gate": [
+								{
+									"op": "ContactsFound",
+									"key": "",
+									"arg": "",
+									"threshold": 1,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["contact"]
+						},
+						{
+							"step_id": "back",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp-2",
+							"gate": [
+								{
+									"op": "ItemsFound",
+									"key": "",
+									"arg": "",
+									"threshold": 2,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["item"]
+						}
+					]
+				}
+			]
+		},
+		"not_executable_yet": []
+	}
+}

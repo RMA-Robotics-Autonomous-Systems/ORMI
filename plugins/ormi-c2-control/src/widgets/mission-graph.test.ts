@@ -312,15 +312,14 @@ function fogCodes(issues: readonly MissionGraphIssue[]): [string, string][] {
 }
 
 describe("compileMissionGraph", () => {
-	it("compiles the target scenario's flat slice; the fog refuses its finding condition", () => {
+	it("compiles the target scenario, its wait for a contact included", () => {
 		const compiled = compileMissionGraph(
 			targetScenario(),
 			TARGET_FEATURE_TYPES,
 		);
 		expect(graphCompiles(editorOnly(compiled.issues))).toBe(true);
-		expect(fogCodes(compiled.issues)).toEqual([
-			["CONDITION_NOT_EVALUABLE", "on-contact"],
-		]);
+		// ContactsFound is the mission's own count: the fog evaluates it.
+		expect(fogCodes(compiled.issues)).toEqual([]);
 		expect(compiled.behavior).toBe(MissionBehavior.COVERAGE);
 		expect(compiled.vehicles).toEqual(["robot-a", "robot-b", "robot-c"]);
 		expect(compiled.geometries).toEqual([

@@ -149,6 +149,8 @@ export interface ProgramGateCondition {
 	negate: boolean;
 	/** Whether this condition holds right now. */
 	holds: boolean;
+	/** ContactsFound / ItemsFound: the mission's count so far. */
+	value?: number;
 }
 
 /** One agent's position in its chain. */
@@ -432,6 +434,9 @@ function programProgress(
 						threshold: num(c.threshold) ?? 0,
 						negate: c.negate === true,
 						holds: c.holds === true,
+						...(num(c.value) != null
+							? { value: num(c.value) }
+							: {}),
 					})),
 			};
 		}

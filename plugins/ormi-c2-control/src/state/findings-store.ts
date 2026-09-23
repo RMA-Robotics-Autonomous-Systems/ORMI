@@ -115,22 +115,27 @@ export function recordFinding(finding: Finding): void {
 		return;
 	}
 
-	if (finding.supersededBy && !existing.supersededBy) {
-		// Additive: the record keeps every field it was stored with and gains
-		// the supersession. Nothing else on the incoming copy is adopted — a
-		// republish with a moved position is not something this store honours,
-		// because an operator may have acted on where it said it was.
+	// Additive: the record keeps every field it was stored with and gains a
+	// supersession, or the mission a raw contact lacked (the fog republishes
+	// its robots' contacts stamped with the mission that has them leased).
+	// Nothing else on the incoming copy is adopted — a republish with a moved
+	// position is not something this store honours, because an operator may
+	// have acted on where it said it was.
+	const superseded = Boolean(finding.supersededBy && !existing.supersededBy);
+	const attributed = Boolean(finding.mission_id && !existing.mission_id);
+	if (superseded || attributed) {
 		byUid = {
 			...byUid,
 			[finding.uid]: {
 				...existing,
-				supersededBy: finding.supersededBy,
+				...(superseded ? { supersededBy: finding.supersededBy } : {}),
+				...(attributed ? { mission_id: finding.mission_id } : {}),
 			},
 		};
 		snapshot = Object.values(byUid);
 		bumpStats({
 			received: stats.received + 1,
-			supersessions: stats.supersessions + 1,
+			supersessions: stats.supersessions + (superseded ? 1 : 0),
 		});
 		emit();
 		return;

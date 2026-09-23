@@ -348,6 +348,24 @@ export interface FindingTally {
 }
 
 /**
+ * The findings of one mission. The fog attributes a contact to the mission
+ * that has its robot leased while it runs and republishes it stamped with that
+ * mission (`/mission/findings`), items included; a raw `/payload/observation`
+ * carries no mission and belongs to none. No mission selected shows them all.
+ *
+ * @param findings - Every finding on record.
+ * @param missionId - The mission in focus, if any.
+ * @returns The ones to show.
+ */
+export function findingsOfMission(
+	findings: readonly Finding[],
+	missionId: string | null | undefined,
+): readonly Finding[] {
+	if (!missionId) return findings;
+	return findings.filter((finding) => finding.mission_id === missionId);
+}
+
+/**
  * Count a set of findings by derived kind, plus the two states that change what
  * an operator may do with them.
  *

@@ -20,6 +20,7 @@ import {
 import type { C2Feature } from "../types/c2-types";
 import {
 	cueFeatureToFinding,
+	findingsOfMission,
 	findingsToFeatureCollection,
 	parseFinding,
 	tallyFindings,
@@ -182,9 +183,16 @@ const essenceRingRadius = (): DataDrivenPropertyValueSpecification<number> => [
  * @param props.cueFeatures - Stored map features; the `cue` ones are lifted
  *   into the same record and drawn alongside what the fleet reported.
  */
-export function FindingsLayer(props: { cueFeatures: C2Feature[] }) {
-	const reported = useFindings();
-	const { cueFeatures } = props;
+export function FindingsLayer(props: {
+	cueFeatures: C2Feature[];
+	missionId?: string | null;
+}) {
+	const all = useFindings();
+	const { cueFeatures, missionId } = props;
+	const reported = useMemo(
+		() => findingsOfMission(all, missionId),
+		[all, missionId],
+	);
 
 	const findings = useMemo<Finding[]>(() => {
 		const authored = cueFeatures.flatMap((feature) => {
@@ -277,10 +285,15 @@ export function FindingsLayer(props: { cueFeatures: C2Feature[] }) {
 export function FindingsReadout(props: {
 	cueFeatures: C2Feature[];
 	bound: boolean;
+	missionId?: string | null;
 }) {
-	const reported = useFindings();
+	const all = useFindings();
 	const stats = useFindingsStats();
-	const { cueFeatures } = props;
+	const { cueFeatures, missionId } = props;
+	const reported = useMemo(
+		() => findingsOfMission(all, missionId),
+		[all, missionId],
+	);
 
 	const authoredCues = useMemo(
 		() =>
@@ -299,7 +312,11 @@ export function FindingsReadout(props: {
 		<div className="flex items-center gap-1.5 flex-wrap">
 			<Badge
 				variant="secondary"
-				title="Cues, contacts and items on the map"
+				title={
+					missionId
+						? "Cues, contacts and items of the selected mission"
+						: "Cues, contacts and items on the map"
+				}
 			>
 				{total} findings
 			</Badge>

@@ -1,6 +1,6 @@
 {
 	"name": "condition_not_evaluable",
-	"description": "Zone, finding and flag conditions need the findings pipeline: refused.",
+	"description": "Zone coverage, cue and flag conditions have no source yet: refused.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 1,

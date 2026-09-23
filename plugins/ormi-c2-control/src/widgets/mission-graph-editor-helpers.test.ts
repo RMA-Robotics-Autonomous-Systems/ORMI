@@ -780,6 +780,34 @@ describe("the graph shows where each agent is while the mission runs", () => {
 		).toBe("waiting for Es");
 	});
 
+	it("counts a finding gate towards its threshold", () => {
+		const waiting = {
+			"agent-ge": {
+				...program!["agent-ge"]!,
+				step_index: 1,
+				state: "GATED" as const,
+				gate: {
+					node_ids: ["es-holds"],
+					waited_s: 12,
+					conditions: [
+						{
+							node_id: "es-holds",
+							op: "ContactsFound",
+							key: "",
+							threshold: 2,
+							negate: false,
+							holds: false,
+							value: 1,
+						},
+					],
+				},
+			},
+		};
+		expect(programMarks(agentNodes, waiting).get("es-holds")?.text).toBe(
+			"waiting for 2 contacts (1 so far)",
+		);
+	});
+
 	it("draws nothing without progress, and nothing for nodes that are gone", () => {
 		expect(programMarks(agentNodes, undefined).size).toBe(0);
 		const marks = programMarks(new Map(), program);

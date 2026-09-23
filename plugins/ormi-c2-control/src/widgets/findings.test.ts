@@ -8,6 +8,7 @@ import {
 	findingKind,
 	findingLabel,
 	findingStampMs,
+	findingsOfMission,
 	findingsToFeatureCollection,
 	isSimulatedEssence,
 	parseFinding,
@@ -312,6 +313,18 @@ describe("tallyFindings", () => {
 		expect(tally.items).toBe(1);
 		expect(tally.notReal).toBe(1);
 		expect(tally.superseded).toBe(1);
+	});
+});
+
+describe("findingsOfMission", () => {
+	it("keeps the selected mission's findings, or all without a selection", () => {
+		const all = [
+			finding({ uid: "a", mission_id: "m-1" }),
+			finding({ uid: "b", mission_id: "m-2" }),
+			finding({ uid: "c", mission_id: "" }),
+		];
+		expect(findingsOfMission(all, "m-1").map((f) => f.uid)).toEqual(["a"]);
+		expect(findingsOfMission(all, null)).toHaveLength(3);
 	});
 });
 

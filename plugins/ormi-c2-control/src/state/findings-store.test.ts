@@ -81,6 +81,19 @@ describe("the store is append-only", () => {
 		expect(getFindingsStats().supersessions).toBe(1);
 	});
 
+	it("takes the mission a raw contact lacked from the fog's stamped copy", () => {
+		// The fog republishes its robots' contacts on /mission/findings with
+		// the mission that has them leased; the raw /payload/observation copy
+		// may have arrived first.
+		recordFinding(finding({ uid: "a", mission_id: "" }));
+		recordFinding(finding({ uid: "a", mission_id: "m-1" }));
+		recordFinding(finding({ uid: "a", mission_id: "m-2" }));
+		expect(getFindingsSnapshot()[0]?.mission_id).toBe("m-1");
+		expect(getFindingsSnapshot()).toHaveLength(1);
+		expect(getFindingsStats().repeats).toBe(1);
+		expect(getFindingsStats().supersessions).toBe(0);
+	});
+
 	it("does not re-point a supersession that is already recorded", () => {
 		recordFinding(finding({ uid: "a" }));
 		recordFinding(finding({ uid: "a", supersededBy: "b" }));
