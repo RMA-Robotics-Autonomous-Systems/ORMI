@@ -924,3 +924,19 @@ and lives in two places at once.
   which the fog never finds). Map assets are NOT part of it: they belong to the
   map, which every mission on it shares, and are saved as each edit is
   confirmed.
+- **The graph has typed ports (schema 2)** (`widgets/mission-graph-ports.ts`,
+  mirrored by the fog's `mission_program.hpp`). Every edge is
+  `{source, source_port, target, target_port}` and joins an output to an input
+  of the same type: the "then" chain (flow), places (waypoint / zone), agents,
+  true/false. Conditions are true/false nodes wired into ONE **Wait** node on
+  the chain, which holds the next step until all (or any) of them hold; an
+  action's target is picked on the node or wired from an asset node. The canvas
+  refuses a mismatched drag (and says why), re-wires a single port instead of
+  refusing it, and a wire dropped on empty canvas offers only nodes that would
+  be wired — a new step is spliced INTO the chain, never beside it. **No
+  legacy:** a schema-1 graph is not read; the editor opens an empty canvas
+  saying so, and the next save replaces it. Two xyflow traps met here: a handle
+  ADDED to a node that keeps its size is never measured (call
+  `useUpdateNodeInternals` when the port set changes), and keys pressed in a
+  control inside a node bubble to xyflow's node key handler through Radix
+  portals (give the trigger and the content `nokey`).

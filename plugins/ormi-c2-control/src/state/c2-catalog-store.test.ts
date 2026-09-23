@@ -321,8 +321,20 @@ describe("published map features feed the graph compiler", () => {
 				},
 			],
 			edges: [
-				{ id: "e1", source: "a", target: "act", kind: "exec" as const },
-				{ id: "e2", source: "act", target: "s", kind: "exec" as const },
+				{
+					id: "e1",
+					source: "a",
+					source_port: "next",
+					target: "act",
+					target_port: "in",
+				},
+				{
+					id: "e2",
+					source: "s",
+					source_port: "value",
+					target: "act",
+					target_port: "target",
+				},
 			],
 		});
 
@@ -377,9 +389,7 @@ describe("published map features feed the graph compiler", () => {
 					feature_id: "z-1",
 				},
 			],
-			edges: [
-				{ id: "e", source: "a", target: "s", kind: "exec" as const },
-			],
+			edges: [],
 		};
 		expect(
 			compileMissionGraph(noAction, getMapFeatureTypes("florennes"))

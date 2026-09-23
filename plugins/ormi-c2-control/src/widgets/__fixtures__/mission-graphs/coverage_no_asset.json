@@ -3,7 +3,7 @@
 	"description": "COVERAGE with no zone.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -28,14 +28,16 @@
 		],
 		"edges": [
 			{
-				"id": "es->sweep",
+				"id": "es.next-sweep.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["COVERAGE_TARGET", "sweep"]]
+		"errors": [["COVERAGE_TARGET", "sweep"]],
+		"not_executable_yet": []
 	}
 }

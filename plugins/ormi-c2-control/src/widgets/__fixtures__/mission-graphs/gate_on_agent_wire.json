@@ -1,6 +1,6 @@
 {
-	"name": "gate_waits_for_other_agent",
-	"description": "Ge sweeps only once Es is holding (idle or done); the agent is picked on the condition.",
+	"name": "gate_on_agent_wire",
+	"description": "The agent an AgentHolding condition watches can be wired from that agent's node instead.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -47,8 +47,7 @@
 				"condition": {
 					"op": "AgentHolding",
 					"threshold": 0,
-					"negate": false,
-					"key": "agent-es"
+					"negate": false
 				}
 			},
 			{
@@ -94,6 +93,13 @@
 				"source_port": "next",
 				"target": "sweep",
 				"target_port": "in"
+			},
+			{
+				"id": "es.agent-es-done.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "es-done",
+				"target_port": "agent"
 			},
 			{
 				"id": "es-done.value-wait.when",

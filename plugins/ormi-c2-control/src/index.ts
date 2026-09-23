@@ -73,18 +73,25 @@ export {
 	graphCompiles,
 	graphDocId,
 	isMissionGraphDocId,
+	isOutdatedGraphDocument,
 	normalizeGraph,
 	propagateAgents,
 	readGraphDocument,
 } from "./widgets/mission-graph";
 export type {
-	GraphEdgeKind,
 	GraphNodeKind,
 	MissionGraph,
 	MissionGraphEdge,
 	MissionGraphIssue,
 	MissionGraphNode,
+	WaitMode,
 } from "./widgets/mission-graph";
+export {
+	connectionPlan,
+	nodePorts,
+	portsFit,
+} from "./widgets/mission-graph-ports";
+export type { PortSpec, PortType } from "./widgets/mission-graph-ports";
 export {
 	applySelectionChanges,
 	formatCondition,

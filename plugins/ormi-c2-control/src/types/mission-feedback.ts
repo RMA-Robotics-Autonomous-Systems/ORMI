@@ -162,11 +162,24 @@ export interface ProgramProgress {
 	/** Graph node of the current step (the last one once DONE). */
 	step_id: string;
 	state: ProgramStepState;
-	/** The whole chain in order: each step's action node and its gate nodes. */
-	steps: { step_id: string; gate_nodes: string[] }[];
+	/**
+	 * The whole chain in order: each step's action node, the Wait in front of
+	 * it ("" when none) and that Wait's condition nodes.
+	 */
+	steps: {
+		step_id: string;
+		wait_node: string;
+		/** Whether that Wait needs all of its conditions, or any one. */
+		mode: "all" | "any";
+		gate_nodes: string[];
+	}[];
 	/** Present while the step waits at its gate. */
 	gate?: {
 		node_ids: string[];
+		/** The Wait node the agent is held at. */
+		wait_node: string;
+		/** Whether the Wait needs all of its conditions, or any one. */
+		mode: "all" | "any";
 		/** Run time spent at the gate (paused time excluded); null until START. */
 		waited_s: number | null;
 		conditions: ProgramGateCondition[];
@@ -403,6 +416,9 @@ function programProgress(
 				)
 				.map((st) => ({
 					step_id: str(st.step_id) ?? "",
+					wait_node: str(st.wait_node) ?? "",
+					mode:
+						st.mode === "any" ? ("any" as const) : ("all" as const),
 					gate_nodes: Array.isArray(st.gate_nodes)
 						? st.gate_nodes.filter(
 								(n): n is string => typeof n === "string",
@@ -421,6 +437,8 @@ function programProgress(
 							(n): n is string => typeof n === "string",
 						)
 					: [],
+				wait_node: str(gate.wait_node) ?? "",
+				mode: gate.mode === "any" ? "any" : "all",
 				waited_s: num(gate.waited_s) ?? null,
 				conditions: conditions
 					.filter(

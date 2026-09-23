@@ -1,6 +1,6 @@
 {
-	"name": "never_is_refused",
-	"description": "Never would block forever.",
+	"name": "wait_empty",
+	"description": "A Wait with no condition would never open.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -14,20 +14,6 @@
 					"y": 0
 				},
 				"agent_id": "agent-es"
-			},
-			{
-				"id": "never",
-				"kind": "condition",
-				"label": "never",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"condition": {
-					"op": "Never",
-					"threshold": 0,
-					"negate": false
-				}
 			},
 			{
 				"id": "wait",
@@ -65,18 +51,11 @@
 				"source_port": "next",
 				"target": "go",
 				"target_port": "in"
-			},
-			{
-				"id": "never.value-wait.when",
-				"source": "never",
-				"source_port": "value",
-				"target": "wait",
-				"target_port": "when"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["CONDITION_NOT_EVALUABLE", "never"]],
+		"errors": [["WAIT_EMPTY", "wait"]],
 		"not_executable_yet": []
 	}
 }

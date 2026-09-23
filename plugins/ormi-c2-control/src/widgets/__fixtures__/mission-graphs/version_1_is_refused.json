@@ -1,9 +1,9 @@
 {
-	"name": "team_navigate",
-	"description": "A team cannot navigate to one point.",
+	"name": "version_1_is_refused",
+	"description": "A graph from the old editor (untyped exec edges) is refused, not converted.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 1,
 		"nodes": [
 			{
 				"id": "es",
@@ -14,16 +14,6 @@
 					"y": 0
 				},
 				"agent_id": "agent-es"
-			},
-			{
-				"id": "ge",
-				"kind": "agent",
-				"label": "ge",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"agent_id": "agent-ge"
 			},
 			{
 				"id": "go",
@@ -39,23 +29,15 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-go.in",
+				"id": "e",
 				"source": "es",
-				"source_port": "next",
 				"target": "go",
-				"target_port": "in"
-			},
-			{
-				"id": "ge.next-go.in",
-				"source": "ge",
-				"source_port": "next",
-				"target": "go",
-				"target_port": "in"
+				"kind": "exec"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["TEAM_NAVIGATE", "go"]],
+		"errors": [["GRAPH_VERSION", ""]],
 		"not_executable_yet": []
 	}
 }

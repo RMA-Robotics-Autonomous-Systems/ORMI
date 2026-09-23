@@ -15,6 +15,7 @@ import {
 	graphDocId,
 	hasAgentNode,
 	isMissionGraphDocId,
+	isOutdatedGraphDocument,
 	nextNodePosition,
 	normalizeGraph,
 	propagateAgents,
@@ -48,14 +49,31 @@ function node(
 	};
 }
 
-/** Shorthand edge builder. */
-function edge(
+/** Shorthand edge builder: `source.port → target.port`. */
+function link(
 	source: string,
+	sourcePort: string,
 	target: string,
-	kind: MissionGraphEdge["kind"] = "exec",
+	targetPort: string,
 ): MissionGraphEdge {
-	return { id: `${kind}-${source}-${target}`, source, target, kind };
+	return {
+		id: `${source}.${sourcePort}-${target}.${targetPort}`,
+		source,
+		source_port: sourcePort,
+		target,
+		target_port: targetPort,
+	};
 }
+
+/** The chain: `source`'s "then" into `target`. */
+const flow = (source: string, target: string) =>
+	link(source, "next", target, "in");
+/** An asset into an action's target. */
+const target = (asset: string, action: string) =>
+	link(asset, "value", action, "target");
+/** A condition into a Wait. */
+const when = (condition: string, wait: string) =>
+	link(condition, "value", wait, "when");
 
 /** Feature types for {@link targetScenario}'s four assets. */
 const TARGET_FEATURE_TYPES = {
@@ -67,13 +85,13 @@ const TARGET_FEATURE_TYPES = {
 
 /**
  * The target scenario, as a graph: two coverage agents each sweeping a zone,
- * and one effector agent that navigates to a holding point, waits there on a
- * condition fed from the sweeps' findings, then closes in. Holding is a
- * NAVIGATE followed by a condition; there is no HOLD action.
+ * and one effector agent that navigates to a holding point, waits there until
+ * the mission has a contact, then closes in. Holding is a NAVIGATE followed by
+ * a Wait; there is no HOLD action.
  */
 function targetScenario(): MissionGraph {
 	return {
-		version: 1,
+		version: 2,
 		nodes: [
 			node("survey-a", "agent", { agent_id: "robot-a" }),
 			node("survey-b", "agent", { agent_id: "robot-b" }),
@@ -92,24 +110,21 @@ function targetScenario(): MissionGraph {
 					negate: false,
 				},
 			}),
+			node("wait-contact", "wait", { mode: "all" }),
 			node("close-in", "action", { action: "NAVIGATE" }),
 			node("contact-point", "asset", { feature_id: "feat-contact-1" }),
 		],
 		edges: [
-			edge("survey-a", "sweep-north"),
-			edge("sweep-north", "zone-north"),
-			edge("survey-b", "sweep-south"),
-			edge("sweep-south", "zone-south"),
-			edge("effector", "hold"),
-			edge("hold", "hold-point"),
-			edge("hold", "on-contact"),
-			edge("on-contact", "close-in"),
-			edge("close-in", "contact-point"),
-			// The findings each sweep produces feed the condition. A data edge,
-			// so it carries the value and NOT the assignment: closing in is
-			// robot-c's job whoever found the thing.
-			edge("sweep-north", "on-contact", "data"),
-			edge("sweep-south", "on-contact", "data"),
+			flow("survey-a", "sweep-north"),
+			target("zone-north", "sweep-north"),
+			flow("survey-b", "sweep-south"),
+			target("zone-south", "sweep-south"),
+			flow("effector", "hold"),
+			target("hold-point", "hold"),
+			flow("hold", "wait-contact"),
+			when("on-contact", "wait-contact"),
+			flow("wait-contact", "close-in"),
+			target("contact-point", "close-in"),
 		],
 	};
 }
@@ -122,6 +137,22 @@ describe("the graph document lives beside the mission, not inside it", () => {
 		// The suffix alone is not a graph id — there is no mission it belongs to.
 		expect(isMissionGraphDocId(":graph")).toBe(false);
 		expect(isMissionGraphDocId(undefined)).toBe(false);
+	});
+
+	it("does not read a graph from the previous editor, and says it is outdated", () => {
+		// No legacy: a schema-1 graph is rebuilt, never converted.
+		const v1 = {
+			mission_id: "m-1:graph",
+			graph: { version: 1, nodes: [node("a", "agent")], edges: [] },
+		};
+		expect(readGraphDocument(v1)).toBeNull();
+		expect(isOutdatedGraphDocument(v1)).toBe(true);
+		expect(
+			isOutdatedGraphDocument(
+				buildGraphDocument("m-1", targetScenario()),
+			),
+		).toBe(false);
+		expect(isOutdatedGraphDocument(undefined)).toBe(false);
 	});
 
 	it("builds a document POST /missions accepts", () => {
@@ -170,7 +201,10 @@ describe("the graph document lives beside the mission, not inside it", () => {
 			readGraphDocument({ mission_id: "m-1:graph", graph: "nope" }),
 		).toBeNull();
 		expect(
-			readGraphDocument({ mission_id: "m-1:graph", graph: {} }),
+			readGraphDocument({
+				mission_id: "m-1:graph",
+				graph: { version: 2 },
+			}),
 		).toEqual(emptyMissionGraph());
 	});
 
@@ -191,9 +225,9 @@ describe("normalizeGraph", () => {
 		// A dangling edge is what a partially-applied delete produces and is
 		// the one shape that reliably breaks a graph renderer.
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [node("a", "agent", { agent_id: "r" })],
-			edges: [edge("a", "missing")],
+			edges: [flow("a", "missing")],
 		});
 		expect(normalized.edges).toEqual([]);
 		expect(normalized.nodes).toHaveLength(1);
@@ -201,13 +235,13 @@ describe("normalizeGraph", () => {
 
 	it("drops self-edges and duplicate ids", () => {
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "r" }),
 				node("a", "asset", { feature_id: "f" }),
 				node("b", "asset", { feature_id: "f" }),
 			],
-			edges: [edge("a", "a"), edge("a", "b"), edge("a", "b")],
+			edges: [flow("a", "a"), target("b", "a"), target("b", "a")],
 		});
 		expect(normalized.nodes.map((n) => n.id)).toEqual(["a", "b"]);
 		expect(normalized.nodes[0]?.kind).toBe("agent");
@@ -216,7 +250,7 @@ describe("normalizeGraph", () => {
 
 	it("drops a node with no usable kind or id", () => {
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				{ id: "", kind: "agent" } as unknown as MissionGraphNode,
 				{ id: "x", kind: "nope" } as unknown as MissionGraphNode,
@@ -227,9 +261,35 @@ describe("normalizeGraph", () => {
 		expect(normalized.nodes.map((n) => n.id)).toEqual(["ok"]);
 	});
 
+	it("drops an edge that names no port", () => {
+		const normalized = normalizeGraph({
+			version: 2,
+			nodes: [node("a", "agent"), node("b", "action")],
+			edges: [{ ...flow("a", "b"), source_port: "" }],
+		});
+		expect(normalized.edges).toEqual([]);
+	});
+
+	it("gives every Wait a mode, 'all' unless 'any' was chosen", () => {
+		const normalized = normalizeGraph({
+			version: 2,
+			nodes: [
+				node("w1", "wait"),
+				node("w2", "wait", { mode: "any" }),
+				node("w3", "wait", { mode: "most" as never }),
+			],
+			edges: [],
+		});
+		expect(normalized.nodes.map((n) => n.mode)).toEqual([
+			"all",
+			"any",
+			"all",
+		]);
+	});
+
 	it("blanks a whitespace-only field rather than storing it", () => {
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [node("a", "asset", { feature_id: "   " })],
 			edges: [],
 		});
@@ -238,49 +298,73 @@ describe("normalizeGraph", () => {
 });
 
 describe("agent assignment flows along 'then' edges", () => {
-	it("reaches everything downstream of an agent", () => {
+	it("reaches every step of an agent's chain", () => {
 		const assignment = propagateAgents(targetScenario());
 		expect(assignment.get("sweep-north")).toEqual(["robot-a"]);
-		expect(assignment.get("zone-north")).toEqual(["robot-a"]);
 		expect(assignment.get("sweep-south")).toEqual(["robot-b"]);
 		expect(assignment.get("hold")).toEqual(["robot-c"]);
-		expect(assignment.get("hold-point")).toEqual(["robot-c"]);
-		// Down through the condition to the action it gates.
-		expect(assignment.get("on-contact")).toEqual(["robot-c"]);
+		// Through the Wait to the step it holds.
+		expect(assignment.get("wait-contact")).toEqual(["robot-c"]);
 		expect(assignment.get("close-in")).toEqual(["robot-c"]);
 	});
 
-	it("does NOT flow along a data edge", () => {
-		// The surveys feed the condition with findings, but consuming a value
-		// is not being commanded by whoever produced it — closing in stays
-		// robot-c's job whoever found the thing.
+	it("gives what feeds a step the agents of that step", () => {
 		const assignment = propagateAgents(targetScenario());
-		expect(assignment.get("close-in")).not.toContain("robot-a");
-		expect(assignment.get("close-in")).not.toContain("robot-b");
+		expect(assignment.get("zone-north")).toEqual(["robot-a"]);
+		expect(assignment.get("hold-point")).toEqual(["robot-c"]);
+		expect(assignment.get("on-contact")).toEqual(["robot-c"]);
+	});
+
+	it("does not assign the agent an Agent holding condition watches", () => {
+		const assignment = propagateAgents({
+			version: 2,
+			nodes: [
+				node("a", "agent", { agent_id: "robot-a" }),
+				node("b", "agent", { agent_id: "robot-b" }),
+				node("held", "condition", {
+					condition: {
+						op: "AgentHolding",
+						threshold: 0,
+						negate: false,
+					},
+				}),
+				node("w", "wait"),
+				node("go", "action", { action: "NAVIGATE" }),
+			],
+			edges: [
+				flow("b", "w"),
+				flow("w", "go"),
+				when("held", "w"),
+				link("a", "agent", "held", "agent"),
+			],
+		});
+		// Watching robot-a is not being run by it: the Wait is robot-b's.
+		expect(assignment.get("held")).toEqual(["robot-b"]);
+		expect(assignment.get("go")).toEqual(["robot-b"]);
 	});
 
 	it("carries two agents into a node both reach", () => {
 		const assignment = propagateAgents({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
 				node("b", "agent", { agent_id: "robot-b" }),
 				node("meet", "action", { action: "NAVIGATE" }),
 			],
-			edges: [edge("a", "meet"), edge("b", "meet")],
+			edges: [flow("a", "meet"), flow("b", "meet")],
 		});
 		expect(assignment.get("meet")).toEqual(["robot-a", "robot-b"]);
 	});
 
 	it("terminates on a cycle", () => {
 		const assignment = propagateAgents({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
 				node("x", "action", { action: "COVERAGE" }),
 				node("y", "action", { action: "COVERAGE" }),
 			],
-			edges: [edge("a", "x"), edge("x", "y"), edge("y", "x")],
+			edges: [flow("a", "x"), flow("x", "y"), flow("y", "x")],
 		});
 		expect(assignment.get("y")).toEqual(["robot-a"]);
 	});
@@ -371,51 +455,56 @@ describe("compileMissionGraph", () => {
 		).toBe(true);
 	});
 
-	it("reports an unreached ASSET as a warning, and still submits it", () => {
-		// An objective nobody is assigned to is a planning question, not a
-		// broken mission — the C2 will still plan it. An ACTION nobody is
-		// assigned to simply never runs, which is why that one is an error.
+	it("warns about an asset wired into nothing, and leaves it out", () => {
+		// An asset no action uses is not part of the mission: said, not
+		// refused, and not submitted as an objective.
 		const graph = targetScenario();
 		graph.edges = graph.edges.filter(
-			(e) => !(e.source === "sweep-north" && e.target === "zone-north"),
+			(e) => !(e.source === "zone-north" && e.target === "sweep-north"),
 		);
 		const compiled = compileMissionGraph(graph);
 		expect(
 			compiled.issues.find((issue) => issue.nodeId === "zone-north")
 				?.severity,
 		).toBe("warning");
-		expect(compiled.geometries).toContainEqual({
+		expect(compiled.geometries).not.toContainEqual({
 			feature_id: "feat-zone-north",
 		});
 	});
 
-	it("reports a condition with no outgoing branch as an error", () => {
+	it("takes a target picked on the action as an objective", () => {
 		const graph = targetScenario();
 		graph.edges = graph.edges.filter(
-			(e) => !(e.source === "on-contact" && e.target === "close-in"),
+			(e) => !(e.source === "zone-north" && e.target === "sweep-north"),
 		);
-		const compiled = compileMissionGraph(graph);
-		expect(
-			compiled.issues.some(
-				(issue) =>
-					issue.nodeId === "on-contact" && issue.severity === "error",
-			),
-		).toBe(true);
+		graph.nodes = graph.nodes
+			.filter((n) => n.id !== "zone-north")
+			.map((n) =>
+				n.id === "sweep-north"
+					? { ...n, feature_id: "feat-zone-north" }
+					: n,
+			);
+		const compiled = compileMissionGraph(graph, TARGET_FEATURE_TYPES);
+		expect(compiled.geometries).toContainEqual({
+			feature_id: "feat-zone-north",
+		});
+		expect(graphCompiles(compiled.issues)).toBe(true);
 	});
 
-	it("does not ask for a data input the evaluable conditions never read", () => {
-		// ElapsedSeconds, AgentHolding and Always read nothing from a data
-		// edge; warning that one "is evaluated against nothing" was wrong.
+	it("reports a condition wired into no Wait as an error", () => {
 		const graph = targetScenario();
-		graph.edges = graph.edges.filter((e) => e.kind !== "data");
+		graph.edges = graph.edges.filter(
+			(e) => !(e.source === "on-contact" && e.target === "wait-contact"),
+		);
 		const compiled = compileMissionGraph(graph);
-		expect(
-			compiled.issues.some(
-				(issue) =>
-					issue.nodeId === "on-contact" &&
-					issue.severity === "warning",
-			),
-		).toBe(false);
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"CONDITION_UNUSED",
+			"on-contact",
+		]);
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"WAIT_EMPTY",
+			"wait-contact",
+		]);
 	});
 
 	it("dedupes a repeated asset and refuses a repeated agent", () => {
@@ -424,7 +513,7 @@ describe("compileMissionGraph", () => {
 			node("zone-north-2", "asset", { feature_id: "feat-zone-north" }),
 			node("survey-a-2", "agent", { agent_id: "robot-a" }),
 		);
-		graph.edges.push(edge("survey-a", "zone-north-2"));
+		graph.edges.push(target("zone-north-2", "sweep-south"));
 		const compiled = compileMissionGraph(graph);
 		expect(
 			compiled.geometries.filter(
@@ -457,7 +546,7 @@ describe("an action comes from a vocabulary, never from a text field", () => {
 		// compiler reports and the operator can act on — rather than carry a
 		// value the fog will never turn into a primitive.
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "action", {
 					action: "RENDEZVOUS" as unknown as never,
@@ -479,7 +568,7 @@ describe("an action comes from a vocabulary, never from a text field", () => {
 		// change a mission's behaviour. It becomes "no action named", which
 		// the compiler reports as an error the operator can act on.
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("s", "action", { action: "SURVEY" as unknown as never }),
 			],
@@ -502,7 +591,7 @@ describe("an action comes from a vocabulary, never from a text field", () => {
 	it("drops HOLD, MARK and NEUTRALISE off a stored graph, like SURVEY", () => {
 		for (const action of ["HOLD", "MARK", "NEUTRALISE"]) {
 			const normalized = normalizeGraph({
-				version: 1,
+				version: 2,
 				nodes: [
 					node("s", "action", { action: action as unknown as never }),
 				],
@@ -579,7 +668,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 		// would let a condition node read as configured while the fog ignores
 		// it, which is the one failure nothing on screen reports.
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("c", "condition", {
 					condition: "finding.kind >= contact" as unknown as never,
@@ -607,7 +696,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 			negate: false,
 		};
 		const doc = buildGraphDocument("m-1", {
-			version: 1,
+			version: 2,
 			nodes: [node("c", "condition", { condition })],
 			edges: [],
 		});
@@ -619,7 +708,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 		// A stale zone id on an ElapsedSeconds condition would show up in the
 		// inspector's form and read as though it mattered.
 		const normalized = normalizeGraph({
-			version: 1,
+			version: 2,
 			nodes: [
 				node("c", "condition", {
 					condition: {
@@ -660,7 +749,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 	it("coerces an unusable threshold to the shape's default", () => {
 		const thresholdOf = (condition: unknown) =>
 			normalizeGraph({
-				version: 1,
+				version: 2,
 				nodes: [
 					node("c", "condition", {
 						condition: condition as GraphCondition,
@@ -712,7 +801,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 	it("coerces negate to a boolean", () => {
 		const negateOf = (negate: unknown) =>
 			normalizeGraph({
-				version: 1,
+				version: 2,
 				nodes: [
 					node("c", "condition", {
 						condition: {
@@ -731,22 +820,19 @@ describe("a condition mirrors the fog's evaluator", () => {
 });
 
 describe("behavior is derived from the ACTION NODES, never picked", () => {
-	/**
-	 * An agent, one action, and the asset that action acts on — wired the way
-	 * the graph states association: agent → action → asset, along `exec`.
-	 */
+	/** An agent, one action, and the asset wired into its target. */
 	function oneAction(
 		action: GraphAction | undefined,
 		featureId = "feat-zone-north",
 	): MissionGraph {
 		return {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
 				node("act", "action", action ? { action } : {}),
 				node("asset", "asset", { feature_id: featureId }),
 			],
-			edges: [edge("a", "act"), edge("act", "asset")],
+			edges: [flow("a", "act"), target("asset", "act")],
 		};
 	}
 
@@ -772,12 +858,12 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 	it("is NAVIGATE when the graph has no action nodes at all", () => {
 		const compiled = compileMissionGraph(
 			{
-				version: 1,
+				version: 2,
 				nodes: [
 					node("a", "agent", { agent_id: "robot-a" }),
 					node("asset", "asset", { feature_id: "feat-zone-north" }),
 				],
-				edges: [edge("a", "asset")],
+				edges: [],
 			},
 			{ "feat-zone-north": "zone" },
 		);
@@ -812,7 +898,7 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 		// cannot be expressed faithfully. The operator may want it and the fog
 		// may cope — but they must not discover it from robot behaviour.
 		const graph: MissionGraph = {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
 				node("b", "agent", { agent_id: "robot-b" }),
@@ -822,10 +908,10 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 				node("wp", "asset", { feature_id: "feat-wp-1" }),
 			],
 			edges: [
-				edge("a", "sweep"),
-				edge("sweep", "zone"),
-				edge("b", "go"),
-				edge("go", "wp"),
+				flow("a", "sweep"),
+				target("zone", "sweep"),
+				flow("b", "go"),
+				target("wp", "go"),
 			],
 		};
 		const compiled = compileMissionGraph(graph, {
@@ -877,32 +963,29 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 
 describe("the action/asset pairing is validated, not inferred", () => {
 	/**
-	 * Association rule under test: an action acts on every `asset` node
-	 * reachable DOWNSTREAM of it along `exec` edges — the same walk
-	 * `propagateAgents` makes for an assignment, and the way the graph is
-	 * already wired (agent → action → asset).
+	 * An action and what it acts on: an asset wired into its target, or (with
+	 * `inline`) the same feature picked on the node itself.
 	 */
 	function paired(
 		action: GraphAction,
 		featureId?: string,
-		assetEdgeKind: MissionGraphEdge["kind"] = "exec",
+		inline = false,
 	): MissionGraph {
 		return {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
-				node("act", "action", { action }),
-				...(featureId
+				node("act", "action", {
+					action,
+					...(inline && featureId ? { feature_id: featureId } : {}),
+				}),
+				...(featureId && !inline
 					? [node("asset", "asset", { feature_id: featureId })]
 					: []),
-				// An objective always exists, so the compile only ever fails
-				// on the pairing and never on "no map asset".
-				node("objective", "asset", { feature_id: "feat-objective" }),
 			],
 			edges: [
-				edge("a", "act"),
-				edge("a", "objective"),
-				...(featureId ? [edge("act", "asset", assetEdgeKind)] : []),
+				flow("a", "act"),
+				...(featureId && !inline ? [target("asset", "act")] : []),
 			],
 		};
 	}
@@ -932,9 +1015,15 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		});
 		expect(graphCompiles(compiled.issues)).toBe(false);
 		expect(errorsOn(compiled)).toHaveLength(1);
-		expect(errorsOn(compiled)[0]?.message).toContain(
-			"empty route for EVERY agent",
+		expect(errorsOn(compiled)[0]?.message).toContain("empty route");
+	});
+
+	it("checks a target picked on the node as it checks a wired one", () => {
+		const compiled = compileMissionGraph(
+			paired("COVERAGE", "feat-wp-1", true),
+			{ "feat-wp-1": "waypoint" },
 		);
+		expect(errorsOn(compiled)).toHaveLength(1);
 	});
 
 	it("errors when a COVERAGE action is paired with no asset at all", () => {
@@ -943,19 +1032,6 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		});
 		expect(graphCompiles(compiled.issues)).toBe(false);
 		// The fog's COVERAGE_TARGET, not an editor-only check.
-		expect(fogCodes(compiled.issues)).toContainEqual([
-			"COVERAGE_TARGET",
-			"act",
-		]);
-	});
-
-	it("associates along 'then' edges, never along a data edge", () => {
-		// A data edge carries a value, not a command and not an association —
-		// so a zone merely feeding the action is not a zone it sweeps.
-		const compiled = compileMissionGraph(
-			paired("COVERAGE", "feat-zone-north", "data"),
-			{ "feat-zone-north": "zone", "feat-objective": "zone" },
-		);
 		expect(fogCodes(compiled.issues)).toContainEqual([
 			"COVERAGE_TARGET",
 			"act",
@@ -991,18 +1067,16 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		expect(warningsOn(compiled)).toHaveLength(0);
 	});
 
-	it("warns, never errors, when a NAVIGATE action targets a zone", () => {
-		// It will be planned to a single point derived from the polygon, which
-		// is probably not what was meant — but it is a mission that moves.
+	it("errors when a NAVIGATE action goes to a zone", () => {
+		// NAVIGATE's target is a waypoint: the canvas refuses the wire, and a
+		// zone picked some other way (the action switched after wiring, the
+		// feature retyped on the map) is refused here.
 		const compiled = compileMissionGraph(
 			paired("NAVIGATE", "feat-zone-north"),
-			{ "feat-zone-north": "zone", "feat-objective": "waypoint" },
+			{ "feat-zone-north": "zone" },
 		);
-		expect(graphCompiles(compiled.issues)).toBe(true);
-		expect(warningsOn(compiled)).toHaveLength(1);
-		expect(warningsOn(compiled)[0]?.message).toContain(
-			"navigates to a zone",
-		);
+		expect(graphCompiles(compiled.issues)).toBe(false);
+		expect(errorsOn(compiled)[0]?.message).toContain("goes to a zone");
 	});
 
 	it("says nothing about a NAVIGATE action over a waypoint", () => {
@@ -1022,12 +1096,9 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		expect(graphCompiles(editorOnly(compiled.issues))).toBe(true);
 	});
 
-	it("does not read the NEXT step's asset as this action's", () => {
-		// NAVIGATE -> wp -> COVERAGE -> zone: the zone belongs to the COVERAGE
-		// step. Walking through the next action made NAVIGATE "navigate to a
-		// zone".
+	it("does not read the NEXT step's target as this action's", () => {
 		const graph: MissionGraph = {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("a", "agent", { agent_id: "robot-a" }),
 				node("act", "action", { action: "NAVIGATE" }),
@@ -1036,17 +1107,22 @@ describe("the action/asset pairing is validated, not inferred", () => {
 				node("zone", "asset", { feature_id: "feat-zone-north" }),
 			],
 			edges: [
-				edge("a", "act"),
-				edge("act", "wp"),
-				edge("wp", "sweep"),
-				edge("sweep", "zone"),
+				flow("a", "act"),
+				target("wp", "act"),
+				flow("act", "sweep"),
+				target("zone", "sweep"),
 			],
 		};
 		const compiled = compileMissionGraph(graph, {
 			"feat-wp-1": "waypoint",
 			"feat-zone-north": "zone",
 		});
-		expect(warningsOn(compiled)).toHaveLength(0);
+		// (The graph navigates AND covers, which is a mission-level warning.)
+		expect(
+			compiled.issues.filter(
+				(issue) => issue.nodeId === "act" || issue.nodeId === "sweep",
+			),
+		).toEqual([]);
 	});
 });
 
@@ -1060,13 +1136,13 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 	it("accepts one agent, one action, its asset", () => {
 		const compiled = compileMissionGraph(
 			{
-				version: 1,
+				version: 2,
 				nodes: [
 					node("a", "agent", { agent_id: "robot-a" }),
 					node("go", "action", { action: "NAVIGATE" }),
 					node("wp", "asset", { feature_id: "feat-wp-1" }),
 				],
-				edges: [edge("a", "go"), edge("go", "wp")],
+				edges: [flow("a", "go"), target("wp", "go")],
 			},
 			types,
 		);
@@ -1076,7 +1152,7 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 	it("accepts a team wired into ONE action (the planner splits the work)", () => {
 		const compiled = compileMissionGraph(
 			{
-				version: 1,
+				version: 2,
 				nodes: [
 					node("a", "agent", { agent_id: "robot-a" }),
 					node("b", "agent", { agent_id: "robot-b" }),
@@ -1084,9 +1160,9 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 					node("zone", "asset", { feature_id: "feat-zone-north" }),
 				],
 				edges: [
-					edge("a", "sweep"),
-					edge("b", "sweep"),
-					edge("sweep", "zone"),
+					flow("a", "sweep"),
+					flow("b", "sweep"),
+					target("zone", "sweep"),
 				],
 			},
 			types,
@@ -1097,10 +1173,10 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 
 	it("accepts the operator's two-branch graph, condition included", () => {
 		// The screenshot of 2026-09-23: Es -> NAVIGATE -> Open field, and
-		// Ge -> When(elapsed >= 30 s) -> NAVIGATE -> Open field.
+		// Ge -> Wait(elapsed >= 30 s) -> NAVIGATE -> Open field.
 		const compiled = compileMissionGraph(
 			{
-				version: 1,
+				version: 2,
 				nodes: [
 					node("es", "agent", { agent_id: "robot-a" }),
 					node("ge", "agent", { agent_id: "robot-b" }),
@@ -1112,15 +1188,17 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 							negate: false,
 						},
 					}),
+					node("wait", "wait", { mode: "all" }),
 					node("go-ge", "action", { action: "NAVIGATE" }),
-					node("field", "asset", { feature_id: "feat-zone-north" }),
+					node("field", "asset", { feature_id: "feat-wp-1" }),
 				],
 				edges: [
-					edge("es", "go-es"),
-					edge("go-es", "field"),
-					edge("ge", "when"),
-					edge("when", "go-ge"),
-					edge("go-ge", "field"),
+					flow("es", "go-es"),
+					target("field", "go-es"),
+					flow("ge", "wait"),
+					when("when", "wait"),
+					flow("wait", "go-ge"),
+					target("field", "go-ge"),
 				],
 			},
 			types,
@@ -1136,7 +1214,7 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 		// normalizes first, so the action is gone before the compile.
 		for (const action of ["HOLD", "MARK", "NEUTRALISE"]) {
 			const compiled = compileMissionGraph({
-				version: 1,
+				version: 2,
 				nodes: [
 					node("a", "agent", { agent_id: "robot-a" }),
 					node("act", "action", {
@@ -1144,7 +1222,7 @@ describe("what the fog's executor runs is accepted, the rest refused before subm
 					}),
 					node("wp", "asset", { feature_id: "feat-wp-1" }),
 				],
-				edges: [edge("a", "act"), edge("act", "wp")],
+				edges: [flow("a", "act"), target("wp", "act")],
 			});
 			expect(fogCodes(compiled.issues)).toEqual([
 				["ACTION_MISSING", "act"],
@@ -1157,12 +1235,12 @@ describe("agent nodes are added and removed by one shared pure mutator", () => {
 	/** A graph carrying one agent node for `robot-a`, plus an asset it works. */
 	function withRobotA(): MissionGraph {
 		return {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("agent-1", "agent", { agent_id: "robot-a" }),
 				node("asset", "asset", { feature_id: "feat-wp-1" }),
 			],
-			edges: [edge("agent-1", "asset")],
+			edges: [],
 		};
 	}
 
@@ -1231,22 +1309,22 @@ describe("agent nodes are added and removed by one shared pure mutator", () => {
 		// The invariant `deleteNode` and `normalizeGraph` both maintain: a
 		// dangling edge is the one shape that reliably breaks a renderer.
 		const graph: MissionGraph = {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("agent-1", "agent", { agent_id: "robot-a" }),
 				node("act", "action", { action: "NAVIGATE" }),
 				node("asset", "asset", { feature_id: "feat-wp-1" }),
 			],
 			edges: [
-				edge("agent-1", "act"),
-				edge("act", "asset"),
-				edge("act", "agent-1", "data"),
+				flow("agent-1", "act"),
+				target("asset", "act"),
+				link("agent-1", "agent", "act", "target"),
 			],
 		};
 		const next = removeAgentNode(graph, "robot-a");
 		expect(next.nodes.map((n) => n.id)).toEqual(["act", "asset"]);
 		// Both directions: the edge INTO the removed node goes too.
-		expect(next.edges.map((e) => e.id)).toEqual(["exec-act-asset"]);
+		expect(next.edges.map((e) => e.id)).toEqual(["asset.value-act.target"]);
 		// And normalizing changes nothing, because nothing dangles.
 		expect(normalizeGraph(next).edges).toHaveLength(1);
 	});
@@ -1255,7 +1333,7 @@ describe("agent nodes are added and removed by one shared pure mutator", () => {
 		// Nothing stops the same agent being added twice from two surfaces,
 		// and leaving one behind makes the toggle read as having done nothing.
 		const graph: MissionGraph = {
-			version: 1,
+			version: 2,
 			nodes: [
 				node("agent-1", "agent", { agent_id: "robot-a" }),
 				node("agent-2", "agent", { agent_id: "robot-a" }),
@@ -1286,7 +1364,7 @@ describe("agent nodes are added and removed by one shared pure mutator", () => {
 		// end up in `MissionConfig.vehicles`.
 		const graph = addAgentNode(
 			{
-				version: 1,
+				version: 2,
 				nodes: [node("asset", "asset", { feature_id: "feat-wp-1" })],
 				edges: [],
 			},
@@ -1309,7 +1387,7 @@ describe("agent nodes are added and removed by one shared pure mutator", () => {
 		// node added from the toolbar would have.
 		const positions = Array.from({ length: 5 }, (_, n) =>
 			nextNodePosition({
-				version: 1,
+				version: 2,
 				nodes: Array.from({ length: n }, (__, i) =>
 					node(`n-${i}`, "action", { action: "NAVIGATE" }),
 				),

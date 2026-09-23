@@ -10,5 +10,8 @@ The fog's `test_mission_program` gtest and `../mission-program.test.ts` both run
 every file here, so the editor and the fog refuse exactly the same graphs with
 exactly the same codes.
 
-**Copy, don't edit.** Change a fixture in the fog first, copy the directory
+They are written by the fog's `test/fixtures/make_mission_graphs.py` (graph
+schema 2: typed ports, Wait nodes).
+
+**Copy, don't edit.** Change a case in that script, run it, copy the directory
 over, then make `mission-program.ts` pass.

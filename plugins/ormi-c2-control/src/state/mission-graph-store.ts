@@ -74,7 +74,9 @@ export function setMissionGraph(missionId: string, graph: MissionGraph): void {
  * Apply an operator edit and mark the graph DIRTY.
  *
  * A no-op when no slot exists: an edit can only land on a loaded graph, which
- * is the same null-guard `editMissionDraft` uses.
+ * is the same null-guard `editMissionDraft` uses. Also a no-op when the
+ * updater hands back the same graph (a refused wire): nothing changed, so
+ * nothing is unsaved.
  *
  * @param missionId - The mission whose graph to edit.
  * @param updater - Pure transform from the current graph to the next.
@@ -86,6 +88,7 @@ export function editMissionGraph(
 	const prev = graphs[missionId];
 	if (!prev) return;
 	const next = updater(prev.graph);
+	if (next === prev.graph) return;
 	graphs = {
 		...graphs,
 		[missionId]: { sig: graphSignature(next), graph: next, dirty: true },

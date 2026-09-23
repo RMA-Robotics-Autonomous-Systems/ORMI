@@ -1,6 +1,6 @@
 {
-	"name": "gate_waits_for_other_agent",
-	"description": "Ge sweeps only once Es is holding (idle or done); the agent is picked on the condition.",
+	"name": "condition_agent",
+	"description": "AgentHolding must watch exactly one agent: none, or one picked and another wired.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -16,6 +16,16 @@
 				"agent_id": "agent-es"
 			},
 			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
 				"id": "go",
 				"kind": "action",
 				"label": "go",
@@ -27,19 +37,23 @@
 				"feature_id": "feat-wp"
 			},
 			{
-				"id": "ge",
-				"kind": "agent",
-				"label": "ge",
+				"id": "none",
+				"kind": "condition",
+				"label": "none",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
-				"agent_id": "agent-ge"
+				"condition": {
+					"op": "AgentHolding",
+					"threshold": 0,
+					"negate": false
+				}
 			},
 			{
-				"id": "es-done",
+				"id": "two",
 				"kind": "condition",
-				"label": "es-done",
+				"label": "two",
 				"position": {
 					"x": 0,
 					"y": 0
@@ -48,7 +62,7 @@
 					"op": "AgentHolding",
 					"threshold": 0,
 					"negate": false,
-					"key": "agent-es"
+					"key": "agent-fr"
 				}
 			},
 			{
@@ -62,15 +76,15 @@
 				"mode": "all"
 			},
 			{
-				"id": "sweep",
+				"id": "go-ge",
 				"kind": "action",
-				"label": "sweep",
+				"label": "go-ge",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
-				"action": "COVERAGE",
-				"feature_id": "feat-zone"
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
 			}
 		],
 		"edges": [
@@ -89,15 +103,29 @@
 				"target_port": "in"
 			},
 			{
-				"id": "wait.next-sweep.in",
+				"id": "wait.next-go-ge.in",
 				"source": "wait",
 				"source_port": "next",
-				"target": "sweep",
+				"target": "go-ge",
 				"target_port": "in"
 			},
 			{
-				"id": "es-done.value-wait.when",
-				"source": "es-done",
+				"id": "es.agent-two.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "two",
+				"target_port": "agent"
+			},
+			{
+				"id": "none.value-wait.when",
+				"source": "none",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			},
+			{
+				"id": "two.value-wait.when",
+				"source": "two",
 				"source_port": "value",
 				"target": "wait",
 				"target_port": "when"
@@ -105,47 +133,10 @@
 		]
 	},
 	"expect": {
-		"errors": [],
-		"not_executable_yet": [],
-		"program": {
-			"chains": [
-				{
-					"agents": ["agent-es"],
-					"steps": [
-						{
-							"step_id": "go",
-							"action": "NAVIGATE",
-							"feature_id": "feat-wp",
-							"wait_node": "",
-							"mode": "all",
-							"gate": [],
-							"gate_nodes": []
-						}
-					]
-				},
-				{
-					"agents": ["agent-ge"],
-					"steps": [
-						{
-							"step_id": "sweep",
-							"action": "COVERAGE",
-							"feature_id": "feat-zone",
-							"wait_node": "wait",
-							"mode": "all",
-							"gate": [
-								{
-									"op": "AgentHolding",
-									"key": "agent-es",
-									"arg": "",
-									"threshold": 0,
-									"negate": false
-								}
-							],
-							"gate_nodes": ["es-done"]
-						}
-					]
-				}
-			]
-		}
+		"errors": [
+			["CONDITION_AGENT", "none"],
+			["CONDITION_AGENT", "two"]
+		],
+		"not_executable_yet": []
 	}
 }

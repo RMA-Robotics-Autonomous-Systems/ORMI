@@ -679,7 +679,14 @@ describe("the graph shows where each agent is while the mission runs", () => {
 					steps_total: 1,
 					step_id: "go-es",
 					state: "RUNNING",
-					steps: [{ step_id: "go-es", gate_nodes: [] }],
+					steps: [
+						{
+							step_id: "go-es",
+							wait_node: "",
+							mode: "all",
+							gate_nodes: [],
+						},
+					],
 				},
 				"agent-ge": {
 					chain: 1,
@@ -688,11 +695,23 @@ describe("the graph shows where each agent is while the mission runs", () => {
 					step_id: "go-ge",
 					state: "GATED",
 					steps: [
-						{ step_id: "go-ge", gate_nodes: ["when"] },
-						{ step_id: "back-ge", gate_nodes: ["es-holds"] },
+						{
+							step_id: "go-ge",
+							wait_node: "wait-1",
+							mode: "any",
+							gate_nodes: ["when"],
+						},
+						{
+							step_id: "back-ge",
+							wait_node: "wait-2",
+							mode: "all",
+							gate_nodes: ["es-holds"],
+						},
 					],
 					gate: {
 						node_ids: ["when"],
+						wait_node: "wait-1",
+						mode: "any",
 						waited_s: 12.4,
 						conditions: [
 							{
@@ -730,6 +749,11 @@ describe("the graph shows where each agent is while the mission runs", () => {
 			text: "waiting 12/30 s",
 		});
 		expect(marks.get("go-ge")).toEqual({ tone: "starting", text: "next" });
+		// The Wait the agent is held at, and how far its conditions are.
+		expect(marks.get("wait-1")).toEqual({
+			tone: "waiting",
+			text: "waiting · 0/1 hold (any)",
+		});
 		expect(marks.get("es")?.text).toBe("step 1/1 · running");
 		expect(marks.get("ge")?.text).toBe("step 1/2 · waiting");
 		// Ge's second step is ahead: no mark yet.
@@ -747,7 +771,10 @@ describe("the graph shows where each agent is while the mission runs", () => {
 		};
 		const marks = programMarks(agentNodes, later);
 		expect(marks.get("go-ge")?.tone).toBe("done");
-		expect(marks.get("when")?.tone).toBe("done");
+		// Wait-1 was "any": it opened, but which condition held is not known,
+		// so none is painted as held.
+		expect(marks.has("when")).toBe(false);
+		expect(marks.get("wait-1")).toEqual({ tone: "done", text: "opened" });
 		expect(marks.get("back-ge")?.tone).toBe("failed");
 		expect(marks.get("es-holds")?.tone).toBe("done");
 	});
@@ -760,6 +787,8 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				state: "GATED" as const,
 				gate: {
 					node_ids: ["es-holds"],
+					wait_node: "wait-2",
+					mode: "all" as const,
 					waited_s: 40,
 					conditions: [
 						{
@@ -789,6 +818,8 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				state: "GATED" as const,
 				gate: {
 					node_ids: ["es-holds"],
+					wait_node: "wait-2",
+					mode: "all" as const,
 					waited_s: 12,
 					conditions: [
 						{

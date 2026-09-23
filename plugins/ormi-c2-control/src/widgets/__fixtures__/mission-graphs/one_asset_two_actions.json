@@ -1,6 +1,6 @@
 {
-	"name": "operator_screenshot_2026_09_23",
-	"description": "The graph that exposed the two behaviour systems: Es navigates to the field; Ge waits 30 s then navigates to the field too.",
+	"name": "one_asset_two_actions",
+	"description": "One asset node feeds two actions of two chains.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -36,30 +36,6 @@
 				"action": "NAVIGATE"
 			},
 			{
-				"id": "when",
-				"kind": "condition",
-				"label": "when",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"condition": {
-					"op": "ElapsedSeconds",
-					"threshold": 30,
-					"negate": false
-				}
-			},
-			{
-				"id": "wait",
-				"kind": "wait",
-				"label": "wait",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"mode": "all"
-			},
-			{
 				"id": "go-ge",
 				"kind": "action",
 				"label": "go-ge",
@@ -70,14 +46,14 @@
 				"action": "NAVIGATE"
 			},
 			{
-				"id": "field",
+				"id": "wp",
 				"kind": "asset",
-				"label": "field",
+				"label": "wp",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
-				"feature_id": "feat-zone"
+				"feature_id": "feat-wp"
 			}
 		],
 		"edges": [
@@ -89,36 +65,22 @@
 				"target_port": "in"
 			},
 			{
-				"id": "ge.next-wait.in",
+				"id": "ge.next-go-ge.in",
 				"source": "ge",
-				"source_port": "next",
-				"target": "wait",
-				"target_port": "in"
-			},
-			{
-				"id": "wait.next-go-ge.in",
-				"source": "wait",
 				"source_port": "next",
 				"target": "go-ge",
 				"target_port": "in"
 			},
 			{
-				"id": "when.value-wait.when",
-				"source": "when",
-				"source_port": "value",
-				"target": "wait",
-				"target_port": "when"
-			},
-			{
-				"id": "field.value-go-es.target",
-				"source": "field",
+				"id": "wp.value-go-es.target",
+				"source": "wp",
 				"source_port": "value",
 				"target": "go-es",
 				"target_port": "target"
 			},
 			{
-				"id": "field.value-go-ge.target",
-				"source": "field",
+				"id": "wp.value-go-ge.target",
+				"source": "wp",
 				"source_port": "value",
 				"target": "go-ge",
 				"target_port": "target"
@@ -136,7 +98,7 @@
 						{
 							"step_id": "go-es",
 							"action": "NAVIGATE",
-							"feature_id": "feat-zone",
+							"feature_id": "feat-wp",
 							"wait_node": "",
 							"mode": "all",
 							"gate": [],
@@ -150,19 +112,11 @@
 						{
 							"step_id": "go-ge",
 							"action": "NAVIGATE",
-							"feature_id": "feat-zone",
-							"wait_node": "wait",
+							"feature_id": "feat-wp",
+							"wait_node": "",
 							"mode": "all",
-							"gate": [
-								{
-									"op": "ElapsedSeconds",
-									"key": "",
-									"arg": "",
-									"threshold": 30,
-									"negate": false
-								}
-							],
-							"gate_nodes": ["when"]
+							"gate": [],
+							"gate_nodes": []
 						}
 					]
 				}

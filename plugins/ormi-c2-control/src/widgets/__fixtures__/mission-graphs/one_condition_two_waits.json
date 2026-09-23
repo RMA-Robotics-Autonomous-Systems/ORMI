@@ -1,6 +1,6 @@
 {
-	"name": "operator_screenshot_2026_09_23",
-	"description": "The graph that exposed the two behaviour systems: Es navigates to the field; Ge waits 30 s then navigates to the field too.",
+	"name": "one_condition_two_waits",
+	"description": "One condition node can feed the Waits of two chains.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -26,19 +26,9 @@
 				"agent_id": "agent-ge"
 			},
 			{
-				"id": "go-es",
-				"kind": "action",
-				"label": "go-es",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "when",
+				"id": "late",
 				"kind": "condition",
-				"label": "when",
+				"label": "late",
 				"position": {
 					"x": 0,
 					"y": 0
@@ -50,14 +40,35 @@
 				}
 			},
 			{
-				"id": "wait",
+				"id": "w-es",
 				"kind": "wait",
-				"label": "wait",
+				"label": "w-es",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"mode": "all"
+			},
+			{
+				"id": "w-ge",
+				"kind": "wait",
+				"label": "w-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go-es",
+				"kind": "action",
+				"label": "go-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
 			},
 			{
 				"id": "go-ge",
@@ -67,61 +78,52 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "field",
-				"kind": "asset",
-				"label": "field",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"feature_id": "feat-zone"
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
 			}
 		],
 		"edges": [
 			{
-				"id": "es.next-go-es.in",
+				"id": "es.next-w-es.in",
 				"source": "es",
+				"source_port": "next",
+				"target": "w-es",
+				"target_port": "in"
+			},
+			{
+				"id": "w-es.next-go-es.in",
+				"source": "w-es",
 				"source_port": "next",
 				"target": "go-es",
 				"target_port": "in"
 			},
 			{
-				"id": "ge.next-wait.in",
+				"id": "ge.next-w-ge.in",
 				"source": "ge",
 				"source_port": "next",
-				"target": "wait",
+				"target": "w-ge",
 				"target_port": "in"
 			},
 			{
-				"id": "wait.next-go-ge.in",
-				"source": "wait",
+				"id": "w-ge.next-go-ge.in",
+				"source": "w-ge",
 				"source_port": "next",
 				"target": "go-ge",
 				"target_port": "in"
 			},
 			{
-				"id": "when.value-wait.when",
-				"source": "when",
+				"id": "late.value-w-es.when",
+				"source": "late",
 				"source_port": "value",
-				"target": "wait",
+				"target": "w-es",
 				"target_port": "when"
 			},
 			{
-				"id": "field.value-go-es.target",
-				"source": "field",
+				"id": "late.value-w-ge.when",
+				"source": "late",
 				"source_port": "value",
-				"target": "go-es",
-				"target_port": "target"
-			},
-			{
-				"id": "field.value-go-ge.target",
-				"source": "field",
-				"source_port": "value",
-				"target": "go-ge",
-				"target_port": "target"
+				"target": "w-ge",
+				"target_port": "when"
 			}
 		]
 	},
@@ -136,22 +138,8 @@
 						{
 							"step_id": "go-es",
 							"action": "NAVIGATE",
-							"feature_id": "feat-zone",
-							"wait_node": "",
-							"mode": "all",
-							"gate": [],
-							"gate_nodes": []
-						}
-					]
-				},
-				{
-					"agents": ["agent-ge"],
-					"steps": [
-						{
-							"step_id": "go-ge",
-							"action": "NAVIGATE",
-							"feature_id": "feat-zone",
-							"wait_node": "wait",
+							"feature_id": "feat-wp",
+							"wait_node": "w-es",
 							"mode": "all",
 							"gate": [
 								{
@@ -162,7 +150,29 @@
 									"negate": false
 								}
 							],
-							"gate_nodes": ["when"]
+							"gate_nodes": ["late"]
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go-ge",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp-2",
+							"wait_node": "w-ge",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 30,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["late"]
 						}
 					]
 				}

@@ -1,6 +1,6 @@
 {
-	"name": "never_is_refused",
-	"description": "Never would block forever.",
+	"name": "wait_mode",
+	"description": "A Wait waits for all or any of its conditions, nothing else.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -16,16 +16,16 @@
 				"agent_id": "agent-es"
 			},
 			{
-				"id": "never",
+				"id": "a",
 				"kind": "condition",
-				"label": "never",
+				"label": "a",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"condition": {
-					"op": "Never",
-					"threshold": 0,
+					"op": "ElapsedSeconds",
+					"threshold": 5,
 					"negate": false
 				}
 			},
@@ -37,7 +37,7 @@
 					"x": 0,
 					"y": 0
 				},
-				"mode": "all"
+				"mode": "most"
 			},
 			{
 				"id": "go",
@@ -67,8 +67,8 @@
 				"target_port": "in"
 			},
 			{
-				"id": "never.value-wait.when",
-				"source": "never",
+				"id": "a.value-wait.when",
+				"source": "a",
 				"source_port": "value",
 				"target": "wait",
 				"target_port": "when"
@@ -76,7 +76,7 @@
 		]
 	},
 	"expect": {
-		"errors": [["CONDITION_NOT_EVALUABLE", "never"]],
+		"errors": [["WAIT_MODE", "wait"]],
 		"not_executable_yet": []
 	}
 }

@@ -1,6 +1,6 @@
 {
-	"name": "cycle",
-	"description": "A loop is refused (it re-enters a node, so it is a join too).",
+	"name": "wait_stacked",
+	"description": "Two Waits in a row: wire every condition into one Wait instead.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -17,33 +17,36 @@
 			},
 			{
 				"id": "a",
-				"kind": "action",
+				"kind": "condition",
 				"label": "a",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE",
-				"feature_id": "feat-wp"
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 5,
+					"negate": false
+				}
 			},
 			{
-				"id": "c",
+				"id": "b",
 				"kind": "condition",
-				"label": "c",
+				"label": "b",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"condition": {
-					"op": "Always",
-					"threshold": 0,
+					"op": "ContactsFound",
+					"threshold": 1,
 					"negate": false
 				}
 			},
 			{
-				"id": "w",
+				"id": "w1",
 				"kind": "wait",
-				"label": "w",
+				"label": "w1",
 				"position": {
 					"x": 0,
 					"y": 0
@@ -51,9 +54,19 @@
 				"mode": "all"
 			},
 			{
-				"id": "b",
+				"id": "w2",
+				"kind": "wait",
+				"label": "w2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "any"
+			},
+			{
+				"id": "go",
 				"kind": "action",
-				"label": "b",
+				"label": "go",
 				"position": {
 					"x": 0,
 					"y": 0
@@ -64,47 +77,44 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-a.in",
+				"id": "es.next-w1.in",
 				"source": "es",
 				"source_port": "next",
-				"target": "a",
+				"target": "w1",
 				"target_port": "in"
 			},
 			{
-				"id": "a.next-w.in",
+				"id": "w1.next-w2.in",
+				"source": "w1",
+				"source_port": "next",
+				"target": "w2",
+				"target_port": "in"
+			},
+			{
+				"id": "w2.next-go.in",
+				"source": "w2",
+				"source_port": "next",
+				"target": "go",
+				"target_port": "in"
+			},
+			{
+				"id": "a.value-w1.when",
 				"source": "a",
-				"source_port": "next",
-				"target": "w",
-				"target_port": "in"
-			},
-			{
-				"id": "w.next-b.in",
-				"source": "w",
-				"source_port": "next",
-				"target": "b",
-				"target_port": "in"
-			},
-			{
-				"id": "b.next-w.in",
-				"source": "b",
-				"source_port": "next",
-				"target": "w",
-				"target_port": "in"
-			},
-			{
-				"id": "c.value-w.when",
-				"source": "c",
 				"source_port": "value",
-				"target": "w",
+				"target": "w1",
+				"target_port": "when"
+			},
+			{
+				"id": "b.value-w2.when",
+				"source": "b",
+				"source_port": "value",
+				"target": "w2",
 				"target_port": "when"
 			}
 		]
 	},
 	"expect": {
-		"errors": [
-			["CYCLE", "w"],
-			["JOIN", "w"]
-		],
+		"errors": [["WAIT_STACKED", "w2"]],
 		"not_executable_yet": []
 	}
 }

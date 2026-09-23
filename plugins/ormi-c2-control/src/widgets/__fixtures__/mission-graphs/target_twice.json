@@ -1,6 +1,6 @@
 {
-	"name": "team_navigate",
-	"description": "A team cannot navigate to one point.",
+	"name": "target_twice",
+	"description": "A waypoint picked inline AND an asset wired in: two targets, refused.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -16,16 +16,6 @@
 				"agent_id": "agent-es"
 			},
 			{
-				"id": "ge",
-				"kind": "agent",
-				"label": "ge",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"agent_id": "agent-ge"
-			},
-			{
 				"id": "go",
 				"kind": "action",
 				"label": "go",
@@ -35,6 +25,16 @@
 				},
 				"action": "NAVIGATE",
 				"feature_id": "feat-wp"
+			},
+			{
+				"id": "wp2",
+				"kind": "asset",
+				"label": "wp2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp2"
 			}
 		],
 		"edges": [
@@ -46,16 +46,16 @@
 				"target_port": "in"
 			},
 			{
-				"id": "ge.next-go.in",
-				"source": "ge",
-				"source_port": "next",
+				"id": "wp2.value-go.target",
+				"source": "wp2",
+				"source_port": "value",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["TEAM_NAVIGATE", "go"]],
+		"errors": [["NAVIGATE_TARGET", "go"]],
 		"not_executable_yet": []
 	}
 }

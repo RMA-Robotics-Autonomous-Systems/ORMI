@@ -17,15 +17,18 @@ import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
  * the same geometry two homes, and the day they disagreed nothing would say
  * which one the planner used.
  *
- * ## Two kinds of edge
+ * ## Typed ports (schema 2)
  *
- * - **exec** ("then") — sequencing. An agent assignment flows along these to
- *   *everything reachable*, so the operator says "this agent" once at the head
- *   of a branch instead of on every step of it.
- * - **data** — a typed value one node produces and another consumes (a finding
- *   from a survey feeding the condition that dispatches an effector). Data
- *   edges carry no assignment: consuming a value is not being commanded by
- *   whoever produced it.
+ * Every edge joins an OUTPUT port of one node to an INPUT port of another, and
+ * the two carry the same type (`mission-graph-ports.ts` holds the table). The
+ * `flow` ports ("then") are the chains: an agent's `next` into its first step,
+ * each step's `next` into the following one. The typed values feed a step: an
+ * asset into an action's `target`, true/false conditions into a Wait's `when`,
+ * an agent into an Agent holding condition. Only flow carries order, and an
+ * agent assignment flows along it.
+ *
+ * Schema 1 (untyped exec/data edges) is not read: a stored v1 graph shows as
+ * outdated and is rebuilt, never converted.
  *
  * ## What compiles, and what does not
  *
@@ -60,7 +63,7 @@ import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
  */
 
 /** Schema version of a persisted graph document. */
-export const MISSION_GRAPH_VERSION = 1;
+export const MISSION_GRAPH_VERSION = 2;
 
 /** `kind` marker on the sibling document, so a reader can tell what it is. */
 export const MISSION_GRAPH_DOC_KIND = "ormi-mission-graph";
@@ -376,7 +379,10 @@ export function normalizeCondition(value: unknown): GraphCondition | undefined {
 }
 
 /** What a node is. */
-export type GraphNodeKind = "agent" | "asset" | "action" | "condition";
+export type GraphNodeKind = "agent" | "asset" | "action" | "condition" | "wait";
+
+/** Whether a Wait opens when ALL of its conditions hold, or ANY one. */
+export type WaitMode = "all" | "any";
 
 /** One node in the behaviour graph. */
 export interface MissionGraphNode {
@@ -389,7 +395,11 @@ export interface MissionGraphNode {
 	position: { x: number; y: number };
 	/** `agent` nodes: the allocated vehicle's `agent_id`. */
 	agent_id?: string;
-	/** `asset` nodes: the MapDB `feature_id`. NEVER geometry. */
+	/**
+	 * `asset` nodes: the MapDB `feature_id`. `action` nodes: the target
+	 * picked on the node (the same as wiring an asset into its `target`).
+	 * NEVER geometry.
+	 */
 	feature_id?: string;
 	/**
 	 * `action` nodes: what to do. A closed vocabulary — see
@@ -402,19 +412,20 @@ export interface MissionGraphNode {
 	 * see {@link GraphCondition}.
 	 */
 	condition?: GraphCondition;
+	/** `wait` nodes: all of the wired conditions, or any one. */
+	mode?: WaitMode;
 }
 
-/** What an edge means. */
-export type GraphEdgeKind = "exec" | "data";
-
-/** One edge in the behaviour graph. */
+/**
+ * One edge: an output port of `source` into an input port of `target`. The
+ * ports are the ids in `mission-graph-ports.ts`.
+ */
 export interface MissionGraphEdge {
 	id: string;
 	source: string;
+	source_port: string;
 	target: string;
-	kind: GraphEdgeKind;
-	/** `data` edges: what flows (e.g. `finding`). Ignored on `exec` edges. */
-	channel?: string;
+	target_port: string;
 }
 
 /** A whole behaviour graph. */
@@ -502,12 +513,13 @@ function optionalString(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-/** Whether a value names one of the four node kinds. */
+/** Whether a value names one of the five node kinds. */
 function toNodeKind(value: unknown): GraphNodeKind | null {
 	return value === "agent" ||
 		value === "asset" ||
 		value === "action" ||
-		value === "condition"
+		value === "condition" ||
+		value === "wait"
 		? value
 		: null;
 }
@@ -556,6 +568,10 @@ export function normalizeGraph(graph: MissionGraph): MissionGraph {
 			// legacy free-text string — is not a predicate anyone can
 			// evaluate, so it becomes unset rather than stored.
 			...(condition ? { condition } : {}),
+			// A Wait always says which: "any" only when it was chosen.
+			...(kind === "wait"
+				? { mode: node.mode === "any" ? "any" : "all" }
+				: {}),
 		});
 	}
 
@@ -565,7 +581,9 @@ export function normalizeGraph(graph: MissionGraph): MissionGraph {
 		const id = optionalString(edge?.id);
 		const source = optionalString(edge?.source);
 		const target = optionalString(edge?.target);
-		if (!id || !source || !target) continue;
+		const sourcePort = optionalString(edge?.source_port);
+		const targetPort = optionalString(edge?.target_port);
+		if (!id || !source || !target || !sourcePort || !targetPort) continue;
 		if (edgeIds.has(id)) continue;
 		if (!seen.has(source) || !seen.has(target)) continue;
 		if (source === target) continue;
@@ -573,11 +591,9 @@ export function normalizeGraph(graph: MissionGraph): MissionGraph {
 		edges.push({
 			id,
 			source,
+			source_port: sourcePort,
 			target,
-			kind: edge.kind === "data" ? "data" : "exec",
-			...(edge.kind === "data" && optionalString(edge.channel)
-				? { channel: optionalString(edge.channel) }
-				: {}),
+			target_port: targetPort,
 		});
 	}
 
@@ -739,18 +755,8 @@ export function toggleAgentNode(
 		: addAgentNode(graph, agentId, label);
 }
 
-/**
- * Read a stored document back into a graph.
- *
- * Tolerant by construction: this reads a `strict: false` Mongo document that
- * an older build may have written and that nothing validates server-side, so a
- * shape it does not recognise yields `null` (the mission simply has no graph
- * yet) rather than throwing inside a widget.
- *
- * @param raw - A document from `c2.missions.list`.
- * @returns The graph, or `null` when the document is not a usable one.
- */
-export function readGraphDocument(raw: unknown): MissionGraph | null {
+/** The `graph` object of a stored graph document, whatever its version. */
+function storedGraph(raw: unknown): Partial<MissionGraph> | null {
 	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
 	const doc = raw as Record<string, unknown>;
 	if (!isMissionGraphDocId(doc.mission_id)) return null;
@@ -758,7 +764,36 @@ export function readGraphDocument(raw: unknown): MissionGraph | null {
 	if (!graph || typeof graph !== "object" || Array.isArray(graph)) {
 		return null;
 	}
-	const candidate = graph as Partial<MissionGraph>;
+	return graph as Partial<MissionGraph>;
+}
+
+/**
+ * Whether a stored graph document was written by an older editor (schema 1).
+ * It is not read — a mission whose graph is outdated opens on an empty canvas
+ * and says so, and the next save replaces it.
+ *
+ * @param raw - A document from `c2.missions.list`.
+ * @returns True when it is a graph document of another schema version.
+ */
+export function isOutdatedGraphDocument(raw: unknown): boolean {
+	const candidate = storedGraph(raw);
+	return candidate !== null && candidate.version !== MISSION_GRAPH_VERSION;
+}
+
+/**
+ * Read a stored document back into a graph.
+ *
+ * Tolerant by construction: this reads a `strict: false` Mongo document that
+ * nothing validates server-side, so a shape it does not recognise — including
+ * a graph of another schema version — yields `null` rather than throwing
+ * inside a widget. {@link isOutdatedGraphDocument} tells the two apart.
+ *
+ * @param raw - A document from `c2.missions.list`.
+ * @returns The graph, or `null` when the document is not a usable one.
+ */
+export function readGraphDocument(raw: unknown): MissionGraph | null {
+	const candidate = storedGraph(raw);
+	if (!candidate || candidate.version !== MISSION_GRAPH_VERSION) return null;
 	return normalizeGraph({
 		version: MISSION_GRAPH_VERSION,
 		nodes: Array.isArray(candidate.nodes) ? candidate.nodes : [],
@@ -767,12 +802,14 @@ export function readGraphDocument(raw: unknown): MissionGraph | null {
 }
 
 /**
- * Which agents reach each node along **execution** edges.
+ * Which agents reach each node.
  *
- * An agent assignment flows downstream to everything reachable, so an operator
- * says "this agent" once at the head of a branch. Two agents can legitimately
- * reach the same node (two survey vehicles converging on one hand-off), so this
- * is a set per node and not a single owner.
+ * An agent assignment flows along the **flow** edges ("then") to every step
+ * after it, so an operator says "this agent" once at the head of a chain. A
+ * node that FEEDS a step — an asset into an action's target, a condition into
+ * a Wait — works for the agents of the step it feeds. Two agents can reach the
+ * same node (a team, or one asset used by two chains), so this is a set per
+ * node and not a single owner.
  *
  * Cycle-safe: a node already visited for a given agent is not walked again, so
  * an accidental loop costs nothing rather than hanging the editor.
@@ -781,12 +818,13 @@ export function readGraphDocument(raw: unknown): MissionGraph | null {
  * @returns node id → the agent ids that reach it, in stable order.
  */
 export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
-	const execOut = new Map<string, string[]>();
+	const flowOut = new Map<string, string[]>();
+	const feeds = new Map<string, string[]>();
 	for (const edge of graph.edges) {
-		if (edge.kind !== "exec") continue;
-		const list = execOut.get(edge.source);
+		const map = edge.target_port === "in" ? flowOut : feeds;
+		const list = map.get(edge.source);
 		if (list) list.push(edge.target);
-		else execOut.set(edge.source, [edge.target]);
+		else map.set(edge.source, [edge.target]);
 	}
 
 	const reached = new Map<string, Set<string>>();
@@ -804,7 +842,19 @@ export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
 			const set = reached.get(current) ?? new Set<string>();
 			set.add(agentId);
 			reached.set(current, set);
-			for (const next of execOut.get(current) ?? []) stack.push(next);
+			for (const next of flowOut.get(current) ?? []) stack.push(next);
+		}
+	}
+	// One hop back from each step: what feeds it works for its agents.
+	for (const [source, targets] of feeds) {
+		const node = graph.nodes.find((n) => n.id === source);
+		if (node?.kind === "agent") continue; // an agent watched is not assigned
+		for (const target of targets) {
+			for (const agentId of reached.get(target) ?? []) {
+				const set = reached.get(source) ?? new Set<string>();
+				set.add(agentId);
+				reached.set(source, set);
+			}
 		}
 	}
 
@@ -817,60 +867,25 @@ export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
 }
 
 /**
- * The asset nodes an action node acts on.
- *
- * ## The association rule, and why this one
- *
- * An action is associated with every `asset` node **reachable downstream of it
- * along `exec` edges**. That is the same walk, in the same direction, that
- * {@link propagateAgents} performs for an agent assignment, and it is the rule
- * the graph is already wired to: an agent node points at an action ("this agent
- * does this"), and the action points at the asset it does it to
- * (`sweep → zone`, `hold → holding-point`). `exec` is documented as sequencing
- * that flows to *everything reachable*, so "the branch below this action" is
- * the only statement of association the model actually carries — a `data` edge
- * is explicitly not one (consuming a value is not being commanded by whoever
- * produced it), and nothing on a node names an asset directly.
- *
- * Cycle-safe, for the same reason `propagateAgents` is: an accidental loop
- * costs nothing rather than hanging the editor.
+ * The map features an action acts on: the one picked on the node, then every
+ * asset wired into its `target` port. More or fewer than one is the fog's
+ * NAVIGATE_TARGET / COVERAGE_TARGET.
  *
  * @param graph - A normalized graph.
- * @param actionId - The action node to start from.
- * @returns The `feature_id`s downstream of it, in stable order, deduped.
+ * @param actionId - The action node.
+ * @returns Its `feature_id`s, inline first, in edge order, deduped.
  */
-function assetsForAction(graph: MissionGraph, actionId: string): string[] {
-	const execOut = new Map<string, string[]>();
+export function actionTargets(graph: MissionGraph, actionId: string): string[] {
+	const action = graph.nodes.find((node) => node.id === actionId);
+	const out: string[] = action?.feature_id ? [action.feature_id] : [];
 	for (const edge of graph.edges) {
-		if (edge.kind !== "exec") continue;
-		const list = execOut.get(edge.source);
-		if (list) list.push(edge.target);
-		else execOut.set(edge.source, [edge.target]);
-	}
-	const byId = new Map(graph.nodes.map((node) => [node.id, node]));
-
-	const features: string[] = [];
-	const seen = new Set<string>();
-	const visited = new Set<string>([actionId]);
-	const stack = [...(execOut.get(actionId) ?? [])];
-	while (stack.length > 0) {
-		const current = stack.shift() as string;
-		if (visited.has(current)) continue;
-		visited.add(current);
-		const node = byId.get(current);
-		// The next action or condition starts the next step: what lies beyond
-		// it belongs to that step, not to this action. Walking through it made
-		// `NAVIGATE -> wp -> COVERAGE -> zone` read as "navigates to a zone".
-		if (node?.kind === "action" || node?.kind === "condition") continue;
-		if (node?.kind === "asset" && node.feature_id) {
-			if (!seen.has(node.feature_id)) {
-				seen.add(node.feature_id);
-				features.push(node.feature_id);
-			}
+		if (edge.target !== actionId || edge.target_port !== "target") continue;
+		const asset = graph.nodes.find((node) => node.id === edge.source);
+		if (asset?.feature_id && !out.includes(asset.feature_id)) {
+			out.push(asset.feature_id);
 		}
-		for (const next of execOut.get(current) ?? []) stack.push(next);
 	}
-	return features;
+	return out;
 }
 
 /** Severity of a compile issue. */
@@ -964,7 +979,6 @@ export function compileMissionGraph(
 	featureTypes?: Readonly<Record<string, string>>,
 ): CompiledMissionGraph {
 	const normalized = normalizeGraph(graph);
-	const assignment = propagateAgents(normalized);
 	const issues: MissionGraphIssue[] = [];
 
 	const vehicles: string[] = [];
@@ -978,21 +992,28 @@ export function compileMissionGraph(
 		vehicles.push(node.agent_id);
 	}
 
+	// The objectives are what the actions act on — never an asset node that
+	// nothing uses.
 	const geometries: MissionGeometry[] = [];
 	const seenFeatures = new Set<string>();
 	for (const node of normalized.nodes) {
-		if (node.kind !== "asset") continue;
-		if (!node.feature_id) continue; // ASSET_MISSING_FEATURE
-		if (!assignment.has(node.id)) {
-			issues.push({
-				severity: "warning",
-				nodeId: node.id,
-				message: `No agent reaches "${node.label || node.id}" along a "then" edge. It is still submitted as an objective, but nothing in the graph says who works it.`,
-			});
+		if (node.kind !== "action") continue;
+		for (const featureId of actionTargets(normalized, node.id)) {
+			if (seenFeatures.has(featureId)) continue;
+			seenFeatures.add(featureId);
+			geometries.push({ feature_id: featureId });
 		}
-		if (seenFeatures.has(node.feature_id)) continue;
-		seenFeatures.add(node.feature_id);
-		geometries.push({ feature_id: node.feature_id });
+	}
+
+	// An asset node wired into nothing does nothing: said, not refused.
+	for (const node of normalized.nodes) {
+		if (node.kind !== "asset") continue;
+		if (normalized.edges.some((edge) => edge.source === node.id)) continue;
+		issues.push({
+			severity: "warning",
+			nodeId: node.id,
+			message: `"${node.label || node.id}" is wired into no action, so it is not part of the mission. Wire its output into an action's target, or delete it.`,
+		});
 	}
 
 	// What the graph says the mission does. Read off the action nodes, because
@@ -1002,44 +1023,39 @@ export function compileMissionGraph(
 	let hasNavigateAction = false;
 
 	for (const node of normalized.nodes) {
-		if (node.kind === "action") {
-			// ACTION_MISSING and UNREACHED come from the program compiler.
-			if (node.action === "COVERAGE") hasCoverageAction = true;
-			if (node.action === "NAVIGATE") hasNavigateAction = true;
+		if (node.kind !== "action") continue;
+		// ACTION_MISSING and UNREACHED come from the program compiler.
+		if (node.action === "COVERAGE") hasCoverageAction = true;
+		if (node.action === "NAVIGATE") hasNavigateAction = true;
+		if (node.action !== "COVERAGE" && node.action !== "NAVIGATE") continue;
 
-			// The action/asset pairing. `featureTypes` is what says whether the
-			// asset downstream of this action is something the action can be
-			// carried out on; an ABSENT map, or a feature_id the map does not
-			// carry, emits NEITHER an error nor a warning — an unknown type
-			// must not manufacture a confident verdict, and a fabricated error
-			// on a catalogue that has not loaded yet blocks a mission that is
-			// fine.
-			if (node.action === "COVERAGE" || node.action === "NAVIGATE") {
-				const features = assetsForAction(normalized, node.id);
-				const caption = node.label || node.id;
-				// No asset at all is COVERAGE_TARGET, from the program compiler.
-				const known = features
-					.map((featureId) => featureTypes?.[featureId])
-					.filter((type): type is string => typeof type === "string");
-				if (
-					node.action === "COVERAGE" &&
-					known.length > 0 &&
-					!known.includes("zone")
-				) {
-					issues.push({
-						severity: "error",
-						nodeId: node.id,
-						message: `"${caption}" covers an asset that is not a zone. The planner's coverage branch needs a Polygon/LineString zone to sweep; given none it logs "[coverage] behavior 1 needs a Polygon/LineString zone to sweep" and returns an empty route for EVERY agent — the mission is accepted, dispatched, and nothing moves.`,
-					});
-				}
-				if (node.action === "NAVIGATE" && known.includes("zone")) {
-					issues.push({
-						severity: "warning",
-						nodeId: node.id,
-						message: `"${caption}" navigates to a zone. The planner's navigate branch plans to a single point derived from the polygon, which is probably not what was meant — use COVERAGE to sweep it.`,
-					});
-				}
-			}
+		// The target's TYPE, which only the editor can see (the fog has no
+		// map). The canvas refuses a wrong drag already; this catches an
+		// inline pick, an action switched after wiring, and a feature retyped
+		// on the map. An unknown type (catalogue not loaded, or a feature the
+		// map does not carry) says nothing: an unknown must not manufacture a
+		// verdict that blocks a mission which is fine.
+		const caption = node.label || node.id;
+		const known = actionTargets(normalized, node.id)
+			.map((featureId) => featureTypes?.[featureId])
+			.filter((type): type is string => typeof type === "string");
+		if (
+			node.action === "COVERAGE" &&
+			known.length > 0 &&
+			!known.includes("zone")
+		) {
+			issues.push({
+				severity: "error",
+				nodeId: node.id,
+				message: `"${caption}" sweeps something that is not a zone. COVERAGE needs a zone; the planner returns an empty route for anything else and the robot never moves.`,
+			});
+		}
+		if (node.action === "NAVIGATE" && known.includes("zone")) {
+			issues.push({
+				severity: "error",
+				nodeId: node.id,
+				message: `"${caption}" goes to a zone. NAVIGATE goes to a waypoint; to sweep the zone, make it a COVERAGE.`,
+			});
 		}
 	}
 

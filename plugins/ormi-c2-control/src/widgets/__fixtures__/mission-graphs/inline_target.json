@@ -1,6 +1,6 @@
 {
-	"name": "team_navigate",
-	"description": "A team cannot navigate to one point.",
+	"name": "inline_target",
+	"description": "The waypoint is picked on the action itself: no asset node needed.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -14,16 +14,6 @@
 					"y": 0
 				},
 				"agent_id": "agent-es"
-			},
-			{
-				"id": "ge",
-				"kind": "agent",
-				"label": "ge",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"agent_id": "agent-ge"
 			},
 			{
 				"id": "go",
@@ -44,18 +34,29 @@
 				"source_port": "next",
 				"target": "go",
 				"target_port": "in"
-			},
-			{
-				"id": "ge.next-go.in",
-				"source": "ge",
-				"source_port": "next",
-				"target": "go",
-				"target_port": "in"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["TEAM_NAVIGATE", "go"]],
-		"not_executable_yet": []
+		"errors": [],
+		"not_executable_yet": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "go",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				}
+			]
+		}
 	}
 }

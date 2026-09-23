@@ -3,7 +3,7 @@
 	"description": "An action continuing into two steps is refused: a chain is a straight line.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -23,16 +23,7 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "wp",
-				"kind": "asset",
-				"label": "wp",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "NAVIGATE",
 				"feature_id": "feat-wp"
 			},
 			{
@@ -43,7 +34,8 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "COVERAGE"
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
 			},
 			{
 				"id": "b",
@@ -53,59 +45,36 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "COVERAGE"
-			},
-			{
-				"id": "zone",
-				"kind": "asset",
-				"label": "zone",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "COVERAGE",
 				"feature_id": "feat-zone"
 			}
 		],
 		"edges": [
 			{
-				"id": "es->go",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp",
+				"id": "go.next-a.in",
 				"source": "go",
-				"target": "wp",
-				"kind": "exec"
-			},
-			{
-				"id": "go->a",
-				"source": "go",
+				"source_port": "next",
 				"target": "a",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->b",
+				"id": "go.next-b.in",
 				"source": "go",
+				"source_port": "next",
 				"target": "b",
-				"kind": "exec"
-			},
-			{
-				"id": "a->zone",
-				"source": "a",
-				"target": "zone",
-				"kind": "exec"
-			},
-			{
-				"id": "b->zone",
-				"source": "b",
-				"target": "zone",
-				"kind": "exec"
+				"target_port": "in"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["FANOUT", "go"]]
+		"errors": [["FANOUT", "go"]],
+		"not_executable_yet": []
 	}
 }

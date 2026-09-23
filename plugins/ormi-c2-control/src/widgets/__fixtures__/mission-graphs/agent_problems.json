@@ -3,7 +3,7 @@
 	"description": "Unknown agent, repeated agent, agent with no agent selected, idle agent.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "x",
@@ -62,49 +62,38 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "wp",
-				"kind": "asset",
-				"label": "wp",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "NAVIGATE",
 				"feature_id": "feat-wp"
 			}
 		],
 		"edges": [
 			{
-				"id": "x->go",
+				"id": "x.next-go.in",
 				"source": "x",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "es->go",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "es2->go",
+				"id": "es2.next-go.in",
 				"source": "es2",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "blank->go",
+				"id": "blank.next-go.in",
 				"source": "blank",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
-			},
-			{
-				"id": "go->wp",
-				"source": "go",
-				"target": "wp",
-				"kind": "exec"
+				"target_port": "in"
 			}
 		]
 	},
@@ -115,6 +104,7 @@
 			["AGENT_TWICE", "es2"],
 			["AGENT_UNKNOWN", "x"],
 			["TEAM_NAVIGATE", "go"]
-		]
+		],
+		"not_executable_yet": []
 	}
 }

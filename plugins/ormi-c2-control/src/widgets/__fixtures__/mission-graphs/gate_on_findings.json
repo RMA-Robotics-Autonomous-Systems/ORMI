@@ -1,9 +1,9 @@
 {
 	"name": "gate_on_findings",
-	"description": "Ge goes in once Es's sweep has produced a contact, and on again once an item is corroborated: the mission's own finding counts gate a chain.",
+	"description": "Ge goes in once Es's sweep has produced a contact, and on again once two items are corroborated: the mission's own findings.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -23,16 +23,7 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "COVERAGE"
-			},
-			{
-				"id": "zone",
-				"kind": "asset",
-				"label": "zone",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "COVERAGE",
 				"feature_id": "feat-zone"
 			},
 			{
@@ -60,6 +51,16 @@
 				}
 			},
 			{
+				"id": "w1",
+				"kind": "wait",
+				"label": "w1",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
 				"id": "go",
 				"kind": "action",
 				"label": "go",
@@ -67,16 +68,7 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "wp",
-				"kind": "asset",
-				"label": "wp",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "NAVIGATE",
 				"feature_id": "feat-wp"
 			},
 			{
@@ -94,6 +86,16 @@
 				}
 			},
 			{
+				"id": "w2",
+				"kind": "wait",
+				"label": "w2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
 				"id": "back",
 				"kind": "action",
 				"label": "back",
@@ -101,72 +103,65 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
-			},
-			{
-				"id": "wp2",
-				"kind": "asset",
-				"label": "wp2",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "NAVIGATE",
 				"feature_id": "feat-wp-2"
 			}
 		],
 		"edges": [
 			{
-				"id": "es->sweep",
+				"id": "es.next-sweep.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "sweep->zone",
-				"source": "sweep",
-				"target": "zone",
-				"kind": "exec"
-			},
-			{
-				"id": "ge->contact",
+				"id": "ge.next-w1.in",
 				"source": "ge",
-				"target": "contact",
-				"kind": "exec"
+				"source_port": "next",
+				"target": "w1",
+				"target_port": "in"
 			},
 			{
-				"id": "contact->go",
-				"source": "contact",
+				"id": "w1.next-go.in",
+				"source": "w1",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp",
+				"id": "go.next-w2.in",
 				"source": "go",
-				"target": "wp",
-				"kind": "exec"
+				"source_port": "next",
+				"target": "w2",
+				"target_port": "in"
 			},
 			{
-				"id": "wp->item",
-				"source": "wp",
-				"target": "item",
-				"kind": "exec"
-			},
-			{
-				"id": "item->back",
-				"source": "item",
+				"id": "w2.next-back.in",
+				"source": "w2",
+				"source_port": "next",
 				"target": "back",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "back->wp2",
-				"source": "back",
-				"target": "wp2",
-				"kind": "exec"
+				"id": "contact.value-w1.when",
+				"source": "contact",
+				"source_port": "value",
+				"target": "w1",
+				"target_port": "when"
+			},
+			{
+				"id": "item.value-w2.when",
+				"source": "item",
+				"source_port": "value",
+				"target": "w2",
+				"target_port": "when"
 			}
 		]
 	},
 	"expect": {
 		"errors": [],
+		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -176,6 +171,8 @@
 							"step_id": "sweep",
 							"action": "COVERAGE",
 							"feature_id": "feat-zone",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
@@ -188,6 +185,8 @@
 							"step_id": "go",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"wait_node": "w1",
+							"mode": "all",
 							"gate": [
 								{
 									"op": "ContactsFound",
@@ -203,6 +202,8 @@
 							"step_id": "back",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp-2",
+							"wait_node": "w2",
+							"mode": "all",
 							"gate": [
 								{
 									"op": "ItemsFound",
@@ -217,7 +218,6 @@
 					]
 				}
 			]
-		},
-		"not_executable_yet": []
+		}
 	}
 }

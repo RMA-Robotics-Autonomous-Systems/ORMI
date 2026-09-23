@@ -16,7 +16,7 @@ import { emptyMissionGraph, type MissionGraph } from "../widgets/mission-graph";
 /** A graph with one agent node. */
 function graph(label = "Agent"): MissionGraph {
 	return {
-		version: 1,
+		version: 2,
 		nodes: [
 			{
 				id: "a",
@@ -58,11 +58,26 @@ describe("loading", () => {
 
 	it("normalizes on the way in, so a stale document cannot break the canvas", () => {
 		setMissionGraph("m-1", {
-			version: 1,
+			version: 2,
 			nodes: graph().nodes,
-			edges: [{ id: "e", source: "a", target: "gone", kind: "exec" }],
+			edges: [
+				{
+					id: "e",
+					source: "a",
+					source_port: "next",
+					target: "gone",
+					target_port: "in",
+				},
+			],
 		});
 		expect(getMissionGraph("m-1")?.edges).toEqual([]);
+	});
+
+	it("counts an edit that changes nothing as no edit", () => {
+		// A refused wire hands the same graph back: nothing is unsaved.
+		setMissionGraph("m-1", graph());
+		editMissionGraph("m-1", (g) => g);
+		expect(isMissionGraphDirty("m-1")).toBe(false);
 	});
 
 	it("keeps missions apart", () => {

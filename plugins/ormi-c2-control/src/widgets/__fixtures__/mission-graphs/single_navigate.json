@@ -1,9 +1,9 @@
 {
 	"name": "single_navigate",
-	"description": "One agent goes to one waypoint.",
+	"description": "One agent goes to one waypoint, wired from an asset node.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -38,21 +38,24 @@
 		],
 		"edges": [
 			{
-				"id": "es->go",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp",
-				"source": "go",
-				"target": "wp",
-				"kind": "exec"
+				"id": "wp.value-go.target",
+				"source": "wp",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
 		"errors": [],
+		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -62,13 +65,14 @@
 							"step_id": "go",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
 					]
 				}
 			]
-		},
-		"not_executable_yet": []
+		}
 	}
 }

@@ -23,13 +23,23 @@ import type {
 } from "../types/mission-feedback";
 import {
 	CONDITION_OP_SHAPE,
+	freshGraphId,
 	graphCompiles,
+	normalizeCondition,
 	type CompiledMissionGraph,
+	type ConditionOp,
 	type ConditionOpShape,
 	type GraphCondition,
 	type MissionGraph,
 	type MissionGraphIssue,
+	type MissionGraphNode,
 } from "./mission-graph";
+import {
+	connectionPlan,
+	nodePorts,
+	type PortRef,
+	type PortType,
+} from "./mission-graph-ports";
 
 // ============================================================================
 // Condition formatting
@@ -466,13 +476,21 @@ export function programMarks(
 				(index === p.step_index && p.state === "DONE");
 			if (finished) {
 				marks.set(step.step_id, { tone: "done", text: "done" });
-				for (const g of step.gate_nodes)
-					marks.set(g, { tone: "done", text: "held" });
+				markPassedGate(marks, step);
 				return;
 			}
 			if (index !== p.step_index) return;
 			if (p.state === "GATED") {
 				marks.set(step.step_id, { tone: "starting", text: "next" });
+				const wait = p.gate?.wait_node || step.wait_node;
+				if (wait) {
+					const conditions = p.gate?.conditions ?? [];
+					const holding = conditions.filter((c) => c.holds).length;
+					marks.set(wait, {
+						tone: "waiting",
+						text: `waiting · ${holding}/${conditions.length} hold (${p.gate?.mode === "any" ? "any" : "all"})`,
+					});
+				}
 				for (const c of p.gate?.conditions ?? []) {
 					marks.set(c.node_id, {
 						tone: c.holds ? "done" : "waiting",
@@ -481,8 +499,7 @@ export function programMarks(
 				}
 				return;
 			}
-			for (const g of step.gate_nodes)
-				marks.set(g, { tone: "done", text: "held" });
+			markPassedGate(marks, step);
 			marks.set(step.step_id, {
 				tone: toneOf(p.state),
 				text: STATE_WORD[p.state],
@@ -490,6 +507,23 @@ export function programMarks(
 		});
 	}
 	return marks;
+}
+
+/**
+ * A gate the chain has gone past: its Wait opened. Under "all" every
+ * condition held; under "any" the fog does not say which one did, so the
+ * conditions are left unmarked rather than all painted as held.
+ */
+function markPassedGate(
+	marks: Map<string, RunMark>,
+	step: ProgramProgress["steps"][number],
+): void {
+	if (step.wait_node) {
+		marks.set(step.wait_node, { tone: "done", text: "opened" });
+	}
+	if (step.mode === "any") return;
+	for (const g of step.gate_nodes)
+		marks.set(g, { tone: "done", text: "held" });
 }
 
 /** Where one agent is, as the mission feedback lists it. */
@@ -583,4 +617,353 @@ function gateText(
 			: `waiting for ${wanted} (${c.value} so far)`;
 	}
 	return "waiting";
+}
+
+// ============================================================================
+// Drop a wire on empty canvas: create the node it was heading for
+// ============================================================================
+
+/** A node the operator can create where a wire was dropped. */
+export interface DropChoice {
+	/** Stable key for the menu row. */
+	key: string;
+	/** Menu text, e.g. "Navigate". */
+	label: string;
+	/** The node to create (id and position are added by the editor). */
+	node: Omit<MissionGraphNode, "id" | "position">;
+	/** The port on the NEW node the dragged wire connects to. */
+	port: string;
+}
+
+function action(act: "NAVIGATE" | "COVERAGE", port: string): DropChoice {
+	return {
+		key: `${act}-${port}`,
+		label: act === "NAVIGATE" ? "Navigate" : "Coverage",
+		node: {
+			kind: "action",
+			label: act === "NAVIGATE" ? "Navigate" : "Coverage",
+			action: act,
+		},
+		port,
+	};
+}
+
+const WAIT = (port: string): DropChoice => ({
+	key: `wait-${port}`,
+	label: "Wait",
+	node: { kind: "wait", label: "Wait", mode: "all" },
+	port,
+});
+
+/** The conditions offered from a Wait's `when`: the ones the fog evaluates. */
+const DROP_CONDITIONS: readonly ConditionOp[] = [
+	"ElapsedSeconds",
+	"ContactsFound",
+	"ItemsFound",
+	"AgentHolding",
+];
+
+/**
+ * What can be created at the end of a wire dropped on empty canvas, and which
+ * of its ports the wire goes into.
+ *
+ * Only nodes with a port that FITS are offered, so every choice produces a
+ * valid edge: a flow wire offers steps, a zone offers a COVERAGE, a Wait's
+ * `when` offers conditions. An agent is not offered: which agent is a choice
+ * the toolbar's Agent button makes.
+ *
+ * @param side - `"source"` when the wire left an output, `"target"` when it
+ *   left an input.
+ * @param type - The type of the port the wire left.
+ * @returns The choices, in menu order; empty when nothing fits.
+ */
+export function dropChoices(
+	side: "source" | "target",
+	type: PortType,
+): DropChoice[] {
+	if (side === "source") {
+		switch (type) {
+			case "flow":
+				return [
+					action("NAVIGATE", "in"),
+					action("COVERAGE", "in"),
+					WAIT("in"),
+				];
+			case "waypoint":
+				return [action("NAVIGATE", "target")];
+			case "zone":
+				return [action("COVERAGE", "target")];
+			case "asset":
+				return [
+					action("NAVIGATE", "target"),
+					action("COVERAGE", "target"),
+				];
+			case "bool":
+				return [WAIT("when")];
+			case "agent":
+				return [
+					{
+						key: "holding-agent",
+						label: "Agent holding",
+						node: {
+							kind: "condition",
+							label: CONDITION_OP_SHAPE.AgentHolding.label,
+							condition: normalizeCondition({
+								op: "AgentHolding",
+							}),
+						},
+						port: "agent",
+					},
+				];
+		}
+	}
+	switch (type) {
+		case "flow":
+			return [
+				action("NAVIGATE", "next"),
+				action("COVERAGE", "next"),
+				WAIT("next"),
+			];
+		case "waypoint":
+		case "zone":
+		case "asset":
+			return [
+				{
+					key: "asset-value",
+					label: "Asset",
+					node: { kind: "asset", label: "Asset" },
+					port: "value",
+				},
+			];
+		case "bool":
+			return DROP_CONDITIONS.map((op) => ({
+				key: `condition-${op}`,
+				label: CONDITION_OP_SHAPE[op].label,
+				node: {
+					kind: "condition",
+					label: CONDITION_OP_SHAPE[op].label,
+					condition: normalizeCondition({ op }),
+				},
+				port: "value",
+			}));
+		default:
+			return [];
+	}
+}
+
+// ============================================================================
+// Wiring
+// ============================================================================
+
+/**
+ * Wire an output into an input, or say why not.
+ *
+ * A port that takes one edge gives up the one it had ({@link connectionPlan}
+ * names it), so re-wiring is one drag. Wiring an asset into an action's target
+ * clears the target picked on the node, and wiring an agent into a condition
+ * clears the agent picked on it: a node that named two would be refused by the
+ * fog (NAVIGATE_TARGET, CONDITION_AGENT) for a choice the operator just made.
+ *
+ * @param graph - The graph.
+ * @param from - The output.
+ * @param to - The input.
+ * @param featureTypes - The map's feature types, for asset outputs.
+ * @returns The new graph, or the reason it was refused.
+ */
+export function wireGraph(
+	graph: MissionGraph,
+	from: PortRef,
+	to: PortRef,
+	featureTypes?: Readonly<Record<string, string>>,
+): { graph: MissionGraph } | { reason: string } {
+	const plan = connectionPlan(
+		graph.nodes,
+		graph.edges,
+		from,
+		to,
+		featureTypes,
+	);
+	if (!plan.ok) return { reason: plan.reason };
+	const replaced = new Set(plan.replaces);
+	const nodes = graph.nodes.map((node) => {
+		if (node.id !== to.node) return node;
+		if (to.port === "target" && node.feature_id) {
+			const next = { ...node };
+			delete next.feature_id;
+			return next;
+		}
+		if (to.port === "agent" && node.condition?.key) {
+			const condition = { ...node.condition };
+			delete condition.key;
+			return { ...node, condition };
+		}
+		return node;
+	});
+	return {
+		graph: {
+			...graph,
+			nodes,
+			edges: [
+				...graph.edges.filter((edge) => !replaced.has(edge.id)),
+				{
+					id: freshGraphId("edge"),
+					source: from.node,
+					source_port: from.port,
+					target: to.node,
+					target_port: to.port,
+				},
+			],
+		},
+	};
+}
+
+/**
+ * Drop the edges into or out of ports a node no longer has — a condition that
+ * stops being Agent holding loses its agent input, and the wire into it with
+ * it. Returns the same graph when nothing is dropped.
+ *
+ * @param graph - The graph, after a node was edited.
+ * @param nodeId - The edited node.
+ * @returns The graph without the orphaned edges.
+ */
+export function dropOrphanedEdges(
+	graph: MissionGraph,
+	nodeId: string,
+): MissionGraph {
+	const node = graph.nodes.find((n) => n.id === nodeId);
+	if (!node) return graph;
+	const ports = nodePorts(node);
+	const inputs = new Set(ports.inputs.map((port) => port.id));
+	const outputs = new Set(ports.outputs.map((port) => port.id));
+	const edges = graph.edges.filter(
+		(edge) =>
+			(edge.target !== nodeId || inputs.has(edge.target_port)) &&
+			(edge.source !== nodeId || outputs.has(edge.source_port)),
+	);
+	return edges.length === graph.edges.length ? graph : { ...graph, edges };
+}
+
+/**
+ * Put a new step INTO a chain rather than beside it.
+ *
+ * Dropping a wire from a step's "then" (or into a step's input) on empty canvas
+ * means "a step here". Wiring it plainly would replace the link that was there
+ * and cut the rest of the chain off. So the new step takes that link's place:
+ * - `after`: X → Y becomes X → new → Y;
+ * - `before`: whatever entered X (one step, or the agents that start the
+ *   chain) now enters the new step, and the new step leads into X.
+ *
+ * @param graph - The graph, already holding the new node.
+ * @param newId - The new step (an action or a Wait).
+ * @param at - The step the wire was dragged from.
+ * @param where - Which side of it the new step goes.
+ * @returns The spliced graph.
+ */
+export function spliceStep(
+	graph: MissionGraph,
+	newId: string,
+	at: string,
+	where: "before" | "after",
+): MissionGraph {
+	const link = (source: string, target: string) => ({
+		id: freshGraphId("edge"),
+		source,
+		source_port: "next",
+		target,
+		target_port: "in",
+	});
+	if (where === "after") {
+		const out = graph.edges.find(
+			(edge) => edge.source === at && edge.source_port === "next",
+		);
+		return {
+			...graph,
+			edges: [
+				...graph.edges.filter((edge) => edge !== out),
+				link(at, newId),
+				...(out ? [link(newId, out.target)] : []),
+			],
+		};
+	}
+	const into = graph.edges.filter(
+		(edge) => edge.target === at && edge.target_port === "in",
+	);
+	return {
+		...graph,
+		edges: [
+			...graph.edges.filter((edge) => !into.includes(edge)),
+			...into.map((edge) => ({ ...edge, target: newId })),
+			link(newId, at),
+		],
+	};
+}
+
+/** Where a dropped wire came from. */
+export interface DropOrigin {
+	node: string;
+	port: string;
+	/** `"source"`: the wire left an output; `"target"`: it left an input. */
+	side: "source" | "target";
+}
+
+/**
+ * The graph after creating `choice` where a wire was dropped and wiring it in,
+ * or `null` when it cannot be wired — the drop menu offers only choices that
+ * return a graph, and creates nothing on `null`.
+ *
+ * A new STEP goes into the chain ({@link spliceStep}): after the step it was
+ * dragged from, or before the step whose input it was dragged from. Dragged
+ * from an agent that already starts a chain, it becomes that chain's first
+ * step. Anything else is one wire, by {@link wireGraph}'s rules.
+ *
+ * @param graph - The graph.
+ * @param from - The port the wire was dragged from.
+ * @param choice - The node picked.
+ * @param id - The new node's id.
+ * @param position - Where it goes on the canvas.
+ * @param featureTypes - The map's feature types, for asset outputs.
+ * @returns The new graph, or `null`.
+ */
+export function applyDrop(
+	graph: MissionGraph,
+	from: DropOrigin,
+	choice: DropChoice,
+	id: string,
+	position: { x: number; y: number },
+	featureTypes?: Readonly<Record<string, string>>,
+): MissionGraph | null {
+	const fromNode = graph.nodes.find((node) => node.id === from.node);
+	if (!fromNode) return null;
+	const withNode: MissionGraph = {
+		...graph,
+		nodes: [...graph.nodes, { ...choice.node, id, position }],
+	};
+	const step =
+		(from.side === "source" && choice.port === "in") ||
+		(from.side === "target" && choice.port === "next");
+	if (step) {
+		if (from.side === "target") {
+			return spliceStep(withNode, id, from.node, "before");
+		}
+		const out = graph.edges.find(
+			(edge) =>
+				edge.source === from.node && edge.source_port === from.port,
+		);
+		if (out && fromNode.kind === "agent") {
+			return spliceStep(withNode, id, out.target, "before");
+		}
+		if (out) return spliceStep(withNode, id, from.node, "after");
+	}
+	const ends =
+		from.side === "source"
+			? {
+					from: { node: from.node, port: from.port },
+					to: { node: id, port: choice.port },
+				}
+			: {
+					from: { node: id, port: choice.port },
+					to: { node: from.node, port: from.port },
+				};
+	const result = wireGraph(withNode, ends.from, ends.to, featureTypes);
+	return "reason" in result ? null : result.graph;
 }

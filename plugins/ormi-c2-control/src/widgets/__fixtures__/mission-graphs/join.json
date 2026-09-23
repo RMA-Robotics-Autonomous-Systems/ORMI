@@ -3,7 +3,7 @@
 	"description": "Two chains merging into one step is refused.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -33,7 +33,8 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
 			},
 			{
 				"id": "b",
@@ -43,7 +44,8 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "NAVIGATE"
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
 			},
 			{
 				"id": "x",
@@ -53,75 +55,43 @@
 					"x": 0,
 					"y": 0
 				},
-				"action": "COVERAGE"
-			},
-			{
-				"id": "wp",
-				"kind": "asset",
-				"label": "wp",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"feature_id": "feat-wp"
-			},
-			{
-				"id": "zone",
-				"kind": "asset",
-				"label": "zone",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
+				"action": "COVERAGE",
 				"feature_id": "feat-zone"
 			}
 		],
 		"edges": [
 			{
-				"id": "es->a",
+				"id": "es.next-a.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "a",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "ge->b",
+				"id": "a.next-x.in",
+				"source": "a",
+				"source_port": "next",
+				"target": "x",
+				"target_port": "in"
+			},
+			{
+				"id": "ge.next-b.in",
 				"source": "ge",
+				"source_port": "next",
 				"target": "b",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "a->wp",
-				"source": "a",
-				"target": "wp",
-				"kind": "exec"
-			},
-			{
-				"id": "b->wp",
+				"id": "b.next-x.in",
 				"source": "b",
-				"target": "wp",
-				"kind": "exec"
-			},
-			{
-				"id": "a->x",
-				"source": "a",
+				"source_port": "next",
 				"target": "x",
-				"kind": "exec"
-			},
-			{
-				"id": "b->x",
-				"source": "b",
-				"target": "x",
-				"kind": "exec"
-			},
-			{
-				"id": "x->zone",
-				"source": "x",
-				"target": "zone",
-				"kind": "exec"
+				"target_port": "in"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["JOIN", "x"]]
+		"errors": [["JOIN", "x"]],
+		"not_executable_yet": []
 	}
 }

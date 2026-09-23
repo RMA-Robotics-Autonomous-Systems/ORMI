@@ -3,7 +3,7 @@
 	"description": "Two agents wired into ONE coverage action: a team, the planner splits the zone.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -48,27 +48,31 @@
 		],
 		"edges": [
 			{
-				"id": "es->sweep",
+				"id": "es.next-sweep.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "ge->sweep",
+				"id": "ge.next-sweep.in",
 				"source": "ge",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "sweep->zone",
-				"source": "sweep",
-				"target": "zone",
-				"kind": "exec"
+				"id": "zone.value-sweep.target",
+				"source": "zone",
+				"source_port": "value",
+				"target": "sweep",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
 		"errors": [],
+		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -78,13 +82,14 @@
 							"step_id": "sweep",
 							"action": "COVERAGE",
 							"feature_id": "feat-zone",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
 					]
 				}
 			]
-		},
-		"not_executable_yet": []
+		}
 	}
 }

@@ -1,3 +1,5 @@
+import { nodePorts, portsFit, type PortType } from "./mission-graph-ports";
+
 /**
  * The behaviour graph compiled into what the fog runs — a TypeScript mirror of
  * the fog's compiler.
@@ -11,26 +13,33 @@
  * file exists so the editor can say so before submit instead of after.
  *
  * The two are held together by golden fixtures: `__fixtures__/mission-graphs/`
- * is a COPY of the fog's `test/fixtures/mission_graphs/`, and
- * `mission-program.test.ts` runs every one of them. Change the fog first, copy
- * the fixtures, then make this pass — never the other way round.
+ * is a COPY of the fog's `test/fixtures/mission_graphs/` (written by its
+ * `make_mission_graphs.py`), and `mission-program.test.ts` runs every one of
+ * them. Change the fog first, copy the fixtures, then make this pass — never
+ * the other way round.
  *
- * ## What compiles (v1)
+ * ## What compiles (graph schema 2, typed ports — see `mission-graph-ports.ts`)
  *
  * - A **chain** is one or more agent nodes wired into the same first node,
- *   then a straight line of condition and action nodes. Several agents on one
- *   chain are a **team**: they share every step and the planner splits the
- *   work between them.
- * - An action is NAVIGATE (one asset, one agent) or COVERAGE (one asset).
- * - The conditions met before an action are that step's **gate**, ANDed. Only
- *   ElapsedSeconds, AgentHolding and Always can be evaluated.
- * - A chain may run THROUGH an asset (action → asset → next action) when that
- *   asset belongs to that action alone.
+ *   then a straight line of action and Wait nodes along flow edges. Several
+ *   agents on one chain are a **team**: they share every step and the planner
+ *   splits the work between them.
+ * - An action is NAVIGATE (one waypoint, one agent) or COVERAGE (one zone). Its
+ *   target is picked on the node (`feature_id`) or wired from an asset node.
+ * - A **Wait** before an action is that step's **gate**: the conditions wired
+ *   into it, all of them or any of them.
+ * - Only ElapsedSeconds, AgentHolding, ContactsFound, ItemsFound and Always can
+ *   be evaluated. An AgentHolding condition's agent is picked on the node or
+ *   wired from an agent node.
+ * - A graph of another schema version is refused, never converted.
  *
  * Anything else is an issue with a stable `code`. Input is read defensively,
  * the way the fog reads the stored document, because the fixtures are raw
  * documents and not normalized graphs.
  */
+
+/** The graph schema the fog reads. Older graphs are refused, not converted. */
+export const PROGRAM_GRAPH_VERSION = 2;
 
 /** One predicate of a gate, as the fog's `to_json` writes it. */
 export interface ProgramGateCondition {
@@ -47,9 +56,13 @@ export interface ProgramStep {
 	step_id: string;
 	action: string;
 	feature_id: string;
+	/** The Wait node the gate comes from; "" when there is none. */
+	wait_node: string;
+	/** Whether the gate needs all of its conditions, or any one. */
+	mode: "all" | "any";
 	/** Empty: the step starts as soon as the previous one ends. */
 	gate: ProgramGateCondition[];
-	/** The condition nodes that make up `gate`. */
+	/** The condition nodes that make up `gate`, in order. */
 	gate_nodes: string[];
 }
 
@@ -104,6 +117,8 @@ export const EVALUABLE_OPS: readonly string[] = [
 	"Always",
 ];
 
+const KINDS = new Set(["agent", "action", "asset", "condition", "wait"]);
+
 interface RawNode {
 	id: string;
 	kind: string;
@@ -111,6 +126,7 @@ interface RawNode {
 	agent_id: string;
 	action: string;
 	feature_id: string;
+	mode: string;
 	condition: Record<string, unknown> | null;
 }
 
@@ -122,12 +138,40 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const FLOW = new Set(["action", "condition"]);
+/**
+ * The fog's port table, from the shared registry, with every asset untyped
+ * (the fog has no map).
+ */
+function portType(
+	n: RawNode,
+	port: string,
+	output: boolean,
+): PortType | undefined {
+	const ports = nodePorts({
+		kind: n.kind,
+		action: n.action,
+		condition: { op: str(n.condition?.op) },
+	});
+	// The fog accepts an agent wire into ANY condition and reports it as
+	// EDGE_TYPE, so the condition's agent input exists here for every op.
+	if (!output && n.kind === "condition" && port === "agent") return "agent";
+	return (output ? ports.outputs : ports.inputs).find((p) => p.id === port)
+		?.type;
+}
+
+const PORT_TYPE_WORD: Record<PortType, string> = {
+	flow: "flow",
+	asset: "asset",
+	waypoint: "waypoint",
+	zone: "zone",
+	agent: "agent",
+	bool: "true/false",
+};
 
 /**
  * Compile a behaviour graph for a mission whose vehicles are `knownAgents`.
  *
- * @param graph - The graph (`{ nodes, edges }`), raw or normalized.
+ * @param graph - The graph (`{ version, nodes, edges }`), raw or normalized.
  * @param knownAgents - The mission's vehicle ids.
  * @returns The program, and every reason it cannot run.
  */
@@ -149,6 +193,25 @@ export function compileProgram(
 			],
 		};
 	}
+	if (graph.version !== PROGRAM_GRAPH_VERSION) {
+		const seen =
+			typeof graph.version === "number" ? String(graph.version) : "none";
+		return {
+			program,
+			errors: [
+				{
+					code: "GRAPH_VERSION",
+					nodeId: "",
+					message: `This behaviour graph was made by an older editor (version ${seen}, this fog reads ${PROGRAM_GRAPH_VERSION}). Rebuild it in the current graph editor.`,
+				},
+			],
+		};
+	}
+
+	const issue = (code: string, nodeId: string, message: string) => {
+		if (errors.some((i) => i.code === code && i.nodeId === nodeId)) return;
+		errors.push({ code, nodeId, message });
+	};
 
 	// -- input: the same filtering the fog applies ----------------------------
 	const nodes = new Map<string, RawNode>();
@@ -157,8 +220,7 @@ export function compileProgram(
 		if (!isObject(raw)) continue;
 		const id = str(raw.id);
 		const kind = str(raw.kind);
-		if (!id || nodes.has(id)) continue;
-		if (!["agent", "action", "asset", "condition"].includes(kind)) continue;
+		if (!id || nodes.has(id) || !KINDS.has(kind)) continue;
 		nodes.set(id, {
 			id,
 			kind,
@@ -166,53 +228,100 @@ export function compileProgram(
 			agent_id: str(raw.agent_id),
 			action: str(raw.action),
 			feature_id: str(raw.feature_id),
+			mode: str(raw.mode),
 			condition: isObject(raw.condition) ? raw.condition : null,
 		});
 		order.push(id);
 	}
-	const out = new Map<string, string[]>();
-	const inn = new Map<string, string[]>();
-	for (const raw of Array.isArray(graph.edges) ? graph.edges : []) {
-		if (!isObject(raw) || str(raw.kind) !== "exec") continue;
-		const s = str(raw.source);
-		const t = str(raw.target);
-		if (s === t || !nodes.has(s) || !nodes.has(t)) continue;
-		const list = out.get(s) ?? [];
-		if (list.includes(t)) continue;
-		list.push(t);
-		out.set(s, list);
-		inn.set(t, [...(inn.get(t) ?? []), s]);
-	}
-
-	// -- helpers ----------------------------------------------------------------
 	const node = (id: string) => nodes.get(id) as RawNode;
 	const caption = (n: RawNode) => n.label || n.id;
-	const isFlow = (id: string) => FLOW.has(node(id).kind);
-	const succ = (id: string, flow: boolean) =>
-		(out.get(id) ?? []).filter((t) => isFlow(t) === flow);
-	const preds = (id: string) => inn.get(id) ?? [];
-	const issue = (code: string, nodeId: string, message: string) => {
-		if (errors.some((i) => i.code === code && i.nodeId === nodeId)) return;
-		errors.push({ code, nodeId, message });
-	};
-	const nextOf = (id: string): string[] => {
-		const flow = succ(id, true);
-		if (flow.length > 0 || node(id).kind !== "action") return flow;
-		const assets = succ(id, false);
-		if (assets.length === 1 && preds(assets[0] as string).length === 1) {
-			return succ(assets[0] as string, true);
+
+	// Links by what they carry: the chain order, an action's target assets, a
+	// Wait's conditions and a condition's agents.
+	const flowOut = new Map<string, string[]>();
+	const flowIn = new Map<string, string[]>();
+	const targetIn = new Map<string, string[]>();
+	const whenIn = new Map<string, string[]>();
+	const agentIn = new Map<string, string[]>();
+	const used = new Set<string>();
+	const push = (m: Map<string, string[]>, key: string, value: string) =>
+		m.set(key, [...(m.get(key) ?? []), value]);
+	const at = (m: Map<string, string[]>, key: string) => m.get(key) ?? [];
+
+	const seenEdges = new Set<string>();
+	for (const raw of Array.isArray(graph.edges) ? graph.edges : []) {
+		if (!isObject(raw)) continue;
+		const s = str(raw.source);
+		const t = str(raw.target);
+		const sp = str(raw.source_port);
+		const tp = str(raw.target_port);
+		if (s === t || !nodes.has(s) || !nodes.has(t)) continue;
+		const key = JSON.stringify([s, sp, t, tp]);
+		if (seenEdges.has(key)) continue;
+		seenEdges.add(key);
+		const src = node(s);
+		const dst = node(t);
+		const out = portType(src, sp, true);
+		if (!out) {
+			issue(
+				"PORT_UNKNOWN",
+				s,
+				`"${caption(src)}" has no output "${sp}"; a link from it is ignored.`,
+			);
+			continue;
 		}
-		return flow;
-	};
-	const walked = new Set<string>();
-	const markDownstream = (from: string) => {
-		const stack = [from];
-		while (stack.length > 0) {
-			const id = stack.pop() as string;
-			if (walked.has(id)) continue;
-			walked.add(id);
-			stack.push(...(out.get(id) ?? []));
+		const into = portType(dst, tp, false);
+		if (!into) {
+			issue(
+				"PORT_UNKNOWN",
+				t,
+				`"${caption(dst)}" has no input "${tp}"; a link into it is ignored.`,
+			);
+			continue;
 		}
+		if (!portsFit(out, into)) {
+			issue(
+				"EDGE_TYPE",
+				t,
+				`"${caption(dst)}" takes a ${PORT_TYPE_WORD[into]} on "${tp}" but is wired a ${PORT_TYPE_WORD[out]} from "${caption(src)}".`,
+			);
+			continue;
+		}
+		if (into === "flow") {
+			push(flowOut, s, t);
+			push(flowIn, t, s);
+		} else if (tp === "target") {
+			push(targetIn, t, s);
+		} else if (tp === "when") {
+			push(whenIn, t, s);
+			used.add(s);
+		} else if (tp === "agent") {
+			push(agentIn, t, s);
+		}
+	}
+
+	const isFlow = (id: string) => {
+		const k = node(id).kind;
+		return k === "action" || k === "wait";
+	};
+	/** The inline pick, then every asset wired into the target. */
+	const targets = (n: RawNode): string[] => {
+		const out = n.feature_id ? [n.feature_id] : [];
+		for (const a of at(targetIn, n.id)) {
+			if (node(a).feature_id) out.push(node(a).feature_id);
+		}
+		return out;
+	};
+	/** The agents an AgentHolding condition watches: inline, then wired. */
+	const watched = (n: RawNode): string[] => {
+		const out: string[] = [];
+		const inline = str(n.condition?.key);
+		if (inline) out.push(inline);
+		for (const a of at(agentIn, n.id)) {
+			const id = node(a).agent_id;
+			if (id && !out.includes(id)) out.push(id);
+		}
+		return out;
 	};
 
 	// -- per-node checks ----------------------------------------------------------
@@ -260,11 +369,41 @@ export function compileProgram(
 				issue(
 					"ACTION_NOT_EXECUTABLE",
 					id,
-					`"${caption(n)}" is a ${n.action} action, which does not exist: only NAVIGATE and COVERAGE run. To hold, navigate to a waypoint and put a condition after it; sensors report what they find on their own.`,
+					`"${caption(n)}" is a ${n.action} action, which does not exist: only NAVIGATE and COVERAGE run. To hold, navigate to a waypoint and put a Wait after it; sensors report what they find on their own.`,
+				);
+			}
+			const features = targets(n);
+			if (n.action === "NAVIGATE" && features.length !== 1) {
+				issue(
+					"NAVIGATE_TARGET",
+					id,
+					`"${caption(n)}" must go to exactly one waypoint; it names ${features.length}. Pick one, or wire one asset into its target.`,
+				);
+			}
+			if (n.action === "COVERAGE" && features.length !== 1) {
+				issue(
+					"COVERAGE_TARGET",
+					id,
+					`"${caption(n)}" must sweep exactly one zone; it names ${features.length}. Pick one, or wire one asset into its target.`,
+				);
+			}
+		} else if (n.kind === "wait") {
+			if (n.mode && n.mode !== "all" && n.mode !== "any") {
+				issue(
+					"WAIT_MODE",
+					id,
+					`"${caption(n)}" must wait for all or any of its conditions, not "${n.mode}".`,
+				);
+			}
+			if (at(whenIn, id).length === 0) {
+				issue(
+					"WAIT_EMPTY",
+					id,
+					`"${caption(n)}" has no condition wired into it, so it would never open.`,
 				);
 			}
 		} else if (n.kind === "condition") {
-			const op = n.condition ? str(n.condition.op) : "";
+			const op = str(n.condition?.op);
 			if (!op || !KNOWN_OPS.has(op)) {
 				issue(
 					"CONDITION_MISSING",
@@ -277,14 +416,33 @@ export function compileProgram(
 					id,
 					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, AgentHolding, ContactsFound, ItemsFound and Always.`,
 				);
-			} else if (
-				op === "AgentHolding" &&
-				!knownAgents.has(str(n.condition?.key))
-			) {
+			} else if (op === "AgentHolding") {
+				const agents = watched(n);
+				if (agents.length !== 1) {
+					issue(
+						"CONDITION_AGENT",
+						id,
+						`"${caption(n)}" must watch exactly one agent; it names ${agents.length}. Pick one, or wire one agent into it.`,
+					);
+				} else if (!knownAgents.has(agents[0] as string)) {
+					issue(
+						"AGENT_UNKNOWN",
+						id,
+						`"${caption(n)}" waits on an agent that is not in this mission.`,
+					);
+				}
+			} else if (at(agentIn, id).length > 0) {
 				issue(
-					"AGENT_UNKNOWN",
+					"EDGE_TYPE",
 					id,
-					`"${caption(n)}" waits on an agent that is not in this mission.`,
+					`"${caption(n)}" reads no agent: only an Agent holding condition does.`,
+				);
+			}
+			if (!used.has(id)) {
+				issue(
+					"CONDITION_UNUSED",
+					id,
+					`"${caption(n)}" is wired into no Wait, so nothing waits on it.`,
 				);
 			}
 		}
@@ -295,7 +453,7 @@ export function compileProgram(
 		if (!isFlow(id)) continue;
 		let agents = 0;
 		let others = 0;
-		for (const p of preds(id)) {
+		for (const p of at(flowIn, id)) {
 			if (node(p).kind === "agent") agents += 1;
 			else others += 1;
 		}
@@ -309,9 +467,45 @@ export function compileProgram(
 	}
 
 	// -- chains ------------------------------------------------------------------
+	const walked = new Set<string>();
+	const markDownstream = (from: string) => {
+		const stack = [from];
+		while (stack.length > 0) {
+			const id = stack.pop() as string;
+			if (walked.has(id)) continue;
+			walked.add(id);
+			stack.push(...at(flowOut, id));
+		}
+	};
+	const conditionOf = (n: RawNode): ProgramGateCondition => {
+		const c = n.condition ?? {};
+		const op = str(c.op);
+		if (!KNOWN_OPS.has(op)) {
+			return {
+				op: "Always",
+				key: "",
+				arg: "",
+				threshold: 1,
+				negate: false,
+			};
+		}
+		let key = str(c.key);
+		if (op === "AgentHolding") {
+			const agents = watched(n);
+			key = agents.length === 1 ? (agents[0] as string) : "";
+		}
+		return {
+			op,
+			key,
+			arg: str(c.arg),
+			threshold: typeof c.threshold === "number" ? c.threshold : 1,
+			negate: c.negate === true,
+		};
+	};
+
 	for (const head of order) {
 		if (!isFlow(head)) continue;
-		const p = preds(head);
+		const p = at(flowIn, head);
 		if (p.length === 0 || !p.every((x) => node(x).kind === "agent"))
 			continue;
 		const chain: ProgramChain = { agents: [], steps: [] };
@@ -322,8 +516,7 @@ export function compileProgram(
 		}
 
 		const visited = new Set<string>();
-		let gate: ProgramGateCondition[] = [];
-		let gateNodes: string[] = [];
+		let wait = "";
 		let id = head;
 		for (;;) {
 			if (visited.has(id)) {
@@ -337,45 +530,29 @@ export function compileProgram(
 			visited.add(id);
 			walked.add(id);
 			const n = node(id);
-			if (n.kind === "condition") {
-				const c = n.condition ?? {};
-				gate.push({
-					op: KNOWN_OPS.has(str(c.op)) ? str(c.op) : "Always",
-					key: str(c.key),
-					arg: str(c.arg),
-					threshold:
-						typeof c.threshold === "number" ? c.threshold : 1,
-					negate: c.negate === true,
-				});
-				gateNodes.push(id);
+			if (n.kind === "wait") {
+				if (wait) {
+					issue(
+						"WAIT_STACKED",
+						id,
+						`"${caption(n)}" follows another Wait with no action between them. Wire every condition into one Wait.`,
+					);
+				}
+				wait = id;
 			} else {
-				const features = succ(id, false)
-					.map((a) => node(a).feature_id)
-					.filter((f) => f !== "");
+				const features = targets(n);
+				const gateNodes = wait ? at(whenIn, wait) : [];
 				chain.steps.push({
 					step_id: id,
 					action: n.action,
 					feature_id:
 						features.length === 1 ? (features[0] as string) : "",
-					gate,
-					gate_nodes: gateNodes,
+					wait_node: wait,
+					mode: wait && node(wait).mode === "any" ? "any" : "all",
+					gate: gateNodes.map((c) => conditionOf(node(c))),
+					gate_nodes: [...gateNodes],
 				});
-				gate = [];
-				gateNodes = [];
-				if (n.action === "NAVIGATE" && features.length !== 1) {
-					issue(
-						"NAVIGATE_TARGET",
-						id,
-						`"${caption(n)}" must name exactly one map asset to go to; it names ${features.length}. Chain one NAVIGATE per waypoint.`,
-					);
-				}
-				if (n.action === "COVERAGE" && features.length !== 1) {
-					issue(
-						"COVERAGE_TARGET",
-						id,
-						`"${caption(n)}" must name exactly one zone to sweep; it names ${features.length}.`,
-					);
-				}
+				wait = "";
 				if (n.action === "NAVIGATE" && chain.agents.length > 1) {
 					issue(
 						"TEAM_NAVIGATE",
@@ -385,11 +562,11 @@ export function compileProgram(
 				}
 			}
 
-			const next = nextOf(id);
+			const next = at(flowOut, id);
 			if (next.length === 0) {
-				if (n.kind === "condition") {
+				if (n.kind === "wait") {
 					issue(
-						"CONDITION_DANGLING",
+						"WAIT_DANGLING",
 						id,
 						`"${caption(n)}" has no action after it, so nothing waits on it.`,
 					);
@@ -413,7 +590,7 @@ export function compileProgram(
 	for (const id of order) {
 		const n = node(id);
 		if (n.kind !== "agent") continue;
-		const flow = succ(id, true);
+		const flow = at(flowOut, id);
 		if (flow.length === 0) {
 			issue(
 				"AGENT_IDLE",

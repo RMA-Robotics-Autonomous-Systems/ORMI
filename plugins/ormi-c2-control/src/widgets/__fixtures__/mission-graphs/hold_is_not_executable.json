@@ -1,9 +1,9 @@
 {
 	"name": "hold_is_not_executable",
-	"description": "HOLD, MARK and NEUTRALISE are not actions: hold is a NAVIGATE then a condition, sensors report findings on their own, NEUTRALISE is dropped. A stored one is refused.",
+	"description": "HOLD, MARK and NEUTRALISE are not actions: hold is a NAVIGATE then a Wait, sensors report findings on their own.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -38,20 +38,23 @@
 		],
 		"edges": [
 			{
-				"id": "es->hold",
+				"id": "es.next-hold.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "hold",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "hold->wp",
-				"source": "hold",
-				"target": "wp",
-				"kind": "exec"
+				"id": "wp.value-hold.target",
+				"source": "wp",
+				"source_port": "value",
+				"target": "hold",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["ACTION_NOT_EXECUTABLE", "hold"]]
+		"errors": [["ACTION_NOT_EXECUTABLE", "hold"]],
+		"not_executable_yet": []
 	}
 }

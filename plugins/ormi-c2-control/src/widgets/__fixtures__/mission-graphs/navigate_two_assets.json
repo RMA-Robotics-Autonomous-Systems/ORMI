@@ -1,9 +1,9 @@
 {
 	"name": "navigate_two_assets",
-	"description": "NAVIGATE names exactly one asset; chain one per waypoint.",
+	"description": "NAVIGATE goes to exactly one waypoint; chain one per waypoint.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -48,26 +48,30 @@
 		],
 		"edges": [
 			{
-				"id": "es->go",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp1",
-				"source": "go",
-				"target": "wp1",
-				"kind": "exec"
+				"id": "wp1.value-go.target",
+				"source": "wp1",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
 			},
 			{
-				"id": "go->wp2",
-				"source": "go",
-				"target": "wp2",
-				"kind": "exec"
+				"id": "wp2.value-go.target",
+				"source": "wp2",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["NAVIGATE_TARGET", "go"]]
+		"errors": [["NAVIGATE_TARGET", "go"]],
+		"not_executable_yet": []
 	}
 }

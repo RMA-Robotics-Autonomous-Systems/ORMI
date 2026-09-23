@@ -1,9 +1,9 @@
 {
 	"name": "two_chains_one_step_each",
-	"description": "Es sweeps the zone while Ge goes to the waypoint: two chains of one step each, both executable (step 3a).",
+	"description": "Es sweeps the zone while Ge goes to the waypoint.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -68,33 +68,38 @@
 		],
 		"edges": [
 			{
-				"id": "es->sweep",
+				"id": "es.next-sweep.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "sweep->zone",
-				"source": "sweep",
-				"target": "zone",
-				"kind": "exec"
-			},
-			{
-				"id": "ge->go",
+				"id": "ge.next-go.in",
 				"source": "ge",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp",
-				"source": "go",
-				"target": "wp",
-				"kind": "exec"
+				"id": "zone.value-sweep.target",
+				"source": "zone",
+				"source_port": "value",
+				"target": "sweep",
+				"target_port": "target"
+			},
+			{
+				"id": "wp.value-go.target",
+				"source": "wp",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
 		"errors": [],
+		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -104,6 +109,8 @@
 							"step_id": "sweep",
 							"action": "COVERAGE",
 							"feature_id": "feat-zone",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
@@ -116,13 +123,14 @@
 							"step_id": "go",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
 					]
 				}
 			]
-		},
-		"not_executable_yet": []
+		}
 	}
 }

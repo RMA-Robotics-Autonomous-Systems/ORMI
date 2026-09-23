@@ -1,6 +1,6 @@
 {
-	"name": "never_is_refused",
-	"description": "Never would block forever.",
+	"name": "condition_reads_no_agent",
+	"description": "Only an AgentHolding condition takes an agent.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -16,16 +16,16 @@
 				"agent_id": "agent-es"
 			},
 			{
-				"id": "never",
+				"id": "late",
 				"kind": "condition",
-				"label": "never",
+				"label": "late",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"condition": {
-					"op": "Never",
-					"threshold": 0,
+					"op": "ElapsedSeconds",
+					"threshold": 5,
 					"negate": false
 				}
 			},
@@ -67,16 +67,23 @@
 				"target_port": "in"
 			},
 			{
-				"id": "never.value-wait.when",
-				"source": "never",
+				"id": "late.value-wait.when",
+				"source": "late",
 				"source_port": "value",
 				"target": "wait",
 				"target_port": "when"
+			},
+			{
+				"id": "es.agent-late.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "late",
+				"target_port": "agent"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["CONDITION_NOT_EVALUABLE", "never"]],
+		"errors": [["EDGE_TYPE", "late"]],
 		"not_executable_yet": []
 	}
 }

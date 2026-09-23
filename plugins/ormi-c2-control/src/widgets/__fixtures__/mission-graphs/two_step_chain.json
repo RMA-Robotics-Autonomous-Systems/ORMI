@@ -1,9 +1,9 @@
 {
-	"name": "chain_beside_asset",
-	"description": "The asset hangs off the action and the chain continues from the action: go -> wp, go -> sweep -> zone.",
+	"name": "two_step_chain",
+	"description": "A chain of two steps: go to the waypoint, then sweep the zone.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -58,33 +58,38 @@
 		],
 		"edges": [
 			{
-				"id": "es->go",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "go->wp",
+				"id": "go.next-sweep.in",
 				"source": "go",
-				"target": "wp",
-				"kind": "exec"
-			},
-			{
-				"id": "go->sweep",
-				"source": "go",
+				"source_port": "next",
 				"target": "sweep",
-				"kind": "exec"
+				"target_port": "in"
 			},
 			{
-				"id": "sweep->zone",
-				"source": "sweep",
-				"target": "zone",
-				"kind": "exec"
+				"id": "wp.value-go.target",
+				"source": "wp",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
+			},
+			{
+				"id": "zone.value-sweep.target",
+				"source": "zone",
+				"source_port": "value",
+				"target": "sweep",
+				"target_port": "target"
 			}
 		]
 	},
 	"expect": {
 		"errors": [],
+		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -94,6 +99,8 @@
 							"step_id": "go",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						},
@@ -101,13 +108,14 @@
 							"step_id": "sweep",
 							"action": "COVERAGE",
 							"feature_id": "feat-zone",
+							"wait_node": "",
+							"mode": "all",
 							"gate": [],
 							"gate_nodes": []
 						}
 					]
 				}
 			]
-		},
-		"not_executable_yet": []
+		}
 	}
 }

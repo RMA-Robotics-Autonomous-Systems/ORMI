@@ -1,6 +1,6 @@
 {
-	"name": "never_is_refused",
-	"description": "Never would block forever.",
+	"name": "wait_dangling",
+	"description": "A Wait with no action after it.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -16,16 +16,27 @@
 				"agent_id": "agent-es"
 			},
 			{
-				"id": "never",
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "then",
 				"kind": "condition",
-				"label": "never",
+				"label": "then",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"condition": {
-					"op": "Never",
-					"threshold": 0,
+					"op": "ElapsedSeconds",
+					"threshold": 5,
 					"negate": false
 				}
 			},
@@ -38,37 +49,26 @@
 					"y": 0
 				},
 				"mode": "all"
-			},
-			{
-				"id": "go",
-				"kind": "action",
-				"label": "go",
-				"position": {
-					"x": 0,
-					"y": 0
-				},
-				"action": "NAVIGATE",
-				"feature_id": "feat-wp"
 			}
 		],
 		"edges": [
 			{
-				"id": "es.next-wait.in",
+				"id": "es.next-go.in",
 				"source": "es",
-				"source_port": "next",
-				"target": "wait",
-				"target_port": "in"
-			},
-			{
-				"id": "wait.next-go.in",
-				"source": "wait",
 				"source_port": "next",
 				"target": "go",
 				"target_port": "in"
 			},
 			{
-				"id": "never.value-wait.when",
-				"source": "never",
+				"id": "go.next-wait.in",
+				"source": "go",
+				"source_port": "next",
+				"target": "wait",
+				"target_port": "in"
+			},
+			{
+				"id": "then.value-wait.when",
+				"source": "then",
 				"source_port": "value",
 				"target": "wait",
 				"target_port": "when"
@@ -76,7 +76,7 @@
 		]
 	},
 	"expect": {
-		"errors": [["CONDITION_NOT_EVALUABLE", "never"]],
+		"errors": [["WAIT_DANGLING", "wait"]],
 		"not_executable_yet": []
 	}
 }
