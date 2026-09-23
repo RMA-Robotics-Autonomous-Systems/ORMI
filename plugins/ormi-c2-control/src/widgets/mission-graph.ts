@@ -149,14 +149,18 @@ export function isGraphAction(value: unknown): value is GraphAction {
 /**
  * Actions the edge can execute today. The rest are authorable intent only.
  *
- * All three reach the robot as the supervisor's single `"waypoint"` primitive
- * (`agent_tasks_supervisor_node.cpp:263`, `:645`, `:767`): `NAVIGATE` and
- * `HOLD` directly, `COVERAGE` as the waypoints the planner's sweep generated.
+ * Both reach the robot as the supervisor's single `"waypoint"` primitive
+ * (`agent_tasks_supervisor_node.cpp:263`, `:645`, `:767`): `NAVIGATE` as the
+ * route to one waypoint, `COVERAGE` as the waypoints the planner's sweep
+ * generated.
+ *
+ * `HOLD` is NOT here. It was listed as "a waypoint, directly", but nothing
+ * holds: the supervisor ignores a waypoint's `wait_time`, and nothing in the
+ * fog emits a hold. Refused until something executes it (decided 2026-09-23).
  */
 export const EXECUTABLE_ACTIONS: readonly GraphAction[] = [
 	"NAVIGATE",
 	"COVERAGE",
-	"HOLD",
 ];
 
 /**
@@ -886,6 +890,10 @@ function assetsForAction(graph: MissionGraph, actionId: string): string[] {
 		if (visited.has(current)) continue;
 		visited.add(current);
 		const node = byId.get(current);
+		// The next action or condition starts the next step: what lies beyond
+		// it belongs to that step, not to this action. Walking through it made
+		// `NAVIGATE -> wp -> COVERAGE -> zone` read as "navigates to a zone".
+		if (node?.kind === "action" || node?.kind === "condition") continue;
 		if (node?.kind === "asset" && node.feature_id) {
 			if (!seen.has(node.feature_id)) {
 				seen.add(node.feature_id);
@@ -906,6 +914,11 @@ export interface MissionGraphIssue {
 	/** The node the issue is about, when it is about one. */
 	nodeId?: string;
 	message: string;
+	/**
+	 * Stable identifier for issues a test or the fog has to match on. Only
+	 * `NOT_EXECUTABLE_YET` so far (see {@link notExecutableYet}).
+	 */
+	code?: string;
 }
 
 /** What a graph compiles down to, plus what it could not express. */
@@ -1162,7 +1175,92 @@ export function compileMissionGraph(
 		});
 	}
 
+	issues.push(...notExecutableYet(normalized, assignment));
+
 	return { behavior, vehicles, geometries, issues };
+}
+
+/**
+ * STOP-GAP until the fog executes the graph: what the fog would silently drop.
+ *
+ * Today only `vehicles`, one `behavior` and the asset list reach the fog, and
+ * the planner allocates agents to assets itself. So a graph is only honoured
+ * when it says no more than that: ONE action, run by every agent wired into it,
+ * on its assets. Everything else — a condition, a second step, a second action
+ * with its own agents, an action the edge cannot perform — would be dropped
+ * while the mission still read as accepted. That is reported as an error, not a
+ * warning: an operator told "fine" about a `When` that nothing evaluates has
+ * been lied to.
+ *
+ * Replaced by the fog's own compile rules once the fog reads the graph (repair
+ * plan, phase 2); delete this function then.
+ *
+ * @param graph - A normalized graph.
+ * @param assignment - {@link propagateAgents} over the same graph.
+ * @returns Error issues, one per node the fog would not honour.
+ */
+function notExecutableYet(
+	graph: MissionGraph,
+	assignment: Map<string, string[]>,
+): MissionGraphIssue[] {
+	const issues: MissionGraphIssue[] = [];
+	const code = "NOT_EXECUTABLE_YET";
+	const actions = graph.nodes.filter((node) => node.kind === "action");
+
+	for (const node of graph.nodes) {
+		const caption = node.label || node.id;
+		if (node.kind === "condition") {
+			issues.push({
+				severity: "error",
+				code,
+				nodeId: node.id,
+				message: `"${caption}" is not executed yet: the fog does not read the graph, so nothing evaluates this condition and the step after it would start immediately. Remove it for now.`,
+			});
+		}
+		if (
+			node.kind === "action" &&
+			node.action &&
+			!isExecutableAction(node.action)
+		) {
+			issues.push({
+				severity: "error",
+				code,
+				nodeId: node.id,
+				message: `"${caption}" is a ${node.action} action, which the robots cannot perform yet — only NAVIGATE and COVERAGE run.`,
+			});
+		}
+	}
+
+	if (actions.length > 1) {
+		const [first, ...rest] = actions;
+		for (const node of rest) {
+			issues.push({
+				severity: "error",
+				code,
+				nodeId: node.id,
+				message: `"${node.label || node.id}" is a second action. The fog runs ONE action per mission for now: order, and which agent does which action, would be dropped and the planner would allocate agents to assets itself. Keep only "${first?.label || first?.id}".`,
+			});
+		}
+	}
+
+	const agentNodes = graph.nodes.filter(
+		(node) => node.kind === "agent" && node.agent_id,
+	);
+	if (actions.length === 1 && actions[0]) {
+		const runners = new Set(assignment.get(actions[0].id) ?? []);
+		for (const node of agentNodes) {
+			if (node.agent_id && !runners.has(node.agent_id)) {
+				issues.push({
+					severity: "error",
+					code,
+					nodeId: node.id,
+					message: `"${node.label || node.id}" is not wired into the mission's action. The fog would still send it, and the planner would give it part of the work.`,
+				});
+			}
+		}
+	}
+
+	return issues;
 }
 
 /**

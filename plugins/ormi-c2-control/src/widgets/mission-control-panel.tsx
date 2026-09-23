@@ -88,7 +88,7 @@ import {
 } from "./control-actions";
 import { PanelEmptyState } from "./panel-empty-state";
 import { MissionStateMachine } from "./mission-state-machine";
-import { planSubmit, submitMessage } from "./submit-config";
+import { graphSubmitBlock, planSubmit, submitMessage } from "./submit-config";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -855,6 +855,14 @@ function ControlPanelBody(props: {
 				return;
 			}
 			const { plan } = resolved;
+
+			// The graph is the mission: one that has errors, or was never saved,
+			// is refused here with a pointer to the editor that lists why.
+			const graphBlock = graphSubmitBlock(plan.config);
+			if (graphBlock) {
+				setErrorNote({ missionId: activeMissionId, text: graphBlock });
+				return;
+			}
 
 			// Hard gate: never submit a config the C2 planner would reject/crash on.
 			const found = validateMissionConfig(plan.config);

@@ -123,6 +123,33 @@ export function planSubmit(args: PlanSubmitArgs): SubmitResolution {
 }
 
 /**
+ * Why a config must not be submitted because of its behaviour graph, or null.
+ *
+ * The C2 refuses these too (`GRAPH_NOT_READY`), but only after a round trip
+ * and in its own words. Saying it here, before anything is sent, points the
+ * operator at the graph editor that lists the errors. It is deliberately NOT a
+ * `validateMissionConfig` rule: that gates Save as well, and a graph that is
+ * still being authored must stay saveable.
+ *
+ * @param config - The cleaned config about to be submitted.
+ * @returns The operator-facing reason, or null when the graph allows submit.
+ */
+export function graphSubmitBlock(config: MissionDraft): string | null {
+	const { graph_ref: graphRef, graph_compiles: graphCompiles } =
+		config as MissionDraft & {
+			graph_ref?: unknown;
+			graph_compiles?: unknown;
+		};
+	if (typeof graphRef !== "string" || graphRef.trim() === "") {
+		return "This mission has no saved behaviour graph. Author it in the mission graph editor and save it, then save the mission.";
+	}
+	if (graphCompiles !== true) {
+		return "The behaviour graph has errors, listed in the mission graph editor. Fix them before submitting.";
+	}
+	return null;
+}
+
+/**
  * The operator-facing message for a successful submit, naming what was sent.
  *
  * "Mission submitted" alone is what let the old panel lie. Saying which config

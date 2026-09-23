@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { MissionBehavior } from "../types/c2-types";
 import { missionConfigSignature } from "./control-actions";
 import type { MissionDraft } from "./mission-editor-helpers";
-import { planSubmit, submitMessage } from "./submit-config";
+import { graphSubmitBlock, planSubmit, submitMessage } from "./submit-config";
 
 /**
  * P0 #1 — Submit used to ship the STORED config while reporting the DRAFT as
@@ -165,5 +165,37 @@ describe("submitMessage", () => {
 				unsaved: false,
 			}),
 		).toContain("saved config");
+	});
+});
+
+describe("graphSubmitBlock refuses a mission whose graph cannot run", () => {
+	const withGraph = (extra: Record<string, unknown>) =>
+		({ ...draft(), ...extra }) as MissionDraft;
+
+	it("allows a saved graph that compiles", () => {
+		expect(
+			graphSubmitBlock(
+				withGraph({ graph_ref: "m1:graph", graph_compiles: true }),
+			),
+		).toBeNull();
+	});
+
+	it("refuses a mission with no saved graph", () => {
+		expect(graphSubmitBlock(draft())).toContain("no saved behaviour graph");
+		expect(
+			graphSubmitBlock(
+				withGraph({ graph_ref: "  ", graph_compiles: true }),
+			),
+		).toContain("no saved behaviour graph");
+	});
+
+	it("refuses a graph that does not compile, or never said", () => {
+		for (const graph_compiles of [false, undefined, "true"]) {
+			expect(
+				graphSubmitBlock(
+					withGraph({ graph_ref: "m1:graph", graph_compiles }),
+				),
+			).toContain("graph editor");
+		}
 	});
 });

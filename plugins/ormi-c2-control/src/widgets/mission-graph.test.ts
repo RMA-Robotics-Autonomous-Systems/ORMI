@@ -289,13 +289,24 @@ describe("agent assignment flows along 'then' edges", () => {
 	});
 });
 
+/**
+ * Issues other than the stop-gap that refuses what the fog cannot run yet.
+ * Tests about the OTHER rules read through this, so they keep testing those
+ * rules while the stop-gap is in place; the stop-gap has its own suite.
+ */
+function withoutStopGap(
+	issues: readonly MissionGraphIssue[],
+): MissionGraphIssue[] {
+	return issues.filter((issue) => issue.code !== "NOT_EXECUTABLE_YET");
+}
+
 describe("compileMissionGraph", () => {
-	it("compiles the target scenario cleanly", () => {
+	it("compiles the target scenario, apart from what the fog cannot run yet", () => {
 		const compiled = compileMissionGraph(
 			targetScenario(),
 			TARGET_FEATURE_TYPES,
 		);
-		expect(graphCompiles(compiled.issues)).toBe(true);
+		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
 		expect(compiled.behavior).toBe(MissionBehavior.COVERAGE);
 		expect(compiled.vehicles).toEqual(["robot-a", "robot-b", "robot-c"]);
 		expect(compiled.geometries).toEqual([
@@ -477,22 +488,20 @@ describe("an action comes from a vocabulary, never from a text field", () => {
 	it("says which actions the edge can actually run today", () => {
 		// The supervisor builds and checks exactly one primitive type,
 		// "waypoint" (agent_tasks_supervisor_node.cpp:263, :645, :767).
-		// NAVIGATE and HOLD arrive as a waypoint directly, COVERAGE as the
+		// NAVIGATE arrives as a route to a waypoint, COVERAGE as the
 		// waypoints the planner's generated sweep produced.
 		expect(isExecutableAction("NAVIGATE")).toBe(true);
 		expect(isExecutableAction("COVERAGE")).toBe(true);
-		expect(isExecutableAction("HOLD")).toBe(true);
+		// Nothing holds: the supervisor ignores wait_time and the fog emits
+		// no hold. Refused until something executes it.
+		expect(isExecutableAction("HOLD")).toBe(false);
 		// Declared by the effector payload, no executor on the edge — the UI
 		// must say so instead of letting an operator believe an arm moved.
 		expect(isExecutableAction("MARK")).toBe(false);
 		expect(isExecutableAction("NEUTRALISE")).toBe(false);
 		expect(isExecutableAction("nonsense")).toBe(false);
 		expect(isExecutableAction("SURVEY")).toBe(false);
-		expect([...EXECUTABLE_ACTIONS]).toEqual([
-			"NAVIGATE",
-			"COVERAGE",
-			"HOLD",
-		]);
+		expect([...EXECUTABLE_ACTIONS]).toEqual(["NAVIGATE", "COVERAGE"]);
 	});
 });
 
@@ -824,8 +833,9 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 		expect(ambiguity?.severity).toBe("warning");
 		expect(ambiguity?.message).toContain("COVERAGE was chosen");
 		expect(ambiguity?.message).toContain("NAVIGATE branch");
-		// A warning, never an error: the mission still submits.
-		expect(graphCompiles(compiled.issues)).toBe(true);
+		// A warning, never an error (the stop-gap refuses the second action
+		// separately, and says so).
+		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
 	});
 
 	it("says nothing about ambiguity when the graph only covers", () => {
@@ -894,7 +904,7 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		compiled: CompiledMissionGraph,
 		severity: MissionGraphIssue["severity"],
 	) =>
-		compiled.issues.filter(
+		withoutStopGap(compiled.issues).filter(
 			(issue) => issue.nodeId === "act" && issue.severity === severity,
 		);
 	const errorsOn = (compiled: CompiledMissionGraph) =>
@@ -1005,7 +1015,137 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			targetScenario(),
 			TARGET_FEATURE_TYPES,
 		);
+		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
+	});
+
+	it("does not read the NEXT step's asset as this action's", () => {
+		// NAVIGATE -> wp -> COVERAGE -> zone: the zone belongs to the COVERAGE
+		// step. Walking through the next action made NAVIGATE "navigate to a
+		// zone".
+		const graph: MissionGraph = {
+			version: 1,
+			nodes: [
+				node("a", "agent", { agent_id: "robot-a" }),
+				node("act", "action", { action: "NAVIGATE" }),
+				node("wp", "asset", { feature_id: "feat-wp-1" }),
+				node("sweep", "action", { action: "COVERAGE" }),
+				node("zone", "asset", { feature_id: "feat-zone-north" }),
+			],
+			edges: [
+				edge("a", "act"),
+				edge("act", "wp"),
+				edge("wp", "sweep"),
+				edge("sweep", "zone"),
+			],
+		};
+		const compiled = compileMissionGraph(graph, {
+			"feat-wp-1": "waypoint",
+			"feat-zone-north": "zone",
+		});
+		expect(warningsOn(compiled)).toHaveLength(0);
+	});
+});
+
+describe("the stop-gap refuses what the fog would silently drop", () => {
+	// Until the fog reads the graph, only vehicles, one behaviour and the
+	// asset list reach it, and the planner allocates agents to assets itself.
+	const stopGap = (compiled: CompiledMissionGraph) =>
+		compiled.issues.filter((issue) => issue.code === "NOT_EXECUTABLE_YET");
+	const types = { "feat-zone-north": "zone", "feat-wp-1": "waypoint" };
+
+	it("accepts one agent, one action, its asset", () => {
+		const compiled = compileMissionGraph(
+			{
+				version: 1,
+				nodes: [
+					node("a", "agent", { agent_id: "robot-a" }),
+					node("go", "action", { action: "NAVIGATE" }),
+					node("wp", "asset", { feature_id: "feat-wp-1" }),
+				],
+				edges: [edge("a", "go"), edge("go", "wp")],
+			},
+			types,
+		);
+		expect(compiled.issues).toEqual([]);
+	});
+
+	it("accepts a team wired into ONE action (the planner splits the work)", () => {
+		const compiled = compileMissionGraph(
+			{
+				version: 1,
+				nodes: [
+					node("a", "agent", { agent_id: "robot-a" }),
+					node("b", "agent", { agent_id: "robot-b" }),
+					node("sweep", "action", { action: "COVERAGE" }),
+					node("zone", "asset", { feature_id: "feat-zone-north" }),
+				],
+				edges: [
+					edge("a", "sweep"),
+					edge("b", "sweep"),
+					edge("sweep", "zone"),
+				],
+			},
+			types,
+		);
+		expect(stopGap(compiled)).toEqual([]);
 		expect(graphCompiles(compiled.issues)).toBe(true);
+	});
+
+	it("refuses the operator's two-branch graph: a condition and a second action", () => {
+		// The screenshot of 2026-09-23: Es -> NAVIGATE -> Open field, and
+		// Ge -> When(elapsed >= 30 s) -> NAVIGATE -> Open field.
+		const compiled = compileMissionGraph(
+			{
+				version: 1,
+				nodes: [
+					node("es", "agent", { agent_id: "robot-a" }),
+					node("ge", "agent", { agent_id: "robot-b" }),
+					node("go-es", "action", { action: "NAVIGATE" }),
+					node("when", "condition", {
+						condition: {
+							op: "ElapsedSeconds",
+							threshold: 30,
+							negate: false,
+						},
+					}),
+					node("go-ge", "action", { action: "NAVIGATE" }),
+					node("field", "asset", { feature_id: "feat-zone-north" }),
+				],
+				edges: [
+					edge("es", "go-es"),
+					edge("go-es", "field"),
+					edge("ge", "when"),
+					edge("when", "go-ge"),
+					edge("go-ge", "field"),
+				],
+			},
+			types,
+		);
+		// Ge's branch is refused through its action ("a second action"); the
+		// agent itself only gets its own error when there is ONE action it
+		// is not wired into.
+		const on = stopGap(compiled)
+			.map((issue) => issue.nodeId)
+			.sort();
+		expect(on).toEqual(["go-ge", "when"]);
+		expect(graphCompiles(compiled.issues)).toBe(false);
+	});
+
+	it("refuses HOLD, MARK and NEUTRALISE", () => {
+		for (const action of ["HOLD", "MARK", "NEUTRALISE"] as const) {
+			const compiled = compileMissionGraph({
+				version: 1,
+				nodes: [
+					node("a", "agent", { agent_id: "robot-a" }),
+					node("act", "action", { action }),
+					node("wp", "asset", { feature_id: "feat-wp-1" }),
+				],
+				edges: [edge("a", "act"), edge("act", "wp")],
+			});
+			expect(stopGap(compiled).map((issue) => issue.nodeId)).toEqual([
+				"act",
+			]);
+		}
 	});
 });
 
