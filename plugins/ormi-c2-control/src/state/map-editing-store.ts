@@ -4,7 +4,7 @@
  * C2 map-editing store.
  *
  * A tiny module-level store that hands geometry from the map widget to the
- * mission editor:
+ * authoring panels:
  *  - `pickedFeatureId` — the MapDB feature the operator last clicked (View mode),
  *    which the editor can drop into `objective.geometries[]` as `{ feature_id }`.
  *  - `draftGeometry` — a geometry the operator drew in the map's authoring layer,
@@ -75,7 +75,7 @@ export function setPickedFeature(id: string | null): void {
 }
 
 /**
- * Set the draft geometry (handed off to the mission editor) and notify.
+ * Set the draft geometry (handed off to the mission draft) and notify.
  *
  * Always produces a fresh state object when called with a non-identical value;
  * clearing (passing `null`) when already null is a no-op.

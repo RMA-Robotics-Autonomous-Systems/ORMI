@@ -9,14 +9,11 @@ import {
 	drawShapeToMode,
 	hasUsableCoordinates,
 	hydrateMissionDraft,
-	mergeMissionOwnedFields,
-	mergeVehicles,
+	mergeStoredMission,
+	missionDraftSignature,
 	patchDraft,
-	pushFeatureRef,
-	pushInlineGeometry,
-	removeGeometryAt,
 	shouldLoadActiveMission,
-	toggleVehicle,
+	type MissionDraft,
 } from "./mission-editor-helpers";
 
 describe("cleanMissionConfig (prune empty optional blocks)", () => {
@@ -95,15 +92,6 @@ describe("buildMissionDraft", () => {
 	});
 });
 
-describe("pushFeatureRef", () => {
-	it("appends a feature_id reference without mutating the original", () => {
-		const draft = buildMissionDraft();
-		const next = pushFeatureRef(draft, "feat-1");
-		expect(draft.objective.geometries).toHaveLength(0);
-		expect(next.objective.geometries).toEqual([{ feature_id: "feat-1" }]);
-	});
-});
-
 describe("hasUsableCoordinates", () => {
 	it("is true for a Point pair", () => {
 		expect(hasUsableCoordinates([4.39, 50.84])).toBe(true);
@@ -153,97 +141,6 @@ describe("hasUsableCoordinates", () => {
 		expect(hasUsableCoordinates("nope")).toBe(false);
 		expect(hasUsableCoordinates(null)).toBe(false);
 		expect(hasUsableCoordinates(undefined)).toBe(false);
-	});
-});
-
-describe("pushInlineGeometry", () => {
-	it("appends an inline geometry with [lng,lat] coordinates preserved", () => {
-		const draft = buildMissionDraft();
-		const next = pushInlineGeometry(draft, {
-			geometry_type: "Point",
-			coordinates: [4.39, 50.84],
-		});
-		expect(next.objective.geometries).toEqual([
-			{
-				geometry: {
-					geometry_type: "Point",
-					coordinates: [4.39, 50.84],
-				},
-			},
-		]);
-	});
-
-	it("appends a valid Polygon geometry", () => {
-		const draft = buildMissionDraft();
-		const polygon = [
-			[
-				[4.39, 50.84],
-				[4.4, 50.84],
-				[4.4, 50.85],
-				[4.39, 50.84],
-			],
-		];
-		const next = pushInlineGeometry(draft, {
-			geometry_type: "Polygon",
-			coordinates: polygon,
-		});
-		expect(next.objective.geometries).toEqual([
-			{ geometry: { geometry_type: "Polygon", coordinates: polygon } },
-		]);
-	});
-
-	it("does NOT append a geometry with empty coordinates", () => {
-		const draft = buildMissionDraft();
-		const next = pushInlineGeometry(draft, {
-			geometry_type: "Polygon",
-			coordinates: [],
-		});
-		expect(next.objective.geometries).toHaveLength(0);
-	});
-
-	it("does NOT append a degenerate empty ring [[]]", () => {
-		const draft = buildMissionDraft();
-		const next = pushInlineGeometry(draft, {
-			geometry_type: "Polygon",
-			coordinates: [[]],
-		});
-		expect(next.objective.geometries).toHaveLength(0);
-	});
-});
-
-describe("removeGeometryAt", () => {
-	it("removes by index", () => {
-		let draft = buildMissionDraft();
-		draft = pushFeatureRef(draft, "a");
-		draft = pushFeatureRef(draft, "b");
-		const next = removeGeometryAt(draft, 0);
-		expect(next.objective.geometries).toEqual([{ feature_id: "b" }]);
-	});
-
-	it("is a no-op (new identity) for an out-of-range index", () => {
-		const draft = pushFeatureRef(buildMissionDraft(), "a");
-		const next = removeGeometryAt(draft, 9);
-		expect(next.objective.geometries).toEqual([{ feature_id: "a" }]);
-	});
-});
-
-describe("mergeVehicles", () => {
-	it("replaces with a deduped, order-preserving list", () => {
-		const draft = buildMissionDraft();
-		const next = mergeVehicles(draft, ["v1", "v2", "v1", "", "v3"]);
-		expect(next.vehicles).toEqual(["v1", "v2", "v3"]);
-	});
-});
-
-describe("toggleVehicle", () => {
-	it("adds when absent and removes when present", () => {
-		let draft = buildMissionDraft();
-		draft = toggleVehicle(draft, "v1");
-		expect(draft.vehicles).toEqual(["v1"]);
-		draft = toggleVehicle(draft, "v2");
-		expect(draft.vehicles).toEqual(["v1", "v2"]);
-		draft = toggleVehicle(draft, "v1");
-		expect(draft.vehicles).toEqual(["v2"]);
 	});
 });
 
@@ -365,14 +262,22 @@ describe("drawShapeToMode (shape → terra-draw mode)", () => {
 	});
 });
 
-describe("mergeMissionOwnedFields (map save-merge)", () => {
+/**
+ * OWNERSHIP. There is no longer a "map-owned" slice of a mission. The shared
+ * draft is the single in-memory truth — the behaviour graph compiles
+ * `objective.geometries`, `vehicles` and `behavior` into it, and a save writes
+ * that draft. What the freshly-fetched stored config is still for is everything
+ * the draft has never seen: the `transit` / `start` / `arrival_time` blocks that
+ * have no UI at all, and any field the backend carries that this build does not
+ * model.
+ */
+describe("mergeStoredMission (draft over stored, for the save)", () => {
 	const fresh = (): MissionConfig => ({
 		mission_id: "m1",
 		name: "Stored name",
 		behavior: MissionBehavior.NAVIGATE,
 		objective: {
 			geometries: [{ feature_id: "old" }],
-			// An advanced block the editor owns — must be preserved verbatim.
 			arrival_time: { earliest: "t0", latest: "t1", target: "t2" },
 		},
 		vehicles: ["v-old"],
@@ -380,29 +285,31 @@ describe("mergeMissionOwnedFields (map save-merge)", () => {
 		start: { geometry: { feature_id: "s" } },
 	});
 
-	it("overlays the four map-owned fields", () => {
-		const merged = mergeMissionOwnedFields(fresh(), {
-			geometries: [{ feature_id: "new" }],
-			vehicles: ["v-a", "v-b"],
-			behavior: MissionBehavior.COVERAGE,
+	const compiled = (): MissionDraft =>
+		({
+			mission_id: "m1",
 			name: "New name",
-		});
+			behavior: MissionBehavior.COVERAGE,
+			vehicles: ["v-a", "v-b"],
+			objective: { geometries: [{ feature_id: "new" }] },
+		}) as MissionDraft;
+
+	it("the DRAFT wins on every field it carries — the graph's compile is not overwritten", () => {
+		const merged = mergeStoredMission(fresh(), compiled());
 		expect(merged.objective.geometries).toEqual([{ feature_id: "new" }]);
 		expect(merged.vehicles).toEqual(["v-a", "v-b"]);
 		expect(merged.behavior).toBe(MissionBehavior.COVERAGE);
 		expect(merged.name).toBe("New name");
 	});
 
-	it("preserves the editor's advanced blocks (transit / start / arrival_time)", () => {
-		const merged = mergeMissionOwnedFields(fresh(), {
-			geometries: [{ feature_id: "new" }],
-			vehicles: ["v-a"],
-			behavior: MissionBehavior.NAVIGATE,
-		});
+	it("keeps a stored block the draft has never seen (transit / start / arrival_time)", () => {
+		const merged = mergeStoredMission(fresh(), compiled());
 		expect(merged.transit).toEqual({
 			desired_vehicle_constraints: { max_speed: 3 },
 		});
 		expect(merged.start).toEqual({ geometry: { feature_id: "s" } });
+		// Inside `objective` too — the draft's objective replaces only the keys
+		// it actually carries.
 		expect(merged.objective.arrival_time).toEqual({
 			earliest: "t0",
 			latest: "t1",
@@ -410,65 +317,138 @@ describe("mergeMissionOwnedFields (map save-merge)", () => {
 		});
 	});
 
-	it("does not write name when omitted or blank (keeps the stored name)", () => {
-		expect(
-			mergeMissionOwnedFields(fresh(), {
-				geometries: [{ feature_id: "new" }],
-				vehicles: ["v-a"],
-				behavior: MissionBehavior.NAVIGATE,
-			}).name,
-		).toBe("Stored name");
-		expect(
-			mergeMissionOwnedFields(fresh(), {
-				geometries: [{ feature_id: "new" }],
-				vehicles: ["v-a"],
-				behavior: MissionBehavior.NAVIGATE,
-				name: "   ",
-			}).name,
-		).toBe("Stored name");
+	it("keeps a stored field this build does not model at all", () => {
+		const stored = {
+			...fresh(),
+			some_backend_field: 42,
+		} as unknown as MissionConfig;
+		const merged = mergeStoredMission(
+			stored,
+			compiled(),
+		) as unknown as Record<string, unknown>;
+		expect(merged.some_backend_field).toBe(42);
 	});
 
-	it("does not mutate the input config", () => {
-		const input = fresh();
-		mergeMissionOwnedFields(input, {
-			geometries: [{ feature_id: "new" }],
-			vehicles: ["v-a"],
-			behavior: MissionBehavior.COVERAGE,
+	it("a draft that DOES carry the optional block still wins it", () => {
+		const draft = {
+			...compiled(),
+			transit: { desired_vehicle_constraints: { max_speed: 9 } },
+		} as unknown as MissionDraft;
+		const merged = mergeStoredMission(fresh(), draft) as MissionDraft & {
+			transit?: unknown;
+		};
+		expect(merged.transit).toEqual({
+			desired_vehicle_constraints: { max_speed: 9 },
 		});
-		expect(input.objective.geometries).toEqual([{ feature_id: "old" }]);
-		expect(input.vehicles).toEqual(["v-old"]);
-		expect(input.behavior).toBe(MissionBehavior.NAVIGATE);
 	});
 
-	it("makes a new empty mission submittable once the quartet is filled", () => {
-		// A mission the browser just created: behavior + empty objective + no vehicles.
+	it("trims the name, and never blanks the stored one with an empty draft name", () => {
+		expect(
+			mergeStoredMission(fresh(), {
+				...compiled(),
+				name: "  Padded  ",
+			}).name,
+		).toBe("Padded");
+		expect(
+			mergeStoredMission(fresh(), { ...compiled(), name: "   " }).name,
+		).toBe("Stored name");
+	});
+
+	it("does not mutate either input", () => {
+		const stored = fresh();
+		const draft = compiled();
+		mergeStoredMission(stored, draft);
+		expect(stored.objective.geometries).toEqual([{ feature_id: "old" }]);
+		expect(stored.vehicles).toEqual(["v-old"]);
+		expect(stored.behavior).toBe(MissionBehavior.NAVIGATE);
+		expect(draft.name).toBe("New name");
+	});
+
+	it("makes a new empty mission submittable once the graph has compiled into the draft", () => {
+		// A mission the browser just created, plus what the graph compiled.
 		const empty: MissionConfig = {
 			mission_id: "m2",
 			behavior: MissionBehavior.NAVIGATE,
 			objective: { geometries: [] },
 			vehicles: [],
 		};
-		const merged = mergeMissionOwnedFields(empty, {
-			geometries: [
-				{
-					geometry: {
-						geometry_type: "Polygon",
-						coordinates: [
-							[
-								[0, 0],
-								[1, 0],
-								[1, 1],
-								[0, 0],
-							],
-						],
-					},
-				},
-			],
-			vehicles: ["v-a"],
+		const merged = mergeStoredMission(empty, {
+			mission_id: "m2",
+			name: "Recon",
 			behavior: MissionBehavior.COVERAGE,
-		});
-		expect(merged.objective.geometries.length).toBe(1);
+			vehicles: ["v-a"],
+			objective: { geometries: [{ feature_id: "zone-1" }] },
+		} as MissionDraft);
+		expect(merged.objective.geometries).toEqual([{ feature_id: "zone-1" }]);
 		expect(merged.vehicles).toEqual(["v-a"]);
 		expect(merged.behavior).toBe(MissionBehavior.COVERAGE);
+	});
+});
+
+/**
+ * The concurrency guard. It used to fingerprint only the four fields the map
+ * claimed; the save now writes the WHOLE draft, so the signature has to cover
+ * the whole draft — a narrower one would let a concurrent edit to a field the
+ * save DID persist pass as "nothing changed".
+ */
+describe("missionDraftSignature (save-in-flight guard)", () => {
+	const base = (): MissionDraft =>
+		({
+			mission_id: "m1",
+			name: "Recon",
+			behavior: MissionBehavior.NAVIGATE,
+			vehicles: ["agent-1"],
+			objective: { geometries: [{ feature_id: "f1" }] },
+		}) as MissionDraft;
+
+	it("catches a change to a compiled field", () => {
+		expect(missionDraftSignature(base())).not.toBe(
+			missionDraftSignature({
+				...base(),
+				vehicles: ["agent-1", "agent-2"],
+			}),
+		);
+		expect(missionDraftSignature(base())).not.toBe(
+			missionDraftSignature({
+				...base(),
+				behavior: MissionBehavior.COVERAGE,
+			}),
+		);
+		expect(missionDraftSignature(base())).not.toBe(
+			missionDraftSignature({
+				...base(),
+				objective: { geometries: [{ feature_id: "f2" }] },
+			}),
+		);
+	});
+
+	it("NOW catches a change to transit — the save writes it, so it can be raced", () => {
+		const edited = {
+			...base(),
+			transit: { desired_vehicle_constraints: { max_speed: 2 } },
+		} as unknown as MissionDraft;
+		expect(missionDraftSignature(base())).not.toBe(
+			missionDraftSignature(edited),
+		);
+	});
+
+	it("ignores key order", () => {
+		const reordered = {
+			objective: base().objective,
+			behavior: base().behavior,
+			vehicles: base().vehicles,
+			name: base().name,
+			mission_id: base().mission_id,
+		} as MissionDraft;
+		expect(missionDraftSignature(reordered)).toBe(
+			missionDraftSignature(base()),
+		);
+	});
+
+	it("ignores an empty optional block that cleaning prunes before the wire", () => {
+		const withEmpty = { ...base(), transit: {} } as unknown as MissionDraft;
+		expect(missionDraftSignature(withEmpty)).toBe(
+			missionDraftSignature(base()),
+		);
 	});
 });

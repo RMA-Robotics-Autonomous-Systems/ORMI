@@ -81,6 +81,11 @@ describe("the model", () => {
 	});
 
 	it("opens with the seven mission panels", () => {
+		// Seven since the mission editor widget was removed as redundant with
+		// the behaviour-graph editor and the map's own mission panel
+		// (2026-09-22). This list is the arrangement's contract, not a count to
+		// keep green: a panel that appears here without somebody deciding it
+		// should is a panel nobody chose to put in front of an operator.
 		const dash = defaultMissionControl();
 		expect(dash.widgets.size).toBe(7);
 		const types = [...dash.widgets.values()].map((w) => w.widget_id);
@@ -89,8 +94,8 @@ describe("the model", () => {
 				"c2-fleet-status-widget",
 				"c2-mission-browser-widget",
 				"c2-mission-control-panel-widget",
-				"c2-mission-editor-widget",
 				"c2-mission-feedback-widget",
+				"c2-mission-graph-widget",
 				"c2-mission-map-widget",
 				"c2-swarm-log-widget",
 			].sort(),
@@ -131,10 +136,13 @@ describe("the model", () => {
 		}
 	});
 
-	it("shares one tabset between the editor and the log", () => {
+	it("shares one tabset between the behaviour graph and the log", () => {
 		// Authoring happens before a mission runs and the log is read once
 		// something has gone wrong; neither is watched continuously, so a pane
-		// each would spend a third of the centre column on an idle panel.
+		// each would spend most of the centre column on idle panels. The graph
+		// editor is the only authoring panel left in the strip — the fields the
+		// C2 itself carries are authored on the map, beside the geometry they
+		// describe.
 		const shared = tabsets(model().layout)
 			.filter((set) => set.children.length > 1)
 			.map((set) =>
@@ -142,7 +150,7 @@ describe("the model", () => {
 					.map((c) => String((c as { id?: unknown }).id))
 					.sort(),
 			);
-		expect(shared).toContainEqual(["c2-editor", "c2-log"]);
+		expect(shared).toContainEqual(["c2-graph", "c2-log"]);
 	});
 
 	it("seeds each panel with its definition's own defaults, not just a title", () => {

@@ -6,9 +6,9 @@
  * The same reason the EMI cockpit is FLEX: these panels want **shares of the
  * window**, not rectangles in 30-pixel row units. The map should grow with the
  * window; the mission list and the fleet roster are columns that stay columns on
- * a laptop and on a wall-mounted display; and two of the panels — the editor and
- * the log — are consulted rather than watched, which is what a tabset is for and
- * what a grid cannot express.
+ * a laptop and on a wall-mounted display; and two of the panels — the behaviour
+ * graph and the log — are consulted rather than watched, which is what a tabset
+ * is for and what a grid cannot express.
  *
  * ## The shape
  *
@@ -22,7 +22,7 @@
  * │                      ├────────────┼────────────┤
  * │ map                  │ control    │ feedback   │
  * │                      ├────────────┴────────────┤
- * │                      │ editor ‖ log            │
+ * │                      │ graph ‖ log             │
  * └──────────────────────┴─────────────────────────┘
  * ```
  *
@@ -30,7 +30,8 @@
  * this surface answers, and it is the one panel that gets better with every pixel
  * — a table does not. Everything else divides the other half, and the division
  * is the operator's own order of work: **choose** a mission, **command** it,
- * **check** who is flying it and what it reports, with authoring underneath.
+ * **check** who is flying it and what it reports, with the behaviour graph
+ * underneath.
  *
  * Three placements carry an argument worth keeping:
  *
@@ -41,12 +42,16 @@
  * - **Nothing watched continuously shares a tab.** Fleet presence and mission
  *   feedback each keep a pane: they are read while something is moving, and a
  *   reading behind a tab is a reading nobody takes.
- * - **The editor and the log share one, and it spans the full half-window.**
- *   Authoring happens before a mission runs and the log is read once something
- *   has gone wrong; neither is watched continuously, so a pane each would spend
- *   a quarter of the surface on a panel nobody is looking at. Width is what both
- *   want — a mission config is a form, and log lines wrap badly in a 300px rail
- *   — which is why the strip runs under both columns rather than sitting in one.
+ * - **The behaviour graph and the log share one, and it spans the full
+ *   half-window.** Authoring happens before a mission runs and the log is read
+ *   once something has gone wrong; neither is watched continuously, so a pane
+ *   each would spend most of the surface on panels nobody is looking at. Width
+ *   is what both want — a behaviour graph is a canvas, and log lines wrap badly
+ *   in a 300px rail — which is why the strip runs under both columns rather
+ *   than sitting in one. The graph is the only authoring panel in the strip:
+ *   the fields the C2 itself carries — vehicle allocation, behaviour, objective
+ *   geometry — are authored on the map, beside the geometry they describe, so
+ *   there is no second form here to keep in step with it.
  *
  * A layout, not a preference: the page persists to local storage from its first
  * autosave, and this is only what a surface with nothing saved starts from.
@@ -70,7 +75,7 @@ import type { Widget, WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { FleetStatusDefinition } from "../widgets/fleet-status";
 import { MissionBrowserDefinition } from "../widgets/mission-browser";
 import { MissionControlPanelDefinition } from "../widgets/mission-control-panel";
-import { MissionEditorDefinition } from "../widgets/mission-editor";
+import { MissionGraphEditorDefinition } from "../widgets/mission-graph-editor";
 import { MissionFeedbackDefinition } from "../widgets/mission-feedback";
 import { MissionMapDefinition } from "../widgets/mission-map";
 import { SwarmLogDefinition } from "../widgets/swarm-log";
@@ -114,7 +119,7 @@ const PANELS: Panel[] = [
 	{ box: "c2-missions", definition: MissionBrowserDefinition },
 	{ box: "c2-control", definition: MissionControlPanelDefinition },
 	{ box: "c2-map", definition: MissionMapDefinition },
-	{ box: "c2-editor", definition: MissionEditorDefinition },
+	{ box: "c2-graph", definition: MissionGraphEditorDefinition },
 	{ box: "c2-log", definition: SwarmLogDefinition },
 	{ box: "c2-fleet", definition: FleetStatusDefinition },
 	{ box: "c2-feedback", definition: MissionFeedbackDefinition },
@@ -282,8 +287,8 @@ function flexModel(titles: Map<string, string>) {
 								},
 							],
 						},
-						// The two panels that want width and are not watched.
-						tabset(titles, 34, "c2-editor", "c2-log"),
+						// The panels that want width and are not watched.
+						tabset(titles, 34, "c2-graph", "c2-log"),
 					],
 				},
 			],

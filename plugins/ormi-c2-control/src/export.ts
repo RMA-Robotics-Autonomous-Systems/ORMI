@@ -15,7 +15,7 @@ import { MissionFeedbackDefinition } from "./widgets/mission-feedback";
 import { SwarmLogDefinition } from "./widgets/swarm-log";
 import { MissionBrowserDefinition } from "./widgets/mission-browser";
 import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
-import { MissionEditorDefinition } from "./widgets/mission-editor";
+import { MissionGraphEditorDefinition } from "./widgets/mission-graph-editor";
 import { MissionMapDefinition } from "./widgets/mission-map";
 import { MissionControlPage } from "./page/mission-control-page";
 
@@ -54,8 +54,11 @@ export const c2PageDefinition: PageDefinition = {
 const C2_COMMAND_WIDGET_IDS = [
 	"c2-mission-browser-widget",
 	"c2-mission-control-panel-widget",
-	"c2-mission-editor-widget",
 	"c2-mission-map-widget",
+	// The graph editor reads and writes the mission store (`c2.missions.*`)
+	// and the map's feature catalogue (`c2.map.features.list`), so it gates on
+	// the C2 datasource exactly as the other authoring panels do.
+	"c2-mission-graph-widget",
 ] as const;
 
 /**
@@ -138,15 +141,16 @@ export const widgetsExport = (
 	// Command widgets (gated by widgetFilters below).
 	widgets.push(MissionBrowserDefinition());
 	widgets.push(MissionControlPanelDefinition());
-	// Authoring widgets (also gated): mission editor and mission map.
-	widgets.push(MissionEditorDefinition());
+	// Authoring widgets (also gated): the mission map and the behaviour-graph
+	// editor.
 	widgets.push(MissionMapDefinition());
+	widgets.push(MissionGraphEditorDefinition());
 	return widgets;
 };
 
 /**
  * `WIDGET_LIST_WITH_DATASOURCE` filter: hide the C2 **command** widgets (mission
- * browser, control panel, editor, map) unless an enabled C2 datasource is
+ * browser, control panel, map, graph) unless an enabled C2 datasource is
  * configured, since they need its remote calls. The display widgets (fleet
  * status, mission feedback, swarm log) are never filtered here
  * — they ride the rosbridge/foxglove datasource and gate on its topic health.

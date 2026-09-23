@@ -42,6 +42,7 @@ import {
 	newMissionStub,
 	normalizeMissions,
 } from "./mission-list";
+import { graphDocId } from "./mission-graph";
 import { MissionIssueList } from "./mission-issues";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
@@ -166,7 +167,7 @@ function MissionBrowserBody(props: {
 			}
 			return run("save", async () => {
 				// Draft-save: the browser has no UI to add vehicles/geometries
-				// (that is the mission editor's job), so a saved mission is a
+				// (that is the mission map's job), so a saved mission is a
 				// draft. We still validate and surface the issues advisory-style so
 				// the operator sees what is incomplete, but we do NOT block the
 				// save — the real planner-crash gate stays HARD at the control
@@ -237,6 +238,15 @@ function MissionBrowserBody(props: {
 					return;
 				}
 				setError(null);
+				// The mission's behaviour graph is a SIBLING DOCUMENT in this
+				// same collection (`"<mission_id>:graph"`), so deleting the
+				// mission alone would leave it behind forever: nothing lists
+				// it (`normalizeMissions` filters it out), nothing reads it,
+				// and no surface exists from which to remove it. A 404 here is
+				// the normal case — most missions have no graph — so it is
+				// swallowed rather than reported: the operator asked to delete
+				// a mission and the mission is gone.
+				await del.execute({ mission_id: graphDocId(row.mission_id) });
 				if (active === row.mission_id) setSelectedMission(null);
 				await refetch();
 			});
@@ -295,7 +305,7 @@ function MissionBrowserBody(props: {
 					variant="outline"
 					className="shrink-0"
 					disabled={busy || !props.saveDef}
-					title="Create a minimal new mission (edit later in the mission editor)"
+					title="Create a minimal new mission (edit later on the mission map)"
 					aria-label="Create mission"
 				>
 					{pending === "save" ? (

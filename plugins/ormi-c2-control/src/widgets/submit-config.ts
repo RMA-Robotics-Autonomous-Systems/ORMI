@@ -108,7 +108,7 @@ export function planSubmit(args: PlanSubmitArgs): SubmitResolution {
 	if (args.stored == null) {
 		return {
 			ok: false,
-			error: `Mission ${args.missionId} has no stored config. Open it in the mission editor and save it before submitting.`,
+			error: `Mission ${args.missionId} has no stored config. Open it on the mission map and save it before submitting.`,
 		};
 	}
 

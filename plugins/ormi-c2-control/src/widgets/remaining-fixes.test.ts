@@ -24,7 +24,8 @@ import { pickProfileTelemetry } from "./fleet-status";
 import {
 	cleanMissionConfig,
 	hydrateMissionDraft,
-	mergeMissionOwnedFields,
+	mergeStoredMission,
+	type MissionDraft,
 } from "./mission-editor-helpers";
 import { inlineGeometryToGeoJSON, isVertex } from "./mission-geometry";
 import { isMissionCommitted } from "./map-view-mode";
@@ -178,12 +179,16 @@ describe("POST /missions now REPLACES — the map's save body is complete", () =
 		};
 		const body = cleanMissionConfig(
 			hydrateMissionDraft(
-				mergeMissionOwnedFields(fresh as never, {
-					geometries: [{ feature_id: "f" }],
-					vehicles: ["a"],
-					behavior: MissionBehavior.NAVIGATE,
-					name: "N",
-				}),
+				mergeStoredMission(
+					fresh as never,
+					{
+						mission_id: "m1",
+						name: "N",
+						behavior: MissionBehavior.NAVIGATE,
+						vehicles: ["a"],
+						objective: { geometries: [{ feature_id: "f" }] },
+					} as MissionDraft,
+				),
 			),
 		) as unknown as Record<string, unknown>;
 		expect(body._id).toBeUndefined();

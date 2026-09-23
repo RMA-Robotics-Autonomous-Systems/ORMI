@@ -19,7 +19,7 @@ import {
  * `warning` — advisory (allowed, but surfaced — operator-error or upstream bug).
  *
  * This is a pure function: no React, no fetch, no side effects. It is shared
- * infrastructure — the mission editor reuses it.
+ * infrastructure — the authoring panels reuse it.
  */
 
 /** Severity of a validation issue. */

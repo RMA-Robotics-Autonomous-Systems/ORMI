@@ -1,4 +1,5 @@
 import { MissionBehavior, MissionConfig } from "../types/c2-types";
+import { isMissionGraphDocId } from "./mission-graph";
 
 /**
  * Mission-browser list normalization + minimal-create helpers (pure, testable).
@@ -33,6 +34,15 @@ function readMissionId(obj: Record<string, unknown>): string | null {
  * Accepts the bare array, a `{ missions: [...] }` wrapper, or null; drops
  * entries without a usable id.
  *
+ * ⚠ GRAPH DOCUMENTS ARE NOT MISSIONS. A mission's behaviour graph is persisted
+ * as a sibling document in the SAME `missions` collection under
+ * `"<mission_id>:graph"` — the backend has no other generic document store, the
+ * collection's Mongo schema is `strict: false`, and `POST /missions` validates
+ * only a non-empty `mission_id`. Without this filter every mission with a graph
+ * would grow a phantom row in the browser that an operator could select, submit
+ * and delete. Filtered on the id, not on the `kind` marker, so a document an
+ * older or a partial write left without its marker is still excluded.
+ *
  * @param data - The raw remote-call response data.
  * @returns Normalized mission rows (possibly empty).
  */
@@ -49,6 +59,7 @@ export function normalizeMissions(data: unknown): MissionRow[] {
 		const obj = entry as Record<string, unknown>;
 		const mission_id = readMissionId(obj);
 		if (!mission_id) continue;
+		if (isMissionGraphDocId(mission_id)) continue;
 		const name =
 			typeof obj.name === "string" && obj.name.length > 0
 				? obj.name
@@ -69,7 +80,7 @@ export function normalizeMissions(data: unknown): MissionRow[] {
  * editor). It carries
  * only what `c2.missions.save` needs to store a definition: a fresh id, a name,
  * a behavior, and an empty objective/vehicle allocation. The operator fills in
- * geometries/vehicles/constraints later via the mission editor.
+ * geometries/vehicles/constraints later on the mission map.
  *
  * @param name - The new mission's display name.
  * @param behavior - The mission behavior (defaults to NAVIGATE).
