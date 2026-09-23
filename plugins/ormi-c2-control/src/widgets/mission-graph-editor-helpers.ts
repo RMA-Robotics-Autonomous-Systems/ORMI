@@ -492,6 +492,59 @@ export function programMarks(
 	return marks;
 }
 
+/** Where one agent is, as the mission feedback lists it. */
+export interface AgentPosition {
+	agentId: string;
+	/** The graph node of its current step (the last one once done). */
+	stepId: string;
+	tone: RunTone;
+	/** "step 2/3 · Navigate · waiting" */
+	text: string;
+	/** While it waits at a gate: each condition, e.g. "waiting 12/30 s". */
+	gate: string[];
+}
+
+/**
+ * One line per agent: which graph node it is at, and in what state. Node
+ * captions come from the graph when it is loaded, else the node id is shown.
+ *
+ * @param program - `MissionFeedback.program`.
+ * @param nodeLabels - Graph node id → caption, when the graph is loaded.
+ * @param agentNames - `agent_id → name`, for AgentHolding conditions.
+ * @returns One entry per agent, in the fog's chain order.
+ */
+export function agentPositions(
+	program: Readonly<Record<string, ProgramProgress>> | undefined,
+	nodeLabels: Readonly<Record<string, string>> = {},
+	agentNames: Readonly<Record<string, string>> = {},
+): AgentPosition[] {
+	if (!program) return [];
+	return Object.entries(program)
+		.sort(([, a], [, b]) => a.chain - b.chain)
+		.map(([agentId, p]) => {
+			const total = Math.max(p.steps_total, p.steps.length);
+			const shown = Math.min(p.step_index + 1, total);
+			const caption = nodeLabels[p.step_id] || p.step_id || "—";
+			const text =
+				p.state === "DONE"
+					? `done · ${total} step${total === 1 ? "" : "s"} · last ${caption}`
+					: `step ${shown}/${total} · ${caption} · ${STATE_WORD[p.state]}`;
+			const gate =
+				p.state === "GATED"
+					? (p.gate?.conditions ?? []).map((c) =>
+							gateText(c, p.gate?.waited_s ?? null, agentNames),
+						)
+					: [];
+			return {
+				agentId,
+				stepId: p.step_id,
+				tone: toneOf(p.state),
+				text,
+				gate,
+			};
+		});
+}
+
 function toneOf(state: ProgramStepState): RunTone {
 	switch (state) {
 		case "RUNNING":

@@ -37,6 +37,7 @@ import {
 	type NodeChange,
 	type NodeProps,
 	type NodeTypes,
+	useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -50,7 +51,7 @@ import {
 	Workflow,
 	Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
@@ -69,15 +70,15 @@ import {
 	useMissionDraft,
 } from "../state/mission-draft-store";
 import {
-	commitSavedGraph,
 	editMissionGraph,
 	getMissionGraph,
 	hasMissionGraph,
-	missionGraphSignature,
 	setMissionGraph,
 	useMissionGraph,
 	useMissionGraphDirty,
 } from "../state/mission-graph-store";
+import { saveMissionWithGraph } from "../state/mission-save";
+import { subscribeGraphFocus } from "../state/graph-focus-store";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
 import type { C2Feature } from "../types/c2-types";
 import { readFeatureId } from "./feature-geojson";
@@ -97,7 +98,6 @@ import {
 	GRAPH_ACTIONS,
 	SENSOR_MODALITIES,
 	addAgentNode,
-	buildGraphDocument,
 	compileMissionGraph,
 	emptyMissionGraph,
 	freshGraphId,
@@ -474,6 +474,39 @@ function MissionGraphEditorBody(props: {
 		useState<readonly string[]>(NO_SELECTION);
 	const [selectedEdgeIds, setSelectedEdgeIds] =
 		useState<readonly string[]>(NO_SELECTION);
+	// "Show me this node", from the mission feedback's list of where each
+	// agent is: select it and bring it into view. Acted on per request (a
+	// subscription, not an effect over the latest), reading the mission and
+	// graph through a latest-ref so the subscription is made once.
+	const { setCenter, getNode } = useReactFlow();
+	const focusTarget = useRef<{
+		missionId: string | null;
+		graph: MissionGraph | null;
+	}>({ missionId: null, graph: null });
+	useEffect(() => {
+		focusTarget.current = { missionId, graph };
+	});
+	useEffect(
+		() =>
+			subscribeGraphFocus((request) => {
+				const { missionId: shownId, graph: shownGraph } =
+					focusTarget.current;
+				if (!shownId || request.missionId !== shownId) return;
+				const node = shownGraph?.nodes.find(
+					(n) => n.id === request.nodeId,
+				);
+				if (!node) return;
+				setSelectedEdgeIds(NO_SELECTION);
+				setSelectedNodeIds([node.id]);
+				const measured = getNode(node.id)?.measured;
+				void setCenter(
+					node.position.x + (measured?.width ?? 180) / 2,
+					node.position.y + (measured?.height ?? 80) / 2,
+					{ zoom: 1.1, duration: 400 },
+				);
+			}),
+		[getNode, setCenter],
+	);
 	/** Map resolved from the registry — the last resort, see `mapName` below. */
 	const [registryMap, setRegistryMap] = useState<string>("");
 	const { pending, run } = useAsyncAction<string>();
@@ -1087,73 +1120,41 @@ function MissionGraphEditorBody(props: {
 	// ---- Persistence -------------------------------------------------------
 
 	/**
-	 * Write the graph as its own document and point the mission at it.
-	 *
-	 * Two writes, in this order. The sibling document first, so a `graph_ref`
-	 * never names a document that is not there; then the reference onto the
-	 * shared mission draft, which the map's save path persists with everything
-	 * else.
-	 *
-	 * `graph_ref` is ALL this writes. The compiled slice — `vehicles`,
-	 * `objective.geometries`, `behavior` — and the C2's `graph_compiles` gate
-	 * are already on the draft, put there by the auto-apply effect above on the
-	 * edit that produced them, and re-deriving them here would make the save
-	 * path a second writer over fields that have exactly one author. That is
-	 * the shape of the bug this change removed; it is not reintroduced for the
-	 * convenience of having the verdict to hand.
+	 * Save the mission and its graph, as ONE action — the same one the map's
+	 * Save mission runs ({@link saveMissionWithGraph}): the graph document
+	 * first, so `graph_ref` never names a document that is not there, then the
+	 * mission with its allocation re-derived from that graph.
 	 */
-	const saveGraph = useCallback(() => {
+	const saveMission = useCallback(() => {
 		if (!missionId || !graph) return;
 		if (!props.missionsSaveDef) {
 			setError("c2.missions.save is unavailable");
 			return;
 		}
-		const signature = missionGraphSignature(graph);
 		return run("save", async () => {
-			const result = await missionsSave.execute({
-				mission: buildGraphDocument(missionId, graph),
+			const result = await saveMissionWithGraph(missionId, {
+				list: () => executeMissionsList({}),
+				save: (doc) => missionsSave.execute({ mission: doc }),
+				featureTypes,
 			});
-			if (!result.success) {
-				setError(result.error ?? "Failed to save the mission graph");
+			if (!result.ok) {
+				const issues = (result.issues ?? [])
+					.filter((issue) => issue.severity === "error")
+					.map((issue) => `${issue.path}: ${issue.message}`);
+				setError(
+					issues.length > 0
+						? `${result.error} ${issues.join(" · ")}`
+						: result.error,
+				);
 				return;
 			}
 			setError(null);
-			const outcome = commitSavedGraph(missionId, signature);
-			const ref = graphDocId(missionId);
-			// Read (and write) `graph_ref` as an unknown field rather than
-			// declaring it on `MissionDraft`: the draft type is the C2's
-			// `MissionConfig`, and every field on it rides into the
-			// 10 000-character `mission_config` string.
-			//
-			// WHAT MAY RIDE THERE. `graph_ref` is a ~45-character string, and
-			// the three the auto-apply effect writes are two scalars and a
-			// bounded list the C2 carries anyway. NOTHING LARGER MAY FOLLOW
-			// THEM — not the issue list, not the node ids, not a compiled
-			// summary, and above all not the graph. The cap is enforced by the
-			// C2, not by this widget: a draft that outgrows it stops submitting
-			// with no error the operator can attribute to the field they added.
-			// Anything bigger belongs in the sibling graph document, which is
-			// why that document exists.
-			//
-			// `hydrateMissionDraft` carries unknown fields through verbatim, so
-			// it survives a reload with no type change at all.
-			const currentDraft = draft as Record<string, unknown> | null;
-			if (draft && currentDraft?.graph_ref !== ref) {
-				editMissionDraft(
-					missionId,
-					(current) =>
-						({
-							...current,
-							graph_ref: ref,
-						}) as typeof current,
-				);
-			}
 			setNotice(
-				outcome === "kept-dirty"
-					? "Graph saved, but you have newer edits on the canvas."
+				result.keptDirty
+					? "Mission saved, but you have newer edits that are not."
 					: compiles
-						? "Graph saved. Save the mission itself to persist its allocation."
-						: "Graph saved, but the graph does not compile — the C2 will refuse this mission until the errors below are fixed.",
+						? "Mission saved."
+						: "Mission saved, but the graph does not compile — the C2 will refuse it until the errors below are fixed.",
 			);
 		});
 	}, [
@@ -1162,7 +1163,8 @@ function MissionGraphEditorBody(props: {
 		compiles,
 		props.missionsSaveDef,
 		missionsSave,
-		draft,
+		executeMissionsList,
+		featureTypes,
 		run,
 	]);
 
@@ -1320,14 +1322,15 @@ function MissionGraphEditorBody(props: {
 					size="sm"
 					className="ml-auto"
 					disabled={busy || !graph || !props.missionsSaveDef}
-					onClick={() => void saveGraph()}
+					onClick={() => void saveMission()}
+					title="Saves the mission and its graph together"
 				>
 					{pending === "save" ? (
 						<Loader2 className="animate-spin" />
 					) : (
 						<Save />
 					)}
-					Save graph
+					Save mission
 				</Button>
 				<Button
 					size="icon-sm"

@@ -120,12 +120,11 @@ import {
 } from "../state/c2-agents-store";
 import { setActiveMap, useSelectedMission } from "../state/selection-store";
 import {
-	commitSavedDraft,
-	getMissionDraft,
 	hasMissionDraft,
 	setMissionDraft,
 	useMissionDraft,
 } from "../state/mission-draft-store";
+import { saveMissionWithGraph } from "../state/mission-save";
 import {
 	ASSET_CATEGORIES,
 	CATEGORISED_FEATURE_TYPES,
@@ -150,8 +149,6 @@ import {
 	drawShapeToMode,
 	hasUsableCoordinates,
 	hydrateMissionDraft,
-	mergeStoredMission,
-	missionDraftSignature,
 } from "./mission-editor-helpers";
 import {
 	GeoJsonFeatureCollection,
@@ -3374,8 +3371,10 @@ function MissionMapBody(props: {
 	// --- Mission save -------------------------------------------------------
 
 	/**
-	 * Persist the mission via fetch-modify-save: re-fetch the stored config,
-	 * fold the SHARED DRAFT onto it, validate, then save the whole thing.
+	 * Save the mission AND its behaviour graph, as one action
+	 * ({@link saveMissionWithGraph}): the graph first, then the mission via
+	 * fetch-modify-save — re-fetch the stored config, fold the SHARED DRAFT
+	 * onto it, validate, then save the whole thing.
 	 *
 	 * ## One author
 	 *
@@ -3405,58 +3404,25 @@ function MissionMapBody(props: {
 			return;
 		}
 		setBusy(true);
-		const fresh = await loadMissionConfig(selectedMission);
-		if (!fresh) {
-			setBusy(false);
-			setError("Could not re-fetch the mission for saving.");
-			return;
-		}
-		// ⚠ RE-READ AT WRITE TIME. `missionConfig` is the render closure's draft,
-		// captured before the `loadMissionConfig` await above. Using it meant an
-		// edit made in another authoring panel during that round trip was
-		// overwritten by the pre-await value and its dirty flag cleared — the
-		// operator lost the edit AND the warning that would have told them.
-		const current = getMissionDraft(selectedMission) ?? missionConfig;
-		const merged = cleanMissionConfig(
-			hydrateMissionDraft(mergeStoredMission(fresh, current)),
-		);
-		// Validate the CLEANED config — the same object that is about to be sent.
-		// See `liveMissionIssues` below.
-		const issues = validateMissionConfig(merged);
-		setMissionIssues(issues);
-		if (issues.some((i) => i.severity === "error")) {
-			setBusy(false);
-			setError(
-				"Mission config has errors — fix them below before saving.",
-			);
-			return;
-		}
-		const result = await missionsSaveCall.execute({ mission: merged });
+		// ONE save for the mission and its graph (state/mission-save.ts): the
+		// graph first, then the mission re-derived from it.
+		const result = await saveMissionWithGraph(selectedMission, {
+			list: () => executeMissionsList({}),
+			save: (doc) => missionsSaveCall.execute({ mission: doc }),
+		});
 		setBusy(false);
-		if (!result.success) {
-			setError(result.error ?? "Failed to save mission");
+		if (!result.ok) {
+			if (result.stage === "validate")
+				setMissionIssues(result.issues ?? []);
+			setError(result.error);
 			return;
 		}
-		setError(null);
-		// Commit the saved config as the shared draft ONLY while nothing raced
-		// us. The comparison is over the WHOLE draft now, because the whole
-		// draft is what was written — a narrower signature would let a
-		// concurrent edit to a field this save DID persist pass as "nothing
-		// changed" and be silently overwritten. Compared against the draft as
-		// it was READ at write time (`current`), never against `merged`, which
-		// carries the wire normalisation (a trimmed name, pruned empty blocks)
-		// the shared draft never held.
-		const readSignature = missionDraftSignature(current);
-		const outcome = commitSavedDraft(
-			selectedMission,
-			merged,
-			(draft) => missionDraftSignature(draft) === readSignature,
+		setMissionIssues(validateMissionConfig(result.mission));
+		setError(
+			result.keptDirty
+				? "Saved — but the mission changed while the save was in flight, so your newer edits were kept and are still unsaved."
+				: null,
 		);
-		if (outcome === "kept-dirty") {
-			setError(
-				"Saved — but the mission changed while the save was in flight, so your newer edits were kept and are still unsaved.",
-			);
-		}
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
 		setTool("view");
@@ -3465,7 +3431,7 @@ function MissionMapBody(props: {
 		selectedMission,
 		missionConfig,
 		props.missionsSaveDef,
-		loadMissionConfig,
+		executeMissionsList,
 		missionsSaveCall,
 	]);
 

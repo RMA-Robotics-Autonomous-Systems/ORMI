@@ -89,6 +89,11 @@ import {
 import { PanelEmptyState } from "./panel-empty-state";
 import { MissionStateMachine } from "./mission-state-machine";
 import { graphSubmitBlock, planSubmit, submitMessage } from "./submit-config";
+import { saveMissionWithGraph } from "../state/mission-save";
+import {
+	isMissionGraphDirty,
+	useMissionGraphDirty,
+} from "../state/mission-graph-store";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -438,7 +443,9 @@ function ControlPanelBody(props: {
 	// mission.
 	const { missionId } = props;
 	const draft = useMissionDraft(missionId);
-	const draftDirty = useMissionDraftDirty(missionId);
+	const missionDirty = useMissionDraftDirty(missionId);
+	const graphDirty = useMissionGraphDirty(missionId);
+	const draftDirty = missionDirty || graphDirty;
 	const currentSig = useMemo(
 		() => (draft ? missionConfigSignature(draft) : null),
 		[draft],
@@ -608,6 +615,7 @@ function ControlPanelBody(props: {
 	const stopDef = findCall(props.calls, C2Call.MissionStop);
 	const deleteDef = findCall(props.calls, C2Call.MissionDelete);
 	const listDef = findCall(props.calls, C2Call.MissionsList);
+	const saveDef = findCall(props.calls, C2Call.MissionsSave);
 
 	// `useRemoteCall` requires a definition; `initDef` is always present (the host
 	// gates the whole panel on it), so it doubles as the fallback for any command
@@ -624,6 +632,9 @@ function ControlPanelBody(props: {
 	const del = useRemoteCall(deleteDef ?? initDef);
 	const list = useRemoteCall<Record<string, never>, unknown>(
 		listDef ?? initDef,
+	);
+	const save = useRemoteCall<{ mission: unknown }, unknown>(
+		saveDef ?? initDef,
 	);
 
 	// In-flight guard: `busy` is the non-Stop action currently dispatching (or
@@ -814,6 +825,45 @@ function ControlPanelBody(props: {
 			setErrorNote(null);
 			setMessageNote(null);
 			setIssuesNote(null);
+
+			// Unsaved edits are saved FIRST, mission and graph together: the fog
+			// runs the SAVED graph, so submitting an unsaved one would run
+			// something other than what was submitted.
+			if (
+				isMissionDraftDirty(activeMissionId) ||
+				isMissionGraphDirty(activeMissionId)
+			) {
+				if (!saveDef || !listDef) {
+					setErrorNote({
+						missionId: activeMissionId,
+						text: "This mission has unsaved edits and c2.missions.save is unavailable — it was not submitted.",
+					});
+					return;
+				}
+				const saved = await saveMissionWithGraph(activeMissionId, {
+					list: () => list.execute({}),
+					save: (doc) => save.execute({ mission: doc }),
+				});
+				if (!saved.ok) {
+					if (saved.issues)
+						setIssuesNote({
+							missionId: activeMissionId,
+							issues: saved.issues,
+						});
+					setErrorNote({
+						missionId: activeMissionId,
+						text: `Not submitted — saving it first failed: ${saved.error}`,
+					});
+					return;
+				}
+				if (saved.keptDirty) {
+					setErrorNote({
+						missionId: activeMissionId,
+						text: "Not submitted — the mission changed while it was being saved, and the newer edits are not saved yet. Submit again to save and send them.",
+					});
+					return;
+				}
+			}
 
 			// Re-read at dispatch time: the closure's `draft` may be a render old.
 			const liveDraft = getMissionDraft(activeMissionId);
@@ -1148,8 +1198,8 @@ function ControlPanelBody(props: {
 			    and the stored mission have diverged before the operator sends it. */}
 			{hasMission && draftDirty && (
 				<div className="text-xs text-warning bg-warning/10 p-2 rounded-md shrink-0">
-					This mission has unsaved edits. Submit sends what you see;
-					save it in the editor or map to persist it.
+					This mission has unsaved edits. Submit saves them first
+					(mission and graph together), then sends it.
 				</div>
 			)}
 			{ownWaiting !== null && (

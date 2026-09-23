@@ -82,6 +82,10 @@ import {
 	taskDistanceMeters,
 } from "./plan-metrics";
 import { atMost, useContainerSize } from "./responsive";
+import { useAgents } from "../state/c2-agents-store";
+import { useMissionGraph } from "../state/mission-graph-store";
+import { focusGraphNode } from "../state/graph-focus-store";
+import { agentPositions, type RunTone } from "./mission-graph-editor-helpers";
 
 /**
  * Mission Feedback widget: what is playing, when, and where along the
@@ -543,6 +547,77 @@ function TimelineSection(props: {
 }
 
 /** Body: publishes the feed, then renders header and both views. */
+const POSITION_DOT: Record<RunTone, string> = {
+	running: "bg-info",
+	starting: "bg-muted-foreground",
+	waiting: "bg-warning",
+	done: "bg-success",
+	failed: "bg-destructive",
+};
+
+/**
+ * Where each agent is in the mission's behaviour graph: its current step's
+ * node, the state, and while it waits what for. Clicking a row selects that
+ * node in the graph editor and brings it into view.
+ */
+function GraphPositions(props: { fb: MissionFeedback; missionId: string }) {
+	const graph = useMissionGraph(props.missionId);
+	const agents = useAgents();
+	const agentNames = useMemo(() => {
+		const out: Record<string, string> = {};
+		for (const agent of agents) out[agent.agent_id] = agent.name;
+		return out;
+	}, [agents]);
+	const nodeLabels = useMemo(() => {
+		const out: Record<string, string> = {};
+		for (const node of graph?.nodes ?? []) {
+			out[node.id] = node.label || node.action || node.id;
+		}
+		return out;
+	}, [graph]);
+	const positions = useMemo(
+		() => agentPositions(props.fb.program, nodeLabels, agentNames),
+		[props.fb.program, nodeLabels, agentNames],
+	);
+	if (positions.length === 0) return null;
+	return (
+		<section className="flex flex-col gap-1.5 min-w-0">
+			<SectionTitle>In the graph</SectionTitle>
+			{positions.map((p) => (
+				<button
+					key={p.agentId}
+					type="button"
+					className="flex items-start gap-2 min-w-0 rounded-md px-1.5 py-1 text-left hover:bg-muted"
+					title="Show this node in the graph editor"
+					onClick={() =>
+						p.stepId && focusGraphNode(props.missionId, p.stepId)
+					}
+				>
+					<span
+						className={`mt-1.5 size-2 shrink-0 rounded-full ${POSITION_DOT[p.tone]}`}
+					/>
+					<span className="flex flex-col min-w-0">
+						<span className="text-xs font-medium truncate">
+							{agentNames[p.agentId] ?? p.agentId.slice(0, 8)}
+						</span>
+						<span className="text-xs text-muted-foreground truncate">
+							{p.text}
+						</span>
+						{p.gate.map((line, i) => (
+							<span
+								key={i}
+								className="text-[11px] text-warning truncate"
+							>
+								{line}
+							</span>
+						))}
+					</span>
+				</button>
+			))}
+		</section>
+	);
+}
+
 function MissionFeedbackBody(props: {
 	feedbackTopic: SelectedTopic;
 	missionId: string | null;
@@ -631,6 +706,15 @@ function MissionFeedbackBody(props: {
 								<TimelineSection
 									shown={shown}
 									selectedId={props.missionId}
+								/>
+							</>
+						)}
+						{shown != null && props.missionId && shown.program && (
+							<>
+								<Separator />
+								<GraphPositions
+									fb={shown}
+									missionId={props.missionId}
 								/>
 							</>
 						)}

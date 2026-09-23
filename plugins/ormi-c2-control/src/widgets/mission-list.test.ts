@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { MissionBehavior } from "../types/c2-types";
 import {
 	duplicateMission,
+	duplicateMissionWithGraph,
 	generateMissionId,
 	newMissionStub,
 	normalizeMissions,
@@ -116,6 +117,52 @@ describe("duplicateMission (save-a-copy)", () => {
 		// the source is not mutated
 		expect(source.mission_id).toBe("m1");
 		expect(source._id).toBe("mongo-internal");
+	});
+});
+
+describe("duplicateMissionWithGraph", () => {
+	const source = {
+		mission_id: "m1",
+		name: "Alpha",
+		graph_ref: "m1:graph",
+		graph_compiles: true,
+	};
+
+	it("copies the graph under the copy's id and points the copy at it", () => {
+		const graphDoc = {
+			mission_id: "m1:graph",
+			graph: {
+				version: 1,
+				nodes: [
+					{
+						id: "a",
+						kind: "agent",
+						label: "Es",
+						position: { x: 0, y: 0 },
+						agent_id: "robot-es",
+					},
+				],
+				edges: [],
+			},
+		};
+		const { mission, graph } = duplicateMissionWithGraph(
+			source,
+			graphDoc,
+			"Alpha (copy)",
+		);
+		expect(mission.mission_id).not.toBe("m1");
+		// It used to keep "m1:graph": the fog, which looks the graph up by the
+		// copy's own id, found none.
+		expect(mission.graph_ref).toBe(`${String(mission.mission_id)}:graph`);
+		expect(graph?.mission_id).toBe(`${String(mission.mission_id)}:graph`);
+		expect((graph?.graph as { nodes: unknown[] }).nodes).toHaveLength(1);
+	});
+
+	it("drops the stale graph fields when the source has no graph", () => {
+		const { mission, graph } = duplicateMissionWithGraph(source, null, "x");
+		expect(graph).toBeNull();
+		expect(mission.graph_ref).toBeUndefined();
+		expect(mission.graph_compiles).toBeUndefined();
 	});
 });
 

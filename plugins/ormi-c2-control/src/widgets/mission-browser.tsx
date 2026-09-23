@@ -38,7 +38,8 @@ import {
 import { publishMissionNames } from "../state/c2-catalog-store";
 import {
 	MissionRow,
-	duplicateMission,
+	duplicateMissionWithGraph,
+	missionDocuments,
 	newMissionStub,
 	normalizeMissions,
 } from "./mission-list";
@@ -199,11 +200,53 @@ function MissionBrowserBody(props: {
 
 	/** Duplicate an existing mission as a fresh copy. */
 	const handleDuplicate = useCallback(
-		async (row: MissionRow) => {
-			const copy = duplicateMission(row.raw, `${row.name} (copy)`);
-			await saveAndRefetch(copy, String(copy.mission_id));
+		(row: MissionRow) => {
+			if (!props.saveDef) {
+				setError("c2.missions.save is unavailable");
+				return;
+			}
+			// One guarded action (a double click must not copy the graph twice),
+			// and the graph comes too, written first so the copy's graph_ref
+			// never names a document that is not there.
+			return run("save", async () => {
+				const listed = await executeList({});
+				if (!listed.success) {
+					setError(
+						`"${row.name}" was not duplicated — the mission store could not be read: ${listed.error ?? "the request failed"}`,
+					);
+					return;
+				}
+				const graphDoc = missionDocuments(listed.data).find(
+					(doc) => doc.mission_id === graphDocId(row.mission_id),
+				);
+				const copy = duplicateMissionWithGraph(
+					row.raw,
+					graphDoc ?? null,
+					`${row.name} (copy)`,
+				);
+				if (copy.graph) {
+					const written = await save.execute({ mission: copy.graph });
+					if (!written.success) {
+						setError(
+							`"${row.name}" was not duplicated — its graph could not be copied: ${written.error ?? "the request failed"}`,
+						);
+						return;
+					}
+				}
+				setIssues(validateMissionConfig(copy.mission));
+				const result = await save.execute({ mission: copy.mission });
+				if (!result.success) {
+					setError(
+						`"${row.name}" was not duplicated: ${result.error ?? "the request failed"}`,
+					);
+					return;
+				}
+				setError(null);
+				setSelectedMission(String(copy.mission.mission_id));
+				await refetch();
+			});
 		},
-		[saveAndRefetch],
+		[props.saveDef, executeList, save, run, refetch],
 	);
 
 	/** Delete a mission then refetch. */

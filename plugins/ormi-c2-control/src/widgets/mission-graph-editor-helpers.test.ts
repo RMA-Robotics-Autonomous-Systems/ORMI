@@ -5,6 +5,7 @@ import {
 	compiledDraftSlice,
 	formatCondition,
 	NO_CONDITION_LABEL,
+	agentPositions,
 	programMarks,
 	resolveGraphDraftWrite,
 	shouldHandleGraphShortcut,
@@ -806,6 +807,32 @@ describe("the graph shows where each agent is while the mission runs", () => {
 		expect(programMarks(agentNodes, waiting).get("es-holds")?.text).toBe(
 			"waiting for 2 contacts (1 so far)",
 		);
+	});
+
+	it("lists where each agent is, for the mission feedback", () => {
+		const rows = agentPositions(
+			program,
+			{ "go-es": "Sweep field", "go-ge": "Go to hold" },
+			{ "agent-es": "Es" },
+		);
+		expect(rows.map((r) => r.agentId)).toEqual(["agent-es", "agent-ge"]);
+		expect(rows[0]).toMatchObject({
+			stepId: "go-es",
+			tone: "running",
+			text: "step 1/1 · Sweep field · running",
+			gate: [],
+		});
+		expect(rows[1]).toMatchObject({
+			stepId: "go-ge",
+			tone: "waiting",
+			text: "step 1/2 · Go to hold · waiting",
+			gate: ["waiting 12/30 s"],
+		});
+		// No graph loaded: the node id stands in for its caption.
+		expect(agentPositions(program)[0]?.text).toBe(
+			"step 1/1 · go-es · running",
+		);
+		expect(agentPositions(undefined)).toEqual([]);
 	});
 
 	it("draws nothing without progress, and nothing for nodes that are gone", () => {

@@ -1,5 +1,10 @@
 import { MissionBehavior, MissionConfig } from "../types/c2-types";
-import { isMissionGraphDocId } from "./mission-graph";
+import {
+	buildGraphDocument,
+	graphDocId,
+	isMissionGraphDocId,
+	readGraphDocument,
+} from "./mission-graph";
 
 /**
  * Mission-browser list normalization + minimal-create helpers (pure, testable).
@@ -47,11 +52,7 @@ function readMissionId(obj: Record<string, unknown>): string | null {
  * @returns Normalized mission rows (possibly empty).
  */
 export function normalizeMissions(data: unknown): MissionRow[] {
-	const list = Array.isArray(data)
-		? data
-		: Array.isArray((data as { missions?: unknown })?.missions)
-			? (data as { missions: unknown[] }).missions
-			: [];
+	const list = missionDocuments(data);
 
 	const rows: MissionRow[] = [];
 	for (const entry of list) {
@@ -120,6 +121,64 @@ export function duplicateMission(
 		...rest,
 		mission_id: generateMissionId(),
 		name: newName,
+	};
+}
+
+/**
+ * Every document of a `c2.missions.list` response, graph documents included
+ * (a bare array, or `{ missions: [...] }`).
+ *
+ * @param data - The raw remote-call response data.
+ * @returns The documents, possibly empty.
+ */
+export function missionDocuments(data: unknown): Record<string, unknown>[] {
+	const list = Array.isArray(data)
+		? data
+		: Array.isArray((data as { missions?: unknown })?.missions)
+			? (data as { missions: unknown[] }).missions
+			: [];
+	return list.filter(
+		(entry): entry is Record<string, unknown> =>
+			entry != null && typeof entry === "object" && !Array.isArray(entry),
+	);
+}
+
+/**
+ * Duplicate a mission WITH its behaviour graph. Copying only the mission kept
+ * its `graph_ref`, which still named the ORIGINAL's graph document: the copy
+ * passed the C2's graph gate and the fog, which looks the graph up by the
+ * copy's own id, found none. The graph document is copied under the new id and
+ * the reference rewritten; a mission without a graph loses the stale fields.
+ *
+ * @param source - The raw stored mission.
+ * @param graphDoc - Its raw `"<id>:graph"` document, or null when it has none.
+ * @param newName - The duplicate's display name.
+ * @returns The mission copy and, when there is one, its graph document copy.
+ */
+export function duplicateMissionWithGraph(
+	source: Record<string, unknown>,
+	graphDoc: unknown,
+	newName: string,
+): { mission: Record<string, unknown>; graph: Record<string, unknown> | null } {
+	const mission = duplicateMission(source, newName);
+	const newId = String(mission.mission_id);
+	const graph = readGraphDocument(graphDoc);
+	if (!graph) {
+		const {
+			graph_ref: _omitRef,
+			graph_compiles: _omitCompiles,
+			...rest
+		} = mission;
+		void _omitRef;
+		void _omitCompiles;
+		return { mission: rest, graph: null };
+	}
+	return {
+		mission: { ...mission, graph_ref: graphDocId(newId) },
+		graph: buildGraphDocument(newId, graph) as unknown as Record<
+			string,
+			unknown
+		>,
 	};
 }
 

@@ -909,3 +909,18 @@ and lives in two places at once.
   mission with a graph would grow a phantom row an operator could select, submit
   and delete; deleting a mission deletes its graph document with it, because
   nothing else ever would.
+- **One "Save mission" saves the mission AND its graph**
+  (`state/mission-save.ts`, `saveMissionWithGraph`), from the map, the graph
+  editor and Submit alike. They used to be two buttons in two panels, and the
+  gap was a real divergence: the fog runs the SAVED `"<mission_id>:graph"`
+  while Submit sent the live draft, so an unsaved graph was submitted as one
+  thing and run as another. Order, because `:5000` has no transaction: the
+  graph document first (so `graph_ref` never names nothing), then the mission
+  with `vehicles` / `objective.geometries` / `behavior` / `graph_compiles`
+  re-derived from the graph just written; a failure after the first write says
+  the graph was saved and the mission was not. Submit saves unsaved edits
+  first and does not submit if that fails. Duplicate copies the graph document
+  under the new id and rewrites `graph_ref` (it used to keep the original's,
+  which the fog never finds). Map assets are NOT part of it: they belong to the
+  map, which every mission on it shares, and are saved as each edit is
+  confirmed.
