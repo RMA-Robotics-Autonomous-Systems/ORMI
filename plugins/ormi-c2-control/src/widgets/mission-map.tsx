@@ -315,25 +315,6 @@ const SHAPE_LABELS: Record<DrawShape, string> = {
 	rectangle: "Rectangle",
 };
 
-/**
- * One allocated-agent chip in the mission-panel read-only summary. Hoisted
- * (module-level) so it can call {@link useAgentName} for the namespace name —
- * hooks can't run in the parent's `.map`. Identity is stable (Pattern #10).
- *
- * What it reads is the mission's behaviour GRAPH, not `draft.vehicles`: an
- * agent is allocated exactly when the graph carries an `agent` node for it.
- * Clicking a marker is the affordance; this is the "who's in the graph"
- * readout.
- */
-function AllocatedVehicleChip(props: { id: string }) {
-	const name = useAgentName(props.id);
-	return (
-		<Badge variant="secondary" className="text-xs" title={props.id}>
-			{name || props.id.slice(0, 8)}
-		</Badge>
-	);
-}
-
 /** Props for the MissionMap widget. */
 interface MissionMapProps extends Record<string, unknown> {
 	title: string;
@@ -3555,17 +3536,6 @@ function MissionMapBody(props: {
 	// and is deliberately not read here: it is stale until the operator applies
 	// the graph, and reading it would put a second answer on screen.
 	const missionGraph = useMissionGraph(selectedMission);
-	const graphAgentIds = useMemo(() => {
-		// Deduped: nothing stops two agent nodes naming the same vehicle (the
-		// compiler warns about it rather than refusing), and a chip list with a
-		// repeated key is a React warning plus a readout that double-counts.
-		const seen = new Set<string>();
-		for (const node of missionGraph?.nodes ?? []) {
-			if (node.kind !== "agent" || !node.agent_id) continue;
-			seen.add(node.agent_id);
-		}
-		return [...seen];
-	}, [missionGraph]);
 	// The marker's allocated state. `hasAgentNode` is the seam the graph module
 	// exports for exactly this question — never a local re-derivation, so the
 	// marker and the node editor can never disagree about what is allocated.
@@ -4060,46 +4030,6 @@ function MissionMapBody(props: {
 					</Button>
 				</div>
 			)}
-
-			{/* Mission: a read-only allocation summary, read off the behaviour
-			    GRAPH. The behaviour dropdown that used to sit here is gone —
-			    NAVIGATE / COVERAGE are action NODES, and `behavior` is derived
-			    from them by the graph compiler, so a dropdown here could only
-			    ever contradict the graph. Allocation is likewise the graph's:
-			    clicking an agent marker toggles its node. */}
-			{context === "mission" &&
-				selectedMission &&
-				missionConfig &&
-				!viewOnly && (
-					<div className="flex flex-col gap-2 px-2 py-2 shrink-0 border-b bg-muted/40 text-xs">
-						<div className="flex flex-col gap-1">
-							<Label className="text-xs">
-								Agents ({graphAgentIds.length} in the graph)
-							</Label>
-							{missionGraph == null ? (
-								<span className="text-muted-foreground">
-									This mission&apos;s behaviour graph
-									isn&apos;t loaded — open it in the node
-									editor to allocate agents.
-								</span>
-							) : graphAgentIds.length === 0 ? (
-								<span className="text-muted-foreground">
-									Click an agent marker on the map to add it
-									to the node editor.
-								</span>
-							) : (
-								<div className="flex flex-wrap gap-1">
-									{graphAgentIds.map((id) => (
-										<AllocatedVehicleChip
-											key={id}
-											id={id}
-										/>
-									))}
-								</div>
-							)}
-						</div>
-					</div>
-				)}
 
 			{/* Mission: save. Geometry is no longer picked or edited here — an
 			    objective is a graph node pointing at a map asset, so there is
