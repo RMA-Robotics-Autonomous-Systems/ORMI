@@ -1071,9 +1071,9 @@ describe("the action/asset pairing is validated, not inferred", () => {
 	});
 });
 
-describe("what the fog's current executor cannot run is refused before submit", () => {
-	// The fog runs one action, with no gate, per mission until its program
-	// executor exists; everything past that is NOT_EXECUTABLE_YET.
+describe("what the fog's executor runs is accepted, the rest refused before submit", () => {
+	// The fog runs chains of NAVIGATE/COVERAGE steps with their gates; nothing
+	// that compiles is NOT_EXECUTABLE_YET any more.
 	const stopGap = (compiled: CompiledMissionGraph) =>
 		compiled.issues.filter((issue) => issue.code === "NOT_EXECUTABLE_YET");
 	const types = { "feat-zone-north": "zone", "feat-wp-1": "waypoint" };
@@ -1116,7 +1116,7 @@ describe("what the fog's current executor cannot run is refused before submit", 
 		expect(graphCompiles(compiled.issues)).toBe(true);
 	});
 
-	it("refuses the operator's two-branch graph for its condition only", () => {
+	it("accepts the operator's two-branch graph, condition included", () => {
 		// The screenshot of 2026-09-23: Es -> NAVIGATE -> Open field, and
 		// Ge -> When(elapsed >= 30 s) -> NAVIGATE -> Open field.
 		const compiled = compileMissionGraph(
@@ -1146,12 +1146,9 @@ describe("what the fog's current executor cannot run is refused before submit", 
 			},
 			types,
 		);
-		// Two chains of one step each run (step 3a); the condition does not.
-		const on = stopGap(compiled)
-			.map((issue) => issue.nodeId)
-			.sort();
-		expect(on).toEqual(["when"]);
-		expect(graphCompiles(compiled.issues)).toBe(false);
+		// Two chains, and Ge's step waits 30 s for its gate (the fog's step 3c).
+		expect(stopGap(compiled)).toEqual([]);
+		expect(graphCompiles(compiled.issues)).toBe(true);
 	});
 
 	it("refuses HOLD, MARK and NEUTRALISE", () => {

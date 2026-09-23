@@ -444,28 +444,15 @@ export function compileProgram(
 }
 
 /**
- * What the fog's CURRENT executor cannot run. Until the fog's program executor
- * exists it runs one action, with no gate, by every agent of one chain — the
- * planner allocates within that team. This shrinks as the executor grows;
- * {@link compileProgram} does not change.
+ * What compiles but the fog's CURRENT executor cannot run, reported apart from
+ * compile errors so {@link compileProgram} does not change as the executor
+ * grows. Empty since the fog runs conditions (its step 3c).
  *
  * @param program - A program that compiled.
  * @returns One `NOT_EXECUTABLE_YET` issue per node the executor would not honour.
  */
 export function notExecutableYet(program: MissionProgram): ProgramIssue[] {
-	const issues: ProgramIssue[] = [];
-	const code = "NOT_EXECUTABLE_YET";
-	program.chains.forEach((chain) => {
-		chain.steps.forEach((step) => {
-			for (const g of step.gate_nodes) {
-				issues.push({
-					code,
-					nodeId: g,
-					message:
-						"Conditions are not executed yet: nothing would evaluate this one, and the step after it would start at once.",
-				});
-			}
-		});
-	});
-	return issues;
+	// Everything that compiles runs (the fog's step 3c: conditions too).
+	void program;
+	return [];
 }
