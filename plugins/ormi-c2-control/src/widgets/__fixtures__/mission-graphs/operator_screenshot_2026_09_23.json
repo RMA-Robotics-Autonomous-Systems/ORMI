@@ -1,0 +1,149 @@
+{
+	"name": "operator_screenshot_2026_09_23",
+	"description": "The graph that exposed the two behaviour systems: Es navigates to the field; Ge waits 30 s then navigates to the same field. Compiles; the current executor cannot run the second chain or the wait.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "go-es",
+				"kind": "action",
+				"label": "go-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "when",
+				"kind": "condition",
+				"label": "when",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 30,
+					"negate": false
+				}
+			},
+			{
+				"id": "go-ge",
+				"kind": "action",
+				"label": "go-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "field",
+				"kind": "asset",
+				"label": "field",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go-es",
+				"source": "es",
+				"target": "go-es",
+				"kind": "exec"
+			},
+			{
+				"id": "go-es->field",
+				"source": "go-es",
+				"target": "field",
+				"kind": "exec"
+			},
+			{
+				"id": "ge->when",
+				"source": "ge",
+				"target": "when",
+				"kind": "exec"
+			},
+			{
+				"id": "when->go-ge",
+				"source": "when",
+				"target": "go-ge",
+				"kind": "exec"
+			},
+			{
+				"id": "go-ge->field",
+				"source": "go-ge",
+				"target": "field",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "go-es",
+							"action": "NAVIGATE",
+							"feature_id": "feat-zone",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go-ge",
+							"action": "NAVIGATE",
+							"feature_id": "feat-zone",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 30,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["when"]
+						}
+					]
+				}
+			]
+		},
+		"not_executable_yet": [
+			["NOT_EXECUTABLE_YET", "go-ge"],
+			["NOT_EXECUTABLE_YET", "when"]
+		]
+	}
+}

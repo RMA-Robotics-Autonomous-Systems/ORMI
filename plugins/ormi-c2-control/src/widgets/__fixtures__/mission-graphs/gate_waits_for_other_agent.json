@@ -1,0 +1,160 @@
+{
+	"name": "gate_waits_for_other_agent",
+	"description": "Ge sweeps only once Es is holding (idle or done): AgentHolding orders two chains.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "es-done",
+				"kind": "condition",
+				"label": "es-done",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "AgentHolding",
+					"threshold": 0,
+					"negate": false,
+					"key": "agent-es"
+				}
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go",
+				"source": "es",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "ge->es-done",
+				"source": "ge",
+				"target": "es-done",
+				"kind": "exec"
+			},
+			{
+				"id": "es-done->sweep",
+				"source": "es-done",
+				"target": "sweep",
+				"kind": "exec"
+			},
+			{
+				"id": "sweep->zone",
+				"source": "sweep",
+				"target": "zone",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "go",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"gate": [
+								{
+									"op": "AgentHolding",
+									"key": "agent-es",
+									"arg": "",
+									"threshold": 0,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["es-done"]
+						}
+					]
+				}
+			]
+		},
+		"not_executable_yet": [
+			["NOT_EXECUTABLE_YET", "es-done"],
+			["NOT_EXECUTABLE_YET", "sweep"]
+		]
+	}
+}

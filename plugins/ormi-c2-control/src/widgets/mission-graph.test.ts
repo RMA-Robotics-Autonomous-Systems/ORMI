@@ -290,23 +290,37 @@ describe("agent assignment flows along 'then' edges", () => {
 });
 
 /**
- * Issues other than the stop-gap that refuses what the fog cannot run yet.
- * Tests about the OTHER rules read through this, so they keep testing those
- * rules while the stop-gap is in place; the stop-gap has its own suite.
+ * The editor's own issues: those the fog cannot raise (feature types), which
+ * carry no code. Tests about the editor's rules read through this; the fog's
+ * rules are pinned by mission-program.test.ts against the shared fixtures.
  */
-function withoutStopGap(
-	issues: readonly MissionGraphIssue[],
-): MissionGraphIssue[] {
-	return issues.filter((issue) => issue.code !== "NOT_EXECUTABLE_YET");
+function editorOnly(issues: readonly MissionGraphIssue[]): MissionGraphIssue[] {
+	return issues.filter((issue) => issue.code === undefined);
+}
+
+/** The fog-contract issues, as sorted (code, node) pairs. */
+function fogCodes(issues: readonly MissionGraphIssue[]): [string, string][] {
+	return issues
+		.filter((issue) => issue.code !== undefined)
+		.map((issue): [string, string] => [
+			issue.code ?? "",
+			issue.nodeId ?? "",
+		])
+		.sort();
 }
 
 describe("compileMissionGraph", () => {
-	it("compiles the target scenario, apart from what the fog cannot run yet", () => {
+	it("compiles the target scenario's flat slice; the fog refuses its HOLD, MARK and finding condition", () => {
 		const compiled = compileMissionGraph(
 			targetScenario(),
 			TARGET_FEATURE_TYPES,
 		);
-		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
+		expect(graphCompiles(editorOnly(compiled.issues))).toBe(true);
+		expect(fogCodes(compiled.issues)).toEqual([
+			["ACTION_NOT_EXECUTABLE", "hold"],
+			["ACTION_NOT_EXECUTABLE", "mark"],
+			["CONDITION_NOT_EVALUABLE", "on-contact"],
+		]);
 		expect(compiled.behavior).toBe(MissionBehavior.COVERAGE);
 		expect(compiled.vehicles).toEqual(["robot-a", "robot-b", "robot-c"]);
 		expect(compiled.geometries).toEqual([
@@ -389,7 +403,9 @@ describe("compileMissionGraph", () => {
 		).toBe(true);
 	});
 
-	it("warns about a condition nothing feeds", () => {
+	it("does not ask for a data input the evaluable conditions never read", () => {
+		// ElapsedSeconds, AgentHolding and Always read nothing from a data
+		// edge; warning that one "is evaluated against nothing" was wrong.
 		const graph = targetScenario();
 		graph.edges = graph.edges.filter((e) => e.kind !== "data");
 		const compiled = compileMissionGraph(graph);
@@ -399,10 +415,10 @@ describe("compileMissionGraph", () => {
 					issue.nodeId === "on-contact" &&
 					issue.severity === "warning",
 			),
-		).toBe(true);
+		).toBe(false);
 	});
 
-	it("dedupes a repeated asset and warns about a repeated agent", () => {
+	it("dedupes a repeated asset and refuses a repeated agent", () => {
 		const graph = targetScenario();
 		graph.nodes.push(
 			node("zone-north-2", "asset", { feature_id: "feat-zone-north" }),
@@ -418,16 +434,18 @@ describe("compileMissionGraph", () => {
 		expect(compiled.vehicles.filter((v) => v === "robot-a")).toHaveLength(
 			1,
 		);
+		// An agent runs one chain: a second node for it is the fog's AGENT_TWICE.
 		expect(
 			compiled.issues.find((issue) => issue.nodeId === "survey-a-2")
-				?.severity,
-		).toBe("warning");
+				?.code,
+		).toBe("AGENT_TWICE");
 	});
 
 	it("refuses an empty graph with reasons the operator can act on", () => {
 		const compiled = compileMissionGraph(emptyMissionGraph());
 		expect(graphCompiles(compiled.issues)).toBe(false);
-		expect(compiled.issues).toHaveLength(2);
+		expect(fogCodes(compiled.issues)).toEqual([["EMPTY", ""]]);
+		expect(compiled.issues).toHaveLength(1);
 		expect(compiled.vehicles).toEqual([]);
 		expect(compiled.geometries).toEqual([]);
 	});
@@ -835,7 +853,7 @@ describe("behavior is derived from the ACTION NODES, never picked", () => {
 		expect(ambiguity?.message).toContain("NAVIGATE branch");
 		// A warning, never an error (the stop-gap refuses the second action
 		// separately, and says so).
-		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
+		expect(graphCompiles(editorOnly(compiled.issues))).toBe(true);
 	});
 
 	it("says nothing about ambiguity when the graph only covers", () => {
@@ -904,7 +922,7 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		compiled: CompiledMissionGraph,
 		severity: MissionGraphIssue["severity"],
 	) =>
-		withoutStopGap(compiled.issues).filter(
+		editorOnly(compiled.issues).filter(
 			(issue) => issue.nodeId === "act" && issue.severity === severity,
 		);
 	const errorsOn = (compiled: CompiledMissionGraph) =>
@@ -934,7 +952,11 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			"feat-objective": "zone",
 		});
 		expect(graphCompiles(compiled.issues)).toBe(false);
-		expect(errorsOn(compiled)).toHaveLength(1);
+		// The fog's COVERAGE_TARGET, not an editor-only check.
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"COVERAGE_TARGET",
+			"act",
+		]);
 	});
 
 	it("associates along 'then' edges, never along a data edge", () => {
@@ -944,7 +966,10 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			paired("COVERAGE", "feat-zone-north", "data"),
 			{ "feat-zone-north": "zone", "feat-objective": "zone" },
 		);
-		expect(errorsOn(compiled)).toHaveLength(1);
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"COVERAGE_TARGET",
+			"act",
+		]);
 	});
 
 	it("accepts a COVERAGE action over a zone", () => {
@@ -1015,7 +1040,7 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			targetScenario(),
 			TARGET_FEATURE_TYPES,
 		);
-		expect(graphCompiles(withoutStopGap(compiled.issues))).toBe(true);
+		expect(graphCompiles(editorOnly(compiled.issues))).toBe(true);
 	});
 
 	it("does not read the NEXT step's asset as this action's", () => {
@@ -1046,9 +1071,9 @@ describe("the action/asset pairing is validated, not inferred", () => {
 	});
 });
 
-describe("the stop-gap refuses what the fog would silently drop", () => {
-	// Until the fog reads the graph, only vehicles, one behaviour and the
-	// asset list reach it, and the planner allocates agents to assets itself.
+describe("what the fog's current executor cannot run is refused before submit", () => {
+	// The fog runs one action, with no gate, per mission until its program
+	// executor exists; everything past that is NOT_EXECUTABLE_YET.
 	const stopGap = (compiled: CompiledMissionGraph) =>
 		compiled.issues.filter((issue) => issue.code === "NOT_EXECUTABLE_YET");
 	const types = { "feat-zone-north": "zone", "feat-wp-1": "waypoint" };
@@ -1142,8 +1167,8 @@ describe("the stop-gap refuses what the fog would silently drop", () => {
 				],
 				edges: [edge("a", "act"), edge("act", "wp")],
 			});
-			expect(stopGap(compiled).map((issue) => issue.nodeId)).toEqual([
-				"act",
+			expect(fogCodes(compiled.issues)).toEqual([
+				["ACTION_NOT_EXECUTABLE", "act"],
 			]);
 		}
 	});

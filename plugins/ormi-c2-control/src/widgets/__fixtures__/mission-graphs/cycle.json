@@ -1,0 +1,108 @@
+{
+	"name": "cycle",
+	"description": "A loop is refused (it re-enters a node, so it is a join too).",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "c",
+				"kind": "condition",
+				"label": "c",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "Always",
+					"threshold": 0,
+					"negate": false
+				}
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->a",
+				"source": "es",
+				"target": "a",
+				"kind": "exec"
+			},
+			{
+				"id": "a->wp",
+				"source": "a",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "a->c",
+				"source": "a",
+				"target": "c",
+				"kind": "exec"
+			},
+			{
+				"id": "c->b",
+				"source": "c",
+				"target": "b",
+				"kind": "exec"
+			},
+			{
+				"id": "b->wp",
+				"source": "b",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "b->c",
+				"source": "b",
+				"target": "c",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["CYCLE", "c"],
+			["JOIN", "c"]
+		]
+	}
+}

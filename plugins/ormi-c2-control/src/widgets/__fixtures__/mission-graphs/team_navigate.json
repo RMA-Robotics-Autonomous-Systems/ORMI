@@ -1,0 +1,73 @@
+{
+	"name": "team_navigate",
+	"description": "A team cannot navigate to one point.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go",
+				"source": "es",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "ge->go",
+				"source": "ge",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["TEAM_NAVIGATE", "go"]]
+	}
+}

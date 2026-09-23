@@ -86,16 +86,16 @@ const MISSION_ISSUES: Record<number, MissionIssue> = {
 	},
 	20: {
 		code: 20,
-		label: "Config parsing failed",
+		label: "Graph refused",
 		description:
-			"The mission_config could not be parsed; mission set to FAILED.",
+			"The fog could not run this mission's behaviour graph (or its config could not be parsed); mission set to FAILED. The mission log lists each reason with its code and node.",
 		severity: "fail",
 	},
 	21: {
 		code: 21,
-		label: "Config missing data",
+		label: "No graph / missing data",
 		description:
-			"The mission_config lacks sufficient data for planning; mission set to FAILED.",
+			"The mission has no saved behaviour graph, or its config lacks data for planning; mission set to FAILED. Save the graph, save the mission, and submit again.",
 		severity: "fail",
 	},
 	22: {

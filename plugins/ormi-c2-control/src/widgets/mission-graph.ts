@@ -1,3 +1,4 @@
+import { compileProgram, notExecutableYet } from "./mission-program";
 import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
 
 /**
@@ -915,8 +916,9 @@ export interface MissionGraphIssue {
 	nodeId?: string;
 	message: string;
 	/**
-	 * Stable identifier for issues a test or the fog has to match on. Only
-	 * `NOT_EXECUTABLE_YET` so far (see {@link notExecutableYet}).
+	 * Stable code shared with the fog (see `mission-program.ts`), on every
+	 * issue the fog would also raise. Editor-only issues (feature types the
+	 * fog cannot see) carry none.
 	 */
 	code?: string;
 }
@@ -1002,22 +1004,9 @@ export function compileMissionGraph(
 	const seenVehicles = new Set<string>();
 	for (const node of normalized.nodes) {
 		if (node.kind !== "agent") continue;
-		if (!node.agent_id) {
-			issues.push({
-				severity: "error",
-				nodeId: node.id,
-				message: `"${node.label || node.id}" is an agent node with no agent selected — the mission would be submitted without it.`,
-			});
-			continue;
-		}
-		if (seenVehicles.has(node.agent_id)) {
-			issues.push({
-				severity: "warning",
-				nodeId: node.id,
-				message: `"${node.label || node.id}" allocates an agent another node already allocates. The mission lists it once; the two branches both run on the same vehicle.`,
-			});
-			continue;
-		}
+		// A missing or repeated agent is reported by the program compiler
+		// (AGENT_MISSING / AGENT_TWICE); the flat list just skips it.
+		if (!node.agent_id || seenVehicles.has(node.agent_id)) continue;
 		seenVehicles.add(node.agent_id);
 		vehicles.push(node.agent_id);
 	}
@@ -1026,14 +1015,7 @@ export function compileMissionGraph(
 	const seenFeatures = new Set<string>();
 	for (const node of normalized.nodes) {
 		if (node.kind !== "asset") continue;
-		if (!node.feature_id) {
-			issues.push({
-				severity: "error",
-				nodeId: node.id,
-				message: `"${node.label || node.id}" is an asset node naming no map feature. Pick one, or delete the node — an unnamed asset compiles to nothing.`,
-			});
-			continue;
-		}
+		if (!node.feature_id) continue; // ASSET_MISSING_FEATURE
 		if (!assignment.has(node.id)) {
 			issues.push({
 				severity: "warning",
@@ -1054,20 +1036,7 @@ export function compileMissionGraph(
 
 	for (const node of normalized.nodes) {
 		if (node.kind === "action") {
-			if (!node.action) {
-				issues.push({
-					severity: "error",
-					nodeId: node.id,
-					message: `"${node.label || node.id}" is an action node with no action named.`,
-				});
-			}
-			if (!assignment.has(node.id)) {
-				issues.push({
-					severity: "error",
-					nodeId: node.id,
-					message: `No agent reaches "${node.label || node.id}". An action nothing is assigned to will never run.`,
-				});
-			}
+			// ACTION_MISSING and UNREACHED come from the program compiler.
 			if (node.action === "COVERAGE") hasCoverageAction = true;
 			if (node.action === "NAVIGATE") hasNavigateAction = true;
 
@@ -1081,13 +1050,7 @@ export function compileMissionGraph(
 			if (node.action === "COVERAGE" || node.action === "NAVIGATE") {
 				const features = assetsForAction(normalized, node.id);
 				const caption = node.label || node.id;
-				if (node.action === "COVERAGE" && features.length === 0) {
-					issues.push({
-						severity: "error",
-						nodeId: node.id,
-						message: `"${caption}" is a COVERAGE action with no map asset on its "then" branch. The planner's coverage branch needs a Polygon/LineString zone to sweep; given none it logs "[coverage] behavior 1 needs a Polygon/LineString zone to sweep" and returns an empty route for EVERY agent — the mission is accepted, dispatched, and nothing moves.`,
-					});
-				}
+				// No asset at all is COVERAGE_TARGET, from the program compiler.
 				const known = features
 					.map((featureId) => featureTypes?.[featureId])
 					.filter((type): type is string => typeof type === "string");
@@ -1111,51 +1074,10 @@ export function compileMissionGraph(
 				}
 			}
 		}
-		if (node.kind === "condition") {
-			if (!node.condition) {
-				issues.push({
-					severity: "error",
-					nodeId: node.id,
-					message: `"${node.label || node.id}" is a condition node with nothing to evaluate.`,
-				});
-			}
-			const hasBranch = normalized.edges.some(
-				(edge) => edge.kind === "exec" && edge.source === node.id,
-			);
-			if (!hasBranch) {
-				issues.push({
-					severity: "error",
-					nodeId: node.id,
-					message: `"${node.label || node.id}" has no "then" edge leaving it, so nothing happens when it holds.`,
-				});
-			}
-			const hasInput = normalized.edges.some(
-				(edge) => edge.kind === "data" && edge.target === node.id,
-			);
-			if (!hasInput) {
-				issues.push({
-					severity: "warning",
-					nodeId: node.id,
-					message: `Nothing feeds "${node.label || node.id}" on a data edge. A condition with no input is evaluated against nothing.`,
-				});
-			}
-		}
 	}
 
-	if (vehicles.length === 0) {
-		issues.push({
-			severity: "error",
-			message:
-				"The graph allocates no agent. The C2 refuses a mission with an empty vehicle list.",
-		});
-	}
-	if (geometries.length === 0) {
-		issues.push({
-			severity: "error",
-			message:
-				"The graph names no map asset, so the mission has no objective. Add an asset node and pick a waypoint or zone.",
-		});
-	}
+	// No agent, no asset: reported once, as EMPTY / *_TARGET, by the program
+	// compiler below.
 
 	// One COVERAGE action anywhere makes the mission a coverage mission: the
 	// C2 carries one behaviour for the whole mission, and a coverage branch
@@ -1175,92 +1097,23 @@ export function compileMissionGraph(
 		});
 	}
 
-	issues.push(...notExecutableYet(normalized, assignment));
+	// The fog's own rules, mirrored (mission-program.ts): what it would refuse,
+	// with the same codes, and what its executor cannot run yet.
+	const compiled = compileProgram(normalized, new Set(vehicles));
+	const programIssues =
+		compiled.errors.length > 0
+			? compiled.errors
+			: notExecutableYet(compiled.program);
+	for (const issue of programIssues) {
+		issues.push({
+			severity: "error",
+			code: issue.code,
+			...(issue.nodeId ? { nodeId: issue.nodeId } : {}),
+			message: issue.message,
+		});
+	}
 
 	return { behavior, vehicles, geometries, issues };
-}
-
-/**
- * STOP-GAP until the fog executes the graph: what the fog would silently drop.
- *
- * Today only `vehicles`, one `behavior` and the asset list reach the fog, and
- * the planner allocates agents to assets itself. So a graph is only honoured
- * when it says no more than that: ONE action, run by every agent wired into it,
- * on its assets. Everything else — a condition, a second step, a second action
- * with its own agents, an action the edge cannot perform — would be dropped
- * while the mission still read as accepted. That is reported as an error, not a
- * warning: an operator told "fine" about a `When` that nothing evaluates has
- * been lied to.
- *
- * Replaced by the fog's own compile rules once the fog reads the graph (repair
- * plan, phase 2); delete this function then.
- *
- * @param graph - A normalized graph.
- * @param assignment - {@link propagateAgents} over the same graph.
- * @returns Error issues, one per node the fog would not honour.
- */
-function notExecutableYet(
-	graph: MissionGraph,
-	assignment: Map<string, string[]>,
-): MissionGraphIssue[] {
-	const issues: MissionGraphIssue[] = [];
-	const code = "NOT_EXECUTABLE_YET";
-	const actions = graph.nodes.filter((node) => node.kind === "action");
-
-	for (const node of graph.nodes) {
-		const caption = node.label || node.id;
-		if (node.kind === "condition") {
-			issues.push({
-				severity: "error",
-				code,
-				nodeId: node.id,
-				message: `"${caption}" is not executed yet: the fog does not read the graph, so nothing evaluates this condition and the step after it would start immediately. Remove it for now.`,
-			});
-		}
-		if (
-			node.kind === "action" &&
-			node.action &&
-			!isExecutableAction(node.action)
-		) {
-			issues.push({
-				severity: "error",
-				code,
-				nodeId: node.id,
-				message: `"${caption}" is a ${node.action} action, which the robots cannot perform yet — only NAVIGATE and COVERAGE run.`,
-			});
-		}
-	}
-
-	if (actions.length > 1) {
-		const [first, ...rest] = actions;
-		for (const node of rest) {
-			issues.push({
-				severity: "error",
-				code,
-				nodeId: node.id,
-				message: `"${node.label || node.id}" is a second action. The fog runs ONE action per mission for now: order, and which agent does which action, would be dropped and the planner would allocate agents to assets itself. Keep only "${first?.label || first?.id}".`,
-			});
-		}
-	}
-
-	const agentNodes = graph.nodes.filter(
-		(node) => node.kind === "agent" && node.agent_id,
-	);
-	if (actions.length === 1 && actions[0]) {
-		const runners = new Set(assignment.get(actions[0].id) ?? []);
-		for (const node of agentNodes) {
-			if (node.agent_id && !runners.has(node.agent_id)) {
-				issues.push({
-					severity: "error",
-					code,
-					nodeId: node.id,
-					message: `"${node.label || node.id}" is not wired into the mission's action. The fog would still send it, and the planner would give it part of the work.`,
-				});
-			}
-		}
-	}
-
-	return issues;
 }
 
 /**

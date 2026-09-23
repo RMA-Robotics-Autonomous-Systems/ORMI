@@ -1,0 +1,78 @@
+{
+	"name": "condition_not_evaluable",
+	"description": "Zone, finding and flag conditions need the findings pipeline: refused.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "clear",
+				"kind": "condition",
+				"label": "clear",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ZoneCoveredBy",
+					"threshold": 1.0,
+					"negate": false,
+					"key": "feat-zone"
+				}
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->clear",
+				"source": "es",
+				"target": "clear",
+				"kind": "exec"
+			},
+			{
+				"id": "clear->go",
+				"source": "clear",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["CONDITION_NOT_EVALUABLE", "clear"]]
+	}
+}

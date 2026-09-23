@@ -1,0 +1,89 @@
+{
+	"name": "data_edges_carry_no_order",
+	"description": "Data edges are not sequence: a data edge into an action does not put it on a chain.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "other",
+				"kind": "action",
+				"label": "other",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go",
+				"source": "es",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "go->other",
+				"source": "go",
+				"target": "other",
+				"kind": "data"
+			},
+			{
+				"id": "other->zone",
+				"source": "other",
+				"target": "zone",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["UNREACHED", "other"]]
+	}
+}

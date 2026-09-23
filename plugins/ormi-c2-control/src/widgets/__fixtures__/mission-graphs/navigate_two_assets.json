@@ -1,0 +1,73 @@
+{
+	"name": "navigate_two_assets",
+	"description": "NAVIGATE names exactly one asset; chain one per waypoint.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp1",
+				"kind": "asset",
+				"label": "wp1",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "wp2",
+				"kind": "asset",
+				"label": "wp2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go",
+				"source": "es",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp1",
+				"source": "go",
+				"target": "wp1",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp2",
+				"source": "go",
+				"target": "wp2",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["NAVIGATE_TARGET", "go"]]
+	}
+}

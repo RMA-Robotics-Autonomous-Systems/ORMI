@@ -1,0 +1,111 @@
+{
+	"name": "fanout",
+	"description": "An action continuing into two steps is refused: a chain is a straight line.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->go",
+				"source": "es",
+				"target": "go",
+				"kind": "exec"
+			},
+			{
+				"id": "go->wp",
+				"source": "go",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "go->a",
+				"source": "go",
+				"target": "a",
+				"kind": "exec"
+			},
+			{
+				"id": "go->b",
+				"source": "go",
+				"target": "b",
+				"kind": "exec"
+			},
+			{
+				"id": "a->zone",
+				"source": "a",
+				"target": "zone",
+				"kind": "exec"
+			},
+			{
+				"id": "b->zone",
+				"source": "b",
+				"target": "zone",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["FANOUT", "go"]]
+	}
+}

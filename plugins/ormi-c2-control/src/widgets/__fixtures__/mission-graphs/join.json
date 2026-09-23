@@ -1,0 +1,127 @@
+{
+	"name": "join",
+	"description": "Two chains merging into one step is refused.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "x",
+				"kind": "action",
+				"label": "x",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->a",
+				"source": "es",
+				"target": "a",
+				"kind": "exec"
+			},
+			{
+				"id": "ge->b",
+				"source": "ge",
+				"target": "b",
+				"kind": "exec"
+			},
+			{
+				"id": "a->wp",
+				"source": "a",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "b->wp",
+				"source": "b",
+				"target": "wp",
+				"kind": "exec"
+			},
+			{
+				"id": "a->x",
+				"source": "a",
+				"target": "x",
+				"kind": "exec"
+			},
+			{
+				"id": "b->x",
+				"source": "b",
+				"target": "x",
+				"kind": "exec"
+			},
+			{
+				"id": "x->zone",
+				"source": "x",
+				"target": "zone",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["JOIN", "x"]]
+	}
+}

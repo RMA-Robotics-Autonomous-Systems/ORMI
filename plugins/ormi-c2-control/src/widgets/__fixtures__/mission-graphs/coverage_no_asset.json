@@ -1,0 +1,41 @@
+{
+	"name": "coverage_no_asset",
+	"description": "COVERAGE with no zone.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 1,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			}
+		],
+		"edges": [
+			{
+				"id": "es->sweep",
+				"source": "es",
+				"target": "sweep",
+				"kind": "exec"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["COVERAGE_TARGET", "sweep"]]
+	}
+}
