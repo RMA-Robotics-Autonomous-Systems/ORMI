@@ -1,0 +1,82 @@
+{
+	"name": "items_are_gone",
+	"description": "Items (corroborated contacts) were dropped: ItemsFound is not a condition.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 2,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "items",
+				"kind": "condition",
+				"label": "items",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ItemsFound",
+					"threshold": 1,
+					"negate": false
+				}
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.next-wait.in",
+				"source": "es",
+				"source_port": "next",
+				"target": "wait",
+				"target_port": "in"
+			},
+			{
+				"id": "wait.next-go.in",
+				"source": "wait",
+				"source_port": "next",
+				"target": "go",
+				"target_port": "in"
+			},
+			{
+				"id": "items.value-wait.when",
+				"source": "items",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["CONDITION_MISSING", "items"]],
+		"not_executable_yet": []
+	}
+}

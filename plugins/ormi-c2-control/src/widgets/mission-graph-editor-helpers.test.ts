@@ -109,8 +109,8 @@ describe("formatCondition", () => {
 
 	it("renders each threshold in the unit its op reads", () => {
 		expect(
-			formatCondition(condition({ op: "ItemsFound", threshold: 3 })),
-		).toBe("Items found ≥ 3");
+			formatCondition(condition({ op: "ContactsFound", threshold: 3 })),
+		).toBe("Contacts found ≥ 3");
 		expect(
 			formatCondition(condition({ op: "ElapsedSeconds", threshold: 45 })),
 		).toBe("Elapsed time ≥ 45s");

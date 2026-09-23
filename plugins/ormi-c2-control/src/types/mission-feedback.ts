@@ -149,7 +149,7 @@ export interface ProgramGateCondition {
 	negate: boolean;
 	/** Whether this condition holds right now. */
 	holds: boolean;
-	/** ContactsFound / ItemsFound: the mission's count so far. */
+	/** ContactsFound: the mission's count so far. */
 	value?: number;
 }
 

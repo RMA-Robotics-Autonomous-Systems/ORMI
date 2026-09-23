@@ -68,10 +68,14 @@ export enum ConfidenceStatistic {
 }
 
 /** Which topic a finding arrived on. Provenance, never the classifier. */
-export type FindingChannel = "observation" | "item" | "map";
+export type FindingChannel = "observation" | "map";
 
-/** The derived name for a finding, by support depth. */
-export type FindingKind = "cue" | "contact" | "item";
+/**
+ * The derived name for a finding. The message also names a corroborated
+ * "item"; nothing here produces or shows one — sensor fusion was dropped
+ * (2026-09-23), so a report resting on others is still a contact.
+ */
+export type FindingKind = "cue" | "contact";
 
 /** One physical quantity a payload reported, with its unit carried. */
 export interface FindingMeasurement {
@@ -137,11 +141,10 @@ export function findingStampMs(stamp: unknown): number {
 /**
  * The derived name for a finding.
  *
- * Support depth first, because that is what the message says the name is:
- * corroborated by two or more is an **item**, resting on exactly one is a
- * **contact**. With no support at all the confidence basis decides — a **cue**
- * is the HUMAN_INSTINCT one. A payload's own first report also has no support
- * yet, and calling that a cue would say a human put it there.
+ * Anything resting on another report is a **contact**. With no support at all
+ * the confidence basis decides — a **cue** is the HUMAN_INSTINCT one. A
+ * payload's own first report also has no support, and calling that a cue would
+ * say a human put it there.
  *
  * @param finding - The finding to name.
  * @returns Its derived kind.
@@ -149,8 +152,7 @@ export function findingStampMs(stamp: unknown): number {
 export function findingKind(
 	finding: Pick<Finding, "supportUids" | "confidenceStatistic">,
 ): FindingKind {
-	if (finding.supportUids.length >= 2) return "item";
-	if (finding.supportUids.length === 1) return "contact";
+	if (finding.supportUids.length > 0) return "contact";
 	return finding.confidenceStatistic === ConfidenceStatistic.HUMAN_INSTINCT
 		? "cue"
 		: "contact";
@@ -341,7 +343,6 @@ export interface FindingTally {
 	total: number;
 	cues: number;
 	contacts: number;
-	items: number;
 	/** Not `ESSENCE_REAL` — simulated, exercise, test, or never stated. */
 	notReal: number;
 	superseded: number;
@@ -350,7 +351,7 @@ export interface FindingTally {
 /**
  * The findings of one mission. The fog attributes a contact to the mission
  * that has its robot leased while it runs and republishes it stamped with that
- * mission (`/mission/findings`), items included; a raw `/payload/observation`
+ * mission (`/mission/findings`); a raw `/payload/observation`
  * carries no mission and belongs to none. No mission selected shows them all.
  *
  * @param findings - Every finding on record.
@@ -377,21 +378,12 @@ export function tallyFindings(findings: readonly Finding[]): FindingTally {
 		total: findings.length,
 		cues: 0,
 		contacts: 0,
-		items: 0,
 		notReal: 0,
 		superseded: 0,
 	};
 	for (const finding of findings) {
-		switch (findingKind(finding)) {
-			case "cue":
-				tally.cues += 1;
-				break;
-			case "contact":
-				tally.contacts += 1;
-				break;
-			default:
-				tally.items += 1;
-		}
+		if (findingKind(finding) === "cue") tally.cues += 1;
+		else tally.contacts += 1;
 		if (isSimulatedEssence(finding.essence)) tally.notReal += 1;
 		if (finding.supersededBy) tally.superseded += 1;
 	}
@@ -402,7 +394,11 @@ export function tallyFindings(findings: readonly Finding[]): FindingTally {
 export interface FindingFeatureProperties extends Record<string, unknown> {
 	uid: string;
 	kind: FindingKind;
-	/** Support depth, clamped to 2 — the layer's three visual weights. */
+	/**
+	 * 0 for a finding that rests on nothing, 1 for one resting on a report —
+	 * a cue and a contact. (A third, heavier weight was for corroborated
+	 * items, which were dropped.)
+	 */
 	weight: number;
 	essence: number;
 	notReal: boolean;
@@ -452,7 +448,7 @@ export function findingsToFeatureCollection(
 			properties: {
 				uid: finding.uid,
 				kind: findingKind(finding),
-				weight: Math.min(2, finding.supportUids.length),
+				weight: Math.min(1, finding.supportUids.length),
 				essence: finding.essence,
 				notReal: isSimulatedEssence(finding.essence),
 				superseded: finding.supersededBy.length > 0,

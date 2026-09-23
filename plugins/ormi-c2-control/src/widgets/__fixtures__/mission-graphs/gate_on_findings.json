@@ -1,6 +1,6 @@
 {
 	"name": "gate_on_findings",
-	"description": "Ge goes in once Es's sweep has produced a contact, and on again once two items are corroborated: the mission's own findings.",
+	"description": "Ge goes in once Es's sweep has produced a contact, and on again at the second: the mission's own contacts.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 2,
@@ -72,15 +72,15 @@
 				"feature_id": "feat-wp"
 			},
 			{
-				"id": "item",
+				"id": "second",
 				"kind": "condition",
-				"label": "item",
+				"label": "second",
 				"position": {
 					"x": 0,
 					"y": 0
 				},
 				"condition": {
-					"op": "ItemsFound",
+					"op": "ContactsFound",
 					"threshold": 2,
 					"negate": false
 				}
@@ -151,8 +151,8 @@
 				"target_port": "when"
 			},
 			{
-				"id": "item.value-w2.when",
-				"source": "item",
+				"id": "second.value-w2.when",
+				"source": "second",
 				"source_port": "value",
 				"target": "w2",
 				"target_port": "when"
@@ -206,14 +206,14 @@
 							"mode": "all",
 							"gate": [
 								{
-									"op": "ItemsFound",
+									"op": "ContactsFound",
 									"key": "",
 									"arg": "",
 									"threshold": 2,
 									"negate": false
 								}
 							],
-							"gate_nodes": ["item"]
+							"gate_nodes": ["second"]
 						}
 					]
 				}

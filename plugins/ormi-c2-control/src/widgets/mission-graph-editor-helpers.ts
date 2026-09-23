@@ -609,9 +609,8 @@ function gateText(
 		const name = agentNames[c.key] ?? c.key.slice(0, 8);
 		return c.negate ? `waiting for ${name} to move` : `waiting for ${name}`;
 	}
-	if (c.op === "ContactsFound" || c.op === "ItemsFound") {
-		const noun = c.op === "ContactsFound" ? "contact" : "item";
-		const wanted = `${c.threshold} ${noun}${c.threshold === 1 ? "" : "s"}`;
+	if (c.op === "ContactsFound") {
+		const wanted = `${c.threshold} contact${c.threshold === 1 ? "" : "s"}`;
 		return c.value == null
 			? `waiting for ${wanted}`
 			: `waiting for ${wanted} (${c.value} so far)`;
@@ -659,7 +658,6 @@ const WAIT = (port: string): DropChoice => ({
 const DROP_CONDITIONS: readonly ConditionOp[] = [
 	"ElapsedSeconds",
 	"ContactsFound",
-	"ItemsFound",
 	"AgentHolding",
 ];
 

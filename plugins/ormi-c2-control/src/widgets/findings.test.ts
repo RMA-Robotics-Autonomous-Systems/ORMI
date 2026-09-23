@@ -108,8 +108,8 @@ describe("parseFinding", () => {
 		// The uid is the append-only identity. Without one, every latched
 		// republish would read as a brand-new finding and the map would fill up
 		// with copies of the same report.
-		expect(parseFinding(rawFinding({ uid: "" }), "item")).toBeNull();
-		expect(parseFinding(rawFinding({ uid: 7 }), "item")).toBeNull();
+		expect(parseFinding(rawFinding({ uid: "" }), "observation")).toBeNull();
+		expect(parseFinding(rawFinding({ uid: 7 }), "observation")).toBeNull();
 	});
 
 	it("REFUSES a finding it cannot place", () => {
@@ -117,17 +117,20 @@ describe("parseFinding", () => {
 		// position is not something a map can honestly draw anywhere, so it is
 		// dropped and counted rather than plotted at null island.
 		expect(
-			parseFinding(rawFinding({ position: undefined }), "item"),
+			parseFinding(rawFinding({ position: undefined }), "observation"),
 		).toBeNull();
 		expect(
-			parseFinding(rawFinding({ position: { latitude: 50.84 } }), "item"),
+			parseFinding(
+				rawFinding({ position: { latitude: 50.84 } }),
+				"observation",
+			),
 		).toBeNull();
 		expect(
 			parseFinding(
 				rawFinding({
 					position: { latitude: Number.NaN, longitude: 4.39 },
 				}),
-				"item",
+				"observation",
 			),
 		).toBeNull();
 	});
@@ -138,7 +141,7 @@ describe("parseFinding", () => {
 				uid: "f-2",
 				position: { latitude: 1, longitude: 2 },
 			},
-			"item",
+			"observation",
 		);
 		expect(parsed).not.toBeNull();
 		expect(parsed?.confidence).toBe(0);
@@ -148,17 +151,16 @@ describe("parseFinding", () => {
 	});
 
 	it("returns null for junk", () => {
-		expect(parseFinding(null, "item")).toBeNull();
-		expect(parseFinding("finding", "item")).toBeNull();
-		expect(parseFinding([], "item")).toBeNull();
+		expect(parseFinding(null, "observation")).toBeNull();
+		expect(parseFinding("finding", "observation")).toBeNull();
+		expect(parseFinding([], "observation")).toBeNull();
 	});
 });
 
 describe("the derived name", () => {
-	it("is an item once two or more findings support it", () => {
-		expect(findingKind(finding({ supportUids: ["a", "b"] }))).toBe("item");
-		expect(findingKind(finding({ supportUids: ["a", "b", "c"] }))).toBe(
-			"item",
+	it("is still a contact however many findings support it (no fusion)", () => {
+		expect(findingKind(finding({ supportUids: ["a", "b"] }))).toBe(
+			"contact",
 		);
 	});
 
@@ -309,8 +311,7 @@ describe("tallyFindings", () => {
 		]);
 		expect(tally.total).toBe(5);
 		expect(tally.cues).toBe(1);
-		expect(tally.contacts).toBe(3);
-		expect(tally.items).toBe(1);
+		expect(tally.contacts).toBe(4);
 		expect(tally.notReal).toBe(1);
 		expect(tally.superseded).toBe(1);
 	});
@@ -329,14 +330,14 @@ describe("findingsOfMission", () => {
 });
 
 describe("findingsToFeatureCollection", () => {
-	it("clamps support depth to the three visual weights", () => {
+	it("weighs a cue 0 and any contact 1, however much it rests on (no items)", () => {
 		const fc = findingsToFeatureCollection([
 			finding({ uid: "a" }),
 			finding({ uid: "b", supportUids: ["a"] }),
 			finding({ uid: "c", supportUids: ["a", "b", "x", "y"] }),
 		]);
 		const weights = fc.features.map((f) => f.properties.weight);
-		expect(weights.sort()).toEqual([0, 1, 2]);
+		expect(weights.sort()).toEqual([0, 1, 1]);
 	});
 
 	it("draws superseded findings FIRST, so the live ones sit on top", () => {

@@ -29,14 +29,15 @@ import {
 } from "./findings";
 
 /**
- * The findings layer: one layer for cues, contacts and items.
+ * The findings layer: one layer for cues and contacts.
  *
  * ## Why one layer
  *
- * `payload_msgs/msg/Finding` is explicit that a cue, a contact and an item are
- * the same record at different support depths, so the map draws one layer and
- * encodes the depth as **weight** — a bigger, heavier, more opaque mark as more
- * evidence accumulates under it. Two layers would be two vocabularies for one
+ * `payload_msgs/msg/Finding` is explicit that a cue and a contact are the same
+ * record at different support depths (it also names a corroborated "item",
+ * which nothing produces since sensor fusion was dropped), so the map draws one
+ * layer and encodes the depth as **weight** — a bigger, heavier mark for a
+ * sensor's report than for a bare cue. Two layers would be two vocabularies for one
  * thing, and an operator would have to work out which of them a report had
  * landed in before they could act on it. An operator-placed `cue` map feature
  * is lifted into the same record (`cueFeatureToFinding`) and drawn here, which
@@ -141,9 +142,9 @@ export function FindingsIngest(props: { bindings: FindingsTopicBinding[] }) {
 
 /**
  * Support depth → mark radius. The visual weight IS the support depth: a cue
- * stands alone, a contact rests on one report, an item is corroborated, and the
- * mark gets bigger and heavier in that order. `weight` is the depth clamped to
- * 2 by `findingsToFeatureCollection`, so these three cover every case.
+ * stands alone, a contact rests on a report. `weight` is the depth clamped to
+ * 1 by `findingsToFeatureCollection`; the third step of the ramp is unused
+ * since items were dropped.
  */
 const weightRadius = (): DataDrivenPropertyValueSpecification<number> => [
 	"match",
@@ -233,7 +234,7 @@ export function FindingsLayer(props: {
 				type="circle"
 				paint={{
 					"circle-radius": weightRadius(),
-					// Cue → contact → item, as evidence accumulates.
+					// Cue (a human's) apart from contact (a sensor's).
 					"circle-color": [
 						"match",
 						["get", "kind"],
@@ -314,15 +315,14 @@ export function FindingsReadout(props: {
 				variant="secondary"
 				title={
 					missionId
-						? "Cues, contacts and items of the selected mission"
-						: "Cues, contacts and items on the map"
+						? "Cues and contacts of the selected mission"
+						: "Cues and contacts on the map"
 				}
 			>
 				{total} findings
 			</Badge>
 			<span className="text-[11px] text-muted-foreground">
-				{tally.cues + authoredCues} cue · {tally.contacts} contact ·{" "}
-				{tally.items} item
+				{tally.cues + authoredCues} cue · {tally.contacts} contact
 			</span>
 			{tally.notReal > 0 && (
 				<Badge

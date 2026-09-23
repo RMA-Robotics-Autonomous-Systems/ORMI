@@ -613,7 +613,6 @@ describe("a condition mirrors the fog's evaluator", () => {
 		const fogHeaderOps: ConditionOp[] = [
 			"ZoneCoveredBy",
 			"ZoneClear",
-			"ItemsFound",
 			"ContactsFound",
 			"CuesRemaining",
 			"ElapsedSeconds",
@@ -642,8 +641,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 		]);
 		// zone_clear(s, key, threshold) — no modality, it uses every REQUIRED one
 		expect(shape("ZoneClear")).toEqual(["zone", "none", "fraction"]);
-		// s.items / s.contacts / s.cues >= (int) threshold
-		expect(shape("ItemsFound")).toEqual(["none", "none", "count"]);
+		// s.contacts / s.cues >= (int) threshold
 		expect(shape("ContactsFound")).toEqual(["none", "none", "count"]);
 		expect(shape("CuesRemaining")).toEqual(["none", "none", "count"]);
 		// s.elapsed_s >= threshold
@@ -767,7 +765,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 			// count -> 1: "found one" is the smallest useful question.
 			expect(
 				thresholdOf({
-					op: "ItemsFound",
+					op: "ContactsFound",
 					threshold: bad,
 					negate: false,
 				}),
@@ -794,7 +792,7 @@ describe("a condition mirrors the fog's evaluator", () => {
 			thresholdOf({ op: "ZoneClear", threshold: 4, negate: false }),
 		).toBe(1);
 		expect(
-			thresholdOf({ op: "ItemsFound", threshold: 2.9, negate: false }),
+			thresholdOf({ op: "ContactsFound", threshold: 2.9, negate: false }),
 		).toBe(2);
 	});
 

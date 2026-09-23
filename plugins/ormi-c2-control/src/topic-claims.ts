@@ -51,15 +51,7 @@ export const topicClaims: TopicClaim[] = [
 	// answer to clicking one is the map — and the map is the only widget in the
 	// build that draws one. `default` rather than `alternative` because there
 	// is nothing to be asked between.
-	//
-	// ONE claim, not two, although the map has two findings slots. The
-	// corroborated channel (`itemTopic`) is `role: "secondary"`, and a claim
-	// naming a secondary slot is dropped by the index — correctly: both
-	// channels carry the same message, so a click on either topic means "show
-	// me findings" and belongs in the primary slot, and the operator binds the
-	// second channel from the configuration dialog. The marker also keeps
-	// auto-bind from filling BOTH slots from one published topic, which is the
-	// "soleness is an accident" case the auto-bind rule exists for.
+
 	{
 		type: "payload_msgs/msg/Finding",
 		widgetId: "c2-mission-map-widget",

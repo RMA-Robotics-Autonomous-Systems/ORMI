@@ -167,7 +167,6 @@ export function isGraphAction(value: unknown): value is GraphAction {
 export const CONDITION_OPS = [
 	"ZoneCoveredBy",
 	"ZoneClear",
-	"ItemsFound",
 	"ContactsFound",
 	"CuesRemaining",
 	"ElapsedSeconds",
@@ -221,7 +220,6 @@ export interface ConditionOpShape {
  * | --------------- | ----- | -------- | --------- | --------- |
  * | ZoneCoveredBy   | zone  | modality | fraction  | `coverage_of(s, key, arg) >= threshold` |
  * | ZoneClear       | zone  | —        | fraction  | `zone_clear(s, key, threshold)` |
- * | ItemsFound      | —     | —        | count     | `s.items >= (int) threshold` |
  * | ContactsFound   | —     | —        | count     | `s.contacts >= (int) threshold` |
  * | CuesRemaining   | —     | —        | count     | `s.cues >= (int) threshold` |
  * | ElapsedSeconds  | —     | —        | seconds   | `s.elapsed_s >= threshold` |
@@ -245,12 +243,6 @@ export const CONDITION_OP_SHAPE: Record<ConditionOp, ConditionOpShape> = {
 		key: "zone",
 		arg: "none",
 		threshold: "fraction",
-	},
-	ItemsFound: {
-		label: "Items found",
-		key: "none",
-		arg: "none",
-		threshold: "count",
 	},
 	ContactsFound: {
 		label: "Contacts found",

@@ -336,10 +336,11 @@ interface MissionMapProps extends Record<string, unknown> {
 	 * agents are plotted from their per-agent localization stream instead.
 	 */
 	agentTopic?: SelectedTopic;
-	/** `/payload/observation` — per-payload findings, as they are reported. */
+	/**
+	 * The contacts: `/mission/findings` (stamped with their mission, latched)
+	 * or `/payload/observation` (raw, no mission).
+	 */
 	observationTopic?: SelectedTopic;
-	/** `/payload/item` — the fog's corroborated findings (latched). */
-	itemTopic?: SelectedTopic;
 }
 
 /**
@@ -1993,7 +1994,6 @@ function MissionMapBody(props: {
 	feedbackTopic?: SelectedTopic;
 	agentTopic?: SelectedTopic;
 	observationTopic?: SelectedTopic;
-	itemTopic?: SelectedTopic;
 	overlays?: string[];
 }) {
 	// All calls are routed through one fallback definition so the hook order stays
@@ -2170,13 +2170,10 @@ function MissionMapBody(props: {
 	// datasource subscription registry with `lossless: true` instead; see
 	// `findings-layer.tsx` and `state/findings-store.ts`.
 	const findingsBindings = useMemo<FindingsTopicBinding[]>(
-		() => [
-			{ topic: props.observationTopic, channel: "observation" },
-			{ topic: props.itemTopic, channel: "item" },
-		],
-		[props.observationTopic, props.itemTopic],
+		() => [{ topic: props.observationTopic, channel: "observation" }],
+		[props.observationTopic],
 	);
-	const findingsBound = Boolean(props.observationTopic || props.itemTopic);
+	const findingsBound = Boolean(props.observationTopic);
 
 	// --- Two-mode model -----------------------------------------------------
 	// Mission editing is the daily task; map editing is occasional → default here.
@@ -4376,7 +4373,6 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 			feedbackTopic={props.feedbackTopic}
 			agentTopic={props.agentTopic}
 			observationTopic={props.observationTopic}
-			itemTopic={props.itemTopic}
 			overlays={props.overlays}
 		/>
 	);
@@ -4444,11 +4440,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				},
 				observationTopic: {
 					type: "object",
-					title: "Findings — observations (/payload/observation)",
-				},
-				itemTopic: {
-					type: "object",
-					title: "Findings — corroborated items (/payload/item)",
+					title: "Findings — contacts (/mission/findings, or raw /payload/observation)",
 				},
 			},
 			required: ["title"],
@@ -4523,17 +4515,6 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 							accepts: [],
 							acceptsRaw: [FINDING_RAW_TYPE],
 						},
-					},
-				} as TopicSelectElement,
-				{
-					type: "TopicSelect",
-					scope: "#/properties/itemTopic",
-					options: {
-						dataRequirements: {
-							accepts: [],
-							acceptsRaw: [FINDING_RAW_TYPE],
-						},
-						role: "secondary",
 					},
 				} as TopicSelectElement,
 			],

@@ -767,9 +767,12 @@ and only a coalescing datasource reads it, so the store counts what it received
 and what it could not place and the map **renders both numbers**. Hiding them
 would put the layer back in the position of being quietly short.
 
-**The name is derived from support depth AND the confidence basis.** Two or
-more supporting uids is an item; exactly one is a contact; none is a cue _only
-when_ the statistic type is `HUMAN_INSTINCT`. Support-emptiness alone is not the
+**The name is derived from support AND the confidence basis.** Any supporting
+uid makes a contact; none is a cue _only when_ the statistic type is
+`HUMAN_INSTINCT`. The message also names a corroborated "item"; nothing produces
+or shows one since sensor fusion was dropped (2026-09-23: the fog's aggregator,
+`/payload/item` and the `ItemsFound` condition are gone, and the map lost its
+item topic slot). A contact is what one sensor reported. Support-emptiness alone is not the
 test — a payload's own first report has no support either, and calling that a
 cue would tell the operator a human had put it there.
 

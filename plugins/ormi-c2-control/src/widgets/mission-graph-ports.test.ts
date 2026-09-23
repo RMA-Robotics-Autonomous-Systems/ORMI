@@ -246,7 +246,6 @@ describe("dropping a wire on empty canvas offers what fits it", () => {
 		expect(choices.map((c) => c.node.condition?.op)).toEqual([
 			"ElapsedSeconds",
 			"ContactsFound",
-			"ItemsFound",
 			"AgentHolding",
 		]);
 		expect(choices.every((c) => c.port === "value")).toBe(true);

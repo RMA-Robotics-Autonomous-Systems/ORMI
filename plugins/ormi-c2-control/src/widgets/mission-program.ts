@@ -28,8 +28,8 @@ import { nodePorts, portsFit, type PortType } from "./mission-graph-ports";
  *   target is picked on the node (`feature_id`) or wired from an asset node.
  * - A **Wait** before an action is that step's **gate**: the conditions wired
  *   into it, all of them or any of them.
- * - Only ElapsedSeconds, AgentHolding, ContactsFound, ItemsFound and Always can
- *   be evaluated. An AgentHolding condition's agent is picked on the node or
+ * - Only ElapsedSeconds, AgentHolding, ContactsFound and Always can be
+ *   evaluated. An AgentHolding condition's agent is picked on the node or
  *   wired from an agent node.
  * - A graph of another schema version is refused, never converted.
  *
@@ -94,7 +94,6 @@ export interface ProgramCompileResult {
 const KNOWN_OPS = new Set([
 	"ZoneCoveredBy",
 	"ZoneClear",
-	"ItemsFound",
 	"ContactsFound",
 	"CuesRemaining",
 	"ElapsedSeconds",
@@ -105,15 +104,14 @@ const KNOWN_OPS = new Set([
 ]);
 
 /**
- * The ops the fog can evaluate today. The two finding counts are the
- * mission's own: its robots' contacts, and the items they corroborate into.
+ * The ops the fog can evaluate today. The contact count is the
+ * mission's own: its robots' contacts.
  * Zone coverage, cues and flags have no source yet.
  */
 export const EVALUABLE_OPS: readonly string[] = [
 	"ElapsedSeconds",
 	"AgentHolding",
 	"ContactsFound",
-	"ItemsFound",
 	"Always",
 ];
 
@@ -404,17 +402,23 @@ export function compileProgram(
 			}
 		} else if (n.kind === "condition") {
 			const op = str(n.condition?.op);
-			if (!op || !KNOWN_OPS.has(op)) {
+			if (!op) {
 				issue(
 					"CONDITION_MISSING",
 					id,
 					`"${caption(n)}" is a condition node with nothing to evaluate.`,
 				);
+			} else if (!KNOWN_OPS.has(op)) {
+				issue(
+					"CONDITION_MISSING",
+					id,
+					`"${caption(n)}" uses ${op}, which this fog does not know.`,
+				);
 			} else if (!EVALUABLE_OPS.includes(op)) {
 				issue(
 					"CONDITION_NOT_EVALUABLE",
 					id,
-					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, AgentHolding, ContactsFound, ItemsFound and Always.`,
+					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, AgentHolding, ContactsFound and Always.`,
 				);
 			} else if (op === "AgentHolding") {
 				const agents = watched(n);
