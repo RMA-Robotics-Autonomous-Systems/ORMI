@@ -179,7 +179,8 @@ describe("one Save mission", () => {
 			written.some((d) => String(d.mission_id).endsWith(":graph")),
 		).toBe(false);
 		expect(
-			(getMissionDraft("m-1") as Record<string, unknown>).graph_ref,
+			(getMissionDraft("m-1") as unknown as Record<string, unknown>)
+				.graph_ref,
 		).toBeUndefined();
 	});
 
