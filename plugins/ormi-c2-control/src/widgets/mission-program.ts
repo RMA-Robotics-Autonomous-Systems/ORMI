@@ -254,7 +254,7 @@ export function compileProgram(
 				issue(
 					"ACTION_NOT_EXECUTABLE",
 					id,
-					`"${caption(n)}" is a ${n.action} action, which the robots cannot perform: only NAVIGATE and COVERAGE run.`,
+					`"${caption(n)}" is a ${n.action} action, which does not exist: only NAVIGATE and COVERAGE run. To hold, navigate to a waypoint and put a condition after it; sensors report what they find on their own.`,
 				);
 			}
 		} else if (n.kind === "condition") {

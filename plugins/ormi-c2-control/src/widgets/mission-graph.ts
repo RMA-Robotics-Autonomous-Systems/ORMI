@@ -92,15 +92,20 @@ export const MISSION_GRAPH_ID_SUFFIX = ":graph";
  * - `COVERAGE` reaches it as the planner's generated sweep — waypoints the fog
  *   derived from the zone's polygon, not a "coverage" the supervisor
  *   understands.
- * - `HOLD` reaches it as a waypoint it sits on.
- * - `MARK` and `NEUTRALISE` are declared by the effector payload
- *   (`payload_msgs/msg/EffectorEnvelope.msg`, and `actions: ["MARK",
- *   "NEUTRALISE"]` on `marker_arm` in `config_autonomy.yaml`) and have **no
- *   executor on the edge today**. They are authorable so the graph can express
- *   the intent the fog will dispatch once there is something to dispatch it
- *   to — and they must be shown as not-yet-executable, which is what
- *   {@link isExecutableAction} is for. An operator who authors `NEUTRALISE`
- *   and is told nothing will believe an arm moved.
+ *
+ * ## `HOLD`, `MARK` and `NEUTRALISE` are gone (decided 2026-09-23)
+ *
+ * - **Hold** is a `NAVIGATE` to a waypoint followed by a condition: the robot
+ *   sits where the step ended until the gate opens, and the fog's
+ *   `AgentHolding` is exactly "that chain is waiting at a gate or is done".
+ * - **Mark** is not something an agent is told to do: a sensor that finds
+ *   something reports it, during whatever step the agent is running.
+ * - **Neutralise** is dropped for now.
+ *
+ * A stored graph that still names one of them degrades exactly like `SURVEY`
+ * below: {@link normalizeGraph} drops the action, the editor reports "no
+ * action named", and the fog, which compiles the raw document, refuses it as
+ * `ACTION_NOT_EXECUTABLE` and says what to use instead.
  *
  * ## Navigating and covering are ACTIONS, not a shape the compiler guesses
  *
@@ -123,13 +128,7 @@ export const MISSION_GRAPH_ID_SUFFIX = ":graph";
  * purpose: re-guessing `COVERAGE` from a retired name would silently change a
  * mission's behaviour.
  */
-export const GRAPH_ACTIONS = [
-	"NAVIGATE",
-	"COVERAGE",
-	"HOLD",
-	"MARK",
-	"NEUTRALISE",
-] as const;
+export const GRAPH_ACTIONS = ["NAVIGATE", "COVERAGE"] as const;
 
 /** One of {@link GRAPH_ACTIONS}. */
 export type GraphAction = (typeof GRAPH_ACTIONS)[number];
@@ -145,37 +144,6 @@ export function isGraphAction(value: unknown): value is GraphAction {
 		typeof value === "string" &&
 		(GRAPH_ACTIONS as readonly string[]).includes(value)
 	);
-}
-
-/**
- * Actions the edge can execute today. The rest are authorable intent only.
- *
- * Both reach the robot as the supervisor's single `"waypoint"` primitive
- * (`agent_tasks_supervisor_node.cpp:263`, `:645`, `:767`): `NAVIGATE` as the
- * route to one waypoint, `COVERAGE` as the waypoints the planner's sweep
- * generated.
- *
- * `HOLD` is NOT here. It was listed as "a waypoint, directly", but nothing
- * holds: the supervisor ignores a waypoint's `wait_time`, and nothing in the
- * fog emits a hold. Refused until something executes it (decided 2026-09-23).
- */
-export const EXECUTABLE_ACTIONS: readonly GraphAction[] = [
-	"NAVIGATE",
-	"COVERAGE",
-];
-
-/**
- * Whether an action has an executor on the edge today.
- *
- * `false` does not mean the action is invalid — it means the graph can say it
- * and nothing will carry it out yet, which is a thing the operator has to be
- * told rather than a thing to hide by removing the action from the list.
- *
- * @param action - An action name, constrained or not.
- * @returns True when the edge can run it today.
- */
-export function isExecutableAction(action: string): boolean {
-	return (EXECUTABLE_ACTIONS as readonly string[]).includes(action);
 }
 
 // ============================================================================
@@ -425,8 +393,7 @@ export interface MissionGraphNode {
 	feature_id?: string;
 	/**
 	 * `action` nodes: what to do. A closed vocabulary — see
-	 * {@link GRAPH_ACTIONS}, and {@link isExecutableAction} for which of them
-	 * the edge can actually run today.
+	 * {@link GRAPH_ACTIONS}.
 	 */
 	action?: GraphAction;
 	/**

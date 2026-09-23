@@ -103,7 +103,6 @@ import {
 	freshGraphId,
 	graphCompiles,
 	graphDocId,
-	isExecutableAction,
 	nextNodePosition,
 	normalizeCondition,
 	propagateAgents,
@@ -1898,49 +1897,29 @@ function NodeInspector(props: {
 			)}
 
 			{node.kind === "action" && (
-				<>
-					<Select
-						value={node.action ?? UNSET}
-						onValueChange={(value) =>
-							props.onPatch({
-								action:
-									value === UNSET
-										? undefined
-										: (value as GraphAction),
-							})
-						}
-					>
-						<SelectTrigger size="sm" className="w-full">
-							<SelectValue placeholder="Action" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={UNSET}>No action</SelectItem>
-							{/* Actions with no edge executor are OFFERED, not
-							    hidden: the graph is allowed to express intent
-							    the edge cannot run yet, and the fog will
-							    dispatch it. They are MARKED, because an
-							    operator who authors NEUTRALISE and is told
-							    nothing will believe an arm moved. */}
-							{GRAPH_ACTIONS.map((action) => (
-								<SelectItem key={action} value={action}>
-									{action}
-									{!isExecutableAction(action) && (
-										<span className="text-muted-foreground">
-											· no executor yet
-										</span>
-									)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{node.action && !isExecutableAction(node.action) && (
-						<p className="text-[11px] text-muted-foreground">
-							The fog will dispatch {node.action}, but no robot on
-							the edge can carry it out today — nothing will move
-							for this step.
-						</p>
-					)}
-				</>
+				<Select
+					value={node.action ?? UNSET}
+					onValueChange={(value) =>
+						props.onPatch({
+							action:
+								value === UNSET
+									? undefined
+									: (value as GraphAction),
+						})
+					}
+				>
+					<SelectTrigger size="sm" className="w-full">
+						<SelectValue placeholder="Action" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value={UNSET}>No action</SelectItem>
+						{GRAPH_ACTIONS.map((action) => (
+							<SelectItem key={action} value={action}>
+								{action}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			)}
 
 			{node.kind === "condition" && (

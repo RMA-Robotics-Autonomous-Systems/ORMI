@@ -1,6 +1,6 @@
 {
 	"name": "hold_is_not_executable",
-	"description": "HOLD, MARK and NEUTRALISE have no executor.",
+	"description": "HOLD, MARK and NEUTRALISE are not actions: hold is a NAVIGATE then a condition, sensors report findings on their own, NEUTRALISE is dropped. A stored one is refused.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
 		"version": 1,
