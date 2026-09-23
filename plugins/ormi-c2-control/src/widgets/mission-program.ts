@@ -456,21 +456,13 @@ export function notExecutableYet(program: MissionProgram): ProgramIssue[] {
 	const issues: ProgramIssue[] = [];
 	const code = "NOT_EXECUTABLE_YET";
 	program.chains.forEach((chain) => {
-		chain.steps.forEach((step, s) => {
+		chain.steps.forEach((step) => {
 			for (const g of step.gate_nodes) {
 				issues.push({
 					code,
 					nodeId: g,
 					message:
 						"Conditions are not executed yet: nothing would evaluate this one, and the step after it would start at once.",
-				});
-			}
-			if (s > 0) {
-				issues.push({
-					code,
-					nodeId: step.step_id,
-					message:
-						"A second step in a chain is not executed yet: each chain runs one action for now.",
 				});
 			}
 		});
