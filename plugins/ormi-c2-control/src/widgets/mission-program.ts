@@ -455,7 +455,7 @@ export function compileProgram(
 export function notExecutableYet(program: MissionProgram): ProgramIssue[] {
 	const issues: ProgramIssue[] = [];
 	const code = "NOT_EXECUTABLE_YET";
-	program.chains.forEach((chain, c) => {
+	program.chains.forEach((chain) => {
 		chain.steps.forEach((step, s) => {
 			for (const g of step.gate_nodes) {
 				issues.push({
@@ -465,20 +465,12 @@ export function notExecutableYet(program: MissionProgram): ProgramIssue[] {
 						"Conditions are not executed yet: nothing would evaluate this one, and the step after it would start at once.",
 				});
 			}
-			if (c > 0 && s === 0) {
-				issues.push({
-					code,
-					nodeId: step.step_id,
-					message:
-						"A second chain is not executed yet: the fog runs one action per mission for now, and the planner would allocate agents to assets itself.",
-				});
-			}
 			if (s > 0) {
 				issues.push({
 					code,
 					nodeId: step.step_id,
 					message:
-						"A second step is not executed yet: the fog runs one action per mission for now.",
+						"A second step in a chain is not executed yet: each chain runs one action for now.",
 				});
 			}
 		});

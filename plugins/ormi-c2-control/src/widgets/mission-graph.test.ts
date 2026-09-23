@@ -1116,7 +1116,7 @@ describe("what the fog's current executor cannot run is refused before submit", 
 		expect(graphCompiles(compiled.issues)).toBe(true);
 	});
 
-	it("refuses the operator's two-branch graph: a condition and a second action", () => {
+	it("refuses the operator's two-branch graph for its condition only", () => {
 		// The screenshot of 2026-09-23: Es -> NAVIGATE -> Open field, and
 		// Ge -> When(elapsed >= 30 s) -> NAVIGATE -> Open field.
 		const compiled = compileMissionGraph(
@@ -1146,13 +1146,11 @@ describe("what the fog's current executor cannot run is refused before submit", 
 			},
 			types,
 		);
-		// Ge's branch is refused through its action ("a second action"); the
-		// agent itself only gets its own error when there is ONE action it
-		// is not wired into.
+		// Two chains of one step each run (step 3a); the condition does not.
 		const on = stopGap(compiled)
 			.map((issue) => issue.nodeId)
 			.sort();
-		expect(on).toEqual(["go-ge", "when"]);
+		expect(on).toEqual(["when"]);
 		expect(graphCompiles(compiled.issues)).toBe(false);
 	});
 

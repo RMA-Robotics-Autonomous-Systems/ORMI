@@ -152,9 +152,6 @@
 				}
 			]
 		},
-		"not_executable_yet": [
-			["NOT_EXECUTABLE_YET", "es-done"],
-			["NOT_EXECUTABLE_YET", "sweep"]
-		]
+		"not_executable_yet": [["NOT_EXECUTABLE_YET", "es-done"]]
 	}
 }

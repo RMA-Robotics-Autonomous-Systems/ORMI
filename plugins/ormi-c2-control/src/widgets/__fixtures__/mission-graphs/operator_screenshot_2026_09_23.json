@@ -141,9 +141,6 @@
 				}
 			]
 		},
-		"not_executable_yet": [
-			["NOT_EXECUTABLE_YET", "go-ge"],
-			["NOT_EXECUTABLE_YET", "when"]
-		]
+		"not_executable_yet": [["NOT_EXECUTABLE_YET", "when"]]
 	}
 }
