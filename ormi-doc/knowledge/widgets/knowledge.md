@@ -800,9 +800,23 @@ finding dispatches it — is authored in the graph editor
 and lives in two places at once.
 
 - **A node names an asset by `feature_id` and carries no coordinates.** Zones,
-  waypoints and cues are assets and live in the map, which is why the C2 gained
-  those three `feature_type`s. Geometry with two homes is two answers to
+  waypoints and cues are assets. Geometry with two homes is two answers to
   "where", and nothing to say which one the planner used.
+- **A mission is a map, its assets and a graph (2026-09-24).** Its waypoints,
+  zones and cues are the MISSION's, saved as `"<mission_id>:assets"`
+  (`{map, features}`, `widgets/mission-assets.ts`, store
+  `state/mission-assets-store.ts`) next to `":graph"`; roads, risks and
+  geofences stay the map's. Opening a mission shows its map (a mission with no
+  map yet is placed on the one shown; with assets its map is fixed). Drawing,
+  editing or deleting a waypoint / zone / cue while a mission is open changes
+  the mission, saved by Save mission; the map's own ones are drawn faint as a
+  library, and "Import into mission" copies one under a new id, so editing it
+  never moves another mission's target. The graph editor's pickers and the
+  compiler read the mission's assets: a target that is not one of them is
+  `TARGET_MISSING`, a wrong type `TARGET_TYPE` — the codes the fog raises at
+  submit, when it snapshots the assets and sends the planner each target's
+  shape (the planner looks nothing up in MapDB, and refuses a step drawn on
+  another map than the one it has loaded).
 - **Execution ("then") edges carry the agent assignment downstream to
   everything reachable; data edges do not.** Consuming a finding is not being
   commanded by whoever produced it, so the marker stays the effector's job
@@ -875,7 +889,9 @@ and lives in two places at once.
   re-normalizes through `normalizeCondition` rather than leaving a stale zone id
   under a form that stopped showing it. A second rule table in the UI would
   drift the day an op changed, silently.
-- **The asset list tracks the map.** The editor used to fetch features once on
+- **The asset list tracks the map** (superseded 2026-09-24: the editor now
+  lists the MISSION's assets; the catalogue still feeds the map's own panels).
+  The editor used to fetch features once on
   mount from a map it resolved independently, so it could describe a different
   map than the one beside it and a zone drawn on the map never reached the
   dropdown. It now reads the **per-map feature catalogue** in
@@ -924,9 +940,9 @@ and lives in two places at once.
   the graph was saved and the mission was not. Submit saves unsaved edits
   first and does not submit if that fails. Duplicate copies the graph document
   under the new id and rewrites `graph_ref` (it used to keep the original's,
-  which the fog never finds). Map assets are NOT part of it: they belong to the
-  map, which every mission on it shares, and are saved as each edit is
-  confirmed.
+  which the fog never finds). The mission's map and assets are part of it,
+  written first (`":assets"`, then `":graph"`, then the mission); Duplicate and
+  Delete carry both sibling documents.
 - **The graph has typed ports (schema 2)** (`widgets/mission-graph-ports.ts`,
   mirrored by the fog's `mission_program.hpp`). Every edge is
   `{source, source_port, target, target_port}` and joins an output to an input

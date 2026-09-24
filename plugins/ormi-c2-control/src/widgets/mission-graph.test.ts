@@ -1012,8 +1012,15 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			"feat-objective": "waypoint",
 		});
 		expect(graphCompiles(compiled.issues)).toBe(false);
-		expect(errorsOn(compiled)).toHaveLength(1);
-		expect(errorsOn(compiled)[0]?.message).toContain("empty route");
+		// The fog's TARGET_TYPE: it checks the same at submit.
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"TARGET_TYPE",
+			"act",
+		]);
+		expect(
+			compiled.issues.find((issue) => issue.code === "TARGET_TYPE")
+				?.message,
+		).toContain("needs a zone");
 	});
 
 	it("checks a target picked on the node as it checks a wired one", () => {
@@ -1021,7 +1028,10 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			paired("COVERAGE", "feat-wp-1", true),
 			{ "feat-wp-1": "waypoint" },
 		);
-		expect(errorsOn(compiled)).toHaveLength(1);
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"TARGET_TYPE",
+			"act",
+		]);
 	});
 
 	it("errors when a COVERAGE action is paired with no asset at all", () => {
@@ -1045,9 +1055,9 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		expect(errorsOn(compiled)).toHaveLength(0);
 	});
 
-	it("emits NOTHING when featureTypes is absent", () => {
-		// An unknown type must not manufacture a confident error: a catalogue
-		// that has not loaded yet would otherwise block a mission that is fine.
+	it("emits NOTHING when the mission's assets are not loaded", () => {
+		// An unknown must not manufacture a confident error: assets that have
+		// not loaded yet would otherwise block a mission that is fine.
 		const compiled = compileMissionGraph(
 			paired("COVERAGE", "feat-zone-north"),
 		);
@@ -1056,13 +1066,28 @@ describe("the action/asset pairing is validated, not inferred", () => {
 		expect(graphCompiles(compiled.issues)).toBe(true);
 	});
 
-	it("emits NOTHING for a feature id the map does not carry", () => {
+	it("errors on a target that is not one of the mission's assets", () => {
 		const compiled = compileMissionGraph(
 			paired("COVERAGE", "feat-unknown"),
 			{ "feat-other": "zone" },
 		);
-		expect(errorsOn(compiled)).toHaveLength(0);
-		expect(warningsOn(compiled)).toHaveLength(0);
+		expect(graphCompiles(compiled.issues)).toBe(false);
+		// The fog's TARGET_MISSING: an asset of another mission or of the map
+		// is not this mission's.
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"TARGET_MISSING",
+			"act",
+		]);
+	});
+
+	it("takes a cue as a NAVIGATE target, as the fog does", () => {
+		const compiled = compileMissionGraph(paired("NAVIGATE", "feat-cue"), {
+			"feat-cue": "cue",
+		});
+		expect(fogCodes(compiled.issues)).not.toContainEqual([
+			"TARGET_TYPE",
+			"act",
+		]);
 	});
 
 	it("errors when a NAVIGATE action goes to a zone", () => {
@@ -1074,7 +1099,14 @@ describe("the action/asset pairing is validated, not inferred", () => {
 			{ "feat-zone-north": "zone" },
 		);
 		expect(graphCompiles(compiled.issues)).toBe(false);
-		expect(errorsOn(compiled)[0]?.message).toContain("goes to a zone");
+		expect(fogCodes(compiled.issues)).toContainEqual([
+			"TARGET_TYPE",
+			"act",
+		]);
+		expect(
+			compiled.issues.find((issue) => issue.code === "TARGET_TYPE")
+				?.message,
+		).toContain("needs a waypoint");
 	});
 
 	it("says nothing about a NAVIGATE action over a waypoint", () => {

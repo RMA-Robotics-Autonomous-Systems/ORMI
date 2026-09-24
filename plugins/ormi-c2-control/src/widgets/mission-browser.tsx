@@ -38,12 +38,13 @@ import {
 import { publishMissionNames } from "../state/c2-catalog-store";
 import {
 	MissionRow,
-	duplicateMissionWithGraph,
+	duplicateMissionDocuments,
 	missionDocuments,
 	newMissionStub,
 	normalizeMissions,
 } from "./mission-list";
 import { graphDocId } from "./mission-graph";
+import { assetsDocId } from "./mission-assets";
 import { MissionIssueList } from "./mission-issues";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
@@ -206,8 +207,8 @@ function MissionBrowserBody(props: {
 				return;
 			}
 			// One guarded action (a double click must not copy the graph twice),
-			// and the graph comes too, written first so the copy's graph_ref
-			// never names a document that is not there.
+			// and the map + assets and the graph come too, written first so the
+			// copy's graph_ref never names a document that is not there.
 			return run("save", async () => {
 				const listed = await executeList({});
 				if (!listed.success) {
@@ -219,11 +220,26 @@ function MissionBrowserBody(props: {
 				const graphDoc = missionDocuments(listed.data).find(
 					(doc) => doc.mission_id === graphDocId(row.mission_id),
 				);
-				const copy = duplicateMissionWithGraph(
+				const assetsDoc = missionDocuments(listed.data).find(
+					(doc) => doc.mission_id === assetsDocId(row.mission_id),
+				);
+				const copy = duplicateMissionDocuments(
 					row.raw,
 					graphDoc ?? null,
+					assetsDoc ?? null,
 					`${row.name} (copy)`,
 				);
+				if (copy.assets) {
+					const written = await save.execute({
+						mission: copy.assets,
+					});
+					if (!written.success) {
+						setError(
+							`"${row.name}" was not duplicated — its map and assets could not be copied: ${written.error ?? "the request failed"}`,
+						);
+						return;
+					}
+				}
 				if (copy.graph) {
 					const written = await save.execute({ mission: copy.graph });
 					if (!written.success) {
@@ -281,15 +297,16 @@ function MissionBrowserBody(props: {
 					return;
 				}
 				setError(null);
-				// The mission's behaviour graph is a SIBLING DOCUMENT in this
-				// same collection (`"<mission_id>:graph"`), so deleting the
-				// mission alone would leave it behind forever: nothing lists
-				// it (`normalizeMissions` filters it out), nothing reads it,
-				// and no surface exists from which to remove it. A 404 here is
-				// the normal case — most missions have no graph — so it is
-				// swallowed rather than reported: the operator asked to delete
-				// a mission and the mission is gone.
+				// The mission's behaviour graph and its map + assets are
+				// SIBLING DOCUMENTS in this same collection (`":graph"`,
+				// `":assets"`), so deleting the mission alone would leave them
+				// behind forever: nothing lists them (`normalizeMissions`
+				// filters them out), nothing reads them, and no surface exists
+				// from which to remove them. A 404 here is swallowed rather
+				// than reported: the operator asked to delete a mission and the
+				// mission is gone.
 				await del.execute({ mission_id: graphDocId(row.mission_id) });
+				await del.execute({ mission_id: assetsDocId(row.mission_id) });
 				if (active === row.mission_id) setSelectedMission(null);
 				await refetch();
 			});

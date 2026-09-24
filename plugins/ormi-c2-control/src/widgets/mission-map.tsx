@@ -124,7 +124,23 @@ import {
 	setMissionDraft,
 	useMissionDraft,
 } from "../state/mission-draft-store";
+import {
+	adoptStoredAssets,
+	editMissionAssets,
+	getMissionAssets,
+	hasMissionAssets,
+	placeMissionAssets,
+	useMissionAssets,
+} from "../state/mission-assets-store";
 import { saveMissionWithGraph } from "../state/mission-save";
+import {
+	findAsset,
+	importAsset,
+	isMissionAssetType,
+	removeAsset,
+	upsertAsset,
+} from "./mission-assets";
+import { generateMissionId } from "./mission-list";
 import {
 	ASSET_CATEGORIES,
 	CATEGORISED_FEATURE_TYPES,
@@ -1678,6 +1694,66 @@ function FeatureLayers(props: { features: C2Feature[] }) {
 	);
 }
 
+/**
+ * The map's own waypoints and zones while a mission is open: a LIBRARY the
+ * operator imports copies from, drawn faint and dashed so it never reads as
+ * the mission's. Picked (not edited) on its own layers.
+ */
+function LibraryLayers(props: { features: C2Feature[] }) {
+	const fc = useMemo(
+		() => ({
+			type: "FeatureCollection" as const,
+			features: props.features
+				.filter((f) => f.geometry && f.geometry.coordinates != null)
+				.map((f) => ({
+					type: "Feature" as const,
+					properties: {
+						feature_id: readFeatureId(f) ?? "",
+						name: f.properties?.name ?? "",
+						feature_type: f.properties?.feature_type ?? "",
+					},
+					geometry: {
+						type: f.geometry?.type,
+						coordinates: f.geometry?.coordinates,
+					} as never,
+				})),
+		}),
+		[props.features],
+	);
+	return (
+		<Source id="c2-library" type="geojson" data={fc}>
+			<Layer
+				id="c2-library-fill"
+				type="fill"
+				filter={["==", ["geometry-type"], "Polygon"]}
+				paint={{ "fill-color": "#64748b", "fill-opacity": 0.06 }}
+			/>
+			<Layer
+				id="c2-library-line"
+				type="line"
+				filter={["==", ["geometry-type"], "Polygon"]}
+				paint={{
+					"line-color": "#64748b",
+					"line-width": 1,
+					"line-dasharray": [2, 2],
+				}}
+			/>
+			<Layer
+				id="c2-library-circle"
+				type="circle"
+				filter={["==", ["geometry-type"], "Point"]}
+				paint={{
+					"circle-radius": 4,
+					"circle-color": "#ffffff",
+					"circle-opacity": 0.6,
+					"circle-stroke-color": "#64748b",
+					"circle-stroke-width": 1,
+				}}
+			/>
+		</Source>
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Mission-feature layer (layer b') — the active mission's inline geometries
 // ---------------------------------------------------------------------------
@@ -1913,6 +1989,18 @@ interface PendingSave {
 	 * the moment the edit starts and checked again at the write.
 	 */
 	mapName?: string;
+	/**
+	 * The mission whose asset this edit is (a waypoint, zone or cue of the
+	 * mission open in mission context). Such an edit is written to that
+	 * mission's assets, never to the map. Undefined for a map feature.
+	 */
+	missionId?: string;
+	/**
+	 * The mission open when a NEW shape was drawn. Confirmed as a waypoint,
+	 * zone or cue it goes to that mission — never to whichever one is open by
+	 * the time the prompt is confirmed.
+	 */
+	drawnInMission?: string;
 	name: string;
 	featureType: FeatureType;
 	/** Asset sub-classification (`properties.category`), "" for none. */
@@ -1936,6 +2024,8 @@ interface DrawContextRef {
 	mapFeatureType: FeatureType;
 	/** The selected map, stamped onto a pending save for the cross-map guard. */
 	selectedMap: string;
+	/** The mission open when the draw started (mission context), or null. */
+	missionScope: string | null;
 }
 
 /**
@@ -2257,6 +2347,15 @@ function MissionMapBody(props: {
 	 * all the reads/memos below treat it as a `MissionConfig` unchanged.
 	 */
 	const missionConfig = useMissionDraft(selectedMission);
+	/**
+	 * The mission open here, in mission context. A mission is a map, its
+	 * assets and a graph: while one is open its waypoints, zones and cues are
+	 * ITS assets (drawn, edited and deleted in the mission, saved by Save
+	 * mission), and the map's own ones are a library to import copies from.
+	 */
+	const missionScope =
+		context === "mission" && selectedMission ? selectedMission : null;
+	const missionAssets = useMissionAssets(missionScope);
 	const [missionIssues, setMissionIssues] = useState<MissionConfigIssue[]>(
 		[],
 	);
@@ -2293,10 +2392,11 @@ function MissionMapBody(props: {
 	const drawCtxRef = useRef<DrawContextRef>({
 		mapFeatureType: "road",
 		selectedMap: "",
+		missionScope: null,
 	});
 	useEffect(() => {
-		drawCtxRef.current = { mapFeatureType, selectedMap };
-	}, [mapFeatureType, selectedMap]);
+		drawCtxRef.current = { mapFeatureType, selectedMap, missionScope };
+	}, [mapFeatureType, selectedMap, missionScope]);
 
 	// Toggle a single overlay on/off (session-only; config seeds the initial set).
 	const toggleOverlay = useCallback((id: string) => {
@@ -2668,6 +2768,127 @@ function MissionMapBody(props: {
 		[resetMapEditingState],
 	);
 
+	// ---- The open mission's map and assets ---------------------------------
+	//
+	// Loaded once per mission (the graph editor may have loaded them already:
+	// the store coordinates), then the map FOLLOWS the mission: a mission is
+	// drawn on its map, so opening it shows that map. A mission with no map
+	// yet is placed on the one shown. Runs in an async continuation, never as
+	// a synchronous set in the effect body.
+	const missionMap = missionAssets?.map ?? "";
+	useEffect(() => {
+		if (!missionScope) return;
+		let cancelled = false;
+		void (async () => {
+			if (!hasMissionAssets(missionScope)) {
+				const result = await executeMissionsList({});
+				if (cancelled) return;
+				if (!result.success) {
+					setError(
+						result.error ?? "Failed to read the mission store",
+					);
+					return;
+				}
+				if (!hasMissionAssets(missionScope))
+					adoptStoredAssets(
+						missionScope,
+						result.data,
+						selectedMapRef.current,
+					);
+			} else {
+				await Promise.resolve();
+				if (cancelled) return;
+			}
+			const map = getMissionAssets(missionScope)?.map ?? "";
+			if (!map) placeMissionAssets(missionScope, selectedMapRef.current);
+			else if (map !== selectedMapRef.current) changeSelectedMap(map);
+		})();
+		return () => {
+			cancelled = true;
+		};
+		// selectedMap: a mission not placed yet is placed once a map is known
+		// (the maps list may arrive after the mission), and a view moved off a
+		// placed mission's map (a new map, a deleted one) comes back to it.
+	}, [
+		missionScope,
+		missionMap,
+		selectedMap,
+		executeMissionsList,
+		changeSelectedMap,
+	]);
+
+	/**
+	 * The map picker. In a mission with no assets yet, picking a map moves
+	 * the mission there; once it has assets its map is fixed (the picker is
+	 * disabled), because its targets are drawn on it.
+	 */
+	const pickMap = useCallback(
+		(name: string) => {
+			changeSelectedMap(name);
+			if (missionScope) {
+				editMissionAssets(missionScope, (assets) =>
+					assets.features.length === 0 && assets.map !== name
+						? { ...assets, map: name }
+						: assets,
+				);
+			}
+		},
+		[changeSelectedMap, missionScope],
+	);
+	const missionMapFixed =
+		missionScope != null && (missionAssets?.features.length ?? 0) > 0;
+
+	/**
+	 * What the map layers draw: the map's features, and in a mission its own
+	 * assets in place of the map's waypoints, zones and cues — those are the
+	 * {@link libraryFeatures}, drawn apart for import.
+	 */
+	const shownFeatures = useMemo(
+		() =>
+			missionScope && missionAssets
+				? [
+						...features.filter(
+							(f) =>
+								!isMissionAssetType(f.properties?.feature_type),
+						),
+						...missionAssets.features,
+					]
+				: features,
+		[features, missionScope, missionAssets],
+	);
+	const libraryFeatures = useMemo(
+		() =>
+			missionScope && missionAssets
+				? features.filter((f) =>
+						isMissionAssetType(f.properties?.feature_type),
+					)
+				: [],
+		[features, missionScope, missionAssets],
+	);
+	/** The open mission's asset with this id, when it is one. */
+	const missionAssetOf = useCallback(
+		(id: string | null | undefined) =>
+			missionScope && missionAssets && id
+				? (findAsset(missionAssets, id) ?? null)
+				: null,
+		[missionScope, missionAssets],
+	);
+
+	/** Copy a map (library) asset into the open mission, under a new id. */
+	const importIntoMission = useCallback(
+		(feature: C2Feature) => {
+			if (!missionScope) return;
+			const id = generateMissionId();
+			editMissionAssets(
+				missionScope,
+				(assets) => importAsset(assets, feature, id).assets,
+			);
+			setPickedId(id);
+			setError(null);
+		},
+		[missionScope],
+	);
+
 	// Switch editing context, resetting all transient per-context selections.
 	const changeContext = useCallback((next: MapContext) => {
 		setContext(next);
@@ -2770,6 +2991,7 @@ function MissionMapBody(props: {
 				// Provenance for the cross-map guard (a create cannot corrupt,
 				// but stamping both origins keeps the invariant simple).
 				mapName: ctx.selectedMap,
+				drawnInMission: ctx.missionScope ?? undefined,
 			});
 		});
 		drawRef.current = draw;
@@ -2894,6 +3116,51 @@ function MissionMapBody(props: {
 				// written back instead of being dropped by the round trip.
 				properties: pending.properties,
 			});
+			// A mission's asset: an edit of one, or a waypoint / zone / cue
+			// drawn while a mission is open. It goes into that mission's
+			// assets (saved by Save mission), never onto the map.
+			const toMission =
+				pending.missionId ??
+				(!editing &&
+				pending.drawnInMission &&
+				isMissionAssetType(featureType)
+					? pending.drawnInMission
+					: undefined);
+			if (toMission) {
+				if (toMission !== missionScope) {
+					setError(
+						"This shape belongs to another mission than the one open now — it was not saved. Reopen that mission, or draw it again.",
+					);
+					return;
+				}
+				if (!hasMissionAssets(toMission)) {
+					setError(
+						"This mission's assets are still loading — confirm again in a moment.",
+					);
+					return;
+				}
+				if (!isMissionAssetType(featureType)) {
+					setError(
+						"A mission's asset is a waypoint, a zone or a cue; roads, risks and geofences belong to the map.",
+					);
+					return;
+				}
+				// A mission not placed on a map yet is placed on the one its
+				// asset was drawn on.
+				editMissionAssets(toMission, (assets) =>
+					upsertAsset(
+						assets.map ? assets : { ...assets, map: selectedMap },
+						feature,
+					),
+				);
+				setError(null);
+				setPending(null);
+				setPickedId(readFeatureId(feature) ?? null);
+				editingDrawIdRef.current = null;
+				clearDraw(drawRef.current);
+				setTool("view");
+				return;
+			}
 			if (editing && !props.featuresUpdateDef) {
 				setError("c2.map.features.update unavailable");
 				return;
@@ -2929,6 +3196,7 @@ function MissionMapBody(props: {
 		[
 			pending,
 			selectedMap,
+			missionScope,
 			props.featuresAddDef,
 			props.featuresUpdateDef,
 			featuresAddCall,
@@ -2937,67 +3205,74 @@ function MissionMapBody(props: {
 		],
 	);
 
-	/** Load a stored map feature into the draw layer for editing (same id). */
-	const editFeature = useCallback((feature: C2Feature, mapName: string) => {
-		const draw = drawRef.current;
-		if (!draw) return;
-		const drawn = c2FeatureToDrawFeature(feature);
-		if (!drawn) {
-			// Name the actual reason. terra-draw authors single-part geometry
-			// only, so a MultiPolygon / MultiLineString the backend accepts and
-			// this map RENDERS cannot be loaded into the draw layer — "can't be
-			// edited" alone left the operator clicking Edit repeatedly.
-			setError(
-				describeUneditableGeometry(feature) ??
-					"Feature geometry can't be edited.",
-			);
-			return;
-		}
-		const storedType = feature.properties?.feature_type;
-		// Any type the C2 accepts round-trips as itself. It used to collapse to
-		// "road" for everything that was not a geofence or a risk, which would
-		// now silently re-type a waypoint, a zone or a cue on the first edit —
-		// and `road` takes a LineString, so the save would then be rejected by
-		// the geometry check with nothing saying the type had been changed.
-		//
-		// A type this build does not recognise falls back by GEOMETRY, not to a
-		// fixed "road": the prompt derives the legal retype targets from this
-		// value, so a point asset falling back to a line type would offer the
-		// operator nothing but retypes the server refuses.
-		const fallbackType: FeatureType =
-			drawn.geometry.type === "Point"
-				? "waypoint"
-				: drawn.geometry.type === "Polygon"
-					? "zone"
-					: "road";
-		const featureType: FeatureType = isFeatureType(storedType)
-			? storedType
-			: fallbackType;
-		clearDraw(draw);
-		const validations = draw.addFeatures([
-			drawn as unknown as GeoJSONStoreFeatures,
-		]);
-		// Track the terra-draw id so the save path can read the LIVE edited
-		// geometry (post drag/reshape) instead of the stale pre-edit snapshot.
-		editingDrawIdRef.current = validations[0]?.id ?? null;
-		setPending({
-			feature: drawn,
-			featureId: readFeatureId(feature) ?? undefined,
-			// Provenance: which map this edit belongs to. The write path
-			// refuses to upsert it into a different one.
-			mapName,
-			name:
-				typeof feature.properties?.name === "string"
-					? feature.properties.name
-					: "",
-			featureType,
-			category: readFeatureCategory(feature) ?? "",
-			// Carried verbatim so the save writes back every property the
-			// feature arrived with, including ones this build does not model.
-			properties: { ...(feature.properties ?? {}) },
-		});
-		setTool("edit");
-	}, []);
+	/**
+	 * Load a stored feature into the draw layer for editing (same id): a map
+	 * feature, or with `missionId` one of that mission's assets.
+	 */
+	const editFeature = useCallback(
+		(feature: C2Feature, mapName: string, missionId?: string) => {
+			const draw = drawRef.current;
+			if (!draw) return;
+			const drawn = c2FeatureToDrawFeature(feature);
+			if (!drawn) {
+				// Name the actual reason. terra-draw authors single-part geometry
+				// only, so a MultiPolygon / MultiLineString the backend accepts and
+				// this map RENDERS cannot be loaded into the draw layer — "can't be
+				// edited" alone left the operator clicking Edit repeatedly.
+				setError(
+					describeUneditableGeometry(feature) ??
+						"Feature geometry can't be edited.",
+				);
+				return;
+			}
+			const storedType = feature.properties?.feature_type;
+			// Any type the C2 accepts round-trips as itself. It used to collapse to
+			// "road" for everything that was not a geofence or a risk, which would
+			// now silently re-type a waypoint, a zone or a cue on the first edit —
+			// and `road` takes a LineString, so the save would then be rejected by
+			// the geometry check with nothing saying the type had been changed.
+			//
+			// A type this build does not recognise falls back by GEOMETRY, not to a
+			// fixed "road": the prompt derives the legal retype targets from this
+			// value, so a point asset falling back to a line type would offer the
+			// operator nothing but retypes the server refuses.
+			const fallbackType: FeatureType =
+				drawn.geometry.type === "Point"
+					? "waypoint"
+					: drawn.geometry.type === "Polygon"
+						? "zone"
+						: "road";
+			const featureType: FeatureType = isFeatureType(storedType)
+				? storedType
+				: fallbackType;
+			clearDraw(draw);
+			const validations = draw.addFeatures([
+				drawn as unknown as GeoJSONStoreFeatures,
+			]);
+			// Track the terra-draw id so the save path can read the LIVE edited
+			// geometry (post drag/reshape) instead of the stale pre-edit snapshot.
+			editingDrawIdRef.current = validations[0]?.id ?? null;
+			setPending({
+				feature: drawn,
+				featureId: readFeatureId(feature) ?? undefined,
+				// Provenance: which map this edit belongs to. The write path
+				// refuses to upsert it into a different one.
+				mapName,
+				missionId,
+				name:
+					typeof feature.properties?.name === "string"
+						? feature.properties.name
+						: "",
+				featureType,
+				category: readFeatureCategory(feature) ?? "",
+				// Carried verbatim so the save writes back every property the
+				// feature arrived with, including ones this build does not model.
+				properties: { ...(feature.properties ?? {}) },
+			});
+			setTool("edit");
+		},
+		[],
+	);
 
 	/**
 	 * Delete the selected stored map feature, then refetch. The caller is
@@ -3006,6 +3281,15 @@ function MissionMapBody(props: {
 	const deleteFeature = useCallback(
 		async (feature: C2Feature) => {
 			const featureId = readFeatureId(feature);
+			// A mission's asset leaves the mission (saved by Save mission).
+			if (missionScope && featureId && missionAssetOf(featureId)) {
+				editMissionAssets(missionScope, (assets) =>
+					removeAsset(assets, featureId),
+				);
+				if (pickedId === featureId) setPickedId(null);
+				setError(null);
+				return;
+			}
 			if (!props.featuresDeleteDef || !selectedMap || !featureId) {
 				setError("c2.map.features.delete unavailable");
 				return;
@@ -3047,6 +3331,8 @@ function MissionMapBody(props: {
 			featuresDeleteCall,
 			refetchFeatures,
 			pickedId,
+			missionScope,
+			missionAssetOf,
 		],
 	);
 
@@ -3253,8 +3539,9 @@ function MissionMapBody(props: {
 		}
 		setError(null);
 		await refetchMaps();
-		changeSelectedMap(name);
-	}, [props.mapsCreateDef, mapsCreateCall, refetchMaps, changeSelectedMap]);
+		// pickMap: an open mission with no assets moves to the new map.
+		pickMap(name);
+	}, [props.mapsCreateDef, mapsCreateCall, refetchMaps, pickMap]);
 
 	/**
 	 * Delete the selected map, then reselect the first map. The caller confirms
@@ -3274,13 +3561,13 @@ function MissionMapBody(props: {
 		}
 		setError(null);
 		const list = await refetchMaps();
-		changeSelectedMap(list[0]?.name ?? "");
+		pickMap(list[0]?.name ?? "");
 	}, [
 		props.mapsDeleteDef,
 		selectedMap,
 		mapsDeleteCall,
 		refetchMaps,
-		changeSelectedMap,
+		pickMap,
 	]);
 
 	// --- Destructive-action confirmation (AlertDialog) ----------------------
@@ -3293,13 +3580,16 @@ function MissionMapBody(props: {
 					feature.properties.name) ||
 				readFeatureId(feature) ||
 				"feature";
+			const ofMission = missionAssetOf(readFeatureId(feature)) != null;
 			setConfirmState({
-				title: "Delete feature?",
-				description: `Permanently delete the feature "${label}" from this map.`,
+				title: ofMission ? "Remove asset?" : "Delete feature?",
+				description: ofMission
+					? `Remove "${label}" from this mission (saved with Save mission).`
+					: `Permanently delete the feature "${label}" from this map.`,
 				onConfirm: () => void deleteFeature(feature),
 			});
 		},
-		[deleteFeature],
+		[deleteFeature, missionAssetOf],
 	);
 
 	/** Open the AlertDialog to confirm deleting the selected map. */
@@ -3427,23 +3717,32 @@ function MissionMapBody(props: {
 		(point: {
 			x: number;
 			y: number;
-		}): { id: string; feature: C2Feature } | null => {
+		}): { id: string; feature: C2Feature; library: boolean } | null => {
 			const map = mapRef.current?.getMap();
 			if (!map) return null;
-			const hits = map.queryRenderedFeatures([point.x, point.y], {
-				layers: [
-					"c2-features-fill",
-					"c2-features-line",
-					"c2-features-circle",
-				],
-			});
-			const id = hits[0]?.properties?.feature_id;
-			if (typeof id !== "string" || id.length === 0) return null;
-			const feature = features.find((f) => readFeatureId(f) === id);
-			if (!feature) return null;
-			return { id, feature };
+			const at = (layers: string[], from: C2Feature[]) => {
+				const hits = map.queryRenderedFeatures([point.x, point.y], {
+					layers: layers.filter((layer) => map.getLayer(layer)),
+				});
+				const id = hits[0]?.properties?.feature_id;
+				if (typeof id !== "string" || id.length === 0) return null;
+				const feature = from.find((f) => readFeatureId(f) === id);
+				return feature ? { id, feature } : null;
+			};
+			const shown = at(
+				["c2-features-fill", "c2-features-line", "c2-features-circle"],
+				shownFeatures,
+			);
+			if (shown) return { ...shown, library: false };
+			// In a mission, the map's own assets are a library: picked to be
+			// imported, never edited from here.
+			const library = at(
+				["c2-library-fill", "c2-library-line", "c2-library-circle"],
+				libraryFeatures,
+			);
+			return library ? { ...library, library: true } : null;
 		},
-		[features],
+		[shownFeatures, libraryFeatures],
 	);
 
 	/**
@@ -3459,16 +3758,34 @@ function MissionMapBody(props: {
 			const hit = pickAt(event.point);
 			if (!hit) return;
 			setPickedId(hit.id);
-			if (tool === "edit") editFeature(hit.feature, selectedMap);
+			if (hit.library) return;
+			const missionId = missionAssetOf(hit.id) ? missionScope : null;
+			if (tool === "edit")
+				editFeature(hit.feature, selectedMap, missionId ?? undefined);
 			else if (tool === "delete") requestDeleteFeature(hit.feature);
 		},
-		[tool, selectedMap, pickAt, editFeature, requestDeleteFeature],
+		[
+			tool,
+			selectedMap,
+			pickAt,
+			editFeature,
+			requestDeleteFeature,
+			missionAssetOf,
+			missionScope,
+		],
 	);
 
 	const pickedFeature = useMemo(
-		() => features.find((f) => readFeatureId(f) === pickedId) ?? null,
-		[features, pickedId],
+		() =>
+			shownFeatures.find((f) => readFeatureId(f) === pickedId) ??
+			libraryFeatures.find((f) => readFeatureId(f) === pickedId) ??
+			null,
+		[shownFeatures, libraryFeatures, pickedId],
 	);
+	/** The picked feature is the map's, shown as a library in a mission. */
+	const pickedIsLibrary =
+		pickedFeature != null &&
+		!shownFeatures.some((f) => readFeatureId(f) === pickedId);
 
 	// Projected mission geometry for the mission-feature layer (always rendered).
 	const missionGeometryFc = useMemo(
@@ -3792,9 +4109,18 @@ function MissionMapBody(props: {
 				<>
 					<Select
 						value={selectedMap || undefined}
-						onValueChange={changeSelectedMap}
+						onValueChange={pickMap}
+						disabled={missionMapFixed}
 					>
-						<SelectTrigger size="sm" className="w-44 max-w-full">
+						<SelectTrigger
+							size="sm"
+							className="w-44 max-w-full"
+							title={
+								missionMapFixed
+									? "This mission's assets are drawn on this map, so it stays on it."
+									: undefined
+							}
+						>
 							<SelectValue placeholder="Map" />
 						</SelectTrigger>
 						<SelectContent>
@@ -3811,7 +4137,16 @@ function MissionMapBody(props: {
 								size={compactToolbar ? "icon-sm" : "sm"}
 								variant="outline"
 								aria-label="New map"
-								disabled={busy || !props.mapsCreateDef}
+								title={
+									missionMapFixed
+										? "This mission's assets are drawn on this map; close the mission to make another map."
+										: undefined
+								}
+								disabled={
+									busy ||
+									!props.mapsCreateDef ||
+									missionMapFixed
+								}
 								onClick={() => void createMap()}
 							>
 								<Plus />
@@ -3822,7 +4157,10 @@ function MissionMapBody(props: {
 								variant="outline"
 								className="text-destructive"
 								disabled={
-									busy || !selectedMap || !props.mapsDeleteDef
+									busy ||
+									!selectedMap ||
+									!props.mapsDeleteDef ||
+									missionMapFixed
 								}
 								title="Delete map"
 								aria-label="Delete map"
@@ -3950,7 +4288,7 @@ function MissionMapBody(props: {
 				    findings layer that is quietly short is the failure this
 				    pipeline exists to avoid. */}
 				<FindingsReadout
-					cueFeatures={features}
+					cueFeatures={shownFeatures}
 					bound={findingsBound}
 					missionId={selectedMission}
 				/>
@@ -4006,25 +4344,48 @@ function MissionMapBody(props: {
 							: ""}
 						)
 					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						title="Rename, re-type or re-categorise this asset"
-						onClick={() => editFeature(pickedFeature, selectedMap)}
-					>
-						Edit asset
-					</Button>
-					<Button
-						size="icon-sm"
-						variant="outline"
-						className="text-destructive"
-						title="Delete feature"
-						aria-label="Delete feature"
-						disabled={busy}
-						onClick={() => requestDeleteFeature(pickedFeature)}
-					>
-						<Trash2 />
-					</Button>
+					{pickedIsLibrary ? (
+						<Button
+							size="sm"
+							variant="outline"
+							title="Copy this map asset into the mission, under a new id"
+							onClick={() => importIntoMission(pickedFeature)}
+						>
+							Import into mission
+						</Button>
+					) : (
+						<>
+							<Button
+								size="sm"
+								variant="outline"
+								title="Rename, re-type or re-categorise this asset"
+								onClick={() =>
+									editFeature(
+										pickedFeature,
+										selectedMap,
+										missionAssetOf(pickedId)
+											? (missionScope ?? undefined)
+											: undefined,
+									)
+								}
+							>
+								Edit asset
+							</Button>
+							<Button
+								size="icon-sm"
+								variant="outline"
+								className="text-destructive"
+								title="Delete feature"
+								aria-label="Delete feature"
+								disabled={busy}
+								onClick={() =>
+									requestDeleteFeature(pickedFeature)
+								}
+							>
+								<Trash2 />
+							</Button>
+						</>
+					)}
 				</div>
 			)}
 
@@ -4034,8 +4395,9 @@ function MissionMapBody(props: {
 			{context === "mission" && selectedMission && !viewOnly && (
 				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
 					<span className="truncate flex-1 text-muted-foreground">
-						Objectives and allocation come from the node editor;
-						save writes the mission.
+						Draw waypoints, zones and cues here, wire them in the
+						node editor; save writes the mission, its map and
+						assets, and its graph.
 					</span>
 					<Button
 						size="sm"
@@ -4174,7 +4536,8 @@ function MissionMapBody(props: {
 						<PlannerGraphLayer data={plannerGraphFc} />
 					)}
 					{/* Both feature layers always render, in distinct styles. */}
-					<FeatureLayers features={features} />
+					<LibraryLayers features={libraryFeatures} />
+					<FeatureLayers features={shownFeatures} />
 					<MissionFeatureLayers geometries={missionGeometryFc} />
 					{/* The raster fallback only: on a vector basemap the
 					    buildings are a layer of the style itself. Drawn only
@@ -4198,7 +4561,7 @@ function MissionMapBody(props: {
 					    `cue` map features are lifted into the same record and
 					    drawn here, which is why `FeatureLayers` skips them. */}
 					<FindingsLayer
-						cueFeatures={features}
+						cueFeatures={shownFeatures}
 						missionId={selectedMission}
 					/>
 					{trajectoryAgentIds.length > 0 && (

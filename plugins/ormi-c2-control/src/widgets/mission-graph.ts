@@ -891,8 +891,8 @@ export interface MissionGraphIssue {
 	message: string;
 	/**
 	 * Stable code shared with the fog (see `mission-program.ts`), on every
-	 * issue the fog would also raise. Editor-only issues (feature types the
-	 * fog cannot see) carry none.
+	 * issue the fog would also raise (the target checks against the mission's
+	 * assets included). Editor-only issues carry none.
 	 */
 	code?: string;
 }
@@ -960,12 +960,20 @@ export interface CompiledMissionGraph {
  * a robot.
  *
  * @param graph - The graph to compile.
- * @param featureTypes - `feature_id` → MapDB `feature_type`. It no longer has
- *   any part in the `behavior` decision; it is what the action/asset pairing
- *   check reads, and a feature_id it does not carry is treated as unknown
- *   rather than as not-a-zone.
+ * @param featureTypes - `feature_id` → `feature_type` of the MISSION'S OWN
+ *   assets (`assetFeatureTypes`). Given, every action target must be one of
+ *   them and of the type its action takes; omitted (assets not loaded), the
+ *   targets are not checked.
  * @returns The compiled slice and the issues found.
  */
+/** The asset type an action takes (a cue is a point, so a waypoint): the fog's rule. */
+export function targetFits(action: string, featureType: string): boolean {
+	if (action === "NAVIGATE")
+		return featureType === "waypoint" || featureType === "cue";
+	if (action === "COVERAGE") return featureType === "zone";
+	return false;
+}
+
 export function compileMissionGraph(
 	graph: MissionGraph,
 	featureTypes?: Readonly<Record<string, string>>,
@@ -1021,33 +1029,28 @@ export function compileMissionGraph(
 		if (node.action === "NAVIGATE") hasNavigateAction = true;
 		if (node.action !== "COVERAGE" && node.action !== "NAVIGATE") continue;
 
-		// The target's TYPE, which only the editor can see (the fog has no
-		// map). The canvas refuses a wrong drag already; this catches an
-		// inline pick, an action switched after wiring, and a feature retyped
-		// on the map. An unknown type (catalogue not loaded, or a feature the
-		// map does not carry) says nothing: an unknown must not manufacture a
-		// verdict that blocks a mission which is fine.
-		const caption = node.label || node.id;
-		const known = actionTargets(normalized, node.id)
-			.map((featureId) => featureTypes?.[featureId])
-			.filter((type): type is string => typeof type === "string");
-		if (
-			node.action === "COVERAGE" &&
-			known.length > 0 &&
-			!known.includes("zone")
-		) {
-			issues.push({
-				severity: "error",
-				nodeId: node.id,
-				message: `"${caption}" sweeps something that is not a zone. COVERAGE needs a zone; the planner returns an empty route for anything else and the robot never moves.`,
-			});
-		}
-		if (node.action === "NAVIGATE" && known.includes("zone")) {
-			issues.push({
-				severity: "error",
-				nodeId: node.id,
-				message: `"${caption}" goes to a zone. NAVIGATE goes to a waypoint; to sweep the zone, make it a COVERAGE.`,
-			});
+		// The targets against the mission's own assets, as the fog checks
+		// them at submit (TARGET_MISSING, TARGET_TYPE). Only once the assets
+		// are loaded: without them nothing can be said, and an unknown must
+		// not manufacture a verdict that blocks a mission which is fine.
+		if (!featureTypes) continue;
+		for (const featureId of actionTargets(normalized, node.id)) {
+			const type = featureTypes[featureId];
+			if (type === undefined) {
+				issues.push({
+					severity: "error",
+					nodeId: node.id,
+					code: "TARGET_MISSING",
+					message: `The ${node.action} step's target (${featureId}) is not one of this mission's assets.`,
+				});
+			} else if (!targetFits(node.action, type)) {
+				issues.push({
+					severity: "error",
+					nodeId: node.id,
+					code: "TARGET_TYPE",
+					message: `The ${node.action} step needs ${node.action === "COVERAGE" ? "a zone" : "a waypoint"}, but its target is a ${type}.`,
+				});
+			}
 		}
 	}
 

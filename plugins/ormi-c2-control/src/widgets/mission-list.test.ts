@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { MissionBehavior } from "../types/c2-types";
 import {
 	duplicateMission,
-	duplicateMissionWithGraph,
+	duplicateMissionDocuments,
 	generateMissionId,
 	newMissionStub,
 	normalizeMissions,
@@ -120,7 +120,7 @@ describe("duplicateMission (save-a-copy)", () => {
 	});
 });
 
-describe("duplicateMissionWithGraph", () => {
+describe("duplicateMissionDocuments", () => {
 	const source = {
 		mission_id: "m1",
 		name: "Alpha",
@@ -145,9 +145,10 @@ describe("duplicateMissionWithGraph", () => {
 				edges: [],
 			},
 		};
-		const { mission, graph } = duplicateMissionWithGraph(
+		const { mission, graph } = duplicateMissionDocuments(
 			source,
 			graphDoc,
+			null,
 			"Alpha (copy)",
 		);
 		expect(mission.mission_id).not.toBe("m1");
@@ -159,10 +160,43 @@ describe("duplicateMissionWithGraph", () => {
 	});
 
 	it("drops the stale graph fields when the source has no graph", () => {
-		const { mission, graph } = duplicateMissionWithGraph(source, null, "x");
+		const { mission, graph, assets } = duplicateMissionDocuments(
+			source,
+			null,
+			null,
+			"x",
+		);
 		expect(graph).toBeNull();
+		expect(assets).toBeNull();
 		expect(mission.graph_ref).toBeUndefined();
 		expect(mission.graph_compiles).toBeUndefined();
+	});
+
+	it("copies the map and assets under the copy's id, keeping the asset ids", () => {
+		const assetsDoc = {
+			mission_id: "m1:assets",
+			map: "RMA",
+			features: [
+				{
+					type: "Feature",
+					properties: { feature_id: "wp", feature_type: "waypoint" },
+					geometry: { type: "Point", coordinates: [4.39, 50.84] },
+				},
+			],
+		};
+		const { mission, assets } = duplicateMissionDocuments(
+			source,
+			null,
+			assetsDoc,
+			"x",
+		);
+		expect(assets?.mission_id).toBe(`${String(mission.mission_id)}:assets`);
+		expect(assets?.mission_ref).toBe(mission.mission_id);
+		expect(assets?.map).toBe("RMA");
+		expect(
+			(assets?.features as { properties: { feature_id: string } }[])[0]
+				?.properties.feature_id,
+		).toBe("wp");
 	});
 });
 

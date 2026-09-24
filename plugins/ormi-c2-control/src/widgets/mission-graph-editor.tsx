@@ -61,14 +61,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
-import {
-	hasMapFeatures,
-	publishMapFeatures,
-	useMapAssetFeatures,
-	useMapFeatureTypes,
-	useMapFeatures,
-	type CatalogFeature,
-} from "../state/c2-catalog-store";
+import { type CatalogFeature } from "../state/c2-catalog-store";
 import { useAgents } from "../state/c2-agents-store";
 import { useMissionFeedbackExact } from "../state/mission-feedback-store";
 import {
@@ -83,11 +76,16 @@ import {
 	useMissionGraph,
 	useMissionGraphDirty,
 } from "../state/mission-graph-store";
+import {
+	adoptStoredAssets,
+	hasMissionAssets,
+	isMissionAssetsDirty,
+	useMissionAssets,
+} from "../state/mission-assets-store";
 import { saveMissionWithGraph } from "../state/mission-save";
 import { subscribeGraphFocus } from "../state/graph-focus-store";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
-import type { C2Feature } from "../types/c2-types";
-import { readFeatureId } from "./feature-geojson";
+import { assetFeatureTypes, assetId } from "./mission-assets";
 import {
 	applyDrop,
 	applySelectionChanges,
@@ -718,7 +716,6 @@ function MissionGraphEditorBody(props: {
 	missionsListDef: RemoteCallDefinition;
 	missionsSaveDef?: RemoteCallDefinition;
 	mapsListDef?: RemoteCallDefinition;
-	featuresListDef?: RemoteCallDefinition;
 	defaultMap?: string;
 }) {
 	const missionId = useSelectedMission();
@@ -735,9 +732,6 @@ function MissionGraphEditorBody(props: {
 	);
 	const mapsList = useRemoteCall<Record<string, never>, unknown>(
 		props.mapsListDef ?? props.missionsListDef,
-	);
-	const featuresList = useRemoteCall<{ name: string }, unknown>(
-		props.featuresListDef ?? props.missionsListDef,
 	);
 
 	const [error, setError] = useState<string | null>(null);
@@ -791,26 +785,23 @@ function MissionGraphEditorBody(props: {
 			}),
 		[getNode, setCenter],
 	);
-	/** Map resolved from the registry — the last resort, see `mapName` below. */
+	/** Map resolved from the registry — the last resort, see `fallbackMap`. */
 	const [registryMap, setRegistryMap] = useState<string>("");
 	const { pending, run } = useAsyncAction<string>();
 	const busy = pending !== null;
 
 	const { execute: executeMissionsList } = missionsList;
 	const { execute: executeMapsList } = mapsList;
-	const { execute: executeFeaturesList } = featuresList;
 
 	/**
-	 * Which map's assets this editor offers.
-	 *
-	 * Configured map first (an operator who pinned one meant it), then the map
-	 * the mission map is showing, then whatever the registry lists first. The
-	 * middle rung is the one that matters: without it the two panels each
-	 * resolve their own map and the pickers can describe a map nobody is
-	 * looking at.
+	 * The map a mission that has no map yet is placed on, when this editor is
+	 * the first to load it: the map the mission map is showing, then the
+	 * configured one, then whatever the registry lists first. A mission that
+	 * has a map keeps it; the mission map follows it.
 	 */
 	const sharedMap = useActiveMap();
-	const mapName = props.defaultMap?.trim() || sharedMap || registryMap || "";
+	const fallbackMap =
+		sharedMap || props.defaultMap?.trim() || registryMap || "";
 
 	/**
 	 * The stored graph document for a mission, read off one list call: the
@@ -839,14 +830,16 @@ function MissionGraphEditorBody(props: {
 		setMissionGraph(id, readGraphDocument(found) ?? emptyMissionGraph());
 	}, []);
 
-	// ---- Load the graph for the active mission -----------------------------
+	// ---- Load the graph and the assets for the active mission --------------
 	//
-	// Coordinated through the store, exactly as the mission draft is: a slot
+	// Coordinated through the stores, exactly as the mission draft is: a slot
 	// that already exists is adopted rather than refetched, so a second editor
 	// on the same mission cannot clobber an in-progress edit with a load.
 	useEffect(() => {
 		if (!missionId) return;
-		if (hasMissionGraph(missionId)) return;
+		const needGraph = !hasMissionGraph(missionId);
+		const needAssets = !hasMissionAssets(missionId);
+		if (!needGraph && !needAssets) return;
 		let cancelled = false;
 		void (async () => {
 			const result = await executeMissionsList({});
@@ -856,12 +849,17 @@ function MissionGraphEditorBody(props: {
 				return;
 			}
 			setError(null);
-			adoptStoredGraph(missionId, result.data);
+			if (needGraph && !hasMissionGraph(missionId))
+				adoptStoredGraph(missionId, result.data);
+			if (needAssets && !hasMissionAssets(missionId))
+				adoptStoredAssets(missionId, result.data, fallbackMap);
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [missionId, executeMissionsList, adoptStoredGraph]);
+		// A later map switch re-runs this and finds both slots: no refetch, and
+		// a placed mission is never moved.
+	}, [missionId, executeMissionsList, adoptStoredGraph, fallbackMap]);
 
 	// ---- Resolve a map from the registry, only as a last resort ------------
 	//
@@ -882,53 +880,28 @@ function MissionGraphEditorBody(props: {
 		};
 	}, [props.mapsListDef, props.defaultMap, registryMap, executeMapsList]);
 
-	// ---- Fallback asset fetch ----------------------------------------------
+	// ---- The mission's own assets -------------------------------------------
 	//
-	// The asset list is READ from the shared catalogue, which the mission map
-	// publishes on every one of its fetches — that is what makes a zone drawn
-	// next door appear here with no refresh. But the two panels are
-	// independent, and the graph editor has to work with the map closed, so it
-	// fetches the map itself when nothing has published it yet.
-	useEffect(() => {
-		if (!props.featuresListDef || !mapName) return;
-		if (hasMapFeatures(mapName)) return;
-		let cancelled = false;
-		void (async () => {
-			const result = await executeFeaturesList({ name: mapName });
-			if (cancelled || !result.success) return;
-			const raw = result.data as
-				{ features?: C2Feature[] } | C2Feature[] | null;
-			const list = Array.isArray(raw)
-				? raw
-				: Array.isArray(raw?.features)
-					? raw.features
-					: [];
-			publishMapFeatures(
-				mapName,
-				list.flatMap((feature) => {
-					const id = readFeatureId(feature);
-					return id
-						? [
-								{
-									feature_id: id,
-									name: feature.properties?.name,
-									feature_type:
-										feature.properties?.feature_type,
-								},
-							]
-						: [];
-				}),
-			);
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [props.featuresListDef, mapName, executeFeaturesList]);
-
-	// ---- The shared, map-scoped asset catalogue ----------------------------
-	const mapFeatures = useMapFeatures(mapName);
-	const assetFeatures = useMapAssetFeatures(mapName);
-	const featureTypes = useMapFeatureTypes(mapName);
+	// A mission is a map, its assets and a graph: the pickers offer the
+	// mission's waypoints, zones and cues, and the targets are checked against
+	// them exactly as the fog checks them at submit. Null until loaded, and
+	// then the targets are not checked (an unknown is not a verdict).
+	const missionAssets = useMissionAssets(missionId);
+	const assetFeatures = useMemo<CatalogFeature[]>(
+		() =>
+			(missionAssets?.features ?? []).map((feature) => ({
+				feature_id: assetId(feature),
+				name: feature.properties?.name,
+				feature_type: feature.properties?.feature_type,
+			})),
+		[missionAssets],
+	);
+	const assetTypes = useMemo(
+		() => (missionAssets ? assetFeatureTypes(missionAssets) : undefined),
+		[missionAssets],
+	);
+	/** For the port types, which need a map (an unknown target is untyped). */
+	const featureTypes = useMemo(() => assetTypes ?? {}, [assetTypes]);
 
 	const agentNames = useMemo(() => {
 		const out: Record<string, string> = {};
@@ -938,11 +911,11 @@ function MissionGraphEditorBody(props: {
 
 	const featureNames = useMemo(() => {
 		const out: Record<string, string> = {};
-		for (const feature of mapFeatures) {
+		for (const feature of assetFeatures) {
 			out[feature.feature_id] = feature.name || feature.feature_id;
 		}
 		return out;
-	}, [mapFeatures]);
+	}, [assetFeatures]);
 
 	/** Only zones may answer a zone-shaped condition key. */
 	const zoneFeatures = useMemo(
@@ -965,13 +938,13 @@ function MissionGraphEditorBody(props: {
 	);
 
 	/**
-	 * The compiled slice, with the feature types: without them a COVERAGE
-	 * pointed at a waypoint raises nothing here, and the planner accepts the
-	 * mission and returns an empty route. Nothing moves, and nothing said why.
+	 * The compiled slice, with the mission's assets: every target must be one
+	 * of them and of its action's type (TARGET_MISSING / TARGET_TYPE), the
+	 * same check the fog makes at submit.
 	 */
 	const compiled = useMemo(
-		() => (graph ? compileMissionGraph(graph, featureTypes) : null),
-		[graph, featureTypes],
+		() => (graph ? compileMissionGraph(graph, assetTypes) : null),
+		[graph, assetTypes],
 	);
 	const compiles = compiled ? graphCompiles(compiled.issues) : false;
 	const errorCount = compiled
@@ -1554,7 +1527,6 @@ function MissionGraphEditorBody(props: {
 			const result = await saveMissionWithGraph(missionId, {
 				list: () => executeMissionsList({}),
 				save: (doc) => missionsSave.execute({ mission: doc }),
-				featureTypes,
 			});
 			if (!result.ok) {
 				const issues = (result.issues ?? [])
@@ -1586,7 +1558,6 @@ function MissionGraphEditorBody(props: {
 		props.missionsSaveDef,
 		missionsSave,
 		executeMissionsList,
-		featureTypes,
 		run,
 	]);
 
@@ -1601,8 +1572,12 @@ function MissionGraphEditorBody(props: {
 			setError(null);
 			setNotice(null);
 			adoptStoredGraph(missionId, result.data);
+			// Unsaved asset edits (drawn on the map) are not thrown away by a
+			// graph reload.
+			if (!isMissionAssetsDirty(missionId))
+				adoptStoredAssets(missionId, result.data, fallbackMap);
 		});
-	}, [missionId, executeMissionsList, adoptStoredGraph, run]);
+	}, [missionId, executeMissionsList, adoptStoredGraph, fallbackMap, run]);
 
 	if (!missionId) {
 		return (
@@ -2553,10 +2528,6 @@ const MissionGraphEditorWidget: React.FC<MissionGraphEditorProps> = (props) => {
 		() => findCall(calls, C2Call.MapsList),
 		[calls],
 	);
-	const featuresListDef = useMemo(
-		() => findCall(calls, C2Call.MapFeaturesList),
-		[calls],
-	);
 
 	if (!missionsListDef) {
 		return (
@@ -2575,7 +2546,6 @@ const MissionGraphEditorWidget: React.FC<MissionGraphEditorProps> = (props) => {
 				missionsListDef={missionsListDef}
 				missionsSaveDef={missionsSaveDef}
 				mapsListDef={mapsListDef}
-				featuresListDef={featuresListDef}
 				defaultMap={props.defaultMap}
 			/>
 		</ReactFlowProvider>

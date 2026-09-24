@@ -54,6 +54,21 @@ export {
 } from "./state/c2-catalog-store";
 export type { CatalogFeature } from "./state/c2-catalog-store";
 
+// A mission's own map and assets ("<mission_id>:assets").
+export {
+	assetsDocId,
+	buildAssetsDocument,
+	readAssetsDocument,
+	importAsset,
+	MISSION_ASSET_TYPES,
+} from "./widgets/mission-assets";
+export type { MissionAssets } from "./widgets/mission-assets";
+export {
+	getMissionAssets,
+	useMissionAssets,
+	editMissionAssets,
+} from "./state/mission-assets-store";
+
 // Read-only widget definitions + helpers.
 export { FleetStatusDefinition } from "./widgets/fleet-status";
 export { MissionFeedbackDefinition } from "./widgets/mission-feedback";

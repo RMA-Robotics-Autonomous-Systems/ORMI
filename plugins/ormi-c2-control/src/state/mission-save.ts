@@ -7,8 +7,10 @@ import {
 import {
 	commitSavedGraph,
 	getMissionGraph,
+	hasMissionGraph,
 	isMissionGraphDirty,
 	missionGraphSignature,
+	setMissionGraph,
 } from "./mission-graph-store";
 import {
 	type MissionConfigIssue,
@@ -19,6 +21,7 @@ import {
 	buildGraphDocument,
 	compileMissionGraph,
 	graphDocId,
+	readGraphDocument,
 } from "../widgets/mission-graph";
 import { resolveGraphDraftWrite } from "../widgets/mission-graph-editor-helpers";
 import {
@@ -27,13 +30,24 @@ import {
 	mergeStoredMission,
 	missionDraftSignature,
 } from "../widgets/mission-editor-helpers";
-import { normalizeMissions } from "../widgets/mission-list";
-import { getMapFeatureTypes } from "./c2-catalog-store";
+import { missionDocuments, normalizeMissions } from "../widgets/mission-list";
+import {
+	assetFeatureTypes,
+	buildAssetsDocument,
+} from "../widgets/mission-assets";
 import { getActiveMap } from "./selection-store";
+import {
+	adoptStoredAssets,
+	commitSavedAssets,
+	getMissionAssets,
+	isMissionAssetsDirty,
+	isMissionAssetsStored,
+	missionAssetsSignature,
+} from "./mission-assets-store";
 
 /**
- * ONE "Save mission": the mission and its behaviour graph, from wherever the
- * operator presses it (the map, the graph editor, Submit).
+ * ONE "Save mission": the mission, its map and assets, and its behaviour graph,
+ * from wherever the operator presses it (the map, the graph editor, Submit).
  *
  * They used to be two buttons in two panels, and the gap between them was not
  * cosmetic: the fog runs the SAVED graph (`"<mission_id>:graph"`), Submit sent
@@ -41,17 +55,20 @@ import { getActiveMap } from "./selection-store";
  * and run as another, with nothing on screen saying so.
  *
  * Order, because `:5000` has no transaction:
+ *   0. the map and assets document (`"<mission_id>:assets"`), so the graph's
+ *      targets exist before anything names them;
  *   1. the graph document, so the mission's `graph_ref` never points at
  *      nothing;
  *   2. the mission, with the allocation re-derived from the graph just
  *      written (vehicles, objective.geometries, behavior, graph_compiles) and
  *      `graph_ref` set — the saved mission always describes the saved graph;
- *   3. both slots marked clean, each only if nothing was edited while the
+ *   3. every slot marked clean, each only if nothing was edited while the
  *      writes were in flight (a newer edit stays dirty and is reported).
  * A failure at 2 leaves a saved graph and an unsaved mission, and says so.
  *
- * Map assets are NOT part of it: they belong to the map, which every mission
- * on it shares, and are saved as each edit is confirmed.
+ * A mission is a map, its assets and a graph: the assets are the mission's,
+ * not the map's (roads, risks and geofences are the map's, saved as each edit
+ * is confirmed).
  */
 
 /** The two C2 calls the save needs, bound by the calling widget. */
@@ -62,13 +79,6 @@ export interface MissionSaveCalls {
 	save: (
 		doc: Record<string, unknown>,
 	) => Promise<{ success: boolean; error?: string }>;
-	/**
-	 * `feature_id → feature_type` of the map the graph's assets are on — the
-	 * SAME input the graph editor compiles with. Without it a COVERAGE pointed
-	 * at a waypoint compiles clean. Defaults to the shared active map's
-	 * catalogue.
-	 */
-	featureTypes?: Readonly<Record<string, string>>;
 }
 
 export type MissionSaveResult =
@@ -76,6 +86,8 @@ export type MissionSaveResult =
 			ok: true;
 			/** The graph document was written by this save. */
 			graphSaved: boolean;
+			/** The assets document was written by this save. */
+			assetsSaved: boolean;
 			/** An edit made during the save was kept, and is still unsaved. */
 			keptDirty: boolean;
 			/** The saved mission, as written. */
@@ -84,7 +96,7 @@ export type MissionSaveResult =
 	| {
 			ok: false;
 			/** Where it stopped; the steps before it did happen. */
-			stage: "load" | "graph" | "validate" | "mission";
+			stage: "load" | "assets" | "graph" | "validate" | "mission";
 			error: string;
 			graphSaved: boolean;
 			issues?: MissionConfigIssue[];
@@ -127,8 +139,63 @@ export async function saveMissionWithGraph(
 		setMissionDraft(hydrateMissionDraft(stored));
 	}
 
-	// 1. The graph, when one is loaded here. Written whenever it is dirty, or
-	//    the mission does not point at it yet.
+	// 0. The map and assets. Not loaded by any panel (Submit from the control
+	//    panel alone): read them off the same list, a mission without any
+	//    placed on the map shown. Written whenever they are dirty, or not
+	//    stored yet (a mission opened before it had any).
+	if (!getMissionAssets(missionId)) {
+		adoptStoredAssets(missionId, listed.data, getActiveMap() ?? "");
+	}
+	const assets = getMissionAssets(missionId);
+	let assetsSaved = false;
+	let assetsOutcome: ReturnType<typeof commitSavedAssets> = "committed";
+	// An unstored set with no map and nothing in it says nothing: not written.
+	const worthWriting =
+		assets != null &&
+		(isMissionAssetsDirty(missionId) ||
+			(!isMissionAssetsStored(missionId) &&
+				(assets.map !== "" || assets.features.length > 0)));
+	if (assets && worthWriting) {
+		if (assets.map === "" && assets.features.length > 0) {
+			return {
+				ok: false,
+				stage: "assets",
+				error: "This mission's assets are on no map — open it on the mission map, then save again. Nothing was written.",
+				graphSaved: false,
+			};
+		}
+		const assetsSignature = missionAssetsSignature(assets);
+		const written = await calls.save(
+			buildAssetsDocument(missionId, assets) as unknown as Record<
+				string,
+				unknown
+			>,
+		);
+		if (!written.success) {
+			return {
+				ok: false,
+				stage: "assets",
+				error: `The map and assets were not saved: ${written.error ?? "the request failed"}. Nothing was written.`,
+				graphSaved: false,
+			};
+		}
+		assetsSaved = true;
+		assetsOutcome = commitSavedAssets(missionId, assetsSignature);
+	}
+
+	// 1. The graph. Not loaded by any panel (a save from the map alone): its
+	//    stored document is read off the same list, so the mission's
+	//    graph_compiles is re-derived against the assets just written rather
+	//    than left as it was. Written whenever it is dirty, or the mission
+	//    does not point at it yet.
+	if (!hasMissionGraph(missionId)) {
+		const storedGraph = readGraphDocument(
+			missionDocuments(listed.data).find(
+				(doc) => doc.mission_id === graphDocId(missionId),
+			),
+		);
+		if (storedGraph) setMissionGraph(missionId, storedGraph);
+	}
 	const graph = getMissionGraph(missionId);
 	const ref = graphDocId(missionId);
 	let graphSaved = false;
@@ -151,7 +218,7 @@ export async function saveMissionWithGraph(
 				return {
 					ok: false,
 					stage: "graph",
-					error: `The graph was not saved: ${written.error ?? "the request failed"}. Nothing was written.`,
+					error: `The graph was not saved: ${written.error ?? "the request failed"}.${assetsSaved ? " The map and assets were." : " Nothing was written."}`,
 					graphSaved: false,
 				};
 			}
@@ -160,12 +227,11 @@ export async function saveMissionWithGraph(
 			graphOutcome = commitSavedGraph(missionId, graphSignature);
 		}
 		// 2a. The mission describes the graph just written, compiled with the
-		//     same inputs as the editor's. When no catalogue is known for the
-		//     map, a feature-type error cannot be seen here, so a `false` the
-		//     editor derived WITH the types is kept rather than overturned.
-		const featureTypes =
-			calls.featureTypes ?? getMapFeatureTypes(getActiveMap());
-		const typesKnown = Object.keys(featureTypes).length > 0;
+		//     same inputs as the editor's: the mission's own assets. When they
+		//     are not loaded here, a target error cannot be seen, so a `false`
+		//     the editor derived WITH them is kept rather than overturned.
+		const featureTypes = assets ? assetFeatureTypes(assets) : undefined;
+		const typesKnown = featureTypes !== undefined;
 		const derived = resolveGraphDraftWrite(
 			graph,
 			compileMissionGraph(graph, featureTypes),
@@ -255,8 +321,11 @@ export async function saveMissionWithGraph(
 	return {
 		ok: true,
 		graphSaved,
+		assetsSaved,
 		keptDirty:
-			draftOutcome === "kept-dirty" || graphOutcome === "kept-dirty",
+			draftOutcome === "kept-dirty" ||
+			graphOutcome === "kept-dirty" ||
+			assetsOutcome === "kept-dirty",
 		mission: merged,
 	};
 }
