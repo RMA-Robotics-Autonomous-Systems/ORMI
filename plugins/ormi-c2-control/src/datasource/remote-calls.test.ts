@@ -213,4 +213,12 @@ describe("REST mapping (spec.build)", () => {
 		expect(one.url).toBe("http://host:5000/mission-feedback/a%20b%2Fc");
 		expect(one.init.method).toBe("GET");
 	});
+
+	it("a mission's contacts are read from :5000/missions/<id>/contacts (GET)", () => {
+		const spec = findC2CallSpec(C2Call.MissionContacts)!;
+		expect(spec.scope).toBe("db");
+		const req = spec.build(settings, { mission_id: "a b/c" });
+		expect(req.url).toBe("http://host:5000/missions/a%20b%2Fc/contacts");
+		expect(req.init.method).toBe("GET");
+	});
 });

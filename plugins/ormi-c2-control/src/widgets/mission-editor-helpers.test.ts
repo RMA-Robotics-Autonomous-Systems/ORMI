@@ -224,6 +224,22 @@ describe("hydrateMissionDraft", () => {
 		).toBeUndefined();
 	});
 
+	it("drops the _id the store gives each geometry, so a saved mission opens clean", () => {
+		const draft = hydrateMissionDraft({
+			mission_id: "m",
+			objective: {
+				geometries: [
+					{ feature_id: "f1", _id: "6ab4f0651249ee8578540f00" },
+					{ feature_id: "f2" },
+				],
+			},
+		});
+		expect(draft.objective.geometries).toEqual([
+			{ feature_id: "f1" },
+			{ feature_id: "f2" },
+		]);
+	});
+
 	it("defensively fills missing id/name/behavior/objective/vehicles", () => {
 		const draft = hydrateMissionDraft({});
 		expect(typeof draft.mission_id).toBe("string");

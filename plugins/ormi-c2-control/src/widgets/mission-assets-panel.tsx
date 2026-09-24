@@ -22,6 +22,7 @@ import {
 	Download,
 	Loader2,
 	MapPin,
+	Radar,
 	Save,
 	Square,
 	Trash2,
@@ -42,6 +43,12 @@ import {
 	useMissionAssets,
 	useMissionAssetsDirty,
 } from "../state/mission-assets-store";
+import {
+	focusContact,
+	selectContact,
+	useMissionContacts,
+	useSelectedContact,
+} from "../state/mission-contacts-store";
 import { useMissionGraph } from "../state/mission-graph-store";
 import { saveMissionWithGraph } from "../state/mission-save";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
@@ -49,6 +56,9 @@ import type { C2Feature } from "../types/c2-types";
 import { normalizeMapFeatures } from "./map-registry";
 import { assetTree, importableAssets, renameAsset } from "./mission-asset-tree";
 import { assetId, findAsset, importAsset, removeAsset } from "./mission-assets";
+import { ContactDetails } from "./contact-details";
+import { contactName } from "./mission-contacts";
+import { MissionContactsWatch } from "./mission-contacts-watch";
 import { generateMissionId } from "./mission-list";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useAsyncAction } from "./use-async-action";
@@ -66,6 +76,11 @@ import { useAsyncAction } from "./use-async-action";
  * It edits the same working copy as the map and the graph editor
  * (`state/mission-assets-store.ts`): a rename, a delete or an import is
  * unsaved until Save mission, from here or from either of them.
+ *
+ * Under them, the mission's CONTACTS: what its robots' sensors found, as the
+ * fog stores them (`state/mission-contacts-store.ts`). Read-only — a contact
+ * is a report, not something the operator authors. Picking one shows all it
+ * says below the tree and on the map, which flies to it.
  */
 
 /** Props for the mission-assets widget. */
@@ -89,8 +104,11 @@ function MissionAssetsBody(props: {
 	listDef: RemoteCallDefinition;
 	saveDef?: RemoteCallDefinition;
 	featuresListDef?: RemoteCallDefinition;
+	contactsDef?: RemoteCallDefinition;
 }) {
 	const missionId = useSelectedMission();
+	const contacts = useMissionContacts(missionId);
+	const selectedContactUid = useSelectedContact(missionId);
 	const assets = useMissionAssets(missionId);
 	const dirty = useMissionAssetsDirty(missionId);
 	const graph = useMissionGraph(missionId);
@@ -183,7 +201,17 @@ function MissionAssetsBody(props: {
 	const show = useCallback(
 		(featureId: string) => {
 			if (!missionId) return;
+			selectContact(null);
 			focusAsset({ missionId, featureId });
+		},
+		[missionId],
+	);
+
+	const showContact = useCallback(
+		(uid: string) => {
+			if (!missionId) return;
+			selectAsset(null);
+			focusContact({ missionId, uid });
 		},
 		[missionId],
 	);
@@ -201,6 +229,7 @@ function MissionAssetsBody(props: {
 						id,
 					).assets,
 			);
+			selectContact(null);
 			selectAsset({ missionId, featureId: id });
 			setNotice(null);
 		},
@@ -221,6 +250,23 @@ function MissionAssetsBody(props: {
 				icon: GROUP_ICON[group.type],
 			})),
 		}));
+		// Only where contacts can be read (or were, by another widget).
+		if (props.contactsDef || contacts.loaded)
+			tree.push({
+				id: "group:contacts",
+				name: contacts.loaded
+					? `Contacts (${contacts.contacts.length})`
+					: "Contacts",
+				icon: Radar,
+				children: contacts.contacts.map((contact) => ({
+					id: `contact:${contact.uid}`,
+					name:
+						contact.visits.length > 0
+							? `${contactName(contact)} · visited`
+							: contactName(contact),
+					icon: Radar,
+				})),
+			});
 		if (library && library.map === mapName && library.features.length > 0) {
 			tree.push({
 				id: "group:library",
@@ -249,7 +295,7 @@ function MissionAssetsBody(props: {
 			});
 		}
 		return tree;
-	}, [groups, library, mapName, importOne]);
+	}, [groups, contacts, props.contactsDef, library, mapName, importOne]);
 
 	const save = useCallback(() => {
 		if (!missionId) return;
@@ -298,7 +344,16 @@ function MissionAssetsBody(props: {
 		);
 	}
 
-	const selectedFeature = selected ? findAsset(assets, selected) : undefined;
+	const selectedContact = selectedContactUid
+		? contacts.contacts.find(
+				(contact) => contact.uid === selectedContactUid,
+			)
+		: undefined;
+	const selectedFeature =
+		!selectedContact && selected ? findAsset(assets, selected) : undefined;
+	const treeSelection = selectedContact
+		? `contact:${selectedContact.uid}`
+		: selected;
 	const selectedUses =
 		groups
 			.flatMap((group) => group.leaves)
@@ -306,6 +361,12 @@ function MissionAssetsBody(props: {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col text-xs">
+			{props.contactsDef && (
+				<MissionContactsWatch
+					missionId={missionId}
+					def={props.contactsDef}
+				/>
+			)}
 			<div className="flex items-center gap-2 border-b px-2 py-1 shrink-0">
 				<Boxes className="size-3.5" />
 				<span className="truncate">
@@ -345,13 +406,17 @@ function MissionAssetsBody(props: {
 				    own (uncontrolled), so an asset picked on the map re-seeds
 				    it. `expandAll` with a starting id opens every group. */}
 				<TreeView
-					key={`${missionId}:${selected ?? ""}`}
+					key={`${missionId}:${treeSelection ?? ""}`}
 					data={data}
 					expandAll
-					initialSelectedItemId={selected ?? "group:waypoint"}
+					initialSelectedItemId={treeSelection ?? "group:waypoint"}
 					onSelectChange={(item) => {
 						if (!item || item.id.startsWith("group:")) return;
 						if (item.id.startsWith("library:")) return;
+						if (item.id.startsWith("contact:")) {
+							showContact(item.id.slice("contact:".length));
+							return;
+						}
 						show(item.id);
 					}}
 				/>
@@ -361,7 +426,23 @@ function MissionAssetsBody(props: {
 						mission map, or import one of the map&apos;s below.
 					</p>
 				)}
+				{contacts.error && (
+					<p className="px-3 pb-2 text-warning">
+						Contacts could not be read: {contacts.error}
+					</p>
+				)}
 			</ScrollArea>
+			{selectedContact && (
+				<ScrollArea className="max-h-[45%] border-t shrink-0">
+					<div className="p-2">
+						<ContactDetails
+							contact={selectedContact}
+							onShow={() => showContact(selectedContact.uid)}
+							onClose={() => selectContact(null)}
+						/>
+					</div>
+				</ScrollArea>
+			)}
 			{selectedFeature && (
 				<div className="flex flex-col gap-1.5 border-t p-2 shrink-0">
 					<div className="flex items-center gap-2">
@@ -445,6 +526,10 @@ const MissionAssetsWidget: React.FC<MissionAssetsProps> = (props) => {
 		() => findCall(calls, C2Call.MapFeaturesList),
 		[calls],
 	);
+	const contactsDef = useMemo(
+		() => findCall(calls, C2Call.MissionContacts),
+		[calls],
+	);
 	if (!listDef) {
 		return (
 			<PanelEmptyState>
@@ -458,6 +543,7 @@ const MissionAssetsWidget: React.FC<MissionAssetsProps> = (props) => {
 			listDef={listDef}
 			saveDef={saveDef}
 			featuresListDef={featuresListDef}
+			contactsDef={contactsDef}
 		/>
 	);
 };
@@ -471,7 +557,7 @@ export function MissionAssetsDefinition(): WidgetDefinition<MissionAssetsProps> 
 		id: "c2-mission-assets-widget",
 		name: "C2 Mission Assets",
 		description:
-			"The open mission's waypoints, zones and cues, what uses them, and the map's ones to import",
+			"The open mission's waypoints, zones and cues, what uses them, the map's ones to import, and the contacts its robots found",
 		titleProp: "title",
 		icon: <Boxes />,
 

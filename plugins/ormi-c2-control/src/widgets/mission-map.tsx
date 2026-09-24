@@ -144,6 +144,10 @@ import { generateMissionId } from "./mission-list";
 import { assetCenter } from "./mission-asset-tree";
 import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
 import {
+	getMissionContacts,
+	selectContact,
+} from "../state/mission-contacts-store";
+import {
 	ASSET_CATEGORIES,
 	CATEGORISED_FEATURE_TYPES,
 	DrawFeature,
@@ -257,6 +261,8 @@ import {
 	type FindingsTopicBinding,
 } from "./findings-layer";
 import { FINDING_RAW_TYPE } from "./findings";
+import { MissionContactPopup } from "./contact-popup";
+import { MissionContactsWatch } from "./mission-contacts-watch";
 import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
 import { RainviewerOverlay } from "./rainviewer-overlay";
@@ -2083,6 +2089,7 @@ function MissionMapBody(props: {
 	plannerGraphDef?: RemoteCallDefinition;
 	missionsListDef?: RemoteCallDefinition;
 	missionsSaveDef?: RemoteCallDefinition;
+	missionContactsDef?: RemoteCallDefinition;
 	feedbackTopic?: SelectedTopic;
 	agentTopic?: SelectedTopic;
 	observationTopic?: SelectedTopic;
@@ -3215,8 +3222,10 @@ function MissionMapBody(props: {
 				setPending(null);
 				setPickedId(readFeatureId(feature) ?? null);
 				const savedId = readFeatureId(feature);
-				if (savedId)
+				if (savedId) {
+					selectContact(null);
 					selectAsset({ missionId: toMission, featureId: savedId });
+				}
 				editingDrawIdRef.current = null;
 				clearDraw(drawRef.current);
 				setTool("view");
@@ -3807,6 +3816,38 @@ function MissionMapBody(props: {
 	);
 
 	/**
+	 * The open mission's stored contact under a click, if any: a few pixels
+	 * of slack, and the not-real ring counts, since the marks are small.
+	 */
+	const contactAt = useCallback(
+		(point: { x: number; y: number }): string | undefined => {
+			const map = mapRef.current?.getMap();
+			if (!map || !selectedMission) return undefined;
+			const layers = [
+				"c2-findings-core",
+				"c2-findings-essence-ring",
+			].filter((layer) => map.getLayer(layer));
+			if (layers.length === 0) return undefined;
+			const known = getMissionContacts(selectedMission).contacts;
+			return map
+				.queryRenderedFeatures(
+					[
+						[point.x - 6, point.y - 6],
+						[point.x + 6, point.y + 6],
+					],
+					{ layers },
+				)
+				.map((feature) => feature.properties?.uid)
+				.find(
+					(uid): uid is string =>
+						typeof uid === "string" &&
+						known.some((contact) => contact.uid === uid),
+				);
+		},
+		[selectedMission],
+	);
+
+	/**
 	 * Map click → dispatch by the active tool (for view / edit / delete; the draw
 	 * tool is handled by terra-draw, not here):
 	 *  - `view`   → select only (action bar).
@@ -3816,8 +3857,20 @@ function MissionMapBody(props: {
 	const handleMapClick = useCallback(
 		(event: { point: { x: number; y: number } }) => {
 			if (tool === "draw") return;
+			// Edit and delete act on authored geometry first: a contact
+			// reported on top of a waypoint must not hide it from them.
 			const hit = pickAt(event.point);
+			const contactHit =
+				hit && tool !== "view" ? undefined : contactAt(event.point);
+			if (selectedMission && contactHit) {
+				// A report to read, never geometry to edit.
+				setPickedId(null);
+				selectAsset(null);
+				selectContact({ missionId: selectedMission, uid: contactHit });
+				return;
+			}
 			if (!hit) return;
+			selectContact(null);
 			setPickedId(hit.id);
 			const missionId =
 				!hit.library && missionAssetOf(hit.id) ? missionScope : null;
@@ -3836,7 +3889,9 @@ function MissionMapBody(props: {
 		[
 			tool,
 			selectedMap,
+			selectedMission,
 			pickAt,
+			contactAt,
 			editFeature,
 			requestDeleteFeature,
 			missionAssetOf,
@@ -4020,6 +4075,13 @@ function MissionMapBody(props: {
 			ref={mapRootRef}
 			className="h-full w-full min-w-0 flex flex-col text-sm"
 		>
+			{/* The open mission's contacts, from the fog — renders nothing. */}
+			{props.missionContactsDef && selectedMission && (
+				<MissionContactsWatch
+					missionId={selectedMission}
+					def={props.missionContactsDef}
+				/>
+			)}
 			{/* Findings ingest — renders nothing. Subscribes through the
 			    datasource subscription registry (lossless), NOT through the
 			    live overlay's `LocalDataSourcesProvider`, which coalesces to
@@ -4633,6 +4695,7 @@ function MissionMapBody(props: {
 						cueFeatures={shownFeatures}
 						missionId={selectedMission}
 					/>
+					<MissionContactPopup missionId={selectedMission} />
 					{trajectoryAgentIds.length > 0 && (
 						<AgentTrajectoryOverlay
 							fallbackSource={localizationFallbackSource}
@@ -4776,6 +4839,10 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 		() => findCall(calls, C2Call.MissionsSave),
 		[calls],
 	);
+	const missionContactsDef = useMemo(
+		() => findCall(calls, C2Call.MissionContacts),
+		[calls],
+	);
 
 	if (!mapsListDef) {
 		return (
@@ -4802,6 +4869,7 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 			plannerGraphDef={plannerGraphDef}
 			missionsListDef={missionsListDef}
 			missionsSaveDef={missionsSaveDef}
+			missionContactsDef={missionContactsDef}
 			feedbackTopic={props.feedbackTopic}
 			agentTopic={props.agentTopic}
 			observationTopic={props.observationTopic}

@@ -17,6 +17,7 @@ import {
 	useFindings,
 	useFindingsStats,
 } from "../state/findings-store";
+import { useMissionContacts } from "../state/mission-contacts-store";
 import type { C2Feature } from "../types/c2-types";
 import {
 	cueFeatureToFinding,
@@ -27,6 +28,7 @@ import {
 	type Finding,
 	type FindingChannel,
 } from "./findings";
+import { withMissionContacts } from "./mission-contacts";
 
 /**
  * The findings layer: one layer for cues and contacts.
@@ -58,9 +60,12 @@ import {
  * ones, never removed — an operator may already have acted on it, and "this was
  * withdrawn" and "this never existed" are different answers.
  *
- * The layer is non-interactive (like the live telemetry overlay): the map's
- * pick tools act on authored geometry, and a finding is not something the
- * operator edits here.
+ * The mission's stored contacts (the fog's record, `mission-contacts.ts`)
+ * are drawn here too, merged by uid with anything live.
+ *
+ * The layer has no handlers of its own: the map's pick tools act on authored
+ * geometry, and a finding is not something the operator edits. The map's
+ * click reads `c2-findings-core` first and opens a stored contact's details.
  */
 
 /** A findings topic slot: the topic plus which channel it is. */
@@ -190,9 +195,14 @@ export function FindingsLayer(props: {
 }) {
 	const all = useFindings();
 	const { cueFeatures, missionId } = props;
+	const stored = useMissionContacts(missionId);
 	const reported = useMemo(
-		() => findingsOfMission(all, missionId),
-		[all, missionId],
+		() =>
+			withMissionContacts(
+				findingsOfMission(all, missionId),
+				missionId ? stored.contacts : [],
+			),
+		[all, missionId, stored],
 	);
 
 	const findings = useMemo<Finding[]>(() => {
@@ -291,9 +301,14 @@ export function FindingsReadout(props: {
 	const all = useFindings();
 	const stats = useFindingsStats();
 	const { cueFeatures, missionId } = props;
+	const stored = useMissionContacts(missionId);
 	const reported = useMemo(
-		() => findingsOfMission(all, missionId),
-		[all, missionId],
+		() =>
+			withMissionContacts(
+				findingsOfMission(all, missionId),
+				missionId ? stored.contacts : [],
+			),
+		[all, missionId, stored],
 	);
 
 	const authoredCues = useMemo(

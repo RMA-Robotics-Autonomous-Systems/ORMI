@@ -81,6 +81,18 @@ export function buildMissionDraft(
 	};
 }
 
+/** A stored geometry without the `_id` the store gave it. */
+function dropMongoId(geometry: MissionGeometry): MissionGeometry {
+	if (!geometry || typeof geometry !== "object" || !("_id" in geometry)) {
+		return geometry;
+	}
+	const { _id: _omitMongoId, ...kept } = geometry as MissionGeometry & {
+		_id?: unknown;
+	};
+	void _omitMongoId;
+	return kept as MissionGeometry;
+}
+
 /**
  * Hydrate a draft from an existing stored mission object (the "Load active
  * mission" flow).
@@ -126,11 +138,17 @@ export function hydrateMissionDraft(raw: unknown): MissionDraft {
 		!Array.isArray(rest.objective)
 			? {
 					...(rest.objective as Record<string, unknown>),
+					// The store gives each geometry an `_id` of its own too. Kept,
+					// it made every saved mission differ from its graph's
+					// `{ feature_id }` list, so it opened with unsaved edits.
 					geometries: Array.isArray(
 						(rest.objective as { geometries?: unknown }).geometries,
 					)
-						? ((rest.objective as { geometries: MissionGeometry[] })
-								.geometries as MissionGeometry[])
+						? (
+								rest.objective as {
+									geometries: MissionGeometry[];
+								}
+							).geometries.map(dropMongoId)
 						: [],
 				}
 			: { geometries: [] };

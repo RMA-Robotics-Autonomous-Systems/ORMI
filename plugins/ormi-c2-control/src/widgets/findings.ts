@@ -67,8 +67,12 @@ export enum ConfidenceStatistic {
 	HUMAN_INSTINCT = 4,
 }
 
-/** Which topic a finding arrived on. Provenance, never the classifier. */
-export type FindingChannel = "observation" | "map";
+/**
+ * Where a finding came from: a topic, the map (an authored cue), or the fog's
+ * stored contacts of a mission (`mission-contacts.ts`). Provenance, never the
+ * classifier.
+ */
+export type FindingChannel = "observation" | "map" | "fog";
 
 /**
  * The derived name for a finding. The message also names a corroborated

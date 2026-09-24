@@ -49,6 +49,7 @@ export const C2Call = {
 	MissionsList: "c2.missions.list",
 	MissionsSave: "c2.missions.save",
 	MissionsDelete: "c2.missions.delete",
+	MissionContacts: "c2.missions.contacts",
 	MapsList: "c2.maps.list",
 	MapsCreate: "c2.maps.create",
 	MapsDelete: "c2.maps.delete",
@@ -617,6 +618,22 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 		},
 		build: (s, req) => ({
 			url: `${s.dbUrl}/mission-feedback/${enc(String(req.mission_id ?? ""))}`,
+			init: { method: "GET" },
+		}),
+	},
+	{
+		name: C2Call.MissionContacts,
+		description:
+			"Read every contact one mission took, in the order they came in, with who visited each ([] when none). Kept after the mission ends; a resubmit clears them.",
+		scope: "db",
+		timeoutMs: READ_TIMEOUT_MS,
+		requestSchema: {
+			type: "object",
+			properties: { mission_id: { type: "string", title: "Mission ID" } },
+			required: ["mission_id"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/missions/${enc(String(req.mission_id ?? ""))}/contacts`,
 			init: { method: "GET" },
 		}),
 	},
