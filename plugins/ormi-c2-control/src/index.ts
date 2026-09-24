@@ -81,6 +81,7 @@ export { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 // Authoring widget definitions + helpers (mission map, behaviour graph).
 export { MissionMapDefinition } from "./widgets/mission-map";
 export { MissionGraphEditorDefinition } from "./widgets/mission-graph-editor";
+export { MissionAssetsDefinition } from "./widgets/mission-assets-panel";
 export {
 	buildGraphDocument,
 	compileMissionGraph,

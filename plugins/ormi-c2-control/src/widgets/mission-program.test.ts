@@ -2,11 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-	compileProgram,
-	notExecutableYet,
-	type ProgramIssue,
-} from "./mission-program";
+import { compileProgram, type ProgramIssue } from "./mission-program";
 
 /**
  * Parity with the fog. Every golden fixture the fog's `test_mission_program`
@@ -23,7 +19,6 @@ interface Fixture {
 	expect: {
 		errors: [string, string][];
 		program?: unknown;
-		not_executable_yet?: [string, string][];
 	};
 }
 
@@ -58,11 +53,6 @@ describe("the editor compiles a graph exactly as the fog does", () => {
 			expect(pairs(result.errors)).toEqual(sorted(fixture.expect.errors));
 			if (fixture.expect.program !== undefined) {
 				expect(result.program).toEqual(fixture.expect.program as never);
-			}
-			if (fixture.expect.not_executable_yet !== undefined) {
-				expect(pairs(notExecutableYet(result.program))).toEqual(
-					sorted(fixture.expect.not_executable_yet),
-				);
 			}
 		});
 	}

@@ -43,7 +43,7 @@ describe("the layout key", () => {
 	it("is the one the FLEX engine reads", () => {
 		// `flexLayoutEngineDefinition.layoutKey` in core. A layout under any
 		// other key is not an error anywhere: the engine finds nothing, falls
-		// back to one tabset holding all seven panels, and the surface looks
+		// back to one tabset holding all eight panels, and the surface looks
 		// broken rather than misconfigured.
 		//
 		// This compares a literal against a literal, deliberately: core does
@@ -80,18 +80,21 @@ describe("the model", () => {
 		}
 	});
 
-	it("opens with the seven mission panels", () => {
+	it("opens with the eight mission panels", () => {
 		// Seven since the mission editor widget was removed as redundant with
 		// the behaviour-graph editor and the map's own mission panel
-		// (2026-09-22). This list is the arrangement's contract, not a count to
-		// keep green: a panel that appears here without somebody deciding it
-		// should is a panel nobody chose to put in front of an operator.
+		// (2026-09-22); eight since a mission owns its assets and they got a
+		// panel of their own (2026-09-24). This list is the arrangement's
+		// contract, not a count to keep green: a panel that appears here
+		// without somebody deciding it should is a panel nobody chose to put
+		// in front of an operator.
 		const dash = defaultMissionControl();
-		expect(dash.widgets.size).toBe(7);
+		expect(dash.widgets.size).toBe(8);
 		const types = [...dash.widgets.values()].map((w) => w.widget_id);
 		expect(types.slice().sort()).toEqual(
 			[
 				"c2-fleet-status-widget",
+				"c2-mission-assets-widget",
 				"c2-mission-browser-widget",
 				"c2-mission-control-panel-widget",
 				"c2-mission-feedback-widget",
@@ -136,7 +139,7 @@ describe("the model", () => {
 		}
 	});
 
-	it("shares one tabset between the behaviour graph and the log", () => {
+	it("shares one tabset between the behaviour graph, the assets and the log", () => {
 		// Authoring happens before a mission runs and the log is read once
 		// something has gone wrong; neither is watched continuously, so a pane
 		// each would spend most of the centre column on idle panels. The graph
@@ -150,7 +153,7 @@ describe("the model", () => {
 					.map((c) => String((c as { id?: unknown }).id))
 					.sort(),
 			);
-		expect(shared).toContainEqual(["c2-graph", "c2-log"]);
+		expect(shared).toContainEqual(["c2-assets", "c2-graph", "c2-log"]);
 	});
 
 	it("seeds each panel with its definition's own defaults, not just a title", () => {

@@ -3,7 +3,7 @@
 	"description": "Two chains merging into one step is refused.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -61,37 +61,36 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-a.in",
+				"id": "es.agent-a.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "a",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "a.next-x.in",
+				"id": "a.agent-x.agent",
 				"source": "a",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "x",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "ge.next-b.in",
+				"id": "ge.agent-b.agent",
 				"source": "ge",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "b",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "b.next-x.in",
+				"id": "b.agent-x.agent",
 				"source": "b",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "x",
-				"target_port": "in"
+				"target_port": "agent"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["JOIN", "x"]],
-		"not_executable_yet": []
+		"errors": [["JOIN", "x"]]
 	}
 }

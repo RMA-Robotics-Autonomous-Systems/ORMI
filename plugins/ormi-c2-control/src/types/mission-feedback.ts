@@ -137,11 +137,18 @@ export interface MissionFeedback {
 
 /** A chain step's state in the fog's program executor. */
 export type ProgramStepState =
-	"WAITING" | "GATED" | "PLANNING" | "READY" | "RUNNING" | "DONE" | "FAILED";
+	| "WAITING"
+	| "GATED"
+	| "PLANNING"
+	| "READY"
+	| "RUNNING"
+	| "LISTENING"
+	| "DONE"
+	| "FAILED";
 
 /** One condition of the gate an agent waits at. */
 export interface ProgramGateCondition {
-	/** The graph condition node. */
+	/** The graph node behind it: a condition node, or the step whose `done`. */
 	node_id: string;
 	op: string;
 	key: string;
@@ -156,23 +163,37 @@ export interface ProgramGateCondition {
 /** One agent's position in its chain. */
 export interface ProgramProgress {
 	chain: number;
-	/** Index of the current step; the steps before it are done. */
+	/** Index of the current step in `steps` (a chain may loop back). */
 	step_index: number;
 	steps_total: number;
 	/** Graph node of the current step (the last one once DONE). */
 	step_id: string;
 	state: ProgramStepState;
 	/**
-	 * The whole chain in order: each step's action node, the Wait in front of
-	 * it ("" when none) and that Wait's condition nodes.
+	 * The whole chain: each step's node (an action, or an On contact node),
+	 * the Hold until in front of it ("" when none) and what is wired into it.
 	 */
 	steps: {
 		step_id: string;
+		kind: "STEP" | "ON_CONTACT";
 		wait_node: string;
-		/** Whether that Wait needs all of its conditions, or any one. */
+		/** Whether that Hold until needs all of its inputs, or any one. */
 		mode: "all" | "any";
 		gate_nodes: string[];
 	}[];
+	/** The steps of this chain that have completed at least once. */
+	done_steps: string[];
+	/** The contact the agent is visiting (from an On contact node). */
+	contact?: { uid: string; lon: number; lat: number; node: string };
+	/** At an On contact node: how many of its Coverage's contacts it took. */
+	listening?: {
+		node: string;
+		source_step: string;
+		taken: number;
+		found: number;
+		/** The Coverage is done: once every contact is taken, it moves on. */
+		source_done: boolean;
+	};
 	/** Present while the step waits at its gate. */
 	gate?: {
 		node_ids: string[];
@@ -380,6 +401,7 @@ const PROGRAM_STATES: readonly ProgramStepState[] = [
 	"PLANNING",
 	"READY",
 	"RUNNING",
+	"LISTENING",
 	"DONE",
 	"FAILED",
 ];
@@ -416,6 +438,10 @@ function programProgress(
 				)
 				.map((st) => ({
 					step_id: str(st.step_id) ?? "",
+					kind:
+						st.kind === "ON_CONTACT"
+							? ("ON_CONTACT" as const)
+							: ("STEP" as const),
 					wait_node: str(st.wait_node) ?? "",
 					mode:
 						st.mode === "any" ? ("any" as const) : ("all" as const),
@@ -425,7 +451,33 @@ function programProgress(
 							)
 						: [],
 				})),
+			done_steps: Array.isArray(e.done_steps)
+				? e.done_steps.filter((n): n is string => typeof n === "string")
+				: [],
 		};
+		const contact = e.contact as Record<string, unknown> | undefined;
+		if (contact != null && typeof contact === "object") {
+			const lon = num(contact.lon);
+			const lat = num(contact.lat);
+			if (lon != null && lat != null) {
+				progress.contact = {
+					uid: str(contact.uid) ?? "",
+					lon,
+					lat,
+					node: str(contact.node) ?? "",
+				};
+			}
+		}
+		const listening = e.listening as Record<string, unknown> | undefined;
+		if (listening != null && typeof listening === "object") {
+			progress.listening = {
+				node: str(listening.node) ?? "",
+				source_step: str(listening.source_step) ?? "",
+				taken: index(listening.taken) ?? 0,
+				found: index(listening.found) ?? 0,
+				source_done: listening.source_done === true,
+			};
+		}
 		const gate = e.gate as Record<string, unknown> | undefined;
 		if (gate != null && typeof gate === "object") {
 			const conditions = Array.isArray(gate.conditions)

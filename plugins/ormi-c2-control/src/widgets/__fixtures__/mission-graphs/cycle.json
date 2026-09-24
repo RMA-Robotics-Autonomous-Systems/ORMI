@@ -3,7 +3,7 @@
 	"description": "A loop is refused (it re-enters a node, so it is a join too).",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -64,32 +64,32 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-a.in",
+				"id": "es.agent-a.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "a",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "a.next-w.in",
+				"id": "a.agent-w.agent",
 				"source": "a",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "w.next-b.in",
+				"id": "w.agent-b.agent",
 				"source": "w",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "b",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "b.next-w.in",
+				"id": "b.agent-w.agent",
 				"source": "b",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "c.value-w.when",
@@ -104,7 +104,6 @@
 		"errors": [
 			["CYCLE", "w"],
 			["JOIN", "w"]
-		],
-		"not_executable_yet": []
+		]
 	}
 }

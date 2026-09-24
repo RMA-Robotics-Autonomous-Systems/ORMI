@@ -816,7 +816,11 @@ and lives in two places at once.
   `TARGET_MISSING`, a wrong type `TARGET_TYPE` — the codes the fog raises at
   submit, when it snapshots the assets and sends the planner each target's
   shape (the planner looks nothing up in MapDB, and refuses a step drawn on
-  another map than the one it has loaded).
+  another map than the one it has loaded). The **C2 Mission Assets** panel
+  (`mission-assets-panel.tsx`) lists them by type with the graph nodes that
+  use each, the map's own ones to import, rename/remove and Save mission;
+  picking one flies the map to it and selects its nodes in the graph editor,
+  and a pick on the map selects it there (`state/asset-focus-store.ts`).
 - **Execution ("then") edges carry the agent assignment downstream to
   everything reachable; data edges do not.** Consuming a finding is not being
   commanded by whoever produced it, so the marker stays the effector's job
@@ -943,19 +947,32 @@ and lives in two places at once.
   which the fog never finds). The mission's map and assets are part of it,
   written first (`":assets"`, then `":graph"`, then the mission); Duplicate and
   Delete carry both sibling documents.
-- **The graph has typed ports (schema 2)** (`widgets/mission-graph-ports.ts`,
-  mirrored by the fog's `mission_program.hpp`). Every edge is
-  `{source, source_port, target, target_port}` and joins an output to an input
-  of the same type: the "then" chain (flow), places (waypoint / zone), agents,
-  true/false. Conditions are true/false nodes wired into ONE **Wait** node on
-  the chain, which holds the next step until all (or any) of them hold; an
-  action's target is picked on the node or wired from an asset node. The canvas
+- **The agent flows through the graph (schema 3, 2026-09-24)**
+  (`widgets/mission-graph-ports.ts`, mirrored by the fog's `mission_program.hpp`).
+  Every edge is `{source, source_port, target, target_port}` and joins an output
+  to an input of the same type: the robot (`agent`), places (waypoint / zone),
+  true/false, contacts (event). Each step takes the robot in and hands it on;
+  an action also says `done` and a Coverage reports `on contact`. A **Hold
+  until** keeps the robot until all (or any) of what is wired in holds — a
+  step's `done` ("agent 2 holds until survey 1 of agent 1 is done"), a time, a
+  contact count. An **On contact** node sends its robot to each contact of one
+  Coverage in turn (FIFO; its `position` is the loop's Navigate target, the
+  loop comes back into the node) and lets it go on `no more`. An action's
+  target is picked on the node or wired from an asset node. The canvas
   refuses a mismatched drag (and says why), re-wires a single port instead of
   refusing it, and a wire dropped on empty canvas offers only nodes that would
-  be wired — a new step is spliced INTO the chain, never beside it. **No
-  legacy:** a schema-1 graph is not read; the editor opens an empty canvas
+  be wired — a new step is spliced INTO the chain, never beside it (before an
+  On contact node, its own loop's way back stays). **No legacy:** an older
+  graph is not read; the editor opens an empty canvas
   saying so, and the next save replaces it. Two xyflow traps met here: a handle
   ADDED to a node that keeps its size is never measured (call
   `useUpdateNodeInternals` when the port set changes), and keys pressed in a
   control inside a node bubble to xyflow's node key handler through Radix
   portals (give the trigger and the content `nokey`).
+- **Editing tools (2026-09-24).** Undo / redo per mission in the graph store
+  (`undoMissionGraph`, Ctrl+Z / Ctrl+Shift+Z; the position changes of one drag
+  share a gesture key, so a whole move is one step; a load starts afresh), a
+  minimap, **Tidy** (`layoutLanes`: one lane per agent, its steps in the order
+  the robot takes them, what feeds a step below it — itself undoable), and
+  Ctrl+C / Ctrl+V of nodes with the edges between them (never an agent node:
+  AGENT_TWICE).

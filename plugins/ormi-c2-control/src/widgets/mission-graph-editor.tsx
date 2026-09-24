@@ -26,6 +26,7 @@ import {
 	Controls,
 	Handle,
 	MarkerType,
+	MiniMap,
 	Panel,
 	Position,
 	ReactFlow,
@@ -50,10 +51,14 @@ import {
 	Loader2,
 	MapPin,
 	Navigation,
+	LayoutGrid,
+	Redo2,
 	RefreshCw,
+	Repeat,
 	Save,
 	ScanLine,
 	Trash2,
+	Undo2,
 	Workflow,
 	Zap,
 } from "lucide-react";
@@ -71,6 +76,9 @@ import {
 import {
 	editMissionGraph,
 	getMissionGraph,
+	redoMissionGraph,
+	undoMissionGraph,
+	useMissionGraphHistory,
 	hasMissionGraph,
 	setMissionGraph,
 	useMissionGraph,
@@ -84,6 +92,8 @@ import {
 } from "../state/mission-assets-store";
 import { saveMissionWithGraph } from "../state/mission-save";
 import { subscribeGraphFocus } from "../state/graph-focus-store";
+import { subscribeAssetFocus } from "../state/asset-focus-store";
+import { assetUses } from "./mission-asset-tree";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
 import { assetFeatureTypes, assetId } from "./mission-assets";
 import {
@@ -91,7 +101,11 @@ import {
 	applySelectionChanges,
 	dropChoices,
 	dropOrphanedEdges,
+	copySelection,
 	formatCondition,
+	layoutLanes,
+	pasteClip,
+	type GraphClip,
 	programMarks,
 	resolveGraphDraftWrite,
 	type DropChoice,
@@ -155,17 +169,23 @@ import { useAsyncAction } from "./use-async-action";
  * ## Typed ports
  *
  * Every node shows what it takes in (left) and gives out (right), each port
- * coloured by what it carries (`mission-graph-ports.ts`): the dark "then"
- * ports make the chain, green ports carry places (waypoint / zone), blue carry
- * agents, orange carry true/false. A drag is only accepted into an input of
- * the same type; a refused drag says why. Dropping a wire on empty canvas
- * offers the nodes that could take it, already wired.
+ * coloured by what it carries (`mission-graph-ports.ts`): the dark `agent`
+ * ports carry the ROBOT from step to step (the chain), green ports carry
+ * places (waypoint / zone), pink carry true/false, amber carry contacts. A
+ * drag is only accepted into an input of the same type; a refused drag says
+ * why. Dropping a wire on empty canvas offers the nodes that could take it,
+ * already wired.
  *
- * - An **action**'s target is picked on the node, or wired from an asset node
- *   (one asset can feed several actions).
- * - A **Wait** sits on the chain before a step and holds it until all (or any)
- *   of the conditions wired into it hold.
- * - A **condition** is a true/false: elapsed time, findings, an agent holding.
+ * - An **action** takes the robot and its target (picked on the node, or
+ *   wired from an asset), and hands the robot on when it is done. Its `done`
+ *   says so to anyone who waits for it; a Coverage also reports each contact
+ *   (`on contact`).
+ * - A **Hold until** takes the robot and keeps it until all (or any) of what
+ *   is wired into it holds: another step's `done`, a time, a contact count.
+ * - An **On contact** node takes a Coverage's contacts and sends its robot to
+ *   each in turn (its `position` is the target of the loop's Navigate), then
+ *   lets it go on `no more`.
+ * - A **condition** is a true/false: elapsed time, contacts found.
  *
  * ## The rules it is built on
  *
@@ -185,10 +205,10 @@ import { useAsyncAction } from "./use-async-action";
  *   an action comes from `GRAPH_ACTIONS`, a condition is built field by field
  *   off `CONDITION_OP_SHAPE`. A control that lets an operator type a value
  *   nothing downstream recognises fails silently.
- * - **The asset list tracks the map.** The features come from the shared
- *   catalogue the mission map publishes on every fetch, scoped to ONE map, so
- *   drawing a zone on the map beside it reaches these pickers with no refresh.
- *   The editor still fetches for itself when nothing has published that map.
+ * - **The asset list is the mission's.** A mission is a map, its assets and a
+ *   graph: the pickers offer the mission's own waypoints, zones and cues
+ *   (`state/mission-assets-store.ts`), so one drawn on the mission map beside
+ *   it reaches them with no refresh.
  */
 
 /** Props for the mission-graph editor widget. */
@@ -263,18 +283,18 @@ const RUN_STYLE: Record<RunTone, { ring: string; text: string }> = {
  * `@theme inline` and is not emitted at runtime.
  */
 const PORT_COLOR: Record<PortType, string> = {
-	flow: "var(--foreground)",
+	agent: "var(--foreground)",
 	waypoint: "var(--success)",
 	zone: "var(--success)",
 	asset: "var(--success)",
-	agent: "var(--info)",
 	bool: "var(--chart-1)",
+	event: "var(--warning)",
 };
 
 /**
  * Shape + accent per node kind, so a chain reads at a glance: agents are
- * pills, steps are cards, a Wait is a gate, the values that feed them are
- * small tags.
+ * pills, steps are cards, a Hold until is a gate, an On contact node a loop,
+ * the values that feed them are small tags.
  */
 const KIND_STYLE: Record<
 	GraphNodeKind,
@@ -293,10 +313,16 @@ const KIND_STYLE: Record<
 		icon: Zap,
 	},
 	wait: {
-		label: "Wait",
+		label: "Hold until",
 		shape: "rounded-md border-2 border-dashed border-warning min-w-40",
 		header: "bg-warning/15",
 		icon: Hourglass,
+	},
+	on_contact: {
+		label: "On contact",
+		shape: "rounded-md border-2 border-warning min-w-44",
+		header: "bg-warning/15",
+		icon: Repeat,
 	},
 	condition: {
 		label: "Condition",
@@ -313,7 +339,7 @@ const KIND_STYLE: Record<
 };
 
 /**
- * A handle's look: the chain ("then") is a square, true/false a diamond,
+ * A handle's look: the robot (agent) is a square, true/false a diamond,
  * everything else a dot — distinguishable without colour.
  */
 function handleStyle(type: PortType, side: "left" | "right") {
@@ -323,7 +349,7 @@ function handleStyle(type: PortType, side: "left" | "right") {
 		height: 10,
 		background: PORT_COLOR[type],
 		borderColor: "var(--background)",
-		borderRadius: type === "flow" || type === "bool" ? 2 : 999,
+		borderRadius: type === "agent" || type === "bool" ? 2 : 999,
 		transform:
 			type === "bool"
 				? `translate(${shift}, -50%) rotate(45deg)`
@@ -438,7 +464,8 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 		(node.kind === "action" &&
 			(!node.action || (!node.feature_id && !targetWired))) ||
 		(node.kind === "condition" && !node.condition) ||
-		(node.kind === "wait" && (wiredFrom.when?.length ?? 0) === 0);
+		(node.kind === "wait" && (wiredFrom.when?.length ?? 0) === 0) ||
+		(node.kind === "on_contact" && (wiredFrom.event?.length ?? 0) === 0);
 
 	return (
 		<div
@@ -548,18 +575,29 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 								onClick={() => onPatch(node.id, { mode })}
 								title={
 									mode === "all"
-										? "Go on when EVERY condition wired in holds"
-										: "Go on when ANY condition wired in holds"
+										? "Let the robot go when EVERYTHING wired in holds"
+										: "Let the robot go when ANYTHING wired in holds"
 								}
 							>
 								{mode === "all" ? "All of" : "Any of"}
 							</button>
 						))}
 						<span className="text-[10px] text-muted-foreground">
-							{wiredFrom.when?.length ?? 0} condition
+							{wiredFrom.when?.length ?? 0} input
 							{(wiredFrom.when?.length ?? 0) === 1 ? "" : "s"}
 						</span>
 					</div>
+				)}
+
+				{node.kind === "on_contact" && (
+					<span
+						className={`truncate ${(wiredFrom.event?.length ?? 0) > 0 ? "" : "text-destructive"}`}
+						title="Its robot goes to each contact in turn, then leaves by 'no more'"
+					>
+						{(wiredFrom.event?.length ?? 0) > 0
+							? `each contact of ${wiredFrom.event?.join(", ")}`
+							: "wire a Coverage's “on contact” in"}
+					</span>
 				)}
 
 				{node.kind === "condition" && (
@@ -571,7 +609,9 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 					</span>
 				)}
 
-				{(node.kind === "action" || node.kind === "wait") &&
+				{(node.kind === "action" ||
+					node.kind === "wait" ||
+					node.kind === "on_contact") &&
 					assigned.length > 0 && (
 						<span
 							className="truncate text-[10px] text-muted-foreground"
@@ -607,6 +647,13 @@ const NODE_TYPES: NodeTypes = { c2: GraphNodeCard };
  */
 const DELETE_KEY_CODES = ["Delete", "Backspace"];
 
+/**
+ * What Ctrl+C copied: nodes and the edges between them. Module-level, so a
+ * copy survives switching missions (a pasted asset then names the other
+ * mission's asset, which the compiler reports).
+ */
+let graphClipboard: GraphClip | null = null;
+
 /** Shared empty selection, so an unselected canvas keeps a stable identity. */
 const NO_SELECTION: readonly string[] = Object.freeze([]);
 
@@ -616,11 +663,12 @@ const KIND_DEFAULT_LABEL: Record<GraphNodeKind, string> = {
 	asset: "Asset",
 	action: "Action",
 	condition: "When",
-	wait: "Wait",
+	wait: "Hold until",
+	on_contact: "On contact",
 };
 
-/** The flow ("then") edges are the chain: solid, heavier, arrowed. */
-const FLOW_EDGE_STYLE = { stroke: PORT_COLOR.flow, strokeWidth: 2 } as const;
+/** The robot's edges are the chain: solid, heavier, arrowed. */
+const AGENT_EDGE_STYLE = { stroke: PORT_COLOR.agent, strokeWidth: 2 } as const;
 
 /** The type a stored edge carries: its source port's. */
 function edgeType(
@@ -629,11 +677,11 @@ function edgeType(
 	featureTypes: Readonly<Record<string, string>>,
 ): PortType {
 	const source = nodesById.get(edge.source);
-	if (!source) return "flow";
+	if (!source) return "agent";
 	return (
 		nodePorts(source, featureTypes).outputs.find(
 			(port) => port.id === edge.source_port,
-		)?.type ?? "flow"
+		)?.type ?? "agent"
 	);
 }
 
@@ -657,12 +705,12 @@ function toCanvasEdges(
 			markerEnd: {
 				type: MarkerType.ArrowClosed,
 				color,
-				width: type === "flow" ? 16 : 12,
-				height: type === "flow" ? 16 : 12,
+				width: type === "agent" ? 16 : 12,
+				height: type === "agent" ? 16 : 12,
 			},
 			style:
-				type === "flow"
-					? FLOW_EDGE_STYLE
+				type === "agent"
+					? AGENT_EDGE_STYLE
 					: {
 							stroke: color,
 							strokeWidth: 1.5,
@@ -721,6 +769,12 @@ function MissionGraphEditorBody(props: {
 	const missionId = useSelectedMission();
 	const graph = useMissionGraph(missionId);
 	const dirty = useMissionGraphDirty(missionId);
+	const [canUndo, canRedo] = useMissionGraphHistory(missionId);
+	/**
+	 * The drag in progress: every position change of one drag shares its key,
+	 * so undo takes the whole move back in one step.
+	 */
+	const moveGesture = useRef(0);
 	const draft = useMissionDraft(missionId);
 	const agents = useAgents();
 
@@ -756,7 +810,8 @@ function MissionGraphEditorBody(props: {
 	// agent is: select it and bring it into view. Acted on per request (a
 	// subscription, not an effect over the latest), reading the mission and
 	// graph through a latest-ref so the subscription is made once.
-	const { setCenter, getNode, screenToFlowPosition } = useReactFlow();
+	const { setCenter, getNode, screenToFlowPosition, fitView } =
+		useReactFlow();
 	const focusTarget = useRef<{
 		missionId: string | null;
 		graph: MissionGraph | null;
@@ -780,6 +835,27 @@ function MissionGraphEditorBody(props: {
 				void setCenter(
 					node.position.x + (measured?.width ?? 180) / 2,
 					node.position.y + (measured?.height ?? 80) / 2,
+					{ zoom: 1.1, duration: 400 },
+				);
+			}),
+		[getNode, setCenter],
+	);
+	// An asset picked in the asset panel: select every node that uses it.
+	useEffect(
+		() =>
+			subscribeAssetFocus((request) => {
+				const { missionId: shownId, graph: shownGraph } =
+					focusTarget.current;
+				if (!shownId || request.missionId !== shownId) return;
+				const uses = assetUses(shownGraph ?? null, request.featureId);
+				setSelectedEdgeIds(NO_SELECTION);
+				setSelectedNodeIds(uses.length > 0 ? uses : NO_SELECTION);
+				const first = shownGraph?.nodes.find((n) => n.id === uses[0]);
+				if (!first) return;
+				const measured = getNode(first.id)?.measured;
+				void setCenter(
+					first.position.x + (measured?.width ?? 180) / 2,
+					first.position.y + (measured?.height ?? 80) / 2,
 					{ zoom: 1.1, duration: 400 },
 				);
 			}),
@@ -1013,15 +1089,17 @@ function MissionGraphEditorBody(props: {
 	const feedback = useMissionFeedbackExact(missionId);
 	const runMarks = useMemo(() => {
 		const agentNodes = new Map<string, string[]>();
+		const nodeLabels: Record<string, string> = {};
 		for (const node of graph?.nodes ?? []) {
+			nodeLabels[node.id] = node.label || node.action || node.id;
 			if (node.kind !== "agent" || !node.agent_id) continue;
 			agentNodes.set(node.agent_id, [
 				...(agentNodes.get(node.agent_id) ?? []),
 				node.id,
 			]);
 		}
-		return programMarks(agentNodes, feedback?.program, agentNames);
-	}, [graph, feedback?.program, agentNames]);
+		return programMarks(agentNodes, feedback?.program, nodeLabels);
+	}, [graph, feedback?.program]);
 
 	// ---- Canvas edits ------------------------------------------------------
 
@@ -1207,26 +1285,35 @@ function MissionGraphEditorBody(props: {
 				(change) => change.type === "position",
 			);
 			if (positional.length === 0) return;
-			editMissionGraph(missionId, (current) => {
-				const applied = applyNodeChanges(
-					positional,
-					current.nodes.map((node) => ({
-						id: node.id,
-						position: node.position,
-						data: {},
-					})),
-				);
-				const positions = new Map(
-					applied.map((node) => [node.id, node.position]),
-				);
-				return {
-					...current,
-					nodes: current.nodes.map((node) => {
-						const next = positions.get(node.id);
-						return next ? { ...node, position: next } : node;
-					}),
-				};
-			});
+			const gesture = `move:${moveGesture.current}`;
+			// The drop ends the gesture: the next drag is a step of its own.
+			if (positional.some((change) => change.dragging === false)) {
+				moveGesture.current += 1;
+			}
+			editMissionGraph(
+				missionId,
+				(current) => {
+					const applied = applyNodeChanges(
+						positional,
+						current.nodes.map((node) => ({
+							id: node.id,
+							position: node.position,
+							data: {},
+						})),
+					);
+					const positions = new Map(
+						applied.map((node) => [node.id, node.position]),
+					);
+					return {
+						...current,
+						nodes: current.nodes.map((node) => {
+							const next = positions.get(node.id);
+							return next ? { ...node, position: next } : node;
+						}),
+					};
+				},
+				gesture,
+			);
 		},
 		[missionId, deleteNodes],
 	);
@@ -1497,9 +1584,63 @@ function MissionGraphEditorBody(props: {
 		[],
 	);
 
-	/** Escape closes the drop menu, then clears the selection. */
+	/** Take back / do again the last edit (a whole drag is one). */
+	const undo = useCallback(() => {
+		if (missionId && undoMissionGraph(missionId)) setDropMenu(null);
+	}, [missionId]);
+	const redo = useCallback(() => {
+		if (missionId && redoMissionGraph(missionId)) setDropMenu(null);
+	}, [missionId]);
+
+	/** One lane per agent, in the order its robot takes the steps. */
+	const tidy = useCallback(() => {
+		if (!missionId) return;
+		editMissionGraph(missionId, layoutLanes);
+		void fitView({ duration: 300 });
+	}, [missionId, fitView]);
+
+	/** Copy the selected nodes (not agents) and the edges between them. */
+	const copy = useCallback(() => {
+		if (!graph) return;
+		const clip = copySelection(graph, selectedNodeIds);
+		if (clip) graphClipboard = clip;
+	}, [graph, selectedNodeIds]);
+
+	/** Paste what was copied, beside the originals, and select the copies. */
+	const paste = useCallback(() => {
+		const clip = graphClipboard;
+		if (!missionId || !clip) return;
+		let pasted: string[] = [];
+		editMissionGraph(missionId, (current) => {
+			const result = pasteClip(current, clip);
+			pasted = result.ids;
+			return result.graph;
+		});
+		setSelectedEdgeIds(NO_SELECTION);
+		setSelectedNodeIds(pasted);
+	}, [missionId]);
+
+	/**
+	 * Escape closes the drop menu, then clears the selection. Ctrl/Cmd+Z
+	 * undoes, Ctrl/Cmd+Shift+Z or Ctrl+Y redoes, Ctrl/Cmd+C and +V copy and
+	 * paste nodes — none of them while typing in a field.
+	 */
 	const onKeyDown = useCallback(
 		(event: React.KeyboardEvent<HTMLDivElement>) => {
+			const mod = event.ctrlKey || event.metaKey;
+			const key = event.key.toLowerCase();
+			if (
+				mod &&
+				(key === "z" || key === "y" || key === "c" || key === "v")
+			) {
+				if (!shouldHandleGraphShortcut(event.nativeEvent)) return;
+				event.preventDefault();
+				if (key === "c") copy();
+				else if (key === "v") paste();
+				else if (key === "y" || event.shiftKey) redo();
+				else undo();
+				return;
+			}
 			if (event.key !== "Escape") return;
 			if (dropMenu) {
 				setDropMenu(null);
@@ -1508,7 +1649,7 @@ function MissionGraphEditorBody(props: {
 			if (!shouldHandleGraphShortcut(event.nativeEvent)) return;
 			clearSelection();
 		},
-		[clearSelection, dropMenu],
+		[clearSelection, dropMenu, undo, redo, copy, paste],
 	);
 
 	// ---- Persistence -------------------------------------------------------
@@ -1670,17 +1811,27 @@ function MissionGraphEditorBody(props: {
 					variant="outline"
 					disabled={busy}
 					onClick={() => addNode("wait")}
-					title="Hold the chain until all (or any) of the conditions wired in hold"
+					title="Keep the robot until all (or any) of what is wired in holds: another step done, a time, contacts"
 				>
 					<Hourglass />
-					Wait
+					Hold until
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={busy}
+					onClick={() => addNode("on_contact")}
+					title="Send the robot to each contact a Coverage reports, in turn; wire the loop back into it"
+				>
+					<Repeat />
+					On contact
 				</Button>
 				<Button
 					size="sm"
 					variant="outline"
 					disabled={busy}
 					onClick={() => addNode("condition")}
-					title="A true/false to wire into a Wait: elapsed time, findings, an agent holding"
+					title="A true/false to wire into a Hold until: elapsed time, contacts found"
 				>
 					<GitBranch />
 					Condition
@@ -1694,6 +1845,42 @@ function MissionGraphEditorBody(props: {
 				>
 					<MapPin />
 					Asset
+				</Button>
+
+				<Separator
+					orientation="vertical"
+					className="data-[orientation=vertical]:h-6"
+				/>
+
+				<Button
+					size="icon-sm"
+					variant="ghost"
+					disabled={!canUndo}
+					onClick={undo}
+					title="Undo (Ctrl+Z)"
+					aria-label="Undo"
+				>
+					<Undo2 />
+				</Button>
+				<Button
+					size="icon-sm"
+					variant="ghost"
+					disabled={!canRedo}
+					onClick={redo}
+					title="Redo (Ctrl+Shift+Z)"
+					aria-label="Redo"
+				>
+					<Redo2 />
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={busy || !graph || graph.nodes.length === 0}
+					onClick={tidy}
+					title="Lay the graph out: one lane per agent, its steps in the order the robot takes them, what feeds a step below it (undo takes it back)"
+				>
+					<LayoutGrid />
+					Tidy
 				</Button>
 
 				<Separator
@@ -1790,6 +1977,7 @@ function MissionGraphEditorBody(props: {
 					>
 						<Background />
 						<Controls showInteractive={false} />
+						<MiniMap pannable zoomable />
 						<Panel position="top-left">
 							<PortLegend />
 						</Panel>
@@ -1959,10 +2147,10 @@ function MissionGraphEditorBody(props: {
 /** What each wire colour carries. Hoisted for a stable identity. */
 function PortLegend() {
 	const rows: [PortType, string][] = [
-		["flow", "then (the chain)"],
+		["agent", "the robot (the chain)"],
 		["waypoint", "place"],
-		["agent", "agent"],
-		["bool", "true/false"],
+		["bool", "true/false (done, conditions)"],
+		["event", "contacts"],
 	];
 	return (
 		<div className="flex flex-col gap-0.5 rounded border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground">
@@ -1973,7 +2161,7 @@ function PortLegend() {
 						style={{
 							background: PORT_COLOR[type],
 							borderRadius:
-								type === "flow" || type === "bool" ? 1 : 999,
+								type === "agent" || type === "bool" ? 1 : 999,
 							transform:
 								type === "bool" ? "rotate(45deg)" : undefined,
 						}}
@@ -2013,9 +2201,6 @@ function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
 function ConditionEditor(props: {
 	condition?: GraphCondition;
 	zones: readonly CatalogFeature[];
-	agents: { id: string; name: string }[];
-	/** Captions of the agent nodes wired into the agent input, if any. */
-	agentWiredFrom: string[];
 	onChange: (condition: GraphCondition | undefined) => void;
 }) {
 	const { condition } = props;
@@ -2060,11 +2245,14 @@ function ConditionEditor(props: {
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value={UNSET}>No predicate</SelectItem>
-					{CONDITION_OPS.map((op) => (
-						<SelectItem key={op} value={op}>
-							{CONDITION_OP_SHAPE[op].label}
-						</SelectItem>
-					))}
+					{/* A step being done is its `done` output, wired. */}
+					{CONDITION_OPS.filter((op) => op !== "StepDone").map(
+						(op) => (
+							<SelectItem key={op} value={op}>
+								{CONDITION_OP_SHAPE[op].label}
+							</SelectItem>
+						),
+					)}
 				</SelectContent>
 			</Select>
 
@@ -2099,46 +2287,6 @@ function ConditionEditor(props: {
 									))}
 								</SelectContent>
 							</Select>
-						</div>
-					)}
-
-					{shape.key === "agent" && (
-						<div className="flex flex-col gap-1">
-							<Label className="text-[11px]">Agent</Label>
-							{props.agentWiredFrom.length > 0 ? (
-								<span className="text-[11px] text-muted-foreground">
-									Wired from {props.agentWiredFrom.join(", ")}
-								</span>
-							) : (
-								<Select
-									value={condition.key || UNSET}
-									onValueChange={(value) =>
-										update({
-											key:
-												value === UNSET
-													? undefined
-													: value,
-										})
-									}
-								>
-									<SelectTrigger size="sm" className="w-full">
-										<SelectValue placeholder="Agent" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value={UNSET}>
-											No agent
-										</SelectItem>
-										{props.agents.map((agent) => (
-											<SelectItem
-												key={agent.id}
-												value={agent.id}
-											>
-												{agent.name || agent.id}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							)}
 						</div>
 					)}
 
@@ -2452,21 +2600,34 @@ function NodeInspector(props: {
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all">
-							Go on when ALL conditions hold
+							Let go when ALL of its inputs hold
 						</SelectItem>
 						<SelectItem value="any">
-							Go on when ANY condition holds
+							Let go when ANY of its inputs holds
 						</SelectItem>
 					</SelectContent>
 				</Select>
+			)}
+
+			{node.kind === "on_contact" && (
+				<p className="text-[11px] text-muted-foreground">
+					Takes the contacts of the Coverage wired into
+					&ldquo;contacts&rdquo;, in the order they come. For each,
+					the robot goes out on &ldquo;each contact&rdquo; — wire
+					&ldquo;position&rdquo; into a Navigate&apos;s target — and
+					the last step of the loop comes back into this node for the
+					next one. Once the Coverage is done and every contact was
+					visited, the robot leaves on &ldquo;no more&rdquo;.
+					{(props.wiredFrom.event?.length ?? 0) > 0
+						? ` Contacts of: ${props.wiredFrom.event?.join(", ")}.`
+						: " No Coverage is wired in yet."}
+				</p>
 			)}
 
 			{node.kind === "condition" && (
 				<ConditionEditor
 					condition={node.condition}
 					zones={props.zones}
-					agents={props.agents}
-					agentWiredFrom={props.wiredFrom.agent ?? []}
 					onChange={(condition) => props.onPatch({ condition })}
 				/>
 			)}
@@ -2484,8 +2645,8 @@ function EdgeInspector(props: {
 		<div className="flex flex-col gap-2">
 			<div className="flex items-center justify-between gap-2">
 				<Label className="text-xs">
-					{props.type === "flow"
-						? '"Then" link'
+					{props.type === "agent"
+						? "Robot link"
 						: `${PORT_TYPE_LABEL[props.type]} link`}
 				</Label>
 				<Button
@@ -2500,8 +2661,8 @@ function EdgeInspector(props: {
 				</Button>
 			</div>
 			<p className="text-[11px] text-muted-foreground">
-				{props.type === "flow"
-					? "The chain: the next step starts when this one ends."
+				{props.type === "agent"
+					? "The robot goes on to the next step when this one ends."
 					: `Carries a ${PORT_TYPE_LABEL[props.type]} from "${props.edge.source_port}" into "${props.edge.target_port}".`}
 			</p>
 		</div>

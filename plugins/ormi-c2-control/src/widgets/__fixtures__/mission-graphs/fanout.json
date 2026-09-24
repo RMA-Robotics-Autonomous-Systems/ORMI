@@ -1,9 +1,9 @@
 {
 	"name": "fanout",
-	"description": "An action continuing into two steps is refused: a chain is a straight line.",
+	"description": "An action handing its robot on to two steps is refused: a robot does one thing at a time.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -51,30 +51,29 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-go.in",
+				"id": "es.agent-go.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "go.next-a.in",
+				"id": "go.agent-a.agent",
 				"source": "go",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "a",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "go.next-b.in",
+				"id": "go.agent-b.agent",
 				"source": "go",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "b",
-				"target_port": "in"
+				"target_port": "agent"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["FANOUT", "go"]],
-		"not_executable_yet": []
+		"errors": [["FANOUT", "go"]]
 	}
 }

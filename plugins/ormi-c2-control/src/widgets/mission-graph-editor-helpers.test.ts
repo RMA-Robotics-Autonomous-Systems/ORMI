@@ -10,6 +10,9 @@ import {
 	resolveGraphDraftWrite,
 	shouldHandleGraphShortcut,
 	sortIssuesBySeverity,
+	copySelection,
+	layoutLanes,
+	pasteClip,
 } from "./mission-graph-editor-helpers";
 import {
 	CONDITION_OPS,
@@ -61,14 +64,6 @@ describe("formatCondition", () => {
 		).toBe('Zone clear "f-1" ≥ 0%');
 	});
 
-	it("resolves an agent key to its agent NAME", () => {
-		expect(
-			formatCondition(condition({ op: "AgentHolding", key: "a-1" }), {
-				agentNames: { "a-1": "Rover 1" },
-			}),
-		).toBe('Agent holding "Rover 1"');
-	});
-
 	it("shows a flag key verbatim — a flag IS a name", () => {
 		expect(
 			formatCondition(condition({ op: "FlagSet", key: "lane_cleared" })),
@@ -78,9 +73,6 @@ describe("formatCondition", () => {
 	it("says so when an op needs a key and none is set", () => {
 		expect(formatCondition(condition({ op: "ZoneClear" }))).toContain(
 			"<no zone>",
-		);
-		expect(formatCondition(condition({ op: "AgentHolding" }))).toContain(
-			"<no agent>",
 		);
 		expect(formatCondition(condition({ op: "FlagSet" }))).toContain(
 			"<no flag>",
@@ -123,12 +115,7 @@ describe("formatCondition", () => {
 
 	it("renders NO threshold for the ops that never read one", () => {
 		// A number on one of these would be a value the fog ignores.
-		for (const op of [
-			"AgentHolding",
-			"FlagSet",
-			"Always",
-			"Never",
-		] as const) {
+		for (const op of ["StepDone", "FlagSet", "Always", "Never"] as const) {
 			expect(
 				formatCondition(condition({ op, key: "x", threshold: 7 })),
 			).not.toContain("7");
@@ -682,11 +669,13 @@ describe("the graph shows where each agent is while the mission runs", () => {
 					steps: [
 						{
 							step_id: "go-es",
+							kind: "STEP",
 							wait_node: "",
 							mode: "all",
 							gate_nodes: [],
 						},
 					],
+					done_steps: [],
 				},
 				"agent-ge": {
 					chain: 1,
@@ -697,17 +686,20 @@ describe("the graph shows where each agent is while the mission runs", () => {
 					steps: [
 						{
 							step_id: "go-ge",
+							kind: "STEP",
 							wait_node: "wait-1",
 							mode: "any",
 							gate_nodes: ["when"],
 						},
 						{
 							step_id: "back-ge",
+							kind: "STEP",
 							wait_node: "wait-2",
 							mode: "all",
-							gate_nodes: ["es-holds"],
+							gate_nodes: ["late"],
 						},
 					],
+					done_steps: [],
 					gate: {
 						node_ids: ["when"],
 						wait_node: "wait-1",
@@ -739,7 +731,7 @@ describe("the graph shows where each agent is while the mission runs", () => {
 	});
 
 	it("marks the running step, the gate countdown and the agents", () => {
-		const marks = programMarks(agentNodes, program, { "agent-es": "Es" });
+		const marks = programMarks(agentNodes, program);
 		expect(marks.get("go-es")).toEqual({
 			tone: "running",
 			text: "running",
@@ -749,13 +741,13 @@ describe("the graph shows where each agent is while the mission runs", () => {
 			text: "waiting 12/30 s",
 		});
 		expect(marks.get("go-ge")).toEqual({ tone: "starting", text: "next" });
-		// The Wait the agent is held at, and how far its conditions are.
+		// The Hold until the agent is held at, and how far its inputs are.
 		expect(marks.get("wait-1")).toEqual({
 			tone: "waiting",
-			text: "waiting · 0/1 hold (any)",
+			text: "holding · 0/1 (any)",
 		});
-		expect(marks.get("es")?.text).toBe("step 1/1 · running");
-		expect(marks.get("ge")?.text).toBe("step 1/2 · waiting");
+		expect(marks.get("es")?.text).toBe("running");
+		expect(marks.get("ge")?.text).toBe("waiting");
 		// Ge's second step is ahead: no mark yet.
 		expect(marks.has("back-ge")).toBe(false);
 	});
@@ -767,34 +759,36 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				step_index: 1,
 				state: "FAILED" as const,
 				gate: undefined,
+				done_steps: ["go-ge"],
 			},
 		};
 		const marks = programMarks(agentNodes, later);
 		expect(marks.get("go-ge")?.tone).toBe("done");
-		// Wait-1 was "any": it opened, but which condition held is not known,
+		// Wait-1 was "any": it let go, but which input held is not known,
 		// so none is painted as held.
 		expect(marks.has("when")).toBe(false);
-		expect(marks.get("wait-1")).toEqual({ tone: "done", text: "opened" });
+		expect(marks.get("wait-1")).toEqual({ tone: "done", text: "let go" });
 		expect(marks.get("back-ge")?.tone).toBe("failed");
-		expect(marks.get("es-holds")?.tone).toBe("done");
+		expect(marks.get("late")?.tone).toBe("done");
 	});
 
-	it("says who a gate waits for", () => {
+	it("says which step a hold waits to be done, and leaves that step's own mark", () => {
 		const waiting = {
+			...program!,
 			"agent-ge": {
 				...program!["agent-ge"]!,
 				step_index: 1,
 				state: "GATED" as const,
 				gate: {
-					node_ids: ["es-holds"],
+					node_ids: ["go-es"],
 					wait_node: "wait-2",
 					mode: "all" as const,
 					waited_s: 40,
 					conditions: [
 						{
-							node_id: "es-holds",
-							op: "AgentHolding",
-							key: "agent-es",
+							node_id: "go-es",
+							op: "StepDone",
+							key: "go-es",
 							threshold: 1,
 							negate: false,
 							holds: false,
@@ -803,11 +797,71 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				},
 			},
 		};
+		// The step waited on is Es's: it stays marked as Es's running step.
+		expect(programMarks(agentNodes, waiting).get("go-es")?.text).toBe(
+			"running",
+		);
 		expect(
-			programMarks(agentNodes, waiting, { "agent-es": "Es" }).get(
-				"es-holds",
-			)?.text,
-		).toBe("waiting for Es");
+			agentPositions(waiting, { "go-es": "Sweep field" })[1]?.gate,
+		).toEqual(["waiting for Sweep field to be done"]);
+	});
+
+	it("shows an On contact node's contacts, and the contact being visited", () => {
+		const loop = {
+			"agent-ge": {
+				chain: 1,
+				step_index: 0,
+				steps_total: 2,
+				step_id: "on",
+				state: "LISTENING" as const,
+				steps: [
+					{
+						step_id: "on",
+						kind: "ON_CONTACT" as const,
+						wait_node: "",
+						mode: "all" as const,
+						gate_nodes: [],
+					},
+					{
+						step_id: "visit",
+						kind: "STEP" as const,
+						wait_node: "",
+						mode: "all" as const,
+						gate_nodes: [],
+					},
+				],
+				done_steps: ["visit"],
+				listening: {
+					node: "on",
+					source_step: "sweep",
+					taken: 2,
+					found: 2,
+					source_done: false,
+				},
+			},
+		};
+		const marks = programMarks(agentNodes, loop);
+		expect(marks.get("on")).toEqual({
+			tone: "waiting",
+			text: "2 of 2 contacts taken · sweep on",
+		});
+		expect(marks.get("visit")?.text).toBe("done");
+		expect(marks.get("ge")?.text).toBe("2 of 2 contacts taken · sweep on");
+
+		const visiting = {
+			"agent-ge": {
+				...loop["agent-ge"],
+				step_index: 1,
+				step_id: "visit",
+				state: "RUNNING" as const,
+				listening: undefined,
+				contact: { uid: "c3", lon: 4.39, lat: 50.84, node: "on" },
+			},
+		};
+		const now = programMarks(agentNodes, visiting);
+		expect(now.get("visit")?.text).toBe("running");
+		expect(now.get("on")?.text).toBe("visiting a contact");
+		expect(now.get("ge")?.text).toBe("at a contact · running");
 	});
 
 	it("counts a finding gate towards its threshold", () => {
@@ -817,13 +871,13 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				step_index: 1,
 				state: "GATED" as const,
 				gate: {
-					node_ids: ["es-holds"],
+					node_ids: ["late"],
 					wait_node: "wait-2",
 					mode: "all" as const,
 					waited_s: 12,
 					conditions: [
 						{
-							node_id: "es-holds",
+							node_id: "late",
 							op: "ContactsFound",
 							key: "",
 							threshold: 2,
@@ -835,34 +889,31 @@ describe("the graph shows where each agent is while the mission runs", () => {
 				},
 			},
 		};
-		expect(programMarks(agentNodes, waiting).get("es-holds")?.text).toBe(
+		expect(programMarks(agentNodes, waiting).get("late")?.text).toBe(
 			"waiting for 2 contacts (1 so far)",
 		);
 	});
 
 	it("lists where each agent is, for the mission feedback", () => {
-		const rows = agentPositions(
-			program,
-			{ "go-es": "Sweep field", "go-ge": "Go to hold" },
-			{ "agent-es": "Es" },
-		);
+		const rows = agentPositions(program, {
+			"go-es": "Sweep field",
+			"go-ge": "Go to hold",
+		});
 		expect(rows.map((r) => r.agentId)).toEqual(["agent-es", "agent-ge"]);
 		expect(rows[0]).toMatchObject({
 			stepId: "go-es",
 			tone: "running",
-			text: "step 1/1 · Sweep field · running",
+			text: "Sweep field · running",
 			gate: [],
 		});
 		expect(rows[1]).toMatchObject({
 			stepId: "go-ge",
 			tone: "waiting",
-			text: "step 1/2 · Go to hold · waiting",
+			text: "Go to hold · waiting",
 			gate: ["waiting 12/30 s"],
 		});
 		// No graph loaded: the node id stands in for its caption.
-		expect(agentPositions(program)[0]?.text).toBe(
-			"step 1/1 · go-es · running",
-		);
+		expect(agentPositions(program)[0]?.text).toBe("go-es · running");
 		expect(agentPositions(undefined)).toEqual([]);
 	});
 
@@ -870,5 +921,138 @@ describe("the graph shows where each agent is while the mission runs", () => {
 		expect(programMarks(agentNodes, undefined).size).toBe(0);
 		const marks = programMarks(new Map(), program);
 		expect(marks.has("es")).toBe(false);
+	});
+});
+
+describe("tidy: one lane per agent", () => {
+	const at = { x: 5, y: 5 };
+	const n = (
+		id: string,
+		kind: "agent" | "action" | "asset" | "on_contact",
+	) => ({
+		id,
+		kind,
+		label: id,
+		position: at,
+	});
+	const e = (source: string, sp: string, target: string, tp: string) => ({
+		id: `${source}.${sp}-${target}.${tp}`,
+		source,
+		source_port: sp,
+		target,
+		target_port: tp,
+	});
+
+	it("puts each agent's steps in a row, in the robot's order, loop before exit", () => {
+		const g = layoutLanes({
+			version: 3,
+			nodes: [
+				n("fr", "agent"),
+				n("sweep", "action"),
+				n("zone", "asset"),
+				n("ge", "agent"),
+				n("on", "on_contact"),
+				n("visit", "action"),
+				n("home", "action"),
+				n("stray", "action"),
+			],
+			edges: [
+				e("fr", "agent", "sweep", "agent"),
+				e("zone", "value", "sweep", "target"),
+				e("ge", "agent", "on", "agent"),
+				e("on", "agent", "visit", "agent"),
+				e("visit", "agent", "on", "agent"),
+				e("on", "no_more", "home", "agent"),
+				e("sweep", "contact", "on", "event"),
+			],
+		});
+		const p = (id: string) => g.nodes.find((x) => x.id === id)!.position;
+		expect(p("fr").y).toBe(p("sweep").y);
+		expect(p("sweep").x).toBeGreaterThan(p("fr").x);
+		expect(p("ge").y).toBeGreaterThan(p("fr").y);
+		expect([p("on").x, p("visit").x, p("home").x]).toEqual([
+			p("on").x,
+			p("on").x + 280,
+			p("on").x + 560,
+		]);
+		// What feeds a step sits below it.
+		expect(p("zone").y).toBeGreaterThan(p("sweep").y);
+		// Unreached: a last lane.
+		expect(p("stray").y).toBeGreaterThan(p("ge").y);
+	});
+
+	it("returns the same graph when it is already laid out", () => {
+		const once = layoutLanes({
+			version: 3,
+			nodes: [n("a", "agent"), n("go", "action")],
+			edges: [e("a", "agent", "go", "agent")],
+		});
+		expect(layoutLanes(once)).toBe(once);
+	});
+});
+
+describe("copy and paste", () => {
+	const at = { x: 10, y: 20 };
+	const graph = {
+		version: 3,
+		nodes: [
+			{
+				id: "a",
+				kind: "agent" as const,
+				label: "A",
+				position: at,
+				agent_id: "r",
+			},
+			{
+				id: "go",
+				kind: "action" as const,
+				label: "Go",
+				position: at,
+				action: "NAVIGATE" as const,
+			},
+			{
+				id: "wp",
+				kind: "asset" as const,
+				label: "Hold",
+				position: at,
+				feature_id: "f",
+			},
+		],
+		edges: [
+			{
+				id: "e1",
+				source: "a",
+				source_port: "agent",
+				target: "go",
+				target_port: "agent",
+			},
+			{
+				id: "e2",
+				source: "wp",
+				source_port: "value",
+				target: "go",
+				target_port: "target",
+			},
+		],
+	};
+
+	it("copies the selected nodes (never an agent) and only the edges between them", () => {
+		const clip = copySelection(graph, ["a", "go", "wp"])!;
+		expect(clip.nodes.map((n) => n.id)).toEqual(["go", "wp"]);
+		expect(clip.edges.map((e) => e.id)).toEqual(["e2"]);
+		expect(copySelection(graph, ["a"])).toBeNull();
+	});
+
+	it("pastes copies under new ids, beside the originals, wired to each other", () => {
+		const clip = copySelection(graph, ["go", "wp"])!;
+		const { graph: next, ids } = pasteClip(graph, clip);
+		expect(next.nodes).toHaveLength(5);
+		expect(ids).toHaveLength(2);
+		expect(ids).not.toContain("go");
+		const copyOfGo = next.nodes.find((n) => n.id === ids[0])!;
+		expect(copyOfGo.position).toEqual({ x: 50, y: 60 });
+		const wired = next.edges.find((e) => e.target === ids[0])!;
+		expect(wired.source).toBe(ids[1] as string);
+		expect(wired.target_port).toBe("target");
 	});
 });

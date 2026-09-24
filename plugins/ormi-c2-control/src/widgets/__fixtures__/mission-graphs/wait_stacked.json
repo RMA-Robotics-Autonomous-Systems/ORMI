@@ -3,7 +3,7 @@
 	"description": "Two Waits in a row: wire every condition into one Wait instead.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -77,25 +77,25 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-w1.in",
+				"id": "es.agent-w1.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w1",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "w1.next-w2.in",
+				"id": "w1.agent-w2.agent",
 				"source": "w1",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w2",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "w2.next-go.in",
+				"id": "w2.agent-go.agent",
 				"source": "w2",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "a.value-w1.when",
@@ -114,7 +114,6 @@
 		]
 	},
 	"expect": {
-		"errors": [["WAIT_STACKED", "w2"]],
-		"not_executable_yet": []
+		"errors": [["WAIT_STACKED", "w2"]]
 	}
 }

@@ -1,0 +1,82 @@
+{
+	"name": "agent_holding_is_gone",
+	"description": "AgentHolding was replaced by a step's `done`: it is not a condition.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "holding",
+				"kind": "condition",
+				"label": "holding",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "AgentHolding",
+					"threshold": 0,
+					"negate": false,
+					"key": "agent-ge"
+				}
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-wait.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "wait",
+				"target_port": "agent"
+			},
+			{
+				"id": "wait.agent-go.agent",
+				"source": "wait",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "holding.value-wait.when",
+				"source": "holding",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["CONDITION_MISSING", "holding"]]
+	}
+}

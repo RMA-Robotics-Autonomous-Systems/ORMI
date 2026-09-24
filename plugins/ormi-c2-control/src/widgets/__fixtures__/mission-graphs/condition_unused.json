@@ -3,7 +3,7 @@
 	"description": "A condition wired into no Wait: nothing waits on it.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -43,16 +43,15 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-go.in",
+				"id": "es.agent-go.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["CONDITION_UNUSED", "late"]],
-		"not_executable_yet": []
+		"errors": [["CONDITION_UNUSED", "late"]]
 	}
 }

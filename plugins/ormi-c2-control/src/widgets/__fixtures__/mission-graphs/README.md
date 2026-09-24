@@ -11,7 +11,7 @@ every file here, so the editor and the fog refuse exactly the same graphs with
 exactly the same codes.
 
 They are written by the fog's `test/fixtures/make_mission_graphs.py` (graph
-schema 2: typed ports, Wait nodes).
+schema 3: the agent flows through typed ports; Hold until, `done`, On contact).
 
 **Copy, don't edit.** Change a case in that script, run it, copy the directory
 over, then make `mission-program.ts` pass.

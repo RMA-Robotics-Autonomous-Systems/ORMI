@@ -17,6 +17,7 @@ import { MissionBrowserDefinition } from "./widgets/mission-browser";
 import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 import { MissionGraphEditorDefinition } from "./widgets/mission-graph-editor";
 import { MissionMapDefinition } from "./widgets/mission-map";
+import { MissionAssetsDefinition } from "./widgets/mission-assets-panel";
 import { MissionControlPage } from "./page/mission-control-page";
 
 export { C2_DATASOURCE_ID } from "./datasource/datasource-select";
@@ -59,6 +60,9 @@ const C2_COMMAND_WIDGET_IDS = [
 	// and the map's feature catalogue (`c2.map.features.list`), so it gates on
 	// the C2 datasource exactly as the other authoring panels do.
 	"c2-mission-graph-widget",
+	// The asset panel reads and writes the mission store and the map's
+	// features, like the map and the graph editor.
+	"c2-mission-assets-widget",
 ] as const;
 
 /**
@@ -145,6 +149,7 @@ export const widgetsExport = (
 	// editor.
 	widgets.push(MissionMapDefinition());
 	widgets.push(MissionGraphEditorDefinition());
+	widgets.push(MissionAssetsDefinition());
 	return widgets;
 };
 

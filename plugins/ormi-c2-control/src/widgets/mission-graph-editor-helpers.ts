@@ -68,9 +68,6 @@ function formatKey(
 		case "zone":
 			if (!key) return " <no zone>";
 			return ` "${lookup.featureNames?.[key] ?? key}"`;
-		case "agent":
-			if (!key) return " <no agent>";
-			return ` "${lookup.agentNames?.[key] ?? key}"`;
 		case "flag":
 			// A flag IS a name the operator typed — there is nothing to resolve.
 			return key ? ` "${key}"` : " <no flag>";
@@ -81,7 +78,7 @@ function formatKey(
 function formatThreshold(shape: ConditionOpShape, threshold: number): string {
 	switch (shape.threshold) {
 		case "none":
-			// `AgentHolding`, `FlagSet`, `Always` and `Never` never read it, so
+			// `StepDone`, `FlagSet`, `Always` and `Never` never read it, so
 			// showing one would be a number that means nothing.
 			return "";
 		case "fraction":
@@ -434,96 +431,118 @@ const STATE_WORD: Record<ProgramStepState, string> = {
 	PLANNING: "planning",
 	READY: "planned",
 	RUNNING: "running",
+	LISTENING: "listening",
 	DONE: "done",
 	FAILED: "failed",
 };
+
+/** "2 of 3 contacts taken · sweep done" for an On contact node. */
+function listeningText(p: ProgramProgress): string {
+	const l = p.listening;
+	if (!l) return "listening";
+	const found = `${l.taken} of ${l.found} contact${l.found === 1 ? "" : "s"} taken`;
+	return l.source_done ? `${found} · sweep done` : `${found} · sweep on`;
+}
 
 /**
  * Turn the fog's `program` progress into a mark per graph node.
  *
  * Marks are by node id, from the chain the FOG compiled (its `steps`), so a
  * graph edited after submit shows fewer marks, never wrong ones: an id that no
- * longer exists is simply not drawn. Steps before the current one are done
- * with their gates; the current step and its gate carry the live state; agent
- * nodes carry "step i/n · state".
+ * longer exists is simply not drawn. The steps the fog reports done (at least
+ * once: a contact loop runs its steps again) are done with their gates; the
+ * current step and its gate carry the live state; an On contact node shows
+ * how many contacts it took; agent nodes carry the state.
+ *
  * @param agentNodes - `agent_id → agent node ids` in the graph.
  * @param program - `MissionFeedback.program`.
- * @param agentNames - `agent_id → name`, for AgentHolding.
+ * @param nodeLabels - Graph node id → caption, for a `done` a gate waits on.
  * @returns `node id → mark`.
  */
 export function programMarks(
 	agentNodes: ReadonlyMap<string, readonly string[]>,
 	program: Readonly<Record<string, ProgramProgress>> | undefined,
-	agentNames: Readonly<Record<string, string>> = {},
+	nodeLabels: Readonly<Record<string, string>> = {},
 ): Map<string, RunMark> {
 	const marks = new Map<string, RunMark>();
 	if (!program) return marks;
 	for (const [agentId, p] of Object.entries(program)) {
-		const total = Math.max(p.steps_total, p.steps.length);
-		const shown = Math.min(p.step_index + 1, total);
 		for (const nodeId of agentNodes.get(agentId) ?? []) {
 			marks.set(nodeId, {
 				tone: toneOf(p.state),
 				text:
-					p.state === "DONE"
-						? `done · ${total} step${total === 1 ? "" : "s"}`
-						: `step ${shown}/${total} · ${STATE_WORD[p.state]}`,
+					p.state === "LISTENING"
+						? listeningText(p)
+						: p.contact
+							? `at a contact · ${STATE_WORD[p.state]}`
+							: STATE_WORD[p.state],
 			});
 		}
-		p.steps.forEach((step, index) => {
-			const finished =
-				index < p.step_index ||
-				(index === p.step_index && p.state === "DONE");
-			if (finished) {
-				marks.set(step.step_id, { tone: "done", text: "done" });
-				markPassedGate(marks, step);
-				return;
-			}
-			if (index !== p.step_index) return;
-			if (p.state === "GATED") {
-				marks.set(step.step_id, { tone: "starting", text: "next" });
-				const wait = p.gate?.wait_node || step.wait_node;
-				if (wait) {
-					const conditions = p.gate?.conditions ?? [];
-					const holding = conditions.filter((c) => c.holds).length;
-					marks.set(wait, {
-						tone: "waiting",
-						text: `waiting · ${holding}/${conditions.length} hold (${p.gate?.mode === "any" ? "any" : "all"})`,
-					});
-				}
-				for (const c of p.gate?.conditions ?? []) {
-					marks.set(c.node_id, {
-						tone: c.holds ? "done" : "waiting",
-						text: gateText(c, p.gate?.waited_s ?? null, agentNames),
-					});
-				}
-				return;
-			}
+		for (const step of p.steps) {
+			if (!p.done_steps.includes(step.step_id)) continue;
+			marks.set(step.step_id, { tone: "done", text: "done" });
 			markPassedGate(marks, step);
-			marks.set(step.step_id, {
-				tone: toneOf(p.state),
-				text: STATE_WORD[p.state],
+		}
+		const current = p.steps[p.step_index];
+		if (!current || p.state === "DONE") continue;
+		// The On contact node the agent is looping round, while it visits.
+		if (p.contact?.node) {
+			marks.set(p.contact.node, {
+				tone: "running",
+				text: "visiting a contact",
 			});
+		}
+		if (p.state === "GATED") {
+			marks.set(current.step_id, { tone: "starting", text: "next" });
+			const wait = p.gate?.wait_node || current.wait_node;
+			if (wait) {
+				const conditions = p.gate?.conditions ?? [];
+				const holding = conditions.filter((c) => c.holds).length;
+				marks.set(wait, {
+					tone: "waiting",
+					text: `holding · ${holding}/${conditions.length} (${p.gate?.mode === "any" ? "any" : "all"})`,
+				});
+			}
+			for (const c of p.gate?.conditions ?? []) {
+				// A `done` a gate waits on is another step: its own mark stays.
+				if (c.op === "StepDone") continue;
+				marks.set(c.node_id, {
+					tone: c.holds ? "done" : "waiting",
+					text: gateText(c, p.gate?.waited_s ?? null, nodeLabels),
+				});
+			}
+			continue;
+		}
+		markPassedGate(marks, current);
+		marks.set(current.step_id, {
+			tone: toneOf(p.state),
+			text:
+				p.state === "LISTENING"
+					? listeningText(p)
+					: STATE_WORD[p.state],
 		});
 	}
 	return marks;
 }
 
 /**
- * A gate the chain has gone past: its Wait opened. Under "all" every
- * condition held; under "any" the fog does not say which one did, so the
- * conditions are left unmarked rather than all painted as held.
+ * A gate the chain has gone past: its Hold until let go. Under "all" every
+ * input held; under "any" the fog does not say which one did, so the inputs
+ * are left unmarked rather than all painted as held. A step whose `done` was
+ * an input keeps its own mark.
  */
 function markPassedGate(
 	marks: Map<string, RunMark>,
 	step: ProgramProgress["steps"][number],
 ): void {
 	if (step.wait_node) {
-		marks.set(step.wait_node, { tone: "done", text: "opened" });
+		marks.set(step.wait_node, { tone: "done", text: "let go" });
 	}
 	if (step.mode === "any") return;
-	for (const g of step.gate_nodes)
+	for (const g of step.gate_nodes) {
+		if (marks.get(g)?.text === "done") continue;
 		marks.set(g, { tone: "done", text: "held" });
+	}
 }
 
 /** Where one agent is, as the mission feedback lists it. */
@@ -532,9 +551,9 @@ export interface AgentPosition {
 	/** The graph node of its current step (the last one once done). */
 	stepId: string;
 	tone: RunTone;
-	/** "step 2/3 · Navigate · waiting" */
+	/** "Navigate · running", "On contact · 2 of 3 contacts taken · sweep on" */
 	text: string;
-	/** While it waits at a gate: each condition, e.g. "waiting 12/30 s". */
+	/** While it holds at a gate: each input, e.g. "waiting 12/30 s". */
 	gate: string[];
 }
 
@@ -544,29 +563,27 @@ export interface AgentPosition {
  *
  * @param program - `MissionFeedback.program`.
  * @param nodeLabels - Graph node id → caption, when the graph is loaded.
- * @param agentNames - `agent_id → name`, for AgentHolding conditions.
  * @returns One entry per agent, in the fog's chain order.
  */
 export function agentPositions(
 	program: Readonly<Record<string, ProgramProgress>> | undefined,
 	nodeLabels: Readonly<Record<string, string>> = {},
-	agentNames: Readonly<Record<string, string>> = {},
 ): AgentPosition[] {
 	if (!program) return [];
 	return Object.entries(program)
 		.sort(([, a], [, b]) => a.chain - b.chain)
 		.map(([agentId, p]) => {
-			const total = Math.max(p.steps_total, p.steps.length);
-			const shown = Math.min(p.step_index + 1, total);
 			const caption = nodeLabels[p.step_id] || p.step_id || "—";
 			const text =
 				p.state === "DONE"
-					? `done · ${total} step${total === 1 ? "" : "s"} · last ${caption}`
-					: `step ${shown}/${total} · ${caption} · ${STATE_WORD[p.state]}`;
+					? `done · last ${caption}`
+					: p.state === "LISTENING"
+						? `${caption} · ${listeningText(p)}`
+						: `${caption}${p.contact ? " (to a contact)" : ""} · ${STATE_WORD[p.state]}`;
 			const gate =
 				p.state === "GATED"
 					? (p.gate?.conditions ?? []).map((c) =>
-							gateText(c, p.gate?.waited_s ?? null, agentNames),
+							gateText(c, p.gate?.waited_s ?? null, nodeLabels),
 						)
 					: [];
 			return {
@@ -588,6 +605,7 @@ function toneOf(state: ProgramStepState): RunTone {
 		case "FAILED":
 			return "failed";
 		case "GATED":
+		case "LISTENING":
 			return "waiting";
 		default:
 			return "starting";
@@ -597,7 +615,7 @@ function toneOf(state: ProgramStepState): RunTone {
 function gateText(
 	c: ProgramGateCondition,
 	waited: number | null,
-	agentNames: Readonly<Record<string, string>>,
+	nodeLabels: Readonly<Record<string, string>>,
 ): string {
 	if (c.holds) return "holds";
 	if (c.op === "ElapsedSeconds") {
@@ -605,9 +623,8 @@ function gateText(
 			? `waits ${c.threshold} s from start`
 			: `waiting ${Math.floor(waited)}/${c.threshold} s`;
 	}
-	if (c.op === "AgentHolding") {
-		const name = agentNames[c.key] ?? c.key.slice(0, 8);
-		return c.negate ? `waiting for ${name} to move` : `waiting for ${name}`;
+	if (c.op === "StepDone") {
+		return `waiting for ${nodeLabels[c.key] || c.key} to be done`;
 	}
 	if (c.op === "ContactsFound") {
 		const wanted = `${c.threshold} contact${c.threshold === 1 ? "" : "s"}`;
@@ -647,18 +664,24 @@ function action(act: "NAVIGATE" | "COVERAGE", port: string): DropChoice {
 	};
 }
 
-const WAIT = (port: string): DropChoice => ({
+const HOLD = (port: string): DropChoice => ({
 	key: `wait-${port}`,
-	label: "Wait",
-	node: { kind: "wait", label: "Wait", mode: "all" },
+	label: "Hold until",
+	node: { kind: "wait", label: "Hold until", mode: "all" },
 	port,
 });
 
-/** The conditions offered from a Wait's `when`: the ones the fog evaluates. */
+const ON_CONTACT = (port: string): DropChoice => ({
+	key: `on-contact-${port}`,
+	label: "On contact",
+	node: { kind: "on_contact", label: "On contact" },
+	port,
+});
+
+/** The conditions offered into a Hold until: the ones a condition node holds. */
 const DROP_CONDITIONS: readonly ConditionOp[] = [
 	"ElapsedSeconds",
 	"ContactsFound",
-	"AgentHolding",
 ];
 
 /**
@@ -666,9 +689,10 @@ const DROP_CONDITIONS: readonly ConditionOp[] = [
  * of its ports the wire goes into.
  *
  * Only nodes with a port that FITS are offered, so every choice produces a
- * valid edge: a flow wire offers steps, a zone offers a COVERAGE, a Wait's
- * `when` offers conditions. An agent is not offered: which agent is a choice
- * the toolbar's Agent button makes.
+ * valid edge: a robot (agent wire) offers the next step, a zone offers a
+ * COVERAGE, a `done` offers a Hold until, a Coverage's `on contact` offers an
+ * On contact node. An agent node is not offered: which agent is a choice the
+ * toolbar's Agent button makes.
  *
  * @param side - `"source"` when the wire left an output, `"target"` when it
  *   left an input.
@@ -681,11 +705,12 @@ export function dropChoices(
 ): DropChoice[] {
 	if (side === "source") {
 		switch (type) {
-			case "flow":
+			case "agent":
 				return [
-					action("NAVIGATE", "in"),
-					action("COVERAGE", "in"),
-					WAIT("in"),
+					action("NAVIGATE", "agent"),
+					action("COVERAGE", "agent"),
+					HOLD("agent"),
+					ON_CONTACT("agent"),
 				];
 			case "waypoint":
 				return [action("NAVIGATE", "target")];
@@ -697,30 +722,17 @@ export function dropChoices(
 					action("COVERAGE", "target"),
 				];
 			case "bool":
-				return [WAIT("when")];
-			case "agent":
-				return [
-					{
-						key: "holding-agent",
-						label: "Agent holding",
-						node: {
-							kind: "condition",
-							label: CONDITION_OP_SHAPE.AgentHolding.label,
-							condition: normalizeCondition({
-								op: "AgentHolding",
-							}),
-						},
-						port: "agent",
-					},
-				];
+				return [HOLD("when")];
+			case "event":
+				return [ON_CONTACT("event")];
 		}
 	}
 	switch (type) {
-		case "flow":
+		case "agent":
 			return [
-				action("NAVIGATE", "next"),
-				action("COVERAGE", "next"),
-				WAIT("next"),
+				action("NAVIGATE", "agent"),
+				action("COVERAGE", "agent"),
+				HOLD("agent"),
 			];
 		case "waypoint":
 		case "zone":
@@ -744,6 +756,10 @@ export function dropChoices(
 				},
 				port: "value",
 			}));
+		case "event":
+			return [
+				{ ...action("COVERAGE", "contact"), key: "COVERAGE-contact" },
+			];
 		default:
 			return [];
 	}
@@ -757,15 +773,15 @@ export function dropChoices(
  * Wire an output into an input, or say why not.
  *
  * A port that takes one edge gives up the one it had ({@link connectionPlan}
- * names it), so re-wiring is one drag. Wiring an asset into an action's target
- * clears the target picked on the node, and wiring an agent into a condition
- * clears the agent picked on it: a node that named two would be refused by the
- * fog (NAVIGATE_TARGET, CONDITION_AGENT) for a choice the operator just made.
+ * names it), so re-wiring is one drag. Wiring an asset (or a contact's
+ * position) into an action's target clears the target picked on the node: a
+ * node that named two would be refused by the fog (NAVIGATE_TARGET) for a
+ * choice the operator just made.
  *
  * @param graph - The graph.
  * @param from - The output.
  * @param to - The input.
- * @param featureTypes - The map's feature types, for asset outputs.
+ * @param featureTypes - The mission's asset types, for asset outputs.
  * @returns The new graph, or the reason it was refused.
  */
 export function wireGraph(
@@ -790,11 +806,6 @@ export function wireGraph(
 			delete next.feature_id;
 			return next;
 		}
-		if (to.port === "agent" && node.condition?.key) {
-			const condition = { ...node.condition };
-			delete condition.key;
-			return { ...node, condition };
-		}
 		return node;
 	});
 	return {
@@ -816,9 +827,9 @@ export function wireGraph(
 }
 
 /**
- * Drop the edges into or out of ports a node no longer has — a condition that
- * stops being Agent holding loses its agent input, and the wire into it with
- * it. Returns the same graph when nothing is dropped.
+ * Drop the edges into or out of ports a node no longer has — an action that
+ * stops being a COVERAGE loses its `on contact` output, and the wires from it
+ * with it. Returns the same graph when nothing is dropped.
  *
  * @param graph - The graph, after a node was edited.
  * @param nodeId - The edited node.
@@ -842,19 +853,49 @@ export function dropOrphanedEdges(
 }
 
 /**
+ * The nodes of an On contact node's loop: what its `agent` output leads to
+ * before coming back to it. The edges from them into it are the way back.
+ */
+function loopOf(graph: MissionGraph, onId: string): Set<string> {
+	const out = new Set<string>();
+	const stack = graph.edges
+		.filter((edge) => edge.source === onId && edge.source_port === "agent")
+		.map((edge) => edge.target);
+	while (stack.length > 0) {
+		const id = stack.pop() as string;
+		if (id === onId || out.has(id)) continue;
+		out.add(id);
+		for (const edge of graph.edges) {
+			if (
+				edge.source === id &&
+				edge.target_port === "agent" &&
+				(edge.source_port === "agent" || edge.source_port === "no_more")
+			)
+				stack.push(edge.target);
+		}
+	}
+	return out;
+}
+
+/**
  * Put a new step INTO a chain rather than beside it.
  *
- * Dropping a wire from a step's "then" (or into a step's input) on empty canvas
- * means "a step here". Wiring it plainly would replace the link that was there
- * and cut the rest of the chain off. So the new step takes that link's place:
- * - `after`: X → Y becomes X → new → Y;
- * - `before`: whatever entered X (one step, or the agents that start the
- *   chain) now enters the new step, and the new step leads into X.
+ * Dropping a robot wire (an agent output) on empty canvas means "a step
+ * here". Wiring it plainly would replace the link that was there and cut the
+ * rest of the chain off. So the new step takes that link's place:
+ * - `after`: X → Y (on X's output `port`) becomes X → new → Y;
+ * - `before`: whatever handed the robot to X (one step, or the agents that
+ *   start the chain) now hands it to the new step, which leads into X. The
+ *   way back from an On contact node's own loop stays where it is.
  *
  * @param graph - The graph, already holding the new node.
- * @param newId - The new step (an action or a Wait).
+ * An On contact node put into a chain goes on by `no more`: its `agent`
+ * output is the robot's trip to each contact, not the rest of the chain.
+ *
+ * @param newId - The new step (an action, a Hold until or an On contact node).
  * @param at - The step the wire was dragged from.
  * @param where - Which side of it the new step goes.
+ * @param port - `after`: the output of `at` it goes on (`agent`, `no_more`).
  * @returns The spliced graph.
  */
 export function spliceStep(
@@ -862,36 +903,48 @@ export function spliceStep(
 	newId: string,
 	at: string,
 	where: "before" | "after",
+	port = "agent",
 ): MissionGraph {
-	const link = (source: string, target: string) => ({
+	const link = (source: string, sourcePort: string, target: string) => ({
 		id: freshGraphId("edge"),
 		source,
-		source_port: "next",
+		source_port: sourcePort,
 		target,
-		target_port: "in",
+		target_port: "agent",
 	});
+	const onward =
+		graph.nodes.find((node) => node.id === newId)?.kind === "on_contact"
+			? "no_more"
+			: "agent";
 	if (where === "after") {
 		const out = graph.edges.find(
-			(edge) => edge.source === at && edge.source_port === "next",
+			(edge) => edge.source === at && edge.source_port === port,
 		);
 		return {
 			...graph,
 			edges: [
 				...graph.edges.filter((edge) => edge !== out),
-				link(at, newId),
-				...(out ? [link(newId, out.target)] : []),
+				link(at, port, newId),
+				...(out ? [link(newId, onward, out.target)] : []),
 			],
 		};
 	}
+	const loop =
+		graph.nodes.find((node) => node.id === at)?.kind === "on_contact"
+			? loopOf(graph, at)
+			: new Set<string>();
 	const into = graph.edges.filter(
-		(edge) => edge.target === at && edge.target_port === "in",
+		(edge) =>
+			edge.target === at &&
+			edge.target_port === "agent" &&
+			!loop.has(edge.source),
 	);
 	return {
 		...graph,
 		edges: [
 			...graph.edges.filter((edge) => !into.includes(edge)),
 			...into.map((edge) => ({ ...edge, target: newId })),
-			link(newId, at),
+			link(newId, onward, at),
 		],
 	};
 }
@@ -919,7 +972,7 @@ export interface DropOrigin {
  * @param choice - The node picked.
  * @param id - The new node's id.
  * @param position - Where it goes on the canvas.
- * @param featureTypes - The map's feature types, for asset outputs.
+ * @param featureTypes - The mission's asset types, for asset outputs.
  * @returns The new graph, or `null`.
  */
 export function applyDrop(
@@ -936,9 +989,12 @@ export function applyDrop(
 		...graph,
 		nodes: [...graph.nodes, { ...choice.node, id, position }],
 	};
-	const step =
-		(from.side === "source" && choice.port === "in") ||
-		(from.side === "target" && choice.port === "next");
+	// A robot wire: the new step goes into the chain.
+	const robotPort =
+		from.side === "source"
+			? from.port === "agent" || from.port === "no_more"
+			: from.port === "agent";
+	const step = robotPort && choice.port === "agent";
 	if (step) {
 		if (from.side === "target") {
 			return spliceStep(withNode, id, from.node, "before");
@@ -950,7 +1006,7 @@ export function applyDrop(
 		if (out && fromNode.kind === "agent") {
 			return spliceStep(withNode, id, out.target, "before");
 		}
-		if (out) return spliceStep(withNode, id, from.node, "after");
+		if (out) return spliceStep(withNode, id, from.node, "after", from.port);
 	}
 	const ends =
 		from.side === "source"
@@ -964,4 +1020,172 @@ export function applyDrop(
 				};
 	const result = wireGraph(withNode, ends.from, ends.to, featureTypes);
 	return "reason" in result ? null : result.graph;
+}
+
+// ============================================================================
+// Layout: one lane per agent
+// ============================================================================
+
+/** Horizontal step between the steps of a lane. */
+const LANE_COLUMN = 280;
+/** Vertical step between lanes. */
+const LANE_ROW = 260;
+/** How far below its step a node that feeds it sits. */
+const FEED_DROP = 130;
+
+/**
+ * Lay the graph out in lanes, one per agent: the agent at the left, its steps
+ * to the right in the order the robot takes them (round an On contact loop,
+ * then out by `no more`), and what feeds a step — its asset, the inputs of a
+ * Hold until, a Coverage's contacts — just below it. Nodes no agent reaches
+ * go in a last lane. Positions only: the graph means the same thing.
+ *
+ * @param graph - The graph.
+ * @returns The same graph when nothing moves, else one with new positions.
+ */
+export function layoutLanes(graph: MissionGraph): MissionGraph {
+	const placed = new Map<string, { x: number; y: number }>();
+	const robotOut = (id: string) =>
+		graph.edges
+			.filter(
+				(edge) =>
+					edge.source === id &&
+					edge.target_port === "agent" &&
+					(edge.source_port === "agent" ||
+						edge.source_port === "no_more"),
+			)
+			// The loop first, then the way out.
+			.sort((a, b) =>
+				a.source_port === b.source_port
+					? 0
+					: a.source_port === "agent"
+						? -1
+						: 1,
+			)
+			.map((edge) => edge.target);
+
+	let lane = 0;
+	for (const agent of graph.nodes) {
+		if (agent.kind !== "agent" || placed.has(agent.id)) continue;
+		const y = lane * LANE_ROW;
+		placed.set(agent.id, { x: 0, y });
+		let column = 1;
+		const stack = [...robotOut(agent.id)].reverse();
+		while (stack.length > 0) {
+			const id = stack.pop() as string;
+			if (placed.has(id)) continue;
+			placed.set(id, { x: column * LANE_COLUMN, y });
+			column += 1;
+			stack.push(...[...robotOut(id)].reverse());
+		}
+		lane += 1;
+	}
+
+	// What feeds a placed step goes under it, one below the other.
+	const feeds = new Map<string, number>();
+	for (const edge of graph.edges) {
+		if (edge.target_port === "agent") continue;
+		if (placed.has(edge.source)) continue;
+		const at = placed.get(edge.target);
+		if (!at) continue;
+		const k = feeds.get(edge.target) ?? 0;
+		feeds.set(edge.target, k + 1);
+		placed.set(edge.source, {
+			x: at.x - 30,
+			y: at.y + FEED_DROP + k * 70,
+		});
+	}
+
+	// Whatever is left: a last lane.
+	let column = 0;
+	for (const node of graph.nodes) {
+		if (placed.has(node.id)) continue;
+		placed.set(node.id, { x: column * LANE_COLUMN, y: lane * LANE_ROW });
+		column += 1;
+	}
+
+	let moved = false;
+	const nodes = graph.nodes.map((node) => {
+		const next = placed.get(node.id) as { x: number; y: number };
+		if (next.x === node.position.x && next.y === node.position.y)
+			return node;
+		moved = true;
+		return { ...node, position: next };
+	});
+	return moved ? { ...graph, nodes } : graph;
+}
+
+// ============================================================================
+// Copy and paste
+// ============================================================================
+
+/** What Ctrl+C keeps: nodes and the edges between them. */
+export interface GraphClip {
+	nodes: MissionGraphNode[];
+	edges: MissionGraph["edges"];
+}
+
+/**
+ * Copy the selected nodes and the edges BETWEEN them. Agent nodes are left
+ * out: an agent runs one chain, so a second node for it is AGENT_TWICE.
+ *
+ * @param graph - The graph.
+ * @param ids - The selected node ids.
+ * @returns The clip, or null when nothing copyable is selected.
+ */
+export function copySelection(
+	graph: MissionGraph,
+	ids: readonly string[],
+): GraphClip | null {
+	const wanted = new Set(ids);
+	const nodes = graph.nodes.filter(
+		(node) => wanted.has(node.id) && node.kind !== "agent",
+	);
+	if (nodes.length === 0) return null;
+	const kept = new Set(nodes.map((node) => node.id));
+	const edges = graph.edges.filter(
+		(edge) => kept.has(edge.source) && kept.has(edge.target),
+	);
+	return structuredClone({ nodes, edges });
+}
+
+/**
+ * Paste a clip: fresh ids, shifted by `offset`, its inner edges rewired to
+ * the copies.
+ *
+ * @param graph - The graph.
+ * @param clip - What was copied.
+ * @param offset - How far from the originals the copies land.
+ * @returns The graph with the copies, and their ids (to select them).
+ */
+export function pasteClip(
+	graph: MissionGraph,
+	clip: GraphClip,
+	offset: { x: number; y: number } = { x: 40, y: 40 },
+): { graph: MissionGraph; ids: string[] } {
+	const ids = new Map(
+		clip.nodes.map((node) => [node.id, freshGraphId(node.kind)]),
+	);
+	const nodes = clip.nodes.map((node) => ({
+		...structuredClone(node),
+		id: ids.get(node.id) as string,
+		position: {
+			x: node.position.x + offset.x,
+			y: node.position.y + offset.y,
+		},
+	}));
+	const edges = clip.edges.map((edge) => ({
+		...edge,
+		id: freshGraphId("edge"),
+		source: ids.get(edge.source) as string,
+		target: ids.get(edge.target) as string,
+	}));
+	return {
+		graph: {
+			...graph,
+			nodes: [...graph.nodes, ...nodes],
+			edges: [...graph.edges, ...edges],
+		},
+		ids: nodes.map((node) => node.id),
+	};
 }

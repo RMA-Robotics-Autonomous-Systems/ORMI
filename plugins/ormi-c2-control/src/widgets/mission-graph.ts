@@ -1,4 +1,4 @@
-import { compileProgram, notExecutableYet } from "./mission-program";
+import { compileProgram } from "./mission-program";
 import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
 
 /**
@@ -17,18 +17,20 @@ import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
  * the same geometry two homes, and the day they disagreed nothing would say
  * which one the planner used.
  *
- * ## Typed ports (schema 2)
+ * ## The agent flows through the graph (schema 3)
  *
  * Every edge joins an OUTPUT port of one node to an INPUT port of another, and
  * the two carry the same type (`mission-graph-ports.ts` holds the table). The
- * `flow` ports ("then") are the chains: an agent's `next` into its first step,
- * each step's `next` into the following one. The typed values feed a step: an
- * asset into an action's `target`, true/false conditions into a Wait's `when`,
- * an agent into an Agent holding condition. Only flow carries order, and an
- * agent assignment flows along it.
+ * `agent` ports carry the ROBOT: an agent node hands it to its first step, and
+ * every step takes it in and hands it on when it is done. Each action also
+ * says it is `done` (true/false, into another agent's "Hold until") and a
+ * Coverage reports each contact (`on contact`, into an On contact node, which
+ * sends its robot to each contact in turn and lets it go on `no more`). The
+ * typed values feed a step: an asset (or a contact's `position`) into an
+ * action's `target`, true/false inputs into a Hold until's `when`.
  *
- * Schema 1 (untyped exec/data edges) is not read: a stored v1 graph shows as
- * outdated and is rebuilt, never converted.
+ * Older schemas are not read: a stored older graph shows as outdated and is
+ * rebuilt, never converted.
  *
  * ## What compiles, and what does not
  *
@@ -63,7 +65,7 @@ import { MissionBehavior, type MissionGeometry } from "../types/c2-types";
  */
 
 /** Schema version of a persisted graph document. */
-export const MISSION_GRAPH_VERSION = 2;
+export const MISSION_GRAPH_VERSION = 3;
 
 /** `kind` marker on the sibling document, so a reader can tell what it is. */
 export const MISSION_GRAPH_DOC_KIND = "ormi-mission-graph";
@@ -98,9 +100,9 @@ export const MISSION_GRAPH_ID_SUFFIX = ":graph";
  *
  * ## `HOLD`, `MARK` and `NEUTRALISE` are gone (decided 2026-09-23)
  *
- * - **Hold** is a `NAVIGATE` to a waypoint followed by a condition: the robot
- *   sits where the step ended until the gate opens, and the fog's
- *   `AgentHolding` is exactly "that chain is waiting at a gate or is done".
+ * - **Hold** is a `NAVIGATE` to a waypoint followed by a "Hold until": the
+ *   robot sits where the step ended until what is wired in holds — another
+ *   agent's step `done`, a time, a contact count.
  * - **Mark** is not something an agent is told to do: a sensor that finds
  *   something reports it, during whatever step the agent is running.
  * - **Neutralise** is dropped for now.
@@ -170,7 +172,7 @@ export const CONDITION_OPS = [
 	"ContactsFound",
 	"CuesRemaining",
 	"ElapsedSeconds",
-	"AgentHolding",
+	"StepDone",
 	"FlagSet",
 	"Always",
 	"Never",
@@ -189,7 +191,7 @@ export type ConditionOp = (typeof CONDITION_OPS)[number];
  */
 export interface GraphCondition {
 	op: ConditionOp;
-	/** zone feature_id, agent_id, or flag name — depends on the op. */
+	/** zone feature_id, step (action node) id, or flag name — depends on the op. */
 	key?: string;
 	/** modality, where the op needs one. */
 	arg?: string;
@@ -208,7 +210,7 @@ export interface GraphCondition {
 export interface ConditionOpShape {
 	/** Operator-facing, e.g. "Zone covered by". */
 	label: string;
-	key: "none" | "zone" | "agent" | "flag";
+	key: "none" | "zone" | "flag";
 	arg: "none" | "modality";
 	threshold: "none" | "fraction" | "count" | "seconds";
 }
@@ -223,13 +225,15 @@ export interface ConditionOpShape {
  * | ContactsFound   | —     | —        | count     | `s.contacts >= (int) threshold` |
  * | CuesRemaining   | —     | —        | count     | `s.cues >= (int) threshold` |
  * | ElapsedSeconds  | —     | —        | seconds   | `s.elapsed_s >= threshold` |
- * | AgentHolding    | agent | —        | —         | `s.holding[key]` |
+ * | StepDone        | step  | —        | —         | `s.steps_done.count(key) > 0` |
  * | FlagSet         | flag  | —        | —         | `s.flags.count(key) > 0` |
  * | Always          | —     | —        | —         | `true` |
  * | Never           | —     | —        | —         | `false` |
  *
- * `AgentHolding`, `FlagSet`, `Always` and `Never` read no `threshold` at all,
+ * `StepDone`, `FlagSet`, `Always` and `Never` read no `threshold` at all,
  * which is why offering one would be a control that changes nothing.
+ * `StepDone` is never picked on a condition node: it is a step's `done`
+ * output, wired into a Hold until (the fog refuses it on a condition node).
  */
 export const CONDITION_OP_SHAPE: Record<ConditionOp, ConditionOpShape> = {
 	ZoneCoveredBy: {
@@ -262,9 +266,9 @@ export const CONDITION_OP_SHAPE: Record<ConditionOp, ConditionOpShape> = {
 		arg: "none",
 		threshold: "seconds",
 	},
-	AgentHolding: {
-		label: "Agent holding",
-		key: "agent",
+	StepDone: {
+		label: "Step done",
+		key: "none",
 		arg: "none",
 		threshold: "none",
 	},
@@ -371,9 +375,10 @@ export function normalizeCondition(value: unknown): GraphCondition | undefined {
 }
 
 /** What a node is. */
-export type GraphNodeKind = "agent" | "asset" | "action" | "condition" | "wait";
+export type GraphNodeKind =
+	"agent" | "asset" | "action" | "condition" | "wait" | "on_contact";
 
-/** Whether a Wait opens when ALL of its conditions hold, or ANY one. */
+/** Whether a Hold until lets go when ALL of its inputs hold, or ANY one. */
 export type WaitMode = "all" | "any";
 
 /** One node in the behaviour graph. */
@@ -404,7 +409,7 @@ export interface MissionGraphNode {
 	 * see {@link GraphCondition}.
 	 */
 	condition?: GraphCondition;
-	/** `wait` nodes: all of the wired conditions, or any one. */
+	/** `wait` (Hold until) nodes: all of the wired inputs, or any one. */
 	mode?: WaitMode;
 }
 
@@ -505,13 +510,14 @@ function optionalString(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-/** Whether a value names one of the five node kinds. */
+/** Whether a value names one of the six node kinds. */
 function toNodeKind(value: unknown): GraphNodeKind | null {
 	return value === "agent" ||
 		value === "asset" ||
 		value === "action" ||
 		value === "condition" ||
-		value === "wait"
+		value === "wait" ||
+		value === "on_contact"
 		? value
 		: null;
 }
@@ -796,10 +802,11 @@ export function readGraphDocument(raw: unknown): MissionGraph | null {
 /**
  * Which agents reach each node.
  *
- * An agent assignment flows along the **flow** edges ("then") to every step
- * after it, so an operator says "this agent" once at the head of a chain. A
- * node that FEEDS a step — an asset into an action's target, a condition into
- * a Wait — works for the agents of the step it feeds. Two agents can reach the
+ * An agent assignment flows along the **agent** edges to every step after it
+ * (an On contact node's loop and `no more` included), so an operator says
+ * "this agent" once at the head of a chain. A node that FEEDS a step — an
+ * asset into an action's target, a condition or a `done` into a Hold until —
+ * works for the agents of the step it feeds. Two agents can reach the
  * same node (a team, or one asset used by two chains), so this is a set per
  * node and not a single owner.
  *
@@ -813,7 +820,11 @@ export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
 	const flowOut = new Map<string, string[]>();
 	const feeds = new Map<string, string[]>();
 	for (const edge of graph.edges) {
-		const map = edge.target_port === "in" ? flowOut : feeds;
+		const map =
+			edge.target_port === "agent" &&
+			(edge.source_port === "agent" || edge.source_port === "no_more")
+				? flowOut
+				: feeds;
 		const list = map.get(edge.source);
 		if (list) list.push(edge.target);
 		else map.set(edge.source, [edge.target]);
@@ -837,10 +848,12 @@ export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
 			for (const next of flowOut.get(current) ?? []) stack.push(next);
 		}
 	}
-	// One hop back from each step: what feeds it works for its agents.
+	// One hop back from each step: what feeds it works for its agents. A step
+	// whose `done` another agent waits on is already that step's agents'.
 	for (const [source, targets] of feeds) {
 		const node = graph.nodes.find((n) => n.id === source);
-		if (node?.kind === "agent") continue; // an agent watched is not assigned
+		if (node && node.kind !== "asset" && node.kind !== "condition")
+			continue;
 		for (const target of targets) {
 			for (const agentId of reached.get(target) ?? []) {
 				const set = reached.get(source) ?? new Set<string>();
@@ -859,9 +872,10 @@ export function propagateAgents(graph: MissionGraph): Map<string, string[]> {
 }
 
 /**
- * The map features an action acts on: the one picked on the node, then every
- * asset wired into its `target` port. More or fewer than one is the fog's
- * NAVIGATE_TARGET / COVERAGE_TARGET.
+ * The assets an action acts on: the one picked on the node, then every asset
+ * wired into its `target` port. A contact's `position` is not an asset and is
+ * not listed. More or fewer targets than one is the fog's NAVIGATE_TARGET /
+ * COVERAGE_TARGET.
  *
  * @param graph - A normalized graph.
  * @param actionId - The action node.
@@ -948,16 +962,11 @@ export interface CompiledMissionGraph {
  * fact about geometry for a statement about intent, which the operator could
  * neither see on the canvas nor contradict.
  *
- * ## One behaviour per mission, and the graph can out-say it
+ * ## The fog plans each step with its own action
  *
- * `MissionConfig.behavior` is ONE number for the WHOLE mission
- * (`multi_robot_path_planning.py:84` reads `mission["behavior"]`, singular, per
- * mission), so a graph where one agent navigates while another covers **cannot
- * be expressed faithfully**. That is reported, never hidden: both actions
- * present still compiles to COVERAGE, plus a **warning** naming the choice and
- * what it does to the navigate branch. It is not an error — the operator may
- * well want it, and the fog may cope — but they must not learn it from watching
- * a robot.
+ * The derived `behavior` only fills the wire field. The fog compiles the
+ * graph and plans every step under that step's own action, so a graph where
+ * one agent navigates while another covers is expressed faithfully.
  *
  * @param graph - The graph to compile.
  * @param featureTypes - `feature_id` → `feature_type` of the MISSION'S OWN
@@ -1020,13 +1029,11 @@ export function compileMissionGraph(
 	// navigating and covering are things an agent DOES and this graph has
 	// nodes for exactly that.
 	let hasCoverageAction = false;
-	let hasNavigateAction = false;
 
 	for (const node of normalized.nodes) {
 		if (node.kind !== "action") continue;
 		// ACTION_MISSING and UNREACHED come from the program compiler.
 		if (node.action === "COVERAGE") hasCoverageAction = true;
-		if (node.action === "NAVIGATE") hasNavigateAction = true;
 		if (node.action !== "COVERAGE" && node.action !== "NAVIGATE") continue;
 
 		// The targets against the mission's own assets, as the fog checks
@@ -1064,25 +1071,11 @@ export function compileMissionGraph(
 		? MissionBehavior.COVERAGE
 		: MissionBehavior.NAVIGATE;
 
-	if (hasCoverageAction && hasNavigateAction) {
-		// Surfaced rather than hidden. The operator may well want this and the
-		// fog may cope — but discovering it from robot behaviour is not an
-		// option, so it is said plainly here and never made an error.
-		issues.push({
-			severity: "warning",
-			message:
-				"This graph both navigates and covers, and the C2 carries a single behaviour for the whole mission. COVERAGE was chosen, so the NAVIGATE branch will be planned under a coverage behaviour.",
-		});
-	}
-
 	// The fog's own rules, mirrored (mission-program.ts): what it would refuse,
-	// with the same codes, and what its executor cannot run yet.
+	// with the same codes. (It plans each step with that step's own action,
+	// so a graph that navigates AND covers is fine.)
 	const compiled = compileProgram(normalized, new Set(vehicles));
-	const programIssues =
-		compiled.errors.length > 0
-			? compiled.errors
-			: notExecutableYet(compiled.program);
-	for (const issue of programIssues) {
+	for (const issue of compiled.errors) {
 		issues.push({
 			severity: "error",
 			code: issue.code,

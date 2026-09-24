@@ -35,7 +35,7 @@ const TYPES = { "feat-wp": "waypoint", "feat-zone": "zone", "feat-cue": "cue" };
 /** Es and Ge, a navigate, a sweep, a Wait, two conditions, two assets. */
 function graph(): MissionGraph {
 	return {
-		version: 2,
+		version: 3,
 		nodes: [
 			node("es", "agent", { agent_id: "robot-es" }),
 			node("ge", "agent", { agent_id: "robot-ge" }),
@@ -49,9 +49,7 @@ function graph(): MissionGraph {
 					negate: false,
 				},
 			}),
-			node("held", "condition", {
-				condition: { op: "AgentHolding", threshold: 0, negate: false },
-			}),
+			node("on", "on_contact"),
 			node("wp", "asset", { feature_id: "feat-wp" }),
 			node("zone", "asset", { feature_id: "feat-zone" }),
 		],
@@ -91,13 +89,40 @@ describe("every node says what it takes and gives", () => {
 				(p) => [p.id, p.type],
 			),
 		).toEqual([
-			["in", "flow"],
+			["agent", "agent"],
 			["target", "waypoint"],
 		]);
 		expect(
 			nodePorts(node("a", "action", { action: "COVERAGE" })).inputs[1]
 				?.type,
 		).toBe("zone");
+	});
+
+	it("hands the robot on, says when it is done, and a Coverage reports contacts", () => {
+		const outs = (action: "NAVIGATE" | "COVERAGE") =>
+			nodePorts(node("a", "action", { action })).outputs.map((p) => [
+				p.id,
+				p.type,
+			]);
+		expect(outs("NAVIGATE")).toEqual([
+			["agent", "agent"],
+			["done", "bool"],
+		]);
+		expect(outs("COVERAGE")).toEqual([
+			["agent", "agent"],
+			["done", "bool"],
+			["contact", "event"],
+		]);
+		const on = nodePorts(node("o", "on_contact"));
+		expect(on.inputs.map((p) => [p.id, p.type])).toEqual([
+			["agent", "agent"],
+			["event", "event"],
+		]);
+		expect(on.outputs.map((p) => [p.id, p.type])).toEqual([
+			["agent", "agent"],
+			["position", "waypoint"],
+			["no_more", "agent"],
+		]);
 	});
 
 	it("types an asset's output by its map feature; a cue is somewhere to go", () => {
@@ -111,17 +136,17 @@ describe("every node says what it takes and gives", () => {
 		).toBe("zone");
 	});
 
-	it("gives a condition an agent input only when it watches an agent", () => {
-		const [, , , , , late, held] = graph().nodes;
-		expect(nodePorts(late!).inputs).toEqual([]);
-		expect(nodePorts(held!).inputs.map((p) => p.id)).toEqual(["agent"]);
+	it("gives a condition no input: it is a true/false, read by a Hold until", () => {
+		const late = graph().nodes.find((n) => n.id === "late")!;
+		expect(nodePorts(late).inputs).toEqual([]);
 	});
 
 	it("lets an untyped asset fit either place, and nothing else cross", () => {
 		expect(portsFit("asset", "zone")).toBe(true);
 		expect(portsFit("waypoint", "asset")).toBe(true);
 		expect(portsFit("waypoint", "zone")).toBe(false);
-		expect(portsFit("bool", "flow")).toBe(false);
+		expect(portsFit("bool", "agent")).toBe(false);
+		expect(portsFit("event", "bool")).toBe(false);
 		expect(portsFit("agent", "waypoint")).toBe(false);
 	});
 });
@@ -138,8 +163,8 @@ describe("a drag is refused with a reason, or wired", () => {
 
 	it("refuses a true/false into the chain, and a node into itself", () => {
 		const g = graph();
-		expect(plan(g, ["late", "value"], ["go", "in"]).ok).toBe(false);
-		expect(plan(g, ["go", "next"], ["go", "in"]).ok).toBe(false);
+		expect(plan(g, ["late", "value"], ["go", "agent"]).ok).toBe(false);
+		expect(plan(g, ["go", "agent"], ["go", "agent"]).ok).toBe(false);
 	});
 
 	it("re-wires a single port instead of refusing it", () => {
@@ -155,27 +180,29 @@ describe("a drag is refused with a reason, or wired", () => {
 	});
 
 	it("moves a step's 'then' rather than forking the chain", () => {
-		let g = wire(graph(), ["es", "next"], ["go", "in"]);
-		g = wire(g, ["go", "next"], ["sweep", "in"]);
-		g = wire(g, ["go", "next"], ["wait", "in"]);
+		let g = wire(graph(), ["es", "agent"], ["go", "agent"]);
+		g = wire(g, ["go", "agent"], ["sweep", "agent"]);
+		g = wire(g, ["go", "agent"], ["wait", "agent"]);
 		expect(
 			g.edges.filter((e) => e.source === "go").map((e) => e.target),
 		).toEqual(["wait"]);
 	});
 
 	it("lets a team share a first step, but never a step and an agent", () => {
-		let g = wire(graph(), ["es", "next"], ["sweep", "in"]);
-		g = wire(g, ["ge", "next"], ["sweep", "in"]);
+		let g = wire(graph(), ["es", "agent"], ["sweep", "agent"]);
+		g = wire(g, ["ge", "agent"], ["sweep", "agent"]);
 		expect(g.edges.filter((e) => e.target === "sweep")).toHaveLength(2);
 		// A step after another step cannot also start a chain, and vice versa.
-		expect(plan(g, ["go", "next"], ["sweep", "in"]).ok).toBe(false);
-		const chained = wire(graph(), ["go", "next"], ["sweep", "in"]);
-		expect(plan(chained, ["es", "next"], ["sweep", "in"]).ok).toBe(false);
+		expect(plan(g, ["go", "agent"], ["sweep", "agent"]).ok).toBe(false);
+		const chained = wire(graph(), ["go", "agent"], ["sweep", "agent"]);
+		expect(plan(chained, ["es", "agent"], ["sweep", "agent"]).ok).toBe(
+			false,
+		);
 	});
 
-	it("lets many conditions into one Wait, and one condition into many Waits", () => {
+	it("lets a condition and a step's `done` into one Hold until", () => {
 		let g = wire(graph(), ["late", "value"], ["wait", "when"]);
-		g = wire(g, ["held", "value"], ["wait", "when"]);
+		g = wire(g, ["sweep", "done"], ["wait", "when"]);
 		expect(g.edges.filter((e) => e.target === "wait")).toHaveLength(2);
 		expect(plan(g, ["late", "value"], ["wait", "when"]).ok).toBe(false); // already wired
 	});
@@ -191,37 +218,16 @@ describe("a drag is refused with a reason, or wired", () => {
 		).toBeUndefined();
 	});
 
-	it("replaces the agent picked on a condition when an agent is wired in", () => {
-		const g = graph();
-		g.nodes = g.nodes.map((n) =>
-			n.id === "held" && n.condition
-				? { ...n, condition: { ...n.condition, key: "robot-ge" } }
-				: n,
-		);
-		const wired = wire(g, ["es", "agent"], ["held", "agent"]);
-		expect(
-			wired.nodes.find((n) => n.id === "held")?.condition?.key,
-		).toBeUndefined();
-	});
-
 	it("drops the wire into a port the node no longer has", () => {
-		let g = wire(graph(), ["es", "agent"], ["held", "agent"]);
+		// A Coverage turned Navigate has no "on contact" any more.
+		let g = wire(graph(), ["sweep", "contact"], ["on", "event"]);
 		g = {
 			...g,
 			nodes: g.nodes.map((n) =>
-				n.id === "held"
-					? {
-							...n,
-							condition: {
-								op: "ElapsedSeconds",
-								threshold: 5,
-								negate: false,
-							},
-						}
-					: n,
+				n.id === "sweep" ? { ...n, action: "NAVIGATE" as const } : n,
 			),
 		};
-		expect(dropOrphanedEdges(g, "held").edges).toEqual([]);
+		expect(dropOrphanedEdges(g, "sweep").edges).toEqual([]);
 		// Nothing to drop: the same graph back.
 		const kept = wire(graph(), ["wp", "value"], ["go", "target"]);
 		expect(dropOrphanedEdges(kept, "go")).toBe(kept);
@@ -230,10 +236,17 @@ describe("a drag is refused with a reason, or wired", () => {
 
 describe("dropping a wire on empty canvas offers what fits it", () => {
 	it("offers steps after a 'then', and the matching action for a place", () => {
-		expect(dropChoices("source", "flow").map((c) => c.label)).toEqual([
+		expect(dropChoices("source", "agent").map((c) => c.label)).toEqual([
 			"Navigate",
 			"Coverage",
-			"Wait",
+			"Hold until",
+			"On contact",
+		]);
+		expect(dropChoices("source", "event").map((c) => c.node.kind)).toEqual([
+			"on_contact",
+		]);
+		expect(dropChoices("source", "bool").map((c) => c.label)).toEqual([
+			"Hold until",
 		]);
 		expect(dropChoices("source", "zone").map((c) => c.node.action)).toEqual(
 			["COVERAGE"],
@@ -246,7 +259,6 @@ describe("dropping a wire on empty canvas offers what fits it", () => {
 		expect(choices.map((c) => c.node.condition?.op)).toEqual([
 			"ElapsedSeconds",
 			"ContactsFound",
-			"AgentHolding",
 		]);
 		expect(choices.every((c) => c.port === "value")).toBe(true);
 	});
@@ -257,12 +269,12 @@ describe("dropping a wire on empty canvas offers what fits it", () => {
 		]);
 		for (const side of ["source", "target"] as const) {
 			for (const type of [
-				"flow",
+				"agent",
 				"waypoint",
 				"zone",
 				"asset",
-				"agent",
 				"bool",
+				"event",
 			] as const) {
 				expect(
 					dropChoices(side, type).some(
@@ -276,12 +288,12 @@ describe("dropping a wire on empty canvas offers what fits it", () => {
 	it("only offers choices whose port fits the wire", () => {
 		for (const side of ["source", "target"] as const) {
 			for (const type of [
-				"flow",
+				"agent",
 				"waypoint",
 				"zone",
 				"asset",
-				"agent",
 				"bool",
+				"event",
 			] as const) {
 				for (const choice of dropChoices(side, type)) {
 					const ports = nodePorts(choice.node);
@@ -305,13 +317,15 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	/** Es → go → sweep, each with its target. */
 	function chain(): MissionGraph {
 		let g = graph();
-		g = wire(g, ["es", "next"], ["go", "in"]);
-		g = wire(g, ["go", "next"], ["sweep", "in"]);
+		g = wire(g, ["es", "agent"], ["go", "agent"]);
+		g = wire(g, ["go", "agent"], ["sweep", "agent"]);
 		g = wire(g, ["wp", "value"], ["go", "target"]);
 		return wire(g, ["zone", "value"], ["sweep", "target"]);
 	}
-	const WAIT = dropChoices("source", "flow").find((c) => c.label === "Wait")!;
-	const NAV_BEFORE = dropChoices("target", "flow").find(
+	const WAIT = dropChoices("source", "agent").find(
+		(c) => c.label === "Hold until",
+	)!;
+	const NAV_BEFORE = dropChoices("target", "agent").find(
 		(c) => c.label === "Navigate",
 	)!;
 	/** The chain the fog would compile, as step and Wait ids in order. */
@@ -321,7 +335,7 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 		while (at && !out.includes(at)) {
 			out.push(at);
 			at = g.edges.find(
-				(e) => e.source === at && e.source_port === "next",
+				(e) => e.source === at && e.source_port === "agent",
 			)?.target;
 		}
 		return out;
@@ -330,7 +344,7 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	it("after a step: go → new → sweep, nothing cut off", () => {
 		const g = applyDrop(
 			chain(),
-			{ node: "go", port: "next", side: "source" },
+			{ node: "go", port: "agent", side: "source" },
 			WAIT,
 			"new",
 			AT,
@@ -341,7 +355,7 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	it("before a mid-chain step: go → new → sweep", () => {
 		const g = applyDrop(
 			chain(),
-			{ node: "sweep", port: "in", side: "target" },
+			{ node: "sweep", port: "agent", side: "target" },
 			NAV_BEFORE,
 			"new",
 			AT,
@@ -352,7 +366,7 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	it("before a chain's first step: the agent starts at the new step", () => {
 		const g = applyDrop(
 			chain(),
-			{ node: "go", port: "in", side: "target" },
+			{ node: "go", port: "agent", side: "target" },
 			NAV_BEFORE,
 			"new",
 			AT,
@@ -363,7 +377,7 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	it("after an agent that already has a chain: the new step leads it", () => {
 		const g = applyDrop(
 			chain(),
-			{ node: "es", port: "next", side: "source" },
+			{ node: "es", port: "agent", side: "source" },
 			WAIT,
 			"new",
 			AT,
@@ -372,11 +386,11 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 	});
 
 	it("keeps a team together when a step is put before its first step", () => {
-		let g = wire(graph(), ["es", "next"], ["sweep", "in"]);
-		g = wire(g, ["ge", "next"], ["sweep", "in"]);
+		let g = wire(graph(), ["es", "agent"], ["sweep", "agent"]);
+		g = wire(g, ["ge", "agent"], ["sweep", "agent"]);
 		g = applyDrop(
 			g,
-			{ node: "sweep", port: "in", side: "target" },
+			{ node: "sweep", port: "agent", side: "target" },
 			NAV_BEFORE,
 			"new",
 			AT,
@@ -393,6 +407,63 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 			new Set(["robot-es", "robot-ge"]),
 		).errors.map((e) => e.code);
 		expect(codes).not.toContain("JOIN");
+	});
+
+	it("before an On contact node: the robot comes to the new step, the loop still comes back", () => {
+		// ge → on; on.agent → go → back into on.
+		let g = wire(graph(), ["ge", "agent"], ["on", "agent"]);
+		g = wire(g, ["on", "agent"], ["go", "agent"]);
+		g = wire(g, ["go", "agent"], ["on", "agent"]);
+		g = applyDrop(
+			g,
+			{ node: "on", port: "agent", side: "target" },
+			NAV_BEFORE,
+			"new",
+			AT,
+		)!;
+		const into = (id: string) =>
+			g.edges
+				.filter((e) => e.target === id && e.target_port === "agent")
+				.map((e) => e.source)
+				.sort();
+		expect(into("new")).toEqual(["ge"]);
+		expect(into("on")).toEqual(["go", "new"]);
+	});
+
+	it("after an On contact node's `no more`: the new step follows it", () => {
+		let g = wire(graph(), ["ge", "agent"], ["on", "agent"]);
+		g = wire(g, ["on", "no_more"], ["go", "agent"]);
+		g = applyDrop(
+			g,
+			{ node: "on", port: "no_more", side: "source" },
+			WAIT,
+			"new",
+			AT,
+		)!;
+		const edge = (source: string, port: string) =>
+			g.edges.find((e) => e.source === source && e.source_port === port)
+				?.target;
+		expect(edge("on", "no_more")).toBe("new");
+		expect(edge("new", "agent")).toBe("go");
+	});
+
+	it("an On contact node dropped into a chain goes on by `no more`, not into its loop", () => {
+		const ON = dropChoices("source", "agent").find(
+			(c) => c.label === "On contact",
+		)!;
+		const g = applyDrop(
+			chain(),
+			{ node: "go", port: "agent", side: "source" },
+			ON,
+			"new",
+			AT,
+		)!;
+		const out = (id: string, port: string) =>
+			g.edges.find((e) => e.source === id && e.source_port === port)
+				?.target;
+		expect(out("go", "agent")).toBe("new");
+		expect(out("new", "no_more")).toBe("sweep");
+		expect(out("new", "agent")).toBeUndefined();
 	});
 
 	it("creates nothing when the node the wire came from is gone", () => {

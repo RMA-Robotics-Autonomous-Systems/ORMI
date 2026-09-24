@@ -576,8 +576,8 @@ function GraphPositions(props: { fb: MissionFeedback; missionId: string }) {
 		return out;
 	}, [graph]);
 	const positions = useMemo(
-		() => agentPositions(props.fb.program, nodeLabels, agentNames),
-		[props.fb.program, nodeLabels, agentNames],
+		() => agentPositions(props.fb.program, nodeLabels),
+		[props.fb.program, nodeLabels],
 	);
 	if (positions.length === 0) return null;
 	return (

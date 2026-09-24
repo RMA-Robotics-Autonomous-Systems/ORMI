@@ -3,7 +3,7 @@
 	"description": "An asset node that names no map feature.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -37,11 +37,11 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-go.in",
+				"id": "es.agent-go.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "wp.value-go.target",
@@ -56,7 +56,6 @@
 		"errors": [
 			["ASSET_MISSING_FEATURE", "wp"],
 			["NAVIGATE_TARGET", "go"]
-		],
-		"not_executable_yet": []
+		]
 	}
 }

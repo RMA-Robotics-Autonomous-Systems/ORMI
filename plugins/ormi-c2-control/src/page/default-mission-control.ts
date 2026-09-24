@@ -22,7 +22,7 @@
  * │                      ├────────────┼────────────┤
  * │ map                  │ control    │ feedback   │
  * │                      ├────────────┴────────────┤
- * │                      │ graph ‖ log             │
+ * │                      │ graph ‖ assets ‖ log    │
  * └──────────────────────┴─────────────────────────┘
  * ```
  *
@@ -75,6 +75,7 @@ import type { Widget, WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { FleetStatusDefinition } from "../widgets/fleet-status";
 import { MissionBrowserDefinition } from "../widgets/mission-browser";
 import { MissionControlPanelDefinition } from "../widgets/mission-control-panel";
+import { MissionAssetsDefinition } from "../widgets/mission-assets-panel";
 import { MissionGraphEditorDefinition } from "../widgets/mission-graph-editor";
 import { MissionFeedbackDefinition } from "../widgets/mission-feedback";
 import { MissionMapDefinition } from "../widgets/mission-map";
@@ -90,13 +91,13 @@ import { SwarmLogDefinition } from "../widgets/swarm-log";
  * which is an undefined tile template and not a fallback). Reading the
  * definition's own defaults is the one way this file cannot drift from them.
  *
- * ⚠ The cost of reading them: these seven factories are invoked from **outside
+ * ⚠ The cost of reading them: these eight factories are invoked from **outside
  * React render** — the page's `onLoad`, and this plugin's unit tests. A
  * definition factory is allowed to call hooks (the dashboard re-invokes every
  * factory each render precisely so it can, and `ormi-std-widgets`' tree viewer
  * really does call `usePluginsManager()` at factory level), so the first C2
  * definition that grows a factory-level hook breaks this page with an invalid
- * hook call from an async callback. **These seven must stay hook-free**, or this
+ * hook call from an async callback. **These eight must stay hook-free**, or this
  * file goes back to literals.
  */
 interface Panel {
@@ -106,8 +107,8 @@ interface Panel {
 	 * The definition factory this panel instantiates.
 	 *
 	 * `any` for the settings parameter, as everywhere the widget list is
-	 * handled generically (`widgetsExport` in `export.ts` does the same): seven
-	 * definitions with seven unrelated settings types have no useful common
+	 * handled generically (`widgetsExport` in `export.ts` does the same): eight
+	 * definitions with eight unrelated settings types have no useful common
 	 * supertype, and this file only ever reads `id`, `name` and `data`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,6 +121,7 @@ const PANELS: Panel[] = [
 	{ box: "c2-control", definition: MissionControlPanelDefinition },
 	{ box: "c2-map", definition: MissionMapDefinition },
 	{ box: "c2-graph", definition: MissionGraphEditorDefinition },
+	{ box: "c2-assets", definition: MissionAssetsDefinition },
 	{ box: "c2-log", definition: SwarmLogDefinition },
 	{ box: "c2-fleet", definition: FleetStatusDefinition },
 	{ box: "c2-feedback", definition: MissionFeedbackDefinition },
@@ -288,7 +290,7 @@ function flexModel(titles: Map<string, string>) {
 							],
 						},
 						// The panels that want width and are not watched.
-						tabset(titles, 34, "c2-graph", "c2-log"),
+						tabset(titles, 34, "c2-graph", "c2-assets", "c2-log"),
 					],
 				},
 			],

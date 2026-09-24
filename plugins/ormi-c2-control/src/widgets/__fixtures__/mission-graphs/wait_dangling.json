@@ -3,7 +3,7 @@
 	"description": "A Wait with no action after it.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -53,18 +53,18 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-go.in",
+				"id": "es.agent-go.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "go.next-wait.in",
+				"id": "go.agent-wait.agent",
 				"source": "go",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "wait",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "then.value-wait.when",
@@ -76,7 +76,6 @@
 		]
 	},
 	"expect": {
-		"errors": [["WAIT_DANGLING", "wait"]],
-		"not_executable_yet": []
+		"errors": [["WAIT_DANGLING", "wait"]]
 	}
 }

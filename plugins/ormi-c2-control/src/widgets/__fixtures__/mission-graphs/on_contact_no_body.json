@@ -1,0 +1,94 @@
+{
+	"name": "on_contact_no_body",
+	"description": "An On contact node that sends its robot nowhere does nothing at a contact.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "on",
+				"kind": "on_contact",
+				"label": "on",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "home",
+				"kind": "action",
+				"label": "home",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-sweep.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-on.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.contact-on.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "on",
+				"target_port": "event"
+			},
+			{
+				"id": "on.no_more-home.agent",
+				"source": "on",
+				"source_port": "no_more",
+				"target": "home",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["ON_CONTACT_BODY", "on"]]
+	}
+}

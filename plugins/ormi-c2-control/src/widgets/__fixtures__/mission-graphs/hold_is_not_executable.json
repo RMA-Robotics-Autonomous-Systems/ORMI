@@ -3,7 +3,7 @@
 	"description": "HOLD, MARK and NEUTRALISE are not actions: hold is a NAVIGATE then a Wait, sensors report findings on their own.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -38,11 +38,11 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-hold.in",
+				"id": "es.agent-hold.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "hold",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "wp.value-hold.target",
@@ -54,7 +54,6 @@
 		]
 	},
 	"expect": {
-		"errors": [["ACTION_NOT_EXECUTABLE", "hold"]],
-		"not_executable_yet": []
+		"errors": [["ACTION_NOT_EXECUTABLE", "hold"]]
 	}
 }

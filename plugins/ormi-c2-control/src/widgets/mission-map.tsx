@@ -141,6 +141,8 @@ import {
 	upsertAsset,
 } from "./mission-assets";
 import { generateMissionId } from "./mission-list";
+import { assetCenter } from "./mission-asset-tree";
+import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
 import {
 	ASSET_CATEGORIES,
 	CATEGORISED_FEATURE_TYPES,
@@ -2874,6 +2876,40 @@ function MissionMapBody(props: {
 		[missionScope, missionAssets],
 	);
 
+	// The asset panel asks to see one of the mission's assets: pick it here
+	// and fly to it. Read through refs: the subscription lives for the map.
+	const focusScopeRef = useRef<{
+		missionId: string | null;
+		assets: typeof missionAssets;
+	}>({ missionId: null, assets: null });
+	useEffect(() => {
+		focusScopeRef.current = {
+			missionId: missionScope,
+			assets: missionAssets,
+		};
+	}, [missionScope, missionAssets]);
+	useEffect(
+		() =>
+			subscribeAssetFocus((request) => {
+				const { missionId, assets } = focusScopeRef.current;
+				if (!missionId || request.missionId !== missionId) return;
+				setPickedId(request.featureId);
+				const feature = assets
+					? findAsset(assets, request.featureId)
+					: undefined;
+				const center = feature ? assetCenter(feature) : null;
+				const map = mapRef.current?.getMap();
+				if (center && map) {
+					map.flyTo({
+						center,
+						zoom: Math.max(map.getZoom(), 17),
+						duration: 600,
+					});
+				}
+			}),
+		[],
+	);
+
 	/** Copy a map (library) asset into the open mission, under a new id. */
 	const importIntoMission = useCallback(
 		(feature: C2Feature) => {
@@ -3139,6 +3175,28 @@ function MissionMapBody(props: {
 					);
 					return;
 				}
+				// Removed meanwhile (the asset panel): an edit must not bring
+				// it back.
+				if (
+					editing &&
+					pending.featureId &&
+					!findAsset(
+						getMissionAssets(toMission) ?? {
+							map: "",
+							features: [],
+						},
+						pending.featureId,
+					)
+				) {
+					setError(
+						"This asset was removed from the mission while you were editing it — the edit was not saved.",
+					);
+					setPending(null);
+					editingDrawIdRef.current = null;
+					clearDraw(drawRef.current);
+					setTool("view");
+					return;
+				}
 				if (!isMissionAssetType(featureType)) {
 					setError(
 						"A mission's asset is a waypoint, a zone or a cue; roads, risks and geofences belong to the map.",
@@ -3156,6 +3214,9 @@ function MissionMapBody(props: {
 				setError(null);
 				setPending(null);
 				setPickedId(readFeatureId(feature) ?? null);
+				const savedId = readFeatureId(feature);
+				if (savedId)
+					selectAsset({ missionId: toMission, featureId: savedId });
 				editingDrawIdRef.current = null;
 				clearDraw(drawRef.current);
 				setTool("view");
@@ -3758,8 +3819,16 @@ function MissionMapBody(props: {
 			const hit = pickAt(event.point);
 			if (!hit) return;
 			setPickedId(hit.id);
+			const missionId =
+				!hit.library && missionAssetOf(hit.id) ? missionScope : null;
+			// The asset panel shows what is picked here: one of the mission's
+			// assets, or nothing (a map feature, the library).
+			if (missionScope) {
+				selectAsset(
+					missionId ? { missionId, featureId: hit.id } : null,
+				);
+			}
 			if (hit.library) return;
-			const missionId = missionAssetOf(hit.id) ? missionScope : null;
 			if (tool === "edit")
 				editFeature(hit.feature, selectedMap, missionId ?? undefined);
 			else if (tool === "delete") requestDeleteFeature(hit.feature);

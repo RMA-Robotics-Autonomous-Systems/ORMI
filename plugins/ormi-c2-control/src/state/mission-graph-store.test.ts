@@ -2,21 +2,25 @@ import { beforeEach, describe, expect, it } from "bun:test";
 
 import {
 	__resetMissionGraphStore,
+	canRedoMissionGraph,
+	canUndoMissionGraph,
 	commitSavedGraph,
 	editMissionGraph,
 	getMissionGraph,
 	hasMissionGraph,
 	isMissionGraphDirty,
 	missionGraphSignature,
+	redoMissionGraph,
 	setMissionGraph,
 	subscribe,
+	undoMissionGraph,
 } from "./mission-graph-store";
 import { emptyMissionGraph, type MissionGraph } from "../widgets/mission-graph";
 
 /** A graph with one agent node. */
 function graph(label = "Agent"): MissionGraph {
 	return {
-		version: 2,
+		version: 3,
 		nodes: [
 			{
 				id: "a",
@@ -58,15 +62,15 @@ describe("loading", () => {
 
 	it("normalizes on the way in, so a stale document cannot break the canvas", () => {
 		setMissionGraph("m-1", {
-			version: 2,
+			version: 3,
 			nodes: graph().nodes,
 			edges: [
 				{
 					id: "e",
 					source: "a",
-					source_port: "next",
+					source_port: "agent",
 					target: "gone",
-					target_port: "in",
+					target_port: "agent",
 				},
 			],
 		});
@@ -139,5 +143,53 @@ describe("commitSavedGraph", () => {
 			commitSavedGraph("m-1", missionGraphSignature(emptyMissionGraph())),
 		).toBe("absent");
 		expect(hasMissionGraph("m-1")).toBe(false);
+	});
+});
+
+describe("undo and redo", () => {
+	const relabel = (label: string) => (g: MissionGraph) => ({
+		...g,
+		nodes: g.nodes.map((n) => ({ ...n, label })),
+	});
+	const moveTo = (x: number) => (g: MissionGraph) => ({
+		...g,
+		nodes: g.nodes.map((n) => ({ ...n, position: { x, y: 0 } })),
+	});
+
+	it("takes edits back one by one, and does them again", () => {
+		setMissionGraph("m-1", graph("A"));
+		expect(canUndoMissionGraph("m-1")).toBe(false);
+		editMissionGraph("m-1", relabel("B"));
+		editMissionGraph("m-1", relabel("C"));
+		expect(undoMissionGraph("m-1")).toBe(true);
+		expect(getMissionGraph("m-1")?.nodes[0]?.label).toBe("B");
+		expect(undoMissionGraph("m-1")).toBe(true);
+		expect(getMissionGraph("m-1")?.nodes[0]?.label).toBe("A");
+		expect(undoMissionGraph("m-1")).toBe(false);
+		expect(redoMissionGraph("m-1")).toBe(true);
+		expect(getMissionGraph("m-1")?.nodes[0]?.label).toBe("B");
+		expect(canRedoMissionGraph("m-1")).toBe(true);
+		// A new edit drops what could have been redone.
+		editMissionGraph("m-1", relabel("D"));
+		expect(canRedoMissionGraph("m-1")).toBe(false);
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+	});
+
+	it("takes a whole drag back in one step", () => {
+		setMissionGraph("m-1", graph());
+		for (const x of [10, 20, 30])
+			editMissionGraph("m-1", moveTo(x), "move:1");
+		editMissionGraph("m-1", moveTo(99), "move:2");
+		undoMissionGraph("m-1");
+		expect(getMissionGraph("m-1")?.nodes[0]?.position.x).toBe(30);
+		undoMissionGraph("m-1");
+		expect(getMissionGraph("m-1")?.nodes[0]?.position.x).toBe(0);
+	});
+
+	it("starts afresh when a graph is loaded", () => {
+		setMissionGraph("m-1", graph("A"));
+		editMissionGraph("m-1", relabel("B"));
+		setMissionGraph("m-1", graph("Z"));
+		expect(canUndoMissionGraph("m-1")).toBe(false);
 	});
 });

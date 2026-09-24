@@ -3,7 +3,7 @@
 	"description": "An action no agent reaches, and nothing to run.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -34,7 +34,6 @@
 			["AGENT_IDLE", "es"],
 			["EMPTY", ""],
 			["UNREACHED", "go"]
-		],
-		"not_executable_yet": []
+		]
 	}
 }

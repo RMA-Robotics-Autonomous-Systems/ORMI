@@ -3,7 +3,7 @@
 	"description": "A Wait with no condition would never open.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -39,23 +39,22 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-wait.in",
+				"id": "es.agent-wait.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "wait",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "wait.next-go.in",
+				"id": "wait.agent-go.agent",
 				"source": "wait",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["WAIT_EMPTY", "wait"]],
-		"not_executable_yet": []
+		"errors": [["WAIT_EMPTY", "wait"]]
 	}
 }

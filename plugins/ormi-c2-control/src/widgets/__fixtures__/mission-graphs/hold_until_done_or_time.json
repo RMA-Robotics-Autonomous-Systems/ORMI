@@ -1,0 +1,173 @@
+{
+	"name": "hold_until_done_or_time",
+	"description": "A Hold until ANY of a step's `done` and a timer.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "survey",
+				"kind": "action",
+				"label": "survey",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "late",
+				"kind": "condition",
+				"label": "late",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 600,
+					"negate": false
+				}
+			},
+			{
+				"id": "until",
+				"kind": "wait",
+				"label": "until",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "any"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-survey.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "survey",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-until.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "until",
+				"target_port": "agent"
+			},
+			{
+				"id": "until.agent-go.agent",
+				"source": "until",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "survey.done-until.when",
+				"source": "survey",
+				"source_port": "done",
+				"target": "until",
+				"target_port": "when"
+			},
+			{
+				"id": "late.value-until.when",
+				"source": "late",
+				"source_port": "value",
+				"target": "until",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "survey",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "until",
+							"mode": "any",
+							"gate": [
+								{
+									"op": "StepDone",
+									"key": "survey",
+									"arg": "",
+									"threshold": 1,
+									"negate": false
+								},
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 600,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["survey", "late"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

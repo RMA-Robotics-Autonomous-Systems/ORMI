@@ -1,9 +1,9 @@
 {
-	"name": "version_1_is_refused",
-	"description": "A graph from the old editor (untyped exec edges) is refused, not converted.",
+	"name": "version_2_is_refused",
+	"description": "A graph from the previous editor (a `next` flow line) is refused, not converted.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 1,
+		"version": 2,
 		"nodes": [
 			{
 				"id": "es",
@@ -29,15 +29,15 @@
 		],
 		"edges": [
 			{
-				"id": "e",
+				"id": "es.next-go.in",
 				"source": "es",
+				"source_port": "next",
 				"target": "go",
-				"kind": "exec"
+				"target_port": "in"
 			}
 		]
 	},
 	"expect": {
-		"errors": [["GRAPH_VERSION", ""]],
-		"not_executable_yet": []
+		"errors": [["GRAPH_VERSION", ""]]
 	}
 }

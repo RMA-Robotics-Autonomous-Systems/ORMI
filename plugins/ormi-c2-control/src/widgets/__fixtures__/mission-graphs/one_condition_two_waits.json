@@ -3,7 +3,7 @@
 	"description": "One condition node can feed the Waits of two chains.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "es",
@@ -84,32 +84,32 @@
 		],
 		"edges": [
 			{
-				"id": "es.next-w-es.in",
+				"id": "es.agent-w-es.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w-es",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "w-es.next-go-es.in",
+				"id": "w-es.agent-go-es.agent",
 				"source": "w-es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go-es",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "ge.next-w-ge.in",
+				"id": "ge.agent-w-ge.agent",
 				"source": "ge",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "w-ge",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "w-ge.next-go-ge.in",
+				"id": "w-ge.agent-go-ge.agent",
 				"source": "w-ge",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go-ge",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "late.value-w-es.when",
@@ -129,7 +129,6 @@
 	},
 	"expect": {
 		"errors": [],
-		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -137,8 +136,13 @@
 					"steps": [
 						{
 							"step_id": "go-es",
+							"kind": "STEP",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
 							"wait_node": "w-es",
 							"mode": "all",
 							"gate": [
@@ -159,8 +163,13 @@
 					"steps": [
 						{
 							"step_id": "go-ge",
+							"kind": "STEP",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp-2",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
 							"wait_node": "w-ge",
 							"mode": "all",
 							"gate": [

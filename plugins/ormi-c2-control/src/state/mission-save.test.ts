@@ -37,7 +37,7 @@ const MISSION = {
 function graph(): MissionGraph {
 	const at = { x: 0, y: 0 };
 	return {
-		version: 2,
+		version: 3,
 		nodes: [
 			{
 				id: "es",
@@ -65,9 +65,9 @@ function graph(): MissionGraph {
 			{
 				id: "es-go",
 				source: "es",
-				source_port: "next",
+				source_port: "agent",
 				target: "go",
-				target_port: "in",
+				target_port: "agent",
 			},
 			{
 				id: "wp-go",
@@ -330,7 +330,7 @@ describe("one Save mission", () => {
 	});
 
 	it("does not save an empty canvas as the mission's graph", async () => {
-		setMissionGraph("m-1", { version: 2, nodes: [], edges: [] });
+		setMissionGraph("m-1", { version: 3, nodes: [], edges: [] });
 		const { calls, written } = store();
 		await saveMissionWithGraph("m-1", calls);
 		// (The mission itself is refused: it has no vehicles yet.)

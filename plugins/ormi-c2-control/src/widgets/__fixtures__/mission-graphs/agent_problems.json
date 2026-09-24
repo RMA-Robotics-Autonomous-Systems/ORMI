@@ -3,7 +3,7 @@
 	"description": "Unknown agent, repeated agent, agent with no agent selected, idle agent.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "x",
@@ -68,32 +68,32 @@
 		],
 		"edges": [
 			{
-				"id": "x.next-go.in",
+				"id": "x.agent-go.agent",
 				"source": "x",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "es.next-go.in",
+				"id": "es.agent-go.agent",
 				"source": "es",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "es2.next-go.in",
+				"id": "es2.agent-go.agent",
 				"source": "es2",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "blank.next-go.in",
+				"id": "blank.agent-go.agent",
 				"source": "blank",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			}
 		]
 	},
@@ -104,7 +104,6 @@
 			["AGENT_TWICE", "es2"],
 			["AGENT_UNKNOWN", "x"],
 			["TEAM_NAVIGATE", "go"]
-		],
-		"not_executable_yet": []
+		]
 	}
 }

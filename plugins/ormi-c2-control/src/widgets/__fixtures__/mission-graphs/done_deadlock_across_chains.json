@@ -1,0 +1,122 @@
+{
+	"name": "done_deadlock_across_chains",
+	"description": "Two robots each holding until the other's step is done wait forever.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "w-es",
+				"kind": "wait",
+				"label": "w-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "x",
+				"kind": "action",
+				"label": "x",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "w-ge",
+				"kind": "wait",
+				"label": "w-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "y",
+				"kind": "action",
+				"label": "y",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-w-es.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "w-es",
+				"target_port": "agent"
+			},
+			{
+				"id": "w-es.agent-x.agent",
+				"source": "w-es",
+				"source_port": "agent",
+				"target": "x",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-w-ge.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "w-ge",
+				"target_port": "agent"
+			},
+			{
+				"id": "w-ge.agent-y.agent",
+				"source": "w-ge",
+				"source_port": "agent",
+				"target": "y",
+				"target_port": "agent"
+			},
+			{
+				"id": "y.done-w-es.when",
+				"source": "y",
+				"source_port": "done",
+				"target": "w-es",
+				"target_port": "when"
+			},
+			{
+				"id": "x.done-w-ge.when",
+				"source": "x",
+				"source_port": "done",
+				"target": "w-ge",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["DONE_DEADLOCK", "w-es"],
+			["DONE_DEADLOCK", "w-ge"]
+		]
+	}
+}

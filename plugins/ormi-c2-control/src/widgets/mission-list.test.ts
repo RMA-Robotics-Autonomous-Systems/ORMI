@@ -132,7 +132,7 @@ describe("duplicateMissionDocuments", () => {
 		const graphDoc = {
 			mission_id: "m1:graph",
 			graph: {
-				version: 2,
+				version: 3,
 				nodes: [
 					{
 						id: "a",

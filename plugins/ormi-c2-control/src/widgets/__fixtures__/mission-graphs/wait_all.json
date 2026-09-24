@@ -3,7 +3,7 @@
 	"description": "A Wait on ALL of its conditions: 30 s passed AND one contact found.",
 	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
 	"graph": {
-		"version": 2,
+		"version": 3,
 		"nodes": [
 			{
 				"id": "ge",
@@ -67,18 +67,18 @@
 		],
 		"edges": [
 			{
-				"id": "ge.next-wait.in",
+				"id": "ge.agent-wait.agent",
 				"source": "ge",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "wait",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
-				"id": "wait.next-go.in",
+				"id": "wait.agent-go.agent",
 				"source": "wait",
-				"source_port": "next",
+				"source_port": "agent",
 				"target": "go",
-				"target_port": "in"
+				"target_port": "agent"
 			},
 			{
 				"id": "late.value-wait.when",
@@ -98,7 +98,6 @@
 	},
 	"expect": {
 		"errors": [],
-		"not_executable_yet": [],
 		"program": {
 			"chains": [
 				{
@@ -106,8 +105,13 @@
 					"steps": [
 						{
 							"step_id": "go",
+							"kind": "STEP",
 							"action": "NAVIGATE",
 							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
 							"wait_node": "wait",
 							"mode": "all",
 							"gate": [
