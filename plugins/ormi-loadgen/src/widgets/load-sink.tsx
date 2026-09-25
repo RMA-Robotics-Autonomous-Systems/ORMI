@@ -258,15 +258,13 @@ function snapshotLoadgen(pluginsManager: PluginsManager): LoadgenSnapshot {
 	const primary = loadgen[0]?.settings as LoadgenSettings | undefined;
 	const preset = primary?.preset ?? null;
 	const generators = primary
-		? resolveGenerators(primary).map(
-				(generator): GeneratorSummary => ({
-					topicPrefix: generator.topicPrefix,
-					topicCount: generator.topicCount,
-					type: generator.type,
-					rateHz: generator.rateHz,
-					payloadBytes: generator.payloadBytes,
-				}),
-			)
+		? resolveGenerators(primary).map((generator): GeneratorSummary => ({
+				topicPrefix: generator.topicPrefix,
+				topicCount: generator.topicCount,
+				type: generator.type,
+				rateHz: generator.rateHz,
+				payloadBytes: generator.payloadBytes,
+			}))
 		: null;
 
 	return { ids, preset, generators };
@@ -424,7 +422,7 @@ const BenchmarkRecorder: React.FC<{ scope: "loadgen" | "all" }> = ({
 				{recording ? "Stop" : "Start"}
 			</button>
 			{recording && (
-				<span className="text-red-500">
+				<span className="text-destructive">
 					● REC {formatClock(elapsedMs)}
 				</span>
 			)}
@@ -434,9 +432,9 @@ const BenchmarkRecorder: React.FC<{ scope: "loadgen" | "all" }> = ({
 
 /** Indicator dot color per topic health state. */
 const HEALTH_DOT_CLASS: Record<DatasourceHealth, string> = {
-	online: "bg-emerald-500",
-	connecting: "bg-amber-500",
-	offline: "bg-red-500",
+	online: "bg-success",
+	connecting: "bg-warning",
+	offline: "bg-destructive",
 };
 
 /** Format a last-message age in ms as a short human-readable string. */
@@ -511,7 +509,7 @@ function LoadSinkSummary({ topics }: { topics: SelectedTopic[] }) {
 					topics:{" "}
 					<span className="font-semibold">{topics.length}</span>
 					{offlineCount > 0 && (
-						<span className="text-red-500">
+						<span className="text-destructive">
 							{" "}
 							({offlineCount} offline)
 						</span>

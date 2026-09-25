@@ -7,13 +7,8 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import {
-	Grid,
-	OrbitControls,
-	PerspectiveCamera,
-	GizmoHelper,
-	GizmoViewport,
-} from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { SceneBackground, SceneGizmo, ThemedGrid } from "./scene-chrome";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
 	Scene3DProps,
@@ -62,8 +57,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	const mapGridLayers = props.mapGridLayers ?? [];
 	const transformTree = props.transformTree ?? { enabled: false };
 	const posePublisherConfig = props.posePublisherConfig as
-		| PosePublisherConfig
-		| undefined;
+		PosePublisherConfig | undefined;
 
 	const [poseMode, setPoseMode] = useState<PoseMode>("idle");
 	const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -252,20 +246,12 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					<primitive object={axesHelper} />
 				)}
 
-				<GizmoHelper alignment="bottom-right" margin={[80, 80]}>
-					<GizmoViewport
-						axisColors={["red", "green", "blue"]}
-						labelColor="black"
-					/>
-				</GizmoHelper>
+				<SceneBackground />
+				<SceneGizmo />
 
 				<OrbitControls ref={controlsRef} makeDefault />
 				{isVisible("scene:grid", showGrid) && (
-					<Grid
-						cellSize={1}
-						infiniteGrid={true}
-						sectionColor="lightblue"
-					/>
+					<ThemedGrid cellSize={1} />
 				)}
 
 				{/* The imperative scene engine owns the point-cloud layers. FramePump
@@ -390,6 +376,8 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					{poseMode === "goalPose" && (
 						<div
 							style={{
+								// The goal banner wears the marker colour (data, operator
+								// configured), so it and its white text stay fixed.
 								background: posePublisherConfig.markerColor
 									? `${posePublisherConfig.markerColor}e6`
 									: "rgba(255, 68, 0, 0.9)",
@@ -408,8 +396,8 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					{poseMode === "initialPose" && (
 						<div
 							style={{
-								background: "rgba(0, 136, 255, 0.9)",
-								color: "#fff",
+								background: "var(--info)",
+								color: "var(--info-foreground)",
 								borderRadius: "8px",
 								padding: "8px 16px",
 								fontSize: "13px",
@@ -425,8 +413,9 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 					{poseMode === "idle" && (
 						<div
 							style={{
-								background: "rgba(0,0,0,0.5)",
-								color: "#fff",
+								background:
+									"color-mix(in oklab, var(--popover) 85%, transparent)",
+								color: "var(--popover-foreground)",
 								borderRadius: "6px",
 								padding: "4px 10px",
 								fontSize: "11px",
@@ -440,7 +429,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								<span>
 									<kbd
 										style={{
-											background: "rgba(255,255,255,0.2)",
+											background: "var(--muted)",
 											borderRadius: "3px",
 											padding: "1px 5px",
 											fontFamily: "monospace",
@@ -466,7 +455,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								<span>
 									<kbd
 										style={{
-											background: "rgba(255,255,255,0.2)",
+											background: "var(--muted)",
 											borderRadius: "3px",
 											padding: "1px 5px",
 											fontFamily: "monospace",

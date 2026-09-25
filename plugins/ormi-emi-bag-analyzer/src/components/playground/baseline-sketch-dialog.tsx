@@ -478,7 +478,10 @@ export function BaselineSketchDialog({
 								cy={toSvgY(h.value, vmin, vmax)}
 								r={HANDLE_R}
 								fill="#f97316"
-								stroke="white"
+								// The ring separates the handle from the plot
+								// behind it: chrome, so it follows the theme.
+								// Signal (amber) and sketch (orange) are data.
+								stroke="var(--background)"
 								strokeWidth={2}
 								style={{
 									cursor:

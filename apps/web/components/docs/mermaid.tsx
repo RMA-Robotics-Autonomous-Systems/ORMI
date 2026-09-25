@@ -51,13 +51,11 @@ export function Mermaid({ chart, className, size = "large" }: MermaidProps) {
 
 	if (error) {
 		return (
-			<div className="my-6 rounded-lg border border-red-500/50 bg-red-50 p-4 dark:bg-red-950/20">
-				<p className="text-sm font-semibold text-red-800 dark:text-red-200">
+			<div className="my-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+				<p className="text-sm font-semibold text-destructive">
 					Failed to render diagram
 				</p>
-				<pre className="mt-2 text-xs text-red-600 dark:text-red-400">
-					{error}
-				</pre>
+				<pre className="mt-2 text-xs text-foreground">{error}</pre>
 			</div>
 		);
 	}

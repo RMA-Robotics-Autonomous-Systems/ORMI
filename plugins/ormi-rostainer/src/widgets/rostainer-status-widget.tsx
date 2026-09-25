@@ -149,9 +149,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 			{!isExecuting && outcome && (
 				<p
 					className={`text-xs truncate max-w-[120px] ${
-						outcome.ok
-							? "text-green-600 dark:text-green-400"
-							: "text-destructive"
+						outcome.ok ? "text-success" : "text-destructive"
 					}`}
 					title={outcome.message}
 				>
@@ -178,7 +176,7 @@ const ContainerCard: React.FC<ContainerCardProps> = ({
 	pullDef,
 }) => {
 	const isRunning = container.level === 0;
-	const dotColor = isRunning ? "bg-green-500" : "bg-yellow-500";
+	const dotColor = isRunning ? "bg-success" : "bg-warning";
 
 	return (
 		<div className="rounded-lg border bg-card p-3 flex flex-col gap-2 text-sm">

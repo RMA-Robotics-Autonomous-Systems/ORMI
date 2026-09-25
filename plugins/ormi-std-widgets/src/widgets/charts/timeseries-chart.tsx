@@ -12,10 +12,10 @@ import {
 	getTransparentColorString,
 } from "@workspace/utils";
 import { ChartLineIcon } from "lucide-react";
-import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
 
 import {
 	buildColumnGrid,
@@ -66,6 +66,24 @@ interface LiveFrameInputs {
 	getSource: ReturnType<typeof useLocalDataSource>["getSource"];
 }
 
+/**
+ * Theme tokens for the chart chrome: axis rules and tick labels, and grid lines.
+ * Series colours are data and never come from here.
+ */
+const CHART_CHROME_TOKENS = {
+	axisStroke: "--muted-foreground",
+	gridStroke: "--border",
+} as const;
+
+/** Chrome colours before the theme has been read (server / hydration render). */
+const CHART_CHROME_FALLBACK = { axisStroke: "#737373", gridStroke: "#e5e5e5" };
+
+/** Resolved chrome colours handed to {@link buildChartPlan}. */
+interface ChartChrome {
+	axisStroke: string;
+	gridStroke: string;
+}
+
 /** uPlot configuration derived from the widget's settings and the theme. */
 interface ChartPlan {
 	series: uPlot.Series[];
@@ -102,13 +120,13 @@ function clampSetting(
  *
  * @param topics - Series settings, in configuration order.
  * @param axis - Chart-wide axis settings.
- * @param light - Whether the light theme is active.
+ * @param chrome - Theme colours for the axes and grid.
  * @returns The plan the render effect assembles `uPlot.Options` from.
  */
 function buildChartPlan(
 	topics: readonly ChartSeriesSettings[],
 	axis: ChartAxisSettings | undefined,
-	light: boolean,
+	chrome: ChartChrome,
 ): ChartPlan {
 	const { axes, scaleKeys } = resolveChartAxes(topics, axis);
 
@@ -148,8 +166,8 @@ function buildChartPlan(
 	return {
 		series,
 		axes,
-		axisStroke: light ? "#726F6D" : "#ccc",
-		gridStroke: light ? "#eee" : "#726F6D",
+		axisStroke: chrome.axisStroke,
+		gridStroke: chrome.gridStroke,
 	};
 }
 
@@ -168,12 +186,21 @@ const TimeSeriesChartBody: React.FC<TimeSeriesSettings> = (props) => {
 	const { getSource } = useLocalDataSource();
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	const { resolvedTheme } = useTheme();
-	const light = resolvedTheme === "light";
+	// Follows light/dark and theme presets; a change rebuilds the plan, and
+	// with it the uPlot instance, like any other plan change.
+	const themeColors = useThemeColors(CHART_CHROME_TOKENS);
+	const axisStroke =
+		themeColors.axisStroke || CHART_CHROME_FALLBACK.axisStroke;
+	const gridStroke =
+		themeColors.gridStroke || CHART_CHROME_FALLBACK.gridStroke;
 
 	const plan = useMemo(
-		() => buildChartPlan(props.topics, props.axis, light),
-		[props.topics, props.axis, light],
+		() =>
+			buildChartPlan(props.topics, props.axis, {
+				axisStroke,
+				gridStroke,
+			}),
+		[props.topics, props.axis, axisStroke, gridStroke],
 	);
 
 	// The frame loop must see the current settings and the current source

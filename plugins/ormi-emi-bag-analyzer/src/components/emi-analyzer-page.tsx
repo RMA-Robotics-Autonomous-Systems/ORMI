@@ -43,6 +43,7 @@ import { Badge } from "@workspace/ui/components/badge";
 import { Spinner } from "@workspace/ui/components/spinner";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
 
+// Detector and event categories: data encodings, fixed in both themes.
 const MAD_COLOR = "#f97316";
 const RSD_COLOR = "#a855f7";
 const CUSUM_COLOR = "#22c55e";
@@ -793,7 +794,7 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600 dark:text-green-400">
+														<span className="font-mono text-success">
 															{
 																detectionQuality
 																	.mad.tp
@@ -828,7 +829,7 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600 dark:text-green-400">
+														<span className="font-mono text-success">
 															{
 																detectionQuality
 																	.rsd.tp
@@ -863,7 +864,7 @@ export function EmiAnalyzerPage() {
 													</p>
 													<p className="pl-2">
 														TP:{" "}
-														<span className="font-mono text-green-600 dark:text-green-400">
+														<span className="font-mono text-success">
 															{
 																detectionQuality
 																	.cusum.tp

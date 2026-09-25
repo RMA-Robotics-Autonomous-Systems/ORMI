@@ -32,12 +32,7 @@ import type { LayerTransformStatus } from "../types/scene-3d-types";
 
 /** Kind of toggleable element in the 3D scene. */
 export type SceneLayerKind =
-	| "pointcloud"
-	| "path"
-	| "mapgrid"
-	| "transformTree"
-	| "grid"
-	| "axes";
+	"pointcloud" | "path" | "mapgrid" | "transformTree" | "grid" | "axes";
 
 /**
  * A single toggleable entry rendered as a row in the scene control panel.
@@ -56,21 +51,21 @@ export interface SceneLayerEntry {
 }
 
 /**
- * Badge color + description per transform status. Colors are inline (not Tailwind palette
- * classes): the app's Tailwind v4 `@theme` does not emit the default `emerald`/`amber`
- * utilities, so class-based dots render with no background. `--muted-foreground` is a theme token.
+ * Badge color + description per transform status. Colors are inline theme tokens (raw
+ * `var(--…)`, never `var(--color-…)`, which is not emitted at runtime), so the dots follow
+ * light/dark and theme presets.
  */
 const STATUS_META: Record<
 	LayerTransformStatus,
 	{ color: string; label: string; description: string }
 > = {
 	resolved: {
-		color: "#22c55e",
+		color: "var(--success)",
 		label: "TF ok",
 		description: "Transform to the target frame resolved.",
 	},
 	fallback: {
-		color: "#f59e0b",
+		color: "var(--warning)",
 		label: "TF fallback",
 		description:
 			"Target frame unreachable — rendering in the layer's own root frame.",

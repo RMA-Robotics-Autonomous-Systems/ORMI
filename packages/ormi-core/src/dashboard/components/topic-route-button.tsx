@@ -66,6 +66,9 @@ const RouteOptionCard: React.FC<{
 	onSelect: () => void;
 }> = ({ option, definition, onSelect }) => {
 	const isPublish = option.direction === "publish";
+	// The publish affordance is coloured with the warning tokens by decision,
+	// so a theme preset recolours it together with every other warning. It
+	// must stay distinct from the neutral display affordance.
 
 	return (
 		<DropdownMenuItem
@@ -73,7 +76,7 @@ const RouteOptionCard: React.FC<{
 			className={cn(
 				"flex h-auto flex-col items-center gap-1.5 rounded-md border p-2 text-center",
 				isPublish
-					? "border-amber-500/40 focus:bg-amber-500/10"
+					? "border-warning/40 focus:bg-warning/10"
 					: "border-border",
 			)}
 		>
@@ -81,14 +84,14 @@ const RouteOptionCard: React.FC<{
 				className={cn(
 					"relative flex size-10 shrink-0 items-center justify-center rounded-md [&_svg]:size-5",
 					isPublish
-						? "bg-amber-500/10 text-amber-600 dark:text-amber-500 [&_svg:not([class*='text-'])]:text-amber-600 dark:[&_svg:not([class*='text-'])]:text-amber-500"
+						? "bg-warning/10 text-warning-text [&_svg:not([class*='text-'])]:text-warning-text"
 						: "bg-muted",
 				)}
 			>
 				{definition.icon || <SettingsIcon />}
 				{isPublish ? (
 					<Gamepad2
-						className="absolute -right-1 -bottom-1 size-3.5 text-amber-600 dark:text-amber-500"
+						className="absolute -right-1 -bottom-1 size-3.5 text-warning-text"
 						aria-hidden
 					/>
 				) : null}
@@ -317,8 +320,10 @@ export const TopicRouteButton: React.FC<TopicRouteButtonProps> = ({
 	const renderCommandAction = () => {
 		if (commandOptions.length === 0) return null;
 
+		// Warning tokens by decision: presets recolour the command affordance
+		// together with every other warning.
 		const commandClass =
-			"text-amber-600 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-500 hover:bg-amber-500/10";
+			"text-warning-text hover:text-warning-text hover:bg-warning/10";
 
 		if (commandOptions.length === 1) {
 			const option = commandOptions[0]!;
@@ -336,7 +341,7 @@ export const TopicRouteButton: React.FC<TopicRouteButtonProps> = ({
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>
-						{`Command a robot with it — adds ${option.widgetName}.`}
+						{`Command with ${option.widgetName}`}
 					</TooltipContent>
 				</Tooltip>
 			);
@@ -362,7 +367,7 @@ export const TopicRouteButton: React.FC<TopicRouteButtonProps> = ({
 					</TooltipContent>
 				</Tooltip>
 				<DropdownMenuContent align="end" className="w-72">
-					<DropdownMenuLabel className="text-amber-600 dark:text-amber-500">
+					<DropdownMenuLabel className="text-warning-text">
 						Command a robot with it
 					</DropdownMenuLabel>
 					{renderGroup(commandOptions)}

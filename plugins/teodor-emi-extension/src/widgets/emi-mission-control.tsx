@@ -155,7 +155,7 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 								if (startMission(name)) setName("");
 							}}
 						>
-							<CircleIcon className="size-3 fill-red-500 text-red-500" />
+							<CircleIcon className="size-3 fill-destructive text-destructive" />
 							Record
 						</Button>
 					)}
@@ -203,7 +203,7 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 
 				{/* ── Where it goes, and what went wrong ──────────────────── */}
 				{mission.persistence === "memory" && (
-					<p className="rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400">
+					<p className="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] text-foreground">
 						This browser is not allowing a database. Missions are
 						held in memory and are lost when the tab closes — export
 						before leaving.
@@ -329,7 +329,7 @@ function MissionRow(props: {
 					)}{" "}
 					· {bytes(m.bytes)}
 					{interrupted && (
-						<span className="ml-1 text-amber-600 dark:text-amber-400">
+						<span className="ml-1 text-warning-text">
 							· interrupted
 						</span>
 					)}

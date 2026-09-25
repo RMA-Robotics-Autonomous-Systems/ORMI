@@ -128,14 +128,17 @@ export function TimelineScrubber({
 				onPointerLeave={onPointerUp}
 				style={{ display: "block" }}
 			>
-				{/* Background track */}
+				{/* Background track. Chrome reads the raw theme tokens
+				    (`var(--muted)`), never `var(--color-*)`: those are declared
+				    under `@theme inline` and not emitted at runtime. Event tick
+				    colours are data and come from the caller. */}
 				<rect
 					x={0}
 					y={trackY}
 					width={width}
 					height={TRACK_H}
 					rx={3}
-					fill="var(--color-muted, #e2e8f0)"
+					fill="var(--muted)"
 				/>
 
 				{/* Event ticks */}
@@ -161,7 +164,7 @@ export function TimelineScrubber({
 					y={trackY}
 					width={Math.max(0, x1 - x0)}
 					height={TRACK_H}
-					fill="var(--color-primary, #3b82f6)"
+					fill="var(--primary)"
 					opacity={0.35}
 					style={{ cursor: "grab" }}
 					onPointerDown={(e) => onPointerDown(e, "pan")}
@@ -174,7 +177,7 @@ export function TimelineScrubber({
 					width={HANDLE_W}
 					height={TRACK_H + 8}
 					rx={3}
-					fill="var(--color-primary, #3b82f6)"
+					fill="var(--primary)"
 					style={{ cursor: "ew-resize" }}
 					onPointerDown={(e) => onPointerDown(e, "start")}
 				/>
@@ -186,7 +189,7 @@ export function TimelineScrubber({
 					width={HANDLE_W}
 					height={TRACK_H + 8}
 					rx={3}
-					fill="var(--color-primary, #3b82f6)"
+					fill="var(--primary)"
 					style={{ cursor: "ew-resize" }}
 					onPointerDown={(e) => onPointerDown(e, "end")}
 				/>
@@ -196,7 +199,7 @@ export function TimelineScrubber({
 					x={Math.max(0, x0)}
 					y={trackY - 6}
 					fontSize={10}
-					fill="var(--color-foreground, #1a1a1a)"
+					fill="var(--foreground)"
 					textAnchor={x0 < 40 ? "start" : "middle"}
 				>
 					{fmtSec(startNs)}
@@ -205,7 +208,7 @@ export function TimelineScrubber({
 					x={Math.min(width, x1)}
 					y={trackY - 6}
 					fontSize={10}
-					fill="var(--color-foreground, #1a1a1a)"
+					fill="var(--foreground)"
 					textAnchor={x1 > width - 40 ? "end" : "middle"}
 				>
 					{fmtSec(endNs)}
@@ -216,7 +219,7 @@ export function TimelineScrubber({
 					x={width - 2}
 					y={trackY + TRACK_H + 12}
 					fontSize={9}
-					fill="var(--color-muted-foreground, #6b7280)"
+					fill="var(--muted-foreground)"
 					textAnchor="end"
 				>
 					{fmtSec(duration)}

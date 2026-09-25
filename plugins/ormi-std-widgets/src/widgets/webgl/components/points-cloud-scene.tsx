@@ -1,13 +1,8 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import {
-	Grid,
-	OrbitControls,
-	PerspectiveCamera,
-	GizmoHelper,
-	GizmoViewport,
-} from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { SceneBackground, SceneGizmo, ThemedGrid } from "./scene-chrome";
 import { createTopicKey } from "@workspace/utils";
 import {
 	DEFAULT_POINT_CLOUD_THEME,
@@ -67,15 +62,11 @@ export const PointsCloudScene: React.FC<PointsCloudProps> = (props) => {
 				<ambientLight intensity={1} />
 
 				<primitive object={axesHelper} />
-				<GizmoHelper alignment="bottom-right" margin={[80, 80]}>
-					<GizmoViewport
-						axisColors={["red", "green", "blue"]}
-						labelColor="black"
-					/>
-				</GizmoHelper>
+				<SceneBackground />
+				<SceneGizmo />
 
 				<OrbitControls makeDefault />
-				<Grid infiniteGrid={true} sectionColor="lightblue" />
+				<ThemedGrid />
 
 				{/* The imperative scene engine owns the point-cloud layers. FramePump
 				    drives its render plane on demanded frames; DataBridge feeds

@@ -166,7 +166,7 @@ function MapGridViewerBody({
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
-						color: "#666",
+						color: "var(--muted-foreground)",
 						flexDirection: "column",
 						gap: 8,
 					}}
@@ -184,6 +184,9 @@ function MapGridViewerBody({
 						alignItems: "center",
 						justifyContent: "center",
 						padding: 8,
+						// Fixed in every theme: the occupancy encoding is tuned against
+						// this dark plate (free and unknown cells are translucent and
+						// let it show through), so it is part of the data, not chrome.
 						background: "#1a1a2e",
 					}}
 				>

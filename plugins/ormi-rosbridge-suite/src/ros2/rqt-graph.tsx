@@ -3,9 +3,10 @@ import React, { JSX, useEffect, useRef, useState } from "react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import * as ROSLIB from "roslib";
 import * as d3 from "d3";
-import { useTheme } from "next-themes";
+import type ForceGraphInstance from "force-graph";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
+import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
 import { createDatasourceSelectHook } from "@workspace/utils";
 
 /**
@@ -19,6 +20,85 @@ const rosbridgeDatasourceSelectHook = createDatasourceSelectHook({
 	definitionId: "rosbridge-suite-source",
 });
 
+/**
+ * Theme tokens for the graph. Nodes, edges and labels are UI here (a view of
+ * the ROS graph, not a data encoding), so all of it follows the theme.
+ */
+const GRAPH_TOKENS = {
+	edge: "--muted-foreground",
+	label: "--foreground",
+	node: "--primary",
+} as const;
+
+/** Resolved graph colours; `""` before the DOM can be read. */
+type GraphColors = { [K in keyof typeof GRAPH_TOKENS]: string };
+
+/** A ROS node as the simulation has placed it. */
+interface GraphNode {
+	id: string;
+	/** Placed by the simulation before the first draw. */
+	x?: number;
+	y?: number;
+}
+
+/** A topic edge between two placed ROS nodes. */
+interface GraphLink {
+	source: GraphNode;
+	target: GraphNode;
+	value: string;
+}
+
+/**
+ * Apply the theme colours to a force-graph instance. Every accessor it sets
+ * notifies a redraw, so a theme change repaints a graph that has cooled down.
+ */
+function applyGraphColors(
+	graph: ForceGraphInstance<GraphNode, GraphLink>,
+	colors: GraphColors,
+): void {
+	const edge = colors.edge || "#999999";
+	const label = colors.label || "#999999";
+	const node = colors.node || "#1f77b4";
+	graph
+		.linkColor(() => edge)
+		.linkCanvasObject(
+			(
+				link: GraphLink,
+				ctx: CanvasRenderingContext2D,
+				globalScale: number,
+			) => {
+				const { source, target, value } = link;
+				const x = ((source.x ?? 0) + (target.x ?? 0)) / 2;
+				const y = ((source.y ?? 0) + (target.y ?? 0)) / 2;
+				ctx.font = `${10 / globalScale}px Sans-Serif`;
+				ctx.fillStyle = edge;
+				ctx.strokeStyle = edge;
+				ctx.textAlign = "center";
+				ctx.fillText(value, x, y);
+			},
+		)
+		.nodeCanvasObject(
+			(
+				node_: GraphNode,
+				ctx: CanvasRenderingContext2D,
+				globalScale: number,
+			) => {
+				const r = 5;
+				ctx.beginPath();
+				const x = node_.x ?? 0;
+				const y = node_.y ?? 0;
+				ctx.arc(x, y, r, 0, 2 * Math.PI, false);
+				ctx.fillStyle = node;
+				ctx.fill();
+				ctx.font = `${12 / globalScale}px Sans-Serif`;
+				ctx.textAlign = "center";
+				ctx.textBaseline = "bottom";
+				ctx.fillStyle = label;
+				ctx.fillText(node_.id, x, y - r - 2);
+			},
+		);
+}
+
 interface RQTGraphProps extends Record<string, unknown> {
 	title: string;
 	datasource_id: string;
@@ -30,7 +110,13 @@ interface RQTGraphProps extends Record<string, unknown> {
 function RQTGraph(props: RQTGraphProps): JSX.Element {
 	const pluginsManager = usePluginsManager();
 
-	const { resolvedTheme } = useTheme();
+	const colors = useThemeColors(GRAPH_TOKENS);
+	// Read by the async graph construction, which outlives the render that
+	// started it; synced in an effect, never during render.
+	const colorsRef = useRef(colors);
+	useEffect(() => {
+		colorsRef.current = colors;
+	}, [colors]);
 
 	const [roslib, setRoslib] = useState<ROSLIB.Ros | null>(null);
 	const [rosNodes, setRosNodes] = useState<
@@ -142,15 +228,13 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 
 	// Initialize the graph once
 	useEffect(() => {
+		let cancelled = false;
 		if (divRef.current && !graphRef.current) {
 			(async () => {
 				const { default: ForceGraph } = await import("force-graph");
+				if (cancelled || !divRef.current) return;
 
-				const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
-				const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
-
-				graphRef.current = new ForceGraph(divRef.current!)
-					.linkColor(() => arrowColor)
+				graphRef.current = new ForceGraph(divRef.current)
 					.linkDirectionalArrowLength(2)
 					.linkDirectionalArrowRelPos(1)
 					// .linkDirectionalParticles(2)
@@ -161,29 +245,8 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 					.d3Force("charge", d3.forceManyBody().strength(-30))
 					// Add a boundary force to keep nodes within a reasonable area
 					.d3Force("x", d3.forceX().strength(0.05))
-					.d3Force("y", d3.forceY().strength(0.05))
-					.linkCanvasObject((link: any, ctx, globalScale) => {
-						const { source, target, value } = link;
-						const x = (source.x + target.x) / 2;
-						const y = (source.y + target.y) / 2;
-						ctx.font = `${10 / globalScale}px Sans-Serif`;
-						ctx.fillStyle = arrowColor;
-						ctx.strokeStyle = arrowColor;
-						ctx.textAlign = "center";
-						ctx.fillText(value, x, y);
-					})
-					.nodeCanvasObject((node: any, ctx, globalScale) => {
-						const r = 5;
-						ctx.beginPath();
-						ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-						ctx.fillStyle = "#1f77b4";
-						ctx.fill();
-						ctx.font = `${12 / globalScale}px Sans-Serif`;
-						ctx.textAlign = "center";
-						ctx.textBaseline = "bottom";
-						ctx.fillStyle = lineColor;
-						ctx.fillText(node.id, node.x, node.y - r - 2);
-					});
+					.d3Force("y", d3.forceY().strength(0.05));
+				applyGraphColors(graphRef.current, colorsRef.current);
 
 				// Initial zoom to fit
 				setTimeout(() => {
@@ -195,12 +258,13 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 		}
 
 		return () => {
+			cancelled = true;
 			if (graphRef.current) {
 				graphRef.current._destructor();
 				graphRef.current = null;
 			}
 		};
-	}, [divRef.current, resolvedTheme]);
+	}, []);
 
 	// Update only graph data when nodes change
 	useEffect(() => {
@@ -284,50 +348,11 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 		graphRef.current.cooldownTicks(50).cooldownTime(2000);
 	}, []);
 
-	// Update styling when theme changes
+	// Update styling when the theme changes (light/dark or a preset)
 	useEffect(() => {
 		if (!graphRef.current) return;
-
-		const arrowColor = resolvedTheme === "light" ? "#333" : "#ccc";
-		const lineColor = resolvedTheme === "light" ? "#333" : "#ccc";
-
-		graphRef.current
-			.linkColor(() => arrowColor)
-			.linkCanvasObject(
-				(
-					link: any,
-					ctx: CanvasRenderingContext2D,
-					globalScale: number,
-				) => {
-					const { source, target, value } = link;
-					const x = (source.x + target.x) / 2;
-					const y = (source.y + target.y) / 2;
-					ctx.font = `${10 / globalScale}px Sans-Serif`;
-					ctx.fillStyle = arrowColor;
-					ctx.strokeStyle = arrowColor;
-					ctx.textAlign = "center";
-					ctx.fillText(value, x, y);
-				},
-			)
-			.nodeCanvasObject(
-				(
-					node: any,
-					ctx: CanvasRenderingContext2D,
-					globalScale: number,
-				) => {
-					const r = 5;
-					ctx.beginPath();
-					ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-					ctx.fillStyle = "#1f77b4";
-					ctx.fill();
-					ctx.font = `${12 / globalScale}px Sans-Serif`;
-					ctx.textAlign = "center";
-					ctx.textBaseline = "bottom";
-					ctx.fillStyle = lineColor;
-					ctx.fillText(node.id, node.x, node.y - r - 2);
-				},
-			);
-	}, [resolvedTheme]);
+		applyGraphColors(graphRef.current, colors);
+	}, [colors]);
 
 	return (
 		<div

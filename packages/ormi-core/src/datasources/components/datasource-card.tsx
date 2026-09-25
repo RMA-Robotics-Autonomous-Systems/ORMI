@@ -120,7 +120,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 				: "Connecting…";
 	const statusDotClass =
 		health === "online"
-			? "bg-green-600 dark:bg-green-400"
+			? "bg-success"
 			: health === "offline"
 				? "bg-destructive"
 				: "bg-muted-foreground animate-pulse";

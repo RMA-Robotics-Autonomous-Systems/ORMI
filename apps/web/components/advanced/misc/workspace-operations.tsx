@@ -373,8 +373,8 @@ export function WorkspaceOperations({
 						</div>
 
 						{typeChanged && (
-							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+							<div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+								<AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
 								<p>
 									Your widgets and datasources are kept, but
 									the current layout arrangement will reset to

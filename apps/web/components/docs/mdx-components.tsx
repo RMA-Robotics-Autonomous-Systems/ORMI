@@ -268,17 +268,17 @@ const components = {
 		children: React.ReactNode;
 	}) => {
 		const icons = {
-			info: <Info className="h-4 w-4" />,
-			warning: <AlertTriangle className="h-4 w-4" />,
-			success: <CheckCircle2 className="h-4 w-4" />,
-			error: <AlertCircle className="h-4 w-4" />,
+			info: <Info className="h-4 w-4 text-info" />,
+			warning: <AlertTriangle className="h-4 w-4 text-warning" />,
+			success: <CheckCircle2 className="h-4 w-4 text-success" />,
+			error: <AlertCircle className="h-4 w-4 text-destructive" />,
 		};
 
 		const variants = {
-			info: "border-blue-500/50 bg-blue-50 dark:bg-blue-950/20",
-			warning: "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20",
-			success: "border-green-500/50 bg-green-50 dark:bg-green-950/20",
-			error: "border-red-500/50 bg-red-50 dark:bg-red-950/20",
+			info: "border-info/40 bg-info/10",
+			warning: "border-warning/40 bg-warning/10",
+			success: "border-success/40 bg-success/10",
+			error: "border-destructive/40 bg-destructive/10",
 		};
 
 		return (

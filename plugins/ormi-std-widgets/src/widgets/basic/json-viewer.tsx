@@ -58,8 +58,8 @@ function JsonViewer(props: { sourceTitle: string }) {
 					className="shadow-inner-md rounded-md m-3 p-1"
 					style={{
 						boxShadow: "5px 5px 16px 0px rgba(0,0,0,0.1) inset",
-						backgroundColor: "darkslategrey",
-						color: "white",
+						backgroundColor: "var(--muted)",
+						color: "var(--foreground)",
 					}}
 				>
 					{displayData}
