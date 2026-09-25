@@ -91,9 +91,7 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>
-						{hasChanged
-							? "Save dashboard"
-							: "Dashboard saved — no pending changes"}
+						{hasChanged ? "Save dashboard" : "No unsaved changes"}
 					</TooltipContent>
 				</Tooltip>
 			</NavbarItem>

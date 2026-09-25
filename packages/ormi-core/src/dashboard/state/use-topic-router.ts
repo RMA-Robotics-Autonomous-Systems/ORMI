@@ -131,7 +131,7 @@ export function useTopicRouter(): TopicRouting {
 					createWidgetSettings(definition) as never,
 				);
 				toast.success(
-					`${option.widgetName} opened — it shows ${topic.topic} with every other topic of its kind`,
+					`${option.widgetName} opened. It shows ${topic.topic} and every other topic of its type.`,
 					{
 						action: {
 							label: "Undo",
@@ -152,7 +152,7 @@ export function useTopicRouter(): TopicRouting {
 			const missing = slot.requiresCompanions;
 			toast.success(
 				option.direction === "publish"
-					? `${option.widgetName} added — it commands ${topic.topic}`
+					? `${option.widgetName} added: commands ${topic.topic}`
 					: `${topic.topic} opened in ${option.widgetName}`,
 				{
 					...(missing.length === 0
