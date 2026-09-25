@@ -92,8 +92,8 @@ describe("formatDistance", () => {
 	});
 
 	it("names a non-distance rather than printing one", () => {
-		expect(formatDistance(0)).toBe("—");
-		expect(formatDistance(Number.NaN)).toBe("—");
+		expect(formatDistance(0)).toBe("n/a");
+		expect(formatDistance(Number.NaN)).toBe("n/a");
 	});
 });
 
@@ -106,7 +106,7 @@ describe("formatResolution", () => {
 	});
 
 	it("names a non-resolution rather than printing one", () => {
-		expect(formatResolution(0)).toBe("—");
-		expect(formatResolution(Number.NaN)).toBe("—");
+		expect(formatResolution(0)).toBe("n/a");
+		expect(formatResolution(Number.NaN)).toBe("n/a");
 	});
 });

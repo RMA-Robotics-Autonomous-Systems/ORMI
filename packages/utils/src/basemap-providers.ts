@@ -359,7 +359,7 @@ function basemapPickerRank(entry: BasemapProvider): number {
  * similarly-named styles, and **whether it needs an API key**, which is
  * otherwise discovered by selecting it and getting a blank map. The provider is
  * omitted when the title already opens with it, so "OpenStreetMap" does not
- * become "OpenStreetMap — OpenStreetMap".
+ * become "OpenStreetMap · OpenStreetMap".
  *
  * @param entry - Catalogue entry.
  * @returns Display label.
@@ -367,13 +367,13 @@ function basemapPickerRank(entry: BasemapProvider): number {
 function basemapPickerLabel(entry: BasemapProvider): string {
 	// Compared on the provider's first word, not the whole name: "Stadia Maps"
 	// serves "Stadia Alidade Smooth Dark", and appending the full provider
-	// there would read "Stadia Alidade Smooth Dark — Stadia Maps".
+	// there would read "Stadia Alidade Smooth Dark · Stadia Maps".
 	const vendor = entry.provider.split(" ")[0]?.toLowerCase() ?? "";
 	const redundant =
 		vendor.length > 0 && entry.title.toLowerCase().startsWith(vendor);
 	const label = redundant
 		? entry.title
-		: `${entry.title} — ${entry.provider}`;
+		: `${entry.title} · ${entry.provider}`;
 	return entry.keyParam ? `${label} (API key required)` : label;
 }
 

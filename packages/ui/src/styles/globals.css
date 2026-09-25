@@ -367,3 +367,59 @@
 		box-shadow: 0 0 0 0 oklch(from var(--primary) l c h / 0);
 	}
 }
+/*
+ * MapLibre popups, in the app's theme.
+ *
+ * `maplibre-gl.css` paints `.maplibregl-popup-content` `#fff` and each anchor's
+ * `.maplibregl-popup-tip` white to match, which is a white card whatever the
+ * theme is. A popup body written in theme tokens — the C2 contact popup uses
+ * `text-muted-foreground`, `text-info`, `text-warning` — is then white on white
+ * in dark mode: every value invisible, only the grey labels and the amber badge
+ * surviving. It is fixed here once rather than with a `className` on each
+ * `<Popup>`, so the next popup anyone writes inherits it.
+ *
+ * The selectors carry the map container so they out-specify maplibre's own (a
+ * popup is always appended to `.maplibregl-map`). Both stylesheets are
+ * unlayered, so at equal specificity this would come down to bundle order.
+ * `border-radius` is deliberately left at the same specificity as maplibre's
+ * per-anchor corner rules, which square off the one corner the tip meets.
+ */
+.maplibregl-map .maplibregl-popup-content {
+	@apply rounded-md border bg-popover p-3 text-popover-foreground shadow-md;
+}
+
+/*
+ * The tip is a CSS triangle drawn out of border sides: the side facing the card
+ * is the one that takes its colour, and which side that is depends on the
+ * anchor — so every anchor direction is restated here, or a popup that flips
+ * above its point grows a white spike in dark mode.
+ */
+.maplibregl-map .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+	border-bottom-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+	border-top-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-left .maplibregl-popup-tip {
+	border-right-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-right .maplibregl-popup-tip {
+	border-left-color: var(--popover);
+}
+
+/* maplibre leaves the close button at the UA's button colour — black on a dark
+   card — and hovers it with a black wash that is invisible there. */
+.maplibregl-map .maplibregl-popup-close-button {
+	color: inherit;
+}
+
+.maplibregl-map .maplibregl-popup-close-button:hover {
+	background-color: var(--accent);
+}
