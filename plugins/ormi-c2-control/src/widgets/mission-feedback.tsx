@@ -186,7 +186,6 @@ function MissionPicker(props: {
 			<SelectTrigger
 				size="sm"
 				className="min-w-0 max-w-full border-transparent shadow-none px-2 text-sm font-semibold hover:bg-accent"
-				title="Choose the mission to show"
 			>
 				<SelectValue placeholder="Select a mission…">
 					{props.selectedId ? (
@@ -231,8 +230,9 @@ function OtherMissionPill({ fb }: { fb: MissionFeedback }) {
 			<button
 				type="button"
 				onClick={() => setSelectedMission(fb.mission_id)}
-				className="cursor-pointer max-w-full"
-				title={`${name} — ${missionStatusLabel(fb.status)}. Click to show it.`}
+				className="cursor-pointer max-w-full outline-none"
+				title={`${name}: ${missionStatusLabel(fb.status)}`}
+				aria-label={`Show mission ${name} (${missionStatusLabel(fb.status)})`}
 			>
 				<span
 					className="size-2 shrink-0 rounded-full"
@@ -375,7 +375,7 @@ function MissionHeader(props: {
 	const pending = !fb || missionPhase(fb.status) === "pending";
 	const plannerText =
 		pending && plannerState === "planning"
-			? "Planner is computing a plan…"
+			? "Planning…"
 			: pending && plannerState === "failed"
 				? "Planning failed"
 				: null;
@@ -413,7 +413,6 @@ function MissionHeader(props: {
 					<Badge
 						variant="outline"
 						className="text-muted-foreground font-normal"
-						title="This mission is over; you are reviewing its last report."
 					>
 						{ended ? `Finished ${formatClock(ended)}` : "Finished"}{" "}
 						· review
@@ -423,7 +422,7 @@ function MissionHeader(props: {
 					<Badge
 						variant="outline"
 						className="text-muted-foreground font-normal border-dashed"
-						title="The C2's last stored snapshot — nothing has been heard live on this page."
+						title="Last report stored on the C2. Nothing received live."
 					>
 						stored
 					</Badge>
@@ -587,8 +586,10 @@ function GraphPositions(props: { fb: MissionFeedback; missionId: string }) {
 				<button
 					key={p.agentId}
 					type="button"
-					className="flex items-start gap-2 min-w-0 rounded-md px-1.5 py-1 text-left hover:bg-muted"
-					title="Show this node in the graph editor"
+					className="flex items-start gap-2 min-w-0 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted disabled:hover:bg-transparent disabled:cursor-default outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+					title={p.stepId ? "Show in graph editor" : "Not on a node"}
+					aria-label={`${agentNames[p.agentId] ?? p.agentId}: ${p.text}`}
+					disabled={!p.stepId}
 					onClick={() =>
 						p.stepId && focusGraphNode(props.missionId, p.stepId)
 					}
@@ -695,8 +696,8 @@ function MissionFeedbackBody(props: {
 						{shown == null && (
 							<PanelEmptyState>
 								{props.missionId
-									? "No feedback for this mission yet, live or stored."
-									: "Pick a mission above, or in the mission browser."}
+									? "No feedback for this mission yet."
+									: "Select a mission."}
 							</PanelEmptyState>
 						)}
 
@@ -758,7 +759,7 @@ const MissionFeedbackWidget: React.FC<MissionFeedbackProps> = (props) => {
 	if (!props.topic) {
 		return (
 			<PanelEmptyState>
-				Select a mission feedback topic in the widget configuration.
+				No feedback topic. Set one in this panel&apos;s settings.
 			</PanelEmptyState>
 		);
 	}
@@ -780,11 +781,16 @@ const MissionFeedbackWidget: React.FC<MissionFeedbackProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionFeedbackDefinition(): WidgetDefinition<MissionFeedbackProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-feedback-widget",
 		name: "C2 Mission Feedback",
-		description:
-			"Now playing, and a per-mission timeline of tasks and waypoints",
+		description: "Running missions and each mission's timeline.",
 		titleProp: "title",
 		icon: <ListChecks />,
 

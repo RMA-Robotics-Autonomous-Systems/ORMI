@@ -80,6 +80,25 @@ describe("the model", () => {
 		}
 	});
 
+	it("captions a shared tab strip so it fits the pane it is in", () => {
+		// "Mission Graph / Assets / Swarm Log" wants 568 px; at 1100×800 the
+		// strip has 470, so the captions truncated AND the tabset's maximize
+		// button was pushed out of reach — removing the one escape from a
+		// cramped pane. The budget is a proxy for that width (~8 px per
+		// character at the strip's type size, plus per-tab padding and the
+		// maximize button), and a tabset of one keeps the widget's own title
+		// because it has the whole pane.
+		const CAPTION_BUDGET = 26;
+		for (const set of tabsets(model().layout)) {
+			if (set.children.length < 2) continue;
+			const captions = set.children.map((c) =>
+				String((c as { name?: unknown }).name),
+			);
+			const width = captions.reduce((n, c) => n + c.length, 0);
+			expect(width).toBeLessThanOrEqual(CAPTION_BUDGET);
+		}
+	});
+
 	it("opens with the eight mission panels", () => {
 		// Seven since the mission editor widget was removed as redundant with
 		// the behaviour-graph editor and the map's own mission panel
@@ -124,6 +143,37 @@ describe("the model", () => {
 		}
 	});
 
+	it("gives the authoring band the most room on the right", () => {
+		// The graph editor replaced the mission form: it is the surface a
+		// mission is written on, and a canvas is the one panel here that is
+		// unusable rather than merely cramped when it is starved. The layout
+		// this replaces put it last in an already-divided right half — 530×85
+		// px at 1100×800, smaller than the graph's own floating legend.
+		//
+		// Read structurally rather than by weight literal: the band holding the
+		// graph must be the heaviest child of the right half, and it must span
+		// the whole of it (a tabset, not a column inside a row).
+		const [, right] = model().layout.children as Array<{
+			type: string;
+			weight: number;
+			children?: Array<{
+				type: string;
+				weight: number;
+				children?: Array<{ id?: string }>;
+			}>;
+		}>;
+		const bands = right?.children ?? [];
+		const authoring = bands.find(
+			(band) =>
+				band.type === "tabset" &&
+				band.children?.some((c) => c.id === "c2-graph"),
+		);
+		expect(authoring).toBeDefined();
+		for (const band of bands) {
+			expect(authoring!.weight).toBeGreaterThanOrEqual(band.weight);
+		}
+	});
+
 	it("keeps the lifecycle panel out of every shared tabset", () => {
 		// It holds Pause and Stop. A control that halts a vehicle must not be
 		// one click behind a tab strip, and a tab that has to be found first is
@@ -140,12 +190,12 @@ describe("the model", () => {
 	});
 
 	it("shares one tabset between the behaviour graph, the assets and the log", () => {
-		// Authoring happens before a mission runs and the log is read once
-		// something has gone wrong; neither is watched continuously, so a pane
-		// each would spend most of the centre column on idle panels. The graph
-		// editor is the only authoring panel left in the strip — the fields the
-		// C2 itself carries are authored on the map, beside the geometry they
-		// describe.
+		// The graph and the assets are two views of one authoring job, and the
+		// log is read once something has gone wrong; none is watched
+		// continuously, so a pane each would spend most of the right half on
+		// idle panels. The graph editor is the only authoring panel in the
+		// strip — the fields the C2 itself carries are authored on the map,
+		// beside the geometry they describe, and derived from the graph.
 		const shared = tabsets(model().layout)
 			.filter((set) => set.children.length > 1)
 			.map((set) =>

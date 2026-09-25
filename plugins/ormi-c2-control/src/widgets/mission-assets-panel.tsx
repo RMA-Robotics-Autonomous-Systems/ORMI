@@ -61,6 +61,7 @@ import { contactName } from "./mission-contacts";
 import { MissionContactsWatch } from "./mission-contacts-watch";
 import { generateMissionId } from "./mission-list";
 import { PanelEmptyState } from "./panel-empty-state";
+import { useContainerSize } from "./responsive";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -92,6 +93,14 @@ interface MissionAssetsProps extends Record<string, unknown> {
 
 const GROUP_ICON = { waypoint: MapPin, zone: Square, cue: Crosshair };
 
+/**
+ * The one group word that needs a gloss: "cue" is defined nowhere else on
+ * screen. Dropped at `xs`, where the tree would only truncate it.
+ */
+const GROUP_HINT: Partial<Record<"waypoint" | "zone" | "cue", string>> = {
+	cue: "suspected spots",
+};
+
 /** Resolve a C2 call definition by name from the available remote calls. */
 function findCall(
 	calls: RemoteCallDefinition[],
@@ -106,6 +115,8 @@ function MissionAssetsBody(props: {
 	featuresListDef?: RemoteCallDefinition;
 	contactsDef?: RemoteCallDefinition;
 }) {
+	const [rootRef, { size }] = useContainerSize<HTMLDivElement>();
+	const narrow = size === "xs";
 	const missionId = useSelectedMission();
 	const contacts = useMissionContacts(missionId);
 	const selectedContactUid = useSelectedContact(missionId);
@@ -164,7 +175,7 @@ function MissionAssetsBody(props: {
 			const result = await executeMissionsList({});
 			if (cancelled) return;
 			if (!result.success) {
-				setError(result.error ?? "Failed to read the mission store");
+				setError(result.error ?? "Could not load the missions.");
 				return;
 			}
 			if (!hasMissionAssets(missionId))
@@ -237,9 +248,14 @@ function MissionAssetsBody(props: {
 	);
 
 	const data = useMemo<TreeDataItem[]>(() => {
+		// The hint is dropped where the row would only truncate it.
+		const hint = (text: string | undefined) =>
+			narrow || !text ? "" : `: ${text}`;
 		const tree: TreeDataItem[] = groups.map((group) => ({
 			id: `group:${group.type}`,
-			name: `${group.label} (${group.leaves.length})`,
+			name: `${group.label} (${group.leaves.length})${hint(
+				GROUP_HINT[group.type],
+			)}`,
 			icon: GROUP_ICON[group.type],
 			children: group.leaves.map((leaf) => ({
 				id: leaf.featureId,
@@ -270,7 +286,8 @@ function MissionAssetsBody(props: {
 		if (library && library.map === mapName && library.features.length > 0) {
 			tree.push({
 				id: "group:library",
-				name: `On map ${mapName} — import a copy (${library.features.length})`,
+				// Names the set; the import action is on each row.
+				name: `On map ${mapName} (${library.features.length})`,
 				icon: Download,
 				children: library.features.map((feature) => ({
 					id: `library:${assetId(feature)}`,
@@ -280,8 +297,7 @@ function MissionAssetsBody(props: {
 						<Button
 							size="icon-sm"
 							variant="ghost"
-							className="h-6 w-6"
-							title="Import a copy into this mission"
+							title="Import into mission"
 							aria-label="Import into mission"
 							onClick={(event) => {
 								event.stopPropagation();
@@ -295,12 +311,20 @@ function MissionAssetsBody(props: {
 			});
 		}
 		return tree;
-	}, [groups, contacts, props.contactsDef, library, mapName, importOne]);
+	}, [
+		groups,
+		contacts,
+		props.contactsDef,
+		library,
+		mapName,
+		importOne,
+		narrow,
+	]);
 
 	const save = useCallback(() => {
 		if (!missionId) return;
 		if (!props.saveDef) {
-			setError("c2.missions.save is unavailable");
+			setError("This C2 cannot save missions.");
 			return;
 		}
 		return run("save", async () => {
@@ -315,7 +339,7 @@ function MissionAssetsBody(props: {
 			setError(null);
 			setNotice(
 				result.keptDirty
-					? "Saved — but newer edits were kept and are still unsaved."
+					? "Saved. Newer edits are still unsaved."
 					: "Mission saved.",
 			);
 		});
@@ -337,11 +361,7 @@ function MissionAssetsBody(props: {
 		);
 	}
 	if (!assets) {
-		return (
-			<PanelEmptyState>
-				{error ?? "Loading the mission's assets…"}
-			</PanelEmptyState>
-		);
+		return <PanelEmptyState>{error ?? "Loading assets…"}</PanelEmptyState>;
 	}
 
 	const selectedContact = selectedContactUid
@@ -360,53 +380,73 @@ function MissionAssetsBody(props: {
 			.find((leaf) => leaf.featureId === selected)?.usedBy ?? [];
 
 	return (
-		<div className="flex h-full min-h-0 flex-col text-xs">
+		<div
+			ref={rootRef}
+			className={`h-full min-w-0 flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
+		>
 			{props.contactsDef && (
 				<MissionContactsWatch
 					missionId={missionId}
 					def={props.contactsDef}
 				/>
 			)}
-			<div className="flex items-center gap-2 border-b px-2 py-1 shrink-0">
-				<Boxes className="size-3.5" />
-				<span className="truncate">
-					Map <b>{assets.map || "—"}</b> · {assets.features.length}{" "}
-					asset
-					{assets.features.length === 1 ? "" : "s"}
+			<div className="flex items-center gap-2 shrink-0 min-w-0">
+				<Boxes className="size-4 shrink-0 text-muted-foreground" />
+				<span className="truncate min-w-0">
+					Map <b>{assets.map || "n/a"}</b>
 				</span>
+				{/* One badge per thing the tree lists, so the counts and the
+				    list agree. */}
+				<Badge variant="secondary">
+					{assets.features.length} asset
+					{assets.features.length === 1 ? "" : "s"}
+				</Badge>
+				{contacts.loaded && (
+					<Badge variant="secondary">
+						{contacts.contacts.length} contact
+						{contacts.contacts.length === 1 ? "" : "s"}
+					</Badge>
+				)}
 				{dirty && <Badge variant="outline">unsaved</Badge>}
-				<Button
-					size="sm"
-					variant="outline"
-					className="ml-auto"
-					disabled={pending !== null || !props.saveDef}
-					onClick={() => void save()}
-					title="Save the mission: its map and assets, its graph, and the mission"
-				>
-					{pending === "save" ? (
-						<Loader2 className="animate-spin" />
-					) : (
-						<Save />
-					)}
-					Save mission
-				</Button>
+				<div className="ml-auto flex shrink-0 items-center gap-1">
+					{/* Outline, not filled: the mission's ONE filled Save is the
+					    graph editor's. Both write the same three documents. */}
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={pending !== null || !props.saveDef}
+						onClick={() => void save()}
+					>
+						{pending === "save" ? (
+							<Loader2 className="animate-spin" />
+						) : (
+							<Save />
+						)}
+						Save mission
+					</Button>
+				</div>
 			</div>
 			{error && (
-				<div className="px-2 py-1 text-destructive shrink-0">
+				<div className="text-xs text-destructive bg-destructive/10 p-2 rounded-md shrink-0 break-words">
 					{error}
 				</div>
 			)}
 			{notice && !error && (
-				<div className="px-2 py-1 text-muted-foreground shrink-0">
+				<div className="text-xs text-muted-foreground shrink-0 break-words">
 					{notice}
 				</div>
 			)}
-			<ScrollArea className="min-h-0 flex-1">
+			{/* Radix wraps the viewport's content in a `display: table` div that
+			    grows to its widest row, so the tree rows' `truncate` never
+			    engaged; forcing it to block keeps every row at the panel's
+			    width. */}
+			<ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
 				{/* Keyed per mission and selection: the tree's selection is its
 				    own (uncontrolled), so an asset picked on the map re-seeds
 				    it. `expandAll` with a starting id opens every group. */}
 				<TreeView
 					key={`${missionId}:${treeSelection ?? ""}`}
+					className="p-0"
 					data={data}
 					expandAll
 					initialSelectedItemId={treeSelection ?? "group:waypoint"}
@@ -421,20 +461,23 @@ function MissionAssetsBody(props: {
 					}}
 				/>
 				{assets.features.length === 0 && (
-					<p className="px-3 pb-2 text-muted-foreground">
-						No assets yet: draw a waypoint, a zone or a cue on the
-						mission map, or import one of the map&apos;s below.
+					<p className="pb-2 text-xs text-muted-foreground">
+						No assets. Draw one on the mission map or import one
+						from the map.
 					</p>
 				)}
 				{contacts.error && (
-					<p className="px-3 pb-2 text-warning">
+					<p className="pb-2 text-xs text-warning">
 						Contacts could not be read: {contacts.error}
 					</p>
 				)}
 			</ScrollArea>
+			{/* Same Radix `display: table` trap as the tree above: the
+			    contact's fact list and its measurement table are `w-full` /
+			    `break-all`, both of which need a block box to size against. */}
 			{selectedContact && (
-				<ScrollArea className="max-h-[45%] border-t shrink-0">
-					<div className="p-2">
+				<ScrollArea className="max-h-[45%] border-t shrink-0 [&_[data-radix-scroll-area-viewport]>div]:!block">
+					<div className="pt-2">
 						<ContactDetails
 							contact={selectedContact}
 							onShow={() => showContact(selectedContact.uid)}
@@ -444,7 +487,7 @@ function MissionAssetsBody(props: {
 				</ScrollArea>
 			)}
 			{selectedFeature && (
-				<div className="flex flex-col gap-1.5 border-t p-2 shrink-0">
+				<div className="flex flex-col gap-1.5 border-t pt-2 shrink-0">
 					<div className="flex items-center gap-2">
 						<Label className="text-[11px]">
 							{String(selectedFeature.properties?.feature_type)}
@@ -482,8 +525,8 @@ function MissionAssetsBody(props: {
 							className="text-destructive"
 							title={
 								selectedUses.length > 0
-									? `Remove it from the mission — ${selectedUses.length} graph node(s) use it and will say so`
-									: "Remove it from the mission"
+									? `Remove from mission (used by ${selectedUses.length} graph node${selectedUses.length === 1 ? "" : "s"})`
+									: "Remove from mission"
 							}
 							aria-label="Remove asset"
 							onClick={() => {
@@ -499,7 +542,7 @@ function MissionAssetsBody(props: {
 					<span className="text-[11px] text-muted-foreground">
 						{selectedUses.length > 0
 							? `Used by ${selectedUses.length} graph node${selectedUses.length === 1 ? "" : "s"}.`
-							: "No graph node uses it yet: wire it in the node editor."}
+							: "Not used by any graph node."}
 					</span>
 				</div>
 			)}
@@ -533,8 +576,7 @@ const MissionAssetsWidget: React.FC<MissionAssetsProps> = (props) => {
 	if (!listDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to see a
-				mission&apos;s assets.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -553,11 +595,16 @@ const MissionAssetsWidget: React.FC<MissionAssetsProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionAssetsDefinition(): WidgetDefinition<MissionAssetsProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-assets-widget",
 		name: "C2 Mission Assets",
-		description:
-			"The open mission's waypoints, zones and cues, what uses them, the map's ones to import, and the contacts its robots found",
+		description: "The open mission's waypoints, zones, cues and contacts.",
 		titleProp: "title",
 		icon: <Boxes />,
 

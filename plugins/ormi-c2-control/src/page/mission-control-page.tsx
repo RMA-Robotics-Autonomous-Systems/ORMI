@@ -88,12 +88,15 @@ import { ensurePagePanels, PAGE_WIDGETS_FILTER_ID } from "./page-panels";
  * Local-storage key holding the arrangement.
  *
  * Bumped on any change to the shipped layout — v2 gave the map the whole left
- * edge and put the editor/log strip under the right half. A saved arrangement is
- * honoured in full, so an older entry restored today is the old layout with
- * nothing to suggest it has been superseded; retiring the key hands back the new
- * default once, and everything after that is the operator's.
+ * edge and put the editor/log strip under the right half; v3 made that strip the
+ * tallest band on the right, because the graph editor became the surface a
+ * mission is authored on and v2 left it 530×85 px at 1100×800, smaller than its
+ * own floating legend. A saved arrangement is honoured in full, so an older entry
+ * restored today is the starved layout with nothing on screen to suggest it has
+ * been superseded; retiring the key hands back the new default once, and
+ * everything after that is the operator's.
  */
-const STORAGE_KEY = "ormi-c2-mission-control-v2";
+const STORAGE_KEY = "ormi-c2-mission-control-v3";
 
 /** The serialised form: maps do not survive `JSON.stringify`. */
 interface StoredDashboard {

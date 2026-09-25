@@ -201,7 +201,7 @@ class C2ControlPlugin extends Plugin {
 
 		this.name = "ORMI C2 Control";
 		this.description =
-			"RMA Multi-Agent Framework (C2) integration: mission commands + CRUD as remote calls";
+			"RMA Multi-Agent Framework (C2) integration: missions, maps and vehicles.";
 		this.version = "1.0.0";
 		this.author = "Florian Lebecque";
 		this.email = "florian.lebecque@mil.be";

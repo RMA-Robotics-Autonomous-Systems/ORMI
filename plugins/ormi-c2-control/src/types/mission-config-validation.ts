@@ -202,13 +202,13 @@ function checkCoordinatePair(
 	if (lon < -180 || lon > 180) {
 		issues.warning(
 			`${path}[0]`,
-			`Longitude ${lon} is outside [-180, 180] — coordinates may be swapped (expected [lon, lat]).`,
+			`Longitude ${lon} is outside [-180, 180]. Coordinates may be swapped (expected [lon, lat]).`,
 		);
 	}
 	if (lat < -90 || lat > 90) {
 		issues.warning(
 			`${path}[1]`,
-			`Latitude ${lat} is outside [-90, 90] — coordinates may be swapped (expected [lon, lat]).`,
+			`Latitude ${lat} is outside [-90, 90]. Coordinates may be swapped (expected [lon, lat]).`,
 		);
 	}
 }
@@ -248,7 +248,7 @@ function checkCoordinates(
 		if (geometryType === "Point") {
 			issues.error(
 				path,
-				"A Point objective must be a list of one [lon, lat] vertex (`[[lon, lat]]`), not a bare pair — the C2 reads coordinates[0] as the vertex.",
+				"A Point objective must be a list of one [lon, lat] vertex ([[lon, lat]]), not a bare pair.",
 			);
 			return;
 		}
@@ -270,7 +270,7 @@ function checkCoordinates(
 		if (Array.isArray(entry[0])) {
 			issues.error(
 				childPath,
-				"coordinates must be a flat list of [lon, lat] vertices; a nested polygon ring must be flattened (got extra nesting).",
+				"coordinates must be a flat list of [lon, lat] vertices, not nested.",
 			);
 			return;
 		}
@@ -414,7 +414,7 @@ function checkOrientationOrigin(
 	// and a `coodinates` typo) that make this block crash or always fail.
 	issues.warning(
 		path,
-		"C2 mishandles vehicle_orientation_origin (known upstream bug); avoid using it until fixed upstream.",
+		"The C2 does not handle vehicle_orientation_origin correctly. Leave it unset.",
 	);
 }
 
@@ -429,10 +429,7 @@ function checkVehicleConstraints(
 	path: string,
 ): void {
 	if (!isObject(value)) {
-		issues.error(
-			path,
-			"desired_vehicle_constraints must be an object (C2 crashes if transit is set without it).",
-		);
+		issues.error(path, "desired_vehicle_constraints must be an object.");
 		return;
 	}
 
@@ -460,7 +457,7 @@ function checkVehicleConstraints(
 	} else {
 		issues.warning(
 			`${path}.max_speed`,
-			"No max_speed set; the planner will fall back to its default — set one explicitly.",
+			"No max speed set. The planner will use its default.",
 		);
 	}
 
@@ -690,21 +687,21 @@ function checkNavigateAdvisories(issues: IssueList, config: JsonObject): void {
 	if (lineOrAreaCount > 0) {
 		issues.warning(
 			"objective.geometries",
-			"Under NAVIGATE the planner treats a line/area objective as a coverage region — it does not drive along the line. Use Point objectives, or COVERAGE behavior, if you meant a route or an area to cover.",
+			"With Navigate, a line or area objective is covered as a region, not driven along. Use Point objectives for a route, or Cover for an area.",
 		);
 	}
 
 	if (geometries.length > vehicles.length) {
 		issues.warning(
 			"objective.geometries",
-			`The planner allocates roughly one agent per objective; with more objectives (${geometries.length}) than vehicles (${vehicles.length}) some objectives may be left unplanned.`,
+			`More objectives (${geometries.length}) than vehicles (${vehicles.length}): some objectives may be left unplanned.`,
 		);
 	}
 
 	if (pointCount > 0 && lineOrAreaCount > 0) {
 		issues.warning(
 			"objective.geometries",
-			"Mixing Point objectives with line/area objectives: the planner allocates point goals first and may starve the line/area objectives of agents.",
+			"Point objectives are mixed with line or area objectives. The line and area objectives may get no vehicle.",
 		);
 	}
 }
@@ -776,7 +773,7 @@ function checkTransit(issues: IssueList, value: unknown, path: string): void {
 	) {
 		issues.error(
 			`${path}.desired_vehicle_constraints`,
-			"transit.desired_vehicle_constraints is required when a transit block is present (C2 crashes otherwise).",
+			"transit.desired_vehicle_constraints is required when transit is set.",
 		);
 	} else {
 		checkVehicleConstraints(
@@ -857,7 +854,7 @@ export function validateMissionConfig(config: unknown): MissionConfigIssue[] {
 	) {
 		issues.error(
 			"behavior",
-			"behavior is required: 0 = NAVIGATE, 1 = COVERAGE, 2 = NAVIGATE_NO_PLANNING.",
+			"behavior is required (0 Navigate, 1 Cover, 2 Navigate without planning).",
 		);
 	} else if (
 		!isNumber(config.behavior) ||
@@ -865,7 +862,7 @@ export function validateMissionConfig(config: unknown): MissionConfigIssue[] {
 	) {
 		issues.error(
 			"behavior",
-			`behavior must be 0 (NAVIGATE), 1 (COVERAGE) or 2 (NAVIGATE_NO_PLANNING); got ${JSON.stringify(config.behavior)}.`,
+			`behavior must be 0 (Navigate), 1 (Cover) or 2 (Navigate without planning); got ${JSON.stringify(config.behavior)}.`,
 		);
 	}
 

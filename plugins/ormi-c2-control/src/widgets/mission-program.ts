@@ -201,21 +201,20 @@ export function compileProgram(
 				{
 					code: "MALFORMED",
 					nodeId: "",
-					message: "The behaviour graph is not an object.",
+					message: "The graph could not be read.",
 				},
 			],
 		};
 	}
 	if (graph.version !== PROGRAM_GRAPH_VERSION) {
-		const seen =
-			typeof graph.version === "number" ? String(graph.version) : "none";
 		return {
 			program,
 			errors: [
 				{
 					code: "GRAPH_VERSION",
 					nodeId: "",
-					message: `This behaviour graph was made by an older editor (version ${seen}, this fog reads ${PROGRAM_GRAPH_VERSION}). Rebuild it in the current graph editor.`,
+					message:
+						"This graph was made by an older editor. Start a new graph.",
 				},
 			],
 		};
@@ -376,7 +375,7 @@ export function compileProgram(
 				issue(
 					"ACTION_NOT_EXECUTABLE",
 					id,
-					`"${caption(n)}" is a ${n.action} action, which does not exist: only NAVIGATE and COVERAGE run. To hold, navigate to a waypoint and put a Hold until after it; sensors report what they find on their own.`,
+					`"${caption(n)}" is a ${n.action} action, which cannot run. Use Navigate or Coverage; to hold, add a Hold until after it.`,
 				);
 			}
 			const count = targets(n).length + contactTargets(n).length;
@@ -406,7 +405,7 @@ export function compileProgram(
 				issue(
 					"WAIT_EMPTY",
 					id,
-					`"${caption(n)}" has nothing wired into it to wait for, so it would never let go.`,
+					`"${caption(n)}" has nothing to wait for. Wire a condition or a step's "done" into it.`,
 				);
 			}
 		} else if (n.kind === "condition") {
@@ -415,13 +414,13 @@ export function compileProgram(
 				issue(
 					"CONDITION_MISSING",
 					id,
-					`"${caption(n)}" is a condition node with nothing to evaluate.`,
+					`"${caption(n)}" has no condition. Pick one.`,
 				);
 			} else if (!KNOWN_OPS.has(op)) {
 				issue(
 					"CONDITION_MISSING",
 					id,
-					`"${caption(n)}" uses ${op}, which this fog does not know.`,
+					`"${caption(n)}" uses ${op}, which the C2 does not know.`,
 				);
 			} else if (op === "StepDone") {
 				issue(
@@ -433,14 +432,14 @@ export function compileProgram(
 				issue(
 					"CONDITION_NOT_EVALUABLE",
 					id,
-					`"${caption(n)}" uses ${op}, which the fog cannot evaluate yet: only ElapsedSeconds, ContactsFound and Always.`,
+					`"${caption(n)}" uses ${op}, which the C2 cannot evaluate. Use Elapsed time, Contacts found or Always.`,
 				);
 			}
 			if (!used.has(id)) {
 				issue(
 					"CONDITION_UNUSED",
 					id,
-					`"${caption(n)}" is wired into no Hold until, so nothing waits on it.`,
+					`"${caption(n)}" is not wired into any Hold until.`,
 				);
 			}
 		} else if (n.kind === "on_contact") {
@@ -469,7 +468,7 @@ export function compileProgram(
 			issue(
 				"JOIN",
 				id,
-				`"${caption(node(id))}" is reached from more than one place. A robot goes one way: each step has one step before it.`,
+				`"${caption(node(id))}" is reached from more than one place. A step can follow only one step.`,
 			);
 		}
 	}
@@ -562,7 +561,7 @@ export function compileProgram(
 					issue(
 						"WAIT_DANGLING",
 						wait,
-						`"${caption(node(wait))}" is the last thing before going back for the next contact, so nothing waits on it. Put it before a step.`,
+						`"${caption(node(wait))}" is the last node before the loop goes back for the next contact. Put it before a step.`,
 					);
 				}
 				linkTo(onIndex.get(loopOwner) as number);
@@ -573,7 +572,7 @@ export function compileProgram(
 				issue(
 					"CYCLE",
 					id,
-					`The chain through "${caption(node(id))}" loops back on itself. The only loop is back into an On contact node, for its next contact.`,
+					`The chain through "${caption(node(id))}" loops back on itself. Only an On contact node can take a loop.`,
 				);
 				return first;
 			}
@@ -605,7 +604,7 @@ export function compileProgram(
 						issue(
 							"POSITION_OUTSIDE_LOOP",
 							id,
-							`"${caption(n)}" goes to the position of a contact, but is not in that On contact node's loop: only the robot sent to a contact knows which one.`,
+							`"${caption(n)}" goes to a contact's position but is not in that On contact loop. Move it into the loop.`,
 						);
 					}
 				}
@@ -613,7 +612,7 @@ export function compileProgram(
 					issue(
 						"TEAM_NAVIGATE",
 						id,
-						`"${caption(n)}" sends a team of ${chain.agents.length} agents to one point. A team can sweep a zone together; to go somewhere, give each agent its own chain.`,
+						`"${caption(n)}" sends ${chain.agents.length} agents to one point. Give each agent its own chain.`,
 					);
 				}
 				chain.steps.push(step);
@@ -626,7 +625,7 @@ export function compileProgram(
 					issue(
 						"NESTED_ON_CONTACT",
 						id,
-						`"${caption(n)}" is inside another On contact loop. Loops do not nest: handle each Coverage's contacts with its own robot.`,
+						`"${caption(n)}" is inside another On contact loop. Loops cannot nest: use a separate robot for each Coverage's contacts.`,
 					);
 					markDownstream(id);
 					return first;
@@ -654,7 +653,7 @@ export function compileProgram(
 					issue(
 						"ON_CONTACT_BODY",
 						id,
-						`"${caption(n)}" sends its robot nowhere: wire its agent output into what to do at each contact, and back into it.`,
+						`"${caption(n)}" sends its robot nowhere. Wire its agent output into a step, and that step back into it.`,
 					);
 				} else {
 					const b = segment(body[0] as string, chain, id, visited);
@@ -662,7 +661,7 @@ export function compileProgram(
 						issue(
 							"ON_CONTACT_BODY",
 							id,
-							`"${caption(n)}" does nothing at a contact: put a step (a Navigate to its position) between its agent output and the way back.`,
+							`"${caption(n)}" does nothing at a contact. Put a step (a Navigate to its position) between its agent output and the way back.`,
 						);
 					} else {
 						(chain.steps[idx] as ProgramStep).body = b;
@@ -671,7 +670,7 @@ export function compileProgram(
 						issue(
 							"ON_CONTACT_LOOP",
 							id,
-							`The robot "${caption(n)}" sends to a contact never comes back to take the next one: wire the last step of the loop back into its agent input.`,
+							`The robot "${caption(n)}" sends to a contact never comes back. Wire the last step of the loop into its agent input.`,
 						);
 					}
 				}
@@ -696,7 +695,7 @@ export function compileProgram(
 					issue(
 						"WAIT_DANGLING",
 						id,
-						`"${caption(n)}" has no step after it, so nothing waits on it.`,
+						`"${caption(n)}" has no step after it.`,
 					);
 				}
 				return first;
@@ -705,7 +704,7 @@ export function compileProgram(
 				issue(
 					"FANOUT",
 					id,
-					`"${caption(n)}" hands its robot on to more than one step. A robot does one thing at a time.`,
+					`"${caption(n)}" hands its robot on to more than one step.`,
 				);
 				for (const x of next) markDownstream(x);
 				return first;
@@ -742,13 +741,13 @@ export function compileProgram(
 			issue(
 				"AGENT_IDLE",
 				id,
-				`"${caption(n)}" is wired into nothing, so it would be leased and never used.`,
+				`"${caption(n)}" is wired into nothing. Wire it into an action, or delete it.`,
 			);
 		} else if (out.length > 1) {
 			issue(
 				"FANOUT",
 				id,
-				`"${caption(n)}" hands its robot to more than one step. A robot does one thing at a time.`,
+				`"${caption(n)}" hands its robot to more than one step.`,
 			);
 		}
 	}
@@ -794,7 +793,7 @@ export function compileProgram(
 				issue(
 					"DONE_IN_LOOP",
 					id,
-					`"${caption(n)}" waits for "${caption(node(src))}" to be done, which is inside a contact loop: with no contact it never runs, and the hold would never let go.`,
+					`"${caption(n)}" waits for "${caption(node(src))}" to be done, but it is inside a contact loop and may never run.`,
 				);
 			}
 		}
@@ -878,8 +877,8 @@ export function compileProgram(
 			w.code,
 			w.node,
 			w.code === "DONE_DEADLOCK"
-				? `"${what}" waits for "${caption(node(w.from))}" to be done, which can only happen after this hold lets go: it would wait forever.`
-				: `"${what}" waits for the contacts of "${caption(node(w.from))}", which can only sweep after this robot moves on: it would wait forever.`,
+				? `"${what}" waits for "${caption(node(w.from))}" to be done, which can only happen after it lets go. It would wait forever.`
+				: `"${what}" waits for the contacts of "${caption(node(w.from))}", which can only sweep after this robot moves on. It would wait forever.`,
 		);
 	}
 
@@ -888,7 +887,7 @@ export function compileProgram(
 			issue(
 				"UNREACHED",
 				id,
-				`"${caption(node(id))}" is not on any agent's chain, so it never runs. Wire it after an agent, or delete it.`,
+				`"${caption(node(id))}" is not on any agent's chain. Wire it after an agent, or delete it.`,
 			);
 		}
 	}

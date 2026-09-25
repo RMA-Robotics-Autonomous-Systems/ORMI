@@ -1021,7 +1021,7 @@ export function compileMissionGraph(
 		issues.push({
 			severity: "warning",
 			nodeId: node.id,
-			message: `"${node.label || node.id}" is wired into no action, so it is not part of the mission. Wire its output into an action's target, or delete it.`,
+			message: `"${node.label || node.id}" is not wired into any action. Wire it into an action's target, or delete it.`,
 		});
 	}
 
@@ -1048,14 +1048,14 @@ export function compileMissionGraph(
 					severity: "error",
 					nodeId: node.id,
 					code: "TARGET_MISSING",
-					message: `The ${node.action} step's target (${featureId}) is not one of this mission's assets.`,
+					message: `"${node.label || node.id}" targets an asset that is not in this mission.`,
 				});
 			} else if (!targetFits(node.action, type)) {
 				issues.push({
 					severity: "error",
 					nodeId: node.id,
 					code: "TARGET_TYPE",
-					message: `The ${node.action} step needs ${node.action === "COVERAGE" ? "a zone" : "a waypoint"}, but its target is a ${type}.`,
+					message: `"${node.label || node.id}" needs ${node.action === "COVERAGE" ? "a zone" : "a waypoint"}, but its target is a ${type}.`,
 				});
 			}
 		}

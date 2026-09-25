@@ -9,6 +9,8 @@ import {
 } from "./mission-graph-editor-helpers";
 import { compileProgram } from "./mission-program";
 import {
+	PORT_TYPE_LABEL,
+	withArticle,
 	assetPortType,
 	connectionPlan,
 	nodePorts,
@@ -496,5 +498,55 @@ describe("a step dropped on empty canvas goes INTO the chain", () => {
 				e.target_port,
 			]),
 		).toEqual([["n", "value", "wait", "when"]]);
+	});
+});
+
+describe("withArticle", () => {
+	it("agrees with the label it is given", () => {
+		expect(withArticle("agent")).toBe("an agent");
+		expect(withArticle("asset")).toBe("an asset");
+		expect(withArticle("event")).toBe("an event");
+		expect(withArticle("waypoint")).toBe("a waypoint");
+		expect(withArticle("zone")).toBe("a zone");
+		expect(withArticle("true/false")).toBe("a true/false");
+	});
+
+	it("covers every port type, so a new one cannot ship the wrong article", () => {
+		for (const label of Object.values(PORT_TYPE_LABEL)) {
+			expect(
+				withArticle(label).startsWith("a ") ||
+					withArticle(label).startsWith("an "),
+			).toBe(true);
+		}
+	});
+});
+
+describe("the refusal an operator reads mid-drag", () => {
+	it('does not say "A agent"', () => {
+		const nodes: MissionGraphNode[] = [
+			{
+				id: "a",
+				kind: "agent",
+				label: "Rover",
+				agent_id: "r1",
+				position: { x: 0, y: 0 },
+			},
+			{
+				id: "n",
+				kind: "action",
+				label: "Navigate",
+				action: "NAVIGATE",
+				position: { x: 200, y: 0 },
+			},
+		];
+		const plan = connectionPlan(
+			nodes,
+			[],
+			{ node: "a", port: "agent" },
+			{ node: "n", port: "target" },
+		);
+		expect(plan.ok).toBe(false);
+		if (plan.ok) return;
+		expect(plan.reason).toBe("An agent cannot go into a waypoint input.");
 	});
 });

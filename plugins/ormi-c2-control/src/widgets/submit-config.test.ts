@@ -113,7 +113,7 @@ describe("planSubmit", () => {
 		expect(out.ok).toBe(false);
 		if (out.ok) return;
 		expect(out.error).toContain("HTTP 503");
-		expect(out.error).toContain("Could not load");
+		expect(out.error).toContain("Could not read");
 	});
 
 	it("distinguishes a missing mission from a failed fetch", () => {
@@ -126,8 +126,8 @@ describe("planSubmit", () => {
 		});
 		expect(out.ok).toBe(false);
 		if (out.ok) return;
-		expect(out.error).toContain("m-404");
-		expect(out.error).toContain("no stored config");
+		expect(out.error).toContain("not saved on the C2");
+		expect(out.error).not.toContain("Could not read");
 	});
 
 	it("prefers the draft even when the list fetch failed", () => {
@@ -151,7 +151,7 @@ describe("submitMessage", () => {
 			source: "draft",
 			unsaved: true,
 		});
-		expect(message).toContain("UNSAVED");
+		expect(message).toContain("unsaved edits");
 	});
 
 	it("distinguishes a saved-draft submit from a stored-config submit", () => {
@@ -164,7 +164,7 @@ describe("submitMessage", () => {
 				source: "stored",
 				unsaved: false,
 			}),
-		).toContain("saved config");
+		).toContain("saved version");
 	});
 });
 
@@ -181,12 +181,14 @@ describe("graphSubmitBlock refuses a mission whose graph cannot run", () => {
 	});
 
 	it("refuses a mission with no saved graph", () => {
-		expect(graphSubmitBlock(draft())).toContain("no saved behaviour graph");
+		expect(graphSubmitBlock(draft())).toContain(
+			"no behaviour graph to run",
+		);
 		expect(
 			graphSubmitBlock(
 				withGraph({ graph_ref: "  ", graph_compiles: true }),
 			),
-		).toContain("no saved behaviour graph");
+		).toContain("no behaviour graph to run");
 	});
 
 	it("refuses a graph that does not compile, or never said", () => {
@@ -196,6 +198,23 @@ describe("graphSubmitBlock refuses a mission whose graph cannot run", () => {
 					withGraph({ graph_ref: "m1:graph", graph_compiles }),
 				),
 			).toContain("graph editor");
+		}
+	});
+
+	it("returns only the reason, for the caller to put its outcome in front of", () => {
+		// Submit saves first, so a refusal here lands on work that IS on disk.
+		// The reason must not claim an outcome of its own; the caller states
+		// which of the two happened ("Saved, but not submitted.") and appends
+		// this as the next sentence.
+		for (const config of [
+			draft(),
+			withGraph({ graph_ref: "m1:graph", graph_compiles: false }),
+		]) {
+			const reason = graphSubmitBlock(config)!;
+			expect(reason).not.toBeNull();
+			expect(reason[0]).toBe(reason[0]!.toUpperCase());
+			expect(reason).not.toMatch(/submitted\.|saved\./i);
+			expect(reason).not.toContain("—");
 		}
 	});
 });

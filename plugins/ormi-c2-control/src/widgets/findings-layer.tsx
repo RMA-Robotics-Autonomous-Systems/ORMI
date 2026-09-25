@@ -328,38 +328,35 @@ export function FindingsReadout(props: {
 		<div className="flex items-center gap-1.5 flex-wrap">
 			<Badge
 				variant="secondary"
-				title={
-					missionId
-						? "Cues and contacts of the selected mission"
-						: "Cues and contacts on the map"
-				}
+				title={missionId ? "Selected mission" : undefined}
 			>
 				{total} findings
 			</Badge>
 			<span className="text-[11px] text-muted-foreground">
 				{tally.cues + authoredCues} cue · {tally.contacts} contact
 			</span>
+			{/* The SAME word the contact's own badge uses (`essenceLabel`, via
+			    `ContactDetails`). It read "4 not real" here and "SIMULATED"
+			    forty pixels away, which is one state described twice — and the
+			    operator has to work out that they are the same state. */}
 			{tally.notReal > 0 && (
 				<Badge
 					variant="outline"
 					className="border-info text-info"
-					title="Findings whose essence is not ESSENCE_REAL — simulated, exercise, test, or never stated. Ringed on the map."
+					title="Simulated, exercise, test or unstated"
 				>
-					{tally.notReal} not real
+					{tally.notReal} simulated
 				</Badge>
 			)}
 			{tally.superseded > 0 && (
-				<span
-					className="text-[11px] text-muted-foreground"
-					title="Superseded findings are drawn faded, never removed — you may already have acted on one."
-				>
+				<span className="text-[11px] text-muted-foreground">
 					{tally.superseded} superseded
 				</span>
 			)}
 			{props.bound && (
 				<span
 					className={`text-[11px] ${stats.dropped > 0 ? "text-warning" : "text-muted-foreground"}`}
-					title="Messages delivered to the findings ingest, and those it could not place (no uid, or no usable position). Shown rather than hidden: a findings layer that is quietly short is the failure this pipeline exists to avoid."
+					title="Dropped: no id or no usable position"
 				>
 					{stats.received} received · {stats.dropped} dropped
 				</span>

@@ -15,6 +15,30 @@ import {
 } from "./mission-contacts";
 
 /**
+ * A measured quantity, as an operator can read it.
+ *
+ * The wire carries float32s that a float64 round-trip renders in full — a
+ * 0.1 m depth printed as `0.10000000149011612 m`, which reads as a machine
+ * leaking rather than as a depth. Significant figures rather than a fixed
+ * number of decimals, because one table holds metres, teslas and counts: 3
+ * s.f. keeps a 0.000123 readable and an 1834 honest. Integers, zero and
+ * anything non-finite are passed through as themselves — rounding an exact 0
+ * into `0.00` invents a precision nobody measured.
+ *
+ * @param value - The raw number.
+ * @returns The string to print.
+ */
+export function formatMeasurement(value: number): string {
+	if (!Number.isFinite(value)) return "n/a";
+	if (Number.isInteger(value)) return String(value);
+	const abs = Math.abs(value);
+	// Outside the range where a decimal reads at a glance, say it in exponent
+	// form rather than as a row of zeros.
+	if (abs >= 1e6 || abs < 1e-4) return value.toExponential(2);
+	return String(Number(value.toPrecision(3)));
+}
+
+/**
  * Everything about one contact: what was found, by whom, during which step,
  * where and how well, how much to believe it, what the sensor measured, and
  * who went to it. The same view in the map's popup and under the asset tree.
@@ -48,7 +72,7 @@ export function ContactDetails(props: {
 					<Badge
 						variant="outline"
 						className="border-info text-info"
-						title="Not a confirmed real finding: simulated, exercise, test, or never stated."
+						title="Not a confirmed real finding"
 					>
 						{essenceLabel(contact.essence)}
 					</Badge>
@@ -58,7 +82,6 @@ export function ContactDetails(props: {
 					<Button
 						size="icon-sm"
 						variant="ghost"
-						className="h-6 w-6"
 						title="Show on the map"
 						aria-label="Show on the map"
 						onClick={onShow}
@@ -70,7 +93,6 @@ export function ContactDetails(props: {
 					<Button
 						size="icon-sm"
 						variant="ghost"
-						className="h-6 w-6"
 						title="Close"
 						aria-label="Close contact details"
 						onClick={onClose}
@@ -108,16 +130,25 @@ export function ContactDetails(props: {
 						{contact.measurements.map((m, index) => (
 							<tr key={`${m.quantity}:${index}`}>
 								<td>
-									{m.quantity.replaceAll("_", " ") || "—"}
+									{m.quantity.replaceAll("_", " ") || "n/a"}
 								</td>
-								<td className="text-right tabular-nums">
-									{m.value} {m.unit}
+								<td
+									className="text-right tabular-nums"
+									title={`${m.value} ${m.unit}`.trim()}
+								>
+									{formatMeasurement(m.value)} {m.unit}
 								</td>
-								<td className="text-right tabular-nums">
-									{m.sigma}
+								<td
+									className="text-right tabular-nums"
+									title={String(m.sigma)}
+								>
+									{formatMeasurement(m.sigma)}
 								</td>
-								<td className="text-right tabular-nums">
-									{m.depth_m} m
+								<td
+									className="text-right tabular-nums"
+									title={`${m.depth_m} m`}
+								>
+									{formatMeasurement(m.depth_m)} m
 								</td>
 							</tr>
 						))}

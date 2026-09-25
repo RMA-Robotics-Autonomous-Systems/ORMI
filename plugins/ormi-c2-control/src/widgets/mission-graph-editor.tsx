@@ -12,6 +12,21 @@ import { Button } from "@workspace/ui/components/button";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@workspace/ui/components/popover";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import {
 	Select,
@@ -22,7 +37,12 @@ import {
 } from "@workspace/ui/components/select";
 import { Separator } from "@workspace/ui/components/separator";
 import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group";
+import {
 	Background,
+	ControlButton,
 	Controls,
 	Handle,
 	MarkerType,
@@ -40,18 +60,24 @@ import {
 	type NodeChange,
 	type NodeProps,
 	type NodeTypes,
+	useConnection,
 	useReactFlow,
 	useUpdateNodeInternals,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
 	Bot,
+	ChevronDown,
+	CircleHelp,
 	GitBranch,
 	Hourglass,
 	Loader2,
+	Lock,
+	LockOpen,
 	MapPin,
 	Navigation,
 	LayoutGrid,
+	Puzzle,
 	Redo2,
 	RefreshCw,
 	Repeat,
@@ -60,9 +86,19 @@ import {
 	Trash2,
 	Undo2,
 	Workflow,
+	X,
 	Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	Fragment,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 
 import { c2DatasourceSelectHook } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
@@ -102,13 +138,22 @@ import {
 	dropChoices,
 	dropOrphanedEdges,
 	copySelection,
+	describeNodeDeletion,
 	formatCondition,
+	graphModeTitle,
+	inspectedNodeId,
 	layoutLanes,
 	pasteClip,
 	type GraphClip,
 	programMarks,
+	readStoredGraph,
 	resolveGraphDraftWrite,
+	resolveGraphViewOnly,
+	revealDelta,
+	applyNodeSizes,
+	type NodeSize,
 	type DropChoice,
+	type GraphLoadState,
 	type DropOrigin,
 	type RunMark,
 	type RunTone,
@@ -126,12 +171,9 @@ import {
 	emptyMissionGraph,
 	freshGraphId,
 	graphCompiles,
-	graphDocId,
-	isOutdatedGraphDocument,
 	nextNodePosition,
 	normalizeCondition,
 	propagateAgents,
-	readGraphDocument,
 	type ConditionOp,
 	type GraphAction,
 	type GraphCondition,
@@ -142,16 +184,20 @@ import {
 	type MissionGraphNode,
 	type WaitMode,
 } from "./mission-graph";
+import { humanizeMissionIssues } from "./mission-config-words";
 import {
 	PORT_TYPE_LABEL,
 	assetPortType,
 	connectionPlan,
 	nodePorts,
+	withArticle,
 	type NodePorts,
 	type PortSpec,
 	type PortType,
 } from "./mission-graph-ports";
 import { PanelEmptyState } from "./panel-empty-state";
+import { atMost, useContainerSize } from "./responsive";
+import { MissionStatus } from "../types/c2-types";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -260,8 +306,19 @@ interface CanvasNodeData extends Record<string, unknown> {
 	targetOptions: readonly FeatureOption[];
 	/** Where the running mission is on this node (the fog's `program`). */
 	run?: RunMark;
+	/**
+	 * While a wire is being dragged: `portKey` → whether it could land there.
+	 * `null` when no drag is in progress, which is the resting state.
+	 */
+	dragFit: Record<string, boolean> | null;
+	/** `portKey` of the port the keyboard armed, when it is on THIS node. */
+	armedPort: string | null;
+	/** Showing rather than authoring: the inline pickers stand down. */
+	viewOnly: boolean;
 	/** Edit this node (the inline pickers). */
 	onPatch: (nodeId: string, patch: Partial<MissionGraphNode>) => void;
+	/** Enter/Space on a port: arm it, or finish the wire it started. */
+	onPortKey: (ref: PortHandleRef) => void;
 }
 
 /** Ring + text colour of a node's live mark. */
@@ -281,15 +338,124 @@ const RUN_STYLE: Record<RunTone, { ring: string; text: string }> = {
  * Tailwind utilities: xyflow's own `style.css` paints handles and edges at the
  * same specificity a utility has, and `--color-*` is declared under
  * `@theme inline` and is not emitted at runtime.
+ *
+ * Every entry is a SEMANTIC token. `bool` was `--chart-1`, a categorical chart
+ * slot: those rotate hue between the themes (orange in light, blue in dark), so
+ * "true/false" had no colour an operator could learn. The three place types
+ * deliberately share `--success` — see {@link PORT_SHAPE}.
  */
 const PORT_COLOR: Record<PortType, string> = {
 	agent: "var(--foreground)",
 	waypoint: "var(--success)",
 	zone: "var(--success)",
 	asset: "var(--success)",
-	bool: "var(--chart-1)",
+	bool: "var(--info)",
 	event: "var(--warning)",
 };
+
+/** How a port's dot is drawn. */
+type PortShape = "square" | "circle" | "diamond" | "ring";
+
+/**
+ * The shape of each port type's dot.
+ *
+ * Colour alone cannot carry six types honestly: `waypoint`, `zone` and `asset`
+ * are all places and all green, and the app has no sixth semantic colour to
+ * give them. So the rule is two-dimensional and stated that way in the legend —
+ * **colour says what family, shape says which member of it**: a green circle is
+ * somewhere to go, a green square an area to sweep, a green ring an asset whose
+ * type is not known yet (it fits either). The dark square is the robot, the blue
+ * diamond a true/false, the amber circle contacts.
+ *
+ * What is NOT claimed anywhere any more is "connect dots of the same colour":
+ * it was never the rule (an `asset` fits a `waypoint` input, a `zone` does not
+ * fit a `waypoint` one), and the editor now shows the real answer while the
+ * operator drags — see `dragFit`.
+ */
+const PORT_SHAPE: Record<PortType, PortShape> = {
+	agent: "square",
+	waypoint: "circle",
+	zone: "square",
+	asset: "ring",
+	bool: "diamond",
+	event: "circle",
+};
+
+/** How a port dot reads right now. */
+type PortDotState = "idle" | "fits" | "dimmed" | "armed";
+
+/** The visible dot's diameter, in px at zoom 1. */
+const PORT_DOT_SIZE = 10;
+
+/**
+ * The transparent hit target around it.
+ *
+ * The dot is the only way to wire anything, and at 10 px it is a smaller target
+ * than any button in the app — measured at ~6 px on screen at the zoom the
+ * canvas opens at. The hit area is the handle itself and the dot is a child, so
+ * the target grows without the canvas turning into a field of blobs.
+ */
+const PORT_HIT_SIZE = 22;
+
+/**
+ * The handle element: a transparent, centred hit target.
+ *
+ * @param side - Which edge of the node it sits on.
+ * @returns Inline style for the `<Handle>`.
+ */
+function portHitStyle(side: "left" | "right") {
+	const shift = side === "left" ? "-50%" : "50%";
+	return {
+		width: PORT_HIT_SIZE,
+		height: PORT_HIT_SIZE,
+		minWidth: PORT_HIT_SIZE,
+		minHeight: PORT_HIT_SIZE,
+		background: "transparent",
+		border: "none",
+		borderRadius: 999,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		transform: `translate(${shift}, -50%)`,
+	} as const;
+}
+
+/**
+ * The visible dot inside a handle.
+ *
+ * Its look carries the live connection state, which is why it is a child
+ * element and not the handle's own `background`: an inline `background` on the
+ * handle beats xyflow's `.connectingto.valid` rules outright, so for as long as
+ * it was set there NOTHING highlighted as valid and nothing greyed out while a
+ * wire was being dragged — the help text claimed a rule the canvas never showed.
+ *
+ * @param type - What the port carries.
+ * @param state - How it reads right now.
+ * @returns Inline style for the dot.
+ */
+function portDotStyle(type: PortType, state: PortDotState) {
+	const shape = PORT_SHAPE[type];
+	const color = PORT_COLOR[type];
+	const size = state === "fits" || state === "armed" ? 14 : PORT_DOT_SIZE;
+	return {
+		width: size,
+		height: size,
+		boxSizing: "border-box" as const,
+		background: shape === "ring" ? "var(--background)" : color,
+		border:
+			shape === "ring"
+				? `3px solid ${color}`
+				: `1px solid var(--background)`,
+		borderRadius: shape === "square" || shape === "diamond" ? 2 : 999,
+		transform: shape === "diamond" ? "rotate(45deg)" : undefined,
+		opacity: state === "dimmed" ? 0.2 : 1,
+		boxShadow:
+			state === "fits" || state === "armed"
+				? "0 0 0 3px var(--ring)"
+				: undefined,
+		transition: "width 80ms, height 80ms, opacity 80ms",
+	} as const;
+}
 
 /**
  * Shape + accent per node kind, so a chain reads at a glance: agents are
@@ -302,8 +468,11 @@ const KIND_STYLE: Record<
 > = {
 	agent: {
 		label: "Agent",
-		shape: "rounded-2xl border-2 border-info min-w-36",
-		header: "bg-info/15",
+		// The chain's own colour, the one its `agent` port carries: a node
+		// accent that disagrees with the port it emits is a second colour
+		// system nobody stated.
+		shape: "rounded-2xl border-2 border-foreground/60 min-w-36",
+		header: "bg-foreground/10",
 		icon: Bot,
 	},
 	action: {
@@ -326,7 +495,8 @@ const KIND_STYLE: Record<
 	},
 	condition: {
 		label: "Condition",
-		shape: "rounded-full border border-[var(--chart-1)] min-w-40",
+		// `--info`, the colour of the true/false its `value` port carries.
+		shape: "rounded-full border border-info min-w-40",
 		header: "",
 		icon: GitBranch,
 	},
@@ -338,48 +508,112 @@ const KIND_STYLE: Record<
 	},
 };
 
-/**
- * A handle's look: the robot (agent) is a square, true/false a diamond,
- * everything else a dot — distinguishable without colour.
- */
-function handleStyle(type: PortType, side: "left" | "right") {
-	const shift = side === "left" ? "-50%" : "50%";
-	return {
-		width: 10,
-		height: 10,
-		background: PORT_COLOR[type],
-		borderColor: "var(--background)",
-		borderRadius: type === "agent" || type === "bool" ? 2 : 999,
-		transform:
-			type === "bool"
-				? `translate(${shift}, -50%) rotate(45deg)`
-				: `translate(${shift}, -50%)`,
-	} as const;
-}
-
 /** The "no value" option — Radix Select refuses an empty string. */
 const UNSET = "__unset__";
+
+/**
+ * The key a port is addressed by inside one node.
+ *
+ * An action's agent INPUT and its agent OUTPUT share the id `agent` — they are
+ * two ends of the same thing — so anything keyed per port has to carry the side
+ * as well, or a valid drop target would light its own source up too.
+ *
+ * @param side - `source` (an output) or `target` (an input).
+ * @param id - The port id.
+ * @returns The key.
+ */
+function portKey(side: "source" | "target", id: string): string {
+	return `${side}:${id}`;
+}
+
+/** One end of a wire the operator is building with the keyboard. */
+interface PortHandleRef {
+	node: string;
+	port: string;
+	side: "source" | "target";
+}
+
+/**
+ * One port: the transparent hit target, the dot inside it, and the keyboard
+ * route to wiring it.
+ *
+ * There was no keyboard path to an edge at all — the graph could be read with
+ * Tab and authored only with a pointer. Enter (or Space) on a port arms it,
+ * Enter on a port of the other side completes the wire, Escape cancels; the
+ * armed port carries the same halo a valid drop target does, so the two
+ * gestures look like one feature.
+ */
+function GraphHandle(props: {
+	nodeId: string;
+	port: PortSpec;
+	side: "source" | "target";
+	nodeLabel: string;
+	state: PortDotState;
+	onPortKey?: (ref: PortHandleRef) => void;
+}) {
+	const { port, side, nodeId, nodeLabel } = props;
+	const what = port.label || PORT_TYPE_LABEL[port.type];
+	const direction = side === "source" ? "output" : "input";
+	return (
+		<Handle
+			type={side === "source" ? "source" : "target"}
+			position={side === "source" ? Position.Right : Position.Left}
+			id={port.id}
+			style={portHitStyle(side === "source" ? "right" : "left")}
+			className="focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+			tabIndex={0}
+			role="button"
+			aria-label={`${nodeLabel}: ${what} ${direction} (${PORT_TYPE_LABEL[port.type]}). Enter to link.`}
+			title={`${what} ${direction === "output" ? "out" : "in"}`}
+			onKeyDown={(event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				event.stopPropagation();
+				props.onPortKey?.({ node: nodeId, port: port.id, side });
+			}}
+		>
+			<span
+				className="pointer-events-none"
+				style={portDotStyle(port.type, props.state)}
+			/>
+		</Handle>
+	);
+}
 
 /**
  * One row of ports: an input on the left edge, an output on the right. The
  * handles sit inside the row, so each lines up with its caption.
  */
 function PortRow(props: {
+	nodeId: string;
+	nodeLabel: string;
 	input?: PortSpec;
 	output?: PortSpec;
 	wiredFrom: Record<string, string[]>;
+	/** {@link portKey} → whether a wire being dragged could land there; null when none is. */
+	dragFit: Record<string, boolean> | null;
+	/** {@link portKey} of the port the keyboard has armed, if it is on this node. */
+	armed: string | null;
+	onPortKey?: (ref: PortHandleRef) => void;
 }) {
-	const { input, output } = props;
+	const { input, output, dragFit, armed } = props;
+	const stateOf = (side: "source" | "target", id: string): PortDotState => {
+		const key = portKey(side, id);
+		if (armed === key) return "armed";
+		if (!dragFit) return "idle";
+		return dragFit[key] ? "fits" : "dimmed";
+	};
 	return (
 		<div className="relative flex items-center justify-between gap-3 h-5 px-3 text-[10px] text-muted-foreground">
 			{input ? (
 				<>
-					<Handle
-						type="target"
-						position={Position.Left}
-						id={input.id}
-						style={handleStyle(input.type, "left")}
-						title={`${input.label || PORT_TYPE_LABEL[input.type]} in`}
+					<GraphHandle
+						nodeId={props.nodeId}
+						nodeLabel={props.nodeLabel}
+						port={input}
+						side="target"
+						state={stateOf("target", input.id)}
+						onPortKey={props.onPortKey}
 					/>
 					<span className="truncate">
 						{input.label}
@@ -398,12 +632,13 @@ function PortRow(props: {
 			{output ? (
 				<>
 					<span className="truncate text-right">{output.label}</span>
-					<Handle
-						type="source"
-						position={Position.Right}
-						id={output.id}
-						style={handleStyle(output.type, "right")}
-						title={`${output.label || PORT_TYPE_LABEL[output.type]} out`}
+					<GraphHandle
+						nodeId={props.nodeId}
+						nodeLabel={props.nodeLabel}
+						port={output}
+						side="source"
+						state={stateOf("source", output.id)}
+						onPortKey={props.onPortKey}
 					/>
 				</>
 			) : null}
@@ -431,7 +666,11 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 		conditionText,
 		targetOptions,
 		run,
+		dragFit,
+		armedPort,
+		viewOnly,
 		onPatch,
+		onPortKey,
 	} = data as CanvasNodeData;
 	const runStyle = run ? RUN_STYLE[run.tone] : null;
 	const style = KIND_STYLE[node.kind];
@@ -490,9 +729,14 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 			{Array.from({ length: rows }, (_, index) => (
 				<PortRow
 					key={index}
+					nodeId={id}
+					nodeLabel={node.label || KIND_STYLE[node.kind].label}
 					input={ports.inputs[index]}
 					output={ports.outputs[index]}
 					wiredFrom={wiredFrom}
+					dragFit={dragFit}
+					armed={armedPort}
+					onPortKey={onPortKey}
 				/>
 			))}
 
@@ -525,6 +769,7 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 				{node.kind === "action" && !targetWired && (
 					<Select
 						value={node.feature_id || UNSET}
+						disabled={viewOnly}
 						onValueChange={(value) =>
 							onPatch(node.id, {
 								feature_id: value === UNSET ? undefined : value,
@@ -562,26 +807,39 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 				)}
 
 				{node.kind === "wait" && (
-					<div className="nodrag nokey flex items-center gap-1">
-						{(["all", "any"] as const).map((mode) => (
-							<button
-								key={mode}
-								type="button"
-								className={`rounded px-1.5 py-0.5 text-[10px] border ${
-									(node.mode ?? "all") === mode
-										? "bg-warning/25 border-warning font-medium"
-										: "border-transparent text-muted-foreground"
-								}`}
-								onClick={() => onPatch(node.id, { mode })}
-								title={
-									mode === "all"
-										? "Let the robot go when EVERYTHING wired in holds"
-										: "Let the robot go when ANYTHING wired in holds"
-								}
+					// A real ToggleGroup rather than two bare `<button>`s: the
+					// hand-rolled pair was a ~14 px-tall target with no
+					// `aria-pressed`, no focus ring and no disabled state. The
+					// house control is the same control the mission map's
+					// toolbars use.
+					<div className="nodrag nokey flex items-center gap-1.5">
+						<ToggleGroup
+							type="single"
+							variant="outline"
+							size="sm"
+							aria-label="Let go when"
+							disabled={viewOnly}
+							value={node.mode ?? "all"}
+							onValueChange={(value) => {
+								if (value === "all" || value === "any")
+									onPatch(node.id, { mode: value });
+							}}
+						>
+							<ToggleGroupItem
+								value="all"
+								className="h-6 px-1.5 text-[10px]"
+								title="When all inputs hold"
 							>
-								{mode === "all" ? "All of" : "Any of"}
-							</button>
-						))}
+								All of
+							</ToggleGroupItem>
+							<ToggleGroupItem
+								value="any"
+								className="h-6 px-1.5 text-[10px]"
+								title="When any input holds"
+							>
+								Any of
+							</ToggleGroupItem>
+						</ToggleGroup>
 						<span className="text-[10px] text-muted-foreground">
 							{wiredFrom.when?.length ?? 0} input
 							{(wiredFrom.when?.length ?? 0) === 1 ? "" : "s"}
@@ -592,7 +850,6 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 				{node.kind === "on_contact" && (
 					<span
 						className={`truncate ${(wiredFrom.event?.length ?? 0) > 0 ? "" : "text-destructive"}`}
-						title="Its robot goes to each contact in turn, then leaves by 'no more'"
 					>
 						{(wiredFrom.event?.length ?? 0) > 0
 							? `each contact of ${wiredFrom.event?.join(", ")}`
@@ -656,6 +913,23 @@ let graphClipboard: GraphClip | null = null;
 
 /** Shared empty selection, so an unselected canvas keeps a stable identity. */
 const NO_SELECTION: readonly string[] = Object.freeze([]);
+
+/** No node measured yet, as one shared map. */
+const NO_SIZES: ReadonlyMap<string, NodeSize> = new Map();
+
+/** Air left between a node pulled into view and the edge it came in from. */
+const REVEAL_MARGIN = 16;
+
+/** How long the pan that brings a clicked node into view takes. */
+const REVEAL_MS = 200;
+
+/**
+ * "No wire is being dragged", as one frozen object. `useConnection` compares its
+ * selector's result shallowly, so a fresh literal per store update would
+ * re-render every node on every pointer move of an unrelated pan.
+ */
+const NO_DRAG: { side: "source" | "target" | ""; node: string; port: string } =
+	Object.freeze({ side: "", node: "", port: "" });
 
 /** Default caption for a newly added node. */
 const KIND_DEFAULT_LABEL: Record<GraphNodeKind, string> = {
@@ -759,6 +1033,111 @@ interface DropMenu {
 /** The id a drop choice is probed with before anything is created. */
 const DROP_PROBE_ID = "__drop-probe__";
 
+/** Breathing room left around the graph when the view is fitted to it. */
+const FIT_PADDING = 0.15;
+
+/**
+ * The smallest canvas a fit is believed at.
+ *
+ * `fitView` computes a zoom from the container's CURRENT box, and this widget
+ * lives in a FlexLayout tab that mounts at its pre-layout size. Fitting then —
+ * which is what the `fitView` prop and a mission-keyed `fitView()` both did —
+ * solves for a few hundred pixels and is never recomputed, so every open showed
+ * two enormous nodes with the rest off-screen. Below this the box is not
+ * believed to be the real one yet.
+ */
+const MIN_FIT_BOX = 200;
+
+// ============================================================================
+// Theme
+// ============================================================================
+
+/**
+ * Subscribe to whatever could change the app's light/dark resolution.
+ *
+ * The theme is a class on `<html>` (next-themes writes it there), so the class
+ * attribute is the honest source; the media query is watched too because
+ * `theme: "system"` leaves the class to follow it.
+ *
+ * @param onChange - Called when the resolution may have changed.
+ * @returns Unsubscribe.
+ */
+function subscribeToColorScheme(onChange: () => void): () => void {
+	if (typeof document === "undefined") return () => {};
+	const observer = new MutationObserver(onChange);
+	observer.observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ["class", "data-theme", "style"],
+	});
+	const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+	media?.addEventListener("change", onChange);
+	return () => {
+		observer.disconnect();
+		media?.removeEventListener("change", onChange);
+	};
+}
+
+/** Whether the app is currently rendering dark. */
+function readIsDark(): boolean {
+	if (typeof document === "undefined") return false;
+	return document.documentElement.classList.contains("dark");
+}
+
+/** Server snapshot: light, so the first paint matches the un-themed document. */
+function readIsDarkOnServer(): boolean {
+	return false;
+}
+
+/**
+ * Whether the app is in dark mode.
+ *
+ * Read off the document rather than through `next-themes`, which this plugin
+ * does not declare as a dependency — and `useSyncExternalStore` over an
+ * identity-stable boolean rather than a `useState` + effect, per AGENTS.md's
+ * React-Compiler-and-external-stores rule.
+ *
+ * xyflow needs this because it themes itself: without `colorMode` its minimap
+ * is a solid white rectangle in the dark theme, its controls a white stack and
+ * its attribution white on white.
+ *
+ * @returns True when dark.
+ */
+function useIsDarkTheme(): boolean {
+	return useSyncExternalStore(
+		subscribeToColorScheme,
+		readIsDark,
+		readIsDarkOnServer,
+	);
+}
+
+/**
+ * Colour of a node in the minimap — its kind's accent.
+ *
+ * Its default node colour is a light grey on a light grey background. A token
+ * is safe here: xyflow applies it as a `style` fill, where `var()` resolves.
+ * (Whether a node is drawn at all is a different matter: see
+ * {@link applyNodeSizes}.)
+ *
+ * @param node - The canvas node.
+ * @returns A raw theme token.
+ */
+function miniMapNodeColor(node: Node): string {
+	const kind = (node.data as CanvasNodeData | undefined)?.node?.kind;
+	switch (kind) {
+		case "agent":
+			return "var(--foreground)";
+		case "asset":
+			return "var(--success)";
+		case "condition":
+			return "var(--info)";
+		case "wait":
+		case "on_contact":
+			return "var(--warning)";
+		default:
+			return "var(--muted-foreground)";
+	}
+}
+
 /** The canvas + inspector, once the call definitions are resolved. */
 function MissionGraphEditorBody(props: {
 	missionsListDef: RemoteCallDefinition;
@@ -796,7 +1175,52 @@ function MissionGraphEditorBody(props: {
 	 */
 	const [outdatedFor, setOutdatedFor] = useState<string | null>(null);
 	const [dropMenu, setDropMenu] = useState<DropMenu | null>(null);
+	/**
+	 * A refused (or missed) connection, said WHERE it happened.
+	 *
+	 * The refusal used to land in the panel-wide notice bar at the very top, in
+	 * muted tone — up to 800 px from the port the operator was looking at, in
+	 * the same colour as "Mission saved.". Here it is a destructive-toned card
+	 * at the pointer.
+	 */
+	const [dropNotice, setDropNotice] = useState<{
+		text: string;
+		left: number;
+		top: number;
+	} | null>(null);
+	/** The operator's own View/Author choice. See {@link resolveGraphViewOnly}. */
+	const [readOnly, setReadOnly] = useState(false);
+	/**
+	 * The mission status under which the operator last took Author back over a
+	 * committed plan, so that permission does not silently carry across the next
+	 * transition (approved → started). See `map-view-mode.ts`.
+	 */
+	const [editUnlockedAt, setEditUnlockedAt] = useState<MissionStatus | null>(
+		null,
+	);
+	/** The port a keyboard connection gesture is being built from. */
+	const [keyFrom, setKeyFrom] = useState<PortHandleRef | null>(null);
+	/** Whether the mission check (the status badge's popover) is open. */
+	const [checkOpen, setCheckOpen] = useState(false);
+	/** A node delete waiting to be confirmed, because it destroys wiring. */
+	const [confirmDelete, setConfirmDelete] = useState<{
+		nodeId: string;
+		label: string;
+		edges: number;
+	} | null>(null);
+	/** The canvas box, for `getBoundingClientRect` so a drop can be placed. */
 	const canvasBox = useRef<HTMLDivElement>(null);
+	/**
+	 * The canvas AND the details panel beside it, measured together so the view
+	 * is fitted once the tab has its real size. Not the canvas alone: the canvas
+	 * narrows whenever the details panel opens, and that is a click, not a
+	 * resize, so it must not re-fit the graph under the operator's pointer.
+	 */
+	const [workAreaRef, workAreaMeasure] = useContainerSize<HTMLDivElement>();
+	/** The whole panel's width, which decides whether the mode captions fit. */
+	const [rootRef, { size: panelSize }] = useContainerSize<HTMLDivElement>();
+	/** xyflow themes itself; without this its minimap and controls stay light. */
+	const dark = useIsDarkTheme();
 	/**
 	 * Selection is EPHEMERAL UI state, held here and mirrored into the canvas
 	 * arrays — never written into the persisted graph, which would mark a
@@ -806,12 +1230,29 @@ function MissionGraphEditorBody(props: {
 		useState<readonly string[]>(NO_SELECTION);
 	const [selectedEdgeIds, setSelectedEdgeIds] =
 		useState<readonly string[]>(NO_SELECTION);
+	/**
+	 * What xyflow measured of each node, carried back on the canvas nodes
+	 * ({@link applyNodeSizes}): without it the minimap draws no node at all.
+	 */
+	const [nodeSizes, setNodeSizes] =
+		useState<ReadonlyMap<string, NodeSize>>(NO_SIZES);
 	// "Show me this node", from the mission feedback's list of where each
 	// agent is: select it and bring it into view. Acted on per request (a
 	// subscription, not an effect over the latest), reading the mission and
 	// graph through a latest-ref so the subscription is made once.
-	const { setCenter, getNode, screenToFlowPosition, fitView } =
-		useReactFlow();
+	const {
+		setCenter,
+		getNode,
+		screenToFlowPosition,
+		fitView,
+		getViewport,
+		setViewport,
+	} = useReactFlow();
+	/**
+	 * A node selected together with a camera move of its own (the focus
+	 * requests below), which the reveal must not interrupt.
+	 */
+	const revealHandledFor = useRef<string | null>(null);
 	const focusTarget = useRef<{
 		missionId: string | null;
 		graph: MissionGraph | null;
@@ -831,6 +1272,7 @@ function MissionGraphEditorBody(props: {
 				if (!node) return;
 				setSelectedEdgeIds(NO_SELECTION);
 				setSelectedNodeIds([node.id]);
+				revealHandledFor.current = node.id;
 				const measured = getNode(node.id)?.measured;
 				void setCenter(
 					node.position.x + (measured?.width ?? 180) / 2,
@@ -852,6 +1294,7 @@ function MissionGraphEditorBody(props: {
 				setSelectedNodeIds(uses.length > 0 ? uses : NO_SELECTION);
 				const first = shownGraph?.nodes.find((n) => n.id === uses[0]);
 				if (!first) return;
+				revealHandledFor.current = first.id;
 				const measured = getNode(first.id)?.measured;
 				void setCenter(
 					first.position.x + (measured?.width ?? 180) / 2,
@@ -880,31 +1323,43 @@ function MissionGraphEditorBody(props: {
 		sharedMap || props.defaultMap?.trim() || registryMap || "";
 
 	/**
-	 * The stored graph document for a mission, read off one list call: the
-	 * graph, or an empty canvas — flagged when the stored one is outdated.
+	 * Adopt the stored graph document for a mission.
+	 *
+	 * No document is the normal state of a mission nobody has authored a graph
+	 * for — an empty canvas, not an error. A document this build cannot read is
+	 * NOT that: it still describes an allocation the operator committed, so no
+	 * graph slot is loaded for it at all. That is the whole fix — the editor
+	 * used to load an empty graph, which (the graph being the sole author of
+	 * `vehicles` / `objective.geometries`) wrote the allocation away before the
+	 * operator had touched anything, and Save then persisted the loss. With no
+	 * slot, `resolveGraphDraftWrite` has nothing to write, `saveMissionWithGraph`
+	 * leaves the stored document alone, and the canvas says what is there and
+	 * asks for a deliberate {@link startFreshGraph}.
 	 */
 	const adoptStoredGraph = useCallback((id: string, data: unknown) => {
-		const raw = data as { missions?: unknown[] } | unknown[] | null;
-		const list = Array.isArray(raw)
-			? raw
-			: Array.isArray(raw?.missions)
-				? raw.missions
-				: [];
-		const wanted = graphDocId(id);
-		const found = list.find(
-			(entry) =>
-				entry != null &&
-				typeof entry === "object" &&
-				(entry as { mission_id?: unknown }).mission_id === wanted,
-		);
-		// No document is the normal state of a mission nobody has authored
-		// a graph for — an empty canvas, not an error. An outdated one is
-		// not converted: the operator is told, and the next save replaces it.
-		setOutdatedFor((prev) =>
-			isOutdatedGraphDocument(found) ? id : prev === id ? null : prev,
-		);
-		setMissionGraph(id, readGraphDocument(found) ?? emptyMissionGraph());
+		const load = readStoredGraph(id, data);
+		if (load.kind === "outdated") {
+			setOutdatedFor(id);
+			return;
+		}
+		setOutdatedFor((prev) => (prev === id ? null : prev));
+		setMissionGraph(id, load.graph);
 	}, []);
+
+	/**
+	 * Replace an unreadable stored graph with a new, empty one — the deliberate
+	 * action the named-unsupported canvas asks for. Nothing is written to the
+	 * store until it is pressed.
+	 */
+	const startFreshGraph = useCallback(() => {
+		if (!missionId) return;
+		setMissionGraph(missionId, emptyMissionGraph());
+		setOutdatedFor((prev) => (prev === missionId ? null : prev));
+	}, [missionId]);
+
+	/** Whether this mission's stored graph is one this build can read. */
+	const graphLoad: GraphLoadState =
+		outdatedFor === missionId ? "outdated" : "ready";
 
 	// ---- Load the graph and the assets for the active mission --------------
 	//
@@ -921,7 +1376,9 @@ function MissionGraphEditorBody(props: {
 			const result = await executeMissionsList({});
 			if (cancelled || !missionId) return;
 			if (!result.success) {
-				setError(result.error ?? "Failed to read the mission store");
+				setError(
+					result.error ?? "Could not load missions from the C2.",
+				);
 				return;
 			}
 			setError(null);
@@ -1054,7 +1511,7 @@ function MissionGraphEditorBody(props: {
 	// re-notifying the store into a loop.
 	useEffect(() => {
 		if (!missionId || !draft) return;
-		const slice = resolveGraphDraftWrite(graph, compiled, draft);
+		const slice = resolveGraphDraftWrite(graph, compiled, draft, graphLoad);
 		if (!slice) return;
 		editMissionDraft(
 			missionId,
@@ -1072,7 +1529,7 @@ function MissionGraphEditorBody(props: {
 					},
 				}) as typeof current,
 		);
-	}, [missionId, graph, compiled, draft]);
+	}, [missionId, graph, compiled, draft, graphLoad]);
 
 	const nodeSelection = useMemo(
 		() => new Set(selectedNodeIds),
@@ -1087,6 +1544,41 @@ function MissionGraphEditorBody(props: {
 	// agent, its step and gate. History snapshots count too, so a finished
 	// mission still shows where each chain ended.
 	const feedback = useMissionFeedbackExact(missionId);
+
+	// ---- Showing rather than authoring -------------------------------------
+	//
+	// Approving a mission commits its plan. The mission map has stood its
+	// authoring tools down on that for as long as it has shipped; this editor
+	// never did, so an operator watching a running mission could nudge or
+	// retarget a node, have it land in the shared draft, and have the next
+	// Submit carry it. Same rule, same module, DERIVED rather than stored — see
+	// `map-view-mode.ts` and `resolveGraphViewOnly`.
+	const liveStatus = feedback?.status ?? null;
+	const viewOnlyInput = {
+		readOnly,
+		status: liveStatus,
+		editUnlockedAt,
+	};
+	const viewOnly = resolveGraphViewOnly(viewOnlyInput);
+	const modeTitle = graphModeTitle(viewOnlyInput);
+
+	/**
+	 * Take View / Author. Leaving View is also how the operator overrides a
+	 * committed plan's stand-down, so the status it was permitted under is
+	 * remembered: the next transition is a new fact and takes the editor back.
+	 */
+	const setMode = useCallback(
+		(wantView: boolean) => {
+			setReadOnly(wantView);
+			setEditUnlockedAt(wantView ? null : liveStatus);
+			if (wantView) {
+				setDropMenu(null);
+				setDropNotice(null);
+				setKeyFrom(null);
+			}
+		},
+		[liveStatus],
+	);
 	const runMarks = useMemo(() => {
 		const agentNodes = new Map<string, string[]>();
 		const nodeLabels: Record<string, string> = {};
@@ -1105,7 +1597,7 @@ function MissionGraphEditorBody(props: {
 
 	const patchNode = useCallback(
 		(nodeId: string, patch: Partial<MissionGraphNode>) => {
-			if (!missionId) return;
+			if (!missionId || viewOnly) return;
 			editMissionGraph(missionId, (current) =>
 				// A port the node no longer has takes its wire with it (a
 				// condition that stops being Agent holding loses its agent).
@@ -1120,8 +1612,182 @@ function MissionGraphEditorBody(props: {
 				),
 			);
 		},
-		[missionId],
+		[missionId, viewOnly],
 	);
+
+	/**
+	 * Say why a wire was refused, WHERE it was refused.
+	 *
+	 * A message about a gesture belongs at the gesture. Clamped into the canvas
+	 * so a drop at the very edge cannot put its own explanation off-screen.
+	 *
+	 * @param text - The reason, in the operator's terms.
+	 * @param point - Client coordinates of the drop, when there was one.
+	 */
+	const showDropNotice = useCallback(
+		(text: string, point?: { clientX: number; clientY: number }) => {
+			const box = canvasBox.current?.getBoundingClientRect();
+			if (!box) return;
+			const left = point
+				? Math.min(Math.max(point.clientX - box.left, 8), box.width - 8)
+				: box.width / 2;
+			const top = point
+				? Math.min(Math.max(point.clientY - box.top, 8), box.height - 8)
+				: 48;
+			setDropNotice({ text, left, top });
+		},
+		[],
+	);
+
+	/**
+	 * Wire two ports. The one path both the pointer and the keyboard take, so a
+	 * rule can never hold for one gesture and not the other.
+	 */
+	const connectPorts = useCallback(
+		(
+			from: { node: string; port: string },
+			to: { node: string; port: string },
+			point?: { clientX: number; clientY: number },
+		) => {
+			if (!missionId || viewOnly) return;
+			let refused: string | null = null;
+			editMissionGraph(missionId, (current) => {
+				const result = wireGraph(current, from, to, featureTypes);
+				if ("reason" in result) {
+					refused = result.reason;
+					return current;
+				}
+				return result.graph;
+			});
+			if (refused) showDropNotice(refused, point);
+			else setDropNotice(null);
+		},
+		[missionId, viewOnly, featureTypes, showDropNotice],
+	);
+
+	const onConnect = useCallback(
+		(connection: Connection) => {
+			connectPorts(
+				{
+					node: connection.source,
+					port: connection.sourceHandle ?? "",
+				},
+				{
+					node: connection.target,
+					port: connection.targetHandle ?? "",
+				},
+			);
+		},
+		[connectPorts],
+	);
+
+	/**
+	 * Enter / Space on a port: arm it, or finish the wire it started.
+	 *
+	 * The same port twice cancels, as does Escape. Two ports of the same side
+	 * is not a wire and says so rather than silently re-arming, which is how an
+	 * operator ends up believing they connected something.
+	 */
+	const onPortKey = useCallback(
+		(ref: PortHandleRef) => {
+			if (viewOnly) return;
+			setDropMenu(null);
+			if (!keyFrom) {
+				setKeyFrom(ref);
+				setDropNotice(null);
+				return;
+			}
+			if (keyFrom.node === ref.node && keyFrom.port === ref.port) {
+				setKeyFrom(null);
+				return;
+			}
+			if (keyFrom.side === ref.side) {
+				showDropNotice(
+					keyFrom.side === "source"
+						? "Both are outputs. Finish on an input (left side of a node)."
+						: "Both are inputs. Start from an output (right side of a node).",
+				);
+				return;
+			}
+			const source = keyFrom.side === "source" ? keyFrom : ref;
+			const target = keyFrom.side === "source" ? ref : keyFrom;
+			connectPorts(
+				{ node: source.node, port: source.port },
+				{ node: target.node, port: target.port },
+			);
+			setKeyFrom(null);
+		},
+		[viewOnly, keyFrom, connectPorts, showDropNotice],
+	);
+
+	/**
+	 * The handle a wire is being dragged from, or {@link NO_DRAG}.
+	 *
+	 * A SELECTOR over xyflow's store, not the whole connection: `connection.to`
+	 * changes on every pointer move, and the panel would re-render the entire
+	 * canvas at animation rate. What is selected is shallow-compared, so this
+	 * changes exactly twice per gesture — once at the start, once at the end.
+	 */
+	const dragOrigin = useConnection((connection) =>
+		connection.inProgress && connection.fromHandle
+			? {
+					side: connection.fromHandle.type,
+					node: connection.fromHandle.nodeId,
+					port: connection.fromHandle.id ?? "",
+				}
+			: NO_DRAG,
+	);
+
+	/**
+	 * While a wire is being dragged: for every node, which of its ports could
+	 * take it.
+	 *
+	 * This is the answer the canvas never gave. xyflow only marks the handle the
+	 * pointer is currently ON (`.connectingto.valid`), which cannot tell an
+	 * operator where to aim — and the old inline `background` on the handle beat
+	 * even that rule, so nothing lit up and nothing greyed out at all. The rule
+	 * is `connectionPlan`, the same one that decides the drop, so what lights up
+	 * and what is accepted cannot disagree.
+	 */
+	const dragFitByNode = useMemo(() => {
+		if (!graph || !dragOrigin.node) return null;
+		const fromSource = dragOrigin.side === "source";
+		const originSide: "source" | "target" = fromSource
+			? "source"
+			: "target";
+		const origin = { node: dragOrigin.node, port: dragOrigin.port };
+		const out = new Map<string, Record<string, boolean>>();
+		for (const node of graph.nodes) {
+			const ports = nodePorts(node, featureTypes);
+			const fits: Record<string, boolean> = {};
+			// The port being dragged from keeps its own highlight.
+			if (node.id === dragOrigin.node) {
+				fits[portKey(originSide, dragOrigin.port)] = true;
+			}
+			for (const port of fromSource ? ports.inputs : ports.outputs) {
+				const here = { node: node.id, port: port.id };
+				const plan = fromSource
+					? connectionPlan(
+							graph.nodes,
+							graph.edges,
+							origin,
+							here,
+							featureTypes,
+						)
+					: connectionPlan(
+							graph.nodes,
+							graph.edges,
+							here,
+							origin,
+							featureTypes,
+						);
+				fits[portKey(fromSource ? "target" : "source", port.id)] =
+					plan.ok;
+			}
+			out.set(node.id, fits);
+		}
+		return out;
+	}, [graph, dragOrigin, featureTypes]);
 
 	const canvasNodes = useMemo((): Node[] => {
 		if (!graph) return [];
@@ -1139,11 +1805,26 @@ function MissionGraphEditorBody(props: {
 		return graph.nodes.map((node) => {
 			const mark = runMarks.get(node.id);
 			const problem = nodeErrors.get(node.id);
+			const kindLabel = KIND_STYLE[node.kind].label;
 			return {
 				id: node.id,
 				type: "c2",
 				position: node.position,
+				measured: nodeSizes.get(node.id),
 				selected: nodeSelection.has(node.id),
+				// The node wrapper is `tabindex=0 role="group"` and carried no
+				// name at all, so a screen reader announced twelve identical
+				// groups. xyflow also resets its own focus outline
+				// (`.react-flow__node.selectable:focus-visible { outline: none }`),
+				// which is why a focused node was pixel-identical to an
+				// unfocused one — and Delete then destroyed a node the operator
+				// could not see was selected. A `ring` (box-shadow) rather than
+				// an `outline`, so xyflow's reset cannot win.
+				ariaLabel: `${kindLabel}: ${node.label || kindLabel}${
+					problem ? `. Problem: ${problem}` : ""
+				}`,
+				className:
+					"focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md",
 				data: {
 					node,
 					ports: nodePorts(node, featureTypes),
@@ -1170,7 +1851,14 @@ function MissionGraphEditorBody(props: {
 						(problem
 							? { tone: "failed" as const, text: problem }
 							: undefined),
+					dragFit: dragFitByNode?.get(node.id) ?? null,
+					armedPort:
+						keyFrom && keyFrom.node === node.id
+							? portKey(keyFrom.side, keyFrom.port)
+							: null,
+					viewOnly,
 					onPatch: patchNode,
+					onPortKey,
 				} satisfies CanvasNodeData,
 			};
 		});
@@ -1185,35 +1873,64 @@ function MissionGraphEditorBody(props: {
 		nodeSelection,
 		runMarks,
 		nodeErrors,
+		nodeSizes,
+		dragFitByNode,
+		keyFrom,
+		viewOnly,
 		patchNode,
+		onPortKey,
 	]);
 	const canvasEdges = useMemo(
 		() => (graph ? toCanvasEdges(graph, featureTypes, edgeSelection) : []),
 		[graph, featureTypes, edgeSelection],
 	);
 
-	const selectedNode = useMemo(
-		() =>
-			selectedNodeIds.length === 1
-				? (graph?.nodes.find(
-						(node) => node.id === selectedNodeIds[0],
-					) ?? null)
-				: null,
-		[graph, selectedNodeIds],
-	);
-	const selectedEdge = useMemo(
-		() =>
-			selectedEdgeIds.length === 1
-				? (graph?.edges.find(
-						(edge) => edge.id === selectedEdgeIds[0],
-					) ?? null)
-				: null,
-		[graph, selectedEdgeIds],
-	);
+	/**
+	 * The node the details panel is open for: exactly one selected node and
+	 * nothing else ({@link inspectedNodeId}). The panel's visibility IS this
+	 * value, so it cannot drift from the selection.
+	 */
+	const selectedNode = useMemo(() => {
+		const id = inspectedNodeId(selectedNodeIds, selectedEdgeIds);
+		return id
+			? (graph?.nodes.find((node) => node.id === id) ?? null)
+			: null;
+	}, [graph, selectedNodeIds, selectedEdgeIds]);
+
+	// ---- Keeping the inspected node out from under the panel ----------------
+	//
+	// Opening the panel narrows the canvas and deliberately leaves the view
+	// where it is, so a node clicked near the right edge can end up beneath the
+	// panel. Once the panel is laid out (a layout effect: the canvas narrowed in
+	// this same commit), the view pans by the least that shows the whole node,
+	// and not at all when it is already in view. Keyed on the id alone, so
+	// editing the node never moves anything.
+	const inspectedId = selectedNode?.id ?? null;
+	useLayoutEffect(() => {
+		const handled = revealHandledFor.current === inspectedId;
+		revealHandledFor.current = null;
+		if (!inspectedId || handled) return;
+		const canvas = canvasBox.current;
+		const element = canvas?.querySelector(
+			`.react-flow__node[data-id="${CSS.escape(inspectedId)}"]`,
+		);
+		if (!canvas || !element) return;
+		const { dx, dy } = revealDelta(
+			element.getBoundingClientRect(),
+			canvas.getBoundingClientRect(),
+			REVEAL_MARGIN,
+		);
+		if (dx === 0 && dy === 0) return;
+		const { x, y, zoom } = getViewport();
+		void setViewport(
+			{ x: x + dx, y: y + dy, zoom },
+			{ duration: REVEAL_MS },
+		);
+	}, [inspectedId, getViewport, setViewport]);
 
 	const deleteNodes = useCallback(
 		(nodeIds: readonly string[]) => {
-			if (!missionId || nodeIds.length === 0) return;
+			if (!missionId || viewOnly || nodeIds.length === 0) return;
 			const doomed = new Set(nodeIds);
 			editMissionGraph(missionId, (current) => ({
 				...current,
@@ -1231,12 +1948,12 @@ function MissionGraphEditorBody(props: {
 					: prev,
 			);
 		},
-		[missionId],
+		[missionId, viewOnly],
 	);
 
 	const deleteEdges = useCallback(
 		(edgeIds: readonly string[]) => {
-			if (!missionId || edgeIds.length === 0) return;
+			if (!missionId || viewOnly || edgeIds.length === 0) return;
 			const doomed = new Set(edgeIds);
 			editMissionGraph(missionId, (current) => ({
 				...current,
@@ -1248,7 +1965,7 @@ function MissionGraphEditorBody(props: {
 					: prev,
 			);
 		},
-		[missionId],
+		[missionId, viewOnly],
 	);
 
 	/**
@@ -1263,6 +1980,15 @@ function MissionGraphEditorBody(props: {
 	 */
 	const onNodesChange = useCallback(
 		(changes: NodeChange[]) => {
+			const sizes = changes.flatMap((change) =>
+				change.type === "dimensions" && change.dimensions
+					? [{ id: change.id, ...change.dimensions }]
+					: [],
+			);
+			if (sizes.length > 0) {
+				setNodeSizes((prev) => applyNodeSizes(prev, sizes));
+			}
+
 			if (!missionId) return;
 
 			const selections = changes.flatMap((change) =>
@@ -1276,10 +2002,31 @@ function MissionGraphEditorBody(props: {
 				);
 			}
 
+			// Selection is the one change that still lands in View: reading a
+			// running graph means clicking nodes.
+			if (viewOnly) return;
+
 			const removed = changes.flatMap((change) =>
 				change.type === "remove" ? [change.id] : [],
 			);
-			if (removed.length > 0) deleteNodes(removed);
+			if (removed.length > 0) {
+				// The Delete key is the fast path an operator repeats, so it
+				// keeps working without a modal — but it leaves the undo cue
+				// on screen, which the canvas never did. The inspector's
+				// Delete, which is deliberate and single, confirms instead.
+				const cost = removed.map((id) =>
+					describeNodeDeletion(graph, id),
+				);
+				const links = cost.reduce((sum, one) => sum + one.edges, 0);
+				deleteNodes(removed);
+				setNotice(
+					`Deleted ${
+						cost.length === 1
+							? `“${cost[0]?.label}”`
+							: `${cost.length} nodes`
+					}${links > 0 ? ` and ${links} link${links === 1 ? "" : "s"}` : ""}. Ctrl+Z to undo.`,
+				);
+			}
 
 			const positional = changes.filter(
 				(change) => change.type === "position",
@@ -1315,7 +2062,7 @@ function MissionGraphEditorBody(props: {
 				gesture,
 			);
 		},
-		[missionId, deleteNodes],
+		[missionId, viewOnly, graph, deleteNodes],
 	);
 
 	/** Edge changes from the canvas: selection, and removal. */
@@ -1334,12 +2081,13 @@ function MissionGraphEditorBody(props: {
 				);
 			}
 
+			if (viewOnly) return;
 			const removed = changes.flatMap((change) =>
 				change.type === "remove" ? [change.id] : [],
 			);
 			if (removed.length > 0) deleteEdges(removed);
 		},
-		[missionId, deleteEdges],
+		[missionId, viewOnly, deleteEdges],
 	);
 
 	/**
@@ -1366,34 +2114,6 @@ function MissionGraphEditorBody(props: {
 		[graph, featureTypes],
 	);
 
-	const onConnect = useCallback(
-		(connection: Connection) => {
-			if (!missionId) return;
-			let refused: string | null = null;
-			editMissionGraph(missionId, (current) => {
-				const result = wireGraph(
-					current,
-					{
-						node: connection.source,
-						port: connection.sourceHandle ?? "",
-					},
-					{
-						node: connection.target,
-						port: connection.targetHandle ?? "",
-					},
-					featureTypes,
-				);
-				if ("reason" in result) {
-					refused = result.reason;
-					return current;
-				}
-				return result.graph;
-			});
-			setNotice(refused);
-		},
-		[missionId, featureTypes],
-	);
-
 	/**
 	 * A drag that ended somewhere other than a valid input: over a port it
 	 * does not fit, say why; on empty canvas, offer the nodes that would take
@@ -1401,10 +2121,13 @@ function MissionGraphEditorBody(props: {
 	 */
 	const onConnectEnd = useCallback(
 		(event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
-			if (!graph || state.isValid || !state.fromHandle) return;
+			if (!graph || state.isValid || !state.fromHandle || viewOnly)
+				return;
 			const from = state.fromHandle;
 			const side = from.type === "source" ? "source" : "target";
 			const fromPort = from.id ?? "";
+			const point =
+				"changedTouches" in event ? event.changedTouches[0] : event;
 			if (state.toHandle) {
 				const to = state.toHandle;
 				const plan =
@@ -1423,22 +2146,32 @@ function MissionGraphEditorBody(props: {
 								{ node: from.nodeId, port: fromPort },
 								featureTypes,
 							);
-				if (!plan.ok) setNotice(plan.reason);
+				if (!plan.ok) showDropNotice(plan.reason, point);
 				return;
 			}
-			// Dropped on a node, away from its ports: nothing to create there.
-			// (`state.toNode` is only set near a handle, so the DOM is asked.)
-			const target = event.target as Element | null;
-			if (target?.closest?.(".react-flow__node")) return;
 			const fromNode = graph.nodes.find(
 				(node) => node.id === from.nodeId,
 			);
-			if (!fromNode) return;
-			const ports = nodePorts(fromNode, featureTypes);
+			const ports = fromNode
+				? nodePorts(fromNode, featureTypes)
+				: { inputs: [], outputs: [] };
 			const port = (
 				side === "source" ? ports.outputs : ports.inputs
 			).find((p) => p.id === fromPort);
-			if (!port) return;
+			// Dropped on a node, away from its ports. It used to produce
+			// NOTHING AT ALL — the commonest way to miss, and the one the
+			// operator is least able to explain to themselves.
+			const target = event.target as Element | null;
+			if (target?.closest?.(".react-flow__node")) {
+				showDropNotice(
+					port
+						? `Drop on a ${PORT_TYPE_LABEL[port.type]} port, not on the node.`
+						: "Drop on a port, not on the node.",
+					point,
+				);
+				return;
+			}
+			if (!fromNode || !port) return;
 			const origin = { node: from.nodeId, port: fromPort, side } as const;
 			// Only what would actually be wired: a probe of each choice.
 			const choices = dropChoices(side, port.type).filter(
@@ -1452,11 +2185,16 @@ function MissionGraphEditorBody(props: {
 						featureTypes,
 					) !== null,
 			);
-			if (choices.length === 0 || !missionId) return;
-			const point =
-				"changedTouches" in event ? event.changedTouches[0] : event;
+			if (choices.length === 0 || !missionId) {
+				showDropNotice(
+					`Nothing takes ${withArticle(PORT_TYPE_LABEL[port.type])} from this port. Add the node first, then wire it.`,
+					point,
+				);
+				return;
+			}
 			const box = canvasBox.current?.getBoundingClientRect();
 			if (!point || !box) return;
+			setDropNotice(null);
 			setDropMenu({
 				left: point.clientX - box.left,
 				top: point.clientY - box.top,
@@ -1469,14 +2207,21 @@ function MissionGraphEditorBody(props: {
 				choices,
 			});
 		},
-		[graph, featureTypes, screenToFlowPosition, missionId],
+		[
+			graph,
+			viewOnly,
+			featureTypes,
+			screenToFlowPosition,
+			missionId,
+			showDropNotice,
+		],
 	);
 
 	/** Create the picked node where the wire was dropped, already wired. */
 	const createFromDrop = useCallback(
 		(menu: DropMenu, choice: DropChoice) => {
 			setDropMenu(null);
-			if (!missionId) return;
+			if (!missionId || viewOnly) return;
 			// A menu opened on another mission's canvas creates nothing here.
 			if (menu.missionId !== missionId) return;
 			const id = freshGraphId(choice.node.kind);
@@ -1496,17 +2241,20 @@ function MissionGraphEditorBody(props: {
 				}
 				return next;
 			});
-			setNotice(refused);
-			if (refused) return;
+			if (refused) {
+				showDropNotice(refused);
+				return;
+			}
+			setDropNotice(null);
 			setSelectedNodeIds([id]);
 			setSelectedEdgeIds(NO_SELECTION);
 		},
-		[missionId, featureTypes],
+		[missionId, viewOnly, featureTypes, showDropNotice],
 	);
 
 	const addNode = useCallback(
 		(kind: GraphNodeKind, extra: Partial<MissionGraphNode> = {}) => {
-			if (!missionId) return;
+			if (!missionId || viewOnly) return;
 			const id = freshGraphId(kind);
 			editMissionGraph(missionId, (current) => ({
 				...current,
@@ -1525,7 +2273,7 @@ function MissionGraphEditorBody(props: {
 			setSelectedNodeIds([id]);
 			setSelectedEdgeIds(NO_SELECTION);
 		},
-		[missionId],
+		[missionId, viewOnly],
 	);
 
 	/**
@@ -1535,7 +2283,7 @@ function MissionGraphEditorBody(props: {
 	 * toggle uses). A blank node when the fleet is unknown or fully allocated.
 	 */
 	const addAgent = useCallback(() => {
-		if (!missionId) return;
+		if (!missionId || viewOnly) return;
 		const free = agents.find(
 			(agent) =>
 				!graph?.nodes.some(
@@ -1559,7 +2307,7 @@ function MissionGraphEditorBody(props: {
 		);
 		if (added) setSelectedNodeIds([added.id]);
 		setSelectedEdgeIds(NO_SELECTION);
-	}, [missionId, graph, agents, addNode]);
+	}, [missionId, viewOnly, graph, agents, addNode]);
 
 	/** Select exactly one node — the issue list's click-through. */
 	const selectOnlyNode = useCallback((nodeId: string) => {
@@ -1572,6 +2320,41 @@ function MissionGraphEditorBody(props: {
 		setSelectedEdgeIds((prev) => (prev.length > 0 ? NO_SELECTION : prev));
 	}, []);
 
+	// ---- Fitting the view to the graph -------------------------------------
+	//
+	// The view is fitted when the work area is ACTUALLY SIZED, and re-fitted if
+	// it is resized — but never under the operator: once they have panned or
+	// zoomed themselves, the view is theirs until they switch mission. The work
+	// area is the canvas plus the details panel, so opening or closing the
+	// panel (which only narrows the canvas, and xyflow keeps the transform
+	// anchored top-left) never moves the graph.
+	const nodeCount = graph?.nodes.length ?? 0;
+	const { width: canvasWidth, height: canvasHeight } = workAreaMeasure;
+	const operatorMovedView = useRef(false);
+	const lastFitKey = useRef("");
+	const onMoveStart = useCallback((event: unknown) => {
+		// A programmatic move (our own `fitView`) passes a null event; only a
+		// real gesture takes the view away from us.
+		if (event) operatorMovedView.current = true;
+	}, []);
+	useEffect(() => {
+		operatorMovedView.current = false;
+		lastFitKey.current = "";
+	}, [missionId]);
+	useEffect(() => {
+		if (canvasWidth < MIN_FIT_BOX || canvasHeight < MIN_FIT_BOX) return;
+		if (nodeCount === 0) return;
+		const key = `${missionId}|${canvasWidth}x${canvasHeight}`;
+		if (lastFitKey.current === key) return;
+		// A re-fit on resize is a courtesy; the operator's own view is not.
+		const first = lastFitKey.current === "";
+		if (!first && operatorMovedView.current) return;
+		lastFitKey.current = key;
+		// The opening fit is animated; the ones that track a resize drag are
+		// not, or every intermediate width would start its own 300 ms tween.
+		void fitView({ duration: first ? 300 : 0, padding: FIT_PADDING });
+	}, [missionId, canvasWidth, canvasHeight, nodeCount, fitView]);
+
 	// ---- Keyboard ----------------------------------------------------------
 
 	/**
@@ -1580,24 +2363,26 @@ function MissionGraphEditorBody(props: {
 	 * would otherwise delete the node being named.
 	 */
 	const onBeforeDelete = useCallback(
-		async () => shouldHandleGraphShortcut(),
-		[],
+		async () => !viewOnly && shouldHandleGraphShortcut(),
+		[viewOnly],
 	);
 
 	/** Take back / do again the last edit (a whole drag is one). */
 	const undo = useCallback(() => {
+		if (viewOnly) return;
 		if (missionId && undoMissionGraph(missionId)) setDropMenu(null);
-	}, [missionId]);
+	}, [missionId, viewOnly]);
 	const redo = useCallback(() => {
+		if (viewOnly) return;
 		if (missionId && redoMissionGraph(missionId)) setDropMenu(null);
-	}, [missionId]);
+	}, [missionId, viewOnly]);
 
 	/** One lane per agent, in the order its robot takes the steps. */
 	const tidy = useCallback(() => {
-		if (!missionId) return;
+		if (!missionId || viewOnly) return;
 		editMissionGraph(missionId, layoutLanes);
-		void fitView({ duration: 300 });
-	}, [missionId, fitView]);
+		void fitView({ duration: 300, padding: FIT_PADDING });
+	}, [missionId, viewOnly, fitView]);
 
 	/** Copy the selected nodes (not agents) and the edges between them. */
 	const copy = useCallback(() => {
@@ -1609,7 +2394,7 @@ function MissionGraphEditorBody(props: {
 	/** Paste what was copied, beside the originals, and select the copies. */
 	const paste = useCallback(() => {
 		const clip = graphClipboard;
-		if (!missionId || !clip) return;
+		if (!missionId || viewOnly || !clip) return;
 		let pasted: string[] = [];
 		editMissionGraph(missionId, (current) => {
 			const result = pasteClip(current, clip);
@@ -1618,7 +2403,7 @@ function MissionGraphEditorBody(props: {
 		});
 		setSelectedEdgeIds(NO_SELECTION);
 		setSelectedNodeIds(pasted);
-	}, [missionId]);
+	}, [missionId, viewOnly]);
 
 	/**
 	 * Escape closes the drop menu, then clears the selection. Ctrl/Cmd+Z
@@ -1646,11 +2431,65 @@ function MissionGraphEditorBody(props: {
 				setDropMenu(null);
 				return;
 			}
+			// A half-built keyboard wire is the nearest thing to "cancel".
+			if (keyFrom) {
+				setKeyFrom(null);
+				return;
+			}
+			if (dropNotice) {
+				setDropNotice(null);
+				return;
+			}
 			if (!shouldHandleGraphShortcut(event.nativeEvent)) return;
 			clearSelection();
 		},
-		[clearSelection, dropMenu, undo, redo, copy, paste],
+		[
+			clearSelection,
+			dropMenu,
+			keyFrom,
+			dropNotice,
+			undo,
+			redo,
+			copy,
+			paste,
+		],
 	);
+
+	// ---- Deleting a node ---------------------------------------------------
+
+	/**
+	 * Delete a node — through a confirmation when it takes wiring with it.
+	 *
+	 * An unwired node is its own explanation and goes straight away; one in the
+	 * middle of a chain takes the steps either side of it apart, and nothing
+	 * said so until it was gone. Both paths leave the undo cue on screen, which
+	 * the canvas never did either.
+	 */
+	const requestDeleteNode = useCallback(
+		(nodeId: string) => {
+			if (viewOnly) return;
+			const doomed = describeNodeDeletion(graph, nodeId);
+			if (doomed.edges === 0) {
+				deleteNodes([nodeId]);
+				setNotice(`Deleted “${doomed.label}”. Ctrl+Z to undo.`);
+				return;
+			}
+			setConfirmDelete({ nodeId, ...doomed });
+		},
+		[graph, viewOnly, deleteNodes],
+	);
+
+	/** Carry out a confirmed node deletion. */
+	const confirmDeleteNode = useCallback(() => {
+		if (!confirmDelete) return;
+		deleteNodes([confirmDelete.nodeId]);
+		setNotice(
+			`Deleted “${confirmDelete.label}” and ${confirmDelete.edges} link${
+				confirmDelete.edges === 1 ? "" : "s"
+			}. Ctrl+Z to undo.`,
+		);
+		setConfirmDelete(null);
+	}, [confirmDelete, deleteNodes]);
 
 	// ---- Persistence -------------------------------------------------------
 
@@ -1661,7 +2500,7 @@ function MissionGraphEditorBody(props: {
 	const saveMission = useCallback(() => {
 		if (!missionId || !graph) return;
 		if (!props.missionsSaveDef) {
-			setError("c2.missions.save is unavailable");
+			setError("This C2 cannot save missions.");
 			return;
 		}
 		return run("save", async () => {
@@ -1670,9 +2509,15 @@ function MissionGraphEditorBody(props: {
 				save: (doc) => missionsSave.execute({ mission: doc }),
 			});
 			if (!result.ok) {
-				const issues = (result.issues ?? [])
-					.filter((issue) => issue.severity === "error")
-					.map((issue) => `${issue.path}: ${issue.message}`);
+				const issues = humanizeMissionIssues(
+					(result.issues ?? []).filter(
+						(issue) => issue.severity === "error",
+					),
+				).map((issue) =>
+					issue.path
+						? `${issue.path}: ${issue.message}`
+						: issue.message,
+				);
 				setError(
 					issues.length > 0
 						? `${result.error} ${issues.join(" · ")}`
@@ -1686,10 +2531,10 @@ function MissionGraphEditorBody(props: {
 			}
 			setNotice(
 				result.keptDirty
-					? "Mission saved, but you have newer edits that are not."
+					? "Mission saved. Newer edits are not saved yet."
 					: compiles
 						? "Mission saved."
-						: "Mission saved, but the graph does not compile — the C2 will refuse it until the errors below are fixed.",
+						: "Mission saved. The C2 will refuse it until the errors are fixed.",
 			);
 		});
 	}, [
@@ -1707,7 +2552,9 @@ function MissionGraphEditorBody(props: {
 		return run("reload", async () => {
 			const result = await executeMissionsList({});
 			if (!result.success) {
-				setError(result.error ?? "Failed to read the mission store");
+				setError(
+					result.error ?? "Could not load missions from the C2.",
+				);
 				return;
 			}
 			setError(null);
@@ -1723,17 +2570,29 @@ function MissionGraphEditorBody(props: {
 	if (!missionId) {
 		return (
 			<PanelEmptyState>
-				Select a mission to author its behaviour graph.
+				Select a mission to edit its graph.
 			</PanelEmptyState>
 		);
 	}
 
+	// A narrow widget drops the View/Author captions and keeps the icons.
+	const narrow = atMost("md", panelSize);
+	const verdict = compiles
+		? "C2 will accept"
+		: errorCount > 0
+			? `Submit blocked · ${errorCount} to fix`
+			: "Submit blocked";
+	const outdated = graphLoad === "outdated";
+
 	return (
 		// `tabIndex={-1}` makes the panel the nearest focusable ancestor, so a
 		// click anywhere inside it lands focus in this subtree and the Escape
-		// shortcut below is reachable without a window listener.
+		// shortcut below is reachable without a window listener. The focus ring
+		// is restored on `focus-visible` — the blanket `outline-none` that used
+		// to be here left keyboard focus invisible everywhere inside.
 		<div
-			className="h-full min-w-0 flex flex-col text-sm outline-none"
+			ref={rootRef}
+			className="h-full min-w-0 flex flex-col gap-2 text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 			tabIndex={-1}
 			onKeyDown={onKeyDown}
 		>
@@ -1746,11 +2605,13 @@ function MissionGraphEditorBody(props: {
 					className="h-8 w-40 nokey"
 					aria-label="Mission name"
 					placeholder="Mission name"
-					disabled={!draft}
+					disabled={!draft || viewOnly}
 					title={
 						draft
-							? "Rename this mission. Save the mission to persist it."
-							: "This mission is not loaded yet. Open it on the mission map first."
+							? viewOnly
+								? "Choose Author to rename."
+								: undefined
+							: "Open this mission on the mission map first."
 					}
 					value={draft?.name ?? ""}
 					onChange={(event) =>
@@ -1766,122 +2627,168 @@ function MissionGraphEditorBody(props: {
 					className="data-[orientation=vertical]:h-6"
 				/>
 
-				<Button
-					size="sm"
+				{/* Showing vs authoring. Labelled "Author" rather than "Edit" so
+				    it reads as a mode and not as a tool, exactly as on the
+				    mission map — and when the editor stood down by ITSELF the
+				    title says why, because an operator who pressed nothing
+				    cannot otherwise tell where the tools went. */}
+				<ToggleGroup
+					type="single"
 					variant="outline"
-					disabled={busy}
-					onClick={addAgent}
-					title="Allocate a fleet agent to this mission. It counts immediately — the mission's vehicle list follows the graph."
-				>
-					<Bot />
-					Agent
-				</Button>
-				<Button
 					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() =>
-						addNode("action", {
-							label: "Navigate",
-							action: "NAVIGATE",
-						})
-					}
-					title="Go to a waypoint"
+					aria-label="Graph mode"
+					title={modeTitle}
+					value={viewOnly ? "view" : "author"}
+					onValueChange={(value) => {
+						if (value && (value === "view") !== viewOnly)
+							setMode(value === "view");
+					}}
 				>
-					<Navigation />
-					Navigate
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() =>
-						addNode("action", {
-							label: "Coverage",
-							action: "COVERAGE",
-						})
-					}
-					title="Sweep a zone with the payload sensors"
-				>
-					<ScanLine />
-					Coverage
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() => addNode("wait")}
-					title="Keep the robot until all (or any) of what is wired in holds: another step done, a time, contacts"
-				>
-					<Hourglass />
-					Hold until
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() => addNode("on_contact")}
-					title="Send the robot to each contact a Coverage reports, in turn; wire the loop back into it"
-				>
-					<Repeat />
-					On contact
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() => addNode("condition")}
-					title="A true/false to wire into a Hold until: elapsed time, contacts found"
-				>
-					<GitBranch />
-					Condition
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() => addNode("asset")}
-					title="A map asset, to wire into one or more actions"
-				>
-					<MapPin />
-					Asset
-				</Button>
+					<ToggleGroupItem
+						value="view"
+						aria-label="View mode"
+						className="flex-none px-2.5"
+					>
+						<Lock />
+						{narrow ? null : "View"}
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						value="author"
+						aria-label="Author mode"
+						className="flex-none px-2.5"
+					>
+						<LockOpen />
+						{narrow ? null : "Author"}
+					</ToggleGroupItem>
+				</ToggleGroup>
 
-				<Separator
-					orientation="vertical"
-					className="data-[orientation=vertical]:h-6"
-				/>
+				{!viewOnly && !outdated && (
+					<>
+						<Separator
+							orientation="vertical"
+							className="data-[orientation=vertical]:h-6"
+						/>
 
-				<Button
-					size="icon-sm"
-					variant="ghost"
-					disabled={!canUndo}
-					onClick={undo}
-					title="Undo (Ctrl+Z)"
-					aria-label="Undo"
-				>
-					<Undo2 />
-				</Button>
-				<Button
-					size="icon-sm"
-					variant="ghost"
-					disabled={!canRedo}
-					onClick={redo}
-					title="Redo (Ctrl+Shift+Z)"
-					aria-label="Redo"
-				>
-					<Redo2 />
-				</Button>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy || !graph || graph.nodes.length === 0}
-					onClick={tidy}
-					title="Lay the graph out: one lane per agent, its steps in the order the robot takes them, what feeds a step below it (undo takes it back)"
-				>
-					<LayoutGrid />
-					Tidy
-				</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={addAgent}
+							title="Allocate a fleet agent"
+						>
+							<Bot />
+							Agent
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() =>
+								addNode("action", {
+									label: "Navigate",
+									action: "NAVIGATE",
+								})
+							}
+							title="Go to a waypoint"
+						>
+							<Navigation />
+							Navigate
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() =>
+								addNode("action", {
+									label: "Coverage",
+									action: "COVERAGE",
+								})
+							}
+							title="Sweep a zone"
+						>
+							<ScanLine />
+							Coverage
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() => addNode("wait")}
+							title="Wait until its inputs hold"
+						>
+							<Hourglass />
+							Hold until
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() => addNode("on_contact")}
+							title="Visit each contact a Coverage reports"
+						>
+							<Repeat />
+							On contact
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() => addNode("condition")}
+							title="A true/false for a Hold until"
+						>
+							<GitBranch />
+							Condition
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() => addNode("asset")}
+							title="A map asset to target"
+						>
+							<MapPin />
+							Asset
+						</Button>
+
+						<Separator
+							orientation="vertical"
+							className="data-[orientation=vertical]:h-6"
+						/>
+
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							disabled={!canUndo}
+							onClick={undo}
+							title="Undo (Ctrl+Z)"
+							aria-label="Undo"
+						>
+							<Undo2 />
+						</Button>
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							disabled={!canRedo}
+							onClick={redo}
+							title="Redo (Ctrl+Shift+Z)"
+							aria-label="Redo"
+						>
+							<Redo2 />
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={
+								busy || !graph || graph.nodes.length === 0
+							}
+							onClick={tidy}
+							title="Arrange the graph automatically"
+						>
+							<LayoutGrid />
+							Tidy
+						</Button>
+					</>
+				)}
 
 				<Separator
 					orientation="vertical"
@@ -1891,31 +2798,53 @@ function MissionGraphEditorBody(props: {
 				{dirty && <Badge variant="outline">unsaved</Badge>}
 
 				{/* The C2's verdict, in the operator's terms rather than the
-				    compiler's. */}
-				{compiles ? (
-					<Badge
-						variant="outline"
-						className="border-success text-success"
-						title="Every requirement is met. The C2 will accept this mission."
+				    compiler's. It says what is blocked — Submit — because Save
+				    is deliberately still open beside it. It is also the way in
+				    to the mission check: what the mission allocates, and every
+				    issue, each one a click through to its node. */}
+				<Popover open={checkOpen} onOpenChange={setCheckOpen}>
+					<PopoverTrigger asChild>
+						<Badge
+							asChild
+							variant={compiles ? "outline" : "destructive"}
+							className={`cursor-pointer outline-none hover:brightness-110 ${
+								compiles ? "border-success text-success" : ""
+							}`}
+						>
+							<button
+								type="button"
+								aria-label={`${verdict}, mission check`}
+							>
+								{verdict}
+								<ChevronDown />
+							</button>
+						</Badge>
+					</PopoverTrigger>
+					<PopoverContent
+						align="start"
+						className="nokey flex w-80 flex-col gap-2 p-2"
 					>
-						C2 will accept
-					</Badge>
-				) : (
-					<Badge
-						variant="destructive"
-						title="The C2 refuses this mission until the errors listed on the right are fixed."
-					>
-						C2 will refuse this mission
-						{errorCount > 0 ? ` · ${errorCount} to fix` : ""}
-					</Badge>
-				)}
+						<MissionCheck
+							vehicles={compiled?.vehicles.length ?? 0}
+							objectives={compiled?.geometries.length ?? 0}
+							compiles={compiles}
+							issues={issues}
+							onSelectNode={(nodeId) => {
+								selectOnlyNode(nodeId);
+								setCheckOpen(false);
+							}}
+						/>
+					</PopoverContent>
+				</Popover>
 
+				{/* The ONE filled button on this panel: the action it is here
+				    for. Everything else is an outline. */}
 				<Button
 					size="sm"
 					className="ml-auto"
 					disabled={busy || !graph || !props.missionsSaveDef}
 					onClick={() => void saveMission()}
-					title="Saves the mission and its graph together"
+					title="Save the mission, its graph and its assets"
 				>
 					{pending === "save" ? (
 						<Loader2 className="animate-spin" />
@@ -1935,13 +2864,6 @@ function MissionGraphEditorBody(props: {
 				</Button>
 			</div>
 
-			{outdatedFor === missionId && (
-				<div className="text-xs text-warning bg-warning/10 px-2 py-1 shrink-0">
-					This mission&apos;s graph was made by the previous editor
-					and cannot be opened. Build it again here; saving the
-					mission replaces the old one.
-				</div>
-			)}
 			{error && (
 				<div className="text-xs text-destructive bg-destructive/10 px-2 py-1 shrink-0">
 					{error}
@@ -1953,223 +2875,405 @@ function MissionGraphEditorBody(props: {
 				</div>
 			)}
 
-			<div className="flex-1 min-h-0 flex min-w-0">
-				{/* Canvas */}
-				<div
-					className="relative flex-1 min-w-0 min-h-0"
-					ref={canvasBox}
-				>
-					<ReactFlow
-						nodes={canvasNodes}
-						edges={canvasEdges}
-						nodeTypes={NODE_TYPES}
-						onNodesChange={onNodesChange}
-						onEdgesChange={onEdgesChange}
-						onConnect={onConnect}
-						onConnectEnd={onConnectEnd}
-						isValidConnection={isValidConnection}
-						onBeforeDelete={onBeforeDelete}
-						onPaneClick={() => setDropMenu(null)}
-						deleteKeyCode={DELETE_KEY_CODES}
-						connectionLineStyle={{ strokeWidth: 2 }}
-						fitView
-						proOptions={{ hideAttribution: false }}
+			{outdated ? (
+				// The repo's named-unsupported vocabulary — dashed border, muted
+				// puzzle, the state named, an explicit action — and NOT error
+				// vocabulary: nothing has gone wrong, this build simply cannot
+				// read what is stored. Critically, no empty graph is loaded
+				// behind it, so the mission's allocation is untouched until the
+				// operator deliberately starts again.
+				<div className="flex-1 min-h-0 flex items-center justify-center p-6">
+					<div className="flex max-w-md flex-col items-center gap-3 rounded-md border border-dashed p-6 text-center">
+						<Puzzle className="size-8 text-muted-foreground" />
+						<p className="font-medium">
+							This graph was made by an older editor and cannot be
+							opened.
+						</p>
+						<Button size="sm" onClick={startFreshGraph}>
+							Start a new graph
+						</Button>
+						<p className="text-[11px] text-muted-foreground">
+							Saving the new graph replaces the old one.
+						</p>
+					</div>
+				</div>
+			) : (
+				<div className="flex-1 min-h-0 flex min-w-0" ref={workAreaRef}>
+					{/* Canvas */}
+					<div
+						className="relative flex-1 min-w-0 min-h-0"
+						ref={canvasBox}
 					>
-						<Background />
-						<Controls showInteractive={false} />
-						<MiniMap pannable zoomable />
-						<Panel position="top-left">
-							<PortLegend />
-						</Panel>
-					</ReactFlow>
-
-					{dropMenu && dropMenu.missionId === missionId && (
-						<div
-							className="nokey absolute z-10 flex flex-col min-w-36 rounded-md border bg-popover p-1 text-xs shadow-md"
-							style={{ left: dropMenu.left, top: dropMenu.top }}
+						<ReactFlow
+							nodes={canvasNodes}
+							edges={canvasEdges}
+							nodeTypes={NODE_TYPES}
+							colorMode={dark ? "dark" : "light"}
+							onNodesChange={onNodesChange}
+							onEdgesChange={onEdgesChange}
+							onConnect={onConnect}
+							onConnectEnd={onConnectEnd}
+							onMoveStart={onMoveStart}
+							isValidConnection={isValidConnection}
+							onBeforeDelete={onBeforeDelete}
+							nodesDraggable={!viewOnly}
+							nodesConnectable={!viewOnly}
+							onPaneClick={() => {
+								setDropMenu(null);
+								setDropNotice(null);
+							}}
+							deleteKeyCode={viewOnly ? null : DELETE_KEY_CODES}
+							connectionLineStyle={{ strokeWidth: 2 }}
+							proOptions={{ hideAttribution: false }}
 						>
-							<span className="px-2 py-1 text-[10px] text-muted-foreground">
-								Add and wire
-							</span>
-							{dropMenu.choices.map((choice) => (
+							<Background />
+							{/* The shortcuts live with the canvas they are for,
+							    in xyflow's own control stack, which takes its
+							    theme from `colorMode` like the zoom buttons. */}
+							<Controls showInteractive={false}>
+								<Popover>
+									<PopoverTrigger asChild>
+										<ControlButton
+											aria-label="Shortcuts"
+											title="Shortcuts"
+										>
+											{/* xyflow fills its control icons;
+											    this one is drawn in strokes. */}
+											<CircleHelp
+												style={{ fill: "none" }}
+											/>
+										</ControlButton>
+									</PopoverTrigger>
+									<PopoverContent
+										side="right"
+										align="end"
+										className="flex w-72 flex-col gap-2 p-3"
+									>
+										<span className="text-xs font-medium">
+											Shortcuts
+										</span>
+										<GraphHelp viewOnly={viewOnly} />
+									</PopoverContent>
+								</Popover>
+							</Controls>
+							{/* Every colour here reaches the DOM as a CSS custom
+							    property or a `style` fill, never an SVG
+							    attribute, so theme tokens resolve. The mask is
+							    a tint of the card rather than a darker or
+							    lighter shade of it: a black mask on the
+							    near-black dark card, and a white one on the
+							    white light card, left the view window
+							    invisible. Its outline is given a width because
+							    xyflow's default is one unit of the MINIMAP'S
+							    scale, well under a pixel. */}
+							<MiniMap
+								pannable
+								zoomable
+								nodeColor={miniMapNodeColor}
+								nodeStrokeColor="var(--border)"
+								bgColor="var(--card)"
+								maskColor="color-mix(in oklab, var(--muted-foreground) 22%, transparent)"
+								maskStrokeColor="var(--ring)"
+								maskStrokeWidth={1.5}
+							/>
+							<Panel position="top-left">
+								<PortLegend />
+							</Panel>
+						</ReactFlow>
+
+						{/* A refused or missed connection, said where it
+						    happened rather than 800 px away at the top of the
+						    panel, and in destructive tone rather than the tone
+						    "Mission saved." uses. */}
+						{dropNotice && (
+							<div
+								role="alert"
+								className="absolute z-20 flex max-w-64 items-start gap-1.5 rounded-md border border-destructive bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive shadow-md"
+								style={{
+									left: dropNotice.left,
+									top: dropNotice.top,
+									transform: "translate(-50%, 8px)",
+								}}
+							>
+								<span className="min-w-0">
+									{dropNotice.text}
+								</span>
 								<button
-									key={choice.key}
 									type="button"
-									className="rounded px-2 py-1 text-left hover:bg-accent"
-									onClick={() =>
-										createFromDrop(dropMenu, choice)
-									}
+									aria-label="Dismiss"
+									className="shrink-0 rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+									onClick={() => setDropNotice(null)}
 								>
-									{choice.label}
+									<X className="size-3" />
 								</button>
-							))}
+							</div>
+						)}
+
+						{dropMenu && dropMenu.missionId === missionId && (
+							<div
+								role="menu"
+								aria-label="Add and wire a node"
+								className="nokey absolute z-10 flex flex-col min-w-36 rounded-md border bg-popover p-1 text-xs shadow-md"
+								style={{
+									left: dropMenu.left,
+									top: dropMenu.top,
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== "Escape") return;
+									event.stopPropagation();
+									setDropMenu(null);
+								}}
+								onBlur={(event) => {
+									if (
+										!event.currentTarget.contains(
+											event.relatedTarget as HTMLElement | null,
+										)
+									)
+										setDropMenu(null);
+								}}
+							>
+								<span className="px-2 py-1 text-[10px] text-muted-foreground">
+									Add and wire
+								</span>
+								{dropMenu.choices.map((choice, index) => (
+									<button
+										key={choice.key}
+										type="button"
+										role="menuitem"
+										// The first item takes focus, so the menu
+										// is operable from the keyboard the moment
+										// it opens.
+										autoFocus={index === 0}
+										className="rounded px-2 py-1 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+										onClick={() =>
+											createFromDrop(dropMenu, choice)
+										}
+									>
+										{choice.label}
+									</button>
+								))}
+							</div>
+						)}
+					</div>
+
+					{/* The details panel: open for exactly one selected node,
+					    because it is where a node's parameters are changed, and
+					    read-only in View because it is also the only place they
+					    can be read. `nokey` is xyflow's own opt-out: no key
+					    pressed inside this panel is ever read as a canvas
+					    shortcut, so Backspace in the label field cannot delete
+					    the node being named. */}
+					{selectedNode && (
+						<div
+							className="w-64 shrink-0 border-l flex flex-col min-h-0 nokey"
+							role="region"
+							aria-label="Node details"
+						>
+							<div className="flex items-center gap-2 min-w-0 border-b px-2 py-1">
+								<span className="min-w-0 truncate text-xs font-medium">
+									{selectedNode.label ||
+										KIND_STYLE[selectedNode.kind].label}
+								</span>
+								<div className="ml-auto flex shrink-0 items-center gap-1">
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label="Close"
+										title="Close"
+										onClick={clearSelection}
+									>
+										<X />
+									</Button>
+								</div>
+							</div>
+							<ScrollArea className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block">
+								<div className="p-2 flex flex-col gap-2">
+									<NodeInspector
+										node={selectedNode}
+										wiredFrom={
+											(
+												canvasNodes.find(
+													(node) =>
+														node.id ===
+														selectedNode.id,
+												)?.data as
+													CanvasNodeData | undefined
+											)?.wiredFrom ?? {}
+										}
+										agents={agents.map((agent) => ({
+											id: agent.agent_id,
+											name: agent.name,
+										}))}
+										assets={assetFeatures}
+										zones={zoneFeatures}
+										targetOptions={
+											selectedNode.action === "COVERAGE"
+												? coverageOptions
+												: navigateOptions
+										}
+										readOnly={viewOnly}
+										onPatch={(patch) =>
+											patchNode(selectedNode.id, patch)
+										}
+										onDelete={() =>
+											requestDeleteNode(selectedNode.id)
+										}
+									/>
+								</div>
+							</ScrollArea>
 						</div>
 					)}
 				</div>
+			)}
 
-				{/* Inspector + issues. `nokey` is xyflow's own opt-out: no key
-				    pressed inside this panel is ever read as a canvas shortcut,
-				    so Backspace in the label field cannot delete the node
-				    being named. */}
-				<div className="w-64 shrink-0 border-l flex flex-col min-h-0 nokey">
-					<ScrollArea className="flex-1 min-h-0">
-						<div className="p-2 flex flex-col gap-2">
-							{selectedEdge ? (
-								<EdgeInspector
-									edge={selectedEdge}
-									type={edgeType(
-										selectedEdge,
-										new Map(
-											(graph?.nodes ?? []).map((node) => [
-												node.id,
-												node,
-											]),
-										),
-										featureTypes,
-									)}
-									onDelete={() =>
-										deleteEdges([selectedEdge.id])
-									}
-								/>
-							) : selectedNode ? (
-								<NodeInspector
-									node={selectedNode}
-									wiredFrom={
-										(
-											canvasNodes.find(
-												(node) =>
-													node.id === selectedNode.id,
-											)?.data as
-												CanvasNodeData | undefined
-										)?.wiredFrom ?? {}
-									}
-									agents={agents.map((agent) => ({
-										id: agent.agent_id,
-										name: agent.name,
-									}))}
-									assets={assetFeatures}
-									zones={zoneFeatures}
-									targetOptions={
-										selectedNode.action === "COVERAGE"
-											? coverageOptions
-											: navigateOptions
-									}
-									onPatch={(patch) =>
-										patchNode(selectedNode.id, patch)
-									}
-									onDelete={() =>
-										deleteNodes([selectedNode.id])
-									}
-								/>
-							) : (
-								<>
-									<p className="text-xs text-muted-foreground">
-										Each agent&apos;s chain runs left to
-										right: drag from an output dot (right of
-										a node) to an input dot (left) of the
-										same colour. Drop a wire on empty canvas
-										to add the node it needs.
-									</p>
-									<p className="text-[11px] text-muted-foreground">
-										<strong>Delete</strong> or{" "}
-										<strong>Backspace</strong> removes what
-										is selected. <strong>Esc</strong> clears
-										the selection. Neither fires while you
-										are typing in a field.
-									</p>
-								</>
-							)}
-
-							<Separator />
-
-							{/* What the mission currently allocates. It is written
-							    into the draft as the operator authors — there
-							    is nothing to press. */}
-							<div className="flex flex-col gap-1">
-								<Label className="text-xs">
-									This mission
-									{compiles ? (
-										<Badge
-											variant="outline"
-											className="ml-1 border-success text-success"
-										>
-											ok
-										</Badge>
-									) : (
-										<Badge
-											variant="destructive"
-											className="ml-1"
-										>
-											refused
-										</Badge>
-									)}
-								</Label>
-								<span className="text-xs text-muted-foreground">
-									{compiled?.vehicles.length ?? 0} vehicle(s)
-									· {compiled?.geometries.length ?? 0}{" "}
-									objective(s)
-								</span>
-								{!compiles && (
-									<span className="text-[11px] text-destructive">
-										The C2 will refuse this mission
-										{errorCount > 0
-											? `. ${errorCount} thing(s) to fix, listed first below:`
-											: ". The reasons are listed below."}
-									</span>
-								)}
-							</div>
-
-							{issues.length > 0 && (
-								<div className="flex flex-col gap-1">
-									{issues.map((issue, index) => (
-										<IssueRow
-											key={`${issue.nodeId ?? "graph"}-${index}`}
-											issue={issue}
-											onSelect={() =>
-												issue.nodeId
-													? selectOnlyNode(
-															issue.nodeId,
-														)
-													: undefined
-											}
-										/>
-									))}
-								</div>
-							)}
-						</div>
-					</ScrollArea>
-				</div>
-			</div>
+			{/* Deleting a node that carries wiring says what breaks, and both
+			    delete paths leave the undo cue on screen. */}
+			<AlertDialog
+				open={confirmDelete != null}
+				onOpenChange={(open) => {
+					if (!open) setConfirmDelete(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{confirmDelete
+								? `Delete “${confirmDelete.label}” and its ${confirmDelete.edges} link${
+										confirmDelete.edges === 1 ? "" : "s"
+									}?`
+								: ""}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							Ctrl+Z to undo.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction onClick={confirmDeleteNode}>
+							Delete node
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
 
-/** What each wire colour carries. Hoisted for a stable identity. */
+/**
+ * What each port carries.
+ *
+ * Every port type has a row. The old legend listed four of six and folded
+ * `waypoint`, `zone` and `asset` into one "place" entry — while the help text
+ * beside it told the operator to match colours, which for those three could not
+ * be done because they share one. Colour is the family, shape is the member.
+ */
 function PortLegend() {
 	const rows: [PortType, string][] = [
-		["agent", "the robot (the chain)"],
-		["waypoint", "place"],
-		["bool", "true/false (done, conditions)"],
+		["agent", "the robot's chain"],
+		["waypoint", "a place to go"],
+		["zone", "an area to sweep"],
+		["asset", "a map asset (either kind)"],
+		["bool", "true / false"],
 		["event", "contacts"],
 	];
 	return (
 		<div className="flex flex-col gap-0.5 rounded border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground">
 			{rows.map(([type, text]) => (
 				<span key={type} className="flex items-center gap-1.5">
-					<span
-						className="inline-block size-2"
-						style={{
-							background: PORT_COLOR[type],
-							borderRadius:
-								type === "agent" || type === "bool" ? 1 : 999,
-							transform:
-								type === "bool" ? "rotate(45deg)" : undefined,
-						}}
-					/>
+					<span className="inline-flex size-3 items-center justify-center">
+						<span style={portDotStyle(type, "idle")} />
+					</span>
 					{text}
 				</span>
 			))}
 		</div>
+	);
+}
+
+/**
+ * The shortcuts nothing on screen shows, as a compact list. The port legend is
+ * on the canvas, and drag-and-drop is left to the canvas's own highlighting.
+ */
+const GRAPH_SHORTCUTS: readonly (readonly [string, string])[] = [
+	["Enter on two ports", "Link them"],
+	["Drop a link on the canvas", "Add a wired node"],
+	["Delete / Backspace", "Delete selection"],
+	["Esc", "Cancel, clear selection"],
+	["Ctrl+Z / Ctrl+Y", "Undo / redo"],
+	["Ctrl+C / Ctrl+V", "Copy / paste"],
+];
+
+/**
+ * The shortcut list behind the toolbar's help button. In View it still lists
+ * them, after saying where editing is, because the list is also how a keyboard
+ * operator learns that ports can be linked without a mouse.
+ */
+function GraphHelp(props: { viewOnly: boolean }) {
+	return (
+		<>
+			{props.viewOnly && (
+				<p className="text-xs text-muted-foreground">
+					Choose <strong>Author</strong> to edit.
+				</p>
+			)}
+			<dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
+				{GRAPH_SHORTCUTS.map(([keys, does]) => (
+					<Fragment key={keys}>
+						<dt className="font-medium">{keys}</dt>
+						<dd className="text-muted-foreground">{does}</dd>
+					</Fragment>
+				))}
+			</dl>
+		</>
+	);
+}
+
+/** "1 vehicle", "3 vehicles". */
+function countOf(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * The mission check, behind the toolbar's verdict badge: what the mission
+ * allocates, and every issue, each a click through to its node.
+ */
+function MissionCheck(props: {
+	vehicles: number;
+	objectives: number;
+	compiles: boolean;
+	issues: readonly MissionGraphIssue[];
+	onSelectNode: (nodeId: string) => void;
+}) {
+	return (
+		<>
+			<span className="text-xs text-muted-foreground">
+				{countOf(props.vehicles, "vehicle")} ·{" "}
+				{countOf(props.objectives, "objective")}
+			</span>
+			{!props.compiles && (
+				<span className="text-[11px] text-muted-foreground">
+					Save still works.
+				</span>
+			)}
+			{props.issues.length > 0 ? (
+				<div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+					{props.issues.map((issue, index) => (
+						<IssueRow
+							key={`${issue.nodeId ?? "graph"}-${index}`}
+							issue={issue}
+							onSelect={() => {
+								if (issue.nodeId)
+									props.onSelectNode(issue.nodeId);
+							}}
+						/>
+					))}
+				</div>
+			) : (
+				<span className="text-xs text-muted-foreground">
+					No issues.
+				</span>
+			)}
+		</>
 	);
 }
 
@@ -2183,9 +3287,16 @@ function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
 	return (
 		<button
 			type="button"
-			className={`text-left text-[11px] rounded px-1.5 py-1 ${tone} ${issue.nodeId ? "cursor-pointer" : "cursor-default"}`}
+			className={`text-left text-[11px] rounded px-1.5 py-1 ${tone} focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${
+				issue.nodeId
+					? "cursor-pointer hover:brightness-110"
+					: "cursor-default opacity-80"
+			}`}
 			onClick={props.onSelect}
 			disabled={!issue.nodeId}
+			title={
+				issue.nodeId ? "Show the node" : "Applies to the whole graph"
+			}
 		>
 			{issue.message}
 		</button>
@@ -2201,9 +3312,11 @@ function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
 function ConditionEditor(props: {
 	condition?: GraphCondition;
 	zones: readonly CatalogFeature[];
+	/** Showing rather than authoring. */
+	readOnly?: boolean;
 	onChange: (condition: GraphCondition | undefined) => void;
 }) {
-	const { condition } = props;
+	const { condition, readOnly } = props;
 	const shape = condition ? CONDITION_OP_SHAPE[condition.op] : null;
 
 	/**
@@ -2219,6 +3332,7 @@ function ConditionEditor(props: {
 	return (
 		<div className="flex flex-col gap-2">
 			<Select
+				disabled={readOnly}
 				value={condition?.op ?? UNSET}
 				onValueChange={(value) => {
 					if (value === UNSET) {
@@ -2262,6 +3376,7 @@ function ConditionEditor(props: {
 						<div className="flex flex-col gap-1">
 							<Label className="text-[11px]">Zone</Label>
 							<Select
+								disabled={readOnly}
 								value={condition.key || UNSET}
 								onValueChange={(value) =>
 									update({
@@ -2296,6 +3411,7 @@ function ConditionEditor(props: {
 							{/* A flag IS a name the fog looks up in `s.flags` —
 							    free text is correct here. */}
 							<Input
+								disabled={readOnly}
 								className="h-8"
 								placeholder="e.g. lane_cleared"
 								value={condition.key ?? ""}
@@ -2349,6 +3465,7 @@ function ConditionEditor(props: {
 								At least (% of the zone)
 							</Label>
 							<Input
+								disabled={readOnly}
 								className="h-8"
 								type="number"
 								min={0}
@@ -2372,6 +3489,7 @@ function ConditionEditor(props: {
 								At least (how many)
 							</Label>
 							<Input
+								disabled={readOnly}
 								className="h-8"
 								type="number"
 								min={0}
@@ -2394,6 +3512,7 @@ function ConditionEditor(props: {
 								At least (seconds)
 							</Label>
 							<Input
+								disabled={readOnly}
 								className="h-8"
 								type="number"
 								min={0}
@@ -2413,12 +3532,13 @@ function ConditionEditor(props: {
 
 					<Label className="flex items-center gap-2 text-[11px] font-normal">
 						<Checkbox
+							disabled={readOnly}
 							checked={condition.negate}
 							onCheckedChange={(checked) =>
 								update({ negate: checked === true })
 							}
 						/>
-						Invert (NOT) — true when this is false
+						Invert (NOT)
 					</Label>
 
 					<p className="text-[11px] text-muted-foreground">
@@ -2438,25 +3558,31 @@ function NodeInspector(props: {
 	assets: readonly CatalogFeature[];
 	zones: readonly CatalogFeature[];
 	targetOptions: readonly FeatureOption[];
+	/** Showing rather than authoring: every control stands down. */
+	readOnly: boolean;
 	onPatch: (patch: Partial<MissionGraphNode>) => void;
 	onDelete: () => void;
 }) {
-	const { node } = props;
+	const { node, readOnly } = props;
 	const targetWired = props.wiredFrom.target ?? [];
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="flex items-center justify-between gap-2">
 				<Label className="text-xs">{KIND_STYLE[node.kind].label}</Label>
-				<Button
-					size="icon-sm"
-					variant="ghost"
-					className="text-destructive"
-					aria-label="Delete node"
-					title="Delete this node and every edge touching it"
-					onClick={props.onDelete}
-				>
-					<Trash2 />
-				</Button>
+				{/* A destructive action says what it does. A bare red glyph is
+				    a guess the operator has to make about the one control on
+				    this panel they cannot take back without an undo. */}
+				{!readOnly && (
+					<Button
+						size="sm"
+						variant="ghost"
+						className="text-destructive hover:text-destructive"
+						onClick={props.onDelete}
+					>
+						<Trash2 />
+						Delete node
+					</Button>
+				)}
 			</div>
 
 			{/* A label is a caption the operator writes for themselves — the one
@@ -2466,6 +3592,7 @@ function NodeInspector(props: {
 				value={node.label}
 				placeholder="Label"
 				aria-label="Node label"
+				disabled={readOnly}
 				onChange={(event) =>
 					props.onPatch({ label: event.target.value })
 				}
@@ -2474,6 +3601,7 @@ function NodeInspector(props: {
 			{node.kind === "agent" && (
 				<Select
 					value={node.agent_id || UNSET}
+					disabled={readOnly}
 					onValueChange={(value) =>
 						props.onPatch({
 							agent_id: value === UNSET ? undefined : value,
@@ -2498,6 +3626,7 @@ function NodeInspector(props: {
 				<>
 					<Select
 						value={node.feature_id || UNSET}
+						disabled={readOnly}
 						onValueChange={(value) =>
 							props.onPatch({
 								feature_id: value === UNSET ? undefined : value,
@@ -2521,8 +3650,7 @@ function NodeInspector(props: {
 						</SelectContent>
 					</Select>
 					<p className="text-[11px] text-muted-foreground">
-						Wire its output into the target of one or more actions.
-						The geometry lives on the mission map, not here.
+						Edit its geometry on the mission map.
 					</p>
 				</>
 			)}
@@ -2531,6 +3659,7 @@ function NodeInspector(props: {
 				<>
 					<Select
 						value={node.action ?? UNSET}
+						disabled={readOnly}
 						onValueChange={(value) =>
 							props.onPatch({
 								action:
@@ -2562,6 +3691,7 @@ function NodeInspector(props: {
 					) : (
 						<Select
 							value={node.feature_id || UNSET}
+							disabled={readOnly}
 							onValueChange={(value) =>
 								props.onPatch({
 									feature_id:
@@ -2591,6 +3721,7 @@ function NodeInspector(props: {
 			{node.kind === "wait" && (
 				<Select
 					value={node.mode ?? "all"}
+					disabled={readOnly}
 					onValueChange={(value) =>
 						props.onPatch({ mode: value as WaitMode })
 					}
@@ -2600,10 +3731,10 @@ function NodeInspector(props: {
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all">
-							Let go when ALL of its inputs hold
+							When all inputs hold
 						</SelectItem>
 						<SelectItem value="any">
-							Let go when ANY of its inputs holds
+							When any input holds
 						</SelectItem>
 					</SelectContent>
 				</Select>
@@ -2611,16 +3742,11 @@ function NodeInspector(props: {
 
 			{node.kind === "on_contact" && (
 				<p className="text-[11px] text-muted-foreground">
-					Takes the contacts of the Coverage wired into
-					&ldquo;contacts&rdquo;, in the order they come. For each,
-					the robot goes out on &ldquo;each contact&rdquo; — wire
-					&ldquo;position&rdquo; into a Navigate&apos;s target — and
-					the last step of the loop comes back into this node for the
-					next one. Once the Coverage is done and every contact was
-					visited, the robot leaves on &ldquo;no more&rdquo;.
+					Visits each contact in turn, then leaves on &ldquo;no
+					more&rdquo;.
 					{(props.wiredFrom.event?.length ?? 0) > 0
 						? ` Contacts of: ${props.wiredFrom.event?.join(", ")}.`
-						: " No Coverage is wired in yet."}
+						: " Wire a Coverage's “on contact” into it."}
 				</p>
 			)}
 
@@ -2628,43 +3754,10 @@ function NodeInspector(props: {
 				<ConditionEditor
 					condition={node.condition}
 					zones={props.zones}
+					readOnly={readOnly}
 					onChange={(condition) => props.onPatch({ condition })}
 				/>
 			)}
-		</div>
-	);
-}
-
-/** The selected edge: what it carries, and a mouse route to deleting it. */
-function EdgeInspector(props: {
-	edge: MissionGraphEdge;
-	type: PortType;
-	onDelete: () => void;
-}) {
-	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex items-center justify-between gap-2">
-				<Label className="text-xs">
-					{props.type === "agent"
-						? "Robot link"
-						: `${PORT_TYPE_LABEL[props.type]} link`}
-				</Label>
-				<Button
-					size="icon-sm"
-					variant="ghost"
-					className="text-destructive"
-					aria-label="Delete edge"
-					title="Delete this link"
-					onClick={props.onDelete}
-				>
-					<Trash2 />
-				</Button>
-			</div>
-			<p className="text-[11px] text-muted-foreground">
-				{props.type === "agent"
-					? "The robot goes on to the next step when this one ends."
-					: `Carries a ${PORT_TYPE_LABEL[props.type]} from "${props.edge.source_port}" into "${props.edge.target_port}".`}
-			</p>
 		</div>
 	);
 }
@@ -2693,8 +3786,7 @@ const MissionGraphEditorWidget: React.FC<MissionGraphEditorProps> = (props) => {
 	if (!missionsListDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to
-				author mission behaviour graphs.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -2718,11 +3810,16 @@ const MissionGraphEditorWidget: React.FC<MissionGraphEditorProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionGraphEditorDefinition(): WidgetDefinition<MissionGraphEditorProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-graph-widget",
 		name: "C2 Mission Graph",
-		description:
-			"Author a mission's behaviour graph: agents, their chains of actions, waits on conditions, and map assets",
+		description: "Edit a mission's behaviour graph",
 		titleProp: "title",
 		icon: <Workflow />,
 

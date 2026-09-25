@@ -135,7 +135,7 @@ function useVehicleRoster(definition: RemoteCallDefinition): {
 			if (cancelled) return;
 			setLoading(false);
 			if (!result.success) {
-				setError(result.error ?? "Failed to fetch vehicles");
+				setError(result.error ?? "the request failed");
 				return;
 			}
 			setError(null);
@@ -334,7 +334,7 @@ function AgentAutonomyDetail(props: {
 	if (!props.source) {
 		return (
 			<div className="text-muted-foreground">
-				autonomy unavailable (configure the feedback/telemetry topic)
+				autonomy unavailable (no feedback topic)
 			</div>
 		);
 	}
@@ -461,11 +461,22 @@ function FleetRowItem({
 				) : (
 					<ChevronRight className="size-3 shrink-0 text-muted-foreground" />
 				)}
+				{/* Liveness was a coloured dot and NOTHING else: unreadable to a
+				    screen reader, to anyone with a colour deficiency, and on a
+				    wall console at an angle. The dot keeps its job as the
+				    glanceable signal; the same two words now sit beside it for
+				    the pointer (title) and for assistive tech (sr-only), which
+				    also puts them into the row button's accessible name. */}
 				<span
 					className={`inline-block w-2 h-2 rounded-full shrink-0 ${
 						live ? "bg-success" : "bg-muted-foreground"
 					}`}
+					title={live ? "live telemetry" : "no live telemetry"}
+					aria-hidden
 				/>
+				<span className="sr-only">
+					{live ? "live telemetry" : "no live telemetry"}
+				</span>
 				<span
 					className="font-medium truncate flex-1 min-w-0"
 					title={row.agent_id}
@@ -520,7 +531,7 @@ function FleetRowItem({
 							value={
 								row.telemetry?.state != null
 									? agentStateLabel(row.telemetry.state)
-									: "—"
+									: "n/a"
 							}
 						/>
 					</div>
@@ -533,7 +544,7 @@ function FleetRowItem({
 							value={
 								profileTelemetry?.batteryPct != null
 									? `${profileTelemetry.batteryPct}%`
-									: "—"
+									: "n/a"
 							}
 						/>
 						<DetailLine
@@ -541,7 +552,7 @@ function FleetRowItem({
 							value={
 								profileTelemetry?.fuelPct != null
 									? `${profileTelemetry.fuelPct}%`
-									: "—"
+									: "n/a"
 							}
 						/>
 						{profileTelemetry &&
@@ -647,8 +658,8 @@ function FleetBody(props: {
 						variant="ghost"
 						onClick={refresh}
 						disabled={loading}
-						title="Refresh the vehicle roster"
-						aria-label="Refresh the vehicle roster"
+						title="Refresh roster"
+						aria-label="Refresh roster"
 					>
 						<RefreshCw className={loading ? "animate-spin" : ""} />
 					</Button>
@@ -658,19 +669,25 @@ function FleetBody(props: {
 			    in a badge it forced the header to wrap around it. */}
 			{error && (
 				<div className="text-xs text-destructive bg-destructive/10 p-2 rounded-md shrink-0 break-words">
-					Could not refresh the vehicle roster — {error}
+					Could not refresh the vehicle roster: {error}
 				</div>
 			)}
 
 			{/* Radix wraps the content in a `display: table` div that grows to
 			    its widest row, so `truncate` never engaged; forcing it to block
-			    keeps every row at the viewport's width. */}
+			    keeps every row at the viewport's width. And `type="auto"`:
+			    Radix's default reveals the scrollbar only on hover, so a roster
+			    taller than the panel was sliced at the panel edge with nothing
+			    saying there was more below. A list that overflows says so. */}
 			{rows.length === 0 ? (
 				<PanelEmptyState>
 					{loading ? "Loading roster…" : "No vehicles registered."}
 				</PanelEmptyState>
 			) : (
-				<ScrollArea className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block">
+				<ScrollArea
+					type="auto"
+					className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block"
+				>
 					<div className="flex flex-col gap-1 pr-2">
 						{rows.map((row) => (
 							<FleetRowItem
@@ -709,8 +726,7 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
 	if (!definition) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to load
-				the vehicle roster.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -739,6 +755,12 @@ const FleetStatusWidget: React.FC<FleetStatusProps> = (props) => {
  * @returns Widget definition.
  */
 export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-fleet-status-widget",
 		name: "C2 Fleet Status",

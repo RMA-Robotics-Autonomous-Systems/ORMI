@@ -21,6 +21,7 @@ import {
 	buildGraphDocument,
 	compileMissionGraph,
 	graphDocId,
+	type MissionGraph,
 	readGraphDocument,
 } from "../widgets/mission-graph";
 import { resolveGraphDraftWrite } from "../widgets/mission-graph-editor-helpers";
@@ -28,13 +29,16 @@ import {
 	cleanMissionConfig,
 	hydrateMissionDraft,
 	mergeStoredMission,
+	type MissionDraft,
 	missionDraftSignature,
 } from "../widgets/mission-editor-helpers";
 import { missionDocuments, normalizeMissions } from "../widgets/mission-list";
 import {
 	assetFeatureTypes,
 	buildAssetsDocument,
+	type MissionAssets,
 } from "../widgets/mission-assets";
+import { missionBehaviourWord } from "../widgets/mission-config-words";
 import { getActiveMap } from "./selection-store";
 import {
 	adoptStoredAssets,
@@ -103,6 +107,71 @@ export type MissionSaveResult =
 	  };
 
 /**
+ * Whether a graph is the AUTHOR of its mission's allocation.
+ *
+ * An empty canvas beside a mission that does not point at a graph yet is a
+ * mission nobody has authored a behaviour for — not a mission authored as
+ * nothing — so it neither writes a document nor rewrites the mission's fields.
+ * Once the mission does point at it, every later state is authoritative,
+ * deleting the last node included.
+ *
+ * @param graph - The working graph, or null when none is loaded.
+ * @param linked - Whether the draft's `graph_ref` already names this graph.
+ * @returns True when the graph speaks for the mission.
+ */
+export function graphAuthorsMission(
+	graph: Pick<MissionGraph, "nodes"> | null | undefined,
+	linked: boolean,
+): boolean {
+	if (!graph) return false;
+	return !(graph.nodes.length === 0 && !linked);
+}
+
+/**
+ * Whether a save would WRITE the graph document.
+ *
+ * Exported because the Submit confirmation previews what the save will write,
+ * and a preview derived from a second copy of this rule is a preview that can
+ * promise a write that does not happen (or stay silent about one that does).
+ * One predicate, two readers.
+ *
+ * @param graph - The working graph, or null.
+ * @param dirty - Whether it has unsaved edits.
+ * @param linked - Whether the draft's `graph_ref` already names it.
+ * @returns True when the document is written.
+ */
+export function willWriteGraph(
+	graph: Pick<MissionGraph, "nodes"> | null | undefined,
+	dirty: boolean,
+	linked: boolean,
+): boolean {
+	return graphAuthorsMission(graph, linked) && (dirty || !linked);
+}
+
+/**
+ * Whether a save would WRITE the map-and-assets document.
+ *
+ * Same contract as {@link willWriteGraph}: the save and the Submit preview read
+ * this one rule. An unstored set with no map and nothing in it says nothing, so
+ * it is not written.
+ *
+ * @param assets - The working assets, or null.
+ * @param dirty - Whether they have unsaved edits.
+ * @param stored - Whether the document already exists in C2DB.
+ * @returns True when the document is written.
+ */
+export function willWriteAssets(
+	assets: MissionAssets | null | undefined,
+	dirty: boolean,
+	stored: boolean,
+): boolean {
+	if (!assets) return false;
+	return (
+		dirty || (!stored && (assets.map !== "" || assets.features.length > 0))
+	);
+}
+
+/**
  * Save a mission and its graph.
  *
  * @param missionId - The mission.
@@ -118,7 +187,7 @@ export async function saveMissionWithGraph(
 		return {
 			ok: false,
 			stage: "load",
-			error: `Could not read the mission store: ${listed.error ?? "the request failed"}`,
+			error: `Could not read missions from the C2: ${listed.error ?? "the request failed"}. Nothing was written.`,
 			graphSaved: false,
 		};
 	}
@@ -129,7 +198,7 @@ export async function saveMissionWithGraph(
 		return {
 			ok: false,
 			stage: "load",
-			error: "This mission is not in the mission store.",
+			error: "This mission is not saved on the C2. Nothing was written.",
 			graphSaved: false,
 		};
 	}
@@ -149,18 +218,18 @@ export async function saveMissionWithGraph(
 	const assets = getMissionAssets(missionId);
 	let assetsSaved = false;
 	let assetsOutcome: ReturnType<typeof commitSavedAssets> = "committed";
-	// An unstored set with no map and nothing in it says nothing: not written.
-	const worthWriting =
-		assets != null &&
-		(isMissionAssetsDirty(missionId) ||
-			(!isMissionAssetsStored(missionId) &&
-				(assets.map !== "" || assets.features.length > 0)));
+	// The Submit confirmation previews this same decision — one predicate.
+	const worthWriting = willWriteAssets(
+		assets,
+		isMissionAssetsDirty(missionId),
+		isMissionAssetsStored(missionId),
+	);
 	if (assets && worthWriting) {
 		if (assets.map === "" && assets.features.length > 0) {
 			return {
 				ok: false,
 				stage: "assets",
-				error: "This mission's assets are on no map — open it on the mission map, then save again. Nothing was written.",
+				error: "This mission's assets are on no map. Open it on the mission map, then save again. Nothing was written.",
 				graphSaved: false,
 			};
 		}
@@ -205,8 +274,8 @@ export async function saveMissionWithGraph(
 			?.graph_ref === ref;
 	// An empty canvas on a mission that has no graph is not a graph to save:
 	// writing it would turn "no saved graph" into "the graph has errors".
-	if (graph && !(graph.nodes.length === 0 && !pointsAtIt)) {
-		if (isMissionGraphDirty(missionId) || !pointsAtIt) {
+	if (graph && graphAuthorsMission(graph, pointsAtIt)) {
+		if (willWriteGraph(graph, isMissionGraphDirty(missionId), pointsAtIt)) {
 			const graphSignature = missionGraphSignature(graph);
 			const written = await calls.save(
 				buildGraphDocument(missionId, graph) as unknown as Record<
@@ -278,7 +347,7 @@ export async function saveMissionWithGraph(
 		return {
 			ok: false,
 			stage: "load",
-			error: "The mission draft disappeared while saving.",
+			error: "The mission closed during the save. Save again.",
 			graphSaved,
 		};
 	}
@@ -291,8 +360,8 @@ export async function saveMissionWithGraph(
 			ok: false,
 			stage: "validate",
 			error: graphSaved
-				? "The graph was saved, but the mission has errors and was not — fix them and save again."
-				: "The mission has errors — fix them and save again.",
+				? "The graph was saved, but the mission was not: it has errors. Fix them and save again."
+				: "The mission has errors. Fix them and save again.",
 			graphSaved,
 			issues,
 		};
@@ -328,4 +397,172 @@ export async function saveMissionWithGraph(
 			assetsOutcome === "kept-dirty",
 		mission: merged,
 	};
+}
+
+// ============================================================================
+// What a save will write — the Submit confirmation's preview
+// ============================================================================
+
+/**
+ * One line of the "what this will save" preview.
+ *
+ * Two fields rather than a sentence so the dialog can align them, and so the
+ * words are decided here (pure, tested) rather than assembled in JSX.
+ */
+export interface SaveChange {
+	/** What changes, in operator words ("Vehicles", "Behaviour graph"). */
+	label: string;
+	/** How it changes — "2 → 3", "settings changed", "3 on \"RMA\"". */
+	detail: string;
+}
+
+/** Everything {@link summarizeMissionSave} reads. All of it is already loaded. */
+export interface MissionSaveSummaryInput {
+	/** The operator's working draft, or null when no panel has loaded one. */
+	draft: MissionDraft | null;
+	/** Whether the draft has unsaved edits. */
+	draftDirty: boolean;
+	/**
+	 * The stored mission as `c2.missions.list` returned it, or null when the
+	 * store does not hold it (a mission saved for the first time).
+	 */
+	stored: MissionConfig | null;
+	/** The working behaviour graph, or null when none is loaded. */
+	graph: MissionGraph | null;
+	/** Whether the graph has unsaved edits. */
+	graphDirty: boolean;
+	/** Whether the draft's `graph_ref` already names this mission's graph. */
+	graphLinked: boolean;
+	/** The working map and assets, or null when none are loaded. */
+	assets: MissionAssets | null;
+	/** Whether the assets have unsaved edits. */
+	assetsDirty: boolean;
+	/** Whether the assets document already exists in C2DB. */
+	assetsStored: boolean;
+}
+
+/** "1 vehicle" / "3 vehicles", so a preview never reads "1 vehicles". */
+function count(n: number, one: string, many = `${one}s`): string {
+	return `${n} ${n === 1 ? one : many}`;
+}
+
+/** How many objective geometries a config carries. */
+function objectiveCount(config: MissionConfig | null): number {
+	const geometries = config?.objective?.geometries;
+	return Array.isArray(geometries) ? geometries.length : 0;
+}
+
+/** How many vehicles a config allocates. */
+function vehicleCount(config: MissionConfig | null): number {
+	return Array.isArray(config?.vehicles) ? config.vehicles.length : 0;
+}
+
+/**
+ * What a Save (and therefore a Submit that saves first) will write, in words.
+ *
+ * WHY THIS EXISTS — Submit saves the mission, its graph and its assets as a side
+ * effect before it sends. The graph editor stays editable while a mission runs,
+ * so a stray edit made an hour ago becomes the submitted plan in one click, and
+ * the only thing on screen was a banner saying edits existed. Naming them before
+ * the send is the difference between confirming a command and confirming a
+ * command plus an unknown document write.
+ *
+ * WHAT IT COMPARES — the working draft against the stored mission. The graph
+ * editor writes its derived slice (vehicles, behaviour, objectives) into the
+ * draft as the operator edits, so with the editor open the draft already carries
+ * what the save will re-derive. When it has not been open the save derives the
+ * same slice itself from the same graph, so the only way these disagree is a
+ * mission whose stored fields were authored by an older graph — which is exactly
+ * a change worth showing, just possibly understated by a line or two.
+ *
+ * With no stored mission to compare against, the lines state the payload rather
+ * than a difference: "new — 2 vehicles, 3 objectives" is honest, where inventing
+ * a before value would not be.
+ *
+ * @param input - {@link MissionSaveSummaryInput}.
+ * @returns The lines to show, in writing order (assets, graph, mission). Empty
+ * when the save would write nothing.
+ */
+export function summarizeMissionSave(
+	input: MissionSaveSummaryInput,
+): SaveChange[] {
+	const changes: SaveChange[] = [];
+
+	// Writing order, so the list reads as the sequence it describes: the assets
+	// exist before the graph names them, and the graph before the mission
+	// points at it.
+	if (willWriteAssets(input.assets, input.assetsDirty, input.assetsStored)) {
+		const assets = input.assets!;
+		const n = count(assets.features.length, "asset");
+		changes.push({
+			label: "Map & assets",
+			detail: assets.map ? `${n} on "${assets.map}"` : n,
+		});
+	}
+
+	if (willWriteGraph(input.graph, input.graphDirty, input.graphLinked)) {
+		const graph = input.graph!;
+		changes.push({
+			label: "Behaviour graph",
+			detail: `${count(graph.nodes.length, "node")}, ${count(
+				graph.edges.length,
+				"link",
+			)}`,
+		});
+	}
+
+	const { draft, stored } = input;
+	if (!draft || !input.draftDirty) return changes;
+
+	if (!stored) {
+		changes.push({
+			label: "Mission",
+			detail: `new: ${count(vehicleCount(draft), "vehicle")}, ${count(
+				objectiveCount(draft),
+				"objective",
+			)}`,
+		});
+		return changes;
+	}
+
+	const before = changes.length;
+	if ((stored.name ?? "") !== (draft.name ?? "")) {
+		changes.push({
+			label: "Mission name",
+			detail: `"${stored.name ?? ""}" → "${draft.name}"`,
+		});
+	}
+	const vehiclesBefore = vehicleCount(stored);
+	const vehiclesAfter = vehicleCount(draft);
+	if (vehiclesBefore !== vehiclesAfter) {
+		changes.push({
+			label: "Vehicles",
+			detail: `${vehiclesBefore} → ${vehiclesAfter}`,
+		});
+	}
+	const objectivesBefore = objectiveCount(stored);
+	const objectivesAfter = objectiveCount(draft);
+	if (objectivesBefore !== objectivesAfter) {
+		changes.push({
+			label: "Objectives",
+			detail: `${objectivesBefore} → ${objectivesAfter}`,
+		});
+	}
+	if (stored.behavior !== draft.behavior) {
+		changes.push({
+			label: "Behaviour",
+			detail: `${missionBehaviourWord(stored.behavior)} → ${missionBehaviourWord(
+				draft.behavior,
+			)}`,
+		});
+	}
+	// Dirty, but none of the fields this preview can name moved — an objective's
+	// geometry was dragged, a transit constraint was typed. Saying "changed"
+	// without a number is the honest answer; saying nothing would let the
+	// operator confirm a write the dialog never mentioned.
+	if (changes.length === before) {
+		changes.push({ label: "Mission", detail: "settings changed" });
+	}
+
+	return changes;
 }

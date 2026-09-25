@@ -66,7 +66,7 @@ describe("staleness", () => {
 	it("formats ages", () => {
 		expect(formatAge(3_000)).toBe("3s ago");
 		expect(formatAge(120_000)).toBe("2m ago");
-		expect(formatAge(null)).toBe("—");
+		expect(formatAge(null)).toBe("n/a");
 	});
 });
 

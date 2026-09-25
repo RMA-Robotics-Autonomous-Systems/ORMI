@@ -143,7 +143,7 @@ describe("describeFeedbackIssue", () => {
 		[
 			15,
 			"EDGE_RESTARTED",
-			"Robot restarted — task recovered, paused",
+			"Robot restarted: task recovered, paused",
 			"warn",
 		],
 		[15, "TASK_RECOVERED", "Task recovered, paused", "warn"],

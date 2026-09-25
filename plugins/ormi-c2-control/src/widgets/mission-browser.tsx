@@ -46,6 +46,7 @@ import {
 import { graphDocId } from "./mission-graph";
 import { assetsDocId } from "./mission-assets";
 import { MissionIssueList } from "./mission-issues";
+import { humanizeMissionIssues } from "./mission-config-words";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
 import { useAsyncAction } from "./use-async-action";
@@ -130,7 +131,7 @@ function MissionBrowserBody(props: {
 		const result = await executeList({});
 		setLoading(false);
 		if (!result.success) {
-			setError(result.error ?? "Failed to list missions");
+			setError(result.error ?? "Could not load the missions.");
 			return;
 		}
 		setError(null);
@@ -147,7 +148,7 @@ function MissionBrowserBody(props: {
 			if (cancelled) return;
 			setLoading(false);
 			if (!result.success) {
-				setError(result.error ?? "Failed to list missions");
+				setError(result.error ?? "Could not load the missions.");
 				return;
 			}
 			setError(null);
@@ -164,7 +165,7 @@ function MissionBrowserBody(props: {
 	const saveAndRefetch = useCallback(
 		(mission: unknown, selectId?: string) => {
 			if (!props.saveDef) {
-				setError("c2.missions.save is unavailable");
+				setError("This C2 cannot save missions.");
 				return;
 			}
 			return run("save", async () => {
@@ -177,7 +178,7 @@ function MissionBrowserBody(props: {
 				setIssues(validateMissionConfig(mission));
 				const result = await save.execute({ mission });
 				if (!result.success) {
-					setError(result.error ?? "Failed to save mission");
+					setError(result.error ?? "Could not save the mission.");
 					return;
 				}
 				setError(null);
@@ -203,7 +204,7 @@ function MissionBrowserBody(props: {
 	const handleDuplicate = useCallback(
 		(row: MissionRow) => {
 			if (!props.saveDef) {
-				setError("c2.missions.save is unavailable");
+				setError("This C2 cannot save missions.");
 				return;
 			}
 			// One guarded action (a double click must not copy the graph twice),
@@ -213,7 +214,7 @@ function MissionBrowserBody(props: {
 				const listed = await executeList({});
 				if (!listed.success) {
 					setError(
-						`"${row.name}" was not duplicated — the mission store could not be read: ${listed.error ?? "the request failed"}`,
+						`"${row.name}" was not duplicated. Could not read the missions: ${listed.error ?? "the request failed"}`,
 					);
 					return;
 				}
@@ -235,7 +236,7 @@ function MissionBrowserBody(props: {
 					});
 					if (!written.success) {
 						setError(
-							`"${row.name}" was not duplicated — its map and assets could not be copied: ${written.error ?? "the request failed"}`,
+							`"${row.name}" was not duplicated. Could not copy its map and assets: ${written.error ?? "the request failed"}`,
 						);
 						return;
 					}
@@ -244,7 +245,7 @@ function MissionBrowserBody(props: {
 					const written = await save.execute({ mission: copy.graph });
 					if (!written.success) {
 						setError(
-							`"${row.name}" was not duplicated — its graph could not be copied: ${written.error ?? "the request failed"}`,
+							`"${row.name}" was not duplicated. Could not copy its graph: ${written.error ?? "the request failed"}`,
 						);
 						return;
 					}
@@ -269,7 +270,7 @@ function MissionBrowserBody(props: {
 	const handleDelete = useCallback(
 		(row: MissionRow) => {
 			if (!props.deleteDef) {
-				setError("c2.missions.delete is unavailable");
+				setError("This C2 cannot delete missions.");
 				return;
 			}
 			return run(`delete:${row.mission_id}`, async () => {
@@ -282,9 +283,7 @@ function MissionBrowserBody(props: {
 					// Reconcile the list instead of reporting a failure against a
 					// row that should simply disappear.
 					if (c2ResultCode(result) === C2ErrorCode.MissionNotFound) {
-						setError(
-							`"${row.name}" was already deleted from the mission store.`,
-						);
+						setError(`"${row.name}" was already deleted.`);
 						if (active === row.mission_id) setSelectedMission(null);
 						await refetch();
 						return;
@@ -292,7 +291,7 @@ function MissionBrowserBody(props: {
 					// Lead with what failed and on which mission; the
 					// transport's detail follows, never first.
 					setError(
-						`Deleting "${row.name}" from the mission store failed — ${result.error ?? "the request failed"}`,
+						`Could not delete "${row.name}": ${result.error ?? "the request failed"}`,
 					);
 					return;
 				}
@@ -334,8 +333,8 @@ function MissionBrowserBody(props: {
 						variant="ghost"
 						onClick={() => void refetch()}
 						disabled={loading}
-						title="Refresh"
-						aria-label="Refresh the mission list"
+						title="Refresh missions"
+						aria-label="Refresh missions"
 					>
 						<RefreshCw className={loading ? "animate-spin" : ""} />
 					</Button>
@@ -365,7 +364,7 @@ function MissionBrowserBody(props: {
 					variant="outline"
 					className="shrink-0"
 					disabled={busy || !props.saveDef}
-					title="Create a minimal new mission (edit later on the mission map)"
+					title="Create mission"
 					aria-label="Create mission"
 				>
 					{pending === "save" ? (
@@ -383,8 +382,8 @@ function MissionBrowserBody(props: {
 				</div>
 			)}
 			<MissionIssueList
-				issues={issues}
-				title="This mission is not yet ready to start:"
+				issues={humanizeMissionIssues(issues)}
+				title="Not ready to start:"
 			/>
 
 			{/* Mission list. Radix wraps the content in a `display: table`
@@ -485,8 +484,8 @@ function MissionBrowserBody(props: {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete mission?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Permanently delete &quot;{confirmDelete?.name}&quot;
-							from the mission store. This cannot be undone.
+							&quot;{confirmDelete?.name}&quot; and its graph and
+							assets will be deleted. This cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -538,8 +537,7 @@ const MissionBrowserWidget: React.FC<MissionBrowserProps> = (props) => {
 	if (!listDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to
-				browse missions.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -558,6 +556,12 @@ const MissionBrowserWidget: React.FC<MissionBrowserProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-browser-widget",
 		name: "C2 Mission Browser",

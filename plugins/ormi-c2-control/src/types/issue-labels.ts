@@ -39,126 +39,120 @@ const MISSION_ISSUES: Record<number, MissionIssue> = {
 		code: 10,
 		label: "Mission ID already in use",
 		description:
-			"Mission ID is already in use. The mission configuration will be overwritten; state set to INIT.",
+			"This mission id is already in use. Its configuration will be overwritten.",
 		severity: "warn",
 	},
 	11: {
 		code: 11,
 		label: "UGV unavailable",
 		description:
-			"At least one UGV is unavailable. A reduced set of UGVs will be used; state set to PLANNED_ALTERNATIVE.",
+			"At least one UGV is unavailable. The mission will use fewer UGVs.",
 		severity: "warn",
 	},
 	12: {
 		code: 12,
 		label: "Unknown config data",
-		description:
-			"The mission_config contains unknown keys; that data is ignored.",
+		description: "The mission config has unknown fields. They are ignored.",
 		severity: "warn",
 	},
 	13: {
 		code: 13,
 		label: "Status change ignored",
 		description:
-			"The requested mission status change was not valid; the transition is ignored.",
+			"The requested status change is not valid. Nothing changed.",
 		severity: "warn",
 	},
 	14: {
 		code: 14,
 		label: "Swarm planner unreachable",
 		description:
-			"Could not communicate with the swarm planner; mission state will not change.",
+			"Cannot reach the swarm planner. The mission state will not change.",
 		severity: "warn",
 	},
 	15: {
 		code: 15,
 		label: "Edge module unreachable",
 		description:
-			"Could not communicate with at least one edge module; mission state will not change.",
+			"Cannot reach at least one edge module. The mission state will not change.",
 		severity: "warn",
 	},
 	16: {
 		code: 16,
 		label: "Autonomy module unreachable",
 		description:
-			"Could not communicate with at least one autonomy module; mission state will not change.",
+			"Cannot reach at least one autonomy module. The mission state will not change.",
 		severity: "warn",
 	},
 	20: {
 		code: 20,
 		label: "Graph refused",
 		description:
-			"The fog could not run this mission's behaviour graph (or its config could not be parsed); mission set to FAILED. The mission log lists each reason with its code and node.",
+			"The C2 could not run this mission's graph. The mission failed. The swarm log lists each reason.",
 		severity: "fail",
 	},
 	21: {
 		code: 21,
-		label: "No graph / missing data",
+		label: "No graph or missing data",
 		description:
-			"The mission has no saved behaviour graph, or its config lacks data for planning; mission set to FAILED. Save the graph, save the mission, and submit again.",
+			"The mission has no saved graph, or its config lacks planning data. Save the mission and submit again.",
 		severity: "fail",
 	},
 	22: {
 		code: 22,
 		label: "Mission compromised",
-		description:
-			"The mission is compromised and cannot continue; mission set to FAILED.",
+		description: "The mission is compromised and cannot continue.",
 		severity: "fail",
 	},
 	23: {
 		code: 23,
 		label: "Swarm planner unreachable (failed)",
-		description:
-			"Could not communicate with the swarm planner; process failure, mission set to FAILED.",
+		description: "Cannot reach the swarm planner. The mission failed.",
 		severity: "fail",
 	},
 	24: {
 		code: 24,
 		label: "Edge modules unreachable (failed)",
-		description:
-			"Could not communicate with edge modules; process failure, mission set to FAILED.",
+		description: "Cannot reach the edge modules. The mission failed.",
 		severity: "fail",
 	},
 	25: {
 		code: 25,
 		label: "Autonomy module unreachable (failed)",
 		description:
-			"Could not communicate with at least one autonomy module; timeout, mission set to FAILED.",
+			"Cannot reach at least one autonomy module (timeout). The mission failed.",
 		severity: "fail",
 	},
 	30: {
 		code: 30,
 		label: "Not enough vehicles",
 		description:
-			"Not enough vehicles for the configuration; state set to PLANNED_ALTERNATIVE.",
+			"Not enough vehicles for this configuration. An alternative plan was made.",
 		severity: "warn",
 	},
 	31: {
 		code: 31,
 		label: "Not enough coverage",
 		description:
-			"Not enough coverage for the configuration; state set to PLANNED_ALTERNATIVE.",
+			"Not enough coverage for this configuration. An alternative plan was made.",
 		severity: "warn",
 	},
 	32: {
 		code: 32,
 		label: "Date compromised",
 		description:
-			"Requested start/end date is compromised in the planning solution; state set to PLANNED anyway.",
+			"The plan cannot meet the requested start or end date. Planned anyway.",
 		severity: "warn",
 	},
 	40: {
 		code: 40,
 		label: "No planning solution",
-		description:
-			"No planning solution found; re-init with adjusted config needed; state set to PLANNED_FAILED.",
+		description: "No plan found. Adjust the config and submit again.",
 		severity: "fail",
 	},
 	41: {
 		code: 41,
 		label: "Planner process failed",
-		description:
-			"Swarm planner process failed; state set to PLANNED_FAILED.",
+		description: "The swarm planner process failed.",
 		severity: "fail",
 	},
 };
@@ -256,7 +250,7 @@ const ISSUE_CODES: Record<
 	 * re-sent the remaining waypoints and PAUSED the mission (operator resumes).
 	 */
 	EDGE_RESTARTED: {
-		label: "Robot restarted — task recovered, paused",
+		label: "Robot restarted: task recovered, paused",
 		severity: "warn",
 	},
 	/**

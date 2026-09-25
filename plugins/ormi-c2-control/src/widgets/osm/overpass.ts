@@ -132,7 +132,7 @@ export async function runOverpassQuery(
 		});
 	} catch (err) {
 		const reason = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: `Overpass request failed: ${reason}` };
+		return { ok: false, error: `Could not reach OpenStreetMap: ${reason}` };
 	}
 
 	if (!response.ok) {
@@ -141,7 +141,7 @@ export async function runOverpassQuery(
 		const snippet = detail.trim().slice(0, 200);
 		return {
 			ok: false,
-			error: `Overpass error ${response.status}${snippet ? `: ${snippet}` : ""}`,
+			error: `OpenStreetMap returned an error (${response.status})${snippet ? `: ${snippet}` : ""}`,
 		};
 	}
 
@@ -149,7 +149,10 @@ export async function runOverpassQuery(
 	try {
 		json = (await response.json()) as OverpassResponse;
 	} catch {
-		return { ok: false, error: "Overpass returned a non-JSON response." };
+		return {
+			ok: false,
+			error: "OpenStreetMap returned an unreadable response.",
+		};
 	}
 
 	const elements = Array.isArray(json.elements) ? json.elements : [];

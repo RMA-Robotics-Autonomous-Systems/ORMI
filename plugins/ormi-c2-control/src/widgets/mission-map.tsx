@@ -331,6 +331,24 @@ type MapTool = "view" | "draw" | "edit" | "delete";
  */
 const TOGGLE_ITEM_CLASS = "flex-none px-2.5";
 
+/**
+ * The Delete tool's own tone inside the otherwise neutral tool group.
+ *
+ * Pick, Draw and Edit author; Delete destroys, and a segmented control that
+ * styles the four identically asks the operator to pick the destructive one by
+ * position alone. It stays inside the group — it is a mode, not a command — so
+ * the distinction is colour rather than a button pulled out of the row.
+ */
+const DELETE_TOOL_CLASS =
+	"text-destructive hover:bg-destructive/10 hover:text-destructive data-[state=on]:bg-destructive data-[state=on]:text-white";
+
+/**
+ * What Save mission does, worded as the assets panel and the node editor word
+ * it: three surfaces, one action, and an operator must not be left wondering
+ * whether they write different things.
+ */
+const SAVE_MISSION_TITLE = "Saves the mission, graph and assets";
+
 /** Human labels for the toolbar shape picker. */
 const SHAPE_LABELS: Record<DrawShape, string> = {
 	point: "Point",
@@ -695,7 +713,12 @@ function AgentTrajectoryOverlayBody(props: {
 	if (fc.features.length === 0) return null;
 	return (
 		<Source id="c2-trajectories" type="geojson" data={fc}>
-			{/* White casing so the plan reads over the route of the same colour. */}
+			{/* White casing so the plan reads over the route of the same
+			    colour. The literal white is basemap-relative, not
+			    theme-relative: the style comes from `mapUrl` and never follows
+			    the app theme, so every casing, ring and halo on this map is
+			    chosen against a light basemap and must stay light in both
+			    themes. MapLibre paint cannot read a CSS variable in any case. */}
 			<Layer
 				id="c2-trajectories-casing"
 				type="line"
@@ -1871,7 +1894,6 @@ function SavePrompt(props: {
 	// The geometry is already drawn by the time this opens (both on a fresh
 	// draw and on an edit), so the legal targets are fixed by the type it was
 	// drawn as.
-	const geometryClass = FEATURE_TYPE_GEOMETRY[props.initialType];
 	const legalTypes = useMemo(
 		() => new Set<FeatureType>(retypeTargets(props.initialType)),
 		[props.initialType],
@@ -1911,22 +1933,14 @@ function SavePrompt(props: {
 						>
 							{FEATURE_TYPE_LABELS[type]}
 							{!legalTypes.has(type) &&
-								` — needs a ${GEOMETRY_CLASS_LABELS[FEATURE_TYPE_GEOMETRY[type]]}`}
+								` (needs a ${GEOMETRY_CLASS_LABELS[FEATURE_TYPE_GEOMETRY[type]]})`}
 						</SelectItem>
 					))}
 				</SelectContent>
 			</Select>
-			{legalTypes.size === 1 ? (
+			{legalTypes.size === 1 && (
 				<div className="text-[11px] text-muted-foreground">
-					This is the only type the C2 accepts for a{" "}
-					{GEOMETRY_CLASS_LABELS[geometryClass]}. Redraw it to change
-					the type.
-				</div>
-			) : (
-				<div className="text-[11px] text-muted-foreground">
-					Only the types that take the same geometry (a{" "}
-					{GEOMETRY_CLASS_LABELS[geometryClass]}) can be chosen — the
-					server validates the pairing and would reject the rest.
+					Redraw to change the type.
 				</div>
 			)}
 			{takesCategory && (
@@ -2793,9 +2807,7 @@ function MissionMapBody(props: {
 				const result = await executeMissionsList({});
 				if (cancelled) return;
 				if (!result.success) {
-					setError(
-						result.error ?? "Failed to read the mission store",
-					);
+					setError(result.error ?? "Failed to read the mission");
 					return;
 				}
 				if (!hasMissionAssets(missionScope))
@@ -3021,7 +3033,9 @@ function MissionMapBody(props: {
 			// refused HERE rather than at the save, so the operator is told
 			// instead of filling in a name for a shape the server will reject.
 			if (!hasUsableCoordinates(drawn.geometry?.coordinates)) {
-				setError("That draw has no usable coordinates — try again.");
+				setError(
+					"That shape has no usable coordinates. Draw it again.",
+				);
 				clearDraw(draw);
 				return;
 			}
@@ -3134,7 +3148,7 @@ function MissionMapBody(props: {
 			// exists to prevent.
 			if (!canRetypeFeature(pending.featureType, featureType)) {
 				setError(
-					`A ${FEATURE_TYPE_LABELS[pending.featureType]} can't become a ${FEATURE_TYPE_LABELS[featureType]} — they take different geometry. Redraw it instead.`,
+					`A ${FEATURE_TYPE_LABELS[pending.featureType]} can't become a ${FEATURE_TYPE_LABELS[featureType]}. Redraw it instead.`,
 				);
 				return;
 			}
@@ -3172,13 +3186,13 @@ function MissionMapBody(props: {
 			if (toMission) {
 				if (toMission !== missionScope) {
 					setError(
-						"This shape belongs to another mission than the one open now — it was not saved. Reopen that mission, or draw it again.",
+						"Not saved: this shape belongs to another mission. Reopen that mission, or draw it again.",
 					);
 					return;
 				}
 				if (!hasMissionAssets(toMission)) {
 					setError(
-						"This mission's assets are still loading — confirm again in a moment.",
+						"Mission assets are still loading. Try again in a moment.",
 					);
 					return;
 				}
@@ -3196,7 +3210,7 @@ function MissionMapBody(props: {
 					)
 				) {
 					setError(
-						"This asset was removed from the mission while you were editing it — the edit was not saved.",
+						"Not saved: this asset was removed from the mission.",
 					);
 					setPending(null);
 					editingDrawIdRef.current = null;
@@ -3206,7 +3220,7 @@ function MissionMapBody(props: {
 				}
 				if (!isMissionAssetType(featureType)) {
 					setError(
-						"A mission's asset is a waypoint, a zone or a cue; roads, risks and geofences belong to the map.",
+						"A mission asset must be a waypoint, zone or cue.",
 					);
 					return;
 				}
@@ -3232,11 +3246,11 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (editing && !props.featuresUpdateDef) {
-				setError("c2.map.features.update unavailable");
+				setError("This C2 cannot edit features.");
 				return;
 			}
 			if (!editing && !props.featuresAddDef) {
-				setError("c2.map.features.add unavailable");
+				setError("This C2 cannot add features.");
 				return;
 			}
 			setBusy(true);
@@ -3361,7 +3375,7 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (!props.featuresDeleteDef || !selectedMap || !featureId) {
-				setError("c2.map.features.delete unavailable");
+				setError("This C2 cannot delete features.");
 				return;
 			}
 			setBusy(true);
@@ -3380,9 +3394,7 @@ function MissionMapBody(props: {
 			const deleted = (result.data as { deleted?: number } | null)
 				?.deleted;
 			if (deleted === 0) {
-				setError(
-					`Server matched no feature for id ${featureId} — nothing deleted.`,
-				);
+				setError(`No feature ${featureId} on the C2. Nothing deleted.`);
 				return;
 			}
 			setError(null);
@@ -3418,7 +3430,7 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (!props.featuresAddDef) {
-				setError("c2.map.features.add unavailable");
+				setError("This C2 cannot add features.");
 				return;
 			}
 			if (roads.length === 0) {
@@ -3463,13 +3475,13 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (!props.featuresAddDef) {
-				setError("c2.map.features.add unavailable");
+				setError("This C2 cannot add features.");
 				return;
 			}
 			const ring = geofenceRingFromFeature(geofence);
 			const bbox = ring ? ringToBbox(ring) : null;
 			if (!ring || !bbox) {
-				setError("Geofence has no usable polygon to import roads for.");
+				setError("This geofence has no usable polygon.");
 				return;
 			}
 			const signal = beginOsmFetch();
@@ -3513,7 +3525,7 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (!props.featuresAddDef) {
-				setError("c2.map.features.add unavailable");
+				setError("This C2 cannot add features.");
 				return;
 			}
 			if (risks.length === 0) {
@@ -3550,15 +3562,13 @@ function MissionMapBody(props: {
 				return;
 			}
 			if (!props.featuresAddDef) {
-				setError("c2.map.features.add unavailable");
+				setError("This C2 cannot add features.");
 				return;
 			}
 			const ring = geofenceRingFromFeature(geofence);
 			const bbox = ring ? ringToBbox(ring) : null;
 			if (!ring || !bbox) {
-				setError(
-					"Geofence has no usable polygon to import buildings for.",
-				);
+				setError("This geofence has no usable polygon.");
 				return;
 			}
 			const signal = beginOsmFetch();
@@ -3593,7 +3603,7 @@ function MissionMapBody(props: {
 	/** Create a new map (prompt for a name); select it on success. */
 	const createMap = useCallback(async () => {
 		if (!props.mapsCreateDef) {
-			setError("c2.maps.create unavailable");
+			setError("This C2 cannot create maps.");
 			return;
 		}
 		if (typeof window === "undefined") return;
@@ -3619,7 +3629,7 @@ function MissionMapBody(props: {
 	 */
 	const deleteMap = useCallback(async () => {
 		if (!props.mapsDeleteDef || !selectedMap) {
-			setError("c2.maps.delete unavailable");
+			setError("This C2 cannot delete maps.");
 			return;
 		}
 		setBusy(true);
@@ -3654,8 +3664,8 @@ function MissionMapBody(props: {
 			setConfirmState({
 				title: ofMission ? "Remove asset?" : "Delete feature?",
 				description: ofMission
-					? `Remove "${label}" from this mission (saved with Save mission).`
-					: `Permanently delete the feature "${label}" from this map.`,
+					? `Remove "${label}" from this mission.`
+					: `Permanently delete "${label}" from this map.`,
 				onConfirm: () => void deleteFeature(feature),
 			});
 		},
@@ -3667,7 +3677,7 @@ function MissionMapBody(props: {
 		if (!selectedMap) return;
 		setConfirmState({
 			title: "Delete map?",
-			description: `Permanently delete the map "${selectedMap}" and all of its features.`,
+			description: `Permanently delete "${selectedMap}" and all its features.`,
 			onConfirm: () => void deleteMap(),
 		});
 	}, [selectedMap, deleteMap]);
@@ -3692,7 +3702,7 @@ function MissionMapBody(props: {
 			if (!selectedMission) return;
 			if (!hasMissionGraph(selectedMission)) {
 				setError(
-					"This mission's behaviour graph isn't loaded yet — open it in the node editor, then click the agent again.",
+					"Open this mission in the node editor, then click the agent again.",
 				);
 				return;
 			}
@@ -3738,7 +3748,7 @@ function MissionMapBody(props: {
 		if (busy) return;
 		if (!selectedMission || !missionConfig) return;
 		if (!props.missionsSaveDef) {
-			setError("c2.missions.save unavailable");
+			setError("This C2 cannot save missions.");
 			return;
 		}
 		setBusy(true);
@@ -3758,7 +3768,7 @@ function MissionMapBody(props: {
 		setMissionIssues(validateMissionConfig(result.mission));
 		setError(
 			result.keptDirty
-				? "Saved — but the mission changed while the save was in flight, so your newer edits were kept and are still unsaved."
+				? "Saved. Edits made during the save are still unsaved."
 				: null,
 		);
 		editingDrawIdRef.current = null;
@@ -4131,9 +4141,9 @@ function MissionMapBody(props: {
 					title={
 						viewOnly
 							? readOnly
-								? "View mode — authoring locked"
-								: "View mode — this mission's plan is approved; choose Author to edit it anyway"
-							: "Author mode — authoring enabled"
+								? "View only"
+								: "Plan approved: view only"
+							: "Authoring on"
 					}
 					value={viewOnly ? "view" : "author"}
 					onValueChange={(value) => {
@@ -4187,7 +4197,11 @@ function MissionMapBody(props: {
 								<ToggleGroupItem
 									key={value}
 									value={value}
-									className={TOGGLE_ITEM_CLASS}
+									className={
+										value === "delete"
+											? `${TOGGLE_ITEM_CLASS} ${DELETE_TOOL_CLASS}`
+											: TOGGLE_ITEM_CLASS
+									}
 									disabled={value !== "view" && !canEdit}
 								>
 									{label}
@@ -4248,7 +4262,7 @@ function MissionMapBody(props: {
 							className="w-44 max-w-full"
 							title={
 								missionMapFixed
-									? "This mission's assets are drawn on this map, so it stays on it."
+									? "Map locked to this mission"
 									: undefined
 							}
 						>
@@ -4270,7 +4284,7 @@ function MissionMapBody(props: {
 								aria-label="New map"
 								title={
 									missionMapFixed
-										? "This mission's assets are drawn on this map; close the mission to make another map."
+										? "Map locked to this mission"
 										: undefined
 								}
 								disabled={
@@ -4293,7 +4307,11 @@ function MissionMapBody(props: {
 									!props.mapsDeleteDef ||
 									missionMapFixed
 								}
-								title="Delete map"
+								title={
+									missionMapFixed
+										? "Map locked to this mission"
+										: "Delete map"
+								}
 								aria-label="Delete map"
 								onClick={requestDeleteMap}
 							>
@@ -4459,6 +4477,17 @@ function MissionMapBody(props: {
 				</div>
 			)}
 
+			{/* Why half the asset row greyed out. The controls carry the same
+			    reason on a `title`, but a disabled Button is
+			    `pointer-events-none`, so that tooltip never opens — an
+			    operator who did not turn them off has nothing to hover and no
+			    way to tell a locked toolbar from a broken one. */}
+			{missionMapFixed && !viewOnly && (
+				<div className="text-xs text-muted-foreground bg-muted/40 px-2 py-1 shrink-0">
+					Map locked to this mission. Close the mission to change it.
+				</div>
+			)}
+
 			{/* Picked-asset actions. Rendered in BOTH contexts: an asset is an
 			    asset whichever one the operator is in, and a mission's
 			    objectives ARE these assets. "Edit" opens the naming prompt with
@@ -4479,7 +4508,7 @@ function MissionMapBody(props: {
 						<Button
 							size="sm"
 							variant="outline"
-							title="Copy this map asset into the mission, under a new id"
+							title="Copy into the mission"
 							onClick={() => importIntoMission(pickedFeature)}
 						>
 							Import into mission
@@ -4489,7 +4518,6 @@ function MissionMapBody(props: {
 							<Button
 								size="sm"
 								variant="outline"
-								title="Rename, re-type or re-categorise this asset"
 								onClick={() =>
 									editFeature(
 										pickedFeature,
@@ -4524,27 +4552,27 @@ function MissionMapBody(props: {
 			    objective is a graph node pointing at a map asset, so there is
 			    nothing on this row but the write. */}
 			{context === "mission" && selectedMission && !viewOnly && (
-				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
-					<span className="truncate flex-1 text-muted-foreground">
-						Draw waypoints, zones and cues here, wire them in the
-						node editor; save writes the mission, its map and
-						assets, and its graph.
-					</span>
-					<Button
-						size="sm"
-						disabled={
-							busy || missionConfig == null || !missionSubmittable
-						}
-						title={
-							missionSubmittable
-								? "Save mission"
-								: "Resolve the errors below before saving"
-						}
-						onClick={() => void saveMission()}
-					>
-						<Save />
-						Save mission
-					</Button>
+				<div className="flex min-w-0 items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
+					<div className="ml-auto flex shrink-0 items-center gap-1">
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={
+								busy ||
+								missionConfig == null ||
+								!missionSubmittable
+							}
+							title={
+								missionSubmittable
+									? SAVE_MISSION_TITLE
+									: "Fix the errors below first"
+							}
+							onClick={() => void saveMission()}
+						>
+							<Save />
+							Save mission
+						</Button>
+					</div>
 				</div>
 			)}
 
@@ -4570,15 +4598,10 @@ function MissionMapBody(props: {
 								<span className="font-medium">
 									Objective #{index + 1}
 								</span>{" "}
-								is outside the map geofence — the planner has no
-								routable nodes there and will fail to plan. Draw
-								it inside a geofence.
+								is outside the geofence and will fail to plan.
+								Draw it inside a geofence.
 							</div>
 						))}
-						<div className="text-warning/80">
-							Checked against the currently loaded map; the
-							planner ultimately selects the active map.
-						</div>
 					</div>
 				)}
 
@@ -4652,7 +4675,9 @@ function MissionMapBody(props: {
 					    enabled here and nothing else says which way is north,
 					    and past the basemap's own tile depth the imagery is
 					    overzoomed, so its detail no longer indicates distance
-					    either. Bottom-right: both panels own the top corners. */}
+					    either. Bottom-right, one row up: both panels own the
+					    top corners and MapLibre's attribution owns the bottom
+					    edge. */}
 					<MapChrome />
 					<OverlayLayers
 						active={activeOverlays}
@@ -4772,9 +4797,7 @@ function PlannerStatusBadge(props: { status: PlannerStatus | null }) {
 		<Badge
 			variant={noGraph ? "destructive" : "outline"}
 			title={
-				noGraph
-					? "The loaded map has no routable features in range."
-					: (status.note ?? status.mode ?? undefined)
+				noGraph ? undefined : (status.note ?? status.mode ?? undefined)
 			}
 		>
 			Planner: {status.loaded_map ?? "no map"}
@@ -4847,8 +4870,7 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 	if (!mapsListDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to draw
-				and manage maps and mission geometry.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -4883,6 +4905,12 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-map-widget",
 		name: "C2 Mission Map",
@@ -4936,11 +4964,11 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				},
 				agentTopic: {
 					type: "object",
-					title: "Edge feedback (fallback for no-namespace agents)",
+					title: "Edge feedback topic",
 				},
 				observationTopic: {
 					type: "object",
-					title: "Findings — contacts (/mission/findings, or raw /payload/observation)",
+					title: "Contacts topic",
 				},
 			},
 			required: ["title"],

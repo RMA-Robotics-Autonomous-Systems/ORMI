@@ -72,7 +72,7 @@ describe("extractC2Conflicts", () => {
 describe("formatVehicleBusy", () => {
 	it("falls back to the raw ids without a resolver", () => {
 		expect(formatVehicleBusy([{ vehicle_id: V1, mission_id: M1 }])).toBe(
-			`Vehicle busy: ${V1} is used by mission ${M1}. The command was NOT applied (VEHICLE_BUSY) — stop or finish that mission first, then retry.`,
+			`Vehicle busy: ${V1} is used by mission ${M1}. The command was NOT applied. Stop or finish that mission first, then retry.`,
 		);
 	});
 	it("uses names when the resolver knows them, ids otherwise", () => {
@@ -83,7 +83,7 @@ describe("formatVehicleBusy", () => {
 		expect(text).toBe(
 			`Vehicle busy: Themis_Fr is used by mission ${M1}; ` +
 				`Vehicle busy: ${V2} is used by mission Patrol North. ` +
-				"The command was NOT applied (VEHICLE_BUSY) — stop or finish those missions first, then retry.",
+				"The command was NOT applied. Stop or finish those missions first, then retry.",
 		);
 	});
 	it("says 'another mission' when the holder is unknown", () => {
@@ -132,7 +132,7 @@ describe("interpretC2Response — 409 VEHICLE_BUSY", () => {
 			code: "NO_TARGET_MISSION",
 			message: "no mission",
 		});
-		expect(out.error).toContain("did NOT happen");
+		expect(out.error).toContain("NOT applied");
 		expect("conflicts" in out).toBe(false);
 		const bad = interpretC2Response(400, "Bad Request", "", {
 			status: "error",

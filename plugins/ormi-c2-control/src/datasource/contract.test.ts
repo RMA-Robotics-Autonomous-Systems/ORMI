@@ -110,14 +110,14 @@ describe("error codes — both current shapes", () => {
 });
 
 describe("legible failures", () => {
-	it("409 NO_TARGET_MISSION says the command did NOT happen", () => {
+	it("409 NO_TARGET_MISSION says the command was NOT applied", () => {
 		const out = interpretC2Response(409, "Conflict", "", {
 			status: "error",
 			code: "NO_TARGET_MISSION",
 			message: "no mission",
 		});
 		expect(out.success).toBe(false);
-		expect(out.error).toContain("did NOT happen");
+		expect(out.error).toContain("NOT applied");
 		expect(out.code).toBe("NO_TARGET_MISSION");
 	});
 	it("401 UNAUTHORIZED points at the datasource token setting", () => {
@@ -132,7 +132,8 @@ describe("legible failures", () => {
 		const out = interpretC2Response(503, "Unavailable", "", {
 			error: { code: "AUTH_NOT_CONFIGURED", message: "x" },
 		});
-		expect(out.error).toContain("C2_API_TOKEN");
+		expect(out.error).toContain("C2 server");
+		expect(out.error).not.toContain("mission config");
 		expect(out.error).not.toContain("fix the errors");
 	});
 	it("a bare 503 with no code is NOT reported as an auth problem", () => {
@@ -173,7 +174,9 @@ describe("request constraints (refused before the fetch)", () => {
 			mission_id: "m1",
 			mission_config: { mission_id: "m2" },
 		}).result;
-		expect(r.error).toContain("MISSION_ID_MISMATCH");
+		expect(r.error).toContain("mismatch");
+		expect(r.error).toContain('"m1"');
+		expect(r.error).toContain('"m2"');
 		expect(calls).toHaveLength(0);
 	});
 

@@ -472,7 +472,7 @@ export function describeUneditableGeometry(feature: C2Feature): string | null {
 		const parts = Array.isArray(feature.geometry?.coordinates)
 			? (feature.geometry.coordinates as unknown[]).length
 			: 0;
-		return `This feature is a ${type} with ${parts} parts. It is stored and drawn correctly, but the drawing tools edit one part at a time — editing it here would drop the others. Delete and redraw it, or edit it outside the map.`;
+		return `This feature has ${parts} parts and can't be edited on the map. Delete and redraw it.`;
 	}
 	if (!feature.geometry || feature.geometry.coordinates === undefined) {
 		return "This feature has no geometry to edit.";

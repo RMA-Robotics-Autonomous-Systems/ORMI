@@ -163,9 +163,9 @@ describe("formatDistance", () => {
 		expect(formatDistance(3214)).toBe("3.2 km");
 	});
 
-	it("renders '—' for negative/non-finite", () => {
-		expect(formatDistance(-1)).toBe("—");
-		expect(formatDistance(Number.NaN)).toBe("—");
+	it("renders 'n/a' for negative/non-finite", () => {
+		expect(formatDistance(-1)).toBe("n/a");
+		expect(formatDistance(Number.NaN)).toBe("n/a");
 	});
 });
 
@@ -176,10 +176,10 @@ describe("formatDuration", () => {
 		expect(formatDuration(3900)).toBe("1h 05m");
 	});
 
-	it("renders '—' for null/non-finite/negative", () => {
-		expect(formatDuration(null)).toBe("—");
-		expect(formatDuration(undefined)).toBe("—");
-		expect(formatDuration(-5)).toBe("—");
-		expect(formatDuration(Number.NaN)).toBe("—");
+	it("renders 'n/a' for null/non-finite/negative", () => {
+		expect(formatDuration(null)).toBe("n/a");
+		expect(formatDuration(undefined)).toBe("n/a");
+		expect(formatDuration(-5)).toBe("n/a");
+		expect(formatDuration(Number.NaN)).toBe("n/a");
 	});
 });

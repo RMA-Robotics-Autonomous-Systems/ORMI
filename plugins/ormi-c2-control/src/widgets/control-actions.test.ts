@@ -12,6 +12,7 @@ import {
 	isMissionIdle,
 	isTerminalStatus,
 	missionConfigSignature,
+	filledPrimaryAction,
 	primaryAction,
 } from "./control-actions";
 import type { MissionDraft } from "./mission-editor-helpers";
@@ -555,6 +556,37 @@ describe("primaryAction (the one filled button)", () => {
 		expect(
 			primaryAction({ submit: false, approve: false, start: false }),
 		).toBeNull();
+	});
+});
+
+describe("filledPrimaryAction (Stop owns the fill)", () => {
+	it("gives the next step the fill when Stop is not offered", () => {
+		expect(filledPrimaryAction("submit", false)).toBe("submit");
+		expect(filledPrimaryAction("approve", false)).toBe("approve");
+		expect(filledPrimaryAction("start", false)).toBe("start");
+	});
+
+	it("takes the fill away from EVERY next step while Stop is offered", () => {
+		// Stop is filled destructive and is offered for every non-terminal
+		// mission. Two filled buttons in a 380 px rail say nothing about what
+		// to press, and the one that must never be mistaken is the red one.
+		for (const primary of ["submit", "approve", "start"] as const) {
+			expect(filledPrimaryAction(primary, true)).toBeNull();
+		}
+	});
+
+	it("does not invent a primary where there is none", () => {
+		expect(filledPrimaryAction(null, false)).toBeNull();
+		expect(filledPrimaryAction(null, true)).toBeNull();
+	});
+
+	it("leaves primaryAction's own answer alone", () => {
+		// The next step is still known — the panel marks it without filling it.
+		// A regression that folded the Stop rule into `primaryAction` would
+		// take the accent off the button too, not just the fill.
+		expect(
+			primaryAction({ submit: true, approve: false, start: false }),
+		).toBe("submit");
 	});
 });
 

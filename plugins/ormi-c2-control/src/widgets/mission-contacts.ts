@@ -274,11 +274,11 @@ function clock(seconds: number): string {
 	return m > 0 ? `${m} min ${s % 60} s` : `${s} s`;
 }
 
-/** An ISO or epoch-ms time as local HH:MM:SS, or "—". */
+/** An ISO or epoch-ms time as local HH:MM:SS, or "n/a". */
 export function timeOfDay(at: string | number): string {
 	const date = typeof at === "number" ? new Date(at) : new Date(at);
 	if ((typeof at === "number" && at <= 0) || Number.isNaN(date.getTime())) {
-		return "—";
+		return "n/a";
 	}
 	return date.toLocaleTimeString([], { hour12: false });
 }
@@ -312,7 +312,7 @@ export function contactFacts(
 			label: "Found by",
 			value: `${names.agent(contact.agentId) || "unknown agent"} · ${contact.modality || "sensor"}`,
 		},
-		{ label: "Payload", value: contact.payloadUid || "—" },
+		{ label: "Payload", value: contact.payloadUid || "n/a" },
 		{ label: "During step", value: nodeName(names, contact.stepId) },
 		{
 			label: "Found at",

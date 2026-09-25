@@ -46,7 +46,7 @@ import {
 	c2ResultConflicts,
 	formatVehicleBusy,
 } from "../datasource/response";
-import { MissionStatus } from "../types/c2-types";
+import { MissionConfig, MissionStatus } from "../types/c2-types";
 import { missionStatusLabel } from "../types/status-labels";
 import {
 	MissionConfigIssue,
@@ -77,8 +77,10 @@ import { MissionIssueList } from "./mission-issues";
 import {
 	AllowedActions,
 	ControlAction,
+	PrimaryControlAction,
 	canSubmit,
 	displayedStatus,
+	filledPrimaryAction,
 	gatedActions,
 	gatingStatus,
 	isCommandConfirmed,
@@ -89,11 +91,24 @@ import {
 import { PanelEmptyState } from "./panel-empty-state";
 import { MissionStateMachine } from "./mission-state-machine";
 import { graphSubmitBlock, planSubmit, submitMessage } from "./submit-config";
-import { saveMissionWithGraph } from "../state/mission-save";
 import {
+	SaveChange,
+	saveMissionWithGraph,
+	summarizeMissionSave,
+} from "../state/mission-save";
+import {
+	getMissionGraph,
 	isMissionGraphDirty,
 	useMissionGraphDirty,
 } from "../state/mission-graph-store";
+import {
+	getMissionAssets,
+	isMissionAssetsDirty,
+	isMissionAssetsStored,
+	useMissionAssetsDirty,
+} from "../state/mission-assets-store";
+import { graphDocId } from "./mission-graph";
+import { humanizeMissionIssues } from "./mission-config-words";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -123,6 +138,17 @@ import { useAsyncAction } from "./use-async-action";
  * here (clearly labelled as another mission's), and never gates an action —
  * showing an enabled Stop for a mission the operator has not selected is how this
  * panel used to offer to stop the wrong robot.
+ *
+ * **Submit writes before it sends.** It saves the mission, its behaviour graph
+ * and its map assets first — the fog runs the SAVED graph, so anything else
+ * would submit one thing and run another. That makes Submit the only button here
+ * with a side effect on disk. The graph editor stands itself down on a committed
+ * plan, but an operator who took Author back can still be carrying an edit they
+ * have forgotten, and it would become the submitted plan in one click. Submit
+ * therefore asks first, and the confirmation NAMES each change
+ * (`summarizeMissionSave`)
+ * rather than saying only that unsaved edits exist. With nothing unsaved there is
+ * nothing to agree to and the command goes straight out.
  *
  * Command widget → it surfaces remote-call errors inline and does NOT blank on
  * offline. Gated on a C2 datasource via `WIDGET_LIST_WITH_DATASOURCE`.
@@ -230,6 +256,58 @@ function holdCommand(
 	};
 }
 
+/**
+ * Whether Submit would have to SAVE something before it could send.
+ *
+ * All three documents, because the save writes all three: the mission, its
+ * behaviour graph and its map/assets. Assets used to be missing from this test,
+ * so a mission whose assets alone had been edited took the "nothing to save"
+ * path — and then `saveMissionWithGraph` was never called, so the assets the
+ * graph's targets name were not written at all.
+ *
+ * @param missionId - The mission.
+ * @returns True when there is unsaved work.
+ */
+function hasUnsavedWork(missionId: string): boolean {
+	return (
+		isMissionDraftDirty(missionId) ||
+		isMissionGraphDirty(missionId) ||
+		isMissionAssetsDirty(missionId)
+	);
+}
+
+/**
+ * What a Submit is about to write, read off the stores at click time.
+ *
+ * Module-level: the stores are read imperatively (never from a render closure,
+ * which may be a render old) and the whole thing is pure bookkeeping the
+ * compiled component has no business carrying.
+ *
+ * @param missionId - The mission.
+ * @param stored - The stored mission from `c2.missions.list`, or null when the
+ *   store does not hold it yet.
+ * @returns The lines to show in the confirmation.
+ */
+function previewSave(
+	missionId: string,
+	stored: MissionConfig | null,
+): SaveChange[] {
+	const draft = getMissionDraft(missionId);
+	return summarizeMissionSave({
+		draft,
+		draftDirty: isMissionDraftDirty(missionId),
+		stored,
+		graph: getMissionGraph(missionId) ?? null,
+		graphDirty: isMissionGraphDirty(missionId),
+		graphLinked:
+			(draft as Record<string, unknown> | null)?.graph_ref ===
+			graphDocId(missionId),
+		assets: getMissionAssets(missionId) ?? null,
+		assetsDirty: isMissionAssetsDirty(missionId),
+		assetsStored: isMissionAssetsStored(missionId),
+	});
+}
+
 /** Props for the MissionControlPanel widget. */
 interface MissionControlPanelProps extends Record<string, unknown> {
 	title: string;
@@ -262,15 +340,22 @@ function findCall(
 }
 
 /**
- * A single lifecycle command button. Outlined unless it is the panel's next
- * step (`primary`, the one filled button) or the safety control (`destructive`).
- * A `danger` button is outlined with destructive text: a teardown that is
- * confirmed in a dialog, so it reads as dangerous without competing with Stop.
+ * A single lifecycle command button.
+ *
+ * Four tones, and the split between the first two is the panel's one-filled-
+ * button rule (see `filledPrimaryAction`):
+ *
+ * - `primary` — filled. The next step, and only when Stop is NOT offered.
+ * - `next` — outlined, accented. The next step while Stop holds the fill: still
+ *   marked, no longer a second call to action beside the red one.
+ * - `destructive` — filled red. Stop, and only Stop.
+ * - `danger` — outlined with destructive text. A teardown confirmed in a
+ *   dialog, so it reads as dangerous without competing with Stop.
  */
 function CommandButton(props: {
 	label: string;
 	icon: React.ReactNode;
-	tone?: "primary" | "destructive" | "danger";
+	tone?: "primary" | "next" | "destructive" | "danger";
 	enabled: boolean;
 	pending: boolean;
 	onClick: () => void;
@@ -283,6 +368,12 @@ function CommandButton(props: {
 			: props.tone === "destructive"
 				? "destructive"
 				: "outline";
+	const accent =
+		props.tone === "next"
+			? "border-primary text-primary hover:text-primary"
+			: props.tone === "danger"
+				? "text-destructive hover:text-destructive"
+				: "";
 	return (
 		<Button
 			size="sm"
@@ -290,7 +381,7 @@ function CommandButton(props: {
 			disabled={!props.enabled || props.pending}
 			onClick={props.onClick}
 			title={props.title}
-			className={`flex-1 min-w-fit ${props.tone === "danger" ? "text-destructive hover:text-destructive" : ""}`}
+			className={`flex-1 min-w-fit ${accent}`}
 		>
 			{props.pending ? <Loader2 className="animate-spin" /> : props.icon}
 			{props.label}
@@ -315,10 +406,10 @@ function UnconfirmedNotice(props: {
 	const moving = leavesRobotMoving(pending.action);
 	const seconds = Math.round(AWAIT_C2_TIMEOUT_MS / 1000);
 	const text = props.other
-		? `${label} for "${pending.missionName}" is still unconfirmed by the C2.${moving ? " The robot may still be moving — check it." : ""}`
+		? `${label} for "${pending.missionName}" not confirmed by the C2.${moving ? " The robot may still be moving." : ""}`
 		: moving
-			? `C2 did not confirm ${label} for "${pending.missionName}" within ${seconds} s — the robot may still be moving. Check the robot.`
-			: `C2 did not confirm ${label} for "${pending.missionName}" within ${seconds} s. Check its mission feedback before retrying.`;
+			? `${label} for "${pending.missionName}" not confirmed by the C2 after ${seconds} s. The robot may still be moving.`
+			: `${label} for "${pending.missionName}" not confirmed by the C2 after ${seconds} s. Check the mission feedback before retrying.`;
 	return (
 		<div
 			role={moving ? "alert" : "status"}
@@ -445,7 +536,10 @@ function ControlPanelBody(props: {
 	const draft = useMissionDraft(missionId);
 	const missionDirty = useMissionDraftDirty(missionId);
 	const graphDirty = useMissionGraphDirty(missionId);
-	const draftDirty = missionDirty || graphDirty;
+	// Assets count too: Save writes all three documents together, so a mission
+	// whose assets alone were edited still has unsaved work to name.
+	const assetsDirty = useMissionAssetsDirty(missionId);
+	const draftDirty = missionDirty || graphDirty || assetsDirty;
 	const currentSig = useMemo(
 		() => (draft ? missionConfigSignature(draft) : null),
 		[draft],
@@ -669,14 +763,28 @@ function ControlPanelBody(props: {
 	const message = messageNote?.missionId === scope ? messageNote.text : null;
 	const issues =
 		issuesNote?.missionId === scope ? issuesNote.issues : NO_ISSUES;
+	const humanizedIssues = useMemo(
+		() => humanizeMissionIssues(issues),
+		[issues],
+	);
 	/**
-	 * Pending destructive confirmation (Stop / Delete), driving the AlertDialog.
-	 * `null` when idle. Mirrors the mission map's confirmation state — these fire
-	 * at real robots and there is no undo.
+	 * Pending confirmation, driving the AlertDialog. `null` when idle.
+	 *
+	 * Two kinds go through it, which is why it carries more than a sentence.
+	 * Stop / Delete fire at real robots and have no undo (the mission map gates
+	 * its destructive actions the same way). Submit is not destructive, but it
+	 * WRITES: it saves the mission, its graph and its assets before it sends, so
+	 * it carries `changes` — what that write contains, in operator words.
 	 */
 	const [confirmState, setConfirmState] = useState<{
 		title: string;
 		description: string;
+		/** What a Submit will save, when this is a Submit. */
+		changes?: SaveChange[];
+		/** Label for the confirm button; "Confirm" when absent. */
+		confirmLabel?: string;
+		/** Whether the confirm button is styled as a destructive action. */
+		destructive?: boolean;
 		onConfirm: () => void;
 	} | null>(null);
 
@@ -701,7 +809,7 @@ function ControlPanelBody(props: {
 		if (!missionId) {
 			setErrorNote({
 				missionId: null,
-				text: `Select a mission first — ${label} needs a target, and an untargeted command silently acts on whatever the C2 last initialized.`,
+				text: "Select a mission first.",
 			});
 			return;
 		}
@@ -734,7 +842,7 @@ function ControlPanelBody(props: {
 				// detail follows, never first.
 				setErrorNote({
 					missionId: target,
-					text: `${label} for "${targetName}" was not confirmed — ${vehicleBusy ?? result.error ?? "the C2 gave no reason."}`,
+					text: `${label} for "${targetName}" was not confirmed: ${vehicleBusy ?? result.error ?? "the C2 gave no reason."}`,
 				});
 				// CODE BRANCH — 409 NO_TARGET_MISSION: the C2 holds no runtime
 				// for this mission (this used to be a false 200). Record it so
@@ -753,8 +861,8 @@ function ControlPanelBody(props: {
 			setMessageNote({
 				missionId: target,
 				text: props.hasTopic
-					? `${label} sent for "${targetName}" — waiting for its mission feedback to confirm it.`
-					: `${label} sent for "${targetName}" — no feedback topic is configured, so this panel cannot confirm it took effect.`,
+					? `${label} sent for "${targetName}". Waiting for confirmation.`
+					: `${label} sent for "${targetName}". Not confirmable: no feedback topic.`,
 			});
 			// Hold it until the C2's feedback confirms it (or the window
 			// closes and it becomes a "not confirmed" notice).
@@ -781,13 +889,16 @@ function ControlPanelBody(props: {
 		setConfirmState({
 			title: confirm.title,
 			description: confirm.description,
+			destructive: true,
 			onConfirm: () => void runCommand(action, call, def),
 		});
 	};
 
 	/**
-	 * Submit/initialize: targets `:5001` at the active mission with the config the
-	 * operator is actually looking at.
+	 * Save the unsaved work (if any) and send the mission to `:5001`.
+	 *
+	 * Everything here runs AFTER the operator has agreed to it — see
+	 * {@link handleSubmit}, which is the half that asks.
 	 *
 	 * ⚠ THE FIX THIS CARRIES — this used to source the config from
 	 * `c2.missions.list` ONLY, never from the shared working draft, while the
@@ -802,156 +913,264 @@ function ControlPanelBody(props: {
 	 * The draft is re-read from the store HERE, not taken from the render closure,
 	 * so an edit made in the editor or the map between click and dispatch ships
 	 * too.
+	 *
+	 * **A refusal says whether the save happened.** Submit writes three documents
+	 * before it sends, and every gate below it (the graph block, the config
+	 * validator, the C2 itself) fires AFTER that write. "The behaviour graph has
+	 * errors" on its own reads as though the whole click was discarded, and the
+	 * operator's next move — re-save, re-edit, panic — depends on which it was.
+	 *
+	 * @param activeMissionId - The mission being submitted.
+	 * @param activeName - Its name, captured for the messages.
+	 * @param fromStatus - The live status the command is sent from.
+	 * @returns The dispatch promise.
+	 */
+	const submitNow = async (
+		activeMissionId: string,
+		activeName: string,
+		fromStatus: MissionStatus | null,
+	) => {
+		setErrorNote(null);
+		setMessageNote(null);
+		setIssuesNote(null);
+
+		// Unsaved edits are saved FIRST, mission, graph and assets
+		// together: the fog runs the SAVED graph, so submitting an unsaved
+		// one would run something other than what was submitted.
+		let savedNow = false;
+		if (hasUnsavedWork(activeMissionId)) {
+			if (!saveDef || !listDef) {
+				setErrorNote({
+					missionId: activeMissionId,
+					text: "Saving is not available on this datasource. Nothing was saved or submitted.",
+				});
+				return;
+			}
+			const saved = await saveMissionWithGraph(activeMissionId, {
+				list: () => list.execute({}),
+				save: (doc) => save.execute({ mission: doc }),
+			});
+			if (!saved.ok) {
+				if (saved.issues)
+					setIssuesNote({
+						missionId: activeMissionId,
+						issues: saved.issues,
+					});
+				setErrorNote({
+					missionId: activeMissionId,
+					text: `Not submitted. ${saved.error}`,
+				});
+				return;
+			}
+			if (saved.keptDirty) {
+				setErrorNote({
+					missionId: activeMissionId,
+					text: "Not submitted. The mission changed during the save. Submit again.",
+				});
+				return;
+			}
+			savedNow = true;
+		}
+		// Which of the two failures a refusal below is. They need different
+		// words because they need different next moves.
+		const refused = savedNow
+			? "Saved, but not submitted."
+			: "Not submitted.";
+
+		// Re-read at dispatch time: the closure's `draft` may be a render old.
+		const liveDraft = getMissionDraft(activeMissionId);
+		const liveDirty = isMissionDraftDirty(activeMissionId);
+
+		// Only consult the store when there is no draft to submit. A failed
+		// fetch is reported as a FETCH failure — falling through to an empty
+		// stub is what turned a backend outage into "this mission config
+		// cannot be submitted, fix the errors below" against a valid mission.
+		let stored: unknown = null;
+		let listError: string | null = null;
+		if (!liveDraft && listDef) {
+			const listed = await list.execute({});
+			if (!listed.success) {
+				listError = listed.error ?? "the request failed";
+			} else {
+				const row = normalizeMissions(listed.data).find(
+					(r) => r.mission_id === activeMissionId,
+				);
+				stored = row?.raw ?? null;
+			}
+		} else if (!liveDraft) {
+			listError = "not available on this datasource";
+		}
+
+		const resolved = planSubmit({
+			missionId: activeMissionId,
+			draft: liveDraft,
+			dirty: liveDirty,
+			stored,
+			listError,
+		});
+		if (!resolved.ok) {
+			setErrorNote({
+				missionId: activeMissionId,
+				text: `${refused} ${resolved.error}`,
+			});
+			return;
+		}
+		const { plan } = resolved;
+
+		// The graph is the mission: one that has errors, or was never saved,
+		// is refused here with a pointer to the editor that lists why.
+		const graphBlock = graphSubmitBlock(plan.config);
+		if (graphBlock) {
+			setErrorNote({
+				missionId: activeMissionId,
+				text: `${refused} ${graphBlock}`,
+			});
+			return;
+		}
+
+		// Hard gate: never submit a config the C2 planner would reject/crash on.
+		const found = validateMissionConfig(plan.config);
+		setIssuesNote({ missionId: activeMissionId, issues: found });
+		if (found.some((issue) => issue.severity === "error")) {
+			setErrorNote({
+				missionId: activeMissionId,
+				text: `${refused} The C2 planner would reject this mission. Fix the errors below.`,
+			});
+			return;
+		}
+
+		const result = await init.execute({
+			mission_id: activeMissionId,
+			mission_config: plan.config,
+		});
+		if (!result.success) {
+			setErrorNote({
+				missionId: activeMissionId,
+				text: `SUBMIT for "${activeName}" was not confirmed: ${result.error ?? "the C2 gave no reason."}`,
+			});
+			return;
+		}
+		setMessageNote({
+			missionId: activeMissionId,
+			text: savedNow
+				? `Saved. ${submitMessage(plan)}`
+				: submitMessage(plan),
+		});
+		// Record the signature of what was ACTUALLY submitted, so the
+		// dirty-gate reflects reality rather than the draft we may not have
+		// sent. `cleanMissionConfig` is idempotent, so for a draft submit this
+		// equals `currentSig` by construction. It also clears a
+		// `NO_TARGET_MISSION` record: the C2 has a runtime again.
+		setSubmitRecord({
+			missionId: activeMissionId,
+			sig: missionConfigSignature(plan.config),
+			noTarget: false,
+		});
+		// Hold the lifecycle buttons until C2 transitions the mission.
+		armTransition("submit", activeMissionId, activeName, fromStatus);
+	};
+
+	/**
+	 * {@link submitNow} under the panel's in-flight guard.
+	 *
+	 * Only from a click that is NOT already inside one: `run` drops a re-entrant
+	 * call outright (that is what stops a double-click dispatching twice), so the
+	 * preview path below — which is itself inside a `run` — awaits `submitNow`
+	 * directly. Wrapping there would have made Submit silently do nothing.
+	 *
+	 * @param activeMissionId - The mission being submitted.
+	 * @param activeName - Its name, captured for the messages.
+	 * @param fromStatus - The live status the command is sent from.
+	 * @returns The guarded dispatch promise.
+	 */
+	const sendSubmit = (
+		activeMissionId: string,
+		activeName: string,
+		fromStatus: MissionStatus | null,
+	) =>
+		run("submit", () => submitNow(activeMissionId, activeName, fromStatus));
+
+	/**
+	 * Submit: ask before writing, then {@link sendSubmit}.
+	 *
+	 * ⚠ WHY THERE IS A DIALOG HERE AT ALL — Submit saves the mission, its graph
+	 * and its assets as a side effect of sending. The graph editor stays editable
+	 * while a mission runs, so an edit made an hour ago and forgotten becomes the
+	 * submitted plan in one click, against real robots. The banner further down
+	 * said only that unsaved edits existed; it never said WHAT they were, which
+	 * is the part an operator would have recognised as wrong.
+	 *
+	 * So when there is unsaved work the stored mission is read first, purely to
+	 * have something to compare against, and the confirmation names each change
+	 * ("Vehicles 2 → 3", "Behaviour graph — 7 nodes, 6 links"). With nothing
+	 * unsaved there is nothing to preview and nothing to agree to: the command
+	 * goes straight out, exactly as every other lifecycle command does.
+	 *
+	 * The preview read is NOT the read the save uses. `saveMissionWithGraph`
+	 * fetches the store again at save time, on purpose — a preview is not a lock,
+	 * and the base a save merges onto must be the newest one, not whatever was
+	 * current when the dialog opened.
 	 */
 	const handleSubmit = () => {
 		if (!initDef) {
 			setErrorNote({
 				missionId: scope,
-				text: "c2.mission.init is unavailable on this datasource",
+				text: "Submit is not available on this datasource.",
 			});
 			return;
 		}
 		if (!missionId) {
 			setErrorNote({
 				missionId: null,
-				text: "Select a mission first (no active mission).",
+				text: "Select a mission first.",
 			});
 			return;
 		}
 		const activeMissionId = missionId;
 		const activeName = missionName;
 		const fromStatus = liveStatus;
+		if (!hasUnsavedWork(activeMissionId)) {
+			return sendSubmit(activeMissionId, activeName, fromStatus);
+		}
 		return run("submit", async () => {
 			setErrorNote(null);
 			setMessageNote(null);
 			setIssuesNote(null);
-
-			// Unsaved edits are saved FIRST, mission and graph together: the fog
-			// runs the SAVED graph, so submitting an unsaved one would run
-			// something other than what was submitted.
-			if (
-				isMissionDraftDirty(activeMissionId) ||
-				isMissionGraphDirty(activeMissionId)
-			) {
-				if (!saveDef || !listDef) {
-					setErrorNote({
-						missionId: activeMissionId,
-						text: "This mission has unsaved edits and c2.missions.save is unavailable — it was not submitted.",
-					});
-					return;
-				}
-				const saved = await saveMissionWithGraph(activeMissionId, {
-					list: () => list.execute({}),
-					save: (doc) => save.execute({ mission: doc }),
-				});
-				if (!saved.ok) {
-					if (saved.issues)
-						setIssuesNote({
-							missionId: activeMissionId,
-							issues: saved.issues,
-						});
-					setErrorNote({
-						missionId: activeMissionId,
-						text: `Not submitted — saving it first failed: ${saved.error}`,
-					});
-					return;
-				}
-				if (saved.keptDirty) {
-					setErrorNote({
-						missionId: activeMissionId,
-						text: "Not submitted — the mission changed while it was being saved, and the newer edits are not saved yet. Submit again to save and send them.",
-					});
-					return;
-				}
-			}
-
-			// Re-read at dispatch time: the closure's `draft` may be a render old.
-			const liveDraft = getMissionDraft(activeMissionId);
-			const liveDirty = isMissionDraftDirty(activeMissionId);
-
-			// Only consult the store when there is no draft to submit. A failed
-			// fetch is reported as a FETCH failure — falling through to an empty
-			// stub is what turned a backend outage into "this mission config
-			// cannot be submitted, fix the errors below" against a valid mission.
-			let stored: unknown = null;
-			let listError: string | null = null;
-			if (!liveDraft && listDef) {
-				const listed = await list.execute({});
-				if (!listed.success) {
-					listError = listed.error ?? "the request failed";
-				} else {
-					const row = normalizeMissions(listed.data).find(
-						(r) => r.mission_id === activeMissionId,
-					);
-					stored = row?.raw ?? null;
-				}
-			} else if (!liveDraft) {
-				listError =
-					"c2.missions.list is unavailable on this datasource";
-			}
-
-			const resolved = planSubmit({
-				missionId: activeMissionId,
-				draft: liveDraft,
-				dirty: liveDirty,
-				stored,
-				listError,
-			});
-			if (!resolved.ok) {
+			if (!saveDef || !listDef) {
 				setErrorNote({
 					missionId: activeMissionId,
-					text: resolved.error,
+					text: "Saving is not available on this datasource. Nothing was saved or submitted.",
 				});
 				return;
 			}
-			const { plan } = resolved;
-
-			// The graph is the mission: one that has errors, or was never saved,
-			// is refused here with a pointer to the editor that lists why.
-			const graphBlock = graphSubmitBlock(plan.config);
-			if (graphBlock) {
-				setErrorNote({ missionId: activeMissionId, text: graphBlock });
-				return;
-			}
-
-			// Hard gate: never submit a config the C2 planner would reject/crash on.
-			const found = validateMissionConfig(plan.config);
-			setIssuesNote({ missionId: activeMissionId, issues: found });
-			if (found.some((issue) => issue.severity === "error")) {
+			const listed = await list.execute({});
+			if (!listed.success) {
 				setErrorNote({
 					missionId: activeMissionId,
-					text: "This mission config cannot be submitted — fix the errors below.",
+					text: `Nothing was saved or submitted. Could not read missions from the C2: ${listed.error ?? "the request failed"}.`,
 				});
 				return;
 			}
-
-			const result = await init.execute({
-				mission_id: activeMissionId,
-				mission_config: plan.config,
-			});
-			if (!result.success) {
-				setErrorNote({
-					missionId: activeMissionId,
-					text: `SUBMIT for "${activeName}" was not confirmed — ${result.error ?? "the C2 gave no reason."}`,
-				});
+			const stored = (normalizeMissions(listed.data).find(
+				(row) => row.mission_id === activeMissionId,
+			)?.raw ?? null) as MissionConfig | null;
+			const changes = previewSave(activeMissionId, stored);
+			// Dirty, but nothing a save would actually write (an empty canvas on
+			// a mission that points at no graph). Nothing to agree to — and
+			// `submitNow` rather than `sendSubmit`, because this already runs
+			// under the guard and a nested `run` would be dropped.
+			if (changes.length === 0) {
+				await submitNow(activeMissionId, activeName, fromStatus);
 				return;
 			}
-			setMessageNote({
-				missionId: activeMissionId,
-				text: submitMessage(plan),
+			setConfirmState({
+				title: "Save these edits and submit?",
+				description: `Submitting "${activeName}" first saves:`,
+				changes,
+				confirmLabel: "Save and submit",
+				onConfirm: () =>
+					void sendSubmit(activeMissionId, activeName, fromStatus),
 			});
-			// Record the signature of what was ACTUALLY submitted, so the
-			// dirty-gate reflects reality rather than the draft we may not have
-			// sent. `cleanMissionConfig` is idempotent, so for a draft submit this
-			// equals `currentSig` by construction. It also clears a
-			// `NO_TARGET_MISSION` record: the C2 has a runtime again.
-			setSubmitRecord({
-				missionId: activeMissionId,
-				sig: missionConfigSignature(plan.config),
-				noTarget: false,
-			});
-			// Hold the lifecycle buttons until C2 transitions the mission.
-			armTransition("submit", activeMissionId, activeName, fromStatus);
 		});
 	};
 
@@ -965,18 +1184,34 @@ function ControlPanelBody(props: {
 			lastSubmittedSig,
 			c2HasNoRuntime: ownRecord?.noTarget ?? false,
 		});
-	// The one filled button: the operator's next step. Derived from what the
-	// gate permits, not from the transient holds, so it does not flicker.
+	// The operator's next step. Derived from what the gate permits, not from the
+	// transient holds, so the emphasis does not flicker while a click settles.
 	const primary = primaryAction({
 		submit: submitPermitted,
 		approve: hasMission && allowed.approve && Boolean(approveDef),
 		start: hasMission && allowed.start && Boolean(startDef),
 	});
+	// Whether Stop is on offer at all. It is, for every mission that is not
+	// terminal — including one with no live status, where it is labelled
+	// "Stop (unconfirmed)" rather than withheld.
+	const stopOffered = hasMission && allowed.stop && Boolean(stopDef);
+	// ...and therefore whether the next step may be FILLED. Stop is the only
+	// filled button whenever it is offered; the next step keeps an outlined
+	// accent instead (see `filledPrimaryAction`).
+	const filled = filledPrimaryAction(primary, stopOffered);
+	const toneFor = (
+		action: PrimaryControlAction,
+	): "primary" | "next" | undefined =>
+		filled === action ? "primary" : primary === action ? "next" : undefined;
 
 	return (
 		<div
 			ref={rootRef}
-			className={`h-full min-w-0 overflow-y-auto flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
+			// A thin, always-present scrollbar rather than the platform's
+			// overlay one: this panel routinely has a notice below the fold in
+			// a 380 px rail, and a scroll region with no visible track reads as
+			// a sentence that was cut off rather than one that continues.
+			className={`h-full min-w-0 overflow-y-auto [scrollbar-width:thin] flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
 		>
 			{/* Status header */}
 			<div className="flex items-center gap-2 shrink-0 min-w-0">
@@ -988,7 +1223,7 @@ function ControlPanelBody(props: {
 						<Badge
 							variant="outline"
 							className="text-muted-foreground"
-							title="This panel is not hearing live feedback for this mission. Commands are gated on live status only."
+							title="No live feedback for this mission."
 						>
 							last known · not live
 						</Badge>
@@ -1013,8 +1248,8 @@ function ControlPanelBody(props: {
 							variant={statusIsStale ? "warning" : "outline"}
 							title={
 								statusIsStale
-									? "No mission feedback for a while — this status may no longer reflect the mission."
-									: "Age of the last mission-feedback message."
+									? "No recent feedback. This status may be out of date."
+									: "Last feedback received"
 							}
 						>
 							{statusIsStale ? "stale · " : ""}
@@ -1031,29 +1266,38 @@ function ControlPanelBody(props: {
 				)}
 			</div>
 
+			{/* Why the status reads "Unknown" and why half the buttons are not
+			    there. It sits HERE, under the badge it explains, and not at the
+			    foot of the panel: this panel's notice stack grows with every
+			    unconfirmed command, so at the bottom of a 380 px rail this
+			    sentence was reliably below the fold and read as a line that had
+			    been cut off. It is a permanent property of the widget's
+			    configuration, not an event, so it belongs beside the thing it
+			    is about. `text-pretty` + `break-words`: it must wrap, never
+			    clip. */}
+			{!props.hasTopic && (
+				<div className="text-xs text-muted-foreground shrink-0 text-pretty break-words">
+					No feedback topic set: only Submit and Stop are available,
+					unconfirmed.
+				</div>
+			)}
+
 			{/* Display-only readout of ANOTHER mission's feedback. The store hands
 			    back the latest mission when nothing is pinned; it is shown so the
 			    panel is not blank, explicitly labelled, and never used to gate an
 			    action — an enabled Stop here would target the wrong mission. */}
 			{observedStatus != null && (
 				<div className="text-xs text-muted-foreground shrink-0">
-					Latest feedback on this topic is for another mission (
-					{missionStatusLabel(observedStatus)}) — display only. Select
-					a mission to command it.
+					Showing another mission&apos;s status (
+					{missionStatusLabel(observedStatus)}). Select a mission to
+					command it.
 				</div>
 			)}
 
 			{/* Prominent, color-coded mission state machine. It shows what the
 			    header shows — dimmed when that is a last known status rather than
 			    a live one; the gated buttons remain the action surface. */}
-			<div
-				className={shownIsLastKnown ? "opacity-70" : undefined}
-				title={
-					shownIsLastKnown
-						? "Last known status — not live for this panel."
-						: undefined
-				}
-			>
+			<div className={shownIsLastKnown ? "opacity-70" : undefined}>
 				<MissionStateMachine status={shown.status} compact={narrow} />
 			</div>
 
@@ -1065,7 +1309,7 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Submit"
 						icon={<Send />}
-						tone={primary === "submit" ? "primary" : undefined}
+						tone={toneFor("submit")}
 						enabled={
 							submitPermitted &&
 							Boolean(initDef) &&
@@ -1079,7 +1323,7 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Approve"
 						icon={<CheckCircle2 />}
-						tone={primary === "approve" ? "primary" : undefined}
+						tone={toneFor("approve")}
 						enabled={
 							hasMission &&
 							allowed.approve &&
@@ -1096,7 +1340,7 @@ function ControlPanelBody(props: {
 					<CommandButton
 						label="Start"
 						icon={<Play />}
-						tone={primary === "start" ? "primary" : undefined}
+						tone={toneFor("start")}
 						enabled={
 							hasMission &&
 							allowed.start &&
@@ -1136,21 +1380,16 @@ function ControlPanelBody(props: {
 						title={
 							statusIsLive
 								? undefined
-								: "No live status for this mission — Stop is offered anyway, but this panel cannot confirm it takes effect."
+								: "No live status: the stop cannot be confirmed."
 						}
 						icon={<Square />}
 						tone="destructive"
-						enabled={
-							hasMission &&
-							allowed.stop &&
-							Boolean(stopDef) &&
-							!stopping
-						}
+						enabled={stopOffered && !stopping}
 						pending={stopping}
 						onClick={() =>
 							requestCommand("stop", stop, stopDef, {
 								title: "Stop this mission?",
-								description: `Stop "${missionName}" — the C2 tears down its runtime and the allocated robots stand down. There is no undo; restarting means submitting and approving again.${statusIsLive ? "" : " This panel has no live status for it, so it cannot confirm the robots stood down — watch them."}`,
+								description: `Stops "${missionName}" and stands its robots down. No undo: restarting means submitting and approving again.${statusIsLive ? "" : " No live status, so the stop cannot be confirmed. Watch the robots."}`,
 							})
 						}
 					/>
@@ -1179,35 +1418,38 @@ function ControlPanelBody(props: {
 
 			{/* Feedback / errors — never swallowed. */}
 			{error && (
-				<div className="text-xs text-destructive bg-destructive/10 p-2 rounded-md shrink-0">
+				<div className="text-xs text-destructive bg-destructive/10 p-2 rounded-md shrink-0 text-pretty break-words">
 					{error}
 				</div>
 			)}
-			<MissionIssueList
-				issues={issues}
-				title="Mission config validation"
-			/>
+			{/* In operator words: the validator carries a dotted backend path
+			    on every issue (`objective.geometries`), and a monospace path in
+			    front of an English sentence is a developer artefact in a
+			    command surface — worse when the message repeats it. Unknown
+			    paths are left raw on purpose; see `mission-config-words.ts`. */}
+			<MissionIssueList issues={humanizedIssues} title="Mission issues" />
 			{/* A command still held for this mission speaks for itself below;
 			    its "sent" line would contradict a "not confirmed" notice. */}
 			{message && !error && !ownPending && (
-				<div className="text-xs text-muted-foreground shrink-0">
+				<div className="text-xs text-muted-foreground shrink-0 text-pretty break-words">
 					{message}
 				</div>
 			)}
 			{/* Unsaved-edits notice: Submit ships the DRAFT, so say when the draft
-			    and the stored mission have diverged before the operator sends it. */}
+			    and the stored mission have diverged before the operator sends
+			    it. It says only THAT they diverged — Submit itself names each
+			    change in its confirmation, which is the part an operator can
+			    recognise as wrong. */}
 			{hasMission && draftDirty && (
-				<div className="text-xs text-warning bg-warning/10 p-2 rounded-md shrink-0">
-					This mission has unsaved edits. Submit saves them first
-					(mission and graph together), then sends it.
+				<div className="text-xs text-warning bg-warning/10 p-2 rounded-md shrink-0 text-pretty break-words">
+					Unsaved edits. Submit saves them first.
 				</div>
 			)}
 			{ownWaiting !== null && (
 				<div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
 					<Loader2 className="size-3 shrink-0 animate-spin" />
-					{ownWaiting.action.toUpperCase()} sent — waiting for the C2
-					to confirm it…
-					{secondsLeft != null && ` ${secondsLeft}s left`}
+					{ownWaiting.action.toUpperCase()} sent, waiting for the C2
+					{secondsLeft != null && ` (${secondsLeft}s)`}
 				</div>
 			)}
 			{/* Past the window with no confirmation. Persistent until the
@@ -1229,16 +1471,11 @@ function ControlPanelBody(props: {
 					onDismiss={dismissPending}
 				/>
 			))}
-			{!props.hasTopic && (
-				<div className="text-xs text-muted-foreground shrink-0">
-					No feedback topic configured — only Submit and Stop are
-					offered, and nothing sent can be confirmed here. Add the
-					mission-feedback topic for full state-aware control.
-				</div>
-			)}
-
-			{/* Destructive-action confirmation — same pattern as the mission map.
-			    Stop and Delete act on real robots and have no undo. */}
+			{/* Confirmation — same pattern as the mission map. Stop and Delete
+			    act on real robots and have no undo; Submit is not destructive
+			    but it WRITES three documents before it sends, so it lists them
+			    (`changes`) rather than asking the operator to agree to a write
+			    they cannot see. */}
 			<AlertDialog
 				open={confirmState != null}
 				onOpenChange={(open) => {
@@ -1254,18 +1491,43 @@ function ControlPanelBody(props: {
 							{confirmState?.description}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
+					{/* Outside the description on purpose: that renders a
+					    paragraph, and a list inside a <p> is invalid markup the
+					    browser silently reflows. */}
+					{confirmState?.changes &&
+						confirmState.changes.length > 0 && (
+							<ul className="flex flex-col gap-1 rounded-md border bg-muted/40 p-2 text-xs">
+								{confirmState.changes.map((change) => (
+									<li
+										key={change.label}
+										className="flex items-baseline justify-between gap-3"
+									>
+										<span className="shrink-0 font-medium">
+											{change.label}
+										</span>
+										<span className="min-w-0 break-words text-right text-muted-foreground">
+											{change.detail}
+										</span>
+									</li>
+								))}
+							</ul>
+						)}
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							className={buttonVariants({
-								variant: "destructive",
-							})}
+							className={
+								confirmState?.destructive
+									? buttonVariants({
+											variant: "destructive",
+										})
+									: undefined
+							}
 							onClick={() => {
 								confirmState?.onConfirm();
 								setConfirmState(null);
 							}}
 						>
-							Confirm
+							{confirmState?.confirmLabel ?? "Confirm"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -1309,8 +1571,7 @@ const MissionControlPanelWidget: React.FC<MissionControlPanelProps> = (
 	if (!initDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to
-				control missions.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -1332,6 +1593,12 @@ const MissionControlPanelWidget: React.FC<MissionControlPanelProps> = (
  * @returns Widget definition.
  */
 export function MissionControlPanelDefinition(): WidgetDefinition<MissionControlPanelProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-control-panel-widget",
 		name: "C2 Mission Control",

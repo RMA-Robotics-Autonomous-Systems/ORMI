@@ -6,8 +6,8 @@ export interface PlannerStateBadge {
 	label: string;
 	/** Badge treatment bucket — `fail` → destructive. */
 	tone: "info" | "success" | "fail";
-	/** Tooltip / longer description shown on hover. */
-	description: string;
+	/** Tooltip shown on hover, only where the label alone does not say enough. */
+	description?: string;
 }
 
 /**
@@ -29,21 +29,18 @@ export function plannerStateBadge(
 			return {
 				label: "Planning…",
 				tone: "info",
-				description:
-					"The planner is computing a plan for this mission.",
 			};
 		case "planned":
 			return {
 				label: "Planned",
 				tone: "success",
-				description: "The planner produced a plan for this mission.",
 			};
 		case "failed":
 			return {
 				label: "Planning failed",
 				tone: "fail",
 				description:
-					"The planner could not plan this mission. Check that the mission geometry is inside the map and reachable.",
+					"Check that the mission geometry is inside the map and reachable.",
 			};
 		default:
 			// `initialized` / unknown / absent → no badge.

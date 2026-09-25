@@ -4,6 +4,7 @@ import {
 	applySelectionChanges,
 	compiledDraftSlice,
 	formatCondition,
+	inspectedNodeId,
 	NO_CONDITION_LABEL,
 	agentPositions,
 	programMarks,
@@ -13,6 +14,10 @@ import {
 	copySelection,
 	layoutLanes,
 	pasteClip,
+	revealDelta,
+	type ScreenRect,
+	applyNodeSizes,
+	type NodeSize,
 } from "./mission-graph-editor-helpers";
 import {
 	CONDITION_OPS,
@@ -169,6 +174,155 @@ describe("applySelectionChanges", () => {
 		expect(
 			applySelectionChanges(current, [{ id: "n9", selected: false }]),
 		).toBe(current);
+	});
+});
+
+describe("inspectedNodeId: the details panel is for one node", () => {
+	it("stays closed when nothing is selected", () => {
+		expect(inspectedNodeId([], [])).toBeNull();
+	});
+
+	it("opens for exactly one selected node", () => {
+		expect(inspectedNodeId(["n1"], [])).toBe("n1");
+	});
+
+	it("stays closed for a selected link, which has no parameter", () => {
+		expect(inspectedNodeId([], ["e1"])).toBeNull();
+	});
+
+	it("stays closed for a node and a link together", () => {
+		expect(inspectedNodeId(["n1"], ["e1"])).toBeNull();
+	});
+
+	it("stays closed for a multi-selection", () => {
+		expect(inspectedNodeId(["n1", "n2"], [])).toBeNull();
+	});
+});
+
+describe("applyNodeSizes: nodes keep the size xyflow measured", () => {
+	const none: ReadonlyMap<string, NodeSize> = new Map();
+
+	it("records a first measurement", () => {
+		const next = applyNodeSizes(none, [
+			{ id: "n1", width: 130, height: 90 },
+		]);
+		expect(next.get("n1")).toEqual({ width: 130, height: 90 });
+	});
+
+	it("returns the same map when the size is unchanged", () => {
+		const held = applyNodeSizes(none, [
+			{ id: "n1", width: 130, height: 90 },
+		]);
+		expect(
+			applyNodeSizes(held, [{ id: "n1", width: 130, height: 90 }]),
+		).toBe(held);
+	});
+
+	it("replaces a size that changed and keeps the others", () => {
+		const held = applyNodeSizes(none, [
+			{ id: "n1", width: 130, height: 90 },
+			{ id: "n2", width: 100, height: 60 },
+		]);
+		const next = applyNodeSizes(held, [
+			{ id: "n1", width: 130, height: 120 },
+		]);
+		expect(next).not.toBe(held);
+		expect(next.get("n1")).toEqual({ width: 130, height: 120 });
+		expect(next.get("n2")).toEqual({ width: 100, height: 60 });
+		expect(held.get("n1")).toEqual({ width: 130, height: 90 });
+	});
+
+	it("returns the same map for an empty report", () => {
+		expect(applyNodeSizes(none, [])).toBe(none);
+	});
+});
+
+/** A box from its origin and size, so each case reads as a picture. */
+function box(x: number, y: number, width: number, height: number): ScreenRect {
+	return { left: x, top: y, right: x + width, bottom: y + height };
+}
+
+describe("revealDelta: a clicked node is brought out from under the panel", () => {
+	// The canvas once the 256 px details panel has narrowed it: 0..1100 wide.
+	const view = box(0, 0, 1100, 800);
+	const MARGIN = 16;
+
+	it("does not move a node that is already wholly visible", () => {
+		expect(revealDelta(box(400, 300, 130, 90), view, MARGIN)).toEqual({
+			dx: 0,
+			dy: 0,
+		});
+	});
+
+	it("does not move a node that exactly touches the edges", () => {
+		expect(revealDelta(box(970, 0, 130, 800), view, MARGIN)).toEqual({
+			dx: 0,
+			dy: 0,
+		});
+	});
+
+	it("pans left exactly far enough to leave the margin on the right", () => {
+		// Right edge at 1210, 110 px under the panel: 126 px brings it to 1084.
+		const { dx, dy } = revealDelta(box(1080, 300, 130, 90), view, MARGIN);
+		expect(dx).toBe(-126);
+		expect(dy).toBe(0);
+		expect(1210 + dx).toBe(view.right - MARGIN);
+	});
+
+	it("pans left for a node that is only one pixel under the panel", () => {
+		expect(revealDelta(box(971, 300, 130, 90), view, MARGIN).dx).toBe(-17);
+	});
+
+	it("pans right for a node cut off on the left", () => {
+		expect(revealDelta(box(-40, 300, 130, 90), view, MARGIN)).toEqual({
+			dx: 56,
+			dy: 0,
+		});
+	});
+
+	it("lines up the left edge of a node wider than the view", () => {
+		expect(revealDelta(box(900, 300, 1200, 90), view, MARGIN).dx).toBe(
+			MARGIN - 900,
+		);
+	});
+
+	it("lines up the left edge when the node fits but not with its margins", () => {
+		expect(revealDelta(box(1000, 300, 1080, 90), view, MARGIN).dx).toBe(
+			MARGIN - 1000,
+		);
+	});
+
+	it("leaves the vertical alone when only the horizontal is out", () => {
+		expect(revealDelta(box(1080, 700, 130, 100), view, MARGIN).dy).toBe(0);
+	});
+
+	it("pans up for a node below the view", () => {
+		expect(revealDelta(box(400, 750, 130, 90), view, MARGIN)).toEqual({
+			dx: 0,
+			dy: -56,
+		});
+	});
+
+	it("pans down for a node above the view", () => {
+		expect(revealDelta(box(400, -30, 130, 90), view, MARGIN)).toEqual({
+			dx: 0,
+			dy: 46,
+		});
+	});
+
+	it("pans both ways for a node out on both axes", () => {
+		expect(revealDelta(box(1080, 750, 130, 90), view, MARGIN)).toEqual({
+			dx: -126,
+			dy: -56,
+		});
+	});
+
+	it("works in a view that does not start at the origin", () => {
+		const offset = box(300, 150, 1100, 800);
+		expect(revealDelta(box(1380, 400, 130, 90), offset, MARGIN)).toEqual({
+			dx: -126,
+			dy: 0,
+		});
 	});
 });
 

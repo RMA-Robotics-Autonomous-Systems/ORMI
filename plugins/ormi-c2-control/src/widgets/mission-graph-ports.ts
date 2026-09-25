@@ -58,6 +58,21 @@ export interface PortNode {
 	condition?: { op?: string };
 }
 
+/**
+ * `"a"` or `"an"` for a port-type label.
+ *
+ * The refusal a drag gets is a whole sentence an operator reads mid-gesture, and
+ * "A agent cannot go into a waypoint input." reads as a bug in the product
+ * rather than a rule of it. Derived from the label rather than tabulated beside
+ * it, so a renamed or added port type cannot silently keep the wrong article.
+ *
+ * @param label - A {@link PORT_TYPE_LABEL} value.
+ * @returns The label with its indefinite article.
+ */
+export function withArticle(label: string): string {
+	return `${/^[aeiou]/i.test(label) ? "an" : "a"} ${label}`;
+}
+
 /** Operator-facing name of each port type. */
 export const PORT_TYPE_LABEL: Record<PortType, string> = {
 	agent: "agent",
@@ -246,6 +261,11 @@ export function portsFit(out: PortType, into: PortType): boolean {
 	);
 }
 
+/** Upper-case the first letter of a sentence built from a label. */
+function capitalize(text: string): string {
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** One port of one node. */
 export interface PortRef {
 	node: string;
@@ -301,7 +321,7 @@ export function connectionPlan(
 	if (!portsFit(out.type, into.type)) {
 		return {
 			ok: false,
-			reason: `A ${PORT_TYPE_LABEL[out.type]} cannot go into a ${PORT_TYPE_LABEL[into.type]} input.`,
+			reason: `${capitalize(withArticle(PORT_TYPE_LABEL[out.type]))} cannot go into ${withArticle(PORT_TYPE_LABEL[into.type])} input.`,
 		};
 	}
 	if (
@@ -313,7 +333,7 @@ export function connectionPlan(
 				edge.target_port === to.port,
 		)
 	) {
-		return { ok: false, reason: "These two ports are already wired." };
+		return { ok: false, reason: "These ports are already wired." };
 	}
 	// A step follows one step, or is the first step of its agents' chain. An
 	// On contact node also takes the way back from its loop: its agent input
@@ -331,13 +351,13 @@ export function connectionPlan(
 		if (source.kind === "agent" && agentsBefore.length < before.length) {
 			return {
 				ok: false,
-				reason: "This step already follows another step; only the first step of a chain takes agents.",
+				reason: "An agent can only go into the first step of a chain.",
 			};
 		}
 		if (source.kind !== "agent" && agentsBefore.length > 0) {
 			return {
 				ok: false,
-				reason: "This step is the first of an agent's chain; it cannot also follow another step.",
+				reason: "The first step of an agent's chain cannot also follow another step.",
 			};
 		}
 	}

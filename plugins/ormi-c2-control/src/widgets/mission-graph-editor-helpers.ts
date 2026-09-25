@@ -15,7 +15,11 @@ import {
 	type GuardScope,
 } from "@workspace/ui/lib/input-guards";
 
-import type { MissionBehavior, MissionGeometry } from "../types/c2-types";
+import type {
+	MissionBehavior,
+	MissionGeometry,
+	MissionStatus,
+} from "../types/c2-types";
 import type {
 	ProgramGateCondition,
 	ProgramProgress,
@@ -23,9 +27,13 @@ import type {
 } from "../types/mission-feedback";
 import {
 	CONDITION_OP_SHAPE,
+	emptyMissionGraph,
 	freshGraphId,
 	graphCompiles,
+	graphDocId,
+	isOutdatedGraphDocument,
 	normalizeCondition,
+	readGraphDocument,
 	type CompiledMissionGraph,
 	type ConditionOp,
 	type ConditionOpShape,
@@ -34,6 +42,7 @@ import {
 	type MissionGraphIssue,
 	type MissionGraphNode,
 } from "./mission-graph";
+import { isMissionCommitted, resolveViewOnly } from "./map-view-mode";
 import {
 	connectionPlan,
 	nodePorts,
@@ -159,6 +168,131 @@ export function applySelectionChanges(
 	return changed ? [...next] : current;
 }
 
+/**
+ * The node whose parameters the details panel shows, if any.
+ *
+ * The panel exists to change a node's parameters, so it is open for exactly
+ * ONE selected node and nothing else: a link carries no parameter (deleting
+ * one stays on the Delete key), a multi-selection has no single set of
+ * parameters to show, and an empty selection has nothing to edit. Derived from
+ * the selection at render, never stored, so there is no open/closed state that
+ * could disagree with what is selected.
+ *
+ * @param selectedNodeIds - The selected node ids.
+ * @param selectedEdgeIds - The selected edge ids.
+ * @returns The one selected node's id, or `null` when the panel stays closed.
+ */
+export function inspectedNodeId(
+	selectedNodeIds: readonly string[],
+	selectedEdgeIds: readonly string[],
+): string | null {
+	if (selectedNodeIds.length !== 1 || selectedEdgeIds.length > 0) return null;
+	return selectedNodeIds[0] ?? null;
+}
+
+/** A node's rendered size, as xyflow measured it. */
+export interface NodeSize {
+	width: number;
+	height: number;
+}
+
+/**
+ * Fold xyflow's `dimensions` changes into the sizes the canvas nodes carry.
+ *
+ * With controlled nodes, xyflow keeps what it measured on its INTERNAL node
+ * only until the next nodes array arrives: it rebuilds each internal node from
+ * the user node, `measured` included, so a user node without `measured` resets
+ * the size to unknown on every render. The minimap reads the user node and
+ * skips any node without a size, which is why it drew no node at all. Carrying
+ * the reported size on the node is the contract `applyNodeChanges` implements
+ * for its own users; this keeps it for the one field, since everything else
+ * this canvas renders comes from the mission graph.
+ *
+ * @param current - The sizes held now.
+ * @param measured - The sizes xyflow just reported.
+ * @returns `current` itself when nothing changed, else a new map.
+ */
+export function applyNodeSizes(
+	current: ReadonlyMap<string, NodeSize>,
+	measured: readonly ({ id: string } & NodeSize)[],
+): ReadonlyMap<string, NodeSize> {
+	let next: Map<string, NodeSize> | null = null;
+	for (const { id, width, height } of measured) {
+		const held = (next ?? current).get(id);
+		if (held && held.width === width && held.height === height) continue;
+		next ??= new Map(current);
+		next.set(id, { width, height });
+	}
+	return next ?? current;
+}
+
+/** A screen box, in one coordinate space (client pixels, say). */
+export interface ScreenRect {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+}
+
+/**
+ * The shift along one axis that brings `[start, end]` into `[min, max]`.
+ *
+ * Nothing when it is already wholly inside. Otherwise the smallest move that
+ * leaves `margin` of air on the side it came in from; a span too long to fit
+ * with its margins lines its START up instead, so the part an operator reads
+ * first (a node's header) is the part on screen.
+ */
+function revealAxis(
+	start: number,
+	end: number,
+	min: number,
+	max: number,
+	margin: number,
+): number {
+	if (start >= min && end <= max) return 0;
+	if (end - start > max - min - 2 * margin) return min + margin - start;
+	if (end > max) return max - margin - end;
+	return min + margin - start;
+}
+
+/**
+ * How far to pan the view so a node is wholly visible, or `{0, 0}` when it is.
+ *
+ * Used when a click opens the details panel: the panel takes the right of the
+ * canvas and the view deliberately does not move for it, so a node near the
+ * right edge can end up underneath it. The pan is the MINIMUM that brings the
+ * whole node back, per axis (an axis the node is already inside is left
+ * alone), so a node that is in view never moves at all. Add the result to the
+ * viewport's translation; the zoom is never touched.
+ *
+ * @param node - The node's box.
+ * @param visible - The part of the canvas actually on screen, same space.
+ * @param margin - Air to leave between the node and the edge it is pulled to.
+ * @returns The translation to add, in the same pixels.
+ */
+export function revealDelta(
+	node: ScreenRect,
+	visible: ScreenRect,
+	margin: number,
+): { dx: number; dy: number } {
+	return {
+		dx: revealAxis(
+			node.left,
+			node.right,
+			visible.left,
+			visible.right,
+			margin,
+		),
+		dy: revealAxis(
+			node.top,
+			node.bottom,
+			visible.top,
+			visible.bottom,
+			margin,
+		),
+	};
+}
+
 // ============================================================================
 // Keyboard shortcuts
 // ============================================================================
@@ -220,6 +354,126 @@ export function shouldHandleGraphShortcut(
 }
 
 // ============================================================================
+// Showing rather than authoring
+// ============================================================================
+
+/** What decides whether the graph editor is showing rather than authoring. */
+export interface GraphViewOnlyInput {
+	/** The operator's own View/Author choice: true when they picked View. */
+	readOnly: boolean;
+	/** Live `MissionStatus` of the SELECTED mission, if any has arrived. */
+	status: MissionStatus | null | undefined;
+	/** The status under which the operator last deliberately took Author back. */
+	editUnlockedAt: MissionStatus | null;
+}
+
+/**
+ * Whether the graph editor's authoring affordances stand down.
+ *
+ * The same rule the mission map runs (`map-view-mode.ts`), applied to the other
+ * surface that authors the same mission: approving a mission commits its plan,
+ * and a canvas still armed over a graph the C2 has already dispatched lets an
+ * operator nudge a running mission into the draft, where the next Submit picks
+ * it up. The map has stood down since it shipped; this editor never did.
+ *
+ * `inMissionContext` is always true here — unlike the map, which also authors
+ * map features that belong to no mission, this widget renders nothing at all
+ * without a selected mission, so everything on it is about that one mission.
+ *
+ * Derived, never stored: a status-driven `setState` in an effect would
+ * re-render on every feedback message, and silencing that lint rule would opt
+ * the whole editor body out of React Compiler.
+ *
+ * @param input - See {@link GraphViewOnlyInput}.
+ * @returns True when authoring stands down.
+ */
+export function resolveGraphViewOnly(input: GraphViewOnlyInput): boolean {
+	return resolveViewOnly({
+		readOnly: input.readOnly,
+		inMissionContext: true,
+		status: input.status,
+		editUnlockedAt: input.editUnlockedAt,
+	});
+}
+
+/**
+ * What the View/Author toggle's title says, and why.
+ *
+ * A control whose affordances vanished with nobody pressing anything must say
+ * why, or the operator reaches for the gear dialog or a reload. The cases are
+ * genuinely different: the operator chose View, the plan is committed and the
+ * editor stood down by itself, authoring is on over a committed plan, or
+ * authoring is on.
+ *
+ * @param input - The same input {@link resolveGraphViewOnly} reads.
+ * @returns A title for the toggle.
+ */
+export function graphModeTitle(input: GraphViewOnlyInput): string {
+	if (!resolveGraphViewOnly(input))
+		return isMissionCommitted(input.status)
+			? "Author mode: editing an approved plan"
+			: "Author mode";
+	if (input.readOnly) return "View mode";
+	return "Plan approved: view only. Choose Author to edit.";
+}
+
+// ============================================================================
+// Reading the stored graph document
+// ============================================================================
+
+/**
+ * What a mission's stored graph document turned out to be.
+ *
+ * A discriminated union rather than "the graph, or an empty one": an outdated
+ * document and a mission nobody has authored a graph for are DIFFERENT states,
+ * and collapsing them is what let the editor write `vehicles: []` over a stored
+ * allocation before the operator touched anything. Same rule as the settled-topics
+ * union in AGENTS.md — a consumer must not be able to reach the payload without
+ * narrowing.
+ */
+export type StoredGraphLoad =
+	{ kind: "graph"; graph: MissionGraph } | { kind: "outdated" };
+
+/**
+ * Read a mission's graph out of a `c2.missions.list` payload.
+ *
+ * Three outcomes collapse to two: a document this build reads is that graph, no
+ * document at all is an empty canvas (the normal state of a mission nobody has
+ * authored a graph for), and a document of another schema version is
+ * `outdated` — which is NOT an empty graph. The caller must not load an empty
+ * graph for one, because the graph is the sole author of the mission's
+ * allocation: an empty one written into the draft clears `vehicles` and
+ * `objective.geometries`, and the next Save persists the loss.
+ *
+ * @param missionId - The mission whose graph is wanted.
+ * @param data - The raw `c2.missions.list` response.
+ * @returns The graph to load, or `outdated`.
+ */
+export function readStoredGraph(
+	missionId: string,
+	data: unknown,
+): StoredGraphLoad {
+	const raw = data as { missions?: unknown[] } | unknown[] | null;
+	const list = Array.isArray(raw)
+		? raw
+		: Array.isArray(raw?.missions)
+			? raw.missions
+			: [];
+	const wanted = graphDocId(missionId);
+	const found = list.find(
+		(entry) =>
+			entry != null &&
+			typeof entry === "object" &&
+			(entry as { mission_id?: unknown }).mission_id === wanted,
+	);
+	if (isOutdatedGraphDocument(found)) return { kind: "outdated" };
+	return {
+		kind: "graph",
+		graph: readGraphDocument(found) ?? emptyMissionGraph(),
+	};
+}
+
+// ============================================================================
 // Issue ordering
 // ============================================================================
 
@@ -251,6 +505,14 @@ export function sortIssuesBySeverity(
 // ============================================================================
 // The graph → mission draft write
 // ============================================================================
+
+/**
+ * Whether the mission's stored graph document could be read by this build.
+ *
+ * `"outdated"` is a LOADED state of its own, not an empty graph: see
+ * {@link resolveGraphDraftWrite}.
+ */
+export type GraphLoadState = "ready" | "outdated";
 
 /**
  * The slice of a mission draft the behaviour graph authors.
@@ -387,17 +649,33 @@ export function compiledDraftSlice(
  * the compile — a loop that only terminates by accident. So an identical slice
  * is NOT a write at all.
  *
+ * ## An OUTDATED document authors nothing either
+ *
+ * "This build cannot read the stored graph" is not "this mission has no graph".
+ * The stored document still describes an allocation the operator committed, so
+ * until they deliberately start a new graph the draft is left exactly as it is —
+ * `load: "outdated"` refuses the write outright, before any of the reasoning
+ * above. Stating it here rather than relying on the editor happening to hold a
+ * `null` graph is the point: `graph_compiles` is already on the draft of every
+ * mission this editor has ever saved, so the empty-graph guard above does NOT
+ * catch this case, and the write would land the moment anything loaded an empty
+ * canvas for an unreadable document.
+ *
  * @param graph - The graph that was compiled, or `null` when none is loaded.
  * @param compiled - Output of `compileMissionGraph`, or `null` when no graph
  *   is loaded.
  * @param draft - The current mission draft, or `null` when none is loaded.
+ * @param load - Whether the stored graph document was readable. Defaults to
+ *   `"ready"`.
  * @returns The slice to write, or `null` when the draft already carries it.
  */
 export function resolveGraphDraftWrite(
 	graph: Pick<MissionGraph, "nodes"> | null | undefined,
 	compiled: CompiledMissionGraph | null | undefined,
 	draft: GraphDraftView | null | undefined,
+	load: GraphLoadState = "ready",
 ): GraphDraftSlice | null {
+	if (load === "outdated") return null;
 	if (!graph || !compiled || !draft) return null;
 	if (graph.nodes.length === 0 && draft.graph_compiles === undefined) {
 		return null;
@@ -573,7 +851,7 @@ export function agentPositions(
 	return Object.entries(program)
 		.sort(([, a], [, b]) => a.chain - b.chain)
 		.map(([agentId, p]) => {
-			const caption = nodeLabels[p.step_id] || p.step_id || "—";
+			const caption = nodeLabels[p.step_id] || p.step_id || "n/a";
 			const text =
 				p.state === "DONE"
 					? `done · last ${caption}`
@@ -823,6 +1101,39 @@ export function wireGraph(
 				},
 			],
 		},
+	};
+}
+
+/** What deleting a node would take with it. */
+export interface NodeDeletion {
+	/** The node's caption, or its kind when it has none. */
+	label: string;
+	/** How many edges touch it — the wiring the delete destroys. */
+	edges: number;
+}
+
+/**
+ * What deleting a node costs, so the operator is told before it happens.
+ *
+ * A node with no wiring is its own explanation; one in the middle of a chain
+ * takes the steps either side of it apart, and nothing on screen says so until
+ * it is gone. Counted here rather than in JSX so the number the confirmation
+ * names and the number the delete actually removes are the same one.
+ *
+ * @param graph - The graph, or null.
+ * @param nodeId - The node about to be deleted.
+ * @returns Its caption and the number of edges that would go with it.
+ */
+export function describeNodeDeletion(
+	graph: MissionGraph | null | undefined,
+	nodeId: string,
+): NodeDeletion {
+	const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
+	return {
+		label: node?.label || node?.kind || nodeId,
+		edges: (graph?.edges ?? []).filter(
+			(edge) => edge.source === nodeId || edge.target === nodeId,
+		).length,
 	};
 }
 

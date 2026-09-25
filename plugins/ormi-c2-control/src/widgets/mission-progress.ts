@@ -103,7 +103,7 @@ export function parseTime(iso: string | null | undefined): number | null {
 
 /**
  * Format an ISO time as a local wall-clock `HH:MM:SS` (or `HH:MM` when
- * `short`), "—" when absent. Local time on purpose: the operator reads it
+ * `short`), "n/a" when absent. Local time on purpose: the operator reads it
  * against the clock on the wall, not against UTC.
  *
  * @param iso - The time string.
@@ -115,7 +115,7 @@ export function formatClock(
 	short = false,
 ): string {
 	const ms = parseTime(iso);
-	if (ms == null) return "—";
+	if (ms == null) return "n/a";
 	const d = new Date(ms);
 	const hh = String(d.getHours()).padStart(2, "0");
 	const mm = String(d.getMinutes()).padStart(2, "0");

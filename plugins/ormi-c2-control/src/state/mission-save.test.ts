@@ -19,7 +19,13 @@ import {
 	isMissionAssetsStored,
 	setMissionAssets,
 } from "./mission-assets-store";
-import { saveMissionWithGraph, type MissionSaveCalls } from "./mission-save";
+import {
+	saveMissionWithGraph,
+	summarizeMissionSave,
+	type MissionSaveCalls,
+} from "./mission-save";
+import { MissionBehavior, type MissionConfig } from "../types/c2-types";
+import type { MissionDraft } from "../widgets/mission-editor-helpers";
 import { type MissionAssets, upsertAsset } from "../widgets/mission-assets";
 import type { MissionGraph } from "../widgets/mission-graph";
 
@@ -355,5 +361,193 @@ describe("one Save mission", () => {
 		const result = await saveMissionWithGraph("m-404", store().calls);
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.stage).toBe("load");
+	});
+});
+
+describe("summarizeMissionSave (what Submit says it will write)", () => {
+	/** A stored mission, as `c2.missions.list` hands it back. */
+	function stored(overrides: Partial<MissionConfig> = {}): MissionConfig {
+		return {
+			mission_id: "m-1",
+			name: "Alpha",
+			behavior: MissionBehavior.NAVIGATE,
+			objective: { geometries: [] },
+			vehicles: [],
+			...overrides,
+		} as MissionConfig;
+	}
+
+	/** The draft, defaulting to the stored shape so a test states its own diff. */
+	function draft(overrides: Partial<MissionDraft> = {}): MissionDraft {
+		return { ...stored(), ...overrides } as MissionDraft;
+	}
+
+	/** Nothing loaded, nothing dirty. */
+	const nothing = {
+		draft: null,
+		draftDirty: false,
+		stored: null,
+		graph: null,
+		graphDirty: false,
+		graphLinked: false,
+		assets: null,
+		assetsDirty: false,
+		assetsStored: false,
+	};
+
+	/** A geometry, for counting objectives. */
+	const geometry = () => ({
+		geometry: { geometry_type: "Point", coordinates: [[4.39, 50.84]] },
+	});
+
+	it("says nothing when a save would write nothing", () => {
+		// Submit skips the dialog entirely on this answer: an operator asked to
+		// confirm an empty list learns only that the dashboard is noisy.
+		expect(summarizeMissionSave(nothing)).toEqual([]);
+	});
+
+	it("names the fields that moved, with their before and after", () => {
+		const out = summarizeMissionSave({
+			...nothing,
+			draft: draft({
+				vehicles: ["a", "b", "c"],
+				objective: { geometries: [geometry(), geometry()] },
+				behavior: MissionBehavior.COVERAGE,
+			}),
+			draftDirty: true,
+			stored: stored({ vehicles: ["a", "b"] }),
+		});
+		expect(out).toEqual([
+			{ label: "Vehicles", detail: "2 → 3" },
+			{ label: "Objectives", detail: "0 → 2" },
+			{ label: "Behaviour", detail: "Navigate → Cover" },
+		]);
+	});
+
+	it("names a rename, which is the change an operator most often forgot", () => {
+		const out = summarizeMissionSave({
+			...nothing,
+			draft: draft({ name: "Alpha (recon)" }),
+			draftDirty: true,
+			stored: stored(),
+		});
+		expect(out).toEqual([
+			{ label: "Mission name", detail: '"Alpha" → "Alpha (recon)"' },
+		]);
+	});
+
+	it("still says something when the change is one it cannot name", () => {
+		// A dragged objective vertex moves no count and no enum. Saying nothing
+		// would let the operator confirm a write the dialog never mentioned.
+		const out = summarizeMissionSave({
+			...nothing,
+			draft: draft({ objective: { geometries: [geometry()] } }),
+			draftDirty: true,
+			stored: stored({ objective: { geometries: [geometry()] } }),
+		});
+		expect(out).toEqual([{ label: "Mission", detail: "settings changed" }]);
+	});
+
+	it("states the payload, not a difference, for a mission not in the store", () => {
+		// Inventing a before value for a mission being saved for the first time
+		// would be a fabricated diff.
+		const out = summarizeMissionSave({
+			...nothing,
+			draft: draft({
+				vehicles: ["a"],
+				objective: { geometries: [geometry(), geometry()] },
+			}),
+			draftDirty: true,
+			stored: null,
+		});
+		expect(out).toEqual([
+			{ label: "Mission", detail: "new: 1 vehicle, 2 objectives" },
+		]);
+	});
+
+	it("counts in the singular where there is one of something", () => {
+		const out = summarizeMissionSave({
+			...nothing,
+			draft: draft({
+				vehicles: ["a"],
+				objective: { geometries: [geometry()] },
+			}),
+			draftDirty: true,
+			stored: null,
+		});
+		expect(out[0]!.detail).toContain("1 vehicle,");
+		expect(out[0]!.detail).toContain("1 objective");
+	});
+
+	it("says nothing about a mission whose draft is clean", () => {
+		// The draft is loaded and differs from the store (another console saved
+		// over it), but this operator has edited nothing: a save writes the
+		// mission back unchanged, so there is nothing of theirs to confirm.
+		expect(
+			summarizeMissionSave({
+				...nothing,
+				draft: draft({ vehicles: ["a", "b", "c"] }),
+				draftDirty: false,
+				stored: stored(),
+			}),
+		).toEqual([]);
+	});
+
+	it("lists the documents in the order the save writes them", () => {
+		// Assets exist before the graph names them, and the graph before the
+		// mission points at it. The list reads as the sequence it describes.
+		const out = summarizeMissionSave({
+			draft: draft({ name: "Bravo" }),
+			draftDirty: true,
+			stored: stored(),
+			graph: graph(),
+			graphDirty: true,
+			graphLinked: true,
+			assets: { map: "RMA", features: [] } as MissionAssets,
+			assetsDirty: true,
+			assetsStored: true,
+		});
+		expect(out.map((c) => c.label)).toEqual([
+			"Map & assets",
+			"Behaviour graph",
+			"Mission name",
+		]);
+		expect(out[0]!.detail).toBe('0 assets on "RMA"');
+		expect(out[1]!.detail).toBe("3 nodes, 2 links");
+	});
+
+	it("does not promise a write the save will not make", () => {
+		// The preview and the save read ONE predicate each. An empty canvas on
+		// a mission that points at no graph is not a graph to save, and unstored
+		// assets with no map and nothing in them are not a document.
+		expect(
+			summarizeMissionSave({
+				...nothing,
+				graph: { version: 3, nodes: [], edges: [] },
+				graphDirty: true,
+				graphLinked: false,
+				assets: { map: "", features: [] } as MissionAssets,
+				assetsDirty: false,
+				assetsStored: false,
+			}),
+		).toEqual([]);
+	});
+
+	it("promises the writes a first save makes without an edit", () => {
+		// A mission opened before it had either: nothing is dirty, and the save
+		// writes both because neither document exists yet.
+		const out = summarizeMissionSave({
+			...nothing,
+			graph: graph(),
+			graphDirty: false,
+			graphLinked: false,
+			assets: { map: "RMA", features: [] } as MissionAssets,
+			assetsDirty: false,
+			assetsStored: false,
+		});
+		expect(out.map((c) => c.label)).toEqual([
+			"Map & assets",
+			"Behaviour graph",
+		]);
 	});
 });

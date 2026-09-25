@@ -256,7 +256,7 @@ function SwarmLogBody(props: {
 									setFollow(true);
 									scrollToTail();
 								}}
-								title="Resume following the newest entries"
+								title="Follow the newest entries"
 							>
 								<ArrowDownToLine />
 								Follow
@@ -293,7 +293,6 @@ function SwarmLogBody(props: {
 											className={`shrink-0 w-11 ${swarmLogTypeClass(
 												entry.log_type,
 											)}`}
-											title={`log_type ${String(entry.log_type)}`}
 										>
 											{swarmLogTypeLabel(entry.log_type)}
 										</span>
@@ -321,7 +320,7 @@ const SwarmLogWidget: React.FC<SwarmLogProps> = (props) => {
 	if (!props.topic) {
 		return (
 			<PanelEmptyState>
-				Select a swarm log topic in the widget configuration.
+				No swarm log topic. Set one in this panel&apos;s settings.
 			</PanelEmptyState>
 		);
 	}
@@ -344,6 +343,12 @@ const SwarmLogWidget: React.FC<SwarmLogProps> = (props) => {
  * @returns Widget definition.
  */
 export function SwarmLogDefinition(): WidgetDefinition<SwarmLogProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-swarm-log-widget",
 		name: "C2 Swarm Log",

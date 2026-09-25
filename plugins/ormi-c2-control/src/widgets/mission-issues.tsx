@@ -57,7 +57,7 @@ const MissionIssueList: React.FC<MissionIssueListProps> = ({
 										{issue.path}
 									</code>
 								)}
-								{issue.path && " — "}
+								{issue.path && ": "}
 								{issue.message}
 							</span>
 						</li>

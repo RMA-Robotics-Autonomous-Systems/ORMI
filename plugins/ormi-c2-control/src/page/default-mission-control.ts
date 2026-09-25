@@ -14,44 +14,52 @@
  *
  * Rows alternate orientation with depth in FlexLayout — the root row is
  * horizontal, its row children are vertical, theirs horizontal again — so this
- * is the map beside a half-window that is itself two columns over a strip:
+ * is the map beside a half-window that is three bands deep:
  *
  * ```
  * ┌──────────────────────┬────────────┬────────────┐
- * │                      │ missions   │ fleet      │
- * │                      ├────────────┼────────────┤
- * │ map                  │ control    │ feedback   │
+ * │                      │ missions   │ control    │
  * │                      ├────────────┴────────────┤
- * │                      │ graph ‖ assets ‖ log    │
- * └──────────────────────┴─────────────────────────┘
+ * │ map                  │ graph ‖ assets ‖ log    │
+ * │                      ├────────────┬────────────┤
+ * │                      │ fleet      │ feedback   │
+ * └──────────────────────┴────────────┴────────────┘
  * ```
  *
  * The map holds the whole left edge because "where is it going" is most of what
  * this surface answers, and it is the one panel that gets better with every pixel
- * — a table does not. Everything else divides the other half, and the division
- * is the operator's own order of work: **choose** a mission, **command** it,
- * **check** who is flying it and what it reports, with the behaviour graph
- * underneath.
+ * — a table does not. Everything else divides the other half, top to bottom in
+ * the operator's own order of work: **choose** a mission and **command** it,
+ * **author** what it does, **check** who is flying it and what it reports.
  *
- * Three placements carry an argument worth keeping:
+ * Four placements carry an argument worth keeping:
  *
+ * - **The authoring band is the tallest thing on the right, and it spans it.**
+ *   The graph editor replaced the mission form: it is now the surface a mission
+ *   is written on, and a canvas is the one panel here that cannot be read at
+ *   all below a certain size. In the arrangement this replaces it was the last
+ *   band of a right half already spent on four panes — 530×85 px at 1100×800,
+ *   smaller than the graph's own floating legend, and the tabset's maximize
+ *   button was pushed out of the strip, so there was no way out of it either.
+ *   It now takes the middle band at 42% of the right half's height and the full
+ *   width of it.
  * - **The lifecycle panel is never in a tabset.** It holds Pause and Stop. A
  *   control that halts a vehicle must not be one click behind a tab strip, and a
- *   tab that has to be found first is exactly that. It sits directly under the
- *   mission list because it acts on whatever is selected there.
+ *   tab that has to be found first is exactly that. It sits beside the mission
+ *   list because it acts on whatever is selected there.
  * - **Nothing watched continuously shares a tab.** Fleet presence and mission
  *   feedback each keep a pane: they are read while something is moving, and a
  *   reading behind a tab is a reading nobody takes.
- * - **The behaviour graph and the log share one, and it spans the full
- *   half-window.** Authoring happens before a mission runs and the log is read
- *   once something has gone wrong; neither is watched continuously, so a pane
- *   each would spend most of the surface on panels nobody is looking at. Width
- *   is what both want — a behaviour graph is a canvas, and log lines wrap badly
- *   in a 300px rail — which is why the strip runs under both columns rather
- *   than sitting in one. The graph is the only authoring panel in the strip:
- *   the fields the C2 itself carries — vehicle allocation, behaviour, objective
- *   geometry — are authored on the map, beside the geometry they describe, so
- *   there is no second form here to keep in step with it.
+ * - **The behaviour graph, the assets and the log share one tabset.** The graph
+ *   and the assets are two views of one authoring job, and the log is read once
+ *   something has gone wrong; none is watched continuously, so a pane each would
+ *   spend most of the surface on panels nobody is looking at. Width is what all
+ *   three want — a behaviour graph is a canvas, an asset tree indents, and log
+ *   lines wrap badly in a 300 px rail — which is why the band spans the whole
+ *   right half. The graph is the only authoring panel in it: the fields the C2
+ *   itself carries — vehicle allocation, behaviour, objective geometry — are
+ *   authored on the map and derived from the graph, so there is no second form
+ *   here to keep in step with it.
  *
  * A layout, not a preference: the page persists to local storage from its first
  * autosave, and this is only what a surface with nothing saved starts from.
@@ -113,6 +121,24 @@ interface Panel {
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	definition: () => WidgetDefinition<any>;
+	/**
+	 * Caption for the FlexLayout tab, when the widget's own title is too long
+	 * for a SHARED strip.
+	 *
+	 * A panel header has the pane's whole width; a tab strip has that width
+	 * divided by the number of tabs in it, minus the tabset's own maximize
+	 * button. "Mission Graph / Assets / Swarm Log" wants 568 px, and at
+	 * 1100×800 the strip has 470 — so the captions truncated AND the maximize
+	 * button was pushed out of reach, removing the one escape from a cramped
+	 * pane. Shortening is the layout's decision because the overflow is a
+	 * property of the arrangement, not of the widget: the same widget dropped
+	 * alone on an operator's workspace keeps its full title.
+	 *
+	 * Set it ONLY for a panel that shares a tabset here, and keep it a prefix
+	 * of the real title, so the tab and the widget are recognisably the same
+	 * thing.
+	 */
+	tab?: string;
 }
 
 /** Every panel the shipped surface opens with, in reading order. */
@@ -120,9 +146,10 @@ const PANELS: Panel[] = [
 	{ box: "c2-missions", definition: MissionBrowserDefinition },
 	{ box: "c2-control", definition: MissionControlPanelDefinition },
 	{ box: "c2-map", definition: MissionMapDefinition },
-	{ box: "c2-graph", definition: MissionGraphEditorDefinition },
-	{ box: "c2-assets", definition: MissionAssetsDefinition },
-	{ box: "c2-log", definition: SwarmLogDefinition },
+	// The three that share a strip, captioned to fit it — see `Panel.tab`.
+	{ box: "c2-graph", definition: MissionGraphEditorDefinition, tab: "Graph" },
+	{ box: "c2-assets", definition: MissionAssetsDefinition, tab: "Assets" },
+	{ box: "c2-log", definition: SwarmLogDefinition, tab: "Log" },
 	{ box: "c2-fleet", definition: FleetStatusDefinition },
 	{ box: "c2-feedback", definition: MissionFeedbackDefinition },
 ];
@@ -192,7 +219,7 @@ function tab(box: string, titles: Map<string, string>) {
 	return {
 		type: "tab" as const,
 		id: p.box,
-		name: titles.get(p.box) ?? p.box,
+		name: p.tab ?? titles.get(p.box) ?? p.box,
 		component: p.box,
 		config: {},
 	};
@@ -255,42 +282,39 @@ function flexModel(titles: Map<string, string>) {
 				// The map, the whole left edge. It is the only panel here that
 				// is better at every size.
 				tabset(titles, 50, "c2-map"),
-				// The other half: two columns of panes over a strip that spans
-				// both of them.
+				// The other half, three bands deep. A vertical row: its
+				// children divide the HEIGHT, and each band that needs two
+				// panes carries a horizontal row of its own.
 				{
 					type: "row" as const,
 					weight: 50,
 					children: [
+						// Choose, then command. The lifecycle panel acts on the
+						// mission selected beside it, and is in a pane of its
+						// own because it holds Pause and Stop.
 						{
 							type: "row" as const,
-							weight: 66,
+							weight: 32,
 							children: [
-								// Choose, then command. The lifecycle panel
-								// acts on the mission selected above it, and is
-								// in a pane of its own because it holds Pause
-								// and Stop.
-								{
-									type: "row" as const,
-									weight: 50,
-									children: [
-										tabset(titles, 55, "c2-missions"),
-										tabset(titles, 45, "c2-control"),
-									],
-								},
-								// Who is flying it, and what it reports —
-								// neither behind a tab.
-								{
-									type: "row" as const,
-									weight: 50,
-									children: [
-										tabset(titles, 42, "c2-fleet"),
-										tabset(titles, 58, "c2-feedback"),
-									],
-								},
+								tabset(titles, 52, "c2-missions"),
+								tabset(titles, 48, "c2-control"),
 							],
 						},
-						// The panels that want width and are not watched.
-						tabset(titles, 34, "c2-graph", "c2-assets", "c2-log"),
+						// The authoring band: the tallest thing on the right,
+						// spanning the whole of it. A behaviour graph is a
+						// canvas — it is the one panel here that is unusable
+						// rather than merely cramped when it is starved.
+						tabset(titles, 42, "c2-graph", "c2-assets", "c2-log"),
+						// Who is flying it, and what it reports — neither
+						// behind a tab.
+						{
+							type: "row" as const,
+							weight: 26,
+							children: [
+								tabset(titles, 45, "c2-fleet"),
+								tabset(titles, 55, "c2-feedback"),
+							],
+						},
 					],
 				},
 			],
