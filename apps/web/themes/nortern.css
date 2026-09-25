@@ -1,118 +1,156 @@
+/*
+ * Nortern preset: Scandinavian minimalism, read as a control console.
+ *
+ * Calm and airy. Light mode is a birch-and-linen room: panels in warm
+ * off-white float on a slightly deeper linen page with a generous gutter,
+ * outlined by a one-pixel hairline and lifted by little more than a whisper
+ * of shadow. Stone greys carry the text, one muted forest-sage green is the
+ * primary, and a quiet fjord blue tints hovers and secondary actions. Low
+ * chroma everywhere except status, which keeps globals' colours so it still
+ * reads as status (the saturated success green stays well apart from the
+ * greyed sage primary). Dark mode is a Nordic winter night: deep blue-grey,
+ * never black, soft light text, the same sage lifted for contrast and the
+ * hairlines just visible.
+ *
+ * Nunito Sans (humanist) for everything, headings at a regular weight with a
+ * hair of negative tracking, sentence case throughout. Gentle 200ms motion,
+ * no texture. Fields are flat with a hairline, quietly set a shade into the
+ * surface; a pressed button sinks by shade, never by offset.
+ *
+ * Tokens only: everything below the colours is the preset token contract in
+ * packages/ui/src/styles/globals.css, and this file has no selector besides
+ * `:root` and `.dark`. Chart colours and success / warning / info /
+ * destructive are left to globals: data colours are not a preset's
+ * business, and warning (hue 80) already sits far from the sage primary.
+ */
+
 :root {
-	--background: oklch(0.9824 0.0013 286.3757);
-	--foreground: oklch(0.3211 0 0);
-	--card: oklch(1.0000 0 0);
-	--card-foreground: oklch(0.3211 0 0);
-	--popover: oklch(1.0000 0 0);
-	--popover-foreground: oklch(0.3211 0 0);
-	--primary: oklch(0.6487 0.1538 150.3071);
-	--primary-foreground: oklch(1.0000 0 0);
-	--secondary: oklch(0.6746 0.1414 261.3380);
-	--secondary-foreground: oklch(1.0000 0 0);
-	--muted: oklch(0.8828 0.0285 98.1033);
-	--muted-foreground: oklch(0.5382 0 0);
-	--accent: oklch(0.8269 0.1080 211.9627);
-	--accent-foreground: oklch(0.3211 0 0);
-	--destructive: oklch(0.6368 0.2078 25.3313);
-	--border: oklch(0.8699 0 0);
-	--input: oklch(0.8699 0 0);
-	--ring: oklch(0.6487 0.1538 150.3071);
-	--chart-1: oklch(0.6487 0.1538 150.3071);
-	--chart-2: oklch(0.6746 0.1414 261.3380);
-	--chart-3: oklch(0.8269 0.1080 211.9627);
-	--chart-4: oklch(0.5880 0.0993 245.7394);
-	--chart-5: oklch(0.5905 0.1608 148.2409);
-	--sidebar: oklch(0.9824 0.0013 286.3757);
-	--sidebar-foreground: oklch(0.3211 0 0);
-	--sidebar-primary: oklch(0.6487 0.1538 150.3071);
-	--sidebar-primary-foreground: oklch(1.0000 0 0);
-	--sidebar-accent: oklch(0.8269 0.1080 211.9627);
-	--sidebar-accent-foreground: oklch(0.3211 0 0);
-	--sidebar-border: oklch(0.8699 0 0);
-	--sidebar-ring: oklch(0.6487 0.1538 150.3071);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.945 0.009 80);
+	--foreground: oklch(0.3 0.012 60);
+	--card: oklch(0.985 0.004 85);
+	--card-foreground: oklch(0.3 0.012 60);
+	--popover: oklch(0.99 0.003 85);
+	--popover-foreground: oklch(0.3 0.012 60);
+	/* Forest sage, deep enough to carry white text. */
+	--primary: oklch(0.5 0.065 158);
+	--primary-foreground: oklch(0.985 0.004 85);
+	/* Fjord blue: the one accent, kept to a tint. */
+	--secondary: oklch(0.935 0.014 235);
+	--secondary-foreground: oklch(0.33 0.035 240);
+	--muted: oklch(0.935 0.007 80);
+	--muted-foreground: oklch(0.48 0.012 65);
+	--accent: oklch(0.94 0.012 235);
+	--accent-foreground: oklch(0.3 0.03 240);
+	--border: oklch(0.9 0.007 80);
+	--input: oklch(0.87 0.009 80);
+	--ring: oklch(0.58 0.07 158);
+	--sidebar: oklch(0.965 0.006 80);
+	--sidebar-foreground: oklch(0.3 0.012 60);
+	--sidebar-primary: oklch(0.5 0.065 158);
+	--sidebar-primary-foreground: oklch(0.985 0.004 85);
+	--sidebar-accent: oklch(0.94 0.012 235);
+	--sidebar-accent-foreground: oklch(0.3 0.03 240);
+	--sidebar-border: oklch(0.9 0.007 80);
+	--sidebar-ring: oklch(0.58 0.07 158);
+	/* globals.css's warning text is under 4.5:1 on this linen page. */
+	--warning-text: oklch(0.52 0.12 70);
+
+	/* Shadow colour: warm stone, never black. */
+	--nortern-shade: oklch(0.35 0.02 70);
+	/* Linen strip behind inactive tabs, between panel and page. */
+	--tabstrip-background: color-mix(in oklch, var(--card) 50%, var(--background));
+	/* Fields a shade into the panel, drawn by their hairline. */
+	--field-background: color-mix(in oklch, var(--card) 45%, var(--background));
 }
 
 .dark {
-	--background: oklch(0.2303 0.0125 264.2926);
-	--foreground: oklch(0.9219 0 0);
-	--card: oklch(0.3210 0.0078 223.6661);
-	--card-foreground: oklch(0.9219 0 0);
-	--popover: oklch(0.3210 0.0078 223.6661);
-	--popover-foreground: oklch(0.9219 0 0);
-	--primary: oklch(0.6487 0.1538 150.3071);
-	--primary-foreground: oklch(1.0000 0 0);
-	--secondary: oklch(0.5880 0.0993 245.7394);
-	--secondary-foreground: oklch(0.9219 0 0);
-	--muted: oklch(0.3867 0 0);
-	--muted-foreground: oklch(0.7155 0 0);
-	--accent: oklch(0.6746 0.1414 261.3380);
-	--accent-foreground: oklch(0.9219 0 0);
-	--destructive: oklch(0.6368 0.2078 25.3313);
-	--border: oklch(0.3867 0 0);
-	--input: oklch(0.3867 0 0);
-	--ring: oklch(0.6487 0.1538 150.3071);
-	--chart-1: oklch(0.6487 0.1538 150.3071);
-	--chart-2: oklch(0.5880 0.0993 245.7394);
-	--chart-3: oklch(0.6746 0.1414 261.3380);
-	--chart-4: oklch(0.8269 0.1080 211.9627);
-	--chart-5: oklch(0.5905 0.1608 148.2409);
-	--sidebar: oklch(0.2303 0.0125 264.2926);
-	--sidebar-foreground: oklch(0.9219 0 0);
-	--sidebar-primary: oklch(0.6487 0.1538 150.3071);
-	--sidebar-primary-foreground: oklch(1.0000 0 0);
-	--sidebar-accent: oklch(0.6746 0.1414 261.3380);
-	--sidebar-accent-foreground: oklch(0.9219 0 0);
-	--sidebar-border: oklch(0.3867 0 0);
-	--sidebar-ring: oklch(0.6487 0.1538 150.3071);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.215 0.03 255);
+	--foreground: oklch(0.92 0.008 240);
+	--card: oklch(0.25 0.028 254);
+	--card-foreground: oklch(0.92 0.008 240);
+	--popover: oklch(0.27 0.028 254);
+	--popover-foreground: oklch(0.92 0.008 240);
+	/* The same sage, lifted: it carries the night's ink as text. */
+	--primary: oklch(0.76 0.075 158);
+	--primary-foreground: oklch(0.2 0.02 252);
+	--secondary: oklch(0.31 0.025 240);
+	--secondary-foreground: oklch(0.9 0.015 235);
+	--muted: oklch(0.29 0.026 254);
+	--muted-foreground: oklch(0.74 0.02 248);
+	--accent: oklch(0.32 0.027 238);
+	--accent-foreground: oklch(0.93 0.012 235);
+	--border: oklch(0.34 0.026 254);
+	--input: oklch(0.385 0.028 254);
+	--ring: oklch(0.72 0.075 158);
+	--sidebar: oklch(0.23 0.03 255);
+	--sidebar-foreground: oklch(0.92 0.008 240);
+	--sidebar-primary: oklch(0.76 0.075 158);
+	--sidebar-primary-foreground: oklch(0.2 0.02 252);
+	--sidebar-accent: oklch(0.32 0.027 238);
+	--sidebar-accent-foreground: oklch(0.93 0.012 235);
+	--sidebar-border: oklch(0.34 0.026 254);
+	--sidebar-ring: oklch(0.72 0.075 158);
+	/* Restated from globals.css `.dark`: this file's `:root` sets it, and
+	   `:root` and `.dark` tie on specificity, so the later file wins. */
+	--warning-text: oklch(0.82 0.16 82);
+
+	--nortern-shade: oklch(0.1 0.03 255);
+	--tabstrip-background: color-mix(in oklch, var(--card) 50%, var(--background));
+	/* Below the card: a field in a panel or a dialog reads as set in. */
+	--field-background: color-mix(in oklch, var(--background) 70%, oklch(0.18 0.03 255));
 }
 
-@theme inline {
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
+/*
+ * Shape, type, motion and frame. Declared once: the colours they read are
+ * the ones above, resolved per mode on the same root element.
+ */
+:root {
+	--font-body:
+		var(--font-nunito-sans), ui-sans-serif, system-ui, sans-serif;
+	--font-display:
+		var(--font-nunito-sans), ui-sans-serif, system-ui, sans-serif;
+	--font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
+	--heading-weight: 400;
+	/* Card and dialog titles a step above the text, not a bold. */
+	--title-weight: 500;
+	--heading-tracking: -0.01em;
+	--heading-transform: none;
+	/* The same weight as the topics list heads beside the tab titles. */
+	--label-weight: 500;
+	--label-tracking: 0em;
+	--label-transform: none;
 
-	--font-sans: var(--font-sans);
-	--font-mono: var(--font-mono);
-	--font-serif: var(--font-serif);
+	--radius: 0.75rem;
 
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	/* Soft, low, warm shadows: only overlays lift noticeably. */
+	--elevation-xs: 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 5%, transparent);
+	--elevation-sm: 0 1px 3px 0 color-mix(in oklch, var(--nortern-shade) 7%, transparent);
+	--elevation-md: 0 4px 12px -4px color-mix(in oklch, var(--nortern-shade) 10%, transparent);
+	--elevation-lg: 0 10px 24px -8px color-mix(in oklch, var(--nortern-shade) 14%, transparent);
+	--elevation-xl: 0 16px 36px -12px color-mix(in oklch, var(--nortern-shade) 16%, transparent);
+	--elevation-2xl: 0 24px 48px -16px color-mix(in oklch, var(--nortern-shade) 20%, transparent);
+	/* Flat fields: the hairline draws them. */
+	--elevation-field: 0 0 #0000;
+	--elevation-overlay: var(--elevation-lg);
+	/* A pressed face sinks by shade, it does not move. */
+	--elevation-pressed: inset 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 12%, transparent);
+	--pressed-offset: 0px;
+	--elevation-well: inset 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 6%, transparent);
+	--elevation-thumb: 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 18%, transparent);
+
+	--motion-duration: 200ms;
+	--surface-texture: none;
+
+	/* Floating panels with room around them, and the navbar floating on the
+	   same edges. */
+	--frame-gutter: 12px;
+	--panel-radius: 0.75rem;
+	--panel-border-width: 1px;
+	--panel-border-color: var(--border);
+	--panel-elevation: 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 5%, transparent);
+	--tabstrip-inset: 4px;
+
+	--navbar-background: var(--card);
+	--navbar-inset: var(--frame-gutter);
+	--navbar-radius: var(--panel-radius);
 }

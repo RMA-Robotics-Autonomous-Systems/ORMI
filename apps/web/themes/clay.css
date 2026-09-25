@@ -1,0 +1,184 @@
+/*
+ * Claymorphism preset.
+ *
+ * Soft pastel surfaces that read as inflated clay: one outer drop shadow, a
+ * faint outer highlight up-left, and two inner shadows (a light rim top-left,
+ * a dark shade bottom-right). Surfaces and actions are raised; fields and
+ * tracks are pressed in.
+ *
+ * Tokens only: everything below the colours is the preset token contract in
+ * packages/ui/src/styles/globals.css, and this file has no selector besides
+ * `:root` and `.dark`. The elevation scale carries the clay: raised things
+ * take the lifted shadows, pressed-in things (fields, tracks, a pressed
+ * button, an on toggle) take the inset one, and nothing is outlined.
+ *
+ * Highlights stay low: a bright white rim reads as bloom rather than clay,
+ * and in dark mode there is no outer highlight at all (a light halo on a dark
+ * page is a glow, not a surface).
+ */
+
+:root {
+	--background: oklch(0.935 0.022 285);
+	--foreground: oklch(0.29 0.04 285);
+	--card: oklch(0.955 0.017 285);
+	--card-foreground: oklch(0.29 0.04 285);
+	--popover: oklch(0.962 0.015 285);
+	--popover-foreground: oklch(0.29 0.04 285);
+	--primary: oklch(0.56 0.16 288);
+	--primary-foreground: oklch(0.99 0.005 285);
+	--secondary: oklch(0.925 0.045 172);
+	--secondary-foreground: oklch(0.36 0.07 172);
+	--muted: oklch(0.915 0.02 285);
+	--muted-foreground: oklch(0.49 0.035 285);
+	--accent: oklch(0.925 0.045 340);
+	--accent-foreground: oklch(0.42 0.11 340);
+	--border: oklch(0.895 0.02 285);
+	--input: oklch(0.895 0.02 285);
+	--ring: oklch(0.6 0.16 288);
+	--chart-1: oklch(0.6 0.16 288);
+	--chart-2: oklch(0.68 0.13 172);
+	--chart-3: oklch(0.7 0.15 340);
+	--chart-4: oklch(0.78 0.13 80);
+	--chart-5: oklch(0.66 0.13 235);
+	--sidebar: oklch(0.945 0.02 285);
+	--sidebar-foreground: oklch(0.29 0.04 285);
+	--sidebar-primary: oklch(0.56 0.16 288);
+	--sidebar-primary-foreground: oklch(0.99 0.005 285);
+	--sidebar-accent: oklch(0.925 0.045 340);
+	--sidebar-accent-foreground: oklch(0.42 0.11 340);
+	--sidebar-border: oklch(0.895 0.02 285);
+	--sidebar-ring: oklch(0.6 0.16 288);
+	/* globals.css's warning text is under 4.5:1 on this tinted surface. */
+	--warning-text: oklch(0.52 0.13 70);
+	--radius: 1rem;
+
+	/* The strip behind inactive tabs is a shade below the panel, so the
+	   active tab, in the panel's colour, reads as cut from it. */
+	--tabstrip-background: var(--muted);
+	/* A pressed-in field is a well, a shade below the surface it is cut
+	   into. */
+	--field-background: var(--muted);
+
+	/* Clay shadow colours; the shapes are the elevation tokens below. */
+	--clay-drop: oklch(0.45 0.08 285 / 0.22);
+	--clay-glow: oklch(1 0 0 / 0.5);
+	--clay-rim: oklch(1 0 0 / 0.4);
+	--clay-shade: oklch(0.45 0.08 285 / 0.12);
+}
+
+.dark {
+	--background: oklch(0.225 0.028 285);
+	--foreground: oklch(0.93 0.015 285);
+	--card: oklch(0.265 0.032 285);
+	--card-foreground: oklch(0.93 0.015 285);
+	--popover: oklch(0.285 0.034 285);
+	--popover-foreground: oklch(0.93 0.015 285);
+	--primary: oklch(0.74 0.13 288);
+	--primary-foreground: oklch(0.2 0.04 285);
+	--secondary: oklch(0.33 0.05 172);
+	--secondary-foreground: oklch(0.9 0.05 172);
+	--muted: oklch(0.3 0.03 285);
+	--muted-foreground: oklch(0.73 0.03 285);
+	--accent: oklch(0.35 0.06 340);
+	--accent-foreground: oklch(0.9 0.05 340);
+	--border: oklch(0.33 0.03 285);
+	--input: oklch(0.33 0.03 285);
+	--ring: oklch(0.74 0.13 288);
+	--chart-1: oklch(0.74 0.13 288);
+	--chart-2: oklch(0.75 0.12 172);
+	--chart-3: oklch(0.76 0.13 340);
+	--chart-4: oklch(0.82 0.13 80);
+	--chart-5: oklch(0.72 0.12 235);
+	--sidebar: oklch(0.245 0.03 285);
+	--sidebar-foreground: oklch(0.93 0.015 285);
+	--sidebar-primary: oklch(0.74 0.13 288);
+	--sidebar-primary-foreground: oklch(0.2 0.04 285);
+	--sidebar-accent: oklch(0.35 0.06 340);
+	--sidebar-accent-foreground: oklch(0.9 0.05 340);
+	--sidebar-border: oklch(0.33 0.03 285);
+	--sidebar-ring: oklch(0.74 0.13 288);
+	--destructive: oklch(0.57 0.141 25.723);
+	/* Restated from globals.css `.dark`: this file's `:root` sets it, and
+	   `:root` and `.dark` tie on specificity, so the later file wins. */
+	--warning-text: oklch(0.82 0.16 82);
+	--radius: 1rem;
+
+	/* Muted is lighter than the card in dark mode, which would lift the
+	   strip and the fields above the panel. The strip sits between card and
+	   page, so it stays distinct from the gutter; fields sit below the page,
+	   so a field in a dialog (whose surface is the page colour) still reads
+	   as cut in. */
+	--tabstrip-background: color-mix(in oklch, var(--card) 45%, var(--background));
+	--field-background: color-mix(
+		in oklch,
+		var(--background) 75%,
+		oklch(0.12 0.02 285)
+	);
+
+	--clay-drop: oklch(0.08 0.02 285 / 0.6);
+	--clay-glow: transparent;
+	--clay-rim: oklch(1 0 0 / 0.06);
+	--clay-shade: oklch(0 0 0 / 0.28);
+}
+
+/*
+ * Shape, elevation, motion and frame. Declared once: the colours they read
+ * are the ones above, resolved per mode on the same root element.
+ *
+ * Every lifted shadow uses a negative spread so its reach stays small: a
+ * panel's shadow is clipped at half a gutter (FlexLayout's tabset container
+ * is `overflow: hidden`, and the panel's margin inside it is gutter / 2).
+ * The panel shadow reaches at most 7px right, 8px down and 6px up-left,
+ * inside the 8px that a 16px gutter leaves.
+ */
+:root {
+	--elevation-xs:
+		1px 1px 3px -1px var(--clay-drop), -1px -1px 2px -1px var(--clay-glow),
+		inset -1px -1px 2px var(--clay-shade), inset 1px 1px 1px var(--clay-rim);
+	--elevation-sm:
+		2px 2px 5px -2px var(--clay-drop), -1px -1px 3px -1px var(--clay-glow),
+		inset -1px -2px 3px var(--clay-shade), inset 1px 1px 2px var(--clay-rim);
+	--elevation-md:
+		2px 3px 7px -2px var(--clay-drop), -2px -2px 5px -1px var(--clay-glow),
+		inset -2px -3px 5px var(--clay-shade), inset 2px 2px 3px var(--clay-rim);
+	--elevation-lg:
+		4px 6px 14px -4px var(--clay-drop), -2px -2px 6px -1px var(--clay-glow),
+		inset -2px -3px 6px var(--clay-shade), inset 2px 2px 4px var(--clay-rim);
+	--elevation-xl:
+		6px 10px 24px -6px var(--clay-drop), -3px -3px 8px -2px var(--clay-glow),
+		inset -2px -3px 6px var(--clay-shade), inset 2px 2px 4px var(--clay-rim);
+	--elevation-2xl:
+		10px 16px 36px -8px var(--clay-drop),
+		-3px -3px 10px -2px var(--clay-glow),
+		inset -3px -4px 8px var(--clay-shade), inset 2px 2px 5px var(--clay-rim);
+	/* Fields are pressed into the surface: the shade falls inside the top-left
+	   edge, the rim catches the bottom-right. */
+	--elevation-field:
+		inset 2px 2px 4px var(--clay-drop), inset -1px -1px 3px var(--clay-rim);
+	--elevation-overlay: var(--elevation-lg);
+	/* Pressed and on states, and tracks, sink into the surface like fields.
+	   The switch thumb is raised like a button. */
+	--elevation-pressed: var(--elevation-field);
+	--elevation-well: var(--elevation-field);
+	--elevation-thumb: var(--elevation-xs);
+
+	/* Raised surfaces and fields are shaped by shadow, not outlined. */
+	--surface-border-color: transparent;
+	--field-border-color: transparent;
+
+	--motion-duration: 220ms;
+
+	--frame-gutter: 16px;
+	--panel-radius: 1.25rem;
+	--panel-border-width: 0px;
+	/* `--elevation-md` split in two: the lifted outer shadows around the
+	   panel, and the rim and shade laid over its content, where the panel's
+	   own inset shadow would be hidden under the opaque tab strip and
+	   widget. */
+	--panel-elevation:
+		2px 3px 7px -2px var(--clay-drop), -2px -2px 5px -1px var(--clay-glow);
+	--panel-inner-shadow:
+		inset -2px -3px 5px var(--clay-shade), inset 2px 2px 3px var(--clay-rim);
+	/* The bar's content is transparent, so its own inset shadow shows. */
+	--navbar-elevation: var(--elevation-md);
+}

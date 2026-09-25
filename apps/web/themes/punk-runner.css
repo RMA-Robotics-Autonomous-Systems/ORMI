@@ -1,118 +1,195 @@
+/*
+ * Punk Runner: a cyberpunk HUD (Blade Runner, Ghost in the Shell) read as a
+ * control console you can sit in front of for a shift.
+ *
+ * Dark is the hero: a deep teal-black page, panels a hair lighter, each
+ * outlined by one thin neon-teal rule and otherwise flat. Light never blooms:
+ * the only glow in the preset is a tight, low-alpha teal halo on the things
+ * that float above the dashboard (menus, popovers, dialogs) and on a toggle
+ * that is on. Everything else is separated by its rule, not by a shadow.
+ * Light mode is the same HUD in daylight: cool pale surfaces, crisp dark-teal
+ * edges, the hot red darkened until white text on it and it as text on the
+ * page both read.
+ *
+ * Shape is sharp: square panels in a near-tiled frame (3px gutter with a teal
+ * splitter line), 2px corners on controls, square switch and slider tracks.
+ * Chakra Petch (condensed, squared techno) sets headings and labels,
+ * uppercase and widely tracked; the body stays Inter so topic lists and
+ * configuration forms keep their density; code is JetBrains Mono. A faint
+ * HUD grid lies on the page behind the panels, never on panel content.
+ * Motion is short and never decorative: no flicker, no glitch.
+ *
+ * Primary versus destructive. The DNA of this preset is a hot red primary,
+ * and destructive is a red status. The previous values put both at hue 21,
+ * so a primary button and a Delete were the same colour. Both move:
+ * primary to a neon crimson (hue 13, the cool side of red that neon signage
+ * reads as, short of pink) and destructive to a signal vermilion (hue 38,
+ * the warm side). 25 degrees
+ * apart plus a lightness step in dark mode, and the one that means danger
+ * is the one that leans towards fire.
+ *
+ * Warning stays globals' amber: it is the command-a-robot affordance, some
+ * 68 degrees from the primary and unlike anything else on a teal screen.
+ * Success, info and chart colours are left to globals.
+ *
+ * Tokens only: this file has no selector besides `:root` and `.dark`.
+ */
+
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.962 0.012 205);
+	--foreground: oklch(0.2 0.03 210);
+	--card: oklch(0.988 0.006 205);
+	--card-foreground: oklch(0.2 0.03 210);
+	--popover: oklch(0.992 0.005 205);
+	--popover-foreground: oklch(0.2 0.03 210);
+	/* Darker than the dark-mode red so white text on it clears 4.5:1 and it
+	   reads as text and icon on the pale page. */
+	--primary: oklch(0.55 0.215 13);
+	--primary-foreground: oklch(0.99 0.004 205);
+	--secondary: oklch(0.91 0.04 195);
+	--secondary-foreground: oklch(0.3 0.06 200);
+	--muted: oklch(0.935 0.012 205);
+	--muted-foreground: oklch(0.45 0.035 210);
+	--accent: oklch(0.9 0.05 192);
+	--accent-foreground: oklch(0.3 0.07 198);
+	--destructive: oklch(0.55 0.2 38);
+	/* Rules inside a panel are pale; the frame is drawn in dark teal ink
+	   (`--hud-edge`), so structure reads before detail. */
+	--border: oklch(0.86 0.03 200);
+	--input: oklch(0.62 0.05 205);
+	--ring: oklch(0.55 0.12 200);
+	--sidebar: oklch(0.95 0.014 205);
+	--sidebar-foreground: oklch(0.2 0.03 210);
+	--sidebar-primary: oklch(0.55 0.215 13);
+	--sidebar-primary-foreground: oklch(0.99 0.004 205);
+	--sidebar-accent: oklch(0.9 0.05 192);
+	--sidebar-accent-foreground: oklch(0.3 0.07 198);
+	--sidebar-border: oklch(0.86 0.03 200);
+	--sidebar-ring: oklch(0.55 0.12 200);
+	/* globals.css's warning text is under 4.5:1 on this tinted surface. */
+	--warning-text: oklch(0.52 0.13 70);
+
+	--hud-edge: oklch(0.42 0.06 205);
+	--hud-splitter: oklch(0.7 0.06 200);
+	--hud-grid: oklch(0.45 0.06 205 / 0.045);
+	/* Daylight has no glow to show: overlays lift on a crisp teal-black
+	   shadow and a hairline instead. */
+	--elevation-overlay:
+		0 0 0 1px oklch(0.42 0.06 205 / 0.35),
+		0 6px 16px -6px oklch(0.2 0.03 210 / 0.3);
+	--elevation-pressed: 0 0 0 1px oklch(0.55 0.12 200 / 0.6);
+	--field-background: var(--card);
 }
 
 .dark {
-	--background: oklch(0.157 0.016 188.256);
-	--foreground: oklch(0.935 0.014 359.938);
-	--card: oklch(0.157 0.016 188.256);
-	--card-foreground: oklch(0.615 0.113 158.573);
-	--popover: oklch(0.244 0.038 180.714);
-	--popover-foreground: oklch(0.615 0.113 158.573);
-	--primary: oklch(0.636 0.250 21.006);
-	--primary-foreground: oklch(0.935 0.014 359.938);
-	--secondary: oklch(0.887 0.184 165.397);
-	--secondary-foreground: oklch(0.168 0.000 263.283);
-	--muted: oklch(0.157 0.016 188.256);
-	--muted-foreground: oklch(0.615 0.113 158.573);
-	--accent: oklch(0.244 0.038 180.714);
-	--accent-foreground: oklch(0.887 0.184 165.397);
-	--destructive: oklch(0.636 0.250 21.006);
-	--border: oklch(0.615 0.113 158.573);
-	--input: oklch(0.157 0.016 188.256);
-	--ring: oklch(1.000 0.000 263.283 / 0%);
-	--chart-1: oklch(0.851 0.118 160.479);
-	--chart-2: oklch(0.845 0.171 138.131);
-	--chart-3: oklch(0.616 0.222 2.159);
-	--chart-4: oklch(0.683 0.152 9.692);
-	--chart-5: oklch(0.601 0.221 17.448);
-	--sidebar: oklch(0.157 0.016 188.256);
-	--sidebar-foreground: oklch(0.615 0.113 158.573);
-	--sidebar-primary: oklch(0.636 0.250 21.006);
-	--sidebar-primary-foreground: oklch(0.935 0.014 359.938);
-	--sidebar-accent: oklch(0.244 0.038 180.714);
-	--sidebar-accent-foreground: oklch(0.887 0.184 165.397);
-	--sidebar-border: oklch(1.000 0.000 263.283 / 0%);
-	--sidebar-ring: oklch(0.244 0.038 180.714);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.155 0.018 200);
+	--foreground: oklch(0.93 0.018 190);
+	--card: oklch(0.182 0.02 200);
+	--card-foreground: oklch(0.93 0.018 190);
+	--popover: oklch(0.205 0.026 200);
+	--popover-foreground: oklch(0.93 0.018 190);
+	/* Bright enough to glow on teal-black; too light for white text, so it
+	   carries the page's teal-black. */
+	--primary: oklch(0.66 0.235 13);
+	--primary-foreground: oklch(0.155 0.018 200);
+	--secondary: oklch(0.265 0.045 195);
+	--secondary-foreground: oklch(0.88 0.12 185);
+	--muted: oklch(0.225 0.024 200);
+	--muted-foreground: oklch(0.73 0.06 190);
+	--accent: oklch(0.285 0.055 192);
+	--accent-foreground: oklch(0.9 0.12 185);
+	--destructive: oklch(0.575 0.2 38);
+	--border: oklch(0.33 0.05 195);
+	--input: oklch(0.42 0.07 192);
+	--ring: oklch(0.82 0.13 185);
+	--sidebar: oklch(0.165 0.019 200);
+	--sidebar-foreground: oklch(0.93 0.018 190);
+	--sidebar-primary: oklch(0.66 0.235 13);
+	--sidebar-primary-foreground: oklch(0.155 0.018 200);
+	--sidebar-accent: oklch(0.285 0.055 192);
+	--sidebar-accent-foreground: oklch(0.9 0.12 185);
+	--sidebar-border: oklch(0.33 0.05 195);
+	--sidebar-ring: oklch(0.82 0.13 185);
+	/* Restated from globals.css `.dark`: this file's `:root` sets it, and
+	   `:root` and `.dark` tie on specificity, so the later file wins. */
+	--warning-text: oklch(0.82 0.16 82);
+
+	/* The neon edge: saturated enough to read as teal light, dim enough
+	   that eight panels of it do not buzz. */
+	--hud-edge: oklch(0.54 0.1 190);
+	--hud-splitter: oklch(0.4 0.07 192);
+	--hud-grid: oklch(0.8 0.12 185 / 0.03);
+	/* The one glow: a hairline plus a tight halo, low alpha, then a plain
+	   drop to lift the overlay off the panels. Never a bloom. */
+	--elevation-overlay:
+		0 0 0 1px oklch(0.8 0.13 185 / 0.3),
+		0 0 10px -2px oklch(0.8 0.13 185 / 0.28),
+		0 10px 24px -10px oklch(0 0 0 / 0.7);
+	--elevation-pressed:
+		0 0 0 1px oklch(0.82 0.13 185 / 0.55),
+		0 0 6px -1px oklch(0.82 0.13 185 / 0.35);
+	--field-background: oklch(0.135 0.016 200);
 }
 
-@theme inline {
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
+/*
+ * Shape, type, motion and frame. Declared once: the colours they read are
+ * the ones above, resolved per mode on the same root element.
+ */
+:root {
+	--font-body:
+		var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+	--font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
+	--font-label: var(--font-chakra-petch), ui-sans-serif, sans-serif;
+	--font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
+	--heading-weight: 600;
+	--heading-tracking: 0.06em;
+	--heading-transform: uppercase;
+	--label-tracking: 0.08em;
+	--label-transform: uppercase;
 
-	--font-sans: var(--font-sans);
-	--font-mono: var(--font-mono);
-	--font-serif: var(--font-serif);
+	/* Sharp: 2px on controls, square panels, square toggles and tracks. */
+	--radius: 2px;
+	--radius-pill: 0px;
 
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	/* Flat. Depth belongs to overlays and the pressed state only (set per
+	   mode above). */
+	--elevation-xs: 0 0 #0000;
+	--elevation-sm: 0 0 #0000;
+	--elevation-md: 0 0 #0000;
+	--elevation-lg: 0 0 #0000;
+	--elevation-xl: 0 0 #0000;
+	--elevation-2xl: 0 0 #0000;
+	--elevation-field: 0 0 #0000;
+	--elevation-well: 0 0 #0000;
+	--elevation-thumb: 0 0 #0000;
+	--surface-border-color: var(--hud-edge);
+	--field-border-color: var(--input);
+
+	--motion-duration: 100ms;
+	/* A 32px HUD grid on the page, behind the panels only. */
+	--surface-texture:
+		repeating-linear-gradient(
+			0deg,
+			var(--hud-grid) 0 1px,
+			transparent 1px 32px
+		),
+		repeating-linear-gradient(
+			90deg,
+			var(--hud-grid) 0 1px,
+			transparent 1px 32px
+		);
+
+	/* Near-tiled: square panels in thin neon rules, a 3px gutter with a
+	   teal line down it. */
+	--frame-gutter: 3px;
+	--panel-radius: 0px;
+	--panel-border-width: 1px;
+	--panel-border-color: var(--hud-edge);
+	--panel-elevation: none;
+	--tabstrip-background: var(--background);
+	--tabstrip-inset: 2px;
+	--splitter-line: var(--hud-splitter);
+
+	--navbar-background: var(--background);
+	--navbar-elevation: none;
 }

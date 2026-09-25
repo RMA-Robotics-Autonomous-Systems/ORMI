@@ -1,0 +1,37 @@
+{
+	"amber": {
+		"name": "Amber",
+		"movement": "Phosphor terminal",
+		"description": "Amber ink, square panels, no shadows."
+	},
+	"brutalist": {
+		"name": "Brutalist",
+		"movement": "Neo-brutalism",
+		"description": "Tiled panels in ink, hard shadows."
+	},
+	"clay": {
+		"name": "Clay",
+		"movement": "Claymorphism",
+		"description": "Soft pastel surfaces, moulded shadows."
+	},
+	"nortern": {
+		"name": "Nortern",
+		"movement": "Scandinavian",
+		"description": "Muted sage, hairlines, generous space."
+	},
+	"punk-runner": {
+		"name": "Punk Runner",
+		"movement": "Cyberpunk HUD",
+		"description": "Neon rules, square panels, techno type."
+	},
+	"retro-arcade": {
+		"name": "Retro Arcade",
+		"movement": "Memphis",
+		"description": "Ink-outlined slabs on a confetti page."
+	},
+	"tactical": {
+		"name": "Tactical",
+		"movement": "Dark cockpit",
+		"description": "Dim chrome, colour kept for status."
+	}
+}
