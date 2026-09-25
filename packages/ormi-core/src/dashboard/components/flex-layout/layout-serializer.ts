@@ -246,6 +246,14 @@ export function getDefaultFlexLayoutConfig(): IJsonModel {
 			// Border configuration
 			borderMinSize: 100,
 			borderClassName: "flex-border",
+			// An empty border bar is a 32px strip down the side of the
+			// dashboard that pushes every panel off the navbar's edge. Hidden
+			// while empty, FlexLayout still reveals it as a drop target when a
+			// dragged tab nears that edge (Layout.checkForBorderToShow), so
+			// docking into a drawer keeps working. Not persisted by
+			// `cleanGlobalSettings`, so a saved layout picks it up from these
+			// defaults on load.
+			borderEnableAutoHide: true,
 
 			// Splitter configuration
 			splitterSize: 4,

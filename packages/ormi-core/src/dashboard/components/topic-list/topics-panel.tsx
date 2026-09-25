@@ -75,7 +75,9 @@ const TopicRow = memo(
 							{topic.type}
 						</Badge>
 					) : (
-						<span className="text-muted-foreground text-xs">—</span>
+						<span className="text-muted-foreground text-xs">
+							n/a
+						</span>
 					)}
 				</TableCell>
 				<TableCell className="text-muted-foreground max-w-[16rem] truncate text-xs">
@@ -306,9 +308,15 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 							<TableRow>
 								{COLUMNS.map((column) => (
 									<TableHead key={column.key}>
+										{/* A button does not inherit the
+										    head's label type (the UA sets
+										    `text-transform: none` on it), so
+										    a preset's `--label-*` stopped
+										    at the column titles. */}
 										<Button
 											variant="ghost"
 											size="sm"
+											className="[font-family:inherit] [font-weight:inherit] [letter-spacing:inherit] [text-transform:inherit]"
 											onClick={() =>
 												handleSort(column.key)
 											}
@@ -361,7 +369,7 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 			    not be listed here as the exceptions. */}
 			<p className="text-muted-foreground border-t pt-2 text-xs">
 				{reachableCount} of {widgetDefinitions.length} widgets open from
-				a topic, controls included. The rest — iframes, mission panels —
+				a topic, controls included. The rest (iframes, mission panels)
 				are added from{" "}
 				{onShowWidgets ? (
 					<button

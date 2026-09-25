@@ -71,7 +71,12 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 							// would hand the height straight back to the thing
 							// being bounded.
 							"grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]"
-						: "grid min-h-[96dvh]"
+						: // The viewport less the 3rem navbar and the inset a
+							// floating bar adds above it (`--navbar-inset`,
+							// globals.css): `96dvh` under a 48px bar made every
+							// page 8px taller than the screen, so a full-height
+							// plugin page scrolled.
+							"grid min-h-[calc(100dvh_-_3rem_-_var(--navbar-inset))]"
 				}
 			>
 				{children}

@@ -1,8 +1,23 @@
 /**
  * FlexLayout shadcn/ui Theme
  *
- * Modern theme for FlexLayout that integrates seamlessly with shadcn/ui design system
- * Following the successful RC-Dock theme patterns with proper design token integration
+ * Bridges FlexLayout onto the shadcn colour tokens and the preset token
+ * contract declared on `:root` in `packages/ui/src/styles/globals.css`
+ * (`--frame-gutter`, `--panel-*`, `--tabstrip-background`, `--tabstrip-inset`,
+ * `--splitter-line`, `--radius-inner`, `--border-width`, `--motion-duration`,
+ * `--label-*`, `--font-label`, `--font-body`, `--tab-title-color`,
+ * `--tab-title-active-color`, `--surface-border-color`, `--elevation-overlay`).
+ * Those are read here, never redeclared: a local variable of the same name on
+ * `.flexlayout__layout` would shadow what a preset writes on `:root`.
+ *
+ * Frame geometry, which the navbar and the page share: every panel sits one
+ * `--frame-gutter` from its neighbours and from the edge of the panel area.
+ * Each panel has a margin of half a gutter inside its tabset container, the
+ * panel area is padded by the other half (`.ormi-frame`), and the splitters
+ * are laid over the seam between two containers instead of taking space of
+ * their own. So two adjacent panels are gutter/2 + gutter/2 apart, and the
+ * outer ones are gutter/2 + gutter/2 from the edge, whatever the gutter is,
+ * including 0.
  */
 
 .flexlayout__layout {
@@ -19,18 +34,18 @@
 	--color-overflow: var(--muted-foreground);
 	--color-icon: var(--muted-foreground);
 
-	--color-tabset-background: var(--card);
-	--color-tabset-background-selected: var(--card);
+	--color-tabset-background: var(--panel-background);
+	--color-tabset-background-selected: var(--panel-background);
 	--color-tabset-background-maximized: var(--muted);
-	--color-tabset-divider-line: var(--border);
-	--color-tabset-header-background: var(--muted);
+	--color-tabset-divider-line: var(--panel-border-color);
+	--color-tabset-header-background: var(--tabstrip-background);
 	--color-tabset-header: var(--foreground);
 
-	--color-border-tab-content: var(--card);
+	--color-border-tab-content: var(--panel-background);
 	--color-border-background: var(--muted);
 	--color-border-divider-line: var(--border);
 
-	--color-tab-content: var(--card);
+	--color-tab-content: var(--panel-background);
 	--color-tab-selected: var(--foreground);
 	--color-tab-selected-background: var(--secondary);
 	--color-tab-unselected: var(--muted-foreground);
@@ -42,7 +57,7 @@
 	--color-border-tab-unselected: var(--muted-foreground);
 	--color-border-tab-unselected-background: var(--muted);
 
-	--color-splitter: var(--border);
+	--color-splitter: transparent;
 	--color-splitter-hover: var(--ring);
 	--color-splitter-drag: var(--ring);
 
@@ -50,7 +65,7 @@
 	--color-drag-rect-background: var(--card);
 	--color-drag-rect: var(--foreground);
 
-	--color-popup-border: var(--border);
+	--color-popup-border: var(--surface-border-color);
 	--color-popup-unselected: var(--popover-foreground);
 	--color-popup-unselected-background: var(--popover);
 	--color-popup-selected: var(--primary-foreground);
@@ -67,11 +82,12 @@
 	--primary-color-light: var(--accent);
 	--primary-color-dark: var(--primary);
 
-	/* Background colors */
-	--background-color: var(--background);
-	--panel-background: var(--card);
-	--tab-background: var(--muted);
-	--tab-active-background: var(--card);
+	/* Background colors. The panel background and border come straight from
+	   the root tokens (`--panel-background`, `--panel-border-color`); these
+	   are the theme's own names for the surfaces built on them. */
+	--background-color: transparent;
+	--tab-background: var(--tabstrip-background);
+	--tab-active-background: var(--panel-background);
 	--tab-hover-background: var(--accent);
 
 	/* Text colors */
@@ -82,8 +98,7 @@
 
 	/* Border colors */
 	--border-color: var(--border);
-	--tab-border-color: var(--border);
-	--panel-border-color: var(--border);
+	--tab-border-color: var(--panel-border-color);
 	--divider-color: var(--border);
 
 	/* Interactive states */
@@ -93,26 +108,31 @@
 	--focus-color: var(--ring);
 	--surface-selected-border: color-mix(in srgb, var(--border-color) 80%, transparent);
 	--interactive-transition:
-		background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-		color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-		border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-		box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+		background-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
+		color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
+		border-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1);
 	--focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-color) 35%, transparent);
 
 	/* Drop zones */
 	--drop-indicator-color: var(--primary);
 	--drop-zone-background: var(--accent);
 
-	/* Sizing and spacing */
-	--border-radius: var(--radius);
-	--border-width: 1px;
+	/* Sizing and spacing. `--border-width` is the root token (controls,
+	   splitter lines); panels use `--panel-border-width`. */
+	--border-radius: var(--panel-radius);
 
 	/* Shadows */
 	--shadow-color: color-mix(in srgb, var(--foreground) 10%, transparent);
-	--panel-shadow: 0 1px 3px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
+	--panel-shadow: var(--panel-elevation);
 	--tab-shadow: 0 1px 2px 0 var(--shadow-color);
 
-	/* Typography */
+	/* Typography. `--font-family` is FlexLayout's own variable (not a
+	   contract token): its stylesheet sets it to Roboto and reads it on the
+	   tabset, the tab strip, the popup menu and the drag outline, so tab
+	   titles came out in Roboto whenever `--font-label` was unset. Pointing
+	   it at the body face makes an unset label inherit the app's face. */
+	--font-family: var(--font-body);
 	font-family: inherit;
 	font-size: 0.875rem;
 	line-height: 1.25rem;
@@ -127,21 +147,116 @@
 	--drop-zone-background: var(--secondary);
 }
 
-/* TabSet styling - the panel container */
+/* -------------------------------------------------------------------------
+ * Frame: gutters and the panel area
+ * ------------------------------------------------------------------------- */
+
+/* Around the whole FlexLayout (flex-layout-dashboard.tsx): the outer half of
+   the gutter. */
+.ormi-frame {
+	padding: calc(var(--frame-gutter) / 2);
+}
+
+/* The positioned box FlexLayout fills. The outline is a border here, outside
+   FlexLayout's root: FlexLayout measures every rect against its root's border
+   box but positions tab content inside its padding box, so a border on the
+   root itself would shift every widget by its width. */
+.ormi-frame__area {
+	border: var(--frame-outline) solid var(--panel-border-color);
+	border-radius: calc(var(--panel-radius) + var(--frame-gutter) / 2);
+}
+
+/* TabSet styling - the panel.
+
+   The margin is the inner half of the gutter, on every side. It belongs on
+   the tabset and never on `.flexlayout__tabset_container`: containers are
+   `flex-basis: 0` items sized by weight, and padding on one sits outside the
+   share its weight buys, so every splitter drag would land the panel a few
+   pixels from where it was dropped. A margin inside the container leaves the
+   container, which is the rect FlexLayout measures and weighs, untouched. */
 .flexlayout__tabset {
+	margin: calc(var(--frame-gutter) / 2);
 	background-color: var(--panel-background);
-	border: var(--border-width) solid var(--panel-border-color);
-	border-radius: var(--border-radius);
+	border: var(--panel-border-width) solid var(--panel-border-color);
+	border-radius: var(--panel-radius);
 	box-shadow: var(--panel-shadow);
 	overflow: hidden;
-	transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	transition:
+		border-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
+		box-shadow var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * Panel inner light (`--panel-inner-shadow`, globals.css): an inset shadow
+ * painted OVER the panel content. An inset part of the panel's own
+ * `box-shadow` paints under its children, and the tab strip and widget are
+ * opaque, so it never shows; this layer does.
+ *
+ * Stacking. The widget is not a child of the tabset: `.flexlayout__tab` is
+ * an absolutely positioned sibling laid over the tabset's content rect. The
+ * layer therefore competes with it in the enclosing stacking context, and
+ * wins with `z-index: 1` only because every tab is isolated (below), so a
+ * widget's own z-indexes stay inside its tab instead of rising past this
+ * layer. `1` is below everything FlexLayout draws over panels: splitters
+ * (10), the tab overlay (20), the drawers (30-32), drag outlines, edge
+ * markers and popup menus (1000).
+ *
+ * `pointer-events: none`, so clicks, drags, wheel and WebGL hit-testing go to
+ * whatever is underneath. The radius is the panel's inner one, the curve the
+ * tabset clips its content to. The default, `0 0 #0000`, paints nothing.
+ */
+.flexlayout__tabset::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	border-radius: max(
+		0px,
+		calc(var(--panel-radius) - var(--panel-border-width))
+	);
+	box-shadow: var(--panel-inner-shadow);
+	pointer-events: none;
+}
+
+/* A stacking context per widget, which is what keeps the inner-light layer
+   above it (see above). It also keeps a widget's z-indexed chrome (map
+   controls, floating toolbars) below the drawers, which a widget z-index
+   above 30 used to paint over. */
+.flexlayout__tab {
+	isolation: isolate;
 }
 
 .flexlayout__tabset_header {
-	background-color: var(--tab-background);
+	background-color: var(--tabstrip-background);
 	border-bottom: 0;
-	border-radius: var(--border-radius) var(--border-radius) 0 0;
-	padding: 3px;
+	padding: var(--tabstrip-inset);
+}
+
+/*
+ * The tab strip. Tabs sit on `--tabstrip-background`, inset
+ * `--tabstrip-inset` (3px by default) from the panel's inner edge on the top
+ * and sides and flush with its bottom, so the active tab can meet the content
+ * with nothing in between. `--radius-inner` subtracts the same inset
+ * (globals.css), which is what keeps the tab corners concentric with the
+ * panel's. At 0 the first tab sits flush with the panel's edge.
+ *
+ * The baseline under the strip is an inset shadow rather than a border: an
+ * inset shadow paints below the strip's children, so the active tab's own
+ * background covers it and the line breaks exactly under that tab, which is
+ * what joins the tab to its panel (a folder tab). A border would sit outside
+ * this overflow-hidden box, where no child can cover it.
+ */
+.flexlayout__tabset_tabbar_outer_top {
+	background-color: var(--tabstrip-background);
+	border-bottom: 0;
+	padding: var(--tabstrip-inset) var(--tabstrip-inset) 0;
+	box-shadow: inset 0 calc(-1 * var(--panel-border-width)) 0
+		var(--panel-border-color);
+}
+
+.flexlayout__tabset_tabbar_inner_tab_container_top {
+	border-top: 0;
+	padding: 0;
 }
 
 .flexlayout__tab_button {
@@ -151,7 +266,7 @@
 	justify-content: center;
 	gap: 0.5rem;
 	white-space: nowrap;
-	border-radius: calc(var(--border-radius) - 2px);
+	border-radius: var(--radius-inner) var(--radius-inner) 0 0;
 	font-size: 0.875rem;
 	font-weight: 500;
 	transition: var(--interactive-transition);
@@ -162,13 +277,12 @@
 	height: 2rem;
 	padding: 0.25rem 0.5rem;
 
-	/* Ghost variant styling for unselected tabs */
+	/* Unselected tabs are text on the strip */
 	background-color: transparent;
-	color: var(--text-color-secondary);
-	border: var(--border-width) solid transparent;
+	color: var(--tab-title-color);
+	border: var(--panel-border-width) solid transparent;
+	border-bottom: 0;
 	box-shadow: none;
-
-	/* Hover state */
 }
 
 /* .flexlayout__tab_button:hover {
@@ -176,16 +290,28 @@
 	color: var(--accent-foreground);
 } */
 
+/* The active tab is cut from the panel: the panel's background and border
+   on the top and sides, no bottom edge and no shadow, so tab and content
+   read as one shape. */
 .flexlayout__tab_button--selected {
 	background-color: var(--tab-active-background);
-	color: var(--text-color);
-	border-color: var(--surface-selected-border);
-	box-shadow: var(--tab-shadow);
+	color: var(--tab-title-active-color);
+	border-color: var(--panel-border-color);
+	box-shadow: none;
 }
 
 .flexlayout__tab_button:focus-visible {
 	outline: none;
-	box-shadow: var(--tab-shadow), var(--focus-ring-shadow);
+	box-shadow: var(--focus-ring-shadow);
+}
+
+/* Tab titles are labels. Unset by default, so they inherit: the body face
+   (`--font-family` above) and the button's 500. */
+.flexlayout__tab_button_content {
+	font-family: var(--font-label);
+	font-weight: var(--label-weight);
+	letter-spacing: var(--label-tracking);
+	text-transform: var(--label-transform);
 }
 
 .flexlayout__tab_button:disabled {
@@ -193,12 +319,17 @@
 	opacity: 0.5;
 }
 
-/* Tab styling */
+/* Tab styling - the widget's own box, positioned over the tabset content.
+   It is a sibling of the tabset, not a child, so the panel's rounded corners
+   do not clip it: its bottom corners follow the panel's inner edge, its top
+   ones meet the tab strip square. */
 .flexlayout__tab {
 	color: var(--tab-text-color);
 	background-color: transparent;
 	border: var(--border-width) solid transparent;
-	border-radius: calc(var(--border-radius) - 2px);
+	border-radius: 0 0
+		max(0px, calc(var(--panel-radius) - var(--panel-border-width)))
+		max(0px, calc(var(--panel-radius) - var(--panel-border-width)));
 	transition: var(--interactive-transition);
 	box-shadow: none;
 	margin-right: 0;
@@ -228,7 +359,7 @@
 	color: var(--text-color-secondary);
 	background: transparent;
 	border: var(--border-width) solid transparent;
-	border-radius: calc(var(--border-radius) - 2px);
+	border-radius: var(--radius-inner);
 	transition: var(--interactive-transition);
 	padding: 0.125rem;
 	height: 1.5rem;
@@ -252,7 +383,7 @@
 
 /* Tab bar styling */
 .flexlayout__tabset_tabbar_outer {
-	background-color: transparent;
+	background-color: var(--tabstrip-background);
 }
 
 .flexlayout__tabset_tabbar_inner {
@@ -285,11 +416,16 @@
 
 /* Splitter (divider) styling */
 .flexlayout__splitter {
-	background-color: var(--divider-color);
-	transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: background-color var(--motion-duration)
+		cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.flexlayout__splitter:hover {
+/* The drawers' splitter, at a pane's inner edge. */
+.flexlayout__splitter_border {
+	background-color: var(--divider-color);
+}
+
+.flexlayout__splitter_border:hover {
 	background-color: var(--primary-color-light);
 }
 
@@ -297,17 +433,77 @@
 	background-color: var(--primary-color) !important;
 }
 
-.flexlayout__splitter_vertical {
-	width: 1px;
-	cursor: col-resize;
+/*
+ * Splitters between panels are laid over the seam, not beside it: each one
+ * is pulled back over the end of the container before it by its own size,
+ * so it takes no room and the gutter alone spaces the panels.
+ *
+ * Pulled back over the container BEFORE it, not centred on the seam: at the
+ * start of a drag FlexLayout takes the splitter's position to be the next
+ * container's start minus the splitter size (RowNode.getSplitterInitials),
+ * and measures the drag from where the splitter is actually drawn. Any other
+ * placement moves every dragged panel by the offset on release.
+ *
+ * The 4px is the model's `splitterSize` (layout-serializer.ts, and every
+ * page's default layout); the width itself is FlexLayout's inline style,
+ * which CSS cannot read back. `frame-geometry.test.ts` holds the two together.
+ *
+ * What is painted is a mark centred on the seam, which is the middle of the
+ * gutter: `--splitter-line` at rest, a wider accent while hovered. It is a
+ * pseudo-element so the hit area (the splitter and its `_extra` child) keeps
+ * its size and position, and it is laid out rather than transformed so a
+ * 1px line lands on a whole pixel.
+ */
+.flexlayout__row > .flexlayout__splitter {
+	position: relative;
+	background-color: transparent;
 }
 
-.flexlayout__splitter_horizontal {
-	height: 1px;
-	cursor: row-resize;
+.flexlayout__row > .flexlayout__splitter:hover {
+	background-color: transparent;
 }
 
-/* Border areas - optimized for ~30px width */
+.flexlayout__row > .flexlayout__splitter_horz {
+	margin-left: -4px;
+}
+
+.flexlayout__row > .flexlayout__splitter_vert {
+	margin-top: -4px;
+}
+
+.flexlayout__row > .flexlayout__splitter::before {
+	--splitter-mark: var(--border-width);
+	content: "";
+	position: absolute;
+	pointer-events: none;
+	background-color: var(--splitter-line);
+	border-radius: 999px;
+	transition: background-color var(--motion-duration)
+		cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flexlayout__row > .flexlayout__splitter:hover::before {
+	--splitter-mark: 4px;
+	background-color: var(--primary-color-light);
+}
+
+.flexlayout__row > .flexlayout__splitter_horz::before {
+	top: 0;
+	bottom: 0;
+	left: calc(100% - var(--splitter-mark) / 2);
+	width: var(--splitter-mark);
+}
+
+.flexlayout__row > .flexlayout__splitter_vert::before {
+	left: 0;
+	right: 0;
+	top: calc(100% - var(--splitter-mark) / 2);
+	height: var(--splitter-mark);
+}
+
+/* Border areas - optimized for ~30px width. Shown only while a border holds
+   a tab, or while a drag nears its edge (`borderEnableAutoHide`,
+   layout-serializer.ts). */
 .flexlayout__border {
 	box-sizing: border-box;
 	font-size: 0.6875rem;
@@ -433,13 +629,26 @@
 	opacity: 0.9;
 }
 
-/* Popup menu */
-.flexlayout__popup_menu {
+/* Popup menu (the tab overflow list): an overlay, like every other menu.
+   FlexLayout wraps the menu in a positioned container that carries its own
+   border, inset shadow and 3px radius, so the surface goes on the container
+   and the menu inside it is flat; styling the menu drew a frame inside a
+   frame. */
+.flexlayout__popup_menu_container {
 	background-color: var(--popover);
-	border: var(--border-width) solid var(--border-color);
+	color: var(--popover-foreground);
+	border: var(--border-width) solid var(--surface-border-color);
 	border-radius: var(--border-radius);
-	box-shadow: var(--panel-shadow);
+	box-shadow: var(--elevation-overlay);
 	padding: 0.25rem;
+}
+
+.flexlayout__popup_menu {
+	background-color: transparent;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	padding: 0;
 	min-width: 8rem;
 }
 
@@ -511,10 +720,9 @@
 	box-shadow: var(--focus-ring-shadow);
 }
 
-/* Dark mode adjustments */
+/* Dark mode adjustments. The panel shadow is `--panel-elevation`. */
 .dark .flexlayout__layout {
 	--shadow-color: color-mix(in srgb, black 22%, transparent);
-	--panel-shadow: 0 2px 4px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color);
 }
 
 .dark .flexlayout__drag_rect {
@@ -547,6 +755,7 @@
 @media (prefers-contrast: high) {
 	.flexlayout__layout {
 		--border-width: 2px;
+		--panel-border-width: 2px;
 	}
 
 	.flexlayout__tab_selected {
