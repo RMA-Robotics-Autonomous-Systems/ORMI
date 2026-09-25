@@ -9,7 +9,7 @@ class EmiBagAnalyzerPlugin extends Plugin {
 
 		this.name = "EMI Bag Analyzer";
 		this.description =
-			"Client-side ROS2 bag analyzer for EMI data. Load a .db3 bag file locally, visualize signals, apply filters, and inspect GPS heatlines — no server required.";
+			"Client-side ROS2 bag analyzer for EMI data. Load a .db3 bag file locally, visualize signals, apply filters, and inspect GPS heatlines. No server required.";
 		this.version = "1.0.0";
 		this.author = "Florian Lebecque";
 		this.email = "florian.lebecque@mil.be";

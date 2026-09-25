@@ -78,7 +78,7 @@ function nodeTitle(
 ): string {
 	if (node.isVirtual || !node.data) {
 		const src = frameSource(node.id);
-		return `${frameRawName(node.id)}${src ? `\nsource: ${nameOf(src)}` : ""}\n(inferred parent — never observed)`;
+		return `${frameRawName(node.id)}${src ? `\nsource: ${nameOf(src)}` : ""}\n(inferred parent, never observed)`;
 	}
 	const d = node.data;
 	const age = Math.max(0, Math.round(now - d.receivedAt));

@@ -39,9 +39,9 @@ interface MotionSettings extends Record<string, unknown> {
 	title: string;
 }
 
-/** Percentage, or an em dash when there is nothing to divide by. */
+/** Percentage, or `n/a` when there is nothing to divide by. */
 const pct = (v: number): string =>
-	Number.isFinite(v) ? `${Math.round(100 * v)}%` : "—";
+	Number.isFinite(v) ? `${Math.round(100 * v)}%` : "n/a";
 
 /**
  * The motion panels.
@@ -124,7 +124,7 @@ const MotionChart = (props: MotionSettings) => {
 					(detsHere
 						? `${detsStill} of ${detsHere} detections here were raised while the robot was not moving` +
 							(detsStill
-								? " — those are the same ground measured again, not new coverage."
+								? " (same ground measured again, not new coverage)."
 								: ".")
 						: "No detections in this window.");
 			}

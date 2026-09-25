@@ -87,7 +87,7 @@ export function formatBytes(bytes: number): string {
 
 /** The standing advice for a recording that is too big to open. */
 export const FILTER_ADVICE =
-	"The cockpit reads only the EMI, GNSS, quaternion and /tf_static topics — a survey bag is usually this large because of cameras or point clouds. Filter it with `ros2 bag convert` (see `ros2 bag info` for the topic names) and open the result.";
+	"The cockpit reads only the EMI, GNSS, quaternion and /tf_static topics. Filter the bag with `ros2 bag convert` (see `ros2 bag info` for the topic names) and open the result.";
 
 /**
  * Decide whether a recording can be opened, before spending a read on it.

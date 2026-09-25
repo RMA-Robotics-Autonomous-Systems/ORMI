@@ -390,7 +390,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
 							}}
 						>
-							Goal pose — click to place, drag to set heading
+							Goal pose: click to place, drag to set heading
 						</div>
 					)}
 					{poseMode === "initialPose" && (
@@ -406,7 +406,7 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 								boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
 							}}
 						>
-							Initial pose — click to place, drag to set heading
+							Initial pose: click to place, drag to set heading
 						</div>
 					)}
 					{/* Idle hints — show available shortcuts */}

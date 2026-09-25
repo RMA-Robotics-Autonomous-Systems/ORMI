@@ -388,7 +388,7 @@ const TimeSeriesChartBody: React.FC<TimeSeriesSettings> = (props) => {
 	if (props.topics.length === 0) {
 		return (
 			<div className="text-muted-foreground flex h-full w-full items-center justify-center p-4 text-center text-sm">
-				No series configured — add a topic in this widget&apos;s
+				No series configured. Add a topic in this widget&apos;s
 				settings.
 			</div>
 		);

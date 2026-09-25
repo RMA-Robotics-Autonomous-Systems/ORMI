@@ -53,7 +53,7 @@ const FOLLOW_TITLE: Record<EmiView["mode"], string> = {
 	// Reads as on, and does nothing — so it says why. Without this the operator
 	// goes looking for the setting that is "stuck".
 	full: "The whole run is shown, so the newest sample is always visible",
-	follow: "Following the newest sample — click to pin this window",
+	follow: "Following the newest sample. Press to pin this window",
 	pinned: "Jump to the newest sample and follow it",
 };
 

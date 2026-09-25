@@ -268,8 +268,7 @@ function DiagnosticsBody({
 		for (const topic of topics) {
 			const topicKey = `${topic.source.id}::${topic.topic}`;
 			const buffer = sources.get(getSourceId(topic))?.data as
-				| DiagnosticArray[]
-				| undefined;
+				DiagnosticArray[] | undefined;
 			if (!buffer || buffer.length === 0) continue;
 
 			// Resume after the last-folded message; if it aged out of the
@@ -363,7 +362,7 @@ function DiagnosticsBody({
 	const groupMap = new Map<string, DiagnosticGroup>();
 	for (const item of visible) {
 		const { entry, level } = item;
-		const label = entry.status.hardwareId || entry.source.title || "—";
+		const label = entry.status.hardwareId || entry.source.title || "n/a";
 		const id = `${entry.source.id}::${label}`;
 		let group = groupMap.get(id);
 		if (!group) {

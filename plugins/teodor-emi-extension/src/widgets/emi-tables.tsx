@@ -37,9 +37,9 @@ interface TablesSettings extends Record<string, unknown> {
 /** Targets shown before the list is truncated. */
 const MAX_TARGET_ROWS = 40;
 
-/** A number, or an em dash. */
+/** A number, or `n/a`. */
 const num = (v: number, digits = 0): string =>
-	Number.isFinite(v) ? v.toFixed(digits) : "—";
+	Number.isFinite(v) ? v.toFixed(digits) : "n/a";
 
 /**
  * The tables.
@@ -265,7 +265,7 @@ const EmiTables = (props: TablesSettings) => {
 													: "one coil"
 												: t.gateUsed
 													? num(t.gateUsed, 2)
-													: "—"}
+													: "n/a"}
 										</td>
 										<td className="p-1 text-right">
 											{num(t.firstSeen, 1)}
@@ -334,7 +334,7 @@ const EmiTables = (props: TablesSettings) => {
 												value={
 													verification.matched
 														? `${verification.ampExact} of ${verification.matched} identical, worst error ${verification.ampMaxError}`
-														: "—"
+														: "n/a"
 												}
 											/>
 											<Row
@@ -342,7 +342,7 @@ const EmiTables = (props: TablesSettings) => {
 												value={
 													verification.posCompared
 														? `median ${num(verification.posMedianError, 2)} m, max ${num(verification.posMaxError, 2)} m over ${verification.posCompared}`
-														: "—"
+														: "n/a"
 												}
 											/>
 										</tbody>
@@ -368,10 +368,10 @@ const EmiTables = (props: TablesSettings) => {
 
 									<p className="text-muted-foreground">
 										Amplitudes are not the same measurement
-										on both sides — the recording carries
-										the unfiltered peak, the replay the
-										filtered one — so that row is a
-										magnitude check, not an equality check.
+										on both sides: the recording carries the
+										unfiltered peak, the replay the filtered
+										one. That row is a magnitude check, not
+										an equality check.
 									</p>
 									<p className="text-muted-foreground">
 										The replay is compared against the
@@ -423,7 +423,7 @@ const EmiTables = (props: TablesSettings) => {
 											value={
 												snapshot.status
 													?.fixReconstructed
-													? "reconstructed from coil 1 — no antenna topic seen"
+													? "reconstructed from coil 1 (no antenna topic seen)"
 													: "from the antenna topic"
 											}
 										/>

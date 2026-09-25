@@ -68,7 +68,7 @@ const STATUS_META: Record<
 		color: "var(--warning)",
 		label: "TF fallback",
 		description:
-			"Target frame unreachable — rendering in the layer's own root frame.",
+			"Target frame unreachable. Rendering in the layer's own root frame.",
 	},
 	"no-data": {
 		color: "var(--muted-foreground)",

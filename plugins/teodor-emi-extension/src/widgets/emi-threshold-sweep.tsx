@@ -110,14 +110,14 @@ const ThresholdSweep = (props: SweepSettings) => {
 	const note = result
 		? sweep?.mode === "mad"
 			? `At factor ${params.madFactor}×: ${result.detsNew.length} MAD detections against ` +
-				`${result.detsOld.length} from the shipped single threshold at ${params.threshold} — ` +
-				`${pctChange(result.detsOld.length, result.detsNew.length)}.`
+				`${result.detsOld.length} from the shipped single threshold at ${params.threshold} (` +
+				`${pctChange(result.detsOld.length, result.detsNew.length)}).`
 			: `At the current threshold: ${result.detsOld.length} single-threshold, ` +
 				`${result.detsNew.length} with hysteresis at ${params.releaseRatio.toFixed(2)}` +
 				(params.rearmDwellS > 0
 					? ` and a ${params.rearmDwellS.toFixed(1)} s dwell`
 					: "") +
-				` — ${pctChange(result.detsOld.length, result.detsNew.length)}.`
+				` (${pctChange(result.detsOld.length, result.detsNew.length)}).`
 		: "";
 
 	return (

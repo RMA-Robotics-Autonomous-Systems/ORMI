@@ -177,7 +177,7 @@ export const EmiReplayDatasourceDefinition: DatasourceDefinition<EmiReplaySettin
 					type: "boolean",
 					title: "Load the whole recording at once",
 					description:
-						"On by default. A bag is read, not watched — this hands every panel the complete survey in a second or two instead of filling it in over twenty minutes. Turn it off to watch the recording arrive in real time.",
+						"On by default: every panel gets the complete survey in a second or two. Off: the recording arrives in real time.",
 					default: true,
 				},
 				autoplay: {

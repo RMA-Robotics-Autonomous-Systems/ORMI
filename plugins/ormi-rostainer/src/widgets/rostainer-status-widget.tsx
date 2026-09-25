@@ -205,7 +205,7 @@ const ContainerCard: React.FC<ContainerCardProps> = ({
 			{/* Details */}
 			<div className="text-muted-foreground text-xs space-y-0.5">
 				<p className="truncate" title={container.image}>
-					{container.image || "—"}
+					{container.image || "n/a"}
 				</p>
 				<p>
 					{container.uptime

@@ -90,7 +90,7 @@ const BagFileControl = (props: ControlProps) => {
 					setNotice({
 						tone: "error",
 						message: `"${file.name}" is not a SQLite database.`,
-						advice: "A rosbag2 recording is the `.db3` inside the bag directory — not the `metadata.yaml` beside it, and not an `.mcap`.",
+						advice: "A rosbag2 recording is the `.db3` inside the bag directory, not the `metadata.yaml` beside it and not an `.mcap`.",
 					});
 					return;
 				}
@@ -216,7 +216,7 @@ const BagFileControl = (props: ControlProps) => {
 			/>
 
 			<p className="text-muted-foreground text-xs">
-				Held in this page&apos;s memory only — nothing is uploaded, and
+				Held in this page&apos;s memory only. Nothing is uploaded, and
 				the recording is not saved with the dashboard.
 			</p>
 		</div>

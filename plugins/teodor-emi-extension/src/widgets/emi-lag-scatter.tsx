@@ -69,7 +69,7 @@ const LagScatter = (props: LagSettings) => {
 
 	const note = readout
 		? readout.plotted === 0 && readout.clipped === 0
-			? "No cross-coil pairs at these tolerances — widen the across-track window, or the coils genuinely never agreed."
+			? "No cross-coil pairs at these tolerances. Widen the across-track window."
 			: `${readout.plotted} pairs plotted` +
 				(readout.clipped
 					? `, ${readout.clipped} outside the robust limits (near-stationary links predicting multi-second lags)`

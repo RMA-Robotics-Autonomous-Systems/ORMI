@@ -15,7 +15,8 @@
 	"scripts": {
 		"build": "tsc",
 		"lint": "eslint .",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "bun test src"
 	},
 	"dependencies": {
 		"@workspace/ormi-plugins": "workspace:*",

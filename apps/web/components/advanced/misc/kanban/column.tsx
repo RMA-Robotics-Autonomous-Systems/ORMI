@@ -76,73 +76,81 @@ export function KanbanColumn({
 	};
 
 	return (
+		// Two layers: `bg-content-surface` (transparent by default) keeps a
+		// preset's page texture out from under the column, and the muted tint
+		// stays on top of it, so the stock look is unchanged.
 		<div
 			ref={setNodeRef}
 			style={style}
-			className="flex h-full w-[350px] min-w-[350px] flex-col rounded-lg border bg-muted/50"
+			className="h-full w-[350px] min-w-[350px] rounded-lg bg-content-surface"
 		>
-			<div
-				{...attributes}
-				{...listeners}
-				className="flex items-center justify-between p-4 font-semibold cursor-grab active:cursor-grabbing"
-			>
-				<div className="flex items-center gap-2">
-					{title}
-					<span className="text-xs text-muted-foreground">
-						{items.length}
-					</span>
-				</div>
-				{categoryId && categoryId !== -1 && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="h-8 w-8"
-							>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={() =>
-									onEdit?.({ id: categoryId, name: title })
-								}
-							>
-								<Pencil className="mr-2 h-4 w-4" />
-								Rename
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								onClick={() => onDelete?.(categoryId)}
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</div>
-			<ScrollArea className="flex-1 p-4">
-				<SortableContext
-					id={id}
-					items={items.map((w) => `workspace-${w.id}`)}
-					strategy={verticalListSortingStrategy}
+			<div className="flex h-full flex-col rounded-lg border bg-muted/50">
+				<div
+					{...attributes}
+					{...listeners}
+					className="flex items-center justify-between p-4 font-semibold cursor-grab active:cursor-grabbing"
 				>
-					<div className="flex flex-col gap-3">
-						{items.map((workspace) => (
-							<SortableWorkspaceItem
-								key={workspace.id}
-								workspace={workspace}
-								categories={categories}
-								onWorkspacePatch={onWorkspacePatch}
-								onWorkspaceReorder={onWorkspaceReorder}
-								onWorkspaceDeleted={onWorkspaceDeleted}
-							/>
-						))}
+					<div className="flex items-center gap-2">
+						{title}
+						<span className="text-xs text-muted-foreground">
+							{items.length}
+						</span>
 					</div>
-				</SortableContext>
-			</ScrollArea>
+					{categoryId && categoryId !== -1 && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-8 w-8"
+								>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() =>
+										onEdit?.({
+											id: categoryId,
+											name: title,
+										})
+									}
+								>
+									<Pencil className="mr-2 h-4 w-4" />
+									Rename
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="text-destructive focus:text-destructive"
+									onClick={() => onDelete?.(categoryId)}
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+				</div>
+				<ScrollArea className="flex-1 p-4">
+					<SortableContext
+						id={id}
+						items={items.map((w) => `workspace-${w.id}`)}
+						strategy={verticalListSortingStrategy}
+					>
+						<div className="flex flex-col gap-3">
+							{items.map((workspace) => (
+								<SortableWorkspaceItem
+									key={workspace.id}
+									workspace={workspace}
+									categories={categories}
+									onWorkspacePatch={onWorkspacePatch}
+									onWorkspaceReorder={onWorkspaceReorder}
+									onWorkspaceDeleted={onWorkspaceDeleted}
+								/>
+							))}
+						</div>
+					</SortableContext>
+				</ScrollArea>
+			</div>
 		</div>
 	);
 }

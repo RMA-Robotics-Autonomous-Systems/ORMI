@@ -542,7 +542,7 @@ function LoadSinkSummary({ topics }: { topics: SelectedTopic[] }) {
 								? row.health
 								: row.lastTime !== undefined
 									? formatAge(now - row.lastTime)
-									: "—"}
+									: "n/a"}
 						</span>
 					</div>
 				))}

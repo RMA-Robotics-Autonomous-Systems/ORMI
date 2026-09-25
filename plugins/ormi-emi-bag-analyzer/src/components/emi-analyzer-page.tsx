@@ -639,7 +639,7 @@ export function EmiAnalyzerPage() {
 			<div className="shrink-0">
 				<h1 className="text-2xl font-semibold">EMI Bag Analyzer</h1>
 				<p className="text-muted-foreground text-sm">
-					Load a ROS2 .db3 bag — everything runs in your browser.
+					Load a ROS2 .db3 bag. It is processed in the browser.
 				</p>
 			</div>
 
