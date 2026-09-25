@@ -256,7 +256,7 @@ const CoilSignalStack = (props: SignalStackSettings) => {
 							size="sm"
 							variant={display[t.key] ? "secondary" : "ghost"}
 							title={t.hint}
-							className="h-6 px-2 text-[11px]"
+							className="text-[11px]"
 							onClick={() =>
 								setDisplay({
 									...display,
