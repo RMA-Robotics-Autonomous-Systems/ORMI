@@ -50,8 +50,10 @@ const FlexLayoutDashboard = () => {
 
 	const layoutRef = useRef<Layout>(null);
 
-	// Panel motion (FLIP on the real panels; see panel-motion.ts).
-	const { areaRef, captureBefore, onRenderTabSet } = usePanelMotion();
+	// Panel motion (FLIP on the real panels; see panel-motion.ts) and the tab
+	// strip indicator (tab-indicator.ts).
+	const { areaRef, captureBefore, captureBeforeTabSelect, onRenderTabSet } =
+		usePanelMotion();
 
 	// Core FlexLayout integration - hook handles all model management
 	const { model, onModelChange, onAction } = useFlexLayoutModel({
@@ -62,6 +64,7 @@ const FlexLayoutDashboard = () => {
 		removeWidget,
 		updateLayouts,
 		onBeforeLayoutChange: captureBefore,
+		onBeforeTabSelect: captureBeforeTabSelect,
 	});
 	const factory = useWidgetFactory({ widgets, getDefinition });
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
+import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import {
 	SortableContext,
 	verticalListSortingStrategy,
@@ -17,6 +19,7 @@ import {
 import { MoreHorizontal, Pencil, Trash } from "lucide-react";
 import { Workspace, Category } from "@prisma/client";
 import { SortableWorkspaceItem } from "./item";
+import { sortableTransition } from "./motion";
 import { WorkspaceWithCategory } from "./types";
 
 interface KanbanColumnProps {
@@ -67,7 +70,18 @@ export function KanbanColumn({
 			type: "Column",
 			category: { id: categoryId, name: title },
 		},
+		transition: sortableTransition(useMotionTiming("base")),
 	});
+
+	// A workspace card dragged over this column, or over one of its cards,
+	// lands here: say so while it is over it.
+	const { active, over } = useDndContext();
+	const isDropTarget =
+		!!active &&
+		!!over &&
+		active.data.current?.type !== "Column" &&
+		(over.id === id ||
+			items.some((workspace) => `workspace-${workspace.id}` === over.id));
 
 	const style = {
 		transform: CSS.Translate.toString(transform),
@@ -84,7 +98,10 @@ export function KanbanColumn({
 			style={style}
 			className="h-full w-[350px] min-w-[350px] rounded-lg bg-content-surface"
 		>
-			<div className="flex h-full flex-col rounded-lg border bg-muted/50">
+			<div
+				data-drop-target={isDropTarget ? "" : undefined}
+				className="flex h-full flex-col rounded-lg border bg-muted/50 transition-[background-color,box-shadow] duration-(--motion-fast) ease-(--motion-ease) data-drop-target:bg-accent/60 data-drop-target:ring-2 data-drop-target:ring-ring/50"
+			>
 				<div
 					{...attributes}
 					{...listeners}

@@ -403,8 +403,13 @@ function startHeld(held: Animation[]): void {
 	);
 }
 
-/** First entry of a computed timing-function list (commas live inside the parens). */
-function firstEasing(value: string | undefined): string {
+/**
+ * First entry of a computed timing-function list (commas live inside the
+ * parens).
+ * @param value - Computed `transition-timing-function` / `animation-timing-function`.
+ * @returns One CSS easing, or the fallback when empty.
+ */
+export function firstEasing(value: string | undefined): string {
 	if (!value) return FALLBACK_EASING;
 	let depth = 0;
 	for (let i = 0; i < value.length; i++) {
@@ -416,7 +421,11 @@ function firstEasing(value: string | undefined): string {
 	return value.trim() || FALLBACK_EASING;
 }
 
-function prefersReducedMotion(): boolean {
+/**
+ * Whether the operator asked the OS for less motion.
+ * @returns True under `prefers-reduced-motion: reduce`.
+ */
+export function prefersReducedMotion(): boolean {
 	return (
 		typeof window !== "undefined" &&
 		typeof window.matchMedia === "function" &&

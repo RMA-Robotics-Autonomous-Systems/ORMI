@@ -9,6 +9,7 @@ import {
 import { LockIcon, LockOpenIcon, Save, Check } from "lucide-react";
 import { NavbarItem } from "@workspace/ui/combined/navbar";
 import { datasourcesAtom, widgetsAtom } from "../../../atoms";
+import { ATTENTION_CLASS, shouldSaveCallAttention } from "../../attention";
 
 /** Props for NavbarIntegration. */
 interface NavbarIntegrationProps {
@@ -34,11 +35,12 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 
 	const lockLabel = locked ? "Unlock dashboard" : "Lock dashboard";
 
-	// Pulse discipline, matching the grid engine: only the next required step
-	// pulses. The datasources button owns the first step (no datasource
-	// configured); saving stays quiet until there is a configured datasource
-	// and at least one widget to persist.
-	const savePulses = hasChanged && datasources.size > 0 && widgets.size > 0;
+	// Only the next required step is cued; see shouldSaveCallAttention.
+	const savePulses = shouldSaveCallAttention({
+		hasChanged,
+		datasourceCount: datasources.size,
+		widgetCount: widgets.size,
+	});
 
 	return (
 		<>
@@ -70,17 +72,7 @@ export const NavbarIntegration: React.FC<NavbarIntegrationProps> = ({
 									? "Save dashboard"
 									: "Dashboard saved"
 							}
-							className={savePulses ? "animate-pulse" : ""}
-							style={
-								savePulses
-									? {
-											animation:
-												"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-											boxShadow:
-												"0 0 0 0 hsl(var(--primary))",
-										}
-									: {}
-							}
+							className={savePulses ? ATTENTION_CLASS : undefined}
 							onClick={onSave}
 						>
 							{hasChanged ? (

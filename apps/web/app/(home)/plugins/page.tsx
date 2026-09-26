@@ -4,7 +4,7 @@ export default async function Page() {
 	const plugins = await loadPlugins();
 
 	return (
-		<div className="container mx-auto mt-8">
+		<div className="motion-page-in container mx-auto mt-8">
 			<div className="flex items-center gap-3">
 				<h1>Plugins</h1>
 				<small>

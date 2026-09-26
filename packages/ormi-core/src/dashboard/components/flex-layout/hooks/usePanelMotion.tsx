@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useMemo, useState } from "react";
 import { TabSetNode } from "flexlayout-react";
 import type { BorderNode, ITabSetRenderValues, Model } from "flexlayout-react";
 import { PanelMotionController } from "../panel-motion-controller";
+import { TabIndicatorMotion } from "../tab-indicator-motion";
 
 /**
  * Rendered by FlexLayout at the head of every tabset's tab strip (it renders
@@ -21,14 +22,17 @@ import { PanelMotionController } from "../panel-motion-controller";
  */
 function PanelMotionProbe({
 	controller,
+	indicator,
 	model,
 }: {
 	controller: PanelMotionController;
+	indicator: TabIndicatorMotion;
 	model: Model;
 }) {
 	// No dependency list on purpose: it must run on every commit.
 	useLayoutEffect(() => {
 		controller.afterCommit(model);
+		indicator.afterCommit();
 	});
 	return null;
 }
@@ -40,9 +44,13 @@ function PanelMotionProbe({
  * would skip the probe's re-render, and with it the commit notification).
  * Border tabsets are skipped: they never move.
  * @param controller - The dashboard's motion controller.
+ * @param indicator - The dashboard's tab strip indicator.
  * @returns The render callback.
  */
-function createPanelMotionTabSetRenderer(controller: PanelMotionController) {
+function createPanelMotionTabSetRenderer(
+	controller: PanelMotionController,
+	indicator: TabIndicatorMotion,
+) {
 	return (
 		node: TabSetNode | BorderNode,
 		renderValues: ITabSetRenderValues,
@@ -51,6 +59,7 @@ function createPanelMotionTabSetRenderer(controller: PanelMotionController) {
 		const probe = React.createElement(PanelMotionProbe, {
 			key: "ormi-panel-motion-probe",
 			controller,
+			indicator,
 			model: node.getModel(),
 		});
 		renderValues.leading = renderValues.leading
@@ -65,32 +74,49 @@ function createPanelMotionTabSetRenderer(controller: PanelMotionController) {
 }
 
 /**
- * Panel motion for a FlexLayout dashboard.
+ * Panel motion for a FlexLayout dashboard: the panels (panel-motion.ts) and
+ * the tab strip indicator (tab-indicator.ts).
  * @returns `areaRef` (a callback ref for the positioned element FlexLayout
  * fills, which must contain the `.ormi-motion-metrics` element),
- * `captureBefore` (call before any layout change is applied) and
+ * `captureBefore` (call before any layout change is applied),
+ * `captureBeforeTabSelect` (call before a `SELECT_TAB` is applied) and
  * `onRenderTabSet` (pass to `<Layout>`).
  */
 export function usePanelMotion() {
 	const [controller] = useState(() => new PanelMotionController());
+	const [indicator] = useState(() => new TabIndicatorMotion());
 
 	// A callback ref, not an effect: the area only exists once the model has
 	// loaded, which is renders after the dashboard mounts.
 	const areaRef = useMemo(
 		() => (el: HTMLElement | null) => {
 			if (!el) return;
-			return controller.attach(el);
+			const detachPanels = controller.attach(el);
+			const detachIndicator = indicator.attach(el);
+			return () => {
+				detachIndicator();
+				detachPanels();
+			};
 		},
-		[controller],
+		[controller, indicator],
 	);
 	const onRenderTabSet = useMemo(
-		() => createPanelMotionTabSetRenderer(controller),
-		[controller],
+		() => createPanelMotionTabSetRenderer(controller, indicator),
+		[controller, indicator],
 	);
+	// A layout change moves the strip itself: any slide ends first.
 	const captureBefore = useMemo(
-		() => (model: Model) => controller.captureBefore(model),
-		[controller],
+		() => (model: Model) => {
+			indicator.stop();
+			controller.captureBefore(model);
+		},
+		[controller, indicator],
+	);
+	const captureBeforeTabSelect = useMemo(
+		() => (model: Model, tabId: string) =>
+			indicator.captureBeforeSelect(model, tabId),
+		[indicator],
 	);
 
-	return { areaRef, captureBefore, onRenderTabSet };
+	return { areaRef, captureBefore, captureBeforeTabSelect, onRenderTabSet };
 }

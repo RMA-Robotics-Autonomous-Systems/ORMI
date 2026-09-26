@@ -170,6 +170,8 @@
 	   overshoot) from a deeper scale, so the give reads. */
 	--motion-ease-emphasis: cubic-bezier(0.3, 1.35, 0.5, 1);
 	--motion-scale: 0.95;
+	/* Clay gives under a finger: a deeper press than the default. */
+	--press-scale: 0.97;
 
 	--frame-gutter: 16px;
 	--panel-radius: 1.25rem;

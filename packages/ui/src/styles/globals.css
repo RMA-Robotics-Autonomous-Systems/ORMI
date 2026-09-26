@@ -233,6 +233,18 @@
  *                        it opens on. Default 4px.
  *   --motion-scale       The scale an overlay enters from and leaves to.
  *                        Default 0.98; 1 turns the zoom off.
+ *   --press-scale        The scale a button or toggle takes while held
+ *                        (`:active`), through `scale`, so nothing around it
+ *                        moves. Default 0.98; 1 turns the give off (a preset
+ *                        whose press is a `--pressed-offset` needs no more).
+ *                        Keep it within [0.95, 1]. Forced to 1 under reduced
+ *                        motion.
+ *   Utilities built on these: `motion-pop` (overlays), `motion-page-in` (a
+ *   page root entering: fade and a `--motion-distance` rise, never on
+ *   anything that wraps live widgets), `motion-collapse` (opt-in height
+ *   motion on a `CollapsibleContent`), `nav-current` (a navbar link's
+ *   active-page underline). A segmented control's active indicator
+ *   (`TabsList`, a single-select `ToggleGroup`) slides over `--motion-base`.
  *   A preset may set any of them; each derived step is computed on `:root`
  *   from what the preset wrote. Keep every duration at or under 300ms
  *   (asserted by apps/web/__tests__/theme-motion.test.ts). All of them are
@@ -422,6 +434,7 @@
 	--motion-ease-emphasis: cubic-bezier(0.16, 1.1, 0.3, 1);
 	--motion-distance: 4px;
 	--motion-scale: 0.98;
+	--press-scale: 0.98;
 	--surface-texture: none;
 	--content-surface: transparent;
 
@@ -474,6 +487,7 @@
 		--motion-base: 0ms !important;
 		--motion-layout: 0ms !important;
 		--motion-exit: 0ms !important;
+		--press-scale: 1 !important;
 	}
 }
 
@@ -503,6 +517,65 @@
 	}
 	&[data-side="right"] {
 		--tw-enter-translate-x: calc(var(--motion-distance) * -1);
+	}
+}
+
+/*
+ * A page root entering: fade in and rise `--motion-distance` over
+ * `--motion-base`. Only on document pages (the workspace list, plugins, a docs
+ * article), never on anything that wraps live widgets, and never through a
+ * `key` or a `template.tsx` (either remounts the page). It plays once per
+ * mount, and a motionless preset or reduced motion makes it instant.
+ */
+@utility motion-page-in {
+	animation: motion-page-in var(--motion-base) var(--motion-ease);
+}
+
+@keyframes motion-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--motion-distance));
+	}
+}
+
+/*
+ * Opt-in height motion for a `CollapsibleContent` (the `animated` prop, or this
+ * class): the collapsible keyframes, timed by the motion tokens in `@theme`.
+ * Not the default: widget bodies use the collapsible too, and a panel of live
+ * readings does not grow into place.
+ */
+@utility motion-collapse {
+	@apply overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down;
+}
+
+/*
+ * The navbar's active page: a static underline under a link carrying
+ * `aria-current` (any value but `false`). It fades and grows in at
+ * `--motion-fast` when the page changes; it is a state, not an animation, so
+ * it does not move once shown.
+ */
+@utility nav-current {
+	position: relative;
+
+	&::after {
+		content: "";
+		position: absolute;
+		inset-inline: 0.75rem;
+		bottom: 0;
+		height: 2px;
+		border-radius: var(--radius-pill);
+		background-color: var(--primary);
+		opacity: 0;
+		transform: scaleX(0.5);
+		transition-property: opacity, transform;
+		transition-duration: var(--motion-fast);
+		transition-timing-function: var(--motion-ease);
+		pointer-events: none;
+	}
+
+	&[aria-current]:not([aria-current="false"])::after {
+		opacity: 1;
+		transform: none;
 	}
 }
 
@@ -1006,4 +1079,42 @@
 
 .maplibregl-map .maplibregl-popup-close-button:hover {
 	background-color: var(--accent);
+}
+
+/*
+ * Sonner toasts on the motion tokens.
+ *
+ * Sonner injects its own stylesheet at runtime with 400-500ms transitions and
+ * `ease`. Only the timing is overridden here (its transition-property lists
+ * stay, so each value below lines up with sonner's own list: transform,
+ * opacity, height, box-shadow), `!important` because sonner's removal rules
+ * carry up to five attribute selectors. A toast being swiped keeps sonner's
+ * `transition: none`, or it would lag behind the pointer. Reduced motion and a
+ * motionless preset zero the tokens, so both get no motion; sonner's own
+ * reduced-motion rule stays in force as well. The loading spinner is sonner's
+ * progress signal and keeps its loop.
+ */
+[data-sonner-toaster] {
+	transition-duration: var(--motion-base) !important;
+	transition-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
+	transition-duration:
+		var(--motion-base), var(--motion-exit), var(--motion-base),
+		var(--motion-fast) !important;
+	transition-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] > * {
+	transition-duration: var(--motion-fast) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-swipe-out="true"] {
+	animation-duration: var(--motion-exit) !important;
+	animation-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-icon] > svg {
+	animation-duration: var(--motion-base) !important;
 }

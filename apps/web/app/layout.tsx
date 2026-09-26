@@ -4,11 +4,9 @@ import { Inter as FontSans } from "next/font/google";
 import localFont from "next/font/local";
 
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 
 import { siteConfig } from "@/config/site";
 import { env } from "@/config/env.js";
-import { Button } from "@workspace/ui/components/button";
 import { ModeToggle } from "@workspace/ui/combined/themes/darkmode-toggle";
 import { ThemeConfigurator } from "@workspace/ui/combined/themes/theme-configurator";
 import { Toaster } from "@workspace/ui/components/sonner";
@@ -16,6 +14,7 @@ import { NavbarItem, NavBar } from "@workspace/ui/combined/navbar";
 import { cn } from "@workspace/ui/lib/utils";
 import { ClientProviders } from "@/components/client-providers";
 import { VersionBadge } from "@/components/version-badge";
+import { NavLink } from "@/components/nav-link";
 import { getThemePresets } from "@/server/theme-presets";
 
 // Each font gets its own variable, set on `<html>` (the `:root` element).
@@ -151,19 +150,15 @@ export default async function RootLayout({
 			<body className="min-h-screen bg-background font-sans antialiased">
 				<ClientProviders>
 					<NavbarItem id="home" zone="left" priority={1}>
-						<Link href="/" passHref>
-							<Button variant="ghost">Home</Button>
-						</Link>
+						<NavLink href="/">Home</NavLink>
 					</NavbarItem>
 					<NavbarItem id="plugins" zone="left" priority={1}>
-						<Link href="/plugins" passHref>
-							<Button variant="ghost">Plugins</Button>
-						</Link>
+						<NavLink href="/plugins">Plugins</NavLink>
 					</NavbarItem>
 					<NavbarItem id="docs" zone="left" priority={1}>
-						<Link href="/docs" passHref>
-							<Button variant="ghost">Docs</Button>
-						</Link>
+						<NavLink href="/docs" section="/docs/">
+							Docs
+						</NavLink>
 					</NavbarItem>
 					<NavbarItem id="modetoggle" zone="right" priority={1}>
 						<ModeToggle />

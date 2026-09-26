@@ -41,6 +41,7 @@ import DatasourceAdder from "./datasource-adder";
 import DatasourceCard from "./datasource-card";
 import { getCreatedTopicsStore } from "../created-topics";
 import { DatasourceStatusBadges } from "./datasource-status-badges";
+import { ATTENTION_CLASS } from "../../dashboard/components/attention";
 import { CheckIcon, CloudCogIcon, PuzzleIcon, Trash2Icon } from "lucide-react";
 import { Template, useTemplates } from "../../templates";
 import { createSafeContext } from "@workspace/utils";
@@ -457,18 +458,8 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 								variant={"ghost"}
 								className={
 									datasources.size === 0
-										? "animate-pulse"
-										: ""
-								}
-								style={
-									datasources.size === 0
-										? {
-												animation:
-													"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-												boxShadow:
-													"0 0 0 0 hsl(var(--primary))",
-											}
-										: {}
+										? ATTENTION_CLASS
+										: undefined
 								}
 							>
 								Datasources <CloudCogIcon />

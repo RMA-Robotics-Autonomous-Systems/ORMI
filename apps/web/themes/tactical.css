@@ -166,6 +166,7 @@
 
 	/* Nothing moves except the data. */
 	--motion-duration: 0ms;
+	--press-scale: 1;
 	--surface-texture: none;
 
 	/* Tiled, like a multi-function display: panels share single dim rules,

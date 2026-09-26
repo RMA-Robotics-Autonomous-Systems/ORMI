@@ -135,6 +135,7 @@
 	--field-background: var(--background);
 
 	--motion-duration: 0ms;
+	--press-scale: 1;
 	--surface-texture: repeating-linear-gradient(
 		0deg,
 		var(--scanline) 0 1px,

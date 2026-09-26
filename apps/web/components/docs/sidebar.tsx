@@ -93,7 +93,7 @@ function NavItem({
 						<span>{item.title}</span>
 					</SidebarMenuButton>
 				</CollapsibleTrigger>
-				<CollapsibleContent>
+				<CollapsibleContent animated>
 					<SidebarMenuSub>
 						{item.children?.map((child, index) => (
 							<SubNavItem
@@ -147,7 +147,7 @@ function SubNavItem({
 						<span>{item.title}</span>
 					</SidebarMenuSubButton>
 				</CollapsibleTrigger>
-				<CollapsibleContent>
+				<CollapsibleContent animated>
 					<div className="ml-4 border-l pl-2 space-y-1">
 						{item.children?.map((child, index) => (
 							<SidebarMenuSubButton

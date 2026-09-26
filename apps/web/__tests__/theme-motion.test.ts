@@ -10,6 +10,9 @@
  * writes. The durations are evaluated, not string-matched: the steps are
  * `calc()`s of `--motion-duration`, so a preset that raises the knob can push
  * a derived step over the ceiling without writing it.
+ *
+ * The press give (`--press-scale`) is held to [0.95, 1], and to 1 (none) in
+ * the motionless presets and under reduced motion.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -122,6 +125,21 @@ function withReducedMotion(tokens: ResolvedTokens): ResolvedTokens {
 	return merged;
 }
 
+/**
+ * `--press-scale` as a number. A bare number only: a `calc()` or a `var()` here
+ * would be a preset deriving a press from something else, which the contract
+ * does not offer, so it fails rather than being guessed.
+ */
+function pressScale(tokens: ResolvedTokens): number {
+	const raw = tokens.get("--press-scale");
+	if (raw === undefined) throw new Error("--press-scale is not defined");
+	const value = stripImportant(raw);
+	if (!/^\d*\.?\d+$/u.test(value)) {
+		throw new Error(`--press-scale: cannot evaluate "${raw}"`);
+	}
+	return Number(value);
+}
+
 const cases = [{ id: "app default", css: "" }, ...presets];
 
 test("there are theme presets to check", () => {
@@ -211,7 +229,21 @@ describe.each(cases)("motion in $id", ({ id, css }) => {
 		}
 	});
 
+	test("the press give is a scale in [0.95, 1]", () => {
+		const scale = pressScale(tokens);
+		expect(scale).toBeGreaterThanOrEqual(0.95);
+		expect(scale).toBeLessThanOrEqual(1);
+	});
+
+	test("prefers-reduced-motion turns the press give off", () => {
+		expect(pressScale(withReducedMotion(tokens))).toBe(1);
+	});
+
 	if (MOTIONLESS.includes(id)) {
+		test("turns the press give off", () => {
+			expect(pressScale(tokens)).toBe(1);
+		});
+
 		test("switches every duration step off", () => {
 			for (const token of DURATION_TOKENS) {
 				expect({ token, ms: durationMs(tokens, token) }).toEqual({
@@ -231,4 +263,5 @@ test("the reduced-motion rule lists every step, each !important", () => {
 			value: "0ms !important",
 		});
 	}
+	expect(declarations.get("--press-scale")).toBe("1 !important");
 });

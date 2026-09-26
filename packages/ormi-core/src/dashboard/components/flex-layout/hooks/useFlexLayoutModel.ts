@@ -26,6 +26,12 @@ interface UseFlexLayoutModelProps {
 	 * drags, tab selection or lock toggles.
 	 */
 	onBeforeLayoutChange?: (model: Model) => void;
+	/**
+	 * Called with the model on screen and the tab about to be selected, just
+	 * before a `SELECT_TAB` is applied (the tab strip indicator measures its
+	 * start here).
+	 */
+	onBeforeTabSelect?: (model: Model, tabId: string) => void;
 }
 
 /**
@@ -41,6 +47,7 @@ export const useFlexLayoutModel = ({
 	removeWidget,
 	updateLayouts,
 	onBeforeLayoutChange,
+	onBeforeTabSelect,
 }: UseFlexLayoutModelProps) => {
 	const [model, setModel] = useState<Model | null>(null);
 	const lastSerializedRef = useRef<string>("");
@@ -212,6 +219,9 @@ export const useFlexLayoutModel = ({
 	const onAction = (action: Action) => {
 		if (model && isAnimatedLayoutAction(action.type)) {
 			onBeforeLayoutChange?.(model);
+		}
+		if (model && action.type === Actions.SELECT_TAB) {
+			onBeforeTabSelect?.(model, action.data.tabNode);
 		}
 		if (action.type === Actions.DELETE_TAB) {
 			const tabId = action.data.node;

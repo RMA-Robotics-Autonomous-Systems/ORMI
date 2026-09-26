@@ -163,7 +163,7 @@ export function CreateWSButton({
 									return (
 										<Card
 											key={type.id}
-											className={`cursor-pointer transition-all hover:shadow-md ${
+											className={`cursor-pointer transition-[background-color,box-shadow] duration-(--motion-fast) ease-(--motion-ease) hover:shadow-md ${
 												dashboardType === type.id
 													? "ring-2 ring-primary bg-primary/5"
 													: "hover:bg-muted/50"

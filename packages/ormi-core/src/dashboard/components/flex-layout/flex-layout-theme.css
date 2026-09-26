@@ -5,6 +5,7 @@
  * contract declared on `:root` in `packages/ui/src/styles/globals.css`
  * (`--frame-gutter`, `--panel-*`, `--tabstrip-background`, `--tabstrip-inset`,
  * `--splitter-line`, `--radius-inner`, `--border-width`, `--motion-duration`,
+ * `--motion-fast`, `--motion-base`, `--motion-layout`, `--motion-ease`,
  * `--label-*`, `--font-label`, `--font-body`, `--tab-title-color`,
  * `--tab-title-active-color`, `--surface-border-color`, `--elevation-overlay`).
  * Those are read here, never redeclared: a local variable of the same name on
@@ -108,10 +109,10 @@
 	--focus-color: var(--ring);
 	--surface-selected-border: color-mix(in srgb, var(--border-color) 80%, transparent);
 	--interactive-transition:
-		background-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
-		color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
-		border-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
-		box-shadow var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1);
+		background-color var(--motion-fast) var(--motion-ease),
+		color var(--motion-fast) var(--motion-ease),
+		border-color var(--motion-fast) var(--motion-ease),
+		box-shadow var(--motion-fast) var(--motion-ease);
 	--focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-color) 35%, transparent);
 
 	/* Drop zones */
@@ -182,8 +183,8 @@
 	box-shadow: var(--panel-shadow);
 	overflow: hidden;
 	transition:
-		border-color var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1),
-		box-shadow var(--motion-duration) cubic-bezier(0.4, 0, 0.2, 1);
+		border-color var(--motion-fast) var(--motion-ease),
+		box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 /*
@@ -304,6 +305,14 @@
 		calc(var(--panel-radius, 0px) - var(--panel-border-width, 0px))
 	);
 	opacity: var(--motion-scale, 0.98);
+	/* The tab strip indicator's timing (tab-indicator-motion.ts):
+	   `--motion-base`, read through a real property for the same reason.
+	   `animation-name` stays `none`, so nothing plays. */
+	animation-duration: var(
+		--motion-base,
+		calc(var(--motion-duration) * 1.5)
+	);
+	animation-timing-function: var(--motion-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .flexlayout__tabset_header {
@@ -349,7 +358,12 @@
 	border-radius: var(--radius-inner) var(--radius-inner) 0 0;
 	font-size: 0.875rem;
 	font-weight: 500;
-	transition: var(--interactive-transition);
+	/* Colour and focus ring only. The folder shape (background, border) is
+	   not faded: a change of selection slides it instead (below), and a fade
+	   on top of the slide would draw the shape twice. */
+	transition:
+		color var(--motion-fast) var(--motion-ease),
+		box-shadow var(--motion-fast) var(--motion-ease);
 	outline: none;
 	cursor: pointer;
 
@@ -383,6 +397,45 @@
 .flexlayout__tab_button:focus-visible {
 	outline: none;
 	box-shadow: var(--focus-ring-shadow);
+}
+
+/*
+ * The active-tab slide (tab-indicator.ts, tab-indicator-motion.ts).
+ *
+ * At rest the selected button draws the folder shape itself, so the join to
+ * the panel never depends on a measurement. While the selection changes the
+ * tab container carries `data-ormi-tab-slide`: its `::before` draws the same
+ * shape, parked on the new tab by the custom properties, and is played from
+ * the old tab by `transform` alone; the new button stands aside
+ * (transparent) until it ends. `z-index: -1` in an isolated container puts
+ * the stand-in above the strip and its baseline, which it covers exactly as
+ * the selected tab does, and below every tab title it passes.
+ */
+.flexlayout__tabset_tabbar_inner_tab_container[data-ormi-tab-slide] {
+	isolation: isolate;
+}
+
+.flexlayout__tabset_tabbar_inner_tab_container[data-ormi-tab-slide]::before {
+	content: "";
+	position: absolute;
+	z-index: -1;
+	left: var(--ormi-tab-x);
+	top: var(--ormi-tab-y);
+	width: var(--ormi-tab-w);
+	height: var(--ormi-tab-h);
+	box-sizing: border-box;
+	background-color: var(--tab-active-background);
+	border: var(--panel-border-width) solid var(--panel-border-color);
+	border-bottom: 0;
+	border-radius: var(--radius-inner) var(--radius-inner) 0 0;
+	transform-origin: 0 0;
+	pointer-events: none;
+}
+
+.flexlayout__tabset_tabbar_inner_tab_container[data-ormi-tab-slide]
+	.flexlayout__tab_button--selected {
+	background-color: transparent;
+	border-color: transparent;
 }
 
 /* Tab titles are labels. Unset by default, so they inherit: the body face
@@ -488,6 +541,18 @@
 	background-color: var(--text-color);
 }
 
+/* FlexLayout's tab-overflow scroll indicator (light.css) fades with literal
+   `0.3s ease-in-out` timings. */
+.flexlayout__mini_scrollbar {
+	transition:
+		opacity var(--motion-base) var(--motion-ease),
+		visibility var(--motion-base) var(--motion-ease);
+}
+
+.flexlayout__mini_scrollbar:hover {
+	transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
 /* Content area */
 .flexlayout__tabset_content {
 	background-color: var(--panel-background);
@@ -496,8 +561,13 @@
 
 /* Splitter (divider) styling */
 .flexlayout__splitter {
-	transition: background-color var(--motion-duration)
-		cubic-bezier(0.4, 0, 0.2, 1);
+	transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+/* FlexLayout's own hover rule (light.css) carries a literal `0.1s` with a
+   delay, and is more specific than the rule above. */
+.flexlayout__splitter:hover {
+	transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 /* The drawers' splitter, at a pane's inner edge. */
@@ -558,8 +628,7 @@
 	pointer-events: none;
 	background-color: var(--splitter-line);
 	border-radius: 999px;
-	transition: background-color var(--motion-duration)
-		cubic-bezier(0.4, 0, 0.2, 1);
+	transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 .flexlayout__row > .flexlayout__splitter:hover::before {
@@ -688,7 +757,10 @@
 	border-radius: var(--border-radius);
 	opacity: 0.8;
 	box-shadow: 0 0 4px var(--border-color);
-	transition: background-color 0.1s ease-out, border-color 0.1s ease-out, box-shadow 0.1s ease-out;
+	transition:
+		background-color var(--motion-fast) var(--motion-ease),
+		border-color var(--motion-fast) var(--motion-ease),
+		box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 .flexlayout__edge_rect {

@@ -2,8 +2,10 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import { Workspace, Category } from "@prisma/client";
 import { WorkspaceItem } from "../workspace-item";
+import { sortableTransition } from "./motion";
 import { WorkspaceWithCategory } from "./types";
 
 interface SortableWorkspaceItemProps {
@@ -35,7 +37,10 @@ export function SortableWorkspaceItem({
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: `workspace-${workspace.id}` });
+	} = useSortable({
+		id: `workspace-${workspace.id}`,
+		transition: sortableTransition(useMotionTiming("base")),
+	});
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
