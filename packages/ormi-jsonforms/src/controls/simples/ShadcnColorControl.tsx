@@ -34,22 +34,105 @@ import {
 	rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsControlProps } from "@jsonforms/react";
+import { RotateCcwIcon } from "lucide-react";
+import { Button } from "@workspace/ui/components/button";
+import { cn } from "@workspace/ui/lib/utils";
 import { ShadcnInputControl } from "./ShadcnInputControl";
-import { Input } from "@workspace/ui/components/input";
 import type { WithAria } from "../../utils/aria";
 
+/**
+ * Where the native picker opens when the field holds no colour. Never written
+ * unless the operator picks it.
+ */
+const PICKER_SEED = "#808080";
+
+/**
+ * Whether a stored colour is empty, meaning "automatic".
+ *
+ * @param value - Stored value.
+ * @returns True for undefined, null or a blank string.
+ */
+export function isAutomaticColor(value: unknown): boolean {
+	return typeof value !== "string" || value.trim().length === 0;
+}
+
+/**
+ * A colour field that can be empty.
+ *
+ * An empty colour is a real setting, not a missing one: a chart series with
+ * no colour takes one derived from its topic at runtime, and a schema default
+ * would defeat that. A native `<input type="color">` cannot represent empty
+ * and paints black, so the swatch is drawn here instead (dashed and labelled
+ * "Automatic" when empty) with the native input laid invisibly over it to
+ * open the picker. The stored value stays empty until the operator picks a
+ * colour, and an optional field without a default can be reset to automatic.
+ *
+ * @param props - Control props with ARIA attributes.
+ * @returns The swatch, its value and the reset action.
+ */
 const ShadcnInputColor = (props: ControlProps & WithAria) => {
-	const { id, enabled, schema, path, handleChange, data, ariaProps } = props;
+	const {
+		id,
+		enabled,
+		path,
+		handleChange,
+		data,
+		required,
+		schema,
+		ariaProps,
+	} = props;
+	const automatic = isAutomaticColor(data);
+	// Automatic is only a setting where the schema leaves the field empty: a
+	// field with a default or a required one has no automatic to go back to.
+	const resettable =
+		!automatic && enabled && !required && schema.default === undefined;
 
 	return (
-		<Input
-			type="color"
-			value={data || schema.default || schema.const || "#000000"}
-			onChange={(ev) => handleChange(path, ev.target.value)}
-			disabled={!enabled}
-			id={id}
-			{...ariaProps}
-		/>
+		<div className="flex min-h-9 items-center gap-2">
+			<div className="relative size-9 shrink-0">
+				<input
+					type="color"
+					value={automatic ? PICKER_SEED : (data as string)}
+					onChange={(ev) => handleChange(path, ev.target.value)}
+					disabled={!enabled}
+					id={id}
+					className="peer absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+					{...ariaProps}
+				/>
+				<span
+					aria-hidden
+					className={cn(
+						"border-field-border pointer-events-none absolute inset-0 rounded-md border peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50 peer-disabled:opacity-50",
+						automatic && "border-dashed",
+					)}
+					style={
+						automatic
+							? undefined
+							: { backgroundColor: data as string }
+					}
+				/>
+			</div>
+			<span
+				className={cn(
+					"text-sm",
+					automatic ? "text-muted-foreground" : "font-mono",
+				)}
+			>
+				{automatic ? "Automatic" : (data as string)}
+			</span>
+			{resettable && (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="text-muted-foreground"
+					onClick={() => handleChange(path, undefined)}
+				>
+					<RotateCcwIcon />
+					Automatic
+				</Button>
+			)}
+		</div>
 	);
 };
 

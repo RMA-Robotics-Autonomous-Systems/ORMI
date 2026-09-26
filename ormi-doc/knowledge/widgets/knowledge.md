@@ -219,14 +219,25 @@ highest-ranked match per control, in order:
 2. `coreRenderer` — ORMI built-in controls (`@workspace/ormi-core/renderers`)
 3. anything plugins add via the `JSON_FORMS_RENDERER` hook
 
-Built-in core renderers are the topic and frame pickers:
+Built-in core renderers are the topic, frame and datasource pickers:
 
 ```typescript
 export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: topicSelectTester, renderer: TopicSelectRenderer },
 	{ tester: frameSelectTester, renderer: FrameSelectRenderer },
+	{ tester: datasourceSelectTester, renderer: DatasourceSelectRenderer },
 ];
 ```
+
+The datasource picker handles any control whose schema carries the
+`datasourceSelect` marker (`datasourceSelectProperty`, `@workspace/utils`), at
+any depth. It reads the configured datasources from `datasourcesAtom`
+(`appStore`) **when the dialog renders** and stores the instance id; an id that
+no longer resolves stays selected as "Missing datasource (<id>)". It replaced
+`createDatasourceSelectHook`, which baked a `oneOf` into the schema from an
+`extensibilityHook`: that runs during `DashboardShell`'s render, before its
+child `GlobalDataSourcesProvider` has registered `AVAILABLE_DATASOURCES`, so
+the list was always empty and every pick-list fell back to free text.
 
 Plugins register extra `{ tester, renderer }` entries on `JSON_FORMS_RENDERER`.
 Selection is by tester rank — there is **no** `options.renderer` string id and no

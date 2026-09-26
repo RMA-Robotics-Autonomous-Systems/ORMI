@@ -136,13 +136,18 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 								type: "string",
 								title: "Name",
 							},
+							// A status colour is meaning the operator assigns, not
+							// chrome, so a fixed hex is right in both themes. Without
+							// a default the colour control reads as black.
 							color: {
 								type: "string",
 								title: "Color",
+								default: "#3b82f6",
 							},
 							condition: {
 								type: "string",
 								title: "Condition",
+								default: "==",
 								oneOf: [
 									{
 										title: "Equal",
@@ -173,6 +178,7 @@ export function CondStatusIndicatorDefinition(): WidgetDefinition<ConditionStatu
 							value: {
 								type: "number",
 								title: "Value",
+								default: 0,
 							},
 						},
 					},

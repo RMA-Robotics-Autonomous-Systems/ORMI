@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	C2ErrorCode,
@@ -1615,10 +1615,7 @@ export function MissionControlPanelDefinition(): WidgetDefinition<MissionControl
 					type: "string",
 					title: "Pinned mission id (optional)",
 				},
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -1655,6 +1652,5 @@ export function MissionControlPanelDefinition(): WidgetDefinition<MissionControl
 			title: "Mission Control",
 		},
 		Component: MissionControlPanelWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionControlPanelProps>;
 }

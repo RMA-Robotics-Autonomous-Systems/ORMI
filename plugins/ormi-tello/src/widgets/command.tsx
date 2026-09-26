@@ -2,23 +2,12 @@ import { useState } from "react"; // Import useCallback
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
-import { createDatasourceSelectHook } from "@workspace/utils";
+import { datasourceSelectProperty } from "@workspace/utils";
 import {
 	DigitalInput,
 	DigitalComponent,
 } from "@workspace/ui/combined/triggers";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
-
-/**
- * Widget extensibility hook turning the `telloSourceId` setting into a
- * pick-list of the configured Tello datasources. The widget needs a concrete
- * datasource to build its connection hook name, so no "automatic" member is
- * offered.
- */
-const telloDatasourceSelectHook = createDatasourceSelectHook({
-	field: "telloSourceId",
-	definitionId: "tello-data-source",
-});
 
 /**
  * Props for Tello commands control widget.
@@ -387,10 +376,13 @@ export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommands
 					type: "string",
 					title: "Title",
 				},
-				telloSourceId: {
-					type: "string",
-					title: "Tello Source",
-				},
+				// A pick-list of the configured Tello datasources. The widget
+				// needs a concrete datasource to build its connection hook name,
+				// so no "automatic" option is offered.
+				telloSourceId: datasourceSelectProperty({
+					title: "Tello datasource",
+					definitionIds: "tello-data-source",
+				}),
 				takeoff: {
 					type: "object",
 					title: "Take off",
@@ -458,6 +450,5 @@ export function TelloCommandsControlDefinition(): WidgetDefinition<TelloCommands
 			title: "TelloCommands Control",
 		},
 		Component: TelloCommandsControl,
-		extensibilityHook: telloDatasourceSelectHook,
 	};
 }

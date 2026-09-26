@@ -1,27 +1,29 @@
 /**
- * Datasource pick-list schema helper.
+ * Datasource pick-list: schema marker and option building.
  *
  * Widgets that pin themselves to one configured datasource store an opaque
- * instance id (`datasource_<uuid>`) in their settings. Rendered as a plain
- * string property that is a free-text box the operator has to fill from
- * memory. This module turns that property into a `oneOf` of
- * `{ const, title }` members built from the datasources actually configured
- * on the dashboard, so JSON Forms renders a pick-list of datasource *titles*
- * while the persisted value stays the same instance id.
+ * instance id (`datasource_<uuid>`) in their settings. The property is
+ * declared as a plain string carrying a {@link DATASOURCE_SELECT_KEYWORD}
+ * marker, and core's datasource-select JSON Forms renderer turns every marked
+ * control into a pick-list of the datasources configured on the dashboard,
+ * read **when the dialog renders**. The persisted value is the instance id
+ * either way.
  *
- * It is wired through `WidgetDefinition.extensibilityHook`, which the
- * dashboard shell invokes at registry time with the live `PluginsManager` —
- * so the list is rebuilt on every shell render and always reflects the
- * datasources currently configured.
+ * The list is deliberately never baked into the schema (a `oneOf` built at
+ * registry time): the registry is resolved by `DashboardShell`, which is the
+ * parent of the provider that knows the configured datasources, so any list
+ * captured there is a snapshot taken before that provider existed. Keeping
+ * the schema a plain string also means validation never depends on which
+ * datasources happen to be configured: a stored id for a datasource that has
+ * since been removed stays valid, and the renderer names it instead.
  *
- * Design constraints (same as `datasource-subscription-registry.ts`):
+ * Design constraints:
  * - Plain TypeScript. No React, no import of `@workspace/ormi-core` or
- *   `@workspace/ormi-plugins`. The manager and the datasource instances are
- *   taken as structural interfaces (satisfied by the real `PluginsManager`
- *   and `Datasource`) to avoid a dependency edge from `utils` into the
- *   plugin/core packages and to keep the mapping unit-testable.
- * - The hook name defaults to the `PluginsHooks.AVAILABLE_DATASOURCES` enum
- *   *string value* and can be overridden via options.
+ *   `@workspace/ormi-plugins`; datasource instances are taken as a structural
+ *   interface so the mapping stays unit-testable and dependency-free.
+ * - The marker is a custom keyword rather than `format`: JSON Forms' AJV runs
+ *   with `strict: false`, which ignores an unknown keyword silently but warns
+ *   on every compile for an unknown format.
  */
 
 /**
@@ -40,149 +42,225 @@ export interface DatasourceInstanceLike {
 	settings: { id: string; title?: string };
 }
 
-/** Manager surface used to resolve the configured datasources. */
-export interface DatasourceListManagerLike {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	applyFilter<T>(name: string, ...args: any[]): T;
-}
-
-/** One member of the generated `oneOf` pick-list. */
-export interface DatasourceOneOfMember {
-	/** Persisted value — the datasource instance id, or `""` for "automatic". */
-	const: string;
-	/** Label shown in the pick-list. */
-	title: string;
-}
-
-/** Minimal schema shape mutated by the hook (a `JsonSchema` satisfies it). */
-export interface DatasourceSelectSchemaLike {
-	properties?: Record<string, unknown>;
-}
+/** JSON Schema keyword marking a string property as a datasource pick-list. */
+export const DATASOURCE_SELECT_KEYWORD = "datasourceSelect";
 
 /**
- * Default hook name — the `PluginsHooks.AVAILABLE_DATASOURCES` string value.
- * Kept literal so `utils` needs no dependency on `@workspace/ormi-plugins`.
- */
-const DEFAULT_AVAILABLE_DATASOURCES_HOOK = "plugins-datasources-availables";
-
-/**
- * Value stored when the operator picks the "automatic" member. The empty
+ * Value stored when the operator picks the "automatic" option. The empty
  * string is what the widgets already treat as unset (`id?.trim() ? … : …`),
  * so the persisted shape is unchanged.
  */
 export const DATASOURCE_SELECT_AUTO_VALUE = "";
 
-/** Options describing which field to rewrite and which datasources to offer. */
-export interface DatasourceSelectOptions {
-	/** Name of the settings property holding the datasource instance id. */
-	field: string;
-	/** Datasource *definition* id(s) whose instances may be offered. */
-	definitionId: string | readonly string[];
+/** Content of the {@link DATASOURCE_SELECT_KEYWORD} marker. */
+export interface DatasourceSelectMarker {
 	/**
-	 * Label of the leading "leave it to the widget" member. Omit for widgets
-	 * that require a concrete datasource — no empty member is then emitted.
+	 * Datasource *definition* ids whose instances may be offered. Absent or
+	 * empty accepts every configured datasource.
+	 */
+	definitionIds?: readonly string[];
+	/**
+	 * Label of a leading "leave it to the widget" option, stored as
+	 * {@link DATASOURCE_SELECT_AUTO_VALUE}. Omit for widgets that need a
+	 * concrete datasource.
 	 */
 	autoLabel?: string;
-	/** Optional replacement title for the rewritten property. */
-	title?: string;
-	/** Hook name override. Defaults to `AVAILABLE_DATASOURCES`. */
-	hook?: string;
+}
+
+/** Options for {@link datasourceSelectProperty}. */
+export interface DatasourceSelectPropertyOptions {
+	/** Property title shown above the pick-list. */
+	title: string;
+	/** Optional property description. */
+	description?: string;
+	/** Definition id(s) whose instances may be offered. Omit to accept all. */
+	definitionIds?: string | readonly string[];
+	/** Label of the optional "automatic" option. */
+	autoLabel?: string;
+}
+
+/** The schema {@link datasourceSelectProperty} returns. */
+export interface DatasourceSelectPropertySchema {
+	type: "string";
+	title: string;
+	description?: string;
+	[DATASOURCE_SELECT_KEYWORD]: DatasourceSelectMarker;
 }
 
 /**
- * Map configured datasource instances to `oneOf` members.
+ * Build the schema of a settings property holding a datasource instance id,
+ * rendered as a pick-list of the configured datasources.
  *
- * Returns an empty array when no instance matches — the caller then leaves
- * the property as a free-text field, so an operator can still pin a
- * datasource that is not configured (or not yet loaded) by typing its id.
- *
- * @param datasources - Configured datasource instances.
- * @param options - Definition id filter and optional "automatic" label.
- * @returns The `oneOf` members, most-relevant order, deduped by instance id.
+ * @param options - Title, optional definition id filter and "automatic" label.
+ * @returns A string property schema carrying the pick-list marker.
+ * @example
+ * properties: {
+ *   datasource_id: datasourceSelectProperty({
+ *     title: "C2 datasource",
+ *     definitionIds: "c2-control-source",
+ *     autoLabel: "Automatic (any C2 datasource)",
+ *   }),
+ * }
  */
-export function buildDatasourceOneOf(
-	datasources: readonly DatasourceInstanceLike[] | undefined,
-	options: Pick<DatasourceSelectOptions, "definitionId" | "autoLabel">,
-): DatasourceOneOfMember[] {
-	const accepted = new Set(
-		typeof options.definitionId === "string"
-			? [options.definitionId]
-			: options.definitionId,
-	);
+export function datasourceSelectProperty(
+	options: DatasourceSelectPropertyOptions,
+): DatasourceSelectPropertySchema {
+	const definitionIds =
+		options.definitionIds === undefined
+			? undefined
+			: typeof options.definitionIds === "string"
+				? [options.definitionIds]
+				: [...options.definitionIds];
+
+	const marker: DatasourceSelectMarker = {
+		...(definitionIds && definitionIds.length > 0 ? { definitionIds } : {}),
+		...(options.autoLabel ? { autoLabel: options.autoLabel } : {}),
+	};
+
+	return {
+		type: "string",
+		title: options.title,
+		...(options.description ? { description: options.description } : {}),
+		[DATASOURCE_SELECT_KEYWORD]: marker,
+	};
+}
+
+/**
+ * Read the pick-list marker off a property schema.
+ *
+ * @param schema - Any value; typically a resolved JSON Forms control schema.
+ * @returns The marker, or `undefined` when the schema carries none.
+ */
+export function readDatasourceSelectMarker(
+	schema: unknown,
+): DatasourceSelectMarker | undefined {
+	if (!schema || typeof schema !== "object") return undefined;
+	const raw = (schema as Record<string, unknown>)[DATASOURCE_SELECT_KEYWORD];
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		return undefined;
+	}
+
+	const { definitionIds, autoLabel } = raw as Record<string, unknown>;
+	const ids = Array.isArray(definitionIds)
+		? definitionIds.filter(
+				(id): id is string => typeof id === "string" && id !== "",
+			)
+		: [];
+
+	return {
+		...(ids.length > 0 ? { definitionIds: ids } : {}),
+		...(typeof autoLabel === "string" && autoLabel.trim()
+			? { autoLabel }
+			: {}),
+	};
+}
+
+/**
+ * What one pick-list option stands for.
+ * - `auto`: the "leave it to the widget" option (stores `""`).
+ * - `configured`: a datasource configured on this dashboard.
+ * - `missing`: the stored id matches no configured datasource.
+ * - `incompatible`: the stored id names a configured datasource of a type
+ *   this field does not accept.
+ */
+export type DatasourceSelectOptionKind =
+	"auto" | "configured" | "missing" | "incompatible";
+
+/** One option of the datasource pick-list. */
+export interface DatasourceSelectOption {
+	/** Persisted value: the instance id, or `""` for the automatic option. */
+	value: string;
+	/** Primary label. */
+	label: string;
+	/** Datasource type name, when known. */
+	typeName?: string;
+	/** What the option stands for. */
+	kind: DatasourceSelectOptionKind;
+}
+
+/** Result of {@link buildDatasourceSelectOptions}. */
+export interface DatasourceSelectChoices {
+	/** Options in display order. */
+	options: DatasourceSelectOption[];
+	/** Number of `configured` options, i.e. datasources actually offered. */
+	configuredCount: number;
+}
+
+/**
+ * Build the pick-list options for a marked property.
+ *
+ * Configured datasources of an accepted type come first, in configuration
+ * order, deduped by instance id. A stored value that matches none of them is
+ * **kept as an option** and named, so it stays selected and is never
+ * silently cleared: a stale id is an operator decision, not something the
+ * dialog resolves for them.
+ *
+ * @param datasources - Datasources configured on the dashboard.
+ * @param marker - The property's pick-list marker.
+ * @param currentValue - The stored value, if any.
+ * @param typeName - Resolves a definition id to a display name.
+ * @returns The options and how many configured datasources they offer.
+ */
+export function buildDatasourceSelectOptions(
+	datasources: Iterable<DatasourceInstanceLike> | undefined,
+	marker: DatasourceSelectMarker,
+	currentValue: unknown,
+	typeName: (definitionId: string) => string | undefined = () => undefined,
+): DatasourceSelectChoices {
+	const accepted =
+		marker.definitionIds && marker.definitionIds.length > 0
+			? new Set(marker.definitionIds)
+			: undefined;
 
 	const seen = new Set<string>();
-	const members: DatasourceOneOfMember[] = [];
+	const configured: DatasourceSelectOption[] = [];
+	const byId = new Map<string, DatasourceInstanceLike>();
 
 	for (const datasource of datasources ?? []) {
 		const id = datasource?.settings?.id;
 		if (!id || seen.has(id)) continue;
-		if (!accepted.has(datasource.datasource_id)) continue;
-
 		seen.add(id);
-		members.push({
-			const: id,
-			title: datasource.settings.title || datasource.title || id,
+		byId.set(id, datasource);
+		if (accepted && !accepted.has(datasource.datasource_id)) continue;
+
+		const name = typeName(datasource.datasource_id);
+		configured.push({
+			value: id,
+			label: datasource.settings.title || datasource.title || id,
+			...(name ? { typeName: name } : {}),
+			kind: "configured",
 		});
 	}
 
-	if (members.length === 0) return [];
-
-	if (options.autoLabel) {
-		members.unshift({
-			const: DATASOURCE_SELECT_AUTO_VALUE,
-			title: options.autoLabel,
+	const options: DatasourceSelectOption[] = [];
+	if (marker.autoLabel) {
+		options.push({
+			value: DATASOURCE_SELECT_AUTO_VALUE,
+			label: marker.autoLabel,
+			kind: "auto",
 		});
 	}
+	options.push(...configured);
 
-	return members;
-}
-
-/**
- * Build a `WidgetDefinition.extensibilityHook` that rewrites one string
- * settings property into a datasource pick-list.
- *
- * The hook is a no-op — leaving the free-text field untouched — when the
- * property is missing or when no configured datasource matches, so a widget
- * never loses the ability to be configured.
- *
- * @param options - Field name, definition id filter, and labels.
- * @returns An extensibility hook that mutates and returns the definition.
- */
-export function createDatasourceSelectHook(options: DatasourceSelectOptions) {
-	return <TDefinition extends { schema: DatasourceSelectSchemaLike }>(
-		definition: TDefinition,
-		manager: DatasourceListManagerLike,
-	): TDefinition => {
-		const properties = definition?.schema?.properties;
-		const current = properties?.[options.field];
-		if (!properties || !current || typeof current !== "object") {
-			return definition;
+	const stored = typeof currentValue === "string" ? currentValue : "";
+	if (stored !== "" && !configured.some((o) => o.value === stored)) {
+		const other = byId.get(stored);
+		if (other) {
+			const name = typeName(other.datasource_id);
+			options.push({
+				value: stored,
+				label: `Incompatible datasource (${other.settings.title || other.title || stored})`,
+				...(name ? { typeName: name } : {}),
+				kind: "incompatible",
+			});
+		} else {
+			options.push({
+				value: stored,
+				label: `Missing datasource (${stored})`,
+				kind: "missing",
+			});
 		}
+	}
 
-		const datasources = manager.applyFilter<DatasourceInstanceLike[]>(
-			options.hook ?? DEFAULT_AVAILABLE_DATASOURCES_HOOK,
-			[],
-		);
-
-		const oneOf = buildDatasourceOneOf(datasources, options);
-		if (oneOf.length === 0) return definition;
-
-		// Rebuild the property from its own title so re-running the hook on an
-		// already-rewritten definition is idempotent.
-		const { title, description } = current as {
-			title?: string;
-			description?: string;
-		};
-
-		properties[options.field] = {
-			type: "string",
-			...((options.title ?? title)
-				? { title: options.title ?? title }
-				: {}),
-			...(description ? { description } : {}),
-			oneOf,
-		};
-
-		return definition;
-	};
+	return { options, configuredCount: configured.length };
 }

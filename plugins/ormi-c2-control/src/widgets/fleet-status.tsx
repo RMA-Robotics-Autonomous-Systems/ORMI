@@ -21,7 +21,7 @@ import { ChevronDown, ChevronRight, RefreshCw, Truck } from "lucide-react";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	publishAgentProfiles,
@@ -777,10 +777,7 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 					type: "object",
 					title: "Agent profile topic (optional)",
 				},
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -824,6 +821,5 @@ export function FleetStatusDefinition(): WidgetDefinition<FleetStatusProps> {
 			title: "Fleet Status",
 		},
 		Component: FleetStatusWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<FleetStatusProps>;
 }

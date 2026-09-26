@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import {
 	focusAsset,
@@ -612,10 +612,7 @@ export function MissionAssetsDefinition(): WidgetDefinition<MissionAssetsProps> 
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -638,6 +635,5 @@ export function MissionAssetsDefinition(): WidgetDefinition<MissionAssetsProps> 
 			title: "Assets",
 		},
 		Component: MissionAssetsWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionAssetsProps>;
 }

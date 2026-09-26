@@ -10,6 +10,7 @@ import {
 	TopicSelectElement,
 } from "@workspace/ormi-core/widgets";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
+import { datasourceSelectProperty } from "@workspace/utils";
 import { Box as Box3DIcon } from "lucide-react";
 import { Scene3DComp } from "./components/scene-3d-comp";
 import {
@@ -100,17 +101,19 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 					items: {
 						type: "object",
 						properties: {
-							source: {
-								type: "string",
-								title: "Datasource ID",
-							},
+							// Any configured datasource may publish a transform
+							// tree, so every type is offered.
+							source: datasourceSelectProperty({
+								title: "Datasource",
+							}),
 							rootFrame: {
 								type: "string",
 								title: "Root Frame (e.g. map)",
 							},
 							position: {
 								type: "object",
-								title: "Position",
+								title: "Position (m)",
+								default: { x: 0, y: 0, z: 0 },
 								properties: {
 									x: {
 										type: "number",
@@ -132,6 +135,7 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 							rotation: {
 								type: "object",
 								title: "Rotation (quaternion)",
+								default: { x: 0, y: 0, z: 0, w: 1 },
 								properties: {
 									x: {
 										type: "number",
@@ -425,6 +429,44 @@ export function Scene3DDefinition(): WidgetDefinition<Scene3DProps> {
 						{
 							type: "Control",
 							scope: "#/properties/anchors",
+							options: {
+								elementLabelProp: "rootFrame",
+								detail: {
+									type: "VerticalLayout",
+									elements: [
+										{
+											type: "Control",
+											scope: "#/properties/source",
+										} as ControlElement,
+										{
+											type: "Control",
+											scope: "#/properties/rootFrame",
+										} as ControlElement,
+										{
+											type: "Group",
+											label: "Position (m)",
+											elements: ["x", "y", "z"].map(
+												(axis) =>
+													({
+														type: "Control",
+														scope: `#/properties/position/properties/${axis}`,
+													}) as ControlElement,
+											),
+										},
+										{
+											type: "Group",
+											label: "Rotation (quaternion)",
+											elements: ["x", "y", "z", "w"].map(
+												(axis) =>
+													({
+														type: "Control",
+														scope: `#/properties/rotation/properties/${axis}`,
+													}) as ControlElement,
+											),
+										},
+									],
+								},
+							},
 						} as ControlElement,
 					],
 				} as Category,

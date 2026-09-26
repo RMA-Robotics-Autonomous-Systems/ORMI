@@ -632,6 +632,9 @@ export function TeleopControlDefinition(): WidgetDefinition<TeleopControlData> {
 					type: "Control",
 					scope: "#/properties/axes",
 					options: {
+						// The bound axis is what tells rows apart; without it every
+						// row is only "Axis N".
+						elementLabelProp: "axis",
 						detail: {
 							type: "VerticalLayout",
 							elements: [

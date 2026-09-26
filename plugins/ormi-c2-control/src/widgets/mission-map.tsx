@@ -105,7 +105,7 @@ import {
 } from "terra-draw";
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { C2Feature, MissionConfig, MissionStatus } from "../types/c2-types";
 import {
@@ -4936,10 +4936,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 					type: "string",
 					title: "Default map",
 				},
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 				overlays: {
 					type: "array",
 					title: "Default overlay layers",
@@ -5054,6 +5051,5 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 			overlays: [],
 		},
 		Component: MissionMapWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionMapProps>;
 }

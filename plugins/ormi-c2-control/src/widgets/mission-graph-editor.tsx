@@ -100,7 +100,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { type CatalogFeature } from "../state/c2-catalog-store";
 import { useAgents } from "../state/c2-agents-store";
@@ -3831,10 +3831,7 @@ export function MissionGraphEditorDefinition(): WidgetDefinition<MissionGraphEdi
 					type: "string",
 					title: "Map to take assets from",
 				},
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -3861,6 +3858,5 @@ export function MissionGraphEditorDefinition(): WidgetDefinition<MissionGraphEdi
 			title: "Mission Graph",
 		},
 		Component: MissionGraphEditorWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionGraphEditorProps>;
 }

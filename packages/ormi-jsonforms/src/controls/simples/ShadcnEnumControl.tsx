@@ -64,6 +64,12 @@ import { cn } from "@workspace/ui/lib/utils";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import type { WithAria } from "../../utils/aria";
 
+/**
+ * Placeholder of an empty select. Neutral on purpose: the field's own label
+ * sits beside it, and repeating it inside the control reads as a value.
+ */
+const ENUM_PLACEHOLDER = "Select";
+
 const ShadcnSelect = ({
 	data,
 	enabled,
@@ -72,7 +78,6 @@ const ShadcnSelect = ({
 	options,
 	handleChange,
 	errors,
-	label,
 	ariaProps,
 }: ControlProps & OwnPropsOfEnum & WithAria) => (
 	<Select
@@ -85,7 +90,7 @@ const ShadcnSelect = ({
 			className={cn("w-full", errors.length > 0 && "border-destructive")}
 			{...ariaProps}
 		>
-			<SelectValue placeholder={label} />
+			<SelectValue placeholder={ENUM_PLACEHOLDER} />
 		</SelectTrigger>
 		<SelectContent>
 			{options!.map((option) => (
@@ -125,11 +130,16 @@ const ShadcnCombobox = ({
 					disabled={!enabled}
 					{...ariaProps}
 				>
-					<span className="min-w-0 truncate text-left">
+					<span
+						className={cn(
+							"min-w-0 truncate text-left",
+							!data && "text-muted-foreground",
+						)}
+					>
 						{data
 							? options!.find((option) => option.value === data)
 									?.label
-							: label}
+							: ENUM_PLACEHOLDER}
 					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 				</Button>

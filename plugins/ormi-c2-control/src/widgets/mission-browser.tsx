@@ -24,7 +24,7 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { Copy, ListPlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { C2ErrorCode, c2ResultCode } from "../datasource/response";
 import {
@@ -573,10 +573,7 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -599,6 +596,5 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 			title: "Missions",
 		},
 		Component: MissionBrowserWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionBrowserProps>;
 }

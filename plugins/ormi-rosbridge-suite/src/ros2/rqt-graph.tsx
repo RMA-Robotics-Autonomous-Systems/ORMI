@@ -7,18 +7,7 @@ import type ForceGraphInstance from "force-graph";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
-import { createDatasourceSelectHook } from "@workspace/utils";
-
-/**
- * Widget extensibility hook turning the `datasource_id` setting into a
- * pick-list of the configured rosbridge datasources. The widget needs a
- * concrete datasource to build its connection hook name, so no "automatic"
- * member is offered.
- */
-const rosbridgeDatasourceSelectHook = createDatasourceSelectHook({
-	field: "datasource_id",
-	definitionId: "rosbridge-suite-source",
-});
+import { datasourceSelectProperty } from "@workspace/utils";
 
 /**
  * Theme tokens for the graph. Nodes, edges and labels are UI here (a view of
@@ -395,7 +384,13 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				datasource_id: { type: "string", title: "Datasources" },
+				// A pick-list of the configured rosbridge datasources. The widget
+				// needs a concrete datasource to build its connection hook name,
+				// so no "automatic" option is offered.
+				datasource_id: datasourceSelectProperty({
+					title: "Datasource",
+					definitionIds: "rosbridge-suite-source",
+				}),
 				poolingRateHz: { type: "number", title: "Pooling rate (Hz)" },
 				ignoreRosout: { type: "boolean", title: "Ignore rosout" },
 				ignoreParameterEvent: {
@@ -432,6 +427,5 @@ export function RQTGraphDefinition(): WidgetDefinition<RQTGraphProps> {
 		} as VerticalLayout,
 		data: { title: "RQT Graph", poolingRateHz: 5 },
 		Component: RQTGraph,
-		extensibilityHook: rosbridgeDatasourceSelectHook,
 	};
 }
