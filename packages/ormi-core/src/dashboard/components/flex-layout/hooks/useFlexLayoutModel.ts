@@ -8,6 +8,7 @@ import {
 	getDefaultFlexLayoutConfig,
 } from "../layout-serializer";
 import { measureFlexLayoutPanels, placeNewTabs } from "../widget-placement";
+import { isAnimatedLayoutAction } from "../panel-motion";
 
 /** Props for useFlexLayoutModel. */
 interface UseFlexLayoutModelProps {
@@ -19,6 +20,12 @@ interface UseFlexLayoutModelProps {
 	updateLayouts: (
 		updater: (prev: Record<string, unknown>) => Record<string, unknown>,
 	) => void;
+	/**
+	 * Called with the model on screen just before a layout change is applied
+	 * (panel motion measures its "before" here). Not called for splitter
+	 * drags, tab selection or lock toggles.
+	 */
+	onBeforeLayoutChange?: (model: Model) => void;
 }
 
 /**
@@ -33,6 +40,7 @@ export const useFlexLayoutModel = ({
 	getDefinition,
 	removeWidget,
 	updateLayouts,
+	onBeforeLayoutChange,
 }: UseFlexLayoutModelProps) => {
 	const [model, setModel] = useState<Model | null>(null);
 	const lastSerializedRef = useRef<string>("");
@@ -175,6 +183,7 @@ export const useFlexLayoutModel = ({
 			}
 
 			const updatedModel = Model.fromJson(newModelJson);
+			if (missingWidgets.length > 0) onBeforeLayoutChange?.(model);
 			setModel(updatedModel);
 
 			// Sync layout to provider after programmatic model updates
@@ -187,12 +196,23 @@ export const useFlexLayoutModel = ({
 				}));
 			}
 		}
-	}, [layouts, widgets, locked, getDefinition, model, updateLayouts]);
+	}, [
+		layouts,
+		widgets,
+		locked,
+		getDefinition,
+		model,
+		updateLayouts,
+		onBeforeLayoutChange,
+	]);
 
 	/**
 	 *    Handle FlexLayout actions, event used on the FlexLayout component
 	 */
 	const onAction = (action: Action) => {
+		if (model && isAnimatedLayoutAction(action.type)) {
+			onBeforeLayoutChange?.(model);
+		}
 		if (action.type === Actions.DELETE_TAB) {
 			const tabId = action.data.node;
 			removeWidget(tabId);

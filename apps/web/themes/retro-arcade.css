@@ -167,7 +167,11 @@
 	--field-border-color: var(--memphis-ink);
 	--action-border-color: var(--memphis-ink);
 
+	/* Playful: overlays bounce in (about 9% overshoot) from further away. */
 	--motion-duration: 100ms;
+	--motion-base: 160ms;
+	--motion-ease-emphasis: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--motion-scale: 0.94;
 	/* Page-level content (the workspace list) sits on the card colour, so
 	   the confetti stays in the margins and never under a row. */
 	--content-surface: var(--card);

@@ -16,6 +16,7 @@ import {
 import { DashboardEmptyState } from "../dashboard-empty-state";
 import { useFlexLayoutModel } from "./hooks/useFlexLayoutModel";
 import { useWidgetFactory } from "./hooks/useWidgetFactory";
+import { usePanelMotion } from "./hooks/usePanelMotion";
 import { renderTab } from "./components/TabRenderer";
 import { NavbarIntegration } from "./components/NavbarIntegration";
 import { FlexLayoutPortalProvider } from "./components/FlexLayoutPortalContext";
@@ -49,6 +50,9 @@ const FlexLayoutDashboard = () => {
 
 	const layoutRef = useRef<Layout>(null);
 
+	// Panel motion (FLIP on the real panels; see panel-motion.ts).
+	const { areaRef, captureBefore, onRenderTabSet } = usePanelMotion();
+
 	// Core FlexLayout integration - hook handles all model management
 	const { model, onModelChange, onAction } = useFlexLayoutModel({
 		widgets,
@@ -57,6 +61,7 @@ const FlexLayoutDashboard = () => {
 		getDefinition,
 		removeWidget,
 		updateLayouts,
+		onBeforeLayoutChange: captureBefore,
 	});
 	const factory = useWidgetFactory({ widgets, getDefinition });
 
@@ -102,7 +107,13 @@ const FlexLayoutDashboard = () => {
 				    (flex-layout-theme.css) carry the outer half of the
 				    gutter and the optional outline around the panel area. */}
 				<div className="ormi-frame flex-1 min-h-0">
-					<div className="ormi-frame__area w-full h-full relative">
+					<div
+						ref={areaRef}
+						className="ormi-frame__area w-full h-full relative"
+					>
+						{/* Resolves the motion tokens to numbers
+						    (flex-layout-theme.css, `.ormi-motion-metrics`). */}
+						<div className="ormi-motion-metrics" aria-hidden />
 						{widgets.size === 0 ? (
 							<DashboardEmptyState
 								hasDatasource={datasources.size > 0}
@@ -115,6 +126,7 @@ const FlexLayoutDashboard = () => {
 								onAction={onAction}
 								onModelChange={onModelChange}
 								onRenderTab={onRenderTab}
+								onRenderTabSet={onRenderTabSet}
 							/>
 						)}
 					</div>

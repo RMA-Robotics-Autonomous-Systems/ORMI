@@ -165,7 +165,12 @@
 	--surface-border-color: var(--hud-edge);
 	--field-border-color: var(--input);
 
+	/* Quick, with a sharp settle: almost all of the travel in the first
+	   third, a longer dash in from the side. */
 	--motion-duration: 100ms;
+	--motion-ease: cubic-bezier(0.05, 0.9, 0.1, 1);
+	--motion-ease-emphasis: var(--motion-ease);
+	--motion-distance: 8px;
 	/* A 32px HUD grid on the page, behind the panels only. */
 	--surface-texture:
 		repeating-linear-gradient(

@@ -166,7 +166,10 @@
 	--surface-border-color: transparent;
 	--field-border-color: transparent;
 
-	--motion-duration: 220ms;
+	/* Default durations; a soft spring on overlays entering (about 4%
+	   overshoot) from a deeper scale, so the give reads. */
+	--motion-ease-emphasis: cubic-bezier(0.3, 1.35, 0.5, 1);
+	--motion-scale: 0.95;
 
 	--frame-gutter: 16px;
 	--panel-radius: 1.25rem;

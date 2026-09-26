@@ -206,10 +206,38 @@
  *   Shadow colour utilities (`shadow-red-500`) do not tint these.
  *
  * Motion and texture
- *   --motion-duration    Tailwind's default transition duration (a bare
- *                        `transition*` utility; an explicit `duration-*` keeps
- *                        its own) and FlexLayout's transitions. Forced to 0ms
- *                        under `prefers-reduced-motion: reduce`.
+ *   Motion is the UI's own state changes only: presses, toggles, hovers,
+ *   overlays opening and closing, a tab or an accordion changing. A value, a
+ *   reading or a live badge never moves through intermediate states, nothing
+ *   loops, and every transition is CSS, so a second click interrupts it and
+ *   never waits for it.
+ *   --motion-duration    The one scale knob: the fast step. Tailwind's default
+ *                        transition duration (a bare `transition*` utility; an
+ *                        explicit `duration-*` keeps its own) and FlexLayout's
+ *                        transitions. Default 120ms. A preset that sets 0ms
+ *                        switches every motion token off, since the others
+ *                        derive from it.
+ *   --motion-fast        Presses, toggles, hovers, focus rings. Derived:
+ *                        `--motion-duration`.
+ *   --motion-base        Overlays entering (dialogs, sheets, popovers, menus,
+ *                        select lists, hover cards, tooltips), tab changes,
+ *                        accordions. Derived: 1.5x (180ms).
+ *   --motion-layout      Panel and layout motion. Derived: 1.8x (216ms).
+ *   --motion-exit        Overlays leaving: 0.75x `--motion-base`, so a close
+ *                        is quicker than an open. Derived; set the base.
+ *   --motion-ease        Transitions and exits: a decisive ease-out.
+ *   --motion-ease-emphasis  Overlays entering. May overshoot a little (the
+ *                        second y control point above 1); a sheet does not
+ *                        overshoot, it would open a gap at the viewport edge.
+ *   --motion-distance    How far an anchored overlay travels in from the side
+ *                        it opens on. Default 4px.
+ *   --motion-scale       The scale an overlay enters from and leaves to.
+ *                        Default 0.98; 1 turns the zoom off.
+ *   A preset may set any of them; each derived step is computed on `:root`
+ *   from what the preset wrote. Keep every duration at or under 300ms
+ *   (asserted by apps/web/__tests__/theme-motion.test.ts). All of them are
+ *   forced to 0ms under `prefers-reduced-motion: reduce`, whatever the
+ *   preset says.
  *   --surface-texture    A `background-image` laid on the page behind
  *                        everything (fixed, does not scroll): scanlines,
  *                        patterns, noise. Panels keep a solid background, so
@@ -385,7 +413,15 @@
 	--field-background: transparent;
 	--action-border-color: transparent;
 
-	--motion-duration: 150ms;
+	--motion-duration: 120ms;
+	--motion-fast: var(--motion-duration);
+	--motion-base: calc(var(--motion-duration) * 1.5);
+	--motion-layout: calc(var(--motion-duration) * 1.8);
+	--motion-exit: calc(var(--motion-base) * 0.75);
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--motion-ease-emphasis: cubic-bezier(0.16, 1.1, 0.3, 1);
+	--motion-distance: 4px;
+	--motion-scale: 0.98;
 	--surface-texture: none;
 	--content-surface: transparent;
 
@@ -429,10 +465,44 @@
 }
 
 /* Reduced motion beats a preset: `!important` because a preset's own `:root`
-   comes later in the cascade and would otherwise restore its duration. */
+   comes later in the cascade and would otherwise restore its duration. Every
+   step is listed, not only the knob: a preset may set a step directly. */
 @media (prefers-reduced-motion: reduce) {
 	:root {
 		--motion-duration: 0ms !important;
+		--motion-fast: 0ms !important;
+		--motion-base: 0ms !important;
+		--motion-layout: 0ms !important;
+		--motion-exit: 0ms !important;
+	}
+}
+
+/*
+ * An overlay's enter and exit shape: fade, `--motion-scale`, and
+ * `--motion-distance` in from the side it is anchored on (Radix sets
+ * `data-side`; a dialog has none and only fades and scales). Timing is not
+ * here: `animate-in` / `animate-out` read the motion tokens (the `@theme`
+ * block below), so an element with no `duration-*` / `ease-*` of its own
+ * keeps the shared rhythm. Pair it with `data-[state=open]:animate-in
+ * data-[state=closed]:animate-out`.
+ */
+@utility motion-pop {
+	--tw-enter-opacity: 0;
+	--tw-exit-opacity: 0;
+	--tw-enter-scale: var(--motion-scale);
+	--tw-exit-scale: var(--motion-scale);
+
+	&[data-side="bottom"] {
+		--tw-enter-translate-y: calc(var(--motion-distance) * -1);
+	}
+	&[data-side="top"] {
+		--tw-enter-translate-y: var(--motion-distance);
+	}
+	&[data-side="left"] {
+		--tw-enter-translate-x: var(--motion-distance);
+	}
+	&[data-side="right"] {
+		--tw-enter-translate-x: calc(var(--motion-distance) * -1);
 	}
 }
 
@@ -714,7 +784,49 @@
 	--color-field: var(--field-background);
 	--color-content-surface: var(--content-surface);
 
-	--default-transition-duration: var(--motion-duration);
+	--default-transition-duration: var(--motion-fast);
+	--default-transition-timing-function: var(--motion-ease);
+
+	/* tw-animate-css's keyframed utilities, with the motion tokens as the
+	   fallback where it hardcodes .15s / .2s and `ease`. An element's own
+	   `duration-*` / `ease-*` (`--tw-duration`, `--tw-ease`) still wins. The
+	   keyframes are tw-animate's. */
+	--animate-in: enter
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease-emphasis))
+		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-out: exit
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-accordion-down: accordion-down
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-accordion-up: accordion-up
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-collapsible-down: collapsible-down
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-collapsible-up: collapsible-up
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
 }
 
 @layer base {
