@@ -124,53 +124,29 @@ describe("the model", () => {
 		);
 	});
 
-	it("gives the map the whole left edge", () => {
-		// The reason this arrangement was picked: the map is the one panel that
-		// is better at every size, and it is the first child of the root row —
-		// so it spans the full height rather than sharing a column with a
-		// stack. A later edit that nests it under something else would still
-		// render, and would quietly take that away.
-		const [first, ...rest] = model().layout.children as Array<{
+	it("gives the centre, full height, to the map and the behaviour graph", () => {
+		// Both are canvases, the one kind of panel here that is unusable rather
+		// than merely cramped when it is starved. They share the one pane with
+		// room for either: a tabset that is a direct child of the root row, so
+		// it spans the full height, and the widest thing at the top level. A
+		// later edit that nests it into a stack would still render, and would
+		// quietly take that away.
+		const children = model().layout.children as Array<{
 			type: string;
 			weight: number;
 			children?: Array<{ id?: string }>;
 		}>;
-		expect(first?.type).toBe("tabset");
-		expect(first?.children?.map((c) => c.id)).toEqual(["c2-map"]);
-		// And it is the widest thing at the top level.
-		for (const sibling of rest) {
-			expect(first!.weight).toBeGreaterThanOrEqual(sibling.weight);
-		}
-	});
-
-	it("gives the authoring band the most room on the right", () => {
-		// The graph editor replaced the mission form: it is the surface a
-		// mission is written on, and a canvas is the one panel here that is
-		// unusable rather than merely cramped when it is starved. The layout
-		// this replaces put it last in an already-divided right half — 530×85
-		// px at 1100×800, smaller than the graph's own floating legend.
-		//
-		// Read structurally rather than by weight literal: the band holding the
-		// graph must be the heaviest child of the right half, and it must span
-		// the whole of it (a tabset, not a column inside a row).
-		const [, right] = model().layout.children as Array<{
-			type: string;
-			weight: number;
-			children?: Array<{
-				type: string;
-				weight: number;
-				children?: Array<{ id?: string }>;
-			}>;
-		}>;
-		const bands = right?.children ?? [];
-		const authoring = bands.find(
-			(band) =>
-				band.type === "tabset" &&
-				band.children?.some((c) => c.id === "c2-graph"),
+		const centre = children.find(
+			(c) =>
+				c.type === "tabset" &&
+				c.children?.some((t) => t.id === "c2-map"),
 		);
-		expect(authoring).toBeDefined();
-		for (const band of bands) {
-			expect(authoring!.weight).toBeGreaterThanOrEqual(band.weight);
+		expect(centre?.children?.map((c) => c.id)).toEqual([
+			"c2-map",
+			"c2-graph",
+		]);
+		for (const sibling of children) {
+			expect(centre!.weight).toBeGreaterThanOrEqual(sibling.weight);
 		}
 	});
 
@@ -189,21 +165,17 @@ describe("the model", () => {
 		}
 	});
 
-	it("shares one tabset between the behaviour graph, the assets and the log", () => {
-		// The graph and the assets are two views of one authoring job, and the
-		// log is read once something has gone wrong; none is watched
-		// continuously, so a pane each would spend most of the right half on
-		// idle panels. The graph editor is the only authoring panel in the
-		// strip — the fields the C2 itself carries are authored on the map,
-		// beside the geometry they describe, and derived from the graph.
-		const shared = tabsets(model().layout)
-			.filter((set) => set.children.length > 1)
-			.map((set) =>
-				set.children
-					.map((c) => String((c as { id?: unknown }).id))
-					.sort(),
+	it("keeps every continuously watched panel in a pane of its own", () => {
+		// Fleet presence and mission feedback are read while something is
+		// moving; a reading behind a tab is a reading nobody takes.
+		for (const set of tabsets(model().layout)) {
+			const ids = set.children.map((c) =>
+				String((c as { id?: unknown }).id),
 			);
-		expect(shared).toContainEqual(["c2-assets", "c2-graph", "c2-log"]);
+			if (ids.includes("c2-fleet") || ids.includes("c2-feedback")) {
+				expect(ids).toHaveLength(1);
+			}
+		}
 	});
 
 	it("seeds each panel with its definition's own defaults, not just a title", () => {
