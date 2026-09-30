@@ -45,25 +45,28 @@ export const DatasourceStatusBadges = (props: DatasourceStatusBadgesProps) => {
 	const statusConfig = {
 		connecting: {
 			icon: Loader2,
-			className:
-				"border-transparent bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+			className: "border-transparent bg-info/15 text-info",
+			iconClassName: "",
 			label: "Connecting",
 		},
 		ready: {
 			icon: CheckIcon,
-			className:
-				"border-transparent bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+			className: "border-transparent bg-success/15 text-success",
+			iconClassName: "",
 			label: "Ready",
 		},
 		error: {
 			icon: AlertCircle,
-			className:
-				"border-transparent bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+			// Dark `--destructive` is too dim for text: the label stays
+			// foreground and the icon carries the colour.
+			className: "border-transparent bg-destructive/15 text-foreground",
+			iconClassName: "text-destructive",
 			label: "Error",
 		},
 		disposed: {
 			icon: XCircle,
 			className: "border-transparent bg-muted text-muted-foreground",
+			iconClassName: "",
 			label: "Disposed",
 		},
 	};
@@ -85,7 +88,7 @@ export const DatasourceStatusBadges = (props: DatasourceStatusBadgesProps) => {
 									className={`gap-1 ${config.className}`}
 								>
 									<Icon
-										className={`h-3 w-3 ${status === "connecting" ? "animate-spin" : ""}`}
+										className={`h-3 w-3 ${config.iconClassName} ${status === "connecting" ? "animate-spin" : ""}`}
 									/>
 									<span>{ds.settings.title}</span>
 								</Badge>

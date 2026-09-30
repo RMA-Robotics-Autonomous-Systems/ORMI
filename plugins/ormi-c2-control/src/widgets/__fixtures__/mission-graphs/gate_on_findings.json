@@ -1,0 +1,237 @@
+{
+	"name": "gate_on_findings",
+	"description": "Ge goes in once Es's sweep has produced a contact, and on again at the second: the mission's own contacts.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "contact",
+				"kind": "condition",
+				"label": "contact",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ContactsFound",
+					"threshold": 1,
+					"negate": false
+				}
+			},
+			{
+				"id": "w1",
+				"kind": "wait",
+				"label": "w1",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "second",
+				"kind": "condition",
+				"label": "second",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ContactsFound",
+					"threshold": 2,
+					"negate": false
+				}
+			},
+			{
+				"id": "w2",
+				"kind": "wait",
+				"label": "w2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "back",
+				"kind": "action",
+				"label": "back",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-sweep.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-w1.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "w1",
+				"target_port": "agent"
+			},
+			{
+				"id": "w1.agent-go.agent",
+				"source": "w1",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "go.agent-w2.agent",
+				"source": "go",
+				"source_port": "agent",
+				"target": "w2",
+				"target_port": "agent"
+			},
+			{
+				"id": "w2.agent-back.agent",
+				"source": "w2",
+				"source_port": "agent",
+				"target": "back",
+				"target_port": "agent"
+			},
+			{
+				"id": "contact.value-w1.when",
+				"source": "contact",
+				"source_port": "value",
+				"target": "w1",
+				"target_port": "when"
+			},
+			{
+				"id": "second.value-w2.when",
+				"source": "second",
+				"source_port": "value",
+				"target": "w2",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": 1,
+							"wait_node": "w1",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ContactsFound",
+									"key": "",
+									"arg": "",
+									"threshold": 1,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["contact"]
+						},
+						{
+							"step_id": "back",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp-2",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "w2",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ContactsFound",
+									"key": "",
+									"arg": "",
+									"threshold": 2,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["second"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

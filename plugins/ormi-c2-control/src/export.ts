@@ -15,8 +15,9 @@ import { MissionFeedbackDefinition } from "./widgets/mission-feedback";
 import { SwarmLogDefinition } from "./widgets/swarm-log";
 import { MissionBrowserDefinition } from "./widgets/mission-browser";
 import { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
-import { MissionEditorDefinition } from "./widgets/mission-editor";
+import { MissionGraphEditorDefinition } from "./widgets/mission-graph-editor";
 import { MissionMapDefinition } from "./widgets/mission-map";
+import { MissionAssetsDefinition } from "./widgets/mission-assets-panel";
 import { MissionControlPage } from "./page/mission-control-page";
 
 export { C2_DATASOURCE_ID } from "./datasource/datasource-select";
@@ -38,8 +39,7 @@ export const c2PageDefinition: PageDefinition = {
 		position: "left" as const,
 		priority: 8,
 		group: "C2",
-		description:
-			"Plan, submit and drive C2 missions, with the fleet and the live mission feedback beside the map.",
+		description: "Plan, submit and run C2 missions.",
 	},
 };
 
@@ -54,8 +54,14 @@ export const c2PageDefinition: PageDefinition = {
 const C2_COMMAND_WIDGET_IDS = [
 	"c2-mission-browser-widget",
 	"c2-mission-control-panel-widget",
-	"c2-mission-editor-widget",
 	"c2-mission-map-widget",
+	// The graph editor reads and writes the mission store (`c2.missions.*`)
+	// and the map's feature catalogue (`c2.map.features.list`), so it gates on
+	// the C2 datasource exactly as the other authoring panels do.
+	"c2-mission-graph-widget",
+	// The asset panel reads and writes the mission store and the map's
+	// features, like the map and the graph editor.
+	"c2-mission-assets-widget",
 ] as const;
 
 /**
@@ -69,7 +75,7 @@ export const datasourceDefinition = {
 	id: "c2-control-source",
 	name: "C2 Control",
 	description:
-		"RMA Multi-Agent Framework C2: mission commands + CRUD as remote calls (REST). Telemetry uses your ROS datasource.",
+		"RMA Multi-Agent Framework C2: missions, maps and vehicles. Telemetry comes from your ROS datasource.",
 
 	// Mission Control names the C2 an operator is looking at; `dbUrl` moves
 	// with it and only adds noise. `missionControlToken` is a bearer
@@ -84,11 +90,11 @@ export const datasourceDefinition = {
 			enable: { type: "boolean", title: "Enable" },
 			missionControlUrl: {
 				type: "string",
-				title: "Mission Control URL (:5001)",
+				title: "Mission Control URL",
 			},
 			dbUrl: {
 				type: "string",
-				title: "Mongo REST URL (:5000)",
+				title: "C2 database URL",
 			},
 			// Optional against the old (unauthenticated) backend, required by
 			// the new one. Blank sends nothing, so the old backend is
@@ -98,8 +104,7 @@ export const datasourceDefinition = {
 			missionControlToken: {
 				type: "string",
 				title: "Mission Control auth token (optional)",
-				description:
-					"Bearer token (the backend's C2_API_TOKEN). Sent on every Mission Control (:5001) request and on every Mongo REST (:5000) write; never on a :5000 read. Leave blank against an unauthenticated C2.",
+				description: "Leave blank if the C2 does not require one.",
 			},
 		},
 	},
@@ -138,15 +143,17 @@ export const widgetsExport = (
 	// Command widgets (gated by widgetFilters below).
 	widgets.push(MissionBrowserDefinition());
 	widgets.push(MissionControlPanelDefinition());
-	// Authoring widgets (also gated): mission editor and mission map.
-	widgets.push(MissionEditorDefinition());
+	// Authoring widgets (also gated): the mission map and the behaviour-graph
+	// editor.
 	widgets.push(MissionMapDefinition());
+	widgets.push(MissionGraphEditorDefinition());
+	widgets.push(MissionAssetsDefinition());
 	return widgets;
 };
 
 /**
  * `WIDGET_LIST_WITH_DATASOURCE` filter: hide the C2 **command** widgets (mission
- * browser, control panel, editor, map) unless an enabled C2 datasource is
+ * browser, control panel, map, graph) unless an enabled C2 datasource is
  * configured, since they need its remote calls. The display widgets (fleet
  * status, mission feedback, swarm log) are never filtered here
  * — they ride the rosbridge/foxglove datasource and gate on its topic health.

@@ -1,0 +1,177 @@
+{
+	"name": "hold_until_done",
+	"description": "Agent 2 holds the point until survey 1 of agent 1 is done: Ge goes to the hold point, then holds until Es's sweep is done (its `done` into Ge's Hold until), then sweeps.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "survey",
+				"kind": "action",
+				"label": "survey",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "hold",
+				"kind": "action",
+				"label": "hold",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "until",
+				"kind": "wait",
+				"label": "until",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-survey.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "survey",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-hold.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "hold",
+				"target_port": "agent"
+			},
+			{
+				"id": "hold.agent-until.agent",
+				"source": "hold",
+				"source_port": "agent",
+				"target": "until",
+				"target_port": "agent"
+			},
+			{
+				"id": "until.agent-sweep.agent",
+				"source": "until",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "survey.done-until.when",
+				"source": "survey",
+				"source_port": "done",
+				"target": "until",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "survey",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "hold",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": 1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						},
+						{
+							"step_id": "sweep",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone-2",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "until",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "StepDone",
+									"key": "survey",
+									"arg": "",
+									"threshold": 1,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["survey"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

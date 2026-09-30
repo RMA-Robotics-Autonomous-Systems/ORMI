@@ -82,7 +82,7 @@ const GROUPS: Array<{ title: string; params: NumericParam[] }> = [
 				step: 50,
 				decimals: 0,
 				unit: "counts",
-				hint: "One number shared by all five coils — the objection the MAD detector answers. Always shown: under MAD it still sets the shipped baseline every comparison on this page is measured against.",
+				hint: "One number shared by all five coils. Under MAD it still sets the shipped baseline for every comparison on this page.",
 			},
 			{
 				key: "releaseRatio",
@@ -239,7 +239,7 @@ const CHOICES: Array<{
 			{ value: "xsens_link", label: "Antenna (xsens_link)" },
 			{ value: "base_link", label: "Body (base_link)" },
 		],
-		hint: "The difference between the two is the lever arm — about 22 cm.",
+		hint: "The lever arm between the two is about 22 cm.",
 	},
 	{
 		key: "yawAt",
@@ -345,7 +345,7 @@ const ParamsRail = (props: ParamsRailSettings) => {
 		},
 		{
 			label: "replay",
-			value: result ? `${result.ms.toFixed(1)} ms` : "—",
+			value: result ? `${result.ms.toFixed(1)} ms` : "n/a",
 			hint: "Wall time of the last full pass over the run.",
 		},
 	];
@@ -365,7 +365,7 @@ const ParamsRail = (props: ParamsRailSettings) => {
 							size="sm"
 							variant="outline"
 							className="h-7 text-[11px]"
-							title="One fixed threshold and the covariance gate — what the robot runs today."
+							title="One fixed threshold and the covariance gate, as the robot runs today."
 							onClick={() => setParams(SHIPPED_PARAMS)}
 						>
 							shipped
@@ -400,7 +400,7 @@ const ParamsRail = (props: ParamsRailSettings) => {
 							size="sm"
 							variant="outline"
 							className="h-7 text-[11px]"
-							title="Per-coil MAD and chain association — the two proposals."
+							title="Per-coil MAD and chain association (the two proposals)."
 							onClick={() => setParams(PROPOSED_PARAMS)}
 						>
 							proposed

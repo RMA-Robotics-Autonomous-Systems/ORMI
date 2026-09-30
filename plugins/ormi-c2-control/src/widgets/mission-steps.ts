@@ -14,11 +14,7 @@ import { missionStatusLabel } from "../types/status-labels";
 
 /** The ordered steps in the stepper. */
 export type MissionStepId =
-	| "submit"
-	| "planned"
-	| "accepted"
-	| "started"
-	| "done";
+	"submit" | "planned" | "accepted" | "started" | "done";
 
 /** Per-step render state. */
 export type MissionStepState =

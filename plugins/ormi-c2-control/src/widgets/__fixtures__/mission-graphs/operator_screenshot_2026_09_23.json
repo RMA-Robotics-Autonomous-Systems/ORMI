@@ -1,0 +1,181 @@
+{
+	"name": "operator_screenshot_2026_09_23",
+	"description": "The graph that exposed the two behaviour systems: Es navigates to the field; Ge waits 30 s then navigates to the field too.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "go-es",
+				"kind": "action",
+				"label": "go-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "when",
+				"kind": "condition",
+				"label": "when",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 30,
+					"negate": false
+				}
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go-ge",
+				"kind": "action",
+				"label": "go-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "field",
+				"kind": "asset",
+				"label": "field",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-go-es.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "go-es",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-wait.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "wait",
+				"target_port": "agent"
+			},
+			{
+				"id": "wait.agent-go-ge.agent",
+				"source": "wait",
+				"source_port": "agent",
+				"target": "go-ge",
+				"target_port": "agent"
+			},
+			{
+				"id": "when.value-wait.when",
+				"source": "when",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			},
+			{
+				"id": "field.value-go-es.target",
+				"source": "field",
+				"source_port": "value",
+				"target": "go-es",
+				"target_port": "target"
+			},
+			{
+				"id": "field.value-go-ge.target",
+				"source": "field",
+				"source_port": "value",
+				"target": "go-ge",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "go-es",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go-ge",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "wait",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 30,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["when"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

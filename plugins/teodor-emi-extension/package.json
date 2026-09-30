@@ -16,6 +16,7 @@
 		"build": "tsc",
 		"lint": "eslint .",
 		"typecheck": "tsc --noEmit",
+		"test": "bun test src",
 		"clean": "rm -rf dist build .turbo node_modules"
 	},
 	"devDependencies": {

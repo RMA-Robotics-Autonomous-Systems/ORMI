@@ -1,0 +1,62 @@
+{
+	"name": "port_unknown",
+	"description": "A link to a port the node does not have is refused.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "wp",
+				"kind": "asset",
+				"label": "wp",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-go.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "wp.value-go.goal",
+				"source": "wp",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "goal"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["NAVIGATE_TARGET", "go"],
+			["PORT_UNKNOWN", "go"]
+		]
+	}
+}

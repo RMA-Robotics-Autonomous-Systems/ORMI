@@ -448,7 +448,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 	return (
 		<div
 			ref={containerRef}
-			className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black"
+			className="relative flex h-full w-full items-center justify-center overflow-hidden bg-muted"
 		>
 			<video
 				id="video"
@@ -469,7 +469,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
 			{/* Connecting overlay */}
 			{isConnecting && !isFailed && (
-				<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60">
+				<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/70">
 					<Spinner size={32} className="h-auto w-auto" />
 					<Badge variant="secondary">
 						{isReconnecting
@@ -485,8 +485,8 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 					<Tooltip>
 						<TooltipTrigger asChild>
 							{isLive ? (
-								<Badge className="gap-1.5 bg-green-600 text-white hover:bg-green-600">
-									<span className="size-2 rounded-full bg-white" />
+								<Badge className="gap-1.5 bg-success text-success-foreground hover:bg-success">
+									<span className="size-2 rounded-full bg-success-foreground" />
 									Live · {topicName}
 								</Badge>
 							) : (

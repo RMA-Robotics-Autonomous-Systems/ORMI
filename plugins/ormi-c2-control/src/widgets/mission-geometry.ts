@@ -5,15 +5,17 @@ import type { MissionConfig, MissionGeometry } from "../types/c2-types";
 /**
  * Mission objective geometry ↔ GeoJSON projection (pure, testable).
  *
- * The mission editor stores objective geometry as `objective.geometries[]`,
+ * A mission stores objective geometry as `objective.geometries[]`,
  * where each entry is either an INLINE geometry
  * (`{ geometry: { geometry_type, coordinates } }`, in the C2 flat vertex form
- * produced by `drawFeatureToInlineGeometry`) or a REFERENCE to a stored MapDB
- * feature (`{ feature_id }`).
+ * written by builds before the behaviour graph owned the objective) or a
+ * REFERENCE to a stored MapDB feature (`{ feature_id }`), which is the only
+ * form anything writes now.
  *
- * The map renders ONLY the inline geometries — references would resolve to map
- * features (already drawn by the map-feature layer), so re-projecting them here
- * would double-render them.
+ * This module is READ-ONLY with respect to that shape: it projects stored
+ * geometry for display and never produces it. The map renders ONLY the inline
+ * geometries — references resolve to map features (already drawn by the
+ * map-feature layer), so re-projecting them here would double-render them.
  *
  * ⚠ COORDINATE RULE — `[lng, lat]` order is preserved end-to-end; no swap.
  *
@@ -135,32 +137,12 @@ export function inlineGeometryToGeoJSON(
 }
 
 /**
- * Convert one inline mission geometry into a terra-draw GeoJSON Feature so the
- * operator can load it into the authoring layer for editing. Returns `null` when
- * the geometry can't be mapped to a renderable Point / LineString / Polygon.
- *
- * @param inline - The inline `{ geometry_type, coordinates }` block.
- * @returns A GeoJSON Feature, or `null`.
- */
-export function inlineToDrawFeature(inline: {
-	geometry_type?: string;
-	coordinates: unknown;
-}): Feature<Point | LineString | Polygon> | null {
-	const geometry = inlineGeometryToGeoJSON(
-		inline.geometry_type,
-		inline.coordinates,
-	);
-	if (!geometry) return null;
-	return { type: "Feature", properties: {}, geometry };
-}
-
-/**
  * Project a mission's `objective.geometries[]` into a GeoJSON FeatureCollection
  * for the mission-feature layer. Only INLINE geometries are rendered; entries
  * that are pure `feature_id` references (resolving to map features) are skipped.
  *
  * Each feature carries its source `index` in `objective.geometries[]` so the
- * mission editor can select / replace / delete a specific entry.
+ * mission map can select / replace / delete a specific entry.
  *
  * @param mission - The full mission config (or `null`/partial).
  * @returns A FeatureCollection of the inline mission geometries.

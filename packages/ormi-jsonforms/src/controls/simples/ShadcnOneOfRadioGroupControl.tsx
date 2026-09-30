@@ -42,6 +42,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
 import merge from "lodash/merge";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 export const ShadcnRadioGroup = ({
 	data,
@@ -50,6 +51,7 @@ export const ShadcnRadioGroup = ({
 	label,
 	options,
 	path,
+	schema,
 	handleChange,
 	errors,
 	description,
@@ -58,6 +60,7 @@ export const ShadcnRadioGroup = ({
 	required,
 }: ControlProps & OwnPropsOfEnum) => {
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({ path, schema, errors });
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 	// `true` for the focus argument: help text is always shown, never gated on
 	// the field being focused.
@@ -120,7 +123,7 @@ export const ShadcnRadioGroup = ({
 
 			{!isValid && (
 				<p id={errorId(id)} className="text-sm text-destructive">
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

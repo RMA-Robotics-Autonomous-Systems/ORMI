@@ -21,16 +21,19 @@
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.205 0 0);
 	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
+	--muted-foreground: oklch(0.54 0 0);
 	--accent: oklch(0.97 0 0);
 	--accent-foreground: oklch(0.205 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.577 0.245 27.325);
-	--success: oklch(0.62 0.17 150);
+	--success: oklch(0.53 0.17 150);
 	--success-foreground: oklch(0.985 0 0);
 	--warning: oklch(0.78 0.16 80);
 	--warning-foreground: oklch(0.27 0.04 80);
-	--info: oklch(0.6 0.16 245);
+	/* `--warning` is a fill (L 0.78): as text on a light surface it is
+	   unreadable, so warning-coloured text uses this darker amber. */
+	--warning-text: oklch(0.56 0.13 70);
+	--info: oklch(0.55 0.16 245);
 	--info-foreground: oklch(0.985 0 0);
 	--border: oklch(0.922 0 0);
 	--input: oklch(0.922 0 0);
@@ -66,12 +69,13 @@
 	--muted-foreground: oklch(0.708 0 0);
 	--accent: oklch(0.269 0 0);
 	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.396 0.141 25.723);
+	--destructive: oklch(0.58 0.2 25.3);
 	--destructive-foreground: oklch(0.637 0.237 25.331);
 	--success: oklch(0.68 0.16 152);
 	--success-foreground: oklch(0.205 0 0);
 	--warning: oklch(0.82 0.16 82);
 	--warning-foreground: oklch(0.205 0 0);
+	--warning-text: oklch(0.82 0.16 82);
 	--info: oklch(0.68 0.15 245);
 	--info-foreground: oklch(0.205 0 0);
 	--border: oklch(0.269 0 0);
@@ -90,6 +94,509 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.269 0 0);
 	--sidebar-ring: oklch(0.439 0 0);
+}
+
+/*
+ * Preset token contract: shape, type, texture and the layout frame (and the
+ * motion tokens, which are app-wide and not a preset's to set).
+ *
+ * A theme preset (`apps/web/themes/*.css`) is plain CSS injected at runtime
+ * into `<style id="dynamic-theme-preset">`, after this stylesheet and outside
+ * any layer, so a preset that writes one of these on `:root` (or `.dark`) wins
+ * by cascade order. Presets never reach Tailwind, so everything a design
+ * movement needs to change has to be a variable read at runtime; these are
+ * those variables. Colours are the shadcn tokens above. Every default below
+ * reproduces the stock look.
+ *
+ * Write them on `:root` / `.dark`, never on a descendant: several are derived
+ * here from others (`--radius-inner` from `--panel-radius`), and a derived
+ * value is computed where it is declared, so an override set lower in the
+ * tree does not reach it.
+ *
+ * Typography
+ *   --font-body          Body text, Tailwind `font-sans`, canvas chart labels.
+ *   --font-display       Headings (h1-h4, card/dialog/sheet titles) and
+ *                        Tailwind `font-heading`. Unset by default: headings
+ *                        inherit their container's font and `font-heading`
+ *                        falls back to `--font-body`.
+ *   --font-code          Tailwind `font-mono`.
+ *   Bundled faces a preset may name in those three (apps/web/app/layout.tsx
+ *   declares them on `<html>`; the files ship with the app and are never
+ *   fetched from a third party at runtime; only Inter is preloaded, the rest
+ *   download the first time something is set in them):
+ *     --font-inter           Inter, variable (the default body face)
+ *     --font-calsans         Cal Sans SemiBold, display
+ *     --font-jetbrains-mono  JetBrains Mono, variable, monospace
+ *     --font-space-grotesk   Space Grotesk, variable, grotesk
+ *     --font-chakra-petch    Chakra Petch 400-700, squared techno
+ *     --font-nunito-sans     Nunito Sans, variable, humanist sans
+ *     --font-righteous       Righteous 400, geometric display
+ *   Each resolves to the face and then a fallback (Arial adjusted to its
+ *   metrics; `ui-monospace, monospace` for JetBrains Mono). End a stack with
+ *   a generic family anyway: `--font-code: var(--font-jetbrains-mono), monospace`.
+ *   --heading-weight     font-weight of h1-h4 (a dialog, alert-dialog or
+ *                        sheet title is an h2, but `--title-weight` below
+ *                        wins there).
+ *   --heading-tracking   letter-spacing of headings and title slots.
+ *   --heading-transform  text-transform of headings and title slots.
+ *   --title-weight       font-weight of card, dialog, sheet and alert-dialog
+ *                        titles. Default 600 (`font-semibold`, what they
+ *                        carried as a utility). A single-weight display face
+ *                        wants 400 here, or the browser synthesises bold.
+ *   --font-label         font-family of tab titles, table heads, badges.
+ *   --label-tracking     letter-spacing of tab titles, table heads, badges.
+ *   --label-transform    text-transform of tab titles, table heads, badges.
+ *   --label-weight       font-weight of tab titles, table heads, badges.
+ *                        Unset: each keeps its own weight (500 for all three).
+ *   The other five heading and label tokens are unset by default, which
+ *   makes the property inherit (`normal` / `none` / the body face at the
+ *   root; panel tab titles inherit the body face too): a heading inside an
+ *   `uppercase` container stays uppercase. They are applied in `@layer base`,
+ *   so a component's own `uppercase` / `tracking-*` / `font-*` utility still
+ *   wins. A sort button in a table head must inherit the head's font,
+ *   weight, tracking and case explicitly (the UA sets `text-transform: none`
+ *   on buttons): the workspace list does; the topics list inherits all but
+ *   the weight.
+ *   --tab-title-color    Panel tab titles on the strip (inactive tabs).
+ *                        Default `var(--muted-foreground)`.
+ *   --tab-title-active-color  The active tab's title, which is the panel's
+ *                        title. Default `var(--foreground)`. A dark cockpit
+ *                        mutes both.
+ *   --display-text-shadow  A `text-shadow` on display type only: h1-h4, card,
+ *                        dialog, sheet and alert-dialog titles, and panel tab
+ *                        titles. Never on body text, inputs or anything
+ *                        inside a panel's body (a widget heading next to a
+ *                        live value keeps none), and never animated. Unset
+ *                        by default, so the property inherits as before. A
+ *                        chromatic aberration is two offset copies in two
+ *                        hues at partial alpha, the text itself unchanged.
+ *
+ * Shape and elevation
+ *   --radius             Base radius (shadcn). Every Tailwind radius step
+ *                        (bare `rounded`, `rounded-xs..4xl`) is a multiple of
+ *                        it, so 0 squares them all; `rounded-full` stays
+ *                        round.
+ *   --radius-pill        Pill shapes: switch track and thumb, slider track,
+ *                        range and thumb, progress bar. Default is
+ *                        `rounded-full`'s value; 0 squares them. Circles that
+ *                        mean "circle" (radio, avatar) keep `rounded-full`.
+ *   --corner-shape       CSS `corner-shape` of every corner the radius tokens
+ *                        draw: anything with a `rounded-*` class, the panels,
+ *                        tabs and strip controls, the navbar. Default `round`.
+ *                        `bevel` cuts the radius as a straight chamfer;
+ *                        borders, shadows (elevation), focus rings and
+ *                        `overflow` clipping follow it. `rounded-full` and
+ *                        `rounded-[50%]` stay round whatever it says: those
+ *                        mean "circle". A browser without `corner-shape`
+ *                        draws round corners.
+ *   --border-width       Tailwind's bare `border`, `border-x/y/t/r/b/l`,
+ *                        `divide-*`; FlexLayout control borders and splitter
+ *                        lines. `border-2` etc. keep their literal widths.
+ *   --elevation-xs..2xl  Tailwind `shadow-xs..2xl` (bare `shadow` = sm).
+ *   --elevation-field    Inputs, textareas, select triggers (`shadow-field`).
+ *                        An inset value presses fields in.
+ *   --elevation-overlay  Popovers, menus, select lists, hover cards, dialogs,
+ *                        sheets (`shadow-overlay`).
+ *   --elevation-pressed  A shadowed button while pressed (`active:`), and an
+ *                        outline toggle while on (`shadow-pressed`).
+ *   --pressed-offset     How far that pressed face moves, right and down
+ *                        (`translate`), into its shadow. Default 0px.
+ *   --elevation-well     Tracks and wells: tabs list, slider track, a flat
+ *                        toggle or toggle-group item while on (`shadow-well`).
+ *   --elevation-thumb    The switch thumb (`shadow-thumb`). The slider thumb
+ *                        is `shadow-sm` and follows the scale.
+ *   --surface-border-color  Border colour of raised surfaces: cards, popovers,
+ *                        menus, select lists, hover cards, dialogs, sheets.
+ *   --field-border-color Border colour of inputs, textareas, select triggers,
+ *                        checkboxes, radios, outline buttons and outline
+ *                        toggles (everything outlined in `--input`).
+ *   --field-background   Fill of inputs, textareas, select triggers,
+ *                        checkboxes and radios (`bg-field`). The default is
+ *                        transparent in light and `--input` at 30% in dark.
+ *   --action-border-color Edge of filled buttons (default, secondary,
+ *                        destructive), `--border-width` wide. Drawn as an
+ *                        inset outline, so it takes no space and a button is
+ *                        the same size with or without it. Outline buttons
+ *                        keep `--field-border-color`. Default transparent.
+ *   The elevation tokens are composed with the focus ring into one
+ *   `box-shadow` list, so "no shadow" is `0 0 #0000`, never `none` (a `none`
+ *   inside a list invalidates the whole property, focus ring included).
+ *   Shadow colour utilities (`shadow-red-500`) do not tint these.
+ *
+ * Motion and texture
+ *   Motion is the UI's own state changes only: presses, toggles, hovers,
+ *   overlays opening and closing, a tab or an accordion changing. A value, a
+ *   reading or a live badge never moves through intermediate states, nothing
+ *   loops, and every transition is CSS, so a second click interrupts it and
+ *   never waits for it.
+ *   The motion tokens are NOT preset tokens: every theme moves the same way,
+ *   at these defaults, and a preset file declares none of them (asserted by
+ *   apps/web/__tests__/theme-motion.test.ts). They are listed here because
+ *   they are still variables the app reads; the only thing that changes them
+ *   is `prefers-reduced-motion: reduce`.
+ *   --motion-duration    The one scale knob: the fast step. Tailwind's default
+ *                        transition duration (a bare `transition*` utility; an
+ *                        explicit `duration-*` keeps its own) and FlexLayout's
+ *                        transitions. Default 120ms; the other durations
+ *                        derive from it.
+ *   --motion-fast        Presses, toggles, hovers, focus rings. Derived:
+ *                        `--motion-duration`.
+ *   --motion-base        Overlays entering (dialogs, sheets, popovers, menus,
+ *                        select lists, hover cards, tooltips), tab changes,
+ *                        accordions. Derived: 1.5x (180ms).
+ *   --motion-layout      Panel and layout motion. Derived: 1.8x (216ms).
+ *   --motion-exit        Overlays leaving: 0.75x `--motion-base`, so a close
+ *                        is quicker than an open. Derived; set the base.
+ *   --motion-ease        Transitions and exits: a decisive ease-out.
+ *   --motion-ease-emphasis  Overlays entering. May overshoot a little (the
+ *                        second y control point above 1); a sheet does not
+ *                        overshoot, it would open a gap at the viewport edge.
+ *   --motion-distance    How far an anchored overlay travels in from the side
+ *                        it opens on. Default 4px.
+ *   --motion-scale       The scale an overlay enters from and leaves to.
+ *                        Default 0.98; 1 turns the zoom off.
+ *   --press-scale        The scale a button or toggle takes while held
+ *                        (`:active`), through `scale`, so nothing around it
+ *                        moves. Default 0.98. Forced to 1 under reduced
+ *                        motion.
+ *   Utilities built on these: `motion-pop` (overlays), `motion-page-in` (a
+ *   page root entering: fade and a `--motion-distance` rise, never on
+ *   anything that wraps live widgets), `motion-collapse` (opt-in height
+ *   motion on a `CollapsibleContent`), `nav-current` (a navbar link's
+ *   active-page underline). A segmented control's active indicator
+ *   (`TabsList`, a single-select `ToggleGroup`) slides over `--motion-base`.
+ *   Every duration stays at or under 300ms (asserted by
+ *   apps/web/__tests__/theme-motion.test.ts), and all of them are forced to
+ *   0ms under `prefers-reduced-motion: reduce`.
+ *   --surface-texture    A `background-image` laid on the page behind
+ *                        everything (fixed, does not scroll): scanlines,
+ *                        patterns, noise. Panels keep a solid background, so
+ *                        data never sits on texture; it shows in the gutters.
+ *   --content-surface    Fill of full-page content that sits straight on the
+ *                        page with no panel (the workspace list table, the
+ *                        plugins list), Tailwind `bg-content-surface`. Default
+ *                        transparent; a preset with a texture sets it so the
+ *                        texture stays in the margins.
+ *
+ * Frame (the navbar, the dashboard panels and the space between them)
+ *   --frame-gutter        Space between panels, the outer margin of the panel
+ *                         area, and the navbar's horizontal inset: one number,
+ *                         so the navbar content and the panel edges line up.
+ *   --frame-outline       A border around the whole panel area.
+ *   --panel-radius        Panel corner radius.
+ *   --panel-border-width  Panel border, tab-strip baseline, navbar bottom edge.
+ *   --panel-border-color  Colour of those, and of `--frame-outline`.
+ *   --panel-elevation     Panel shadow, and the navbar's unless
+ *                         `--navbar-elevation` is set. Used alone, so `none`
+ *                         is valid here. An inset part of it paints under the
+ *                         panel's opaque content and does not show.
+ *   --panel-inner-shadow  An inset shadow painted OVER the panel content (a
+ *                         layer on the panel that takes no pointer events):
+ *                         the rim and shade that make a panel look moulded.
+ *                         Default `0 0 #0000` (paints nothing).
+ *   --panel-background    Panel body and the active tab, which joins it.
+ *   --tabstrip-background The strip behind inactive tabs.
+ *   --splitter-line       A line drawn in the gutter between two panels.
+ *   --scene-grid-line     Minor lines of the 3D viewers' ground grid (canvas
+ *                         chrome, read through `useThemeColors`). A spatial
+ *                         reference sits below text: never `--foreground`.
+ *   --scene-grid-section  Major (section) lines of that grid. Both are mixed
+ *                         against an opaque colour: Three.js drops alpha.
+ *   --scene-background    What the 3D viewers clear to. Default transparent:
+ *                         the panel shows through the canvas. A translucent
+ *                         value is mixed over `--panel-background` (Three.js
+ *                         drops alpha); a fully transparent one stays
+ *                         transparent, never black.
+ *   --tabstrip-inset      Space between the tab strip's tabs and the panel's
+ *                         inner edge (top and sides). Default 3px; 0 puts the
+ *                         active tab flush with the panel edge (tiled).
+ *   --radius-inner        Derived: tab buttons and strip controls, concentric
+ *                         with the panel (panel radius minus border minus
+ *                         `--tabstrip-inset`). Not meant to be set.
+ *   --navbar-background   The navbar's fill. Transparent: the page shows.
+ *   --navbar-elevation    The navbar's shadow; `--panel-elevation` unless set.
+ *                         Its inset parts show (the bar's content does not
+ *                         cover it). Used alone, so `none` is valid.
+ *   --navbar-radius       The navbar's corner radius.
+ *   --navbar-inset        Space between the navbar and the viewport's top,
+ *                         left and right edges. At 0 the bar spans the
+ *                         viewport with a bottom edge only; above 0 it is a
+ *                         floating object with the panel border on every side
+ *                         (set it to `--frame-gutter` to put the bar's edges
+ *                         on the panels' edges). The bar's content stays on
+ *                         the panel edge while the inset plus the panel
+ *                         border fits in the gutter; past that the content
+ *                         sits just inside the bar's border, as a panel's
+ *                         does. Every page under the bar (workspace and
+ *                         plugin pages) gives it this much more height.
+ *
+ *   Floating panels (the default): `--frame-gutter` > 0, a border, a shadow.
+ *   Tiled panels sharing single lines, like a table:
+ *     --frame-gutter: 0; --panel-radius: 0; --panel-border-width: 0;
+ *     --panel-elevation: none; --splitter-line: var(--border);
+ *     --frame-outline: 1px; --tabstrip-inset: 0;
+ *   Both fall out of the values; nothing branches on a mode.
+ *
+ * Units: the lengths below are registered as `<length>` (the `@property`
+ * rules), so `0` and `0px` both work. Durations are not: write `0ms`.
+ */
+@property --border-width {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 1px;
+}
+
+@property --frame-gutter {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 6px;
+}
+
+@property --frame-outline {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --panel-radius {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --panel-border-width {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 1px;
+}
+
+@property --radius-inner {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --navbar-radius {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --navbar-inset {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --tabstrip-inset {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 3px;
+}
+
+@property --pressed-offset {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+:root {
+	--font-body:
+		var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif,
+		"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+		"Noto Color Emoji";
+	--font-display: initial;
+	--font-code:
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+		"Liberation Mono", "Courier New", monospace;
+	--heading-tracking: initial;
+	--heading-transform: initial;
+	--heading-weight: initial;
+	--label-tracking: initial;
+	--label-transform: initial;
+	--font-label: initial;
+	--label-weight: initial;
+	--title-weight: 600;
+	--tab-title-color: var(--muted-foreground);
+	--tab-title-active-color: var(--foreground);
+	--display-text-shadow: initial;
+
+	--border-width: 1px;
+	--elevation-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--elevation-sm:
+		0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--elevation-md:
+		0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+	--elevation-lg:
+		0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+	--elevation-xl:
+		0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+	--elevation-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+	--elevation-field: var(--elevation-xs);
+	--elevation-overlay: var(--elevation-md);
+	--elevation-pressed: var(--elevation-xs);
+	--elevation-well: 0 0 #0000;
+	--elevation-thumb: 0 0 #0000;
+	--pressed-offset: 0px;
+	--radius-pill: calc(infinity * 1px);
+	--corner-shape: round;
+	--surface-border-color: var(--border);
+	--field-border-color: var(--input);
+	--field-background: transparent;
+	--action-border-color: transparent;
+
+	--motion-duration: 120ms;
+	--motion-fast: var(--motion-duration);
+	--motion-base: calc(var(--motion-duration) * 1.5);
+	--motion-layout: calc(var(--motion-duration) * 1.8);
+	--motion-exit: calc(var(--motion-base) * 0.75);
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--motion-ease-emphasis: cubic-bezier(0.16, 1.1, 0.3, 1);
+	--motion-distance: 4px;
+	--motion-scale: 0.98;
+	--press-scale: 0.98;
+	--surface-texture: none;
+	--content-surface: transparent;
+
+	--frame-gutter: 6px;
+	--frame-outline: 0px;
+	--panel-radius: var(--radius);
+	--panel-border-width: 1px;
+	--panel-border-color: var(--border);
+	--panel-elevation: var(--elevation-sm);
+	--panel-background: var(--card);
+	--tabstrip-background: transparent;
+	--splitter-line: transparent;
+	--panel-inner-shadow: 0 0 #0000;
+	--tabstrip-inset: 3px;
+	--scene-grid-line: color-mix(in oklch, var(--border) 70%, var(--panel-background));
+	--scene-grid-section: color-mix(in oklch, var(--muted-foreground) 45%, var(--panel-background));
+	--scene-background: transparent;
+	/* Concentric with the panel: its radius minus its border minus the
+	   strip's inset (`.flexlayout__tabset_tabbar_outer_top` in ormi-core's
+	   flex-layout-theme.css). */
+	--radius-inner: max(
+		0px,
+		calc(
+			var(--panel-radius) - var(--panel-border-width) -
+				var(--tabstrip-inset)
+		)
+	);
+
+	--navbar-background: transparent;
+	--navbar-elevation: var(--panel-elevation);
+	--navbar-radius: 0px;
+	--navbar-inset: 0px;
+}
+
+/* shadcn fills fields with `dark:bg-input/30`; this is that value, so the
+   stock look is unchanged. A preset that sets `--field-background` on `:root`
+   overrides it in both modes: its `:root` comes later and ties on
+   specificity. */
+.dark {
+	--field-background: color-mix(in oklab, var(--input) 30%, transparent);
+}
+
+/* Reduced motion beats everything: `!important` because a preset's `:root`
+   comes later in the cascade, and presets declare no motion token today but
+   nothing structural stops one. Every step is listed, not only the knob. */
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--motion-duration: 0ms !important;
+		--motion-fast: 0ms !important;
+		--motion-base: 0ms !important;
+		--motion-layout: 0ms !important;
+		--motion-exit: 0ms !important;
+		--press-scale: 1 !important;
+	}
+}
+
+/*
+ * An overlay's enter and exit shape: fade, `--motion-scale`, and
+ * `--motion-distance` in from the side it is anchored on (Radix sets
+ * `data-side`; a dialog has none and only fades and scales). Timing is not
+ * here: `animate-in` / `animate-out` read the motion tokens (the `@theme`
+ * block below), so an element with no `duration-*` / `ease-*` of its own
+ * keeps the shared rhythm. Pair it with `data-[state=open]:animate-in
+ * data-[state=closed]:animate-out`.
+ */
+@utility motion-pop {
+	--tw-enter-opacity: 0;
+	--tw-exit-opacity: 0;
+	--tw-enter-scale: var(--motion-scale);
+	--tw-exit-scale: var(--motion-scale);
+
+	&[data-side="bottom"] {
+		--tw-enter-translate-y: calc(var(--motion-distance) * -1);
+	}
+	&[data-side="top"] {
+		--tw-enter-translate-y: var(--motion-distance);
+	}
+	&[data-side="left"] {
+		--tw-enter-translate-x: var(--motion-distance);
+	}
+	&[data-side="right"] {
+		--tw-enter-translate-x: calc(var(--motion-distance) * -1);
+	}
+}
+
+/*
+ * A page root entering: fade in and rise `--motion-distance` over
+ * `--motion-base`. Only on document pages (the workspace list, plugins, a docs
+ * article), never on anything that wraps live widgets, and never through a
+ * `key` or a `template.tsx` (either remounts the page). It plays once per
+ * mount, and reduced motion makes it instant.
+ */
+@utility motion-page-in {
+	animation: motion-page-in var(--motion-base) var(--motion-ease);
+}
+
+@keyframes motion-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--motion-distance));
+	}
+}
+
+/*
+ * Opt-in height motion for a `CollapsibleContent` (the `animated` prop, or this
+ * class): the collapsible keyframes, timed by the motion tokens in `@theme`.
+ * Not the default: widget bodies use the collapsible too, and a panel of live
+ * readings does not grow into place.
+ */
+@utility motion-collapse {
+	@apply overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down;
+}
+
+/*
+ * The navbar's active page: a static underline under a link carrying
+ * `aria-current` (any value but `false`). It fades and grows in at
+ * `--motion-fast` when the page changes; it is a state, not an animation, so
+ * it does not move once shown.
+ */
+@utility nav-current {
+	position: relative;
+
+	&::after {
+		content: "";
+		position: absolute;
+		inset-inline: 0.75rem;
+		bottom: 0;
+		height: 2px;
+		border-radius: var(--radius-pill);
+		background-color: var(--primary);
+		opacity: 0;
+		transform: scaleX(0.5);
+		transition-property: opacity, transform;
+		transition-duration: var(--motion-fast);
+		transition-timing-function: var(--motion-ease);
+		pointer-events: none;
+	}
+
+	&[aria-current]:not([aria-current="false"])::after {
+		opacity: 1;
+		transform: none;
+	}
 }
 
 @layer utilities {
@@ -306,6 +813,7 @@
 	--color-success-foreground: var(--success-foreground);
 	--color-warning: var(--warning);
 	--color-warning-foreground: var(--warning-foreground);
+	--color-warning-text: var(--warning-text);
 	--color-info: var(--info);
 	--color-info-foreground: var(--info-foreground);
 	--color-border: var(--border);
@@ -316,10 +824,23 @@
 	--color-chart-3: var(--chart-3);
 	--color-chart-4: var(--chart-4);
 	--color-chart-5: var(--chart-5);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
+	/* Proportional to `--radius`, so a preset's `--radius: 0` squares every
+	   step; at the default 0.5rem these are Tailwind's own values
+	   (xs 2px, sm 4, md 6, lg 8, xl 12, 2xl 16, 3xl 24, 4xl 32).
+	   `rounded-full` is not a step and stays round: pills use
+	   `--radius-pill`. The first line is Tailwind's key for bare `rounded`
+	   (and `rounded-t` etc.), a literal 0.25rem otherwise; the `var()` in it
+	   is shadcn's runtime `--radius` on `:root`, which `inline` leaves to be
+	   resolved there. */
+	--radius: calc(var(--radius) * 0.5);
+	--radius-xs: calc(var(--radius) * 0.25);
+	--radius-sm: calc(var(--radius) * 0.5);
+	--radius-md: calc(var(--radius) * 0.75);
 	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	--radius-xl: calc(var(--radius) * 1.5);
+	--radius-2xl: calc(var(--radius) * 2);
+	--radius-3xl: calc(var(--radius) * 3);
+	--radius-4xl: calc(var(--radius) * 4);
 	--color-sidebar: var(--sidebar);
 	--color-sidebar-foreground: var(--sidebar-foreground);
 	--color-sidebar-primary: var(--sidebar-primary);
@@ -328,6 +849,77 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+
+	/* Preset token contract (see the `:root` block above). `inline`, so every
+	   utility reads the runtime variable a preset can override rather than a
+	   value frozen at build time. */
+	--font-sans: var(--font-body);
+	--font-mono: var(--font-code);
+	--font-heading: var(--font-display, var(--font-body));
+
+	--default-border-width: var(--border-width);
+
+	--shadow: var(--elevation-sm);
+	--shadow-xs: var(--elevation-xs);
+	--shadow-sm: var(--elevation-sm);
+	--shadow-md: var(--elevation-md);
+	--shadow-lg: var(--elevation-lg);
+	--shadow-xl: var(--elevation-xl);
+	--shadow-2xl: var(--elevation-2xl);
+	--shadow-field: var(--elevation-field);
+	--shadow-overlay: var(--elevation-overlay);
+	--shadow-pressed: var(--elevation-pressed);
+	--shadow-well: var(--elevation-well);
+	--shadow-thumb: var(--elevation-thumb);
+
+	--color-surface-border: var(--surface-border-color);
+	--color-field-border: var(--field-border-color);
+	--color-field: var(--field-background);
+	--color-content-surface: var(--content-surface);
+
+	--default-transition-duration: var(--motion-fast);
+	--default-transition-timing-function: var(--motion-ease);
+
+	/* tw-animate-css's keyframed utilities, with the motion tokens as the
+	   fallback where it hardcodes .15s / .2s and `ease`. An element's own
+	   `duration-*` / `ease-*` (`--tw-duration`, `--tw-ease`) still wins. The
+	   keyframes are tw-animate's. */
+	--animate-in: enter
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease-emphasis))
+		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-out: exit
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-accordion-down: accordion-down
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-accordion-up: accordion-up
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-collapsible-down: collapsible-down
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-base)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-collapsible-up: collapsible-up
+		var(--tw-animation-duration, var(--tw-duration, var(--motion-exit)))
+		var(--tw-ease, var(--motion-ease)) var(--tw-animation-delay, 0s)
+		var(--tw-animation-iteration-count, 1)
+		var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
 }
 
 @layer base {
@@ -335,8 +927,153 @@
 		@apply border-border outline-ring/50;
 	}
 
+	/* `flow-root` keeps the floating navbar's top margin (`--navbar-inset`,
+	   `.app-frame-bar`) inside the body. Collapsed through it, the margin
+	   moved the body's `min-h-screen` box down by the inset and every page
+	   that fills the viewport scrolled by that much. The workspace shell
+	   makes the body a flex column instead (`(home)/layout.css`), which does
+	   the same. */
 	body {
 		@apply bg-background text-foreground;
+		display: flow-root;
+		font-family: var(--font-body);
+		background-image: var(--surface-texture);
+		background-attachment: fixed;
+	}
+
+	/* Unset tokens make these inherit (see the contract), so the stock look
+	   is unchanged and only a preset that sets them changes anything. */
+	h1,
+	h2,
+	h3,
+	h4,
+	[data-slot="card-title"],
+	[data-slot="dialog-title"],
+	[data-slot="sheet-title"] {
+		font-family: var(--font-display);
+		font-weight: var(--heading-weight);
+		letter-spacing: var(--heading-tracking);
+		text-transform: var(--heading-transform);
+	}
+
+	/* After the heading rule, so it wins on the title slots (dialog, sheet
+	   and alert-dialog titles are h2s). The components carry no weight
+	   utility of their own: it was `font-semibold`, which is the default. */
+	[data-slot="card-title"],
+	[data-slot="dialog-title"],
+	[data-slot="sheet-title"],
+	[data-slot="alert-dialog-title"] {
+		font-weight: var(--title-weight);
+	}
+
+	/* `--label-weight` unset falls back to the 500 these carried as
+	   `font-medium`. A badge is matched on `data-badge` too: under a Radix
+	   trigger rendered `asChild` its `data-slot` is the trigger's. */
+	[data-slot="table-head"],
+	[data-slot="badge"],
+	[data-badge] {
+		font-family: var(--font-label);
+		font-weight: var(--label-weight, 500);
+		letter-spacing: var(--label-tracking);
+		text-transform: var(--label-transform);
+	}
+
+	/* Display type only, never a panel body: a heading inside a widget sits
+	   next to live readings, and those are never dressed. Unset by default,
+	   so `text-shadow` inherits exactly as it did. A field inside a title
+	   (renaming a tab) is text being edited, not display type. */
+	:where(
+			h1,
+			h2,
+			h3,
+			h4,
+			[data-slot="card-title"],
+			[data-slot="dialog-title"],
+			[data-slot="sheet-title"],
+			[data-slot="alert-dialog-title"]
+		):not(:where(.flexlayout__tab, .react-grid-item) *),
+	.flexlayout__tab_button_content {
+		text-shadow: var(--display-text-shadow);
+	}
+
+	:where(
+			h1,
+			h2,
+			h3,
+			h4,
+			[data-slot="card-title"],
+			[data-slot="dialog-title"],
+			[data-slot="sheet-title"],
+			[data-slot="alert-dialog-title"],
+			.flexlayout__tab_button_content
+		)
+		:where(input, textarea) {
+		text-shadow: none;
+	}
+
+	/* The radius tokens' corner shape. `corner-shape` is not inherited, so it
+	   goes on everything that draws a token radius: a `rounded-*` utility,
+	   FlexLayout's panels, tabs and strip controls (and the pseudo-elements
+	   that draw the sliding tab and the panel's inner shadow), the frame and
+	   the navbar. Circles are circles in every theme. */
+	:where(
+		[class*="rounded"],
+		[class*="flexlayout__"],
+		[class*="ormi-frame"],
+		.app-frame-bar
+	),
+	[class*="flexlayout__"]::before,
+	[class*="flexlayout__"]::after {
+		corner-shape: var(--corner-shape);
+	}
+
+	:where([class*="rounded-full"], [class*="rounded-[50%]"]) {
+		corner-shape: round;
+	}
+}
+
+@layer components {
+	/* The app bar is part of the frame: its content starts one gutter in,
+	   where the first panel starts, and its bottom edge is a panel edge.
+
+	   Inset from the viewport (`--navbar-inset` > 0) it is a panel of its
+	   own: a border on every side, not only the bottom. `--navbar-edge` is
+	   that side border, 0 while the inset is 0 and the panel border as soon
+	   as it is not (`* 1000` turns any inset of a thousandth of a pixel or
+	   more into at least the border width), so nothing branches on a mode.
+	   The inline padding takes back the inset and the side border, which
+	   keeps the content on the panel edge while both fit in the gutter.
+
+	   The vertical padding gives back the borders' widths, split evenly
+	   above and below, so the bar itself stays 3rem tall; the inset is added above it, and the pages that
+	   subtract the bar from the viewport subtract `--navbar-inset` too. The
+	   workspace dashboard needs nothing (the body is a flex column there,
+	   `(home)/layout.css`); a plugin page's dashboard subtracts it in
+	   ormi-core's flex-layout-dashboard.tsx. */
+	.app-frame-bar {
+		--navbar-edge: min(
+			var(--panel-border-width),
+			calc(var(--navbar-inset) * 1000)
+		);
+		margin: var(--navbar-inset) var(--navbar-inset) 0;
+		padding-inline: max(
+			0px,
+			calc(var(--frame-gutter) - var(--navbar-inset) - var(--navbar-edge))
+		);
+		/* The two vertical paddings are equal, so the content sits on the
+		   centre of the space inside the borders even when the bar has a
+		   bottom edge only, or a thick one. */
+		padding-block: max(
+			0px,
+			calc(
+				(0.5rem - var(--navbar-edge) - var(--panel-border-width)) / 2
+			)
+		);
+		border: var(--navbar-edge) solid var(--panel-border-color);
+		border-bottom-width: var(--panel-border-width);
+		border-radius: var(--navbar-radius);
+		background-color: var(--navbar-background);
+		box-shadow: var(--navbar-elevation);
 	}
 }
 
@@ -366,4 +1103,98 @@
 	100% {
 		box-shadow: 0 0 0 0 oklch(from var(--primary) l c h / 0);
 	}
+}
+/*
+ * MapLibre popups, in the app's theme.
+ *
+ * `maplibre-gl.css` paints `.maplibregl-popup-content` `#fff` and each anchor's
+ * `.maplibregl-popup-tip` white to match, which is a white card whatever the
+ * theme is. A popup body written in theme tokens — the C2 contact popup uses
+ * `text-muted-foreground`, `text-info`, `text-warning` — is then white on white
+ * in dark mode: every value invisible, only the grey labels and the amber badge
+ * surviving. It is fixed here once rather than with a `className` on each
+ * `<Popup>`, so the next popup anyone writes inherits it.
+ *
+ * The selectors carry the map container so they out-specify maplibre's own (a
+ * popup is always appended to `.maplibregl-map`). Both stylesheets are
+ * unlayered, so at equal specificity this would come down to bundle order.
+ * `border-radius` is deliberately left at the same specificity as maplibre's
+ * per-anchor corner rules, which square off the one corner the tip meets.
+ */
+.maplibregl-map .maplibregl-popup-content {
+	@apply rounded-md border bg-popover p-3 text-popover-foreground shadow-md;
+}
+
+/*
+ * The tip is a CSS triangle drawn out of border sides: the side facing the card
+ * is the one that takes its colour, and which side that is depends on the
+ * anchor — so every anchor direction is restated here, or a popup that flips
+ * above its point grows a white spike in dark mode.
+ */
+.maplibregl-map .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+	border-bottom-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-map .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+	border-top-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-left .maplibregl-popup-tip {
+	border-right-color: var(--popover);
+}
+
+.maplibregl-map .maplibregl-popup-anchor-right .maplibregl-popup-tip {
+	border-left-color: var(--popover);
+}
+
+/* maplibre leaves the close button at the UA's button colour — black on a dark
+   card — and hovers it with a black wash that is invisible there. */
+.maplibregl-map .maplibregl-popup-close-button {
+	color: inherit;
+}
+
+.maplibregl-map .maplibregl-popup-close-button:hover {
+	background-color: var(--accent);
+}
+
+/*
+ * Sonner toasts on the motion tokens.
+ *
+ * Sonner injects its own stylesheet at runtime with 400-500ms transitions and
+ * `ease`. Only the timing is overridden here (its transition-property lists
+ * stay, so each value below lines up with sonner's own list: transform,
+ * opacity, height, box-shadow), `!important` because sonner's removal rules
+ * carry up to five attribute selectors. A toast being swiped keeps sonner's
+ * `transition: none`, or it would lag behind the pointer. Reduced motion zeroes
+ * the tokens, so it gets no motion; sonner's own reduced-motion rule stays in
+ * force as well. The loading spinner is sonner's
+ * progress signal and keeps its loop.
+ */
+[data-sonner-toaster] {
+	transition-duration: var(--motion-base) !important;
+	transition-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
+	transition-duration:
+		var(--motion-base), var(--motion-exit), var(--motion-base),
+		var(--motion-fast) !important;
+	transition-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] > * {
+	transition-duration: var(--motion-fast) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-swipe-out="true"] {
+	animation-duration: var(--motion-exit) !important;
+	animation-timing-function: var(--motion-ease) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-icon] > svg {
+	animation-duration: var(--motion-base) !important;
 }

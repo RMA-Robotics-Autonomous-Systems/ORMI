@@ -63,7 +63,7 @@ export function crossMapEditMessage(
 	selectedMap: string,
 ): string {
 	return (
-		`This edit belongs to map "${pending.mapName}", but "${selectedMap}" is selected. ` +
-		`Saving it would copy the feature into "${selectedMap}" — switch back to "${pending.mapName}" to save, or cancel the edit.`
+		`This edit belongs to "${pending.mapName}", but "${selectedMap}" is selected. ` +
+		`Switch back to "${pending.mapName}" to save, or cancel the edit.`
 	);
 }

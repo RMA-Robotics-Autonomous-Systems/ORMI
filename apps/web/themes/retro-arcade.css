@@ -1,118 +1,211 @@
+/*
+ * Memphis preset (id `retro-arcade`, kept for operators' stored choice).
+ *
+ * The Memphis Group, Milan 1981, read as a control console. The frame is the
+ * design object: panels float as flat slabs in a generous gutter, outlined in
+ * a thick ink line and casting a hard, unblurred offset in teal, a colour
+ * rather than a shade, which is the Memphis move a brutalist sheet does not
+ * make. The page behind them is a blush laminate scattered with confetti:
+ * dots, rings and a faint diagonal stripe field, low contrast and never under
+ * a panel. Headings are set in Righteous; the body stays in Inter.
+ *
+ * Radius is a deliberate mix across two tokens, since Memphis never has one
+ * corner: the panels are square-cornered slabs (`--panel-radius: 0`), while
+ * controls, dialogs and the floating navbar take a round 0.75rem and pills
+ * stay pills. Square slabs keep the dashboard grid calm and aligned; the
+ * round objects sitting on them are where the playfulness shows.
+ *
+ * Palette: electric blue is the primary; lilac, mint and lemon are pastel
+ * support (secondary buttons, hover highlights, the tab strip); the command
+ * affordance is a saturated lemon warning that sits 170 degrees from the
+ * blue. Info is pushed to cyan so it is not read as a primary action. Data
+ * never sits on pattern or on a saturated fill: panel bodies are near-white
+ * cream (night: ink navy) and chart colours are left to globals.
+ *
+ * Tokens only: everything below the colours is the preset token contract in
+ * packages/ui/src/styles/globals.css, and this file has no selector besides
+ * `:root` and `.dark`.
+ */
+
 :root {
-	--background: oklch(0.9735 0.0261 90.0953);
-	--foreground: oklch(0.3092 0.0518 219.6516);
-	--card: oklch(0.9306 0.0260 92.4020);
-	--card-foreground: oklch(0.3092 0.0518 219.6516);
-	--popover: oklch(0.9306 0.0260 92.4020);
-	--popover-foreground: oklch(0.3092 0.0518 219.6516);
-	--primary: oklch(0.5924 0.2025 355.8943);
-	--primary-foreground: oklch(1.0000 0 0);
-	--secondary: oklch(0.6437 0.1019 187.3840);
-	--secondary-foreground: oklch(1.0000 0 0);
-	--muted: oklch(0.6979 0.0159 196.7940);
-	--muted-foreground: oklch(0.3092 0.0518 219.6516);
-	--accent: oklch(0.5808 0.1732 39.5003);
-	--accent-foreground: oklch(1.0000 0 0);
-	--destructive: oklch(0.5863 0.2064 27.1172);
-	--border: oklch(0.6537 0.0197 205.2618);
-	--input: oklch(0.6537 0.0197 205.2618);
-	--ring: oklch(0.5924 0.2025 355.8943);
-	--chart-1: oklch(0.6149 0.1394 244.9273);
-	--chart-2: oklch(0.6437 0.1019 187.3840);
-	--chart-3: oklch(0.5924 0.2025 355.8943);
-	--chart-4: oklch(0.5808 0.1732 39.5003);
-	--chart-5: oklch(0.5863 0.2064 27.1172);
-	--sidebar: oklch(0.9735 0.0261 90.0953);
-	--sidebar-foreground: oklch(0.3092 0.0518 219.6516);
-	--sidebar-primary: oklch(0.5924 0.2025 355.8943);
-	--sidebar-primary-foreground: oklch(1.0000 0 0);
-	--sidebar-accent: oklch(0.6437 0.1019 187.3840);
-	--sidebar-accent-foreground: oklch(1.0000 0 0);
-	--sidebar-border: oklch(0.6537 0.0197 205.2618);
-	--sidebar-ring: oklch(0.5924 0.2025 355.8943);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.945 0.028 15);
+	--foreground: oklch(0.2 0.03 275);
+	--card: oklch(0.99 0.012 95);
+	--card-foreground: oklch(0.2 0.03 275);
+	--popover: oklch(0.99 0.012 95);
+	--popover-foreground: oklch(0.2 0.03 275);
+	--primary: oklch(0.5 0.22 262);
+	--primary-foreground: oklch(0.99 0.012 95);
+	--secondary: oklch(0.88 0.065 300);
+	--secondary-foreground: oklch(0.2 0.03 275);
+	--muted: oklch(0.955 0.02 95);
+	--muted-foreground: oklch(0.44 0.03 275);
+	--accent: oklch(0.9 0.08 170);
+	--accent-foreground: oklch(0.2 0.03 275);
+	--destructive: oklch(0.55 0.21 25);
+	--success: oklch(0.5 0.13 150);
+	--success-foreground: oklch(0.99 0.012 95);
+	--warning: oklch(0.87 0.17 98);
+	--warning-foreground: oklch(0.2 0.03 275);
+	--warning-text: oklch(0.49 0.11 85);
+	--info: oklch(0.52 0.11 218);
+	--info-foreground: oklch(0.99 0.012 95);
+	/* Rules inside a panel are a light ink; the frame's outline is the
+	   full-strength ink, so structure reads before detail. */
+	--border: oklch(0.8 0.02 275);
+	--input: oklch(0.2 0.03 275);
+	--ring: oklch(0.5 0.22 262);
+	--sidebar: oklch(0.945 0.028 15);
+	--sidebar-foreground: oklch(0.2 0.03 275);
+	--sidebar-primary: oklch(0.5 0.22 262);
+	--sidebar-primary-foreground: oklch(0.99 0.012 95);
+	--sidebar-accent: oklch(0.9 0.08 170);
+	--sidebar-accent-foreground: oklch(0.2 0.03 275);
+	--sidebar-border: oklch(0.8 0.02 275);
+	--sidebar-ring: oklch(0.5 0.22 262);
+	--radius: 0.75rem;
+
+	/* The ink the frame is drawn in, and the flat colour hard shadows are
+	   cast in. */
+	--memphis-ink: oklch(0.2 0.03 275);
+	--memphis-offset: oklch(0.66 0.12 192);
+	/* Confetti on the page: coral, blue, mint, lemon, and the stripe field. */
+	--memphis-coral: oklch(0.8 0.1 30 / 0.4);
+	--memphis-blue: oklch(0.7 0.13 262 / 0.3);
+	--memphis-mint: oklch(0.78 0.1 170 / 0.4);
+	--memphis-lemon: oklch(0.88 0.13 100 / 0.5);
+	--memphis-stripe: oklch(0.2 0.03 275 / 0.025);
+	/* A pale lemon: a stronger one was the loudest thing on the dashboard. */
+	--tabstrip-background: oklch(0.965 0.045 102);
 }
 
 .dark {
-	--background: oklch(0.2673 0.0486 219.8169);
-	--foreground: oklch(0.6979 0.0159 196.7940);
-	--card: oklch(0.3092 0.0518 219.6516);
-	--card-foreground: oklch(0.6979 0.0159 196.7940);
-	--popover: oklch(0.3092 0.0518 219.6516);
-	--popover-foreground: oklch(0.6979 0.0159 196.7940);
-	--primary: oklch(0.5924 0.2025 355.8943);
-	--primary-foreground: oklch(1.0000 0 0);
-	--secondary: oklch(0.6437 0.1019 187.3840);
-	--secondary-foreground: oklch(1.0000 0 0);
-	--muted: oklch(0.5230 0.0283 219.1365);
-	--muted-foreground: oklch(0.6979 0.0159 196.7940);
-	--accent: oklch(0.5808 0.1732 39.5003);
-	--accent-foreground: oklch(1.0000 0 0);
-	--destructive: oklch(0.5863 0.2064 27.1172);
-	--border: oklch(0.5230 0.0283 219.1365);
-	--input: oklch(0.5230 0.0283 219.1365);
-	--ring: oklch(0.5924 0.2025 355.8943);
-	--chart-1: oklch(0.6149 0.1394 244.9273);
-	--chart-2: oklch(0.6437 0.1019 187.3840);
-	--chart-3: oklch(0.5924 0.2025 355.8943);
-	--chart-4: oklch(0.5808 0.1732 39.5003);
-	--chart-5: oklch(0.5863 0.2064 27.1172);
-	--sidebar: oklch(0.2673 0.0486 219.8169);
-	--sidebar-foreground: oklch(0.6979 0.0159 196.7940);
-	--sidebar-primary: oklch(0.5924 0.2025 355.8943);
-	--sidebar-primary-foreground: oklch(1.0000 0 0);
-	--sidebar-accent: oklch(0.6437 0.1019 187.3840);
-	--sidebar-accent-foreground: oklch(1.0000 0 0);
-	--sidebar-border: oklch(0.5230 0.0283 219.1365);
-	--sidebar-ring: oklch(0.5924 0.2025 355.8943);
-	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-	--font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	--radius: 0.625rem;
+	--background: oklch(0.2 0.045 275);
+	--foreground: oklch(0.95 0.015 95);
+	--card: oklch(0.245 0.045 275);
+	--card-foreground: oklch(0.95 0.015 95);
+	--popover: oklch(0.27 0.045 275);
+	--popover-foreground: oklch(0.95 0.015 95);
+	--primary: oklch(0.68 0.16 258);
+	--primary-foreground: oklch(0.17 0.04 275);
+	--secondary: oklch(0.38 0.09 300);
+	--secondary-foreground: oklch(0.95 0.015 95);
+	--muted: oklch(0.29 0.04 275);
+	--muted-foreground: oklch(0.78 0.025 275);
+	--accent: oklch(0.36 0.07 175);
+	--accent-foreground: oklch(0.95 0.015 95);
+	--destructive: oklch(0.58 0.2 25);
+	--success: oklch(0.72 0.16 152);
+	--success-foreground: oklch(0.17 0.04 275);
+	--warning: oklch(0.87 0.16 98);
+	--warning-foreground: oklch(0.17 0.04 275);
+	/* Restated from `:root`, which this file sets: `:root` and `.dark` tie on
+	   specificity, so the later declaration wins. */
+	--warning-text: oklch(0.87 0.16 98);
+	--info: oklch(0.76 0.11 218);
+	--info-foreground: oklch(0.17 0.04 275);
+	--border: oklch(0.4 0.04 275);
+	--input: oklch(0.86 0.02 95);
+	--ring: oklch(0.68 0.16 258);
+	--sidebar: oklch(0.2 0.045 275);
+	--sidebar-foreground: oklch(0.95 0.015 95);
+	--sidebar-primary: oklch(0.68 0.16 258);
+	--sidebar-primary-foreground: oklch(0.17 0.04 275);
+	--sidebar-accent: oklch(0.36 0.07 175);
+	--sidebar-accent-foreground: oklch(0.95 0.015 95);
+	--sidebar-border: oklch(0.4 0.04 275);
+	--sidebar-ring: oklch(0.68 0.16 258);
+	--radius: 0.75rem;
+
+	/* A light ink a step below the text, so on a dark wall the outlines do
+	   not out-shine the data they frame. */
+	--memphis-ink: oklch(0.86 0.02 95);
+	--memphis-offset: oklch(0.55 0.11 192);
+	--memphis-coral: oklch(0.6 0.12 30 / 0.18);
+	--memphis-blue: oklch(0.6 0.15 262 / 0.18);
+	--memphis-mint: oklch(0.65 0.1 170 / 0.16);
+	--memphis-lemon: oklch(0.8 0.13 100 / 0.13);
+	--memphis-stripe: oklch(0.95 0.015 95 / 0.018);
+	--tabstrip-background: oklch(0.3 0.065 300);
+	/* A flat cut-out in the slab, not globals' grey wash. */
+	--field-background: var(--background);
 }
 
-@theme inline {
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
+/*
+ * Shape, type, elevation and frame. Declared once: the colours they
+ * read are the ones above, resolved per mode on the same root element.
+ */
+:root {
+	--font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+	--font-display: var(--font-righteous), ui-sans-serif, system-ui, sans-serif;
+	--font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
+	/* Righteous ships one weight; asking for more only synthesises bold. */
+	--heading-weight: 400;
+	--title-weight: 400;
+	--heading-tracking: 0.01em;
+	--font-label: var(--font-righteous), ui-sans-serif, system-ui, sans-serif;
+	--label-tracking: 0.03em;
 
-	--font-sans: var(--font-sans);
-	--font-mono: var(--font-mono);
-	--font-serif: var(--font-serif);
+	--border-width: 2px;
+	/* Hard offsets, no blur, cast down-right in a flat teal. A step up the
+	   scale pushes the object further off the page. */
+	--elevation-xs: 2px 2px 0 0 var(--memphis-offset);
+	--elevation-sm: 3px 3px 0 0 var(--memphis-offset);
+	--elevation-md: 4px 4px 0 0 var(--memphis-offset);
+	--elevation-lg: 6px 6px 0 0 var(--memphis-offset);
+	--elevation-xl: 8px 8px 0 0 var(--memphis-offset);
+	--elevation-2xl: 10px 10px 0 0 var(--memphis-offset);
+	--elevation-field: 0 0 #0000;
+	--elevation-well: 0 0 #0000;
+	--elevation-thumb: 0 0 #0000;
+	--elevation-overlay: var(--elevation-lg);
+	/* A pressed button sinks into its offset: the shadow goes and the face
+	   moves the same 2px onto where it fell. */
+	--elevation-pressed: 0 0 #0000;
+	--pressed-offset: 2px;
+	--surface-border-color: var(--memphis-ink);
+	--field-border-color: var(--memphis-ink);
+	--action-border-color: var(--memphis-ink);
 
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	/* Page-level content (the workspace list) sits on the card colour, so
+	   the confetti stays in the margins and never under a row. */
+	--content-surface: var(--card);
+	--surface-texture:
+		radial-gradient(circle at 7% 22%, var(--memphis-coral) 0 7px, transparent 7.5px),
+		radial-gradient(circle at 23% 81%, var(--memphis-blue) 0 5px, transparent 5.5px),
+		radial-gradient(circle at 41% 12%, transparent 0 7px, var(--memphis-mint) 7.5px 10px, transparent 10.5px),
+		radial-gradient(circle at 58% 67%, var(--memphis-lemon) 0 9px, transparent 9.5px),
+		radial-gradient(circle at 74% 29%, var(--memphis-coral) 0 4px, transparent 4.5px),
+		radial-gradient(circle at 89% 76%, transparent 0 8px, var(--memphis-blue) 8.5px 11px, transparent 11.5px),
+		radial-gradient(circle at 94% 9%, var(--memphis-mint) 0 6px, transparent 6.5px),
+		radial-gradient(circle at 15% 52%, transparent 0 5px, var(--memphis-lemon) 5.5px 8px, transparent 8.5px),
+		radial-gradient(circle at 34% 44%, var(--memphis-mint) 0 4px, transparent 4.5px),
+		radial-gradient(circle at 49% 93%, var(--memphis-coral) 0 6px, transparent 6.5px),
+		radial-gradient(circle at 66% 5%, var(--memphis-blue) 0 4px, transparent 4.5px),
+		radial-gradient(circle at 82% 50%, var(--memphis-lemon) 0 5px, transparent 5.5px),
+		radial-gradient(circle at 4% 90%, transparent 0 6px, var(--memphis-coral) 6.5px 9px, transparent 9.5px),
+		repeating-linear-gradient(
+			-45deg,
+			var(--memphis-stripe) 0 2px,
+			transparent 2px 14px
+		);
+
+	/* Floating slabs: a wide gutter so the confetti and each panel's 6px
+	   offset have room (a panel's shadow is clipped at half a gutter). */
+	--frame-gutter: 16px;
+	--frame-outline: 0px;
+	--panel-radius: 0px;
+	--panel-border-width: 2px;
+	--panel-border-color: var(--memphis-ink);
+	--panel-elevation: 6px 6px 0 0 var(--memphis-offset);
+	--panel-inner-shadow: 0 0 #0000;
+	--panel-background: var(--card);
+	--tabstrip-inset: 0px;
+	--splitter-line: transparent;
+
+	/* The navbar floats as one more outlined slab with the panels' offset,
+	   its edges on the panels' edges. */
+	--navbar-background: var(--card);
+	--navbar-radius: 0.75rem;
+	--navbar-inset: var(--frame-gutter);
 }

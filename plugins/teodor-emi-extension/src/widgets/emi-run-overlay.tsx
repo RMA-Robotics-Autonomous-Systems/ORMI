@@ -145,7 +145,7 @@ const RunOverlay = (props: OverlaySettings) => {
 					`${overlay.runs.length} run${overlay.runs.length > 1 ? "s" : ""}, ` +
 					`${overlay.detections} detections in ${overlay.clusters.length} places. ` +
 					`${unanimous} seen by every run that covered them, ${disputed} disputed ` +
-					`— a run drove over those and saw nothing.`
+					`(a run drove over those and saw nothing).`
 				);
 			})()
 		: "Open a recording to start the comparison; switch to another and this panel compares them.";

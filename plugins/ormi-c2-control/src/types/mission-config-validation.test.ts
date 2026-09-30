@@ -680,9 +680,9 @@ describe("validateMissionConfig — NAVIGATE advisory warnings", () => {
 		};
 		const issues = validateMissionConfig(config);
 		const warns = warningsAt(issues, "objective.geometries");
-		expect(warns.some((w) => w.message.includes("coverage region"))).toBe(
-			true,
-		);
+		expect(
+			warns.some((w) => w.message.includes("covered as a region")),
+		).toBe(true);
 		expect(errorCount(issues)).toBe(0);
 		expect(isMissionConfigSubmittable(config)).toBe(true);
 	});
@@ -697,9 +697,9 @@ describe("validateMissionConfig — NAVIGATE advisory warnings", () => {
 			validateMissionConfig(config),
 			"objective.geometries",
 		);
-		expect(warns.some((w) => w.message.includes("coverage region"))).toBe(
-			true,
-		);
+		expect(
+			warns.some((w) => w.message.includes("covered as a region")),
+		).toBe(true);
 	});
 
 	it("warns when objective count exceeds the assigned vehicle count", () => {
@@ -728,7 +728,9 @@ describe("validateMissionConfig — NAVIGATE advisory warnings", () => {
 			validateMissionConfig(config),
 			"objective.geometries",
 		);
-		expect(warns.some((w) => w.message.includes("starve"))).toBe(true);
+		expect(
+			warns.some((w) => w.message.includes("may get no vehicle")),
+		).toBe(true);
 	});
 
 	it("emits no NAVIGATE advisory for a single Point with enough vehicles", () => {

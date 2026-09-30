@@ -1,0 +1,96 @@
+{
+	"name": "join",
+	"description": "Two chains merging into one step is refused.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "x",
+				"kind": "action",
+				"label": "x",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-a.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "a",
+				"target_port": "agent"
+			},
+			{
+				"id": "a.agent-x.agent",
+				"source": "a",
+				"source_port": "agent",
+				"target": "x",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-b.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "b",
+				"target_port": "agent"
+			},
+			{
+				"id": "b.agent-x.agent",
+				"source": "b",
+				"source_port": "agent",
+				"target": "x",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["JOIN", "x"]]
+	}
+}

@@ -1,0 +1,148 @@
+{
+	"name": "on_contact_same_robot",
+	"description": "One robot sweeps, then visits each contact its own sweep found; no `no more`: it stops after the last.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "on",
+				"kind": "on_contact",
+				"label": "on",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "visit",
+				"kind": "action",
+				"label": "visit",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-sweep.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.agent-on.agent",
+				"source": "sweep",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "on.agent-visit.agent",
+				"source": "on",
+				"source_port": "agent",
+				"target": "visit",
+				"target_port": "agent"
+			},
+			{
+				"id": "visit.agent-on.agent",
+				"source": "visit",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.contact-on.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "on",
+				"target_port": "event"
+			},
+			{
+				"id": "on.position-visit.target",
+				"source": "on",
+				"source_port": "position",
+				"target": "visit",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-fr"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": 1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						},
+						{
+							"step_id": "on",
+							"kind": "ON_CONTACT",
+							"action": "",
+							"feature_id": "",
+							"contact_node": "",
+							"source_step": "sweep",
+							"body": 2,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						},
+						{
+							"step_id": "visit",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "",
+							"contact_node": "on",
+							"source_step": "",
+							"body": -1,
+							"next": 1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,85 @@
+{
+	"name": "done_deadlock",
+	"description": "A Hold until on a step the same robot only does after the hold would wait forever.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "until",
+				"kind": "wait",
+				"label": "until",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-until.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "until",
+				"target_port": "agent"
+			},
+			{
+				"id": "until.agent-a.agent",
+				"source": "until",
+				"source_port": "agent",
+				"target": "a",
+				"target_port": "agent"
+			},
+			{
+				"id": "a.agent-b.agent",
+				"source": "a",
+				"source_port": "agent",
+				"target": "b",
+				"target_port": "agent"
+			},
+			{
+				"id": "b.done-until.when",
+				"source": "b",
+				"source_port": "done",
+				"target": "until",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["DONE_DEADLOCK", "until"]]
+	}
+}

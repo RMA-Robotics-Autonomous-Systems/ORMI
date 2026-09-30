@@ -1,0 +1,140 @@
+{
+	"name": "wait_any",
+	"description": "A Wait on ANY of its conditions: ten minutes, or a contact, whichever comes first.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "late",
+				"kind": "condition",
+				"label": "late",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 600,
+					"negate": false
+				}
+			},
+			{
+				"id": "contact",
+				"kind": "condition",
+				"label": "contact",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ContactsFound",
+					"threshold": 1,
+					"negate": false
+				}
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "any"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "ge.agent-wait.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "wait",
+				"target_port": "agent"
+			},
+			{
+				"id": "wait.agent-go.agent",
+				"source": "wait",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "late.value-wait.when",
+				"source": "late",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			},
+			{
+				"id": "contact.value-wait.when",
+				"source": "contact",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "wait",
+							"mode": "any",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 600,
+									"negate": false
+								},
+								{
+									"op": "ContactsFound",
+									"key": "",
+									"arg": "",
+									"threshold": 1,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["late", "contact"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

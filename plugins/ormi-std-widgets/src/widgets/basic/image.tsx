@@ -52,7 +52,7 @@ function ImageViewer(props: { sourceTitle: string }) {
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
-						color: "#666",
+						color: "var(--muted-foreground)",
 					}}
 				>
 					<div style={{ textAlign: "center" }}>
@@ -77,7 +77,7 @@ function ImageViewer(props: { sourceTitle: string }) {
 							maxWidth: "100%",
 							maxHeight: "100%",
 							objectFit: "contain",
-							border: "1px solid #ddd",
+							border: "1px solid var(--border)",
 						}}
 					/>
 				</div>

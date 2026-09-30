@@ -1,7 +1,9 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
+import { useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import {
 	SortableContext,
 	verticalListSortingStrategy,
@@ -17,6 +19,7 @@ import {
 import { MoreHorizontal, Pencil, Trash } from "lucide-react";
 import { Workspace, Category } from "@prisma/client";
 import { SortableWorkspaceItem } from "./item";
+import { sortableTransition } from "./motion";
 import { WorkspaceWithCategory } from "./types";
 
 interface KanbanColumnProps {
@@ -67,7 +70,18 @@ export function KanbanColumn({
 			type: "Column",
 			category: { id: categoryId, name: title },
 		},
+		transition: sortableTransition(useMotionTiming("base")),
 	});
+
+	// A workspace card dragged over this column, or over one of its cards,
+	// lands here: say so while it is over it.
+	const { active, over } = useDndContext();
+	const isDropTarget =
+		!!active &&
+		!!over &&
+		active.data.current?.type !== "Column" &&
+		(over.id === id ||
+			items.some((workspace) => `workspace-${workspace.id}` === over.id));
 
 	const style = {
 		transform: CSS.Translate.toString(transform),
@@ -76,73 +90,84 @@ export function KanbanColumn({
 	};
 
 	return (
+		// Two layers: `bg-content-surface` (transparent by default) keeps a
+		// preset's page texture out from under the column, and the muted tint
+		// stays on top of it, so the stock look is unchanged.
 		<div
 			ref={setNodeRef}
 			style={style}
-			className="flex h-full w-[350px] min-w-[350px] flex-col rounded-lg border bg-muted/50"
+			className="h-full w-[350px] min-w-[350px] rounded-lg bg-content-surface"
 		>
 			<div
-				{...attributes}
-				{...listeners}
-				className="flex items-center justify-between p-4 font-semibold cursor-grab active:cursor-grabbing"
+				data-drop-target={isDropTarget ? "" : undefined}
+				className="flex h-full flex-col rounded-lg border bg-muted/50 transition-[background-color,box-shadow] duration-(--motion-fast) ease-(--motion-ease) data-drop-target:bg-accent/60 data-drop-target:ring-2 data-drop-target:ring-ring/50"
 			>
-				<div className="flex items-center gap-2">
-					{title}
-					<span className="text-xs text-muted-foreground">
-						{items.length}
-					</span>
-				</div>
-				{categoryId && categoryId !== -1 && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="h-8 w-8"
-							>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={() =>
-									onEdit?.({ id: categoryId, name: title })
-								}
-							>
-								<Pencil className="mr-2 h-4 w-4" />
-								Rename
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								onClick={() => onDelete?.(categoryId)}
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</div>
-			<ScrollArea className="flex-1 p-4">
-				<SortableContext
-					id={id}
-					items={items.map((w) => `workspace-${w.id}`)}
-					strategy={verticalListSortingStrategy}
+				<div
+					{...attributes}
+					{...listeners}
+					className="flex items-center justify-between p-4 font-semibold cursor-grab active:cursor-grabbing"
 				>
-					<div className="flex flex-col gap-3">
-						{items.map((workspace) => (
-							<SortableWorkspaceItem
-								key={workspace.id}
-								workspace={workspace}
-								categories={categories}
-								onWorkspacePatch={onWorkspacePatch}
-								onWorkspaceReorder={onWorkspaceReorder}
-								onWorkspaceDeleted={onWorkspaceDeleted}
-							/>
-						))}
+					<div className="flex items-center gap-2">
+						{title}
+						<span className="text-xs text-muted-foreground">
+							{items.length}
+						</span>
 					</div>
-				</SortableContext>
-			</ScrollArea>
+					{categoryId && categoryId !== -1 && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-8 w-8"
+								>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() =>
+										onEdit?.({
+											id: categoryId,
+											name: title,
+										})
+									}
+								>
+									<Pencil className="mr-2 h-4 w-4" />
+									Rename
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="text-destructive focus:text-destructive"
+									onClick={() => onDelete?.(categoryId)}
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+				</div>
+				<ScrollArea className="flex-1 p-4">
+					<SortableContext
+						id={id}
+						items={items.map((w) => `workspace-${w.id}`)}
+						strategy={verticalListSortingStrategy}
+					>
+						<div className="flex flex-col gap-3">
+							{items.map((workspace) => (
+								<SortableWorkspaceItem
+									key={workspace.id}
+									workspace={workspace}
+									categories={categories}
+									onWorkspacePatch={onWorkspacePatch}
+									onWorkspaceReorder={onWorkspaceReorder}
+									onWorkspaceDeleted={onWorkspaceDeleted}
+								/>
+							))}
+						</div>
+					</SortableContext>
+				</ScrollArea>
+			</div>
 		</div>
 	);
 }

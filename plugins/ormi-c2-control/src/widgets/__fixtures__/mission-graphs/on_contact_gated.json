@@ -1,0 +1,209 @@
+{
+	"name": "on_contact_gated",
+	"description": "A Hold until before an On contact node: Ge starts taking contacts after 60 s.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "late",
+				"kind": "condition",
+				"label": "late",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 60,
+					"negate": false
+				}
+			},
+			{
+				"id": "w",
+				"kind": "wait",
+				"label": "w",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "on",
+				"kind": "on_contact",
+				"label": "on",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "visit",
+				"kind": "action",
+				"label": "visit",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-sweep.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-w.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "w",
+				"target_port": "agent"
+			},
+			{
+				"id": "w.agent-on.agent",
+				"source": "w",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "on.agent-visit.agent",
+				"source": "on",
+				"source_port": "agent",
+				"target": "visit",
+				"target_port": "agent"
+			},
+			{
+				"id": "visit.agent-on.agent",
+				"source": "visit",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "late.value-w.when",
+				"source": "late",
+				"source_port": "value",
+				"target": "w",
+				"target_port": "when"
+			},
+			{
+				"id": "sweep.contact-on.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "on",
+				"target_port": "event"
+			},
+			{
+				"id": "on.position-visit.target",
+				"source": "on",
+				"source_port": "position",
+				"target": "visit",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-fr"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "on",
+							"kind": "ON_CONTACT",
+							"action": "",
+							"feature_id": "",
+							"contact_node": "",
+							"source_step": "sweep",
+							"body": 1,
+							"next": -1,
+							"wait_node": "w",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 60,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["late"]
+						},
+						{
+							"step_id": "visit",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "",
+							"contact_node": "on",
+							"source_step": "",
+							"body": -1,
+							"next": 0,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				}
+			]
+		}
+	}
+}

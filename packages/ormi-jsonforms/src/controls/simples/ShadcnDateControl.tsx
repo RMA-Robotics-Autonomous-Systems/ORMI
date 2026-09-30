@@ -47,6 +47,7 @@ import { Calendar } from "@workspace/ui/components/calendar";
 import { Label } from "@workspace/ui/components/label";
 import { format } from "date-fns";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 export const ShadcnDateControl = ({
 	id,
@@ -58,11 +59,13 @@ export const ShadcnDateControl = ({
 	visible,
 	enabled,
 	path,
+	schema,
 	handleChange,
 	data,
 	config,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({ path, schema, errors });
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 	const dateFormat = appliedUiSchemaOptions.dateFormat ?? "yyyy-MM-dd";
 
@@ -150,7 +153,7 @@ export const ShadcnDateControl = ({
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

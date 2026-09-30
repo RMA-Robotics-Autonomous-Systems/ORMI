@@ -118,12 +118,14 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 			: health === "offline"
 				? "Offline"
 				: "Connecting…";
+	// The dot's colour and the label beside it carry the state; the pulse on
+	// "connecting" only adds to them, so it is dropped under reduced motion.
 	const statusDotClass =
 		health === "online"
-			? "bg-green-600 dark:bg-green-400"
+			? "bg-success"
 			: health === "offline"
 				? "bg-destructive"
-				: "bg-muted-foreground animate-pulse";
+				: "bg-muted-foreground motion-safe:animate-pulse";
 
 	const title = data.title || props.definition.name;
 

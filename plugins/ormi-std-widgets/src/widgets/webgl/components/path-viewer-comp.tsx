@@ -1,13 +1,8 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import {
-	Grid,
-	OrbitControls,
-	PerspectiveCamera,
-	GizmoHelper,
-	GizmoViewport,
-} from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { SceneBackground, SceneGizmo, ThemedGrid } from "./scene-chrome";
 import { PathViewerProps } from "../path-viewer";
 import { useLocalDataSource } from "@workspace/ormi-core/datasources";
 import { PathLineRenderer } from "./path-line-renderer";
@@ -29,15 +24,11 @@ export const PathViewerComp: React.FC<PathViewerProps> = (props) => {
 
 				<primitive object={axesHelper} />
 
-				<GizmoHelper alignment="bottom-right" margin={[80, 80]}>
-					<GizmoViewport
-						axisColors={["red", "green", "blue"]}
-						labelColor="black"
-					/>
-				</GizmoHelper>
+				<SceneBackground />
+				<SceneGizmo />
 
 				<OrbitControls makeDefault />
-				<Grid infiniteGrid={true} sectionColor="lightblue" />
+				<ThemedGrid />
 
 				<PathLineRenderer
 					source={source}

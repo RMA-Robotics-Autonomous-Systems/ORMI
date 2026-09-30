@@ -568,7 +568,10 @@ export function GpsMapAdvanced({
 				</CardContent>
 			</Card>
 
-			{/* EMI legend */}
+			{/* EMI legend. The label plates are UI chrome and read the theme
+			    tokens; the ramp is the data encoding and stays fixed. The map
+			    layers above are drawn against the OSM basemap, not the app
+			    theme, so their white strokes and grey track stay fixed too. */}
 			{hasHeatline && showHeatline && (
 				<div
 					style={{
@@ -585,8 +588,9 @@ export function GpsMapAdvanced({
 					<span
 						style={{
 							fontSize: 10,
-							color: "#555",
-							background: "rgba(255,255,255,0.85)",
+							color: "var(--muted-foreground)",
+							background:
+								"color-mix(in oklab, var(--popover) 85%, transparent)",
 							padding: "0 3px",
 							borderRadius: 3,
 						}}
@@ -605,8 +609,9 @@ export function GpsMapAdvanced({
 					<span
 						style={{
 							fontSize: 10,
-							color: "#555",
-							background: "rgba(255,255,255,0.85)",
+							color: "var(--muted-foreground)",
+							background:
+								"color-mix(in oklab, var(--popover) 85%, transparent)",
 							padding: "0 3px",
 							borderRadius: 3,
 						}}

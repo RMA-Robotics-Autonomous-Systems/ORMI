@@ -1,0 +1,109 @@
+{
+	"name": "agent_problems",
+	"description": "Unknown agent, repeated agent, agent with no agent selected, idle agent.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "x",
+				"kind": "agent",
+				"label": "x",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-unknown"
+			},
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "es2",
+				"kind": "agent",
+				"label": "es2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "blank",
+				"kind": "agent",
+				"label": "blank",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "x.agent-go.agent",
+				"source": "x",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "es.agent-go.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "es2.agent-go.agent",
+				"source": "es2",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "blank.agent-go.agent",
+				"source": "blank",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["AGENT_IDLE", "fr"],
+			["AGENT_MISSING", "blank"],
+			["AGENT_TWICE", "es2"],
+			["AGENT_UNKNOWN", "x"],
+			["TEAM_NAVIGATE", "go"]
+		]
+	}
+}

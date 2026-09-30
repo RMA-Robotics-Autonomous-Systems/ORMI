@@ -479,13 +479,13 @@ export function useFeedbackFreshness(
 }
 
 /**
- * Format an age for display: "3s ago", "2m ago", or "—" when unknown.
+ * Format an age for display: "3s ago", "2m ago", or "n/a" when unknown.
  *
  * @param ageMs - Milliseconds since the last update, or null.
  * @returns A short human string.
  */
 export function formatAge(ageMs: number | null): string {
-	if (ageMs == null) return "—";
+	if (ageMs == null) return "n/a";
 	const seconds = Math.floor(ageMs / 1000);
 	if (seconds < 60) return `${seconds}s ago`;
 	const minutes = Math.floor(seconds / 60);

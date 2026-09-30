@@ -208,8 +208,9 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					    enabled here and nothing else says which way is north,
 					    and past the basemap's own tile depth the imagery is
 					    overzoomed, so its detail no longer indicates distance
-					    either. Bottom-RIGHT: the unconfigured-entries notice
-					    below owns bottom-left. */}
+					    either. Bottom-RIGHT and one row up: the
+					    unconfigured-entries notice below owns bottom-left, and
+					    MapLibre's attribution owns the bottom edge. */}
 					<MapChrome />
 
 					{/* GPS Topics Layer (also hosts the consolidated control panel) */}

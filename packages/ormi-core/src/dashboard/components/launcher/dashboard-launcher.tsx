@@ -27,6 +27,7 @@ import {
 
 import { datasourcesAtom, widgetsAtom } from "../../atoms";
 import { TopicsPanel } from "../topic-list/topics-panel";
+import { ATTENTION_CLASS } from "../attention";
 import { shouldCallAttention } from "./launcher-attention";
 import {
 	LAUNCHER_TABS,
@@ -46,31 +47,6 @@ const TAB_META: Record<
 	widgets: { label: "Widgets", Icon: LayoutGrid },
 	templates: { label: "Templates", Icon: BookMarked },
 };
-
-/**
- * How the button looks while it is the one thing left to do.
- *
- * The halo-and-swell is the same vocabulary the navbar's `Datasources` button
- * uses for the step before this one, so an operator learns "this is what the
- * product asking for something looks like" exactly once — but it is spelled as
- * utilities over the shared keyframes rather than the inline `style` with a
- * hardcoded `boxShadow` that button carries, which cannot be themed and cannot
- * be turned off.
- *
- * `motion-safe:` is what turns it off: with `prefers-reduced-motion: reduce`
- * the animation is never applied, and the state is carried instead by the two
- * static halves — full opacity (the idle button sits at 70% so the dashboard
- * under it stays readable) and a primary ring. Both survive the animation
- * being dropped, so a reduced-motion console still shows the operator where to
- * go; a signal that exists only as movement is no signal at all for them.
- *
- * The ring is deliberately outside the button rather than a change of fill:
- * the label and icon keep their contrast, and `pulse-scale` peaks at 1.05, so
- * the hit target never moves far enough to be missed by a click already on its
- * way.
- */
-const ATTENTION_CLASS =
-	"opacity-100 ring-2 ring-primary/60 ring-offset-2 ring-offset-background motion-safe:animate-[pulse-bg_0.7s_infinite,pulse-scale_0.7s_infinite]";
 
 /**
  * The one way onto a dashboard: a floating action button and the dialog it

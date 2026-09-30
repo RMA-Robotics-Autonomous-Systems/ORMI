@@ -22,7 +22,7 @@ export function VersionBadge() {
 		<button
 			type="button"
 			onClick={showAll}
-			title={`Build ${version} — see what's new`}
+			title={`Build ${version}: what's new`}
 			className="cursor-pointer px-2 font-mono text-xs text-muted-foreground/70 transition-colors hover:text-muted-foreground"
 		>
 			{version}

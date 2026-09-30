@@ -1,0 +1,60 @@
+{
+	"name": "wait_empty",
+	"description": "A Wait with no condition would never open.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-wait.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "wait",
+				"target_port": "agent"
+			},
+			{
+				"id": "wait.agent-go.agent",
+				"source": "wait",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["WAIT_EMPTY", "wait"]]
+	}
+}

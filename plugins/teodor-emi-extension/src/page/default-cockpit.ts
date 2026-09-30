@@ -285,5 +285,15 @@ export function defaultCockpit(): DashboardInterface {
 	};
 }
 
+/**
+ * Every widget id the shipped cockpit places, including the standard map it
+ * borrows from another plugin.
+ *
+ * @returns The ids, each once.
+ */
+export function cockpitWidgetIds(): string[] {
+	return [...new Set(PANELS.map((p) => p.widget))];
+}
+
 /** The layout key the cockpit's engine reads. Asserted by the page's restore. */
 export const COCKPIT_LAYOUT_KEY = "flex";

@@ -93,10 +93,10 @@ function niceDistanceAtMost(maxMeters: number): number {
  * same distance and only one of them is readable.
  *
  * @param meters - Distance in metres.
- * @returns Label with its unit, or an em dash for a non-positive distance.
+ * @returns Label with its unit, or "n/a" for a non-positive distance.
  */
 export function formatDistance(meters: number): string {
-	if (!Number.isFinite(meters) || meters <= 0) return "—";
+	if (!Number.isFinite(meters) || meters <= 0) return "n/a";
 	if (meters >= 1000) return `${round2(meters / 1000)} km`;
 	if (meters >= 1) return `${round2(meters)} m`;
 	if (meters >= 0.01) return `${round2(meters * 100)} cm`;
@@ -112,10 +112,10 @@ export function formatDistance(meters: number): string {
  * looking at the data's resolution or the screen's.
  *
  * @param metersPerPixel - Ground metres covered by one CSS pixel.
- * @returns Label with its unit, or an em dash when not a usable number.
+ * @returns Label with its unit, or "n/a" when not a usable number.
  */
 export function formatResolution(metersPerPixel: number): string {
-	if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return "—";
+	if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return "n/a";
 	if (metersPerPixel >= 1) return `${precision2(metersPerPixel)} m/px`;
 	if (metersPerPixel >= 0.01)
 		return `${precision2(metersPerPixel * 100)} cm/px`;

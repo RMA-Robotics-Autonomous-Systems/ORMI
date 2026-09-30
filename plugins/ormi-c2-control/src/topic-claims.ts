@@ -46,4 +46,16 @@ export const topicClaims: TopicClaim[] = [
 		slot: "feedbackTopic",
 		role: "alternative",
 	},
+
+	// A finding is a belief that something is at a place, so the only honest
+	// answer to clicking one is the map — and the map is the only widget in the
+	// build that draws one. `default` rather than `alternative` because there
+	// is nothing to be asked between.
+
+	{
+		type: "payload_msgs/msg/Finding",
+		widgetId: "c2-mission-map-widget",
+		slot: "observationTopic",
+		role: "default",
+	},
 ];

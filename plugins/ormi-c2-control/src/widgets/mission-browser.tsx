@@ -24,7 +24,7 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { Copy, ListPlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { c2DatasourceSelectHook } from "../datasource/datasource-select";
+import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
 import { C2ErrorCode, c2ResultCode } from "../datasource/response";
 import {
@@ -38,11 +38,15 @@ import {
 import { publishMissionNames } from "../state/c2-catalog-store";
 import {
 	MissionRow,
-	duplicateMission,
+	duplicateMissionDocuments,
+	missionDocuments,
 	newMissionStub,
 	normalizeMissions,
 } from "./mission-list";
+import { graphDocId } from "./mission-graph";
+import { assetsDocId } from "./mission-assets";
 import { MissionIssueList } from "./mission-issues";
+import { humanizeMissionIssues } from "./mission-config-words";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
 import { useAsyncAction } from "./use-async-action";
@@ -127,7 +131,7 @@ function MissionBrowserBody(props: {
 		const result = await executeList({});
 		setLoading(false);
 		if (!result.success) {
-			setError(result.error ?? "Failed to list missions");
+			setError(result.error ?? "Could not load the missions.");
 			return;
 		}
 		setError(null);
@@ -144,7 +148,7 @@ function MissionBrowserBody(props: {
 			if (cancelled) return;
 			setLoading(false);
 			if (!result.success) {
-				setError(result.error ?? "Failed to list missions");
+				setError(result.error ?? "Could not load the missions.");
 				return;
 			}
 			setError(null);
@@ -161,12 +165,12 @@ function MissionBrowserBody(props: {
 	const saveAndRefetch = useCallback(
 		(mission: unknown, selectId?: string) => {
 			if (!props.saveDef) {
-				setError("c2.missions.save is unavailable");
+				setError("This C2 cannot save missions.");
 				return;
 			}
 			return run("save", async () => {
 				// Draft-save: the browser has no UI to add vehicles/geometries
-				// (that is the mission editor's job), so a saved mission is a
+				// (that is the mission map's job), so a saved mission is a
 				// draft. We still validate and surface the issues advisory-style so
 				// the operator sees what is incomplete, but we do NOT block the
 				// save — the real planner-crash gate stays HARD at the control
@@ -174,7 +178,7 @@ function MissionBrowserBody(props: {
 				setIssues(validateMissionConfig(mission));
 				const result = await save.execute({ mission });
 				if (!result.success) {
-					setError(result.error ?? "Failed to save mission");
+					setError(result.error ?? "Could not save the mission.");
 					return;
 				}
 				setError(null);
@@ -198,18 +202,75 @@ function MissionBrowserBody(props: {
 
 	/** Duplicate an existing mission as a fresh copy. */
 	const handleDuplicate = useCallback(
-		async (row: MissionRow) => {
-			const copy = duplicateMission(row.raw, `${row.name} (copy)`);
-			await saveAndRefetch(copy, String(copy.mission_id));
+		(row: MissionRow) => {
+			if (!props.saveDef) {
+				setError("This C2 cannot save missions.");
+				return;
+			}
+			// One guarded action (a double click must not copy the graph twice),
+			// and the map + assets and the graph come too, written first so the
+			// copy's graph_ref never names a document that is not there.
+			return run("save", async () => {
+				const listed = await executeList({});
+				if (!listed.success) {
+					setError(
+						`"${row.name}" was not duplicated. Could not read the missions: ${listed.error ?? "the request failed"}`,
+					);
+					return;
+				}
+				const graphDoc = missionDocuments(listed.data).find(
+					(doc) => doc.mission_id === graphDocId(row.mission_id),
+				);
+				const assetsDoc = missionDocuments(listed.data).find(
+					(doc) => doc.mission_id === assetsDocId(row.mission_id),
+				);
+				const copy = duplicateMissionDocuments(
+					row.raw,
+					graphDoc ?? null,
+					assetsDoc ?? null,
+					`${row.name} (copy)`,
+				);
+				if (copy.assets) {
+					const written = await save.execute({
+						mission: copy.assets,
+					});
+					if (!written.success) {
+						setError(
+							`"${row.name}" was not duplicated. Could not copy its map and assets: ${written.error ?? "the request failed"}`,
+						);
+						return;
+					}
+				}
+				if (copy.graph) {
+					const written = await save.execute({ mission: copy.graph });
+					if (!written.success) {
+						setError(
+							`"${row.name}" was not duplicated. Could not copy its graph: ${written.error ?? "the request failed"}`,
+						);
+						return;
+					}
+				}
+				setIssues(validateMissionConfig(copy.mission));
+				const result = await save.execute({ mission: copy.mission });
+				if (!result.success) {
+					setError(
+						`"${row.name}" was not duplicated: ${result.error ?? "the request failed"}`,
+					);
+					return;
+				}
+				setError(null);
+				setSelectedMission(String(copy.mission.mission_id));
+				await refetch();
+			});
 		},
-		[saveAndRefetch],
+		[props.saveDef, executeList, save, run, refetch],
 	);
 
 	/** Delete a mission then refetch. */
 	const handleDelete = useCallback(
 		(row: MissionRow) => {
 			if (!props.deleteDef) {
-				setError("c2.missions.delete is unavailable");
+				setError("This C2 cannot delete missions.");
 				return;
 			}
 			return run(`delete:${row.mission_id}`, async () => {
@@ -222,9 +283,7 @@ function MissionBrowserBody(props: {
 					// Reconcile the list instead of reporting a failure against a
 					// row that should simply disappear.
 					if (c2ResultCode(result) === C2ErrorCode.MissionNotFound) {
-						setError(
-							`"${row.name}" was already deleted from the mission store.`,
-						);
+						setError(`"${row.name}" was already deleted.`);
 						if (active === row.mission_id) setSelectedMission(null);
 						await refetch();
 						return;
@@ -232,11 +291,21 @@ function MissionBrowserBody(props: {
 					// Lead with what failed and on which mission; the
 					// transport's detail follows, never first.
 					setError(
-						`Deleting "${row.name}" from the mission store failed — ${result.error ?? "the request failed"}`,
+						`Could not delete "${row.name}": ${result.error ?? "the request failed"}`,
 					);
 					return;
 				}
 				setError(null);
+				// The mission's behaviour graph and its map + assets are
+				// SIBLING DOCUMENTS in this same collection (`":graph"`,
+				// `":assets"`), so deleting the mission alone would leave them
+				// behind forever: nothing lists them (`normalizeMissions`
+				// filters them out), nothing reads them, and no surface exists
+				// from which to remove them. A 404 here is swallowed rather
+				// than reported: the operator asked to delete a mission and the
+				// mission is gone.
+				await del.execute({ mission_id: graphDocId(row.mission_id) });
+				await del.execute({ mission_id: assetsDocId(row.mission_id) });
 				if (active === row.mission_id) setSelectedMission(null);
 				await refetch();
 			});
@@ -264,8 +333,8 @@ function MissionBrowserBody(props: {
 						variant="ghost"
 						onClick={() => void refetch()}
 						disabled={loading}
-						title="Refresh"
-						aria-label="Refresh the mission list"
+						title="Refresh missions"
+						aria-label="Refresh missions"
 					>
 						<RefreshCw className={loading ? "animate-spin" : ""} />
 					</Button>
@@ -295,7 +364,7 @@ function MissionBrowserBody(props: {
 					variant="outline"
 					className="shrink-0"
 					disabled={busy || !props.saveDef}
-					title="Create a minimal new mission (edit later in the mission editor)"
+					title="Create mission"
 					aria-label="Create mission"
 				>
 					{pending === "save" ? (
@@ -313,8 +382,8 @@ function MissionBrowserBody(props: {
 				</div>
 			)}
 			<MissionIssueList
-				issues={issues}
-				title="This mission is not yet ready to start:"
+				issues={humanizeMissionIssues(issues)}
+				title="Not ready to start:"
 			/>
 
 			{/* Mission list. Radix wraps the content in a `display: table`
@@ -415,8 +484,8 @@ function MissionBrowserBody(props: {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete mission?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Permanently delete &quot;{confirmDelete?.name}&quot;
-							from the mission store. This cannot be undone.
+							&quot;{confirmDelete?.name}&quot; and its graph and
+							assets will be deleted. This cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -468,8 +537,7 @@ const MissionBrowserWidget: React.FC<MissionBrowserProps> = (props) => {
 	if (!listDef) {
 		return (
 			<PanelEmptyState>
-				No C2 datasource available. Add a C2 Control datasource to
-				browse missions.
+				No C2 datasource. Add a C2 Control datasource.
 			</PanelEmptyState>
 		);
 	}
@@ -488,6 +556,12 @@ const MissionBrowserWidget: React.FC<MissionBrowserProps> = (props) => {
  * @returns Widget definition.
  */
 export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps> {
+	// The mission-control page seeds its panels by calling this factory from
+	// OUTSIDE render, so it must stay hook-free. It returns JSX (`icon`), which
+	// is enough for the React Compiler to take it for a component and give it a
+	// `useMemoCache` call — the dev build does exactly that, and the page then
+	// dies on "Invalid hook call" before it can apply its layout. Opt out.
+	"use no memo";
 	return {
 		id: "c2-mission-browser-widget",
 		name: "C2 Mission Browser",
@@ -499,10 +573,7 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				datasource_id: {
-					type: "string",
-					title: "C2 datasource id (optional)",
-				},
+				datasource_id: c2DatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -525,6 +596,5 @@ export function MissionBrowserDefinition(): WidgetDefinition<MissionBrowserProps
 			title: "Missions",
 		},
 		Component: MissionBrowserWidget,
-		extensibilityHook: c2DatasourceSelectHook,
 	} as WidgetDefinition<MissionBrowserProps>;
 }

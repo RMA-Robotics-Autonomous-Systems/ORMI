@@ -1,0 +1,204 @@
+/*
+ * Tactical display preset (dark cockpit).
+ *
+ * Military cockpit and tactical-display conventions for a console that runs
+ * robots in the field, often at night. The governing rule is the "dark
+ * cockpit": when everything is normal the display is quiet, and only what
+ * needs attention is bright. Chrome (borders, labels, tab strips, splitters)
+ * is dimmed hard; the text is a desaturated green-grey at moderate
+ * luminance; the saturated colours are reserved for status.
+ *
+ * Status keeps MIL-STD-411-style meanings and nothing else borrows them:
+ *   red    (destructive) warning, danger
+ *   amber  (warning)     caution, and the command-a-robot affordance
+ *   green  (success)     normal, safe
+ *   cyan   (info)        advisory
+ * The primary action is a low-chroma teal so that a selected tab or a
+ * confirm button never competes with a status cue.
+ *
+ * Night use: the page is near-black with a faint green cast, panels are a
+ * lightness step of ~0.025 above it, there are no large white areas and no
+ * saturated blue fills. This is night-FRIENDLY only. It is NOT certified
+ * NVIS-compatible (MIL-STD-3009 / MIL-L-85762): a monitor behind this CSS
+ * still emits across the spectrum, and nothing here was measured with a
+ * spectroradiometer or through night-vision goggles.
+ *
+ * Dark mode is the real mode. Light mode is the daylight briefing sheet:
+ * neutral grey paper, black ink, the same status semantics, still quiet.
+ *
+ * Square, tiled panels sharing one dim rule, no shadows, no texture. Inter
+ * for body text (legibility at wall distance), JetBrains Mono for labels,
+ * tab titles and figures, uppercase and tracked.
+ *
+ * Tokens only: everything below the colours is the preset token contract in
+ * packages/ui/src/styles/globals.css, and this file has no selector besides
+ * `:root` and `.dark`. Chart colours are data and are left to globals.
+ */
+
+/* Light: daylight briefing sheet. */
+:root {
+	--background: oklch(0.93 0.004 150);
+	--foreground: oklch(0.2 0.01 150);
+	--card: oklch(0.965 0.003 150);
+	--card-foreground: oklch(0.2 0.01 150);
+	--popover: oklch(0.975 0.003 150);
+	--popover-foreground: oklch(0.2 0.01 150);
+	--primary: oklch(0.44 0.07 195);
+	--primary-foreground: oklch(0.98 0.004 150);
+	--secondary: oklch(0.895 0.005 150);
+	--secondary-foreground: oklch(0.22 0.01 150);
+	--muted: oklch(0.9 0.005 150);
+	--muted-foreground: oklch(0.44 0.014 155);
+	--accent: oklch(0.87 0.025 190);
+	--accent-foreground: oklch(0.2 0.02 190);
+	--border: oklch(0.8 0.007 150);
+	--input: oklch(0.7 0.01 150);
+	--ring: oklch(0.5 0.07 195);
+
+	/* Status: red warning, amber caution, green normal, cyan advisory. */
+	--destructive: oklch(0.52 0.21 27);
+	--destructive-foreground: oklch(0.52 0.21 27);
+	--success: oklch(0.5 0.15 148);
+	--success-foreground: oklch(0.98 0.004 150);
+	--warning: oklch(0.79 0.165 78);
+	--warning-foreground: oklch(0.2 0.04 70);
+	--warning-text: oklch(0.5 0.12 68);
+	--info: oklch(0.5 0.1 215);
+	--info-foreground: oklch(0.98 0.004 150);
+
+	--sidebar: oklch(0.945 0.004 150);
+	--sidebar-foreground: oklch(0.2 0.01 150);
+	--sidebar-primary: oklch(0.44 0.07 195);
+	--sidebar-primary-foreground: oklch(0.98 0.004 150);
+	--sidebar-accent: oklch(0.87 0.025 190);
+	--sidebar-accent-foreground: oklch(0.2 0.02 190);
+	--sidebar-border: oklch(0.8 0.007 150);
+	--sidebar-ring: oklch(0.5 0.07 195);
+}
+
+/* Dark: the night display. */
+.dark {
+	--background: oklch(0.135 0.008 160);
+	--foreground: oklch(0.82 0.03 150);
+	--card: oklch(0.16 0.009 160);
+	--card-foreground: oklch(0.82 0.03 150);
+	--popover: oklch(0.18 0.01 160);
+	--popover-foreground: oklch(0.82 0.03 150);
+	/* Restrained teal: a selection, not a signal. */
+	--primary: oklch(0.64 0.065 190);
+	--primary-foreground: oklch(0.14 0.01 190);
+	--secondary: oklch(0.205 0.011 160);
+	--secondary-foreground: oklch(0.82 0.03 150);
+	--muted: oklch(0.195 0.01 160);
+	--muted-foreground: oklch(0.64 0.025 155);
+	--accent: oklch(0.225 0.018 180);
+	--accent-foreground: oklch(0.86 0.03 160);
+	/* Hairline chrome, a few steps above the page and no more. */
+	--border: oklch(0.245 0.012 160);
+	--input: oklch(0.3 0.014 160);
+	--ring: oklch(0.58 0.06 190);
+
+	/* Status: the only saturated colours on the screen. */
+	--destructive: oklch(0.57 0.21 27);
+	--destructive-foreground: oklch(0.68 0.2 27);
+	--success: oklch(0.74 0.18 145);
+	--success-foreground: oklch(0.15 0.03 145);
+	--warning: oklch(0.8 0.165 78);
+	--warning-foreground: oklch(0.17 0.03 70);
+	--warning-text: oklch(0.8 0.165 78);
+	--info: oklch(0.8 0.11 212);
+	--info-foreground: oklch(0.15 0.02 212);
+
+	--sidebar: oklch(0.15 0.009 160);
+	--sidebar-foreground: oklch(0.82 0.03 150);
+	--sidebar-primary: oklch(0.64 0.065 190);
+	--sidebar-primary-foreground: oklch(0.14 0.01 190);
+	--sidebar-accent: oklch(0.225 0.018 180);
+	--sidebar-accent-foreground: oklch(0.86 0.03 160);
+	--sidebar-border: oklch(0.245 0.012 160);
+	--sidebar-ring: oklch(0.58 0.06 190);
+
+	/* At night the 3D viewers clear to the page, a step below the panel, so
+	   the scene reads as a window rather than one more lit surface. */
+	--scene-background: var(--background);
+}
+
+/*
+ * Shape, type and frame. Declared once: the colours they read are
+ * the ones above, resolved per mode on the same root element.
+ */
+:root {
+	--font-body:
+		var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+	--font-display:
+		var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+	--font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
+	--font-label: var(--font-jetbrains-mono), ui-monospace, monospace;
+	--heading-weight: 600;
+	--heading-tracking: 0.06em;
+	--heading-transform: uppercase;
+	--label-tracking: 0.08em;
+	--label-transform: uppercase;
+
+	/* Square. `rounded-xl` is `--radius` + 4px and keeps a 4px corner. */
+	--radius: 0px;
+	--radius-pill: 1px;
+	--border-width: 1px;
+
+	/* No shadows: depth is a light source, and a dark cockpit has none.
+	   Surfaces are separated by one dim rule. */
+	--elevation-xs: 0 0 #0000;
+	--elevation-sm: 0 0 #0000;
+	--elevation-md: 0 0 #0000;
+	--elevation-lg: 0 0 #0000;
+	--elevation-xl: 0 0 #0000;
+	--elevation-2xl: 0 0 #0000;
+	--elevation-field: 0 0 #0000;
+	--elevation-overlay: 0 0 #0000;
+	--elevation-pressed: 0 0 #0000;
+	--elevation-well: 0 0 #0000;
+	--elevation-thumb: 0 0 #0000;
+	--pressed-offset: 0px;
+	--surface-border-color: var(--border);
+	--field-border-color: var(--input);
+	--field-background: var(--background);
+	--action-border-color: transparent;
+
+	--surface-texture: none;
+
+	/* Tiled, like a multi-function display: panels share single dim rules,
+	   the whole area is outlined once, tabs sit flush with the panel edge. */
+	--frame-gutter: 0px;
+	--frame-outline: 1px;
+	--panel-radius: 0px;
+	--panel-border-width: 0px;
+	--panel-border-color: var(--border);
+	--panel-elevation: none;
+	--panel-inner-shadow: 0 0 #0000;
+	--panel-background: var(--card);
+	--tabstrip-background: var(--background);
+	--tabstrip-inset: 0px;
+	--splitter-line: var(--border);
+	/* Dark cockpit: panel titles are chrome, so even the active one is
+	   muted, and inactive tabs a step below it. */
+	--tab-title-active-color: var(--muted-foreground);
+	--tab-title-color: color-mix(
+		in oklch,
+		var(--muted-foreground) 80%,
+		var(--background)
+	);
+
+	/* The 3D ground grid stays below the chrome: at night a bright grid is
+	   the largest luminous area on the screen. */
+	--scene-grid-line: var(--border);
+	--scene-grid-section: color-mix(
+		in oklch,
+		var(--muted-foreground) 32%,
+		var(--panel-background)
+	);
+
+	--navbar-background: var(--background);
+	--navbar-elevation: none;
+	--navbar-radius: 0px;
+	--navbar-inset: 0px;
+}

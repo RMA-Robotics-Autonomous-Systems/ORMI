@@ -780,9 +780,9 @@ function unmatchedReason(
 		);
 	}
 	if (fallbacks.length > 0) {
-		return `No widget claims '${typeLabel}' directly — pick a raw viewer.`;
+		return `No widget claims '${typeLabel}' directly. Pick a raw viewer.`;
 	}
-	return `No widget displays '${typeLabel}' — only controls that command it.`;
+	return `No widget displays '${typeLabel}'. Only controls command it.`;
 }
 
 // ---------------------------------------------------------------------------

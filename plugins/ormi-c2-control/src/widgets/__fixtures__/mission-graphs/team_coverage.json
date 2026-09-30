@@ -1,0 +1,99 @@
+{
+	"name": "team_coverage",
+	"description": "Two agents wired into ONE coverage action: a team, the planner splits the zone.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE"
+			},
+			{
+				"id": "zone",
+				"kind": "asset",
+				"label": "zone",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-sweep.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-sweep.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "zone.value-sweep.target",
+				"source": "zone",
+				"source_port": "value",
+				"target": "sweep",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es", "agent-ge"],
+					"steps": [
+						{
+							"step_id": "sweep",
+							"kind": "STEP",
+							"action": "COVERAGE",
+							"feature_id": "feat-zone",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "",
+							"mode": "all",
+							"gate": [],
+							"gate_nodes": []
+						}
+					]
+				}
+			]
+		}
+	}
+}

@@ -1,16 +1,15 @@
 "use client";
 import { useEffect } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { UserAccountNav } from "@/components/user/user-home-nav";
 import { PluginPagesNav } from "@/components/plugin-pages-nav";
+import { NavLink } from "@/components/nav-link";
 import { preloadWorkspaces } from "@/lib/api/workspace-api";
 
 import { User } from "next-auth";
 import { useSession } from "next-auth/react";
 import { NavbarItem } from "@workspace/ui/combined/navbar";
-import { Button } from "@workspace/ui/components/button";
 
 import "./layout.css";
 
@@ -50,16 +49,14 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 						<UserAccountNav user={session?.user as User} />
 					</NavbarItem>
 					<NavbarItem id="dashboard" zone="left" priority={1}>
-						<Link href="/dashboard" passHref>
-							<Button variant="ghost">Dashboard</Button>
-						</Link>
+						<NavLink href="/dashboard" section="/dashboard/">
+							Dashboard
+						</NavLink>
 					</NavbarItem>
 				</>
 			) : (
 				<NavbarItem id="user_account" zone="right" priority={-2}>
-					<Link href="/signin" passHref>
-						<Button variant="ghost">Sign In</Button>
-					</Link>
+					<NavLink href="/signin">Sign In</NavLink>
 				</NavbarItem>
 			)}
 			<div
@@ -71,7 +68,12 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 							// would hand the height straight back to the thing
 							// being bounded.
 							"grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]"
-						: "grid min-h-[96dvh]"
+						: // The viewport less the 3rem navbar and the inset a
+							// floating bar adds above it (`--navbar-inset`,
+							// globals.css): `96dvh` under a 48px bar made every
+							// page 8px taller than the screen, so a full-height
+							// plugin page scrolled.
+							"grid min-h-[calc(100dvh_-_3rem_-_var(--navbar-inset))]"
 				}
 			>
 				{children}

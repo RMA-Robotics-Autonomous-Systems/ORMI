@@ -46,6 +46,7 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@workspace/ui/components/tooltip";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 export const ShadcnBooleanToggleControl = ({
 	data,
@@ -57,11 +58,13 @@ export const ShadcnBooleanToggleControl = ({
 	handleChange,
 	errors,
 	path,
+	schema,
 	config,
 	description,
 	required,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({ path, schema, errors });
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	// The focus argument stays `false` here on purpose: unlike the other
@@ -89,39 +92,47 @@ export const ShadcnBooleanToggleControl = ({
 		return null;
 	}
 
-	const control = (
-		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-			<Switch
-				id={id}
-				checked={data || false}
-				disabled={!enabled}
-				onCheckedChange={(checked) => handleChange(path, checked)}
-				{...ariaProps}
-			/>
-			<label
-				htmlFor={id}
-				className={cn(
-					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-					required && "after:text-destructive after:content-['*']",
-				)}
-			>
-				{label}
-			</label>
-		</div>
+	// Label in the label column, switch in the control column: the same
+	// geometry as every other row of the form.
+	const labelElement = (
+		<label
+			htmlFor={id}
+			className={cn(
+				"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+				required && "after:text-destructive after:content-['*']",
+			)}
+		>
+			{label}
+		</label>
+	);
+
+	const switchElement = (
+		<Switch
+			id={id}
+			checked={data || false}
+			disabled={!enabled}
+			onCheckedChange={(checked) => handleChange(path, checked)}
+			{...ariaProps}
+		/>
 	);
 
 	return (
 		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-			{showTooltip ? (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>{control}</TooltipTrigger>
-						<TooltipContent>{description}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			) : (
-				control
-			)}
+			{labelElement}
+			<div className="flex items-center">
+				{showTooltip ? (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								{switchElement}
+							</TooltipTrigger>
+							<TooltipContent>{description}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				) : (
+					switchElement
+				)}
+			</div>
 
 			{showDescription && (
 				<p
@@ -137,7 +148,7 @@ export const ShadcnBooleanToggleControl = ({
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

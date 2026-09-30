@@ -36,6 +36,7 @@ import { Label } from "@workspace/ui/components/label";
 import { Slider } from "@workspace/ui/components/slider";
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 export const ShadcnSliderControl = (props: ControlProps) => {
 	const {
@@ -54,6 +55,11 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 	} = props;
 
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({
+		path: props.path,
+		schema: props.schema,
+		errors,
+	});
 	const appliedUiSchemaOptions = merge({}, config, props.uischema.options);
 	// `true` for the focus argument: help text is always shown, never gated on
 	// the field being focused.
@@ -114,7 +120,7 @@ export const ShadcnSliderControl = (props: ControlProps) => {
 
 			{!isValid && (
 				<p id={errorId(id)} className="text-sm text-destructive">
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

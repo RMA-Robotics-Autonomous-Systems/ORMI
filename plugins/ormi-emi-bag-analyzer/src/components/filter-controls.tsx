@@ -63,7 +63,7 @@ export function FilterControls({ config, onChange }: FilterControlsProps) {
 
 				{config.kind === "lowpass" && (
 					<SliderRow
-						label={`Alpha — ${config.lowpassAlpha.toFixed(2)}`}
+						label={`Alpha: ${config.lowpassAlpha.toFixed(2)}`}
 						value={config.lowpassAlpha}
 						min={0.01}
 						max={1}
@@ -75,7 +75,7 @@ export function FilterControls({ config, onChange }: FilterControlsProps) {
 				{config.kind === "kalman" && (
 					<>
 						<SliderRow
-							label={`Process noise — ${config.kalmanProcessNoise.toFixed(1)}`}
+							label={`Process noise: ${config.kalmanProcessNoise.toFixed(1)}`}
 							value={config.kalmanProcessNoise}
 							min={0.1}
 							max={100}
@@ -83,7 +83,7 @@ export function FilterControls({ config, onChange }: FilterControlsProps) {
 							onChange={(v) => set("kalmanProcessNoise", v)}
 						/>
 						<SliderRow
-							label={`Measurement noise — ${config.kalmanMeasurementNoise.toFixed(2)}`}
+							label={`Measurement noise: ${config.kalmanMeasurementNoise.toFixed(2)}`}
 							value={config.kalmanMeasurementNoise}
 							min={0.1}
 							max={100}
@@ -91,7 +91,7 @@ export function FilterControls({ config, onChange }: FilterControlsProps) {
 							onChange={(v) => set("kalmanMeasurementNoise", v)}
 						/>
 						<SliderRow
-							label={`Initial covariance — ${config.kalmanInitialCovariance.toFixed(0)}`}
+							label={`Initial covariance: ${config.kalmanInitialCovariance.toFixed(0)}`}
 							value={config.kalmanInitialCovariance}
 							min={1}
 							max={1000}
@@ -103,7 +103,7 @@ export function FilterControls({ config, onChange }: FilterControlsProps) {
 
 				{config.kind === "dezerolizer" && (
 					<SliderRow
-						label={`Decay — ${config.dezeroliserDecay.toFixed(2)}`}
+						label={`Decay: ${config.dezeroliserDecay.toFixed(2)}`}
 						value={config.dezeroliserDecay}
 						min={0.5}
 						max={0.999}

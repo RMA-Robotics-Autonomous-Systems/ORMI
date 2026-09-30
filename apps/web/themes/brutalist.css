@@ -1,0 +1,191 @@
+/*
+ * Neo-brutalism preset.
+ *
+ * Flat paper, solid ink, one loud primary. The dashboard is a tiled sheet:
+ * no gutter, square panels outlined in ink, so two neighbours share a heavy
+ * rule (two panel borders side by side) and the grid reads as one printed
+ * page rather than a set of floating cards. Depth is never a blur: raised
+ * things cast a hard ink shadow offset down-right, and a pressed button loses
+ * it, as if pushed flat into the page.
+ *
+ * The palette is the De Stijl set a black grid calls for: ultramarine primary,
+ * signal yellow for warnings (and so for the command affordance, which stays
+ * well clear of the blue), red for destruction. Info is pushed towards cyan
+ * so an info badge is not mistaken for a primary action.
+ *
+ * Tokens only: everything below the colours is the preset token contract in
+ * packages/ui/src/styles/globals.css, and this file has no selector besides
+ * `:root` and `.dark`.
+ */
+
+:root {
+	--background: oklch(0.965 0.012 95);
+	--foreground: oklch(0.16 0.005 270);
+	--card: oklch(0.995 0.004 95);
+	--card-foreground: oklch(0.16 0.005 270);
+	--popover: oklch(0.995 0.004 95);
+	--popover-foreground: oklch(0.16 0.005 270);
+	--primary: oklch(0.5 0.24 266);
+	--primary-foreground: oklch(0.995 0.004 95);
+	--secondary: oklch(0.91 0.014 95);
+	--secondary-foreground: oklch(0.16 0.005 270);
+	--muted: oklch(0.925 0.013 95);
+	--muted-foreground: oklch(0.42 0.012 95);
+	--accent: oklch(0.87 0.09 266);
+	--accent-foreground: oklch(0.16 0.005 270);
+	--destructive: oklch(0.55 0.22 27);
+	--success: oklch(0.5 0.14 150);
+	--success-foreground: oklch(0.995 0.004 95);
+	--warning: oklch(0.86 0.17 95);
+	--warning-foreground: oklch(0.16 0.005 270);
+	--warning-text: oklch(0.5 0.11 80);
+	--info: oklch(0.5 0.11 222);
+	--info-foreground: oklch(0.995 0.004 95);
+	/* Rules inside a panel (table rows, separators) are a step below the ink
+	   the frame is drawn in, so structure reads before detail. */
+	--border: oklch(0.74 0.012 95);
+	--input: oklch(0.16 0.005 270);
+	--ring: oklch(0.5 0.24 266);
+	--sidebar: oklch(0.965 0.012 95);
+	--sidebar-foreground: oklch(0.16 0.005 270);
+	--sidebar-primary: oklch(0.5 0.24 266);
+	--sidebar-primary-foreground: oklch(0.995 0.004 95);
+	--sidebar-accent: oklch(0.87 0.09 266);
+	--sidebar-accent-foreground: oklch(0.16 0.005 270);
+	--sidebar-border: oklch(0.74 0.012 95);
+	--sidebar-ring: oklch(0.5 0.24 266);
+	--radius: 0rem;
+
+	/* The ink the frame is ruled in and the colour hard shadows are cast in. */
+	--brut-ink: oklch(0.16 0.005 270);
+	--brut-shadow: oklch(0.16 0.005 270);
+	/* The tiled frame's rules. Two panel borders meet at every seam, a 4px
+	   rule, and at full ink that grid out-weighs everything it holds; a
+	   lighter ink keeps the width (the double rule is the point) and lets
+	   the panels' content read first. */
+	--brut-frame: oklch(0.34 0.006 270);
+}
+
+.dark {
+	--background: oklch(0.14 0.004 270);
+	--foreground: oklch(0.95 0.012 95);
+	--card: oklch(0.185 0.004 270);
+	--card-foreground: oklch(0.95 0.012 95);
+	--popover: oklch(0.185 0.004 270);
+	--popover-foreground: oklch(0.95 0.012 95);
+	/* The light primary a step up: as text or an icon on the near-black
+	   page it reaches 4:1, and white on it still clears 4.5:1. */
+	--primary: oklch(0.56 0.23 266);
+	--primary-foreground: oklch(0.995 0.004 95);
+	--secondary: oklch(0.27 0.004 270);
+	--secondary-foreground: oklch(0.95 0.012 95);
+	--muted: oklch(0.235 0.004 270);
+	--muted-foreground: oklch(0.76 0.01 95);
+	--accent: oklch(0.34 0.12 266);
+	--accent-foreground: oklch(0.95 0.012 95);
+	--destructive: oklch(0.56 0.21 27);
+	--success: oklch(0.72 0.17 150);
+	--success-foreground: oklch(0.14 0.004 270);
+	--warning: oklch(0.87 0.17 95);
+	--warning-foreground: oklch(0.14 0.004 270);
+	/* Restated from globals.css `.dark`: this file's `:root` sets it, and
+	   `:root` and `.dark` tie on specificity, so the later file wins. */
+	--warning-text: oklch(0.87 0.17 95);
+	--info: oklch(0.74 0.12 222);
+	--info-foreground: oklch(0.14 0.004 270);
+	--border: oklch(0.4 0.006 270);
+	--input: oklch(0.82 0.01 95);
+	--ring: oklch(0.62 0.2 266);
+	--sidebar: oklch(0.14 0.004 270);
+	--sidebar-foreground: oklch(0.95 0.012 95);
+	--sidebar-primary: oklch(0.56 0.23 266);
+	--sidebar-primary-foreground: oklch(0.995 0.004 95);
+	--sidebar-accent: oklch(0.34 0.12 266);
+	--sidebar-accent-foreground: oklch(0.95 0.012 95);
+	--sidebar-border: oklch(0.4 0.006 270);
+	--sidebar-ring: oklch(0.62 0.2 266);
+	--radius: 0rem;
+
+	/* The ink stays a step below the text, so on a dark wall the rules do
+	   not out-shine the data they frame. */
+	--brut-ink: oklch(0.82 0.01 95);
+	--brut-shadow: oklch(0.82 0.01 95);
+	/* A light rule glows on a dark wall; the frame steps further down. */
+	--brut-frame: oklch(0.6 0.008 95);
+	/* globals.css `.dark` tints fields with `--input` at 30%, which is a
+	   grey wash under off-white ink; a brutalist field is a flat cut-out. */
+	--field-background: var(--background);
+}
+
+/*
+ * Shape, type, elevation and frame. Declared once: the colours they
+ * read are the ones above, resolved per mode on the same root element.
+ */
+:root {
+	--font-body:
+		var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--font-display:
+		var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
+	/* Named, not inherited: an unset label face inherits FlexLayout's own
+	   Roboto stack in tab titles, which is not this sheet's type. */
+	--font-label:
+		var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--heading-transform: uppercase;
+	--heading-tracking: 0.02em;
+	/* Headings are slabs. Titles carrying their own `font-semibold` keep
+	   it; the hero and bare headings take the full bold. */
+	--heading-weight: 700;
+	--label-transform: uppercase;
+	--label-tracking: 0.04em;
+
+	--border-width: 2px;
+	/* Hard offset shadows, no blur, cast down-right in ink. A step up the
+	   scale only pushes the object further off the page. */
+	--elevation-xs: 2px 2px 0 0 var(--brut-shadow);
+	--elevation-sm: 3px 3px 0 0 var(--brut-shadow);
+	--elevation-md: 4px 4px 0 0 var(--brut-shadow);
+	--elevation-lg: 6px 6px 0 0 var(--brut-shadow);
+	--elevation-xl: 8px 8px 0 0 var(--brut-shadow);
+	--elevation-2xl: 12px 12px 0 0 var(--brut-shadow);
+	/* Fields and tracks are flat cut-outs in the page, outlined in ink. */
+	--elevation-field: 0 0 #0000;
+	--elevation-well: 0 0 #0000;
+	--elevation-overlay: var(--elevation-lg);
+	/* A pressed button is pushed flat into the page: its shadow is gone. */
+	--elevation-pressed: 0 0 #0000;
+	/* ...and its face moves into where the shadow was: the button's
+	   `shadow-xs` offset, so the face lands exactly on its own shadow. */
+	--pressed-offset: 2px;
+	--elevation-thumb: 0 0 #0000;
+	--surface-border-color: var(--brut-ink);
+	--field-border-color: var(--brut-ink);
+	/* Filled buttons are cut out and outlined in ink like everything else. */
+	--action-border-color: var(--brut-ink);
+	/* Switches and sliders are square bars, as the rest of the sheet. */
+	--radius-pill: 0px;
+
+	--surface-texture: none;
+
+	/* Tiled: panels touch, each outlined in ink, so a seam between two is a
+	   double rule and the outer edge a single one. No panel shadow: in a
+	   tile there is nowhere for it to fall. */
+	--frame-gutter: 0px;
+	--frame-outline: 0px;
+	--panel-radius: 0px;
+	--panel-border-width: 2px;
+	--panel-border-color: var(--brut-frame);
+	--panel-elevation: none;
+	--panel-inner-shadow: 0 0 #0000;
+	--panel-background: var(--card);
+	--tabstrip-background: var(--muted);
+	/* The active tab stands on the panel's own edge, not inset from it. */
+	--tabstrip-inset: 0px;
+	--splitter-line: var(--brut-frame);
+
+	/* Full width, flush with the viewport, ruled off in ink underneath. */
+	--navbar-background: var(--background);
+	--navbar-elevation: none;
+	--navbar-radius: 0px;
+	--navbar-inset: 0px;
+}

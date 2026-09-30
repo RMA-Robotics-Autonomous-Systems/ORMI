@@ -53,7 +53,7 @@ const FOLLOW_TITLE: Record<EmiView["mode"], string> = {
 	// Reads as on, and does nothing — so it says why. Without this the operator
 	// goes looking for the setting that is "stuck".
 	full: "The whole run is shown, so the newest sample is always visible",
-	follow: "Following the newest sample — click to pin this window",
+	follow: "Following the newest sample. Press to pin this window",
 	pinned: "Jump to the newest sample and follow it",
 };
 
@@ -73,36 +73,33 @@ export function EmiTimeTransport(props: EmiTimeTransportProps) {
 	return (
 		<div className="flex items-center gap-1">
 			<Button
-				size="sm"
+				size="icon-sm"
 				variant="ghost"
-				className="h-6 w-6 p-0"
 				title="Zoom out"
 				aria-label="Zoom out"
 				disabled={full}
 				onClick={() => controls.zoomBy(ZOOM_STEP)}
 			>
-				<MinusIcon className="h-3 w-3" />
+				<MinusIcon />
 			</Button>
 			<Button
-				size="sm"
+				size="icon-sm"
 				variant="ghost"
-				className="h-6 w-6 p-0"
 				title="Zoom in"
 				aria-label="Zoom in"
 				onClick={() => controls.zoomBy(1 / ZOOM_STEP)}
 			>
-				<PlusIcon className="h-3 w-3" />
+				<PlusIcon />
 			</Button>
 			<Button
-				size="sm"
+				size="icon-sm"
 				variant="ghost"
-				className="h-6 w-6 p-0"
 				title="Earlier"
 				aria-label="Earlier"
 				disabled={full}
 				onClick={() => controls.panBy(-PAN_STEP)}
 			>
-				<ChevronLeftIcon className="h-3 w-3" />
+				<ChevronLeftIcon />
 			</Button>
 			{/*
 			  Disabled rather than hidden while the whole run is shown: a control
@@ -130,15 +127,14 @@ export function EmiTimeTransport(props: EmiTimeTransportProps) {
 			  that is already at the end.
 			*/}
 			<Button
-				size="sm"
+				size="icon-sm"
 				variant="ghost"
-				className="h-6 w-6 p-0"
 				title={following ? "Already at the newest sample" : "Later"}
 				aria-label="Later"
 				disabled={following}
 				onClick={() => controls.panBy(PAN_STEP)}
 			>
-				<ChevronRightIcon className="h-3 w-3" />
+				<ChevronRightIcon />
 			</Button>
 			{/*
 			  States itself in a word, not in a colour. The variant change is a
@@ -150,7 +146,7 @@ export function EmiTimeTransport(props: EmiTimeTransportProps) {
 			<Button
 				size="sm"
 				variant={following ? "secondary" : "ghost"}
-				className="h-6 px-2 text-[11px]"
+				className="text-[11px]"
 				title={FOLLOW_TITLE[mode]}
 				aria-pressed={following}
 				disabled={full}
@@ -161,7 +157,7 @@ export function EmiTimeTransport(props: EmiTimeTransportProps) {
 			<Button
 				size="sm"
 				variant="ghost"
-				className="h-6 px-2 text-[11px]"
+				className="text-[11px]"
 				title="Show the whole run"
 				disabled={full}
 				onClick={controls.reset}

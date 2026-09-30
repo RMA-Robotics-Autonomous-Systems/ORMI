@@ -47,6 +47,7 @@ import {
 import { WidgetCard } from "../../../widgets/components/widget-card/widget-card";
 import { WidgetDefinition } from "../../../widgets/widget-interface";
 import { DashboardEmptyState } from "../dashboard-empty-state";
+import { ATTENTION_CLASS, shouldSaveCallAttention } from "../attention";
 import { LayoutEngineDefinition } from "../../layout/layout-engine";
 import { WidgetHost } from "../../layout/widget-host";
 import { useDashboardActions } from "../../state/use-dashboard-actions";
@@ -506,11 +507,12 @@ const Dashboard = () => {
 
 	const lockLabel = locked ? "Unlock dashboard" : "Lock dashboard";
 
-	// Pulse discipline: only the next required step pulses. The datasources
-	// button owns the first step (no datasource configured); saving is the last
-	// one, so it stays quiet until there is a configured datasource and at
-	// least one widget to persist.
-	const savePulses = hasChanged && datasources.size > 0 && widgets.size > 0;
+	// Only the next required step is cued; see shouldSaveCallAttention.
+	const savePulses = shouldSaveCallAttention({
+		hasChanged,
+		datasourceCount: datasources.size,
+		widgetCount: widgets.size,
+	});
 
 	const widgets_elements = useMemo(() => {
 		return Array.from(widgets.keys()).map((widgetId) => (
@@ -651,17 +653,7 @@ const Dashboard = () => {
 									? "Save dashboard"
 									: "Dashboard saved"
 							}
-							className={savePulses ? "animate-pulse" : ""}
-							style={
-								savePulses
-									? {
-											animation:
-												"pulse-bg 0.7s infinite, pulse-scale 0.7s infinite",
-											boxShadow:
-												"0 0 0 0 hsl(var(--primary))",
-										}
-									: {}
-							}
+							className={savePulses ? ATTENTION_CLASS : undefined}
 							onClick={save}
 						>
 							{hasChanged ? (
@@ -672,9 +664,7 @@ const Dashboard = () => {
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>
-						{hasChanged
-							? "Save dashboard"
-							: "Dashboard saved — no pending changes"}
+						{hasChanged ? "Save dashboard" : "No unsaved changes"}
 					</TooltipContent>
 				</Tooltip>
 			</NavbarItem>

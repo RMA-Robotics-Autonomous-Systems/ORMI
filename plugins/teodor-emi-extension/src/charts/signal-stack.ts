@@ -397,8 +397,8 @@ export function drawSignalStack(
 		ctx.textAlign = "left";
 		ctx.fillStyle = theme.muted;
 		const label = display.showRecorded
-			? `coil ${run.coilIds[c]} — ${newBy[c]!.length} now, ${oldBy[c]!.length} recorded`
-			: `coil ${run.coilIds[c]} — ${newBy[c]!.length} now`;
+			? `coil ${run.coilIds[c]}: ${newBy[c]!.length} now, ${oldBy[c]!.length} recorded`
+			: `coil ${run.coilIds[c]}: ${newBy[c]!.length} now`;
 		ctx.fillText(label, g.x0 + 4, g.y0 + 10);
 
 		top += panelH;

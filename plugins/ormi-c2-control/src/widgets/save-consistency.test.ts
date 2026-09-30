@@ -14,26 +14,30 @@ import {
 	setMissionDraft,
 } from "../state/mission-draft-store";
 import {
-	applyMissionOwnedFields,
 	cleanMissionConfig,
 	hydrateMissionDraft,
-	mergeMissionOwnedFields,
+	mergeStoredMission,
 	missionContentEquals,
-	missionOwnedFieldsSignature,
+	missionDraftSignature,
 	type MissionDraft,
 } from "./mission-editor-helpers";
 
 /**
- * The two save-path defects that made the map and the editor disagree about the
- * same mission:
+ * The save path, and the two properties it has to hold.
  *
- *  - the map validated the RAW draft while the editor validated the CLEANED
- *    one, so a draft carrying `transit: {}` was savable in one widget and
- *    permanently blocked in the other, with an error naming a field the map
- *    has no control to fix.
- *  - both save paths captured config from the render closure, awaited, then
- *    overwrote the shared draft and cleared `dirty`, losing any edit made in
- *    the other widget meanwhile.
+ *  - **Both panels validate the same object.** The map used to validate the RAW
+ *    draft while the editor validated the CLEANED one, so a draft carrying
+ *    `transit: {}` was savable in one widget and permanently blocked in the
+ *    other, with an error naming a field the map has no control to fix.
+ *  - **A save never eats a concurrent edit.** Both save paths captured config
+ *    from the render closure, awaited, then overwrote the shared draft and
+ *    cleared `dirty`, losing any edit made in the other widget meanwhile.
+ *
+ * What changed underneath them is ownership. There is no "map-owned" slice any
+ * more: `objective.geometries`, `vehicles` and `behavior` are compiled into the
+ * shared draft by the behaviour graph, the map authors none of them, and the
+ * save writes the whole draft. So the write is wider — and the in-flight guard
+ * had to widen with it, which is what {@link missionDraftSignature} is.
  */
 
 function draft(overrides: Partial<MissionDraft> = {}): MissionDraft {
@@ -43,14 +47,9 @@ function draft(overrides: Partial<MissionDraft> = {}): MissionDraft {
 		behavior: MissionBehavior.NAVIGATE,
 		vehicles: ["agent-1"],
 		objective: {
-			geometries: [
-				{
-					geometry: {
-						geometry_type: "Point",
-						coordinates: [[4.39, 50.84]],
-					},
-				},
-			],
+			// What the graph compiles: a reference to a stored MapDB asset.
+			// Never inline geometry — the map has no route that produces any.
+			geometries: [{ feature_id: "zone-1" }],
 		},
 		...overrides,
 	} as MissionDraft;
@@ -84,12 +83,9 @@ describe("map and editor validate the same thing", () => {
 
 	it("the map's merged save output also validates clean", () => {
 		const merged = cleanMissionConfig(
-			mergeMissionOwnedFields(draft({ transit: {} } as never), {
-				geometries: withEmptyTransit.objective.geometries,
-				vehicles: ["agent-1"],
-				behavior: MissionBehavior.NAVIGATE,
-				name: "Recon",
-			}) as MissionDraft,
+			hydrateMissionDraft(
+				mergeStoredMission(draft({ transit: {} } as never), draft()),
+			),
 		);
 		expect(isMissionConfigSubmittable(merged)).toBe(true);
 	});
@@ -149,100 +145,49 @@ describe("a save never clobbers a concurrent edit", () => {
 		expect(getMissionDraft("gone")).toBeNull();
 	});
 
-	it("map-owned signature ignores editor-only blocks", () => {
-		// The map writes geometries/vehicles/behavior/name. An editor change to
-		// `transit` is NOT a conflict with a write that never touched it — using a
-		// whole-draft comparison would report a false conflict on every save.
+	it("the in-flight signature follows what the save WRITES", () => {
+		// The old narrow signature ignored `transit`, because the map's write
+		// never touched it. The write is now the whole draft, so an edit to
+		// `transit` mid-save is a real conflict and must read as one.
 		const a = draft();
 		const b = draft({
 			transit: { geofence_maximum_coverage: true },
 		} as never);
-		expect(missionOwnedFieldsSignature(a)).toBe(
-			missionOwnedFieldsSignature(b),
-		);
+		expect(missionDraftSignature(a)).not.toBe(missionDraftSignature(b));
 	});
 
-	it("map-owned signature DOES catch a change to an owned field", () => {
-		const a = draft();
-		const b = draft({ vehicles: ["agent-1", "agent-2"] });
-		expect(missionOwnedFieldsSignature(a)).not.toBe(
-			missionOwnedFieldsSignature(b),
+	it("…and still catches a change to a compiled field", () => {
+		expect(missionDraftSignature(draft())).not.toBe(
+			missionDraftSignature(draft({ vehicles: ["agent-1", "agent-2"] })),
 		);
 	});
 });
 
 /**
  * The map's save, reduced to its store traffic: read the draft at write time,
- * overlay the live in-draw geometry, merge the owned fields onto the server's
- * copy, then commit — exactly the calls `saveMission` makes.
+ * fold it onto the server's copy, then commit — exactly the calls `saveMission`
+ * makes now. Note what is NOT here any more: no per-field overlay from panel
+ * state, and no live in-draw geometry captured by index, because the map does
+ * not author mission geometry at all.
  */
-function mapSave(
-	fresh: MissionDraft,
-	liveGeometry?: {
-		index: number;
-		geometry: MissionDraft["objective"]["geometries"][number];
-	},
-	duringSave?: () => void,
-) {
+function mapSave(fresh: MissionDraft, duringSave?: () => void) {
 	const current = getMissionDraft("m1")!;
-	let geometries = current.objective.geometries;
-	if (liveGeometry) {
-		geometries = geometries.map((g, i) =>
-			i === liveGeometry.index ? liveGeometry.geometry : g,
-		);
-	}
 	const merged = cleanMissionConfig(
-		hydrateMissionDraft(
-			mergeMissionOwnedFields(fresh, {
-				geometries,
-				vehicles: current.vehicles ?? [],
-				behavior: current.behavior,
-				name: current.name,
-			}),
-		),
+		hydrateMissionDraft(mergeStoredMission(fresh, current)),
 	);
 	duringSave?.();
-	const readSignature = missionOwnedFieldsSignature(current);
+	const readSignature = missionDraftSignature(current);
 	const outcome = commitSavedDraft(
 		"m1",
 		merged,
-		(d) => missionOwnedFieldsSignature(d) === readSignature,
-		{
-			apply: (d) => applyMissionOwnedFields(d, merged),
-			isSaved: (next) => missionContentEquals(next, merged),
-		},
+		(d) => missionDraftSignature(d) === readSignature,
 	);
 	return { outcome, merged };
 }
 
-const reshaped = {
-	geometry: {
-		geometry_type: "Polygon",
-		coordinates: [
-			[4.3, 50.8],
-			[4.4, 50.8],
-			[4.4, 50.9],
-			[4.3, 50.8],
-		],
-	},
-} as MissionDraft["objective"]["geometries"][number];
-
-describe("the map's save commits what it wrote, and only that", () => {
+describe("the map's save persists the draft, and destroys nothing stored", () => {
 	beforeEach(() => {
 		__resetMissionDraftStore();
-	});
-
-	it("a live reshape commits clean — no false 'changed while in flight'", () => {
-		setMissionDraft(draft());
-		// The reshape lives in the draw layer only; the draft is untouched.
-		const { outcome } = mapSave(draft(), { index: 0, geometry: reshaped });
-
-		expect(outcome).toBe("committed");
-		expect(isMissionDraftDirty("m1")).toBe(false);
-		// The reshape is now in the shared draft, so the next save keeps it.
-		expect(getMissionDraft("m1")!.objective.geometries[0]).toEqual(
-			reshaped,
-		);
 	});
 
 	it("a name the wire form normalises does not read as a conflict", () => {
@@ -254,29 +199,76 @@ describe("the map's save commits what it wrote, and only that", () => {
 		expect(getMissionDraft("m1")!.name).toBe("Recon");
 	});
 
-	it("keeps the editor's unsaved transit edit, and stays dirty", () => {
+	it("an UNKNOWN stored block survives the save — nothing renders `transit`", () => {
+		// `transit` / `start` / `arrival_time` have no UI at all right now, so
+		// the save is the only thing standing between them and deletion. The
+		// server copy carries them; the draft has never seen them.
+		const stored = draft({
+			transit: { desired_vehicle_constraints: { max_speed: 3 } },
+			start: { geometry: { feature_id: "s" } },
+			objective: {
+				geometries: [{ feature_id: "zone-1" }],
+				arrival_time: {
+					earliest: "t0",
+					target: "t1",
+					latest: "t2",
+				},
+			},
+			// A field this build does not model at all.
+			some_backend_field: 42,
+		} as never);
 		setMissionDraft(draft());
-		const transit = { geofence_maximum_coverage: true };
-		editMissionDraft(
-			"m1",
-			(d) => ({ ...d, transit }) as unknown as MissionDraft,
-		);
-		// The server copy has no transit — the map's write never sends one.
-		const { outcome } = mapSave(draft(), { index: 0, geometry: reshaped });
+
+		const { outcome, merged } = mapSave(stored);
+		const body = merged as unknown as Record<string, unknown>;
 
 		expect(outcome).toBe("committed");
-		const after = getMissionDraft("m1")! as MissionDraft & {
-			transit?: unknown;
-		};
-		expect(after.transit).toEqual(transit);
-		expect(after.objective.geometries[0]).toEqual(reshaped);
-		// Something is still unsaved, and the operator is still told so.
-		expect(isMissionDraftDirty("m1")).toBe(true);
+		// What went on the wire still carries every one of them…
+		expect(body.transit).toEqual({
+			desired_vehicle_constraints: { max_speed: 3 },
+		});
+		expect(body.start).toEqual({ geometry: { feature_id: "s" } });
+		expect(
+			(body.objective as Record<string, unknown>).arrival_time,
+		).toEqual({ earliest: "t0", target: "t1", latest: "t2" });
+		expect(body.some_backend_field).toBe(42);
+		// …Mongo's own `_id` is still not one of them…
+		expect(body._id).toBeUndefined();
+		// …and the committed draft now carries them too, so the NEXT save does
+		// not drop what this one preserved.
+		const after = getMissionDraft("m1")! as unknown as Record<
+			string,
+			unknown
+		>;
+		expect(after.transit).toEqual({
+			desired_vehicle_constraints: { max_speed: 3 },
+		});
+		expect(after.some_backend_field).toBe(42);
 	});
 
-	it("still reports a real concurrent change to an owned field", () => {
+	it("persists what the GRAPH compiled into the draft, not a map-panel copy", () => {
+		// The map used to overlay its own `vehicles` / `behavior` /
+		// `objective.geometries` here, which threw away exactly this.
 		setMissionDraft(draft());
-		const { outcome } = mapSave(draft(), undefined, () =>
+		editMissionDraft("m1", (d) => ({
+			...d,
+			vehicles: ["agent-7"],
+			behavior: MissionBehavior.COVERAGE,
+			objective: { ...d.objective, geometries: [{ feature_id: "z-9" }] },
+		}));
+
+		const { outcome, merged } = mapSave(draft());
+
+		expect(outcome).toBe("committed");
+		expect(merged.vehicles).toEqual(["agent-7"]);
+		expect(merged.behavior).toBe(MissionBehavior.COVERAGE);
+		expect(merged.objective.geometries).toEqual([{ feature_id: "z-9" }]);
+		expect(isMissionDraftDirty("m1")).toBe(false);
+	});
+
+	it("reports a real concurrent change, whatever field it landed on", () => {
+		setMissionDraft(draft());
+		const { outcome } = mapSave(draft(), () =>
 			editMissionDraft("m1", (d) => ({
 				...d,
 				vehicles: [...d.vehicles, "agent-2"],
@@ -285,6 +277,34 @@ describe("the map's save commits what it wrote, and only that", () => {
 
 		expect(outcome).toBe("kept-dirty");
 		expect(getMissionDraft("m1")!.vehicles).toEqual(["agent-1", "agent-2"]);
+		expect(isMissionDraftDirty("m1")).toBe(true);
+	});
+
+	it("reports a concurrent change to an UNRENDERED block too", () => {
+		// Under the old narrow signature this read as "nothing changed" and the
+		// edit was silently overwritten by the commit.
+		setMissionDraft(draft());
+		const { outcome } = mapSave(draft(), () =>
+			editMissionDraft(
+				"m1",
+				(d) =>
+					({
+						...d,
+						transit: {
+							desired_vehicle_constraints: { max_speed: 1 },
+						},
+					}) as unknown as MissionDraft,
+			),
+		);
+
+		expect(outcome).toBe("kept-dirty");
+		const after = getMissionDraft("m1")! as unknown as Record<
+			string,
+			unknown
+		>;
+		expect(after.transit).toEqual({
+			desired_vehicle_constraints: { max_speed: 1 },
+		});
 		expect(isMissionDraftDirty("m1")).toBe(true);
 	});
 });

@@ -150,9 +150,9 @@ function parseWireRows(report: MetricsReport): WireRow[] {
 	return rows;
 }
 
-/** Format a rate as `12.3 Hz`, or an em dash when no rate is available yet. */
+/** Format a rate as `12.3 Hz`, or `n/a` when no rate is available yet. */
 function formatHz(rate: number | null): string {
-	return rate === null ? "—" : `${rate.toFixed(1)} Hz`;
+	return rate === null ? "n/a" : `${rate.toFixed(1)} Hz`;
 }
 
 /** Render a number with at most 3 decimals, trailing zeros trimmed. */
@@ -160,9 +160,9 @@ function formatNumber(value: number, maxDecimals = 3): string {
 	return Number(value.toFixed(maxDecimals)).toString();
 }
 
-/** Format a latency in ms as `12.3`, or an em dash when unsampled. */
+/** Format a latency in ms as `12.3`, or `n/a` when unsampled. */
 function formatMs(value: number | null): string {
-	return value === null ? "—" : value.toFixed(1);
+	return value === null ? "n/a" : value.toFixed(1);
 }
 
 const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
@@ -337,7 +337,7 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 												</TableCell>
 												<TableCell className="px-2 py-1 text-right">
 													{row.producedRate === null
-														? "—"
+														? "n/a"
 														: formatHz(
 																row.producedRate,
 															)}
@@ -361,7 +361,7 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 													}`}
 												>
 													{row.dropFraction === null
-														? "—"
+														? "n/a"
 														: `${(row.dropFraction * 100).toFixed(0)}%`}
 												</TableCell>
 											</TableRow>
@@ -526,7 +526,7 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 								<span>
 									{longtasks?.ratePerSec === null ||
 									longtasks?.ratePerSec === undefined
-										? "—"
+										? "n/a"
 										: (longtasks.ratePerSec * 60).toFixed(
 												0,
 											)}{" "}
@@ -537,7 +537,7 @@ const DiagnosticsPanel = ({ onClose }: DiagnosticsPanelProps) => {
 								<span>
 									{frames?.ratePerSec === null ||
 									frames?.ratePerSec === undefined
-										? "—"
+										? "n/a"
 										: frames.ratePerSec.toFixed(0)}{" "}
 									<span className="text-muted-foreground">
 										FPS

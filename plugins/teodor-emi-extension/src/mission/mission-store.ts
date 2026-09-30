@@ -502,7 +502,7 @@ export function startMission(name: string): string | null {
 	// every mission that was about to succeed.
 	const before = getEmiSnapshot();
 	if (!before.run && !before.bundle) {
-		set({ error: "No EMI source is wired — nothing to record." });
+		set({ error: "No EMI source is wired. Nothing to record." });
 		return null;
 	}
 
@@ -568,7 +568,7 @@ export async function stopMission(): Promise<boolean> {
 			samples: 0,
 			spilled: 0,
 			busy: false,
-			error: "Nothing was recorded — no samples arrived.",
+			error: "Nothing was recorded: no samples arrived.",
 		});
 		return true;
 	}
@@ -690,7 +690,7 @@ export async function openMission(id: string): Promise<boolean> {
 			spilled: 0,
 			error:
 				recovered.missing > 0
-					? `Opened ${recovered.n} of ${header.n} samples — the rest was never written${recovered.truncated ? " and the sequence has a gap" : ""}.`
+					? `Opened ${recovered.n} of ${header.n} samples. The rest was never written${recovered.truncated ? " and the sequence has a gap" : ""}.`
 					: null,
 		});
 		return true;

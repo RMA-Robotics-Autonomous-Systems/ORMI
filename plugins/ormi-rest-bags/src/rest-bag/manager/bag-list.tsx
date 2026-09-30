@@ -25,7 +25,7 @@ import { RestBagClient } from "../rest-bag-client";
 import { BagPlayer } from "../player/bag-player";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
-import { createRestBagDatasourceSelectHook } from "../datasource-select";
+import { restBagDatasourceProperty } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import { Button } from "@workspace/ui/components/button";
@@ -556,10 +556,6 @@ const BagList = (props: BagListProps) => {
 	);
 };
 
-/** Pick-list of the configured RestBag datasources for this widget. */
-const bagListDatasourceSelectHook =
-	createRestBagDatasourceSelectHook("datasource_id");
-
 export function BagListDefinition(): WidgetDefinition<BagListProps> {
 	return {
 		id: "ros2-bag-list",
@@ -571,7 +567,7 @@ export function BagListDefinition(): WidgetDefinition<BagListProps> {
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				datasource_id: { type: "string", title: "Datasources" },
+				datasource_id: restBagDatasourceProperty(),
 			},
 			required: ["title"],
 		},
@@ -590,6 +586,5 @@ export function BagListDefinition(): WidgetDefinition<BagListProps> {
 		} as VerticalLayout,
 		data: { title: "ROS2 Bag List" },
 		Component: BagList,
-		extensibilityHook: bagListDatasourceSelectHook,
 	};
 }

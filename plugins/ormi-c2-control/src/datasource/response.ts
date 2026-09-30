@@ -241,17 +241,17 @@ export function friendlyC2Error(
 	// Branch on the CODE: a bare 503 (a proxy, a restarting container) is not
 	// evidence of a missing token and must not be reported as one.
 	if (code === C2ErrorCode.RosInterfaceUnavailable) {
-		return `The C2 cannot reach ROS right now, so the command was not issued (ROS_INTERFACE_UNAVAILABLE).`;
+		return "The C2 cannot reach ROS. The command was not sent.";
 	}
 	if (code === C2ErrorCode.AuthNotConfigured) {
-		return `The C2 has no API token configured, so it refuses every write (AUTH_NOT_CONFIGURED). Set C2_API_TOKEN on the backend — this is a server-side setting, not something the mission config can fix.`;
+		return "The C2 refuses all writes: it has no API token configured. Set one on the C2 server.";
 	}
 	if (code === C2ErrorCode.Unauthorized || status === 401) {
-		return `Not authorised by the C2 (UNAUTHORIZED). Set the "Mission Control auth token" on the C2 Control datasource to the backend's C2_API_TOKEN.`;
+		return "The C2 refused the auth token. Check the Mission Control auth token in the C2 Control datasource.";
 	}
 	if (code === C2ErrorCode.NoTargetMission) {
 		// The defect this replaces: a false 200 "status change requested".
-		return `The C2 had no target mission, so the command did NOT happen (NO_TARGET_MISSION). Submit the mission first, then retry.`;
+		return "The command was NOT applied: the C2 has no target mission. Submit the mission first, then retry.";
 	}
 	if (code === C2ErrorCode.VehicleBusy) {
 		// Ids only here (the transport knows no names); the control panel
@@ -260,7 +260,7 @@ export function friendlyC2Error(
 		return formatVehicleBusy(extractC2Conflicts(data)) ?? message;
 	}
 	if (code === C2ErrorCode.InvalidBody) {
-		return `The C2 rejected the request body as unsafe (INVALID_BODY) — it contains a key starting with "$" or containing ".". Remove it from the mission config.`;
+		return `The C2 rejected the request: a key starts with "$" or contains ".". Remove it from the mission config.`;
 	}
 	return message;
 }
@@ -348,8 +348,8 @@ export function formatVehicleBusy(
 	});
 	const holders = new Set(conflicts.map((c) => c.mission_id)).size;
 	return (
-		`${lines.join("; ")}. The command was NOT applied (VEHICLE_BUSY) — ` +
-		`stop or finish ${holders > 1 ? "those missions" : "that mission"} first, then retry.`
+		`${lines.join("; ")}. The command was NOT applied. ` +
+		`Stop or finish ${holders > 1 ? "those missions" : "that mission"} first, then retry.`
 	);
 }
 

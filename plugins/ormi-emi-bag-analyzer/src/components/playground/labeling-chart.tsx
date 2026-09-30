@@ -10,6 +10,7 @@ import React, {
 import type { TimeSeriesPoint } from "../../bag-reader/bag-types";
 import { Button } from "@workspace/ui/components/button";
 import { Badge } from "@workspace/ui/components/badge";
+import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
 
 type PlotlyModule = typeof import("plotly.js-dist-min");
 
@@ -50,6 +51,8 @@ const MB = 40; // margin bottom (room for x-axis title)
 const HANDLE_R = 7;
 const MAX_SIG_POINTS = 5000;
 
+// Series colours are data: fixed in both themes. Chart chrome (tick text,
+// gridlines, the handle ring) follows the theme through `ChartChrome`.
 const CONF_STROKE = "#6366f1";
 const CONF_FILL = "rgba(99,102,241,0.12)";
 const SIG_STROKE = "rgba(120,120,140,0.55)";
@@ -256,11 +259,25 @@ function buildTraces(
 	];
 }
 
+/** Theme tokens for the chart chrome (resolved by `useThemeColors`). */
+const CHROME_TOKENS = {
+	text: "--muted-foreground",
+	grid: "--border",
+	surface: "--background",
+} as const;
+
+/** Resolved chart chrome colours; `""` before the DOM can be read. */
+type ChartChrome = { [K in keyof typeof CHROME_TOKENS]: string };
+
 function buildLayout(
 	viewStart: number,
 	viewEnd: number,
 	height: number,
+	chrome: ChartChrome,
 ): object {
+	// Fallbacks are Plotly's own defaults, used only before the theme resolves.
+	const text = chrome.text || "#444444";
+	const grid = chrome.grid || "#eeeeee";
 	return {
 		height,
 		margin: { l: ML, r: MR, t: MT, b: MB },
@@ -269,14 +286,22 @@ function buildLayout(
 		showlegend: false,
 		plot_bgcolor: "rgba(0,0,0,0)",
 		paper_bgcolor: "rgba(0,0,0,0)",
+		font: { color: text },
 		xaxis: {
 			range: [viewStart / 1e9, viewEnd / 1e9],
-			title: { text: "Time (s)", font: { size: 10 } },
-			tickfont: { size: 9 },
+			title: { text: "Time (s)", font: { size: 10, color: text } },
+			tickfont: { size: 9, color: text },
+			gridcolor: grid,
+			zerolinecolor: grid,
+			linecolor: grid,
 			fixedrange: true,
 		},
 		yaxis: {
+			gridcolor: grid,
+			zerolinecolor: grid,
 			autorange: true,
+			// Coloured like the signal trace it scales (SIG_STROKE), as the
+			// confidence axis is coloured like its own: data, not chrome.
 			title: {
 				text: "EMI",
 				font: { size: 10, color: "rgba(120,120,140,0.8)" },
@@ -285,6 +310,8 @@ function buildLayout(
 			fixedrange: true,
 		},
 		yaxis2: {
+			gridcolor: grid,
+			zerolinecolor: grid,
 			range: [0, 1],
 			overlaying: "y",
 			side: "right",
@@ -315,6 +342,7 @@ export function LabelingChart({
 	height = 200,
 }: LabelingChartProps) {
 	const Plotly = usePlotly();
+	const chrome = useThemeColors(CHROME_TOKENS);
 	const plotDivRef = useRef<HTMLDivElement>(null);
 	const svgRef = useRef<SVGSVGElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -370,7 +398,7 @@ export function LabelingChart({
 			duration,
 			sketchSeries,
 		);
-		const layout = buildLayout(viewStart, viewEnd, height);
+		const layout = buildLayout(viewStart, viewEnd, height, chrome);
 
 		if (!initializedRef.current) {
 			Plotly.newPlot(
@@ -397,7 +425,7 @@ export function LabelingChart({
 			});
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [Plotly, series, filteredSeries, sorted, duration, height]);
+	}, [Plotly, series, filteredSeries, sorted, duration, height, chrome]);
 
 	// ── Plotly: fast path — slider moves update x range + left Y range ────
 	useEffect(() => {
@@ -525,6 +553,8 @@ export function LabelingChart({
 					</span>
 				</span>
 				<div className="flex gap-3 items-center">
+					{/* Legend entry: the amber text mirrors the plotted
+					    filtered-signal trace (FILT_STROKE), not a status. */}
 					{filteredSeries && filteredSeries.length > 0 && (
 						<Badge
 							variant="secondary"
@@ -548,11 +578,13 @@ export function LabelingChart({
 							size="sm"
 							onClick={onAutoLabel}
 							disabled={series.length === 0}
-							className="h-auto p-0 text-xs text-emerald-600 hover:text-emerald-800"
+							className="h-auto p-0 text-xs"
 						>
 							Auto-label
 						</Button>
 					)}
+					{/* Indigo mirrors the confidence trace (CONF_STROKE) this
+					    action writes, not a status. */}
 					{onSeedFromDetections && (
 						<Button
 							variant="link"
@@ -651,7 +683,7 @@ export function LabelingChart({
 									cy={cy}
 									r={isHov ? HANDLE_R + 2 : HANDLE_R}
 									fill={CONF_STROKE}
-									stroke="#fff"
+									stroke={chrome.surface || "#ffffff"}
 									strokeWidth={2}
 									style={{
 										pointerEvents: "none",

@@ -31,6 +31,7 @@ import merge from "lodash/merge";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 /**
  * Interface for components that accept an input component.
@@ -58,6 +59,11 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 	} = props;
 
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({
+		path: props.path,
+		schema: props.schema,
+		errors,
+	});
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	// `true` for the focus argument: help text is always shown, never gated on
@@ -114,7 +120,7 @@ export const ShadcnInputControl = (props: ControlProps & WithInput) => {
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

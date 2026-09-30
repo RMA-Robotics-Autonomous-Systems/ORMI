@@ -68,7 +68,7 @@ const LAYERS: Array<{
 	{
 		key: "coilTracks",
 		label: "Coil tracks",
-		hint: "one line per coil — what was actually swept",
+		hint: "one line per coil, as swept",
 	},
 ];
 
@@ -186,7 +186,7 @@ const EmiExport = (props: ExportSettings) => {
 								<span className="flex items-baseline gap-1.5">
 									<span className="truncate">{l.label}</span>
 									<span className="tabular-nums text-muted-foreground">
-										{counts ? counts[l.key] : "—"}
+										{counts ? counts[l.key] : "n/a"}
 									</span>
 								</span>
 								<span className="truncate text-[10px] text-muted-foreground">
@@ -234,17 +234,16 @@ const EmiExport = (props: ExportSettings) => {
 				<div className="mt-auto flex flex-col gap-1.5">
 					<p className="text-[10px] text-muted-foreground">
 						{selection.size === 0
-							? "Click a mark to pick it out — a peak on the coil signals, or a detection or barycentre on the map. Each click picks that one mark and nothing else."
+							? "Nothing selected. Select a peak on the coil signals, or a detection or barycentre on the map."
 							: null}
 					</p>
 					<p className="text-[10px] text-muted-foreground">
 						The file carries the full parameter set it was exported
-						at, so the reading can be reproduced. Targets keep their{" "}
-						<code className="text-[10px]">source</code> —{" "}
+						at. Targets keep their{" "}
+						<code className="text-[10px]">source</code> (
 						<code className="text-[10px]">replay</code>,{" "}
 						<code className="text-[10px]">fixed+gate</code> or{" "}
-						<code className="text-[10px]">fixed+chain</code> — so
-						they can be styled apart.
+						<code className="text-[10px]">fixed+chain</code>).
 					</p>
 					<Button
 						size="sm"

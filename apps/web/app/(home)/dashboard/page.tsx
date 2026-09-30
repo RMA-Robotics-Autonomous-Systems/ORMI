@@ -168,7 +168,7 @@ export default function DashboardPage() {
 
 	if (status === "loading") {
 		return (
-			<DashboardShell className="container mx-auto mt-8">
+			<DashboardShell className="motion-page-in container mx-auto mt-8">
 				<DashboardHeader
 					heading="Workspaces"
 					text="Organize your projects"
@@ -187,7 +187,7 @@ export default function DashboardPage() {
 	const ActiveViewSkeleton = activeView?.Skeleton;
 
 	return (
-		<DashboardShell className="container mx-auto mt-8">
+		<DashboardShell className="motion-page-in container mx-auto mt-8">
 			<div className="mb-6 flex flex-wrap items-center justify-between gap-4">
 				<DashboardHeader
 					heading="Workspaces"

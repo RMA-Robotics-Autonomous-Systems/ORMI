@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
 import {
+	getActiveMap,
+	getActiveMapSnapshot,
 	getSelectedMission,
 	getSnapshot,
+	setActiveMap,
 	setSelectedMission,
 	subscribe,
 } from "./selection-store";
@@ -10,6 +13,7 @@ import {
 // The store is module-level; reset between tests so cases are independent.
 afterEach(() => {
 	setSelectedMission(null);
+	setActiveMap(null);
 });
 
 describe("selection-store", () => {
@@ -71,5 +75,48 @@ describe("selection-store", () => {
 		setSelectedMission("m-1");
 		setSelectedMission(null);
 		expect(getSnapshot()).toBeNull();
+	});
+});
+
+/**
+ * The active MAP, published by the mission map and followed by the
+ * behaviour-graph editor. Same primitive-snapshot contract as the mission.
+ */
+describe("selection-store active map", () => {
+	it("starts cleared", () => {
+		expect(getActiveMap()).toBeNull();
+		expect(getActiveMapSnapshot()).toBeNull();
+	});
+
+	it("set updates the snapshot", () => {
+		setActiveMap("florennes");
+		expect(getActiveMap()).toBe("florennes");
+		expect(getActiveMapSnapshot()).toBe("florennes");
+	});
+
+	it("normalizes an empty name to null — 'no map yet' is one state", () => {
+		setActiveMap("");
+		expect(getActiveMap()).toBeNull();
+	});
+
+	it("notifies subscribers on a real change only", () => {
+		let calls = 0;
+		const unsubscribe = subscribe(() => {
+			calls++;
+		});
+		setActiveMap("alpha");
+		setActiveMap("alpha");
+		setActiveMap("beta");
+		expect(calls).toBe(2);
+		unsubscribe();
+	});
+
+	it("is independent of the mission selection", () => {
+		setSelectedMission("m-1");
+		setActiveMap("alpha");
+		expect(getSelectedMission()).toBe("m-1");
+		expect(getActiveMap()).toBe("alpha");
+		setSelectedMission(null);
+		expect(getActiveMap()).toBe("alpha");
 	});
 });

@@ -3,14 +3,23 @@ import type { JsonSchema7, UISchemaElement } from "@jsonforms/core";
 import { VEHICLE_FORMATION_LABELS, VEHICLE_FORMATION_VALUES } from "./c2-types";
 
 /**
- * JSON Schema + UI schema for the DEEP OPTIONAL portion of a mission
- * config, rendered with embedded JSON-Forms inside the mission editor.
+ * JSON Schema + UI schema for the DEEP OPTIONAL portion of a mission config.
  *
- * Scope: the blocks the custom React form does NOT handle directly —
- * `transit` (desired vehicle constraints + optimization), `start`, and
- * `objective.arrival_time`. Name / behavior / vehicle allocation / objective
- * geometries are bespoke React in the editor; everything here is the optional
- * "advanced" tail.
+ * Scope: the blocks no bespoke authoring surface handles directly — `transit`
+ * (desired vehicle constraints + optimization), `start`, and
+ * `objective.arrival_time`. Vehicle allocation, behavior and objective
+ * geometries are bespoke React on the mission map; everything here is the
+ * optional "advanced" tail.
+ *
+ * ⚠ CURRENTLY UNRENDERED. These schemas were the "Advanced (optional)"
+ * JSON-Forms block of the mission-editor widget, which was removed as redundant
+ * with the behaviour-graph editor (2026-09-22). Nothing in the product renders
+ * them now, so `transit` / `start` / `objective.arrival_time` have NO operator
+ * surface — they are only preserved across a save by
+ * `mergeMissionOwnedFields`. They are kept here, intact and exported, so the
+ * block can be re-homed (most plausibly on the mission map) without being
+ * rewritten; the types below are still used by the validation and clean
+ * paths.
  *
  * Derived from the `MissionConfig` / `MissionObjective` / `MissionTransit` TS
  * types in `c2-types.ts` (NOT from `c2.mission.init`'s requestSchema, which
@@ -38,19 +47,18 @@ const missionTimeSchema: JsonSchema7 = {
 			type: "string",
 			format: "date-time",
 			title: "Earliest",
-			description: "Earliest acceptable time — do not act before this.",
+			description: "Do not act before this time.",
 		},
 		target: {
 			type: "string",
 			format: "date-time",
 			title: "Target",
-			description: "Desired time to aim for.",
 		},
 		latest: {
 			type: "string",
 			format: "date-time",
 			title: "Latest",
-			description: "Deadline — must not be later than this.",
+			description: "Must not be later than this time.",
 		},
 	},
 };
@@ -62,35 +70,29 @@ const vehicleConstraintsSchema: JsonSchema7 = {
 		max_speed: {
 			type: "number",
 			title: "Max speed (m/s)",
-			description:
-				"Top speed the planner may command. Must be greater than 0.",
+			description: "Must be greater than 0.",
 		},
 		max_acceleration: {
 			type: "number",
 			title: "Max acceleration (m/s²)",
-			description: "Hardest the vehicle may speed up.",
 		},
 		max_jerk: {
 			type: "number",
 			title: "Max jerk (m/s³)",
-			description:
-				"Maximum rate of change of acceleration (ride/mechanical smoothness limit).",
 		},
 		max_deceleration: {
 			type: "number",
 			title: "Max deceleration (m/s²)",
-			description: "Hardest the vehicle may brake.",
 		},
 		max_straight_slope: {
 			type: "number",
 			title: "Max straight slope",
-			description: "Steepest head-on incline the vehicle may climb.",
+			description: "Steepest head-on incline.",
 		},
 		max_side_slope: {
 			type: "number",
 			title: "Max side slope",
-			description:
-				"Steepest sideways tilt allowed on a cross-slope (tip-over limit).",
+			description: "Steepest sideways tilt.",
 		},
 	},
 };
@@ -102,19 +104,16 @@ const optimalizationSchema: JsonSchema7 = {
 		visibility: {
 			type: "number",
 			title: "Visibility weight",
-			description:
-				"Route-planning weight for visibility / line-of-sight exposure.",
+			description: "Weight for line-of-sight exposure.",
 		},
 		energy: {
 			type: "number",
 			title: "Energy weight",
-			description: "Route-planning weight for energy efficiency.",
 		},
 		road_usage: {
 			type: "number",
 			title: "Road usage (0–100)",
-			description:
-				"Preference for staying on roads vs going off-road (0 = ignore roads, 100 = stay on roads).",
+			description: "0 ignores roads, 100 stays on roads.",
 			minimum: 0,
 			maximum: 100,
 		},
@@ -132,7 +131,6 @@ const optimalizationSchema: JsonSchema7 = {
 const formationSchema: JsonSchema7 = {
 	type: "integer",
 	title: "Vehicle formation",
-	description: "Geometric pattern the vehicles hold together.",
 	oneOf: VEHICLE_FORMATION_VALUES.map((value) => ({
 		const: value,
 		title: VEHICLE_FORMATION_LABELS[value],
@@ -142,8 +140,9 @@ const formationSchema: JsonSchema7 = {
 /**
  * JSON Schema for the advanced (deep-optional) mission-config blocks.
  *
- * The editor binds a SUBSET of the draft to this — `{ arrival_time, transit,
- * start }` — and writes changes back via `patchDraft` / objective merge.
+ * Binds a SUBSET of the draft — `{ arrival_time, transit, start }` — with
+ * changes written back via `patchDraft` / objective merge. No widget renders it
+ * at present; see the module header.
  */
 export const missionAdvancedSchema: JsonSchema7 = {
 	type: "object",
@@ -164,14 +163,12 @@ export const missionAdvancedSchema: JsonSchema7 = {
 				vehicle_formation_distance: {
 					type: "number",
 					title: "Formation distance (m)",
-					description:
-						"Spacing between vehicles while holding the transit formation.",
 				},
 				geofence_maximum_coverage: {
 					type: "boolean",
 					title: "Geofence maximum coverage",
 					description:
-						"Maximize coverage within the geofence instead of taking the most direct route.",
+						"Cover the geofence instead of taking the most direct route.",
 				},
 				optimalization: {
 					...optimalizationSchema,
@@ -187,19 +184,16 @@ export const missionAdvancedSchema: JsonSchema7 = {
 					type: "number",
 					title: "Tolerance distance (m)",
 					description:
-						"How far from the defined start point a vehicle may begin and still be accepted.",
+						"How far from the start point a vehicle may begin.",
 				},
 				vehicle_formation: formationSchema,
 				vehicle_formation_distances: {
 					type: "number",
 					title: "Formation distances (m)",
-					description:
-						"Spacing between vehicles in the start formation.",
 				},
 				maximize_coverage: {
 					type: "boolean",
 					title: "Maximize coverage",
-					description: "Maximize coverage during the start phase.",
 				},
 				start_time: { ...missionTimeSchema, title: "Start time" },
 			},
@@ -231,7 +225,7 @@ export const missionAdvancedUiSchema: UISchemaElement = {
 		},
 		{
 			type: "Group",
-			label: "Transit — desired vehicle constraints",
+			label: "Transit: vehicle constraints",
 			elements: [
 				control(
 					"#/properties/transit/properties/desired_vehicle_constraints/properties/max_speed",
@@ -255,7 +249,7 @@ export const missionAdvancedUiSchema: UISchemaElement = {
 		},
 		{
 			type: "Group",
-			label: "Transit — formation & optimization",
+			label: "Transit: formation and optimization",
 			elements: [
 				control("#/properties/transit/properties/vehicle_formation"),
 				control(

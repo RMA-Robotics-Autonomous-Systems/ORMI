@@ -44,10 +44,14 @@ import {
 	TemplatesProvider,
 	type Template,
 } from "@workspace/ormi-core/templates";
+import { EMI_WIDGETS_FILTER_ID } from "../widgets/definitions";
 import {
-	EMI_WIDGETS_FILTER_ID,
-	emiWidgetDefinitions,
-} from "../widgets/definitions";
+	COCKPIT_CAPTURE_FILTER_ID,
+	COCKPIT_CAPTURE_PRIORITY,
+	COCKPIT_RESTORE_FILTER_ID,
+	COCKPIT_RESTORE_PRIORITY,
+	createCockpitPanelFilters,
+} from "./cockpit-panels";
 import { COCKPIT_LAYOUT_KEY, defaultCockpit } from "./default-cockpit";
 
 /**
@@ -218,10 +222,13 @@ function CockpitAutosave() {
  * each one resolves no source and renders an offline card.
  *
  * Registering from the page instead scopes them to where they mean something,
- * and unmounting takes them back out. The `registered` flag exists because the
- * shell reads `WIDGETS_LIST` during **render**: without it the first render
- * would resolve an empty widget list and the restored cockpit would come back
- * as seven "widget not found" tiles.
+ * and unmounting takes them back out. Two more filters bracket the datasource
+ * gate, which empties the list while no datasource is configured (the cockpit
+ * starts with none), and put back what the page places; see
+ * `cockpit-panels.ts`. The `registered` flag exists because the shell reads
+ * `WIDGETS_LIST` during **render**: without it the first render would resolve
+ * an empty widget list and the restored cockpit would come back as seven
+ * "widget not found" tiles.
  *
  * @returns True once the filter is in place.
  */
@@ -230,22 +237,33 @@ function useCockpitWidgets(): boolean {
 	const [registered, setRegistered] = useState(false);
 
 	useLayoutEffect(() => {
+		const filters = createCockpitPanelFilters();
 		pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
 			id: EMI_WIDGETS_FILTER_ID,
 			priority: 10,
-			filter: (widgets: unknown[]) => {
-				widgets.push(...emiWidgetDefinitions());
-				return widgets;
-			},
+			filter: filters.contribute,
 		});
-		// The cascading render is the point. `WIDGETS_LIST` is read during the
-		// shell's render and the plugin registry has nothing to subscribe to, so
-		// this state change is what tells the tree the list is no longer empty.
+		pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+			id: COCKPIT_CAPTURE_FILTER_ID,
+			priority: COCKPIT_CAPTURE_PRIORITY,
+			filter: filters.capture,
+		});
+		pluginsManager.addFilter(PluginsHooks.WIDGETS_LIST, {
+			id: COCKPIT_RESTORE_FILTER_ID,
+			priority: COCKPIT_RESTORE_PRIORITY,
+			filter: filters.restore,
+		});
+		// The cascading render is the point. The shell re-reads `WIDGETS_LIST`
+		// when a filter registers, but this page renders the shell, so only
+		// this state change can hold its `loading` until the list is no longer
+		// empty.
 		// It happens once per mount, in a layout effect, before paint.
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setRegistered(true);
 		return () => {
 			pluginsManager.removeFilter(EMI_WIDGETS_FILTER_ID);
+			pluginsManager.removeFilter(COCKPIT_CAPTURE_FILTER_ID);
+			pluginsManager.removeFilter(COCKPIT_RESTORE_FILTER_ID);
 			setRegistered(false);
 		};
 	}, [pluginsManager]);

@@ -1,0 +1,39 @@
+{
+	"name": "unreached_and_empty",
+	"description": "An action no agent reaches, and nothing to run.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": []
+	},
+	"expect": {
+		"errors": [
+			["AGENT_IDLE", "es"],
+			["EMPTY", ""],
+			["UNREACHED", "go"]
+		]
+	}
+}

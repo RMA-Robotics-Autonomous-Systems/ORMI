@@ -27,12 +27,47 @@ export type {
 export { missionStatusLabel } from "./types/status-labels";
 export * from "./types/c2-types";
 
-// C2 selection store: the mission the widgets follow.
+// C2 selection store: the mission the widgets follow, and the map they scope
+// their asset lists to.
 export {
 	setSelectedMission,
 	getSelectedMission,
 	useSelectedMission,
+	setActiveMap,
+	getActiveMap,
+	useActiveMap,
 } from "./state/selection-store";
+
+// C2 catalog store: shared id→name maps plus the per-map feature catalogue the
+// mission map publishes and the behaviour-graph editor reads.
+export {
+	publishMapFeatures,
+	hasMapFeatures,
+	getMapFeatures,
+	getMapAssetFeatures,
+	getMapFeatureTypes,
+	useMapFeatures,
+	useMapAssetFeatures,
+	useMapFeatureTypes,
+	isAssetFeatureType,
+	ASSET_FEATURE_TYPES,
+} from "./state/c2-catalog-store";
+export type { CatalogFeature } from "./state/c2-catalog-store";
+
+// A mission's own map and assets ("<mission_id>:assets").
+export {
+	assetsDocId,
+	buildAssetsDocument,
+	readAssetsDocument,
+	importAsset,
+	MISSION_ASSET_TYPES,
+} from "./widgets/mission-assets";
+export type { MissionAssets } from "./widgets/mission-assets";
+export {
+	getMissionAssets,
+	useMissionAssets,
+	editMissionAssets,
+} from "./state/mission-assets-store";
 
 // Read-only widget definitions + helpers.
 export { FleetStatusDefinition } from "./widgets/fleet-status";
@@ -43,27 +78,86 @@ export { SwarmLogDefinition } from "./widgets/swarm-log";
 export { MissionBrowserDefinition } from "./widgets/mission-browser";
 export { MissionControlPanelDefinition } from "./widgets/mission-control-panel";
 
-// Authoring widget definitions + helpers (mission editor, mission map).
-export { MissionEditorDefinition } from "./widgets/mission-editor";
+// Authoring widget definitions + helpers (mission map, behaviour graph).
 export { MissionMapDefinition } from "./widgets/mission-map";
+export { MissionGraphEditorDefinition } from "./widgets/mission-graph-editor";
+export { MissionAssetsDefinition } from "./widgets/mission-assets-panel";
+export {
+	buildGraphDocument,
+	compileMissionGraph,
+	emptyMissionGraph,
+	graphCompiles,
+	graphDocId,
+	isMissionGraphDocId,
+	isOutdatedGraphDocument,
+	normalizeGraph,
+	propagateAgents,
+	readGraphDocument,
+} from "./widgets/mission-graph";
+export type {
+	GraphNodeKind,
+	MissionGraph,
+	MissionGraphEdge,
+	MissionGraphIssue,
+	MissionGraphNode,
+	WaitMode,
+} from "./widgets/mission-graph";
+export {
+	connectionPlan,
+	nodePorts,
+	portsFit,
+} from "./widgets/mission-graph-ports";
+export type { PortSpec, PortType } from "./widgets/mission-graph-ports";
+export {
+	applySelectionChanges,
+	formatCondition,
+	shouldHandleGraphShortcut,
+	NO_CONDITION_LABEL,
+} from "./widgets/mission-graph-editor-helpers";
+
+// Findings: cues, contacts and items, which are one record.
+export {
+	cueFeatureToFinding,
+	findingKind,
+	findingsToFeatureCollection,
+	parseFinding,
+	tallyFindings,
+	ConfidenceStatistic,
+	FindingEssence,
+	FINDING_RAW_TYPE,
+} from "./widgets/findings";
+export type { Finding, FindingKind } from "./widgets/findings";
+export {
+	recordFinding,
+	useFindings,
+	useFindingsStats,
+} from "./state/findings-store";
 export {
 	buildMissionDraft,
 	hydrateMissionDraft,
-	pushFeatureRef,
-	pushInlineGeometry,
-	removeGeometryAt,
-	mergeVehicles,
-	toggleVehicle,
+	mergeStoredMission,
+	missionDraftSignature,
 	patchDraft,
 } from "./widgets/mission-editor-helpers";
 export type { MissionDraft } from "./widgets/mission-editor-helpers";
 export {
 	drawFeatureToC2Feature,
 	c2FeatureToDrawFeature,
-	drawFeatureToInlineGeometry,
 	readFeatureId,
 } from "./widgets/feature-geojson";
-export type { DrawFeature, FeatureMeta } from "./widgets/feature-geojson";
+export {
+	FEATURE_TYPES,
+	FEATURE_TYPE_GEOMETRY,
+	canRetypeFeature,
+	isFeatureType,
+	readFeatureCategory,
+	retypeTargets,
+} from "./widgets/feature-geojson";
+export type {
+	DrawFeature,
+	FeatureMeta,
+	FeatureType,
+} from "./widgets/feature-geojson";
 
 // Map-editing store (geometry hand-off from the map to the editor).
 export {
@@ -107,7 +201,7 @@ class C2ControlPlugin extends Plugin {
 
 		this.name = "ORMI C2 Control";
 		this.description =
-			"RMA Multi-Agent Framework (C2) integration: mission commands + CRUD as remote calls";
+			"RMA Multi-Agent Framework (C2) integration: missions, maps and vehicles.";
 		this.version = "1.0.0";
 		this.author = "Florian Lebecque";
 		this.email = "florian.lebecque@mil.be";

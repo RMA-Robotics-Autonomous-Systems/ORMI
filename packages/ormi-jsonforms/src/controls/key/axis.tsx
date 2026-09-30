@@ -17,6 +17,7 @@ import {
 	AnalogInput,
 	AnalogInputComponent,
 } from "@workspace/ui/combined/triggers";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 const AnalogControl = (props: ControlProps) => {
 	const { data, handleChange, path, label, id, errors, required } = props;
@@ -26,6 +27,11 @@ const AnalogControl = (props: ControlProps) => {
 	};
 
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({
+		path: props.path,
+		schema: props.schema,
+		errors,
+	});
 	// The picker is a composite widget rather than a single form control, so
 	// the ARIA state lives on the group wrapper.
 	const ariaProps = controlAriaProps({ id, isValid, required });
@@ -53,7 +59,7 @@ const AnalogControl = (props: ControlProps) => {
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

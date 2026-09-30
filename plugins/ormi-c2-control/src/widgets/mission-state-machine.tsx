@@ -150,7 +150,7 @@ export function MissionStateMachine(props: MissionStateMachineProps) {
 					{current.id === "started" && model.paused && (
 						<span
 							className="inline-flex shrink-0 items-center"
-							title="Paused — Start resumes"
+							title="Paused. Start resumes."
 						>
 							<Pause className="size-3 text-warning" />
 						</span>
@@ -172,7 +172,6 @@ export function MissionStateMachine(props: MissionStateMachineProps) {
 							<div className="flex items-center gap-1.5">
 								<div
 									className={`flex size-5 items-center justify-center rounded-full border text-[10px] font-bold leading-none ${STEP_DOT_CLASS[step.state]} ${STEP_RING_CLASS[step.state] ?? ""}`}
-									title={step.label}
 								>
 									{step.state === "done" ? (
 										<Check className="size-3" />
@@ -189,7 +188,7 @@ export function MissionStateMachine(props: MissionStateMachineProps) {
 								{step.id === "started" && model.paused && (
 									<span
 										className="inline-flex items-center"
-										title="Paused — Start resumes"
+										title="Paused. Start resumes."
 									>
 										<Pause className="size-3 text-warning" />
 									</span>

@@ -1,0 +1,97 @@
+{
+	"name": "on_contact_deadlock",
+	"description": "A robot cannot wait for the contacts of a sweep it only does afterwards.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "on",
+				"kind": "on_contact",
+				"label": "on",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "visit",
+				"kind": "action",
+				"label": "visit",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-on.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "on.agent-visit.agent",
+				"source": "on",
+				"source_port": "agent",
+				"target": "visit",
+				"target_port": "agent"
+			},
+			{
+				"id": "visit.agent-on.agent",
+				"source": "visit",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.contact-on.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "on",
+				"target_port": "event"
+			},
+			{
+				"id": "on.position-visit.target",
+				"source": "on",
+				"source_port": "position",
+				"target": "visit",
+				"target_port": "target"
+			},
+			{
+				"id": "on.no_more-sweep.agent",
+				"source": "on",
+				"source_port": "no_more",
+				"target": "sweep",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["ON_CONTACT_DEADLOCK", "on"]]
+	}
+}

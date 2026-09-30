@@ -1,0 +1,60 @@
+{
+	"name": "target_twice",
+	"description": "A waypoint picked inline AND an asset wired in: two targets, refused.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "wp2",
+				"kind": "asset",
+				"label": "wp2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"feature_id": "feat-wp2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-go.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "wp2.value-go.target",
+				"source": "wp2",
+				"source_port": "value",
+				"target": "go",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["NAVIGATE_TARGET", "go"]]
+	}
+}

@@ -37,6 +37,7 @@
 		"@workspace/ormi-plugins": "workspace:*",
 		"@workspace/ui": "workspace:*",
 		"@workspace/utils": "workspace:*",
+		"@xyflow/react": "^12.11.6",
 		"maplibre-gl": "^5.17.0",
 		"react-map-gl": "^8.1.0",
 		"terra-draw": "^1.31.2",

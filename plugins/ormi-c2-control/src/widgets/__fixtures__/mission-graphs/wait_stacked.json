@@ -1,0 +1,119 @@
+{
+	"name": "wait_stacked",
+	"description": "Two Waits in a row: wire every condition into one Wait instead.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "a",
+				"kind": "condition",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 5,
+					"negate": false
+				}
+			},
+			{
+				"id": "b",
+				"kind": "condition",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ContactsFound",
+					"threshold": 1,
+					"negate": false
+				}
+			},
+			{
+				"id": "w1",
+				"kind": "wait",
+				"label": "w1",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "w2",
+				"kind": "wait",
+				"label": "w2",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "any"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-w1.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "w1",
+				"target_port": "agent"
+			},
+			{
+				"id": "w1.agent-w2.agent",
+				"source": "w1",
+				"source_port": "agent",
+				"target": "w2",
+				"target_port": "agent"
+			},
+			{
+				"id": "w2.agent-go.agent",
+				"source": "w2",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "a.value-w1.when",
+				"source": "a",
+				"source_port": "value",
+				"target": "w1",
+				"target_port": "when"
+			},
+			{
+				"id": "b.value-w2.when",
+				"source": "b",
+				"source_port": "value",
+				"target": "w2",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["WAIT_STACKED", "w2"]]
+	}
+}

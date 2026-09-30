@@ -17,8 +17,9 @@
  * both backgrounds.
  */
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useTheme } from "next-themes";
+import { useThemeVersion } from "@workspace/ui/hooks/use-theme-colors";
 
 /** The palette a panel draws with. */
 export interface EmiTheme {
@@ -132,7 +133,7 @@ export function resolveEmiTheme(el: Element | null, dark: boolean): EmiTheme {
 		band: fb.band,
 		...MEANING,
 		font:
-			cssVar(el, "--font-sans") || "system-ui, -apple-system, sans-serif",
+			cssVar(el, "--font-body") || "system-ui, -apple-system, sans-serif",
 		dark,
 	};
 }
@@ -140,8 +141,13 @@ export function resolveEmiTheme(el: Element | null, dark: boolean): EmiTheme {
 /**
  * The palette, re-resolved when the theme changes or the element appears.
  *
+ * "The theme changes" covers both sources: the light/dark toggle
+ * (`resolvedTheme`) and a theme preset injected into `<head>`, which changes no
+ * React state and is only seen through the shared theme version
+ * (`useThemeVersion`, `@workspace/ui/hooks/use-theme-colors`).
+ *
  * Takes the element itself rather than a ref: a panel's body mounts only once
- * its datasource is online, and an effect keyed on a `useRef` object never
+ * its datasource is online, and a memo keyed on a `useRef` object never
  * re-runs at that moment — the panels would draw with the fallback palette
  * forever, which is the whole thing this module exists to avoid. See
  * `useHostElement` in `widgets/emi-panel-frame.tsx`.
@@ -152,13 +158,11 @@ export function resolveEmiTheme(el: Element | null, dark: boolean): EmiTheme {
 export function useEmiTheme(element: HTMLElement | null): EmiTheme {
 	const { resolvedTheme } = useTheme();
 	const dark = resolvedTheme === "dark";
-	const [theme, setTheme] = useState<EmiTheme>(() =>
-		resolveEmiTheme(null, dark),
+	const themeVersion = useThemeVersion();
+	// Version 0 is the server snapshot (also served during hydration), where
+	// the DOM must not be read: the fallback palette, as on first paint.
+	return useMemo(
+		() => resolveEmiTheme(themeVersion === 0 ? null : element, dark),
+		[element, dark, themeVersion],
 	);
-
-	useEffect(() => {
-		setTheme(resolveEmiTheme(element, dark));
-	}, [element, dark]);
-
-	return theme;
 }

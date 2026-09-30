@@ -197,26 +197,27 @@ export function planSummary(tasks: FeedbackTask[]): PlanSummary {
 
 /**
  * Format a distance in metres for display: metres below 1 km, else kilometres
- * with one decimal. A negative/non-finite input renders as "—".
+ * with one decimal. A negative/non-finite input renders as "n/a".
  *
  * @param meters - The distance in metres.
  * @returns A short display string (e.g. "740 m", "3.2 km").
  */
 export function formatDistance(meters: number): string {
-	if (!Number.isFinite(meters) || meters < 0) return "—";
+	if (!Number.isFinite(meters) || meters < 0) return "n/a";
 	if (meters < 1000) return `${Math.round(meters)} m`;
 	return `${(meters / 1000).toFixed(1)} km`;
 }
 
 /**
  * Format a duration in seconds for display: `Hh Mm`, `Mm Ss`, or `Ss`. Null /
- * non-finite / negative renders as "—".
+ * non-finite / negative renders as "n/a".
  *
  * @param seconds - The duration in seconds, or null.
  * @returns A short display string (e.g. "1h 05m", "12m 30s", "45s").
  */
 export function formatDuration(seconds: number | null | undefined): string {
-	if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "—";
+	if (seconds == null || !Number.isFinite(seconds) || seconds < 0)
+		return "n/a";
 	const total = Math.round(seconds);
 	const h = Math.floor(total / 3600);
 	const m = Math.floor((total % 3600) / 60);

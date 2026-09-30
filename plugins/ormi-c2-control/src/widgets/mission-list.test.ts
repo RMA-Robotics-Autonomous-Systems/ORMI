@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { MissionBehavior } from "../types/c2-types";
 import {
 	duplicateMission,
+	duplicateMissionDocuments,
 	generateMissionId,
 	newMissionStub,
 	normalizeMissions,
@@ -116,6 +117,86 @@ describe("duplicateMission (save-a-copy)", () => {
 		// the source is not mutated
 		expect(source.mission_id).toBe("m1");
 		expect(source._id).toBe("mongo-internal");
+	});
+});
+
+describe("duplicateMissionDocuments", () => {
+	const source = {
+		mission_id: "m1",
+		name: "Alpha",
+		graph_ref: "m1:graph",
+		graph_compiles: true,
+	};
+
+	it("copies the graph under the copy's id and points the copy at it", () => {
+		const graphDoc = {
+			mission_id: "m1:graph",
+			graph: {
+				version: 3,
+				nodes: [
+					{
+						id: "a",
+						kind: "agent",
+						label: "Es",
+						position: { x: 0, y: 0 },
+						agent_id: "robot-es",
+					},
+				],
+				edges: [],
+			},
+		};
+		const { mission, graph } = duplicateMissionDocuments(
+			source,
+			graphDoc,
+			null,
+			"Alpha (copy)",
+		);
+		expect(mission.mission_id).not.toBe("m1");
+		// It used to keep "m1:graph": the fog, which looks the graph up by the
+		// copy's own id, found none.
+		expect(mission.graph_ref).toBe(`${String(mission.mission_id)}:graph`);
+		expect(graph?.mission_id).toBe(`${String(mission.mission_id)}:graph`);
+		expect((graph?.graph as { nodes: unknown[] }).nodes).toHaveLength(1);
+	});
+
+	it("drops the stale graph fields when the source has no graph", () => {
+		const { mission, graph, assets } = duplicateMissionDocuments(
+			source,
+			null,
+			null,
+			"x",
+		);
+		expect(graph).toBeNull();
+		expect(assets).toBeNull();
+		expect(mission.graph_ref).toBeUndefined();
+		expect(mission.graph_compiles).toBeUndefined();
+	});
+
+	it("copies the map and assets under the copy's id, keeping the asset ids", () => {
+		const assetsDoc = {
+			mission_id: "m1:assets",
+			map: "RMA",
+			features: [
+				{
+					type: "Feature",
+					properties: { feature_id: "wp", feature_type: "waypoint" },
+					geometry: { type: "Point", coordinates: [4.39, 50.84] },
+				},
+			],
+		};
+		const { mission, assets } = duplicateMissionDocuments(
+			source,
+			null,
+			assetsDoc,
+			"x",
+		);
+		expect(assets?.mission_id).toBe(`${String(mission.mission_id)}:assets`);
+		expect(assets?.mission_ref).toBe(mission.mission_id);
+		expect(assets?.map).toBe("RMA");
+		expect(
+			(assets?.features as { properties: { feature_id: string } }[])[0]
+				?.properties.feature_id,
+		).toBe("wp");
 	});
 });
 

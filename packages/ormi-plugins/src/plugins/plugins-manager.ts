@@ -48,6 +48,15 @@ export class PluginsManager {
 	private warnedFilterHooks = new Set<HookName>();
 	private warnedActionHooks = new Set<HookName>();
 
+	/**
+	 * Per-hook filter registration revision, bumped on every `addFilter` /
+	 * `removeFilter` that touches the hook. Registrations made in plugin
+	 * constructors (before the manager exists) are revision 0.
+	 */
+	private filterRevisions = new Map<HookName, number>();
+	/** Listeners told which hook's filter registrations just changed. */
+	private filterListeners = new Set<(hook: HookName) => void>();
+
 	/** Heavy-tier dispatch metric ids (registered once; idempotent). */
 	private readonly dispatchMsRing: RingId;
 	private readonly dispatchesCounter: CounterId;
@@ -244,6 +253,7 @@ export class PluginsManager {
 		this.trackId(this.filterIdToHooks, filter.id, filterName);
 		this.warnedFilterHooks.delete(filterName);
 		this.rebuildFilterIndex(filterName);
+		this.announceFilterChange(filterName);
 	}
 
 	/**
@@ -265,6 +275,49 @@ export class PluginsManager {
 
 		hooks.forEach((hook) => this.rebuildFilterIndex(hook));
 		this.filterIdToHooks.delete(pluginFilterId);
+		hooks.forEach((hook) => this.announceFilterChange(hook));
+	}
+
+	/**
+	 * Registration revision of one filter hook: a number that changes whenever a
+	 * filter is added to or removed from that hook after construction.
+	 *
+	 * It is the snapshot for a `useSyncExternalStore` over the registry. A pull
+	 * filter's result can only be read by applying it, so a component that
+	 * applies a filter during render has no other way to learn that a filter
+	 * registered after its render (typically from a sibling's effect) changed
+	 * what that render would have read.
+	 *
+	 * @param hook - Filter hook name.
+	 * @returns The revision, 0 when no post-construction change touched it.
+	 */
+	getFilterRevision(hook: HookName): number {
+		return this.filterRevisions.get(hook) ?? 0;
+	}
+
+	/**
+	 * Subscribe to filter registration changes on any hook.
+	 *
+	 * The listener runs synchronously after the change is in the index, once per
+	 * affected hook, and receives that hook's name. It is not called for a
+	 * `removeFilter` of an unknown id, which changes nothing.
+	 *
+	 * @param listener - Called with the name of the hook that changed.
+	 * @returns Unsubscribe function.
+	 */
+	subscribeFilters(listener: (hook: HookName) => void): () => void {
+		this.filterListeners.add(listener);
+		return () => {
+			this.filterListeners.delete(listener);
+		};
+	}
+
+	/** Bump a hook's revision and tell every listener, over a snapshot of them. */
+	private announceFilterChange(hook: HookName): void {
+		this.filterRevisions.set(hook, this.getFilterRevision(hook) + 1);
+		for (const listener of Array.from(this.filterListeners)) {
+			listener(hook);
+		}
 	}
 
 	/**

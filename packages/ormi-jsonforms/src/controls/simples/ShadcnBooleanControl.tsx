@@ -37,6 +37,7 @@ import React from "react";
 import { Switch } from "@workspace/ui/components/switch";
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 export const ShadcnBooleanControl = ({
 	data,
@@ -48,11 +49,13 @@ export const ShadcnBooleanControl = ({
 	handleChange,
 	errors,
 	path,
+	schema,
 	config,
 	description,
 	required,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({ path, schema, errors });
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	// `true` for the focus argument: help text is always shown, never gated on
@@ -76,40 +79,44 @@ export const ShadcnBooleanControl = ({
 	}
 
 	return (
+		// Label in the label column, switch in the control column: the same
+		// geometry as every other row of the form.
 		<div className="grid grid-cols-[10dvw_1fr] gap-4 items-center">
-			<Switch
-				id={id}
-				checked={data || false}
-				disabled={!enabled}
-				onCheckedChange={(checked) => handleChange(path, checked)}
-				{...ariaProps}
-			/>
-			<div className="grid gap-1.5 leading-none">
-				<label
-					htmlFor={id}
-					className={cn(
-						"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-						required &&
-							"after:text-destructive after:content-['*']",
-						!isValid && "text-destructive",
-					)}
-				>
-					{label}
-				</label>
-				{showDescription && (
-					<p
-						id={descriptionId(id)}
-						className="text-sm text-muted-foreground"
-					>
-						{description}
-					</p>
+			<label
+				htmlFor={id}
+				className={cn(
+					"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+					required && "after:text-destructive after:content-['*']",
+					!isValid && "text-destructive",
 				)}
-				{!isValid && (
-					<p id={errorId(id)} className="text-sm text-destructive">
-						{errors}
-					</p>
-				)}
+			>
+				{label}
+			</label>
+			<div className="flex items-center">
+				<Switch
+					id={id}
+					checked={data || false}
+					disabled={!enabled}
+					onCheckedChange={(checked) => handleChange(path, checked)}
+					{...ariaProps}
+				/>
 			</div>
+			{showDescription && (
+				<p
+					id={descriptionId(id)}
+					className="col-start-2 text-sm text-muted-foreground"
+				>
+					{description}
+				</p>
+			)}
+			{!isValid && (
+				<p
+					id={errorId(id)}
+					className="col-start-2 text-sm text-destructive"
+				>
+					{errorText}
+				</p>
+			)}
 		</div>
 	);
 };

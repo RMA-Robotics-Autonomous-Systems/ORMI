@@ -68,9 +68,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 	const getCompatibilityIcon = (status: string) => {
 		switch (status) {
 			case "compatible":
-				return (
-					<CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-				);
+				return <CheckCircle2 className="w-4 h-4 text-success" />;
 			case "incompatible":
 				return <XCircle className="w-4 h-4 text-destructive" />;
 			case "analyzing":
@@ -130,7 +128,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 		if (health === "online") {
 			return (
 				<Wifi
-					className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400"
+					className="h-3 w-3 shrink-0 text-success"
 					aria-label="Datasource online"
 				/>
 			);
@@ -306,7 +304,7 @@ export const TopicBrowser: React.FC<TopicBrowserProps> = ({
 								{requirements &&
 									compatibilityStatus === "compatible" && (
 										<div className="mt-2 pt-2 border-t">
-											<div className="text-xs text-green-600 dark:text-green-400">
+											<div className="text-xs text-success">
 												✓ Compatible with requirements
 											</div>
 										</div>

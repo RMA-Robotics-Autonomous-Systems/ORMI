@@ -22,6 +22,7 @@ import {
 } from "@workspace/ui/components/select";
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 const AsyncSelectControl = (props: ControlProps) => {
 	const { data, handleChange, path, uischema, label, id, errors, required } =
@@ -30,6 +31,11 @@ const AsyncSelectControl = (props: ControlProps) => {
 		[],
 	);
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({
+		path: props.path,
+		schema: props.schema,
+		errors,
+	});
 	const ariaProps = controlAriaProps({ id, isValid, required });
 
 	useEffect(() => {
@@ -77,7 +83,7 @@ const AsyncSelectControl = (props: ControlProps) => {
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

@@ -10,7 +10,7 @@ interface AuthLayoutProps {
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
 	return (
-		<div className="relative min-h-[calc(100vh-3rem)] overflow-hidden bg-background">
+		<div className="relative min-h-[calc(100vh_-_3rem_-_var(--navbar-inset))] overflow-hidden bg-background">
 			<div
 				className="pointer-events-none absolute inset-0"
 				style={{
@@ -28,10 +28,18 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
 					className="object-cover object-center opacity-18"
 					sizes="100vw"
 				/>
-				<div className="absolute inset-0 bg-[linear-gradient(to_bottom,hsl(var(--background))_0%,hsl(var(--background)/0.96)_20%,hsl(var(--background)/0.88)_48%,hsl(var(--background)/0.76)_72%,hsl(var(--background)/0.64)_100%)]" />
+				{/* Wash over the wallpaper, in the theme background. `--background` is
+				    an oklch colour, so it is mixed rather than wrapped in `hsl()`. */}
+				<div
+					className="absolute inset-0"
+					style={{
+						backgroundImage:
+							"linear-gradient(to bottom, var(--background) 0%, color-mix(in oklab, var(--background) 96%, transparent) 20%, color-mix(in oklab, var(--background) 88%, transparent) 48%, color-mix(in oklab, var(--background) 76%, transparent) 72%, color-mix(in oklab, var(--background) 64%, transparent) 100%)",
+					}}
+				/>
 			</div>
 
-			<div className="container relative z-10 mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl items-center px-4 py-10 md:px-6 md:py-16">
+			<div className="container relative z-10 mx-auto flex min-h-[calc(100vh_-_3rem_-_var(--navbar-inset))] max-w-6xl items-center px-4 py-10 md:px-6 md:py-16">
 				<div className="grid w-full gap-10 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-center lg:gap-14">
 					<section className="hidden lg:flex lg:flex-col lg:gap-8">
 						<div className="flex items-center gap-4">

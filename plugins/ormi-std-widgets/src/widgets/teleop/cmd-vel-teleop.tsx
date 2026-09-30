@@ -183,7 +183,7 @@ const TeleopAxisRow: React.FC<TeleopAxisRowProps> = ({
 			</div>
 			<div className="bg-muted mt-1 h-1 w-full rounded sm:mt-2 sm:h-2">
 				<div
-					className="h-full rounded bg-blue-500 transition-all duration-150"
+					className="h-full rounded bg-primary transition-all duration-150"
 					style={{
 						width: `${bar.widthPercent}%`,
 						marginLeft: `${bar.offsetPercent}%`,
@@ -399,10 +399,10 @@ export function TeleopControl(props: TeleopControlData) {
 					<div
 						data-active={!isLocked}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
+                            bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
                             flex justify-center items-center select-none cursor-pointer
-                            hover:bg-black/20 transition-all duration-100
-                            data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20
+                            hover:bg-foreground/20 transition-all duration-100
+                            data-[active=true]:bg-success/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
                         "
 						onMouseUp={handleUnlockInactive}
@@ -412,17 +412,17 @@ export function TeleopControl(props: TeleopControlData) {
 						{isLocked ? (
 							<LockIcon className="text-destructive h-4 w-4 sm:h-5 sm:w-5" />
 						) : (
-							<UnlockIcon className="h-4 w-4 text-green-600 sm:h-5 sm:w-5 dark:text-green-400" />
+							<UnlockIcon className="h-4 w-4 text-success sm:h-5 sm:w-5" />
 						)}
 					</div>
 
 					<div
 						data-active={speedIncActive || speedDecActive}
 						className="
-                            bg-black/10 w-full rounded-[var(--radius)] border-[0.2rem] border-black/10
+                            bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
                             flex justify-center items-center select-none cursor-pointer
-                            hover:bg-black/20 transition-all duration-100
-                            data-[active=true]:bg-green-600/20 dark:data-[active=true]:bg-green-500/20
+                            hover:bg-foreground/20 transition-all duration-100
+                            data-[active=true]:bg-success/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
                         "
 						style={{ padding: "0.25rem 0.5rem" }}
@@ -632,6 +632,9 @@ export function TeleopControlDefinition(): WidgetDefinition<TeleopControlData> {
 					type: "Control",
 					scope: "#/properties/axes",
 					options: {
+						// The bound axis is what tells rows apart; without it every
+						// row is only "Axis N".
+						elementLabelProp: "axis",
 						detail: {
 							type: "VerticalLayout",
 							elements: [

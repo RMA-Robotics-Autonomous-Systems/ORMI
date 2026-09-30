@@ -128,6 +128,83 @@ export interface MissionFeedback {
 	issue_message?: string;
 	/** `VEHICLE_BUSY` only: which vehicles are held by which missions. */
 	issue_conflicts?: FeedbackIssueConflict[];
+	/**
+	 * Where each agent is in its behaviour-graph chain, keyed by agent id (the
+	 * fog's program executor). Absent from producers without one.
+	 */
+	program?: Record<string, ProgramProgress>;
+}
+
+/** A chain step's state in the fog's program executor. */
+export type ProgramStepState =
+	| "WAITING"
+	| "GATED"
+	| "PLANNING"
+	| "READY"
+	| "RUNNING"
+	| "LISTENING"
+	| "DONE"
+	| "FAILED";
+
+/** One condition of the gate an agent waits at. */
+export interface ProgramGateCondition {
+	/** The graph node behind it: a condition node, or the step whose `done`. */
+	node_id: string;
+	op: string;
+	key: string;
+	threshold: number;
+	negate: boolean;
+	/** Whether this condition holds right now. */
+	holds: boolean;
+	/** ContactsFound: the mission's count so far. */
+	value?: number;
+}
+
+/** One agent's position in its chain. */
+export interface ProgramProgress {
+	chain: number;
+	/** Index of the current step in `steps` (a chain may loop back). */
+	step_index: number;
+	steps_total: number;
+	/** Graph node of the current step (the last one once DONE). */
+	step_id: string;
+	state: ProgramStepState;
+	/**
+	 * The whole chain: each step's node (an action, or an On contact node),
+	 * the Hold until in front of it ("" when none) and what is wired into it.
+	 */
+	steps: {
+		step_id: string;
+		kind: "STEP" | "ON_CONTACT";
+		wait_node: string;
+		/** Whether that Hold until needs all of its inputs, or any one. */
+		mode: "all" | "any";
+		gate_nodes: string[];
+	}[];
+	/** The steps of this chain that have completed at least once. */
+	done_steps: string[];
+	/** The contact the agent is visiting (from an On contact node). */
+	contact?: { uid: string; lon: number; lat: number; node: string };
+	/** At an On contact node: how many of its Coverage's contacts it took. */
+	listening?: {
+		node: string;
+		source_step: string;
+		taken: number;
+		found: number;
+		/** The Coverage is done: once every contact is taken, it moves on. */
+		source_done: boolean;
+	};
+	/** Present while the step waits at its gate. */
+	gate?: {
+		node_ids: string[];
+		/** The Wait node the agent is held at. */
+		wait_node: string;
+		/** Whether the Wait needs all of its conditions, or any one. */
+		mode: "all" | "any";
+		/** Run time spent at the gate (paused time excluded); null until START. */
+		waited_s: number | null;
+		conditions: ProgramGateCondition[];
+	};
 }
 
 /**
@@ -252,6 +329,7 @@ interface RawFeedback {
 	issue_code?: unknown;
 	issue_message?: unknown;
 	issue_conflicts?: unknown;
+	program?: unknown;
 }
 
 /** A finite number, else undefined. */
@@ -313,6 +391,126 @@ function issueConflicts(value: unknown): FeedbackIssueConflict[] | undefined {
 		const vehicle = str(e.vehicle_id);
 		if (!vehicle) continue;
 		out.push({ vehicle_id: vehicle, mission_id: str(e.mission_id) ?? "" });
+	}
+	return out;
+}
+
+const PROGRAM_STATES: readonly ProgramStepState[] = [
+	"WAITING",
+	"GATED",
+	"PLANNING",
+	"READY",
+	"RUNNING",
+	"LISTENING",
+	"DONE",
+	"FAILED",
+];
+
+/** Parse `program`, dropping agents whose entry is not usable. */
+function programProgress(
+	value: unknown,
+): Record<string, ProgramProgress> | undefined {
+	if (value == null || typeof value !== "object" || Array.isArray(value))
+		return undefined;
+	const out: Record<string, ProgramProgress> = {};
+	for (const [agent, entry] of Object.entries(value)) {
+		if (entry == null || typeof entry !== "object") continue;
+		const e = entry as Record<string, unknown>;
+		const state = e.state as ProgramStepState;
+		const stepIndex = index(e.step_index);
+		const stepsTotal = index(e.steps_total);
+		if (
+			!PROGRAM_STATES.includes(state) ||
+			stepIndex == null ||
+			stepsTotal == null
+		)
+			continue;
+		const progress: ProgramProgress = {
+			chain: index(e.chain) ?? 0,
+			step_index: stepIndex,
+			steps_total: stepsTotal,
+			step_id: str(e.step_id) ?? "",
+			state,
+			steps: (Array.isArray(e.steps) ? e.steps : [])
+				.filter(
+					(st): st is Record<string, unknown> =>
+						st != null && typeof st === "object",
+				)
+				.map((st) => ({
+					step_id: str(st.step_id) ?? "",
+					kind:
+						st.kind === "ON_CONTACT"
+							? ("ON_CONTACT" as const)
+							: ("STEP" as const),
+					wait_node: str(st.wait_node) ?? "",
+					mode:
+						st.mode === "any" ? ("any" as const) : ("all" as const),
+					gate_nodes: Array.isArray(st.gate_nodes)
+						? st.gate_nodes.filter(
+								(n): n is string => typeof n === "string",
+							)
+						: [],
+				})),
+			done_steps: Array.isArray(e.done_steps)
+				? e.done_steps.filter((n): n is string => typeof n === "string")
+				: [],
+		};
+		const contact = e.contact as Record<string, unknown> | undefined;
+		if (contact != null && typeof contact === "object") {
+			const lon = num(contact.lon);
+			const lat = num(contact.lat);
+			if (lon != null && lat != null) {
+				progress.contact = {
+					uid: str(contact.uid) ?? "",
+					lon,
+					lat,
+					node: str(contact.node) ?? "",
+				};
+			}
+		}
+		const listening = e.listening as Record<string, unknown> | undefined;
+		if (listening != null && typeof listening === "object") {
+			progress.listening = {
+				node: str(listening.node) ?? "",
+				source_step: str(listening.source_step) ?? "",
+				taken: index(listening.taken) ?? 0,
+				found: index(listening.found) ?? 0,
+				source_done: listening.source_done === true,
+			};
+		}
+		const gate = e.gate as Record<string, unknown> | undefined;
+		if (gate != null && typeof gate === "object") {
+			const conditions = Array.isArray(gate.conditions)
+				? gate.conditions
+				: [];
+			progress.gate = {
+				node_ids: Array.isArray(gate.node_ids)
+					? gate.node_ids.filter(
+							(n): n is string => typeof n === "string",
+						)
+					: [],
+				wait_node: str(gate.wait_node) ?? "",
+				mode: gate.mode === "any" ? "any" : "all",
+				waited_s: num(gate.waited_s) ?? null,
+				conditions: conditions
+					.filter(
+						(c): c is Record<string, unknown> =>
+							c != null && typeof c === "object",
+					)
+					.map((c) => ({
+						node_id: str(c.node_id) ?? "",
+						op: str(c.op) ?? "",
+						key: str(c.key) ?? "",
+						threshold: num(c.threshold) ?? 0,
+						negate: c.negate === true,
+						holds: c.holds === true,
+						...(num(c.value) != null
+							? { value: num(c.value) }
+							: {}),
+					})),
+			};
+		}
+		out[agent] = progress;
 	}
 	return out;
 }
@@ -436,6 +634,7 @@ export function parseMissionFeedback(
 			issue_code: str(obj.issue_code),
 			issue_message: str(obj.issue_message),
 			issue_conflicts: issueConflicts(obj.issue_conflicts),
+			program: programProgress(obj.program),
 		},
 	);
 }

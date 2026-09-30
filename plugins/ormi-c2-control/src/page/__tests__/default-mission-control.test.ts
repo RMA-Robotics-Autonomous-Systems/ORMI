@@ -43,7 +43,7 @@ describe("the layout key", () => {
 	it("is the one the FLEX engine reads", () => {
 		// `flexLayoutEngineDefinition.layoutKey` in core. A layout under any
 		// other key is not an error anywhere: the engine finds nothing, falls
-		// back to one tabset holding all seven panels, and the surface looks
+		// back to one tabset holding all eight panels, and the surface looks
 		// broken rather than misconfigured.
 		//
 		// This compares a literal against a literal, deliberately: core does
@@ -80,39 +80,73 @@ describe("the model", () => {
 		}
 	});
 
-	it("opens with the seven mission panels", () => {
+	it("captions a shared tab strip so it fits the pane it is in", () => {
+		// "Mission Graph / Assets / Swarm Log" wants 568 px; at 1100×800 the
+		// strip has 470, so the captions truncated AND the tabset's maximize
+		// button was pushed out of reach — removing the one escape from a
+		// cramped pane. The budget is a proxy for that width (~8 px per
+		// character at the strip's type size, plus per-tab padding and the
+		// maximize button), and a tabset of one keeps the widget's own title
+		// because it has the whole pane.
+		const CAPTION_BUDGET = 26;
+		for (const set of tabsets(model().layout)) {
+			if (set.children.length < 2) continue;
+			const captions = set.children.map((c) =>
+				String((c as { name?: unknown }).name),
+			);
+			const width = captions.reduce((n, c) => n + c.length, 0);
+			expect(width).toBeLessThanOrEqual(CAPTION_BUDGET);
+		}
+	});
+
+	it("opens with the eight mission panels", () => {
+		// Seven since the mission editor widget was removed as redundant with
+		// the behaviour-graph editor and the map's own mission panel
+		// (2026-09-22); eight since a mission owns its assets and they got a
+		// panel of their own (2026-09-24). This list is the arrangement's
+		// contract, not a count to keep green: a panel that appears here
+		// without somebody deciding it should is a panel nobody chose to put
+		// in front of an operator.
 		const dash = defaultMissionControl();
-		expect(dash.widgets.size).toBe(7);
+		expect(dash.widgets.size).toBe(8);
 		const types = [...dash.widgets.values()].map((w) => w.widget_id);
 		expect(types.slice().sort()).toEqual(
 			[
 				"c2-fleet-status-widget",
+				"c2-mission-assets-widget",
 				"c2-mission-browser-widget",
 				"c2-mission-control-panel-widget",
-				"c2-mission-editor-widget",
 				"c2-mission-feedback-widget",
+				"c2-mission-graph-widget",
 				"c2-mission-map-widget",
 				"c2-swarm-log-widget",
 			].sort(),
 		);
 	});
 
-	it("gives the map the whole left edge", () => {
-		// The reason this arrangement was picked: the map is the one panel that
-		// is better at every size, and it is the first child of the root row —
-		// so it spans the full height rather than sharing a column with a
-		// stack. A later edit that nests it under something else would still
-		// render, and would quietly take that away.
-		const [first, ...rest] = model().layout.children as Array<{
+	it("gives the centre, full height, to the map and the behaviour graph", () => {
+		// Both are canvases, the one kind of panel here that is unusable rather
+		// than merely cramped when it is starved. They share the one pane with
+		// room for either: a tabset that is a direct child of the root row, so
+		// it spans the full height, and the widest thing at the top level. A
+		// later edit that nests it into a stack would still render, and would
+		// quietly take that away.
+		const children = model().layout.children as Array<{
 			type: string;
 			weight: number;
 			children?: Array<{ id?: string }>;
 		}>;
-		expect(first?.type).toBe("tabset");
-		expect(first?.children?.map((c) => c.id)).toEqual(["c2-map"]);
-		// And it is the widest thing at the top level.
-		for (const sibling of rest) {
-			expect(first!.weight).toBeGreaterThanOrEqual(sibling.weight);
+		const centre = children.find(
+			(c) =>
+				c.type === "tabset" &&
+				c.children?.some((t) => t.id === "c2-map"),
+		);
+		expect(centre?.children?.map((c) => c.id)).toEqual([
+			"c2-map",
+			"c2-graph",
+		]);
+		for (const sibling of children) {
+			expect(centre!.weight).toBeGreaterThanOrEqual(sibling.weight);
 		}
 	});
 
@@ -131,18 +165,17 @@ describe("the model", () => {
 		}
 	});
 
-	it("shares one tabset between the editor and the log", () => {
-		// Authoring happens before a mission runs and the log is read once
-		// something has gone wrong; neither is watched continuously, so a pane
-		// each would spend a third of the centre column on an idle panel.
-		const shared = tabsets(model().layout)
-			.filter((set) => set.children.length > 1)
-			.map((set) =>
-				set.children
-					.map((c) => String((c as { id?: unknown }).id))
-					.sort(),
+	it("keeps every continuously watched panel in a pane of its own", () => {
+		// Fleet presence and mission feedback are read while something is
+		// moving; a reading behind a tab is a reading nobody takes.
+		for (const set of tabsets(model().layout)) {
+			const ids = set.children.map((c) =>
+				String((c as { id?: unknown }).id),
 			);
-		expect(shared).toContainEqual(["c2-editor", "c2-log"]);
+			if (ids.includes("c2-fleet") || ids.includes("c2-feedback")) {
+				expect(ids).toHaveLength(1);
+			}
+		}
 	});
 
 	it("seeds each panel with its definition's own defaults, not just a title", () => {

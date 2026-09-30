@@ -219,14 +219,25 @@ highest-ranked match per control, in order:
 2. `coreRenderer` — ORMI built-in controls (`@workspace/ormi-core/renderers`)
 3. anything plugins add via the `JSON_FORMS_RENDERER` hook
 
-Built-in core renderers are the topic and frame pickers:
+Built-in core renderers are the topic, frame and datasource pickers:
 
 ```typescript
 export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: topicSelectTester, renderer: TopicSelectRenderer },
 	{ tester: frameSelectTester, renderer: FrameSelectRenderer },
+	{ tester: datasourceSelectTester, renderer: DatasourceSelectRenderer },
 ];
 ```
+
+The datasource picker handles any control whose schema carries the
+`datasourceSelect` marker (`datasourceSelectProperty`, `@workspace/utils`), at
+any depth. It reads the configured datasources from `datasourcesAtom`
+(`appStore`) **when the dialog renders** and stores the instance id; an id that
+no longer resolves stays selected as "Missing datasource (<id>)". It replaced
+`createDatasourceSelectHook`, which baked a `oneOf` into the schema from an
+`extensibilityHook`: that runs during `DashboardShell`'s render, before its
+child `GlobalDataSourcesProvider` has registered `AVAILABLE_DATASOURCES`, so
+the list was always empty and every pick-list fell back to free text.
 
 Plugins register extra `{ tester, renderer }` entries on `JSON_FORMS_RENDERER`.
 Selection is by tester rank — there is **no** `options.renderer` string id and no
@@ -741,3 +752,238 @@ A widget that needs a `TemplatesProvider` in its own page must mount one:
 `GlobalDataSourcesProvider` and the grid engine both call `useTemplates()`, which
 throws when the provider is absent. Core ships `temphandleLoad`/`temphandleSave`
 for pages that cannot reach the app's Prisma helpers.
+
+## Findings on the mission map: one record, one layer
+
+`payload_msgs/msg/Finding` states it in its own header: _"Cue, contact and item
+are THE SAME RECORD at different support depths — the name is derived, not
+stored."_ So the C2 mission map draws **one** findings layer
+(`plugins/ormi-c2-control/src/widgets/findings-layer.tsx`) and encodes the
+depth as visual **weight**, and an operator-placed `cue` map feature is lifted
+into the same record (`cueFeatureToFinding`) rather than given a layer and a
+palette of its own — `FeatureLayers` deliberately skips `feature_type === "cue"`
+so it is not drawn twice, in two vocabularies, as if it were two things.
+
+Four properties are load-bearing.
+
+**The ingest does not go through `LocalDataSourcesProvider`.** That provider
+keeps one value per topic per ~30 Hz drain tick, which is right for a value
+being _observed_ and wrong for a stream being _accumulated_: a burst of findings
+would arrive as whichever one happened to be last in the tick, and the map would
+be short by exactly the findings nobody ever saw. The subscription goes through
+`getDatasourceSubscriptionRegistry` with `lossless: true` on the topic — the
+consumer's declaration, per the losslessness rule — the same route
+`ormi-foxglove`'s transform manager takes. `lossless` is a _request_, though,
+and only a coalescing datasource reads it, so the store counts what it received
+and what it could not place and the map **renders both numbers**. Hiding them
+would put the layer back in the position of being quietly short.
+
+**The name is derived from support AND the confidence basis.** Any supporting
+uid makes a contact; none is a cue _only when_ the statistic type is
+`HUMAN_INSTINCT`. The message also names a corroborated "item"; nothing produces
+or shows one since sensor fusion was dropped (2026-09-23: the fog's aggregator,
+`/payload/item` and the `ItemsFound` condition are gone, and the map lost its
+item topic slot). A contact is what one sensor reported. Support-emptiness alone is not the
+test — a payload's own first report has no support either, and calling that a
+cue would tell the operator a human had put it there.
+
+**Essence is a safety property, not decoration.** Anything that is not
+`ESSENCE_REAL` gets a second, outer ring in a colour nothing else on the map
+uses, and the readout says it in words and figures — a difference carried only
+by hue is one a colour-blind operator does not see. `ESSENCE_UNKNOWN` is flagged
+too: a publisher that never sets the field sends `0`, and flagging an unset
+essence is the failure direction that cannot get anybody hurt.
+
+**Findings are append-only, so the store never rewrites one.** A repeat for a
+known uid may only _add_ a `superseded_by` the record does not yet carry;
+nothing else on the incoming copy is adopted, because an operator may already
+have dispatched an effector to where it said it was. A superseded finding is
+drawn faded and _underneath_ the live ones, never removed — "this was withdrawn"
+and "this never existed" are different answers.
+
+## The mission behaviour graph, and where it is stored
+
+`MissionConfig` has a vehicle list and an objective-geometry list and no way to
+say "then", "when" or "who", so the behaviour an operator actually wants — two
+survey agents sweeping zones while an effector holds at a waypoint until a
+finding dispatches it — is authored in the graph editor
+(`plugins/ormi-c2-control/src/widgets/mission-graph-editor.tsx`, `@xyflow/react`)
+and lives in two places at once.
+
+- **A node names an asset by `feature_id` and carries no coordinates.** Zones,
+  waypoints and cues are assets. Geometry with two homes is two answers to
+  "where", and nothing to say which one the planner used.
+- **A mission is a map, its assets and a graph (2026-09-24).** Its waypoints,
+  zones and cues are the MISSION's, saved as `"<mission_id>:assets"`
+  (`{map, features}`, `widgets/mission-assets.ts`, store
+  `state/mission-assets-store.ts`) next to `":graph"`; roads, risks and
+  geofences stay the map's. Opening a mission shows its map (a mission with no
+  map yet is placed on the one shown; with assets its map is fixed). Drawing,
+  editing or deleting a waypoint / zone / cue while a mission is open changes
+  the mission, saved by Save mission; the map's own ones are drawn faint as a
+  library, and "Import into mission" copies one under a new id, so editing it
+  never moves another mission's target. The graph editor's pickers and the
+  compiler read the mission's assets: a target that is not one of them is
+  `TARGET_MISSING`, a wrong type `TARGET_TYPE` — the codes the fog raises at
+  submit, when it snapshots the assets and sends the planner each target's
+  shape (the planner looks nothing up in MapDB, and refuses a step drawn on
+  another map than the one it has loaded). The **C2 Mission Assets** panel
+  (`mission-assets-panel.tsx`) lists them by type with the graph nodes that
+  use each, the map's own ones to import, rename/remove and Save mission;
+  picking one flies the map to it and selects its nodes in the graph editor,
+  and a pick on the map selects it there (`state/asset-focus-store.ts`).
+- **Execution ("then") edges carry the agent assignment downstream to
+  everything reachable; data edges do not.** Consuming a finding is not being
+  commanded by whoever produced it, so the marker stays the effector's job
+  whoever found the thing.
+- **`compileMissionGraph` emits only what the C2 can hold** — the vehicle
+  allocation and the objective's `{ feature_id }` references — and reports
+  everything else as an issue rather than flattening it into a field that looks
+  like it was honoured. It is deterministic, because the output feeds a save and
+  a compile that reordered `geometries` would make every mission read as dirty.
+- **The graph editor replaced the mission-editor form, it does not sit beside
+  it.** A second panel authored the same mission as a form — name, behaviour,
+  vehicle checkboxes, objective-geometry list, plus a collapsed JSON-Forms
+  "advanced" block — and was removed (2026-09-22): behaviour, vehicles and
+  geometry belong on the map, beside the geometry they describe, and the
+  sequencing belongs in the graph. One consequence was a real loss and has been
+  absorbed: renaming a mission. The graph editor's toolbar carries the mission
+  **name** input, writing through `editMissionDraft` to the shared draft — the
+  same store and the same save mechanics the map uses, never a second save
+  path. The other is still open: `missionAdvancedSchema`
+  (`plugins/ormi-c2-control/src/types/mission-config-schema.ts`) — the deep
+  optional `transit` / `start` / `objective.arrival_time` blocks — is rendered
+  by nothing at all; `mergeStoredMission` preserves those fields across a
+  save, so a config that already carries them keeps them, but no operator can
+  author or correct one. The schema is kept intact so the block can be re-homed
+  on the map.
+- **One author, and the shared draft is the truth.** There used to be a
+  `MissionOwnedFields` quartet — `objective.geometries`, `vehicles`, `behavior`,
+  `name` — that the MAP claimed and overwrote from its own panel state on every
+  save, while `compileMissionGraph` emitted the same first three into the same
+  shared draft. Two authors over one set of fields is last-writer-wins, and the
+  map's save was always the last writer: a graph could compile a correct
+  allocation and the map's next save threw it away with nothing on screen saying
+  so. Removed (2026-09-23). The map no longer authors any mission field: its
+  behaviour dropdown is gone (NAVIGATE/COVERAGE are action nodes and `behavior`
+  is derived from them), its objective-geometry list, edit and delete are gone,
+  and clicking an agent marker now toggles an `agent` NODE through
+  `toggleAgentNode` + `editMissionGraph` instead of writing `draft.vehicles`.
+  The save reads the shared draft and folds it onto the freshly-fetched stored
+  config (`mergeStoredMission`), so the draft wins every field it carries and
+  every field only the server has survives verbatim. Because the write widened
+  from four fields to the whole draft, the in-flight concurrency guard widened
+  with it — `missionDraftSignature` replaces `missionOwnedFieldsSignature`; a
+  narrower signature under a wider write is how a concurrent edit gets silently
+  overwritten.
+- **Every draw is an asset.** A finished draw has exactly one route: the inline
+  naming prompt, saved as a named, typed MapDB feature, referenced afterwards by
+  `feature_id` from a graph node. The mission-context branch that appended the
+  shape straight onto `objective.geometries` as inline geometry is gone, and so
+  are the converters that produced that form (`drawFeatureToInlineGeometry`,
+  `inlineToDrawFeature`) — the route cannot be rebuilt by accident.
+  `mission-geometry.ts` still READS inline geometry, so missions stored before
+  this still draw. **Re-typing an asset is constrained to its geometry class**
+  (`retypeTargets` / `canRetypeFeature`, derived from `FEATURE_TYPE_GEOMETRY`):
+  `PUT /maps/:name/features/:featureId` replaces through `normalizeFeature`,
+  which validates the type against `GEOM_FOR_TYPE`, so geofence ⇄ risk ⇄ zone
+  and waypoint ⇄ cue are legal and `road` is alone. The illegal options stay
+  visible and disabled, saying what geometry they would need, and the write
+  refuses one anyway — a second hardcoded list is how a client starts offering a
+  save the server rejects.
+- **Free text is for names, and for nothing else.** The mission name, a node
+  `label` and a flag name are typed; everything else a node carries is
+  dispatched and is therefore picked. An action comes from `GRAPH_ACTIONS`,
+  with the ones that have no edge executor (`MARK`, `NEUTRALISE`) **marked
+  rather than hidden** — the graph is allowed to express intent the edge cannot
+  run yet, and an operator who authors `NEUTRALISE` and is told nothing will
+  believe an arm moved. A condition is built field by field off
+  `CONDITION_OP_SHAPE`, which is the single table read off the fog's own
+  `evaluate()` switch: the form renders only the fields the chosen op actually
+  reads, so `AgentHolding` gets no threshold control at all, and changing the op
+  re-normalizes through `normalizeCondition` rather than leaving a stale zone id
+  under a form that stopped showing it. A second rule table in the UI would
+  drift the day an op changed, silently.
+- **The asset list tracks the map** (superseded 2026-09-24: the editor now
+  lists the MISSION's assets; the catalogue still feeds the map's own panels).
+  The editor used to fetch features once on
+  mount from a map it resolved independently, so it could describe a different
+  map than the one beside it and a zone drawn on the map never reached the
+  dropdown. It now reads the **per-map feature catalogue** in
+  `state/c2-catalog-store.ts`, which the mission map publishes from the one
+  place every mount, map switch, save, delete and OSM import already goes
+  through (`fetchFeatures`). The catalogue is **replace-per-map, never merged**:
+  merged, map B would offer map A's zones and a deleted zone would stay
+  offerable forever. Which map is resolved as configured-map → the **shared
+  active map** (`selection-store.ts`, published by the mission map) → the first
+  in the registry; the editor still fetches for itself when nothing has
+  published that map, because the two panels are independent and each has to
+  work alone.
+- **The C2 refuses an uncompiled mission, and ORMI is what states the verdict.**
+  The compiler is TypeScript and lives in the browser, so the server cannot
+  re-run it: ORMI states, the C2 enforces. A save writes `graph_ref` plus two
+  more **scalars** onto the draft — `graph_compiles` (true only when
+  `graphCompiles(issues)`, recomputed against the graph actually being written
+  so a stale `true` from an earlier save cannot survive) and the **derived**
+  `behavior`, which is why the behaviour dropdown was removed: the graph already
+  says what the mission is, and a dropdown that can disagree with the geometry
+  is a dropdown that will. Three scalars cost under seventy characters of the
+  10 000-character `mission_config` cap and nothing larger may follow them —
+  anything bigger belongs in the sibling graph document, which is what it is
+  for. The same verdict is unmissable in the toolbar, because a mission the C2
+  will refuse must be refusable before it is sent.
+- **The graph is NEVER a field on `MissionDraft`.** `cleanMissionConfig` prunes
+  empty optional blocks but does not strip unknown fields, so everything on the
+  draft rides into `mission_config`, which `InitMission.srv` caps at 10 000
+  characters. The graph is a sibling document in the same `missions` collection
+  under `"<mission_id>:graph"` (the Mongo schema there is `strict: false` and
+  `POST /missions` validates only a non-empty `mission_id` with no `$`/dotted
+  keys), and the mission carries a ~45-character `graph_ref` string pointing at
+  it. `normalizeMissions` filters those documents out of the browser, or every
+  mission with a graph would grow a phantom row an operator could select, submit
+  and delete; deleting a mission deletes its graph document with it, because
+  nothing else ever would.
+- **One "Save mission" saves the mission AND its graph**
+  (`state/mission-save.ts`, `saveMissionWithGraph`), from the map, the graph
+  editor and Submit alike. They used to be two buttons in two panels, and the
+  gap was a real divergence: the fog runs the SAVED `"<mission_id>:graph"`
+  while Submit sent the live draft, so an unsaved graph was submitted as one
+  thing and run as another. Order, because `:5000` has no transaction: the
+  graph document first (so `graph_ref` never names nothing), then the mission
+  with `vehicles` / `objective.geometries` / `behavior` / `graph_compiles`
+  re-derived from the graph just written; a failure after the first write says
+  the graph was saved and the mission was not. Submit saves unsaved edits
+  first and does not submit if that fails. Duplicate copies the graph document
+  under the new id and rewrites `graph_ref` (it used to keep the original's,
+  which the fog never finds). The mission's map and assets are part of it,
+  written first (`":assets"`, then `":graph"`, then the mission); Duplicate and
+  Delete carry both sibling documents.
+- **The agent flows through the graph (schema 3, 2026-09-24)**
+  (`widgets/mission-graph-ports.ts`, mirrored by the fog's `mission_program.hpp`).
+  Every edge is `{source, source_port, target, target_port}` and joins an output
+  to an input of the same type: the robot (`agent`), places (waypoint / zone),
+  true/false, contacts (event). Each step takes the robot in and hands it on;
+  an action also says `done` and a Coverage reports `on contact`. A **Hold
+  until** keeps the robot until all (or any) of what is wired in holds — a
+  step's `done` ("agent 2 holds until survey 1 of agent 1 is done"), a time, a
+  contact count. An **On contact** node sends its robot to each contact of one
+  Coverage in turn (FIFO; its `position` is the loop's Navigate target, the
+  loop comes back into the node) and lets it go on `no more`. An action's
+  target is picked on the node or wired from an asset node. The canvas
+  refuses a mismatched drag (and says why), re-wires a single port instead of
+  refusing it, and a wire dropped on empty canvas offers only nodes that would
+  be wired — a new step is spliced INTO the chain, never beside it (before an
+  On contact node, its own loop's way back stays). **No legacy:** an older
+  graph is not read; the editor opens an empty canvas
+  saying so, and the next save replaces it. Two xyflow traps met here: a handle
+  ADDED to a node that keeps its size is never measured (call
+  `useUpdateNodeInternals` when the port set changes), and keys pressed in a
+  control inside a node bubble to xyflow's node key handler through Radix
+  portals (give the trigger and the content `nokey`).
+- **Editing tools (2026-09-24).** Undo / redo per mission in the graph store
+  (`undoMissionGraph`, Ctrl+Z / Ctrl+Shift+Z; the position changes of one drag
+  share a gesture key, so a whole move is one step; a load starts afresh), a
+  minimap, **Tidy** (`layoutLanes`: one lane per agent, its steps in the order
+  the robot takes them, what feeds a step below it — itself undoable), and
+  Ctrl+C / Ctrl+V of nodes with the edges between them (never an agent node:
+  AGENT_TWICE).

@@ -53,7 +53,7 @@ export function BagUpload({ onFileLoaded, loading }: BagUploadProps) {
 					: "Drop a .db3 bag file or click to browse"}
 			</span>
 			<span className="text-xs text-muted-foreground">
-				Processed entirely in the browser — nothing is uploaded.
+				Processed in the browser. Nothing is uploaded.
 			</span>
 			<input
 				type="file"

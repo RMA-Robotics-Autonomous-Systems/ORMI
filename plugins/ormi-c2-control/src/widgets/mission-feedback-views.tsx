@@ -376,11 +376,7 @@ export function MissionGantt(props: {
 		return (
 			<div ref={ref} className="w-full min-w-0">
 				{!range && (
-					<PanelEmptyState>
-						No times reported yet. The timeline appears once robots
-						are dispatched (needs a C2 that sends MissionFeedback
-						v2).
-					</PanelEmptyState>
+					<PanelEmptyState>No times reported yet.</PanelEmptyState>
 				)}
 			</div>
 		);

@@ -152,7 +152,7 @@ export function executeC2Call(
 				aborted && !timedOut ? "canceled" : "failed";
 			setStatus(status);
 			const detail = timedOut
-				? `Timed out after ${timeoutMs} ms — the C2 did not respond (${def.name}).`
+				? `Timed out after ${timeoutMs} ms. The C2 did not respond.`
 				: aborted
 					? "Canceled."
 					: err instanceof Error
@@ -167,7 +167,7 @@ export function executeC2Call(
 				// is actually known, and where to look.
 				error:
 					spec.scope === "command"
-						? `Outcome unknown — the C2 may have applied it; check mission feedback before retrying. (${detail})`
+						? `Outcome unknown: the C2 may have applied it. Check mission feedback before retrying. (${detail})`
 						: detail,
 				duration: Date.now() - start,
 				status,

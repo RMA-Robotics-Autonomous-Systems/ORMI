@@ -1,0 +1,81 @@
+{
+	"name": "wait_mode",
+	"description": "A Wait waits for all or any of its conditions, nothing else.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "a",
+				"kind": "condition",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 5,
+					"negate": false
+				}
+			},
+			{
+				"id": "wait",
+				"kind": "wait",
+				"label": "wait",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "most"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-wait.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "wait",
+				"target_port": "agent"
+			},
+			{
+				"id": "wait.agent-go.agent",
+				"source": "wait",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "a.value-wait.when",
+				"source": "a",
+				"source_port": "value",
+				"target": "wait",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["WAIT_MODE", "wait"]]
+	}
+}

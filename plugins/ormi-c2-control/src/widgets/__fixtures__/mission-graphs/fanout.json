@@ -1,0 +1,79 @@
+{
+	"name": "fanout",
+	"description": "An action handing its robot on to two steps is refused: a robot does one thing at a time.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-go.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "go.agent-a.agent",
+				"source": "go",
+				"source_port": "agent",
+				"target": "a",
+				"target_port": "agent"
+			},
+			{
+				"id": "go.agent-b.agent",
+				"source": "go",
+				"source_port": "agent",
+				"target": "b",
+				"target_port": "agent"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["FANOUT", "go"]]
+	}
+}

@@ -295,9 +295,23 @@ const TopicSelectRenderer = (props: ControlProps) => {
 		);
 	};
 
+	// What the slot accepts is developer vocabulary, so it is not drawn under
+	// every picker (a strip that doubled each row's height); it stays one hover
+	// away on the label for whoever needs to know why a topic is not offered.
+	const acceptedTypes = dataRequirements
+		? [
+				...dataRequirements.accepts,
+				...(dataRequirements.acceptsRaw ?? []),
+			].join(", ")
+		: "";
+
 	return (
 		<div className="space-y-2">
-			<Label>{label}</Label>
+			<Label
+				title={acceptedTypes ? `Accepts: ${acceptedTypes}` : undefined}
+			>
+				{label}
+			</Label>
 
 			{mode === "inline" ? (
 				<TopicInlinePicker
@@ -328,26 +342,6 @@ const TopicSelectRenderer = (props: ControlProps) => {
 						<Settings className="w-4 h-4" />
 					</div>
 				</Button>
-			)}
-
-			{/* Requirements Display */}
-			{process.env.NODE_ENV === "development" && (
-				<div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-					{dataRequirements ? (
-						<span>
-							<strong>Requirements:</strong>{" "}
-							{[
-								...dataRequirements.accepts,
-								...(dataRequirements.acceptsRaw ?? []),
-							].join(", ")}
-						</span>
-					) : (
-						<span>
-							<strong>No Requirements:</strong> Any topic can be
-							selected
-						</span>
-					)}
-				</div>
 			)}
 
 			<TopicSelectionDialog

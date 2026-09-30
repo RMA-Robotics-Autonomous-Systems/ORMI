@@ -101,14 +101,14 @@ export function planSubmit(args: PlanSubmitArgs): SubmitResolution {
 	if (args.listError) {
 		return {
 			ok: false,
-			error: `Could not load the stored mission config: ${args.listError}`,
+			error: `Could not read the mission from the C2: ${args.listError}`,
 		};
 	}
 
 	if (args.stored == null) {
 		return {
 			ok: false,
-			error: `Mission ${args.missionId} has no stored config. Open it in the mission editor and save it before submitting.`,
+			error: "This mission is not saved on the C2. Save it on the mission map, then submit.",
 		};
 	}
 
@@ -123,6 +123,41 @@ export function planSubmit(args: PlanSubmitArgs): SubmitResolution {
 }
 
 /**
+ * Why a config must not be SUBMITTED because of its behaviour graph, or null.
+ *
+ * The C2 refuses these too (`GRAPH_NOT_READY`), but only after a round trip
+ * and in its own words. Saying it here, before anything is sent, points the
+ * operator at the graph editor that lists the errors. It is deliberately NOT a
+ * `validateMissionConfig` rule: that gates Save as well, and a graph that is
+ * still being authored must stay **saveable**.
+ *
+ * That distinction is the whole reason this returns only the reason, never
+ * the outcome. Submit now saves first, so when this refuses, the
+ * operator's edits are already on disk — and "the behaviour graph has errors,
+ * fix them before submitting" read, in that situation, as though the whole
+ * click had been thrown away. The caller states which of the two happened
+ * ("Saved, but not submitted." / "Not submitted.") and appends this.
+ *
+ * @param config - The cleaned config about to be submitted.
+ * @returns The reason, a sentence composed after the caller's own, or null
+ * when the graph allows submit.
+ */
+export function graphSubmitBlock(config: MissionDraft): string | null {
+	const { graph_ref: graphRef, graph_compiles: graphCompiles } =
+		config as MissionDraft & {
+			graph_ref?: unknown;
+			graph_compiles?: unknown;
+		};
+	if (typeof graphRef !== "string" || graphRef.trim() === "") {
+		return "This mission has no behaviour graph to run. Build one in the mission graph editor, then submit again.";
+	}
+	if (graphCompiles !== true) {
+		return "The behaviour graph has errors. Fix them in the mission graph editor, then submit again.";
+	}
+	return null;
+}
+
+/**
  * The operator-facing message for a successful submit, naming what was sent.
  *
  * "Mission submitted" alone is what let the old panel lie. Saying which config
@@ -134,9 +169,9 @@ export function planSubmit(args: PlanSubmitArgs): SubmitResolution {
  */
 export function submitMessage(plan: SubmitPlan): string {
 	if (plan.source === "stored") {
-		return "Mission submitted (initialize) — sent the saved config.";
+		return "Mission submitted (saved version).";
 	}
 	return plan.unsaved
-		? "Mission submitted (initialize) — sent your UNSAVED edits. Save the mission to persist them."
-		: "Mission submitted (initialize) — sent your current edits.";
+		? "Mission submitted with unsaved edits. Save the mission to keep them."
+		: "Mission submitted with your current edits.";
 }

@@ -6,9 +6,9 @@ import AsyncSelectControl, {
 // import NumberControl, { NumberTester } from "./controls/number-input/number-input";
 // import AsyncTopicControl, { asyncTopicTester } from "../../../ormi-core/src/library/components/topic-selector";
 import KeySelectorControl, { keySelectorTester } from "./controls/key/key";
-import shadcnArrayLayoutRenderer, {
-	shadcnArrayLayoutTester,
-} from "./layouts/ShadcnArrayLayoutRenderer";
+import ArrayListRenderer, {
+	arrayListTester,
+} from "./layouts/array-list/ArrayListRenderer";
 import {
 	shadcnVerticalLayoutTester,
 	ShadcnVerticalLayoutRenderer,
@@ -17,8 +17,10 @@ import {
 	ShadcnHorizontalLayoutRenderer,
 	shadcnHorizontalLayoutTester,
 } from "./layouts/ShadcnHorizontalLayout";
-import {
-	ShadcnGroupLayoutRenderer,
+// The default export is the one wrapped in `withJsonFormsLayoutProps`: the
+// bare component is never handed the group's `label`, so no Group heading
+// would ever render.
+import ShadcnGroupLayoutRenderer, {
 	shadcnGroupTester,
 } from "./layouts/ShadcnGroupLayout";
 import ShadcnCategorizationStepperLayout, {
@@ -27,9 +29,6 @@ import ShadcnCategorizationStepperLayout, {
 import ShadcnCategorizationLayout, {
 	shadcnCategorizationTester,
 } from "./layouts/ShadcnCategorizationLayout";
-import ShadcnArrayControlRenderer, {
-	shadcnArrayControlTester,
-} from "./controls/tables/ShadcnArrayControlRenderer";
 import {
 	ShadcnBooleanControl,
 	shadcnBooleanControlTester,
@@ -102,7 +101,10 @@ import {
  * Collection of Shadcn-themed JSON Forms renderer entries.
  */
 export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
-	{ tester: shadcnArrayLayoutTester, renderer: shadcnArrayLayoutRenderer },
+	// Every array except a unique enum array (a multi-select, which keeps the
+	// checkbox renderer): one card list for object rows, one compact list for
+	// scalar rows.
+	{ tester: arrayListTester, renderer: ArrayListRenderer },
 	{ tester: asyncSelectTester, renderer: AsyncSelectControl },
 	// { tester: asyncTopicTester, renderer: AsyncTopicControl },
 	{ tester: keySelectorTester, renderer: KeySelectorControl },
@@ -123,10 +125,6 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	{
 		tester: shadcnCategorizationStepperTester,
 		renderer: ShadcnCategorizationStepperLayout,
-	},
-	{
-		tester: shadcnArrayControlTester,
-		renderer: ShadcnArrayControlRenderer,
 	},
 
 	// simples controls

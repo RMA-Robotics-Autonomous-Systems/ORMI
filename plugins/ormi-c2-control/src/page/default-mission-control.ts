@@ -5,48 +5,51 @@
  *
  * The same reason the EMI cockpit is FLEX: these panels want **shares of the
  * window**, not rectangles in 30-pixel row units. The map should grow with the
- * window; the mission list and the fleet roster are columns that stay columns on
- * a laptop and on a wall-mounted display; and two of the panels — the editor and
- * the log — are consulted rather than watched, which is what a tabset is for and
- * what a grid cannot express.
+ * window; the side stacks are columns that stay columns on a laptop and on a
+ * wall-mounted display; and the map and the behaviour graph take turns in one
+ * pane, which is what a tabset is for and what a grid cannot express.
  *
  * ## The shape
  *
- * Rows alternate orientation with depth in FlexLayout — the root row is
- * horizontal, its row children are vertical, theirs horizontal again — so this
- * is the map beside a half-window that is itself two columns over a strip:
+ * Rows alternate orientation with depth in FlexLayout: the root row is
+ * horizontal, its row children are vertical. So this is three columns, the map
+ * in the middle taking over half the width, with a narrow stack either side:
  *
  * ```
- * ┌──────────────────────┬────────────┬────────────┐
- * │                      │ missions   │ fleet      │
- * │                      ├────────────┼────────────┤
- * │ map                  │ control    │ feedback   │
- * │                      ├────────────┴────────────┤
- * │                      │ editor ‖ log            │
- * └──────────────────────┴─────────────────────────┘
+ * ┌──────────┬───────────────────────────┬────────────┐
+ * │ missions │                           │ control    │
+ * ├──────────┤                           │            │
+ * │ fleet    │  map ‖ graph              ├────────────┤
+ * ├──────────┤                           │            │
+ * │ assets   │                           │ feedback   │
+ * │          │                           │            │
+ * ├──────────┤                           │            │
+ * │ log      │                           │            │
+ * └──────────┴───────────────────────────┴────────────┘
  * ```
  *
- * The map holds the whole left edge because "where is it going" is most of what
- * this surface answers, and it is the one panel that gets better with every pixel
- * — a table does not. Everything else divides the other half, and the division
- * is the operator's own order of work: **choose** a mission, **command** it,
- * **check** who is flying it and what it reports, with authoring underneath.
+ * The centre is the operator's workspace, the sides are what they read from and
+ * act on. Four placements carry an argument worth keeping:
  *
- * Three placements carry an argument worth keeping:
- *
+ * - **The map and the behaviour graph share the centre.** Both are canvases,
+ *   and a canvas is the one kind of panel here that is unusable rather than
+ *   merely cramped when it is starved. Neither is readable in a side column, and
+ *   the centre is the only place with room for one of them, so they take turns
+ *   in it: geometry is authored on the map, behaviour on the graph, and an
+ *   operator is doing one or the other. The map is the first tab because "where
+ *   is it going" is most of what this surface answers once a mission runs.
  * - **The lifecycle panel is never in a tabset.** It holds Pause and Stop. A
  *   control that halts a vehicle must not be one click behind a tab strip, and a
- *   tab that has to be found first is exactly that. It sits directly under the
- *   mission list because it acts on whatever is selected there.
+ *   tab that has to be found first is exactly that. It heads the right column,
+ *   above the feedback it acts on.
  * - **Nothing watched continuously shares a tab.** Fleet presence and mission
  *   feedback each keep a pane: they are read while something is moving, and a
- *   reading behind a tab is a reading nobody takes.
- * - **The editor and the log share one, and it spans the full half-window.**
- *   Authoring happens before a mission runs and the log is read once something
- *   has gone wrong; neither is watched continuously, so a pane each would spend
- *   a quarter of the surface on a panel nobody is looking at. Width is what both
- *   want — a mission config is a form, and log lines wrap badly in a 300px rail
- *   — which is why the strip runs under both columns rather than sitting in one.
+ *   reading behind a tab is a reading nobody takes. Feedback gets most of the
+ *   right column because it is the longest thing on this surface to read.
+ * - **The left column is the inventory, in the order of work.** Choose a
+ *   mission, see who can fly it, see what it owns, and, last and smallest, the
+ *   log, which is read once something has gone wrong. The asset tree gets the
+ *   most height there because it is the one that grows with the mission.
  *
  * A layout, not a preference: the page persists to local storage from its first
  * autosave, and this is only what a surface with nothing saved starts from.
@@ -70,7 +73,8 @@ import type { Widget, WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { FleetStatusDefinition } from "../widgets/fleet-status";
 import { MissionBrowserDefinition } from "../widgets/mission-browser";
 import { MissionControlPanelDefinition } from "../widgets/mission-control-panel";
-import { MissionEditorDefinition } from "../widgets/mission-editor";
+import { MissionAssetsDefinition } from "../widgets/mission-assets-panel";
+import { MissionGraphEditorDefinition } from "../widgets/mission-graph-editor";
 import { MissionFeedbackDefinition } from "../widgets/mission-feedback";
 import { MissionMapDefinition } from "../widgets/mission-map";
 import { SwarmLogDefinition } from "../widgets/swarm-log";
@@ -85,13 +89,13 @@ import { SwarmLogDefinition } from "../widgets/swarm-log";
  * which is an undefined tile template and not a fallback). Reading the
  * definition's own defaults is the one way this file cannot drift from them.
  *
- * ⚠ The cost of reading them: these seven factories are invoked from **outside
+ * ⚠ The cost of reading them: these eight factories are invoked from **outside
  * React render** — the page's `onLoad`, and this plugin's unit tests. A
  * definition factory is allowed to call hooks (the dashboard re-invokes every
  * factory each render precisely so it can, and `ormi-std-widgets`' tree viewer
  * really does call `usePluginsManager()` at factory level), so the first C2
  * definition that grows a factory-level hook breaks this page with an invalid
- * hook call from an async callback. **These seven must stay hook-free**, or this
+ * hook call from an async callback. **These eight must stay hook-free**, or this
  * file goes back to literals.
  */
 interface Panel {
@@ -101,22 +105,42 @@ interface Panel {
 	 * The definition factory this panel instantiates.
 	 *
 	 * `any` for the settings parameter, as everywhere the widget list is
-	 * handled generically (`widgetsExport` in `export.ts` does the same): seven
-	 * definitions with seven unrelated settings types have no useful common
+	 * handled generically (`widgetsExport` in `export.ts` does the same): eight
+	 * definitions with eight unrelated settings types have no useful common
 	 * supertype, and this file only ever reads `id`, `name` and `data`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	definition: () => WidgetDefinition<any>;
+	/**
+	 * Caption for the FlexLayout tab, when the widget's own title is too long
+	 * for a SHARED strip.
+	 *
+	 * A panel header has the pane's whole width; a tab strip has that width
+	 * divided by the number of tabs in it, minus the tabset's own maximize
+	 * button. "Mission Graph / Assets / Swarm Log" wants 568 px, and at
+	 * 1100×800 the strip has 470 — so the captions truncated AND the maximize
+	 * button was pushed out of reach, removing the one escape from a cramped
+	 * pane. Shortening is the layout's decision because the overflow is a
+	 * property of the arrangement, not of the widget: the same widget dropped
+	 * alone on an operator's workspace keeps its full title.
+	 *
+	 * Set it ONLY for a panel that shares a tabset here, and keep it a prefix
+	 * of the real title, so the tab and the widget are recognisably the same
+	 * thing.
+	 */
+	tab?: string;
 }
 
 /** Every panel the shipped surface opens with, in reading order. */
 const PANELS: Panel[] = [
 	{ box: "c2-missions", definition: MissionBrowserDefinition },
-	{ box: "c2-control", definition: MissionControlPanelDefinition },
-	{ box: "c2-map", definition: MissionMapDefinition },
-	{ box: "c2-editor", definition: MissionEditorDefinition },
-	{ box: "c2-log", definition: SwarmLogDefinition },
 	{ box: "c2-fleet", definition: FleetStatusDefinition },
+	{ box: "c2-assets", definition: MissionAssetsDefinition },
+	{ box: "c2-log", definition: SwarmLogDefinition },
+	{ box: "c2-map", definition: MissionMapDefinition },
+	// Shares the centre strip with the map, captioned to fit it: see `Panel.tab`.
+	{ box: "c2-graph", definition: MissionGraphEditorDefinition, tab: "Graph" },
+	{ box: "c2-control", definition: MissionControlPanelDefinition },
 	{ box: "c2-feedback", definition: MissionFeedbackDefinition },
 ];
 
@@ -185,7 +209,7 @@ function tab(box: string, titles: Map<string, string>) {
 	return {
 		type: "tab" as const,
 		id: p.box,
-		name: titles.get(p.box) ?? p.box,
+		name: p.tab ?? titles.get(p.box) ?? p.box,
 		component: p.box,
 		config: {},
 	};
@@ -245,45 +269,30 @@ function flexModel(titles: Map<string, string>) {
 			type: "row" as const,
 			weight: 100,
 			children: [
-				// The map, the whole left edge. It is the only panel here that
-				// is better at every size.
-				tabset(titles, 50, "c2-map"),
-				// The other half: two columns of panes over a strip that spans
-				// both of them.
+				// The inventory column, in the order of work: choose a
+				// mission, see who can fly it, what it owns, and last the log.
+				// A vertical row: its children divide the HEIGHT.
 				{
 					type: "row" as const,
-					weight: 50,
+					weight: 18,
 					children: [
-						{
-							type: "row" as const,
-							weight: 66,
-							children: [
-								// Choose, then command. The lifecycle panel
-								// acts on the mission selected above it, and is
-								// in a pane of its own because it holds Pause
-								// and Stop.
-								{
-									type: "row" as const,
-									weight: 50,
-									children: [
-										tabset(titles, 55, "c2-missions"),
-										tabset(titles, 45, "c2-control"),
-									],
-								},
-								// Who is flying it, and what it reports —
-								// neither behind a tab.
-								{
-									type: "row" as const,
-									weight: 50,
-									children: [
-										tabset(titles, 42, "c2-fleet"),
-										tabset(titles, 58, "c2-feedback"),
-									],
-								},
-							],
-						},
-						// The two panels that want width and are not watched.
-						tabset(titles, 34, "c2-editor", "c2-log"),
+						tabset(titles, 20, "c2-missions"),
+						tabset(titles, 17, "c2-fleet"),
+						tabset(titles, 50, "c2-assets"),
+						tabset(titles, 13, "c2-log"),
+					],
+				},
+				// The two canvases take turns in the centre, the only place
+				// with room for either.
+				tabset(titles, 55, "c2-map", "c2-graph"),
+				// Command, then what it reports. The lifecycle panel is in a
+				// pane of its own because it holds Pause and Stop.
+				{
+					type: "row" as const,
+					weight: 27,
+					children: [
+						tabset(titles, 30, "c2-control"),
+						tabset(titles, 70, "c2-feedback"),
 					],
 				},
 			],

@@ -1,0 +1,109 @@
+{
+	"name": "cycle",
+	"description": "A loop is refused (it re-enters a node, so it is a join too).",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "a",
+				"kind": "action",
+				"label": "a",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "c",
+				"kind": "condition",
+				"label": "c",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "Always",
+					"threshold": 0,
+					"negate": false
+				}
+			},
+			{
+				"id": "w",
+				"kind": "wait",
+				"label": "w",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "b",
+				"kind": "action",
+				"label": "b",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-a.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "a",
+				"target_port": "agent"
+			},
+			{
+				"id": "a.agent-w.agent",
+				"source": "a",
+				"source_port": "agent",
+				"target": "w",
+				"target_port": "agent"
+			},
+			{
+				"id": "w.agent-b.agent",
+				"source": "w",
+				"source_port": "agent",
+				"target": "b",
+				"target_port": "agent"
+			},
+			{
+				"id": "b.agent-w.agent",
+				"source": "b",
+				"source_port": "agent",
+				"target": "w",
+				"target_port": "agent"
+			},
+			{
+				"id": "c.value-w.when",
+				"source": "c",
+				"source_port": "value",
+				"target": "w",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["CYCLE", "w"],
+			["JOIN", "w"]
+		]
+	}
+}

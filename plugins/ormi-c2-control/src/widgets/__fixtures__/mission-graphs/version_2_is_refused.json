@@ -1,0 +1,43 @@
+{
+	"name": "version_2_is_refused",
+	"description": "A graph from the previous editor (a `next` flow line) is refused, not converted.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 2,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.next-go.in",
+				"source": "es",
+				"source_port": "next",
+				"target": "go",
+				"target_port": "in"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["GRAPH_VERSION", ""]]
+	}
+}

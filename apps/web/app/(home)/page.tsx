@@ -98,7 +98,15 @@ export default function HomePage() {
 					priority
 					className="object-cover object-center opacity-20"
 				/>
-				<div className="absolute inset-0 bg-[linear-gradient(to_bottom,hsl(var(--background))_0%,hsl(var(--background)/0.94)_22%,hsl(var(--background)/0.88)_48%,hsl(var(--background)/0.78)_72%,hsl(var(--background)/0.64)_100%)]" />
+				{/* Wash over the wallpaper, in the theme background. `--background` is
+				    an oklch colour, so it is mixed rather than wrapped in `hsl()`. */}
+				<div
+					className="absolute inset-0"
+					style={{
+						backgroundImage:
+							"linear-gradient(to bottom, var(--background) 0%, color-mix(in oklab, var(--background) 94%, transparent) 22%, color-mix(in oklab, var(--background) 88%, transparent) 48%, color-mix(in oklab, var(--background) 78%, transparent) 72%, color-mix(in oklab, var(--background) 64%, transparent) 100%)",
+					}}
+				/>
 			</div>
 
 			<div className="container relative z-10 mx-auto flex max-w-6xl flex-col gap-16 px-4 py-10 md:px-6 md:py-16">

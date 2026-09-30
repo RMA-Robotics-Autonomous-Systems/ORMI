@@ -27,12 +27,18 @@ export function DevlogDialog() {
 				if (!next && dismissible) close();
 			}}
 		>
-			<DialogContent size="medium" showCloseButton={dismissible}>
+			{/* Header and footer stay pinned; only the entries scroll, so the
+			    acknowledge button is always in view however long the log is. */}
+			<DialogContent
+				size="medium"
+				showCloseButton={dismissible}
+				className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+			>
 				<DialogHeader>
 					<DialogTitle>What&apos;s new</DialogTitle>
 				</DialogHeader>
 
-				<div className="flex flex-col gap-6">
+				<div className="-mx-6 flex min-h-0 flex-col gap-6 overflow-y-auto px-6">
 					{devlogs.map((log, index) => (
 						<div key={log.id}>
 							<article

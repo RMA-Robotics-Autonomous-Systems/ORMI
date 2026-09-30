@@ -1,0 +1,159 @@
+{
+	"name": "done_in_loop",
+	"description": "A Hold until on the `done` of a step inside a contact loop: with no contact it never holds.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "on",
+				"kind": "on_contact",
+				"label": "on",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "visit",
+				"kind": "action",
+				"label": "visit",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			},
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "until",
+				"kind": "wait",
+				"label": "until",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go",
+				"kind": "action",
+				"label": "go",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-sweep.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-on.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "on.agent-visit.agent",
+				"source": "on",
+				"source_port": "agent",
+				"target": "visit",
+				"target_port": "agent"
+			},
+			{
+				"id": "visit.agent-on.agent",
+				"source": "visit",
+				"source_port": "agent",
+				"target": "on",
+				"target_port": "agent"
+			},
+			{
+				"id": "es.agent-until.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "until",
+				"target_port": "agent"
+			},
+			{
+				"id": "until.agent-go.agent",
+				"source": "until",
+				"source_port": "agent",
+				"target": "go",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.contact-on.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "on",
+				"target_port": "event"
+			},
+			{
+				"id": "on.position-visit.target",
+				"source": "on",
+				"source_port": "position",
+				"target": "visit",
+				"target_port": "target"
+			},
+			{
+				"id": "visit.done-until.when",
+				"source": "visit",
+				"source_port": "done",
+				"target": "until",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [["DONE_IN_LOOP", "until"]]
+	}
+}

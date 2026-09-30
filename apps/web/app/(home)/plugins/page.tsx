@@ -4,7 +4,7 @@ export default async function Page() {
 	const plugins = await loadPlugins();
 
 	return (
-		<div className="container mx-auto mt-8">
+		<div className="motion-page-in container mx-auto mt-8">
 			<div className="flex items-center gap-3">
 				<h1>Plugins</h1>
 				<small>
@@ -13,7 +13,10 @@ export default async function Page() {
 			</div>
 			<div className="flex flex-col gap-1 mt-4">
 				{Array.from(plugins).map(([key, value]) => (
-					<div key={key} className="border p-4 rounded-md mb-2">
+					<div
+						key={key}
+						className="border p-4 rounded-md mb-2 bg-content-surface"
+					>
 						<div className="flex justify-between items-center">
 							<div className="flex gap-3 items-center">
 								<h3 className="font-medium">{value.name}</h3>

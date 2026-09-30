@@ -137,7 +137,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 					title: title || bagName || id,
 					kind: "unopenable",
 					message: `The replay engine failed to start: ${detail}`,
-					advice: "This is usually the SQLite WebAssembly module failing to load — check that `/sql-wasm.wasm` is being served.",
+					advice: "The SQLite WebAssembly module may have failed to load. Check that `/sql-wasm.wasm` is served.",
 				});
 			});
 

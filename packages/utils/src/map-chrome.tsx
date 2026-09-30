@@ -59,6 +59,25 @@ const RESOLUTION_DIGITS = 3;
 /** Decimal places the bearing and pitch are quantised to. */
 const ANGLE_DIGITS = 1;
 
+/**
+ * Default placement: the bottom-right corner, raised clear of the attribution.
+ *
+ * MapLibre draws its attribution control in that same corner, flush to the
+ * bottom edge, and this cluster's panel is opaque — at `bottom-2` it covered
+ * some 220px of "© OpenMapTiles Data from OpenStreetMap" on the C2 map.
+ * That text is a licence term, not decoration, so covering it is a compliance
+ * problem and not a cosmetic one.
+ *
+ * Moving the cluster to another corner would only move the collision: both map
+ * widgets carry panels in the top corners, and the standard map's
+ * unconfigured-entries notice owns the bottom-left. So it goes straight up
+ * instead, past the tallest the attribution gets — 20px for the full row, and
+ * 34px for the compact pill expanded (24px plus its 10px margin), which
+ * MapLibre switches to below 640px of map width.
+ */
+const DEFAULT_CLASS_NAME =
+	"pointer-events-none absolute right-2 bottom-9 z-10 select-none";
+
 /** A map's current resolution and orientation, as the chrome reads them. */
 interface MapView {
 	/** Ground metres per CSS pixel, quantised — see {@link RESOLUTION_DIGITS}. */
@@ -75,9 +94,8 @@ interface MapView {
 export interface MapChromeProps {
 	/**
 	 * Placement and any other chrome, applied to the positioned wrapper.
-	 * Defaults to the bottom-right corner of the map container — free on both
-	 * map widgets, where the top corners carry panels and the bottom-left
-	 * carries the standard map's unconfigured-entries notice.
+	 * Defaults to {@link DEFAULT_CLASS_NAME} — the bottom-right corner of the
+	 * map container, one attribution row up.
 	 */
 	className?: string;
 }
@@ -227,12 +245,10 @@ function MapNorthIndicator({
 			aria-label={
 				northUp
 					? "Map is facing north"
-					: `Map bearing ${heading}. Activate to face north.`
+					: `Bearing ${heading}. Reset to north.`
 			}
 			title={
-				northUp
-					? "Facing north"
-					: `Bearing ${heading} — click to face north`
+				northUp ? "Facing north" : `Bearing ${heading}. Reset to north.`
 			}
 			className="pointer-events-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-accent/60"
 		>
@@ -349,12 +365,7 @@ export function MapChrome({ className }: MapChromeProps) {
 	if (!view) return null;
 
 	return (
-		<div
-			className={
-				className ??
-				"pointer-events-none absolute right-2 bottom-2 z-10 select-none"
-			}
-		>
+		<div className={className ?? DEFAULT_CLASS_NAME}>
 			<div className="flex items-end gap-2 rounded-md bg-background/80 px-2 py-1 backdrop-blur-sm">
 				<MapNorthIndicator
 					bearing={view.bearing}

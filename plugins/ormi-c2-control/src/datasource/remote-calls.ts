@@ -49,6 +49,7 @@ export const C2Call = {
 	MissionsList: "c2.missions.list",
 	MissionsSave: "c2.missions.save",
 	MissionsDelete: "c2.missions.delete",
+	MissionContacts: "c2.missions.contacts",
 	MapsList: "c2.maps.list",
 	MapsCreate: "c2.maps.create",
 	MapsDelete: "c2.maps.delete",
@@ -259,7 +260,7 @@ function changeStatus(
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		validate: (req) =>
 			isRejectedMissionId(req?.mission_id)
-				? "No valid target mission — select a mission first. An untargeted command is refused by the C2 (NO_TARGET_MISSION) or, on the old backend, silently acts on whatever was last initialized."
+				? "No target mission. Select a mission first."
 				: null,
 		// Target the mission explicitly. :5001 used to ignore mission_id and
 		// command whatever was last initialized THROUGH THAT NODE - which is
@@ -294,12 +295,12 @@ function changeStatus(
 export const C2_CALL_SPECS: C2CallSpec[] = [
 	{
 		name: C2Call.MissionInit,
-		description: "Submit a mission config to the C2 (initialize → plan).",
+		description: "Submit a mission config to the C2 for planning.",
 		scope: "command",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		validate: (req) => {
 			if (isRejectedMissionId(req.mission_id)) {
-				return "This mission has no valid id (empty or the nil UUID), which the C2 rejects. Duplicate it to get a fresh id.";
+				return "This mission has no valid id. Duplicate it to get a new one.";
 			}
 			const missionId = requestMissionId(req);
 			const cfg = req.mission_config as
@@ -312,11 +313,11 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 				typeof cfg.mission_id === "string" &&
 				cfg.mission_id.trim() !== missionId
 			) {
-				return `Mission id mismatch: submitting "${String(missionId)}" but its config says "${cfg.mission_id}". The C2 refuses this (MISSION_ID_MISMATCH).`;
+				return `Mission id mismatch: submitting "${String(missionId)}" but its config says "${cfg.mission_id}".`;
 			}
 			const bad = findUnsafeMongoKey(req.mission_config);
 			return bad
-				? `The mission config contains the key "${bad}", which the C2 rejects ("$"-prefixed or dotted keys). Remove it and retry.`
+				? `The mission config contains a key the C2 rejects: "${bad}". Remove it and retry.`
 				: null;
 		},
 		requestSchema: {
@@ -354,32 +355,32 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	changeStatus(
 		C2Call.MissionApprove,
-		"Approve the active mission (dispatch tasks to edge).",
+		"Approve the mission and dispatch its tasks.",
 		MissionStatusRequest.APPROVE,
 	),
 	changeStatus(
 		C2Call.MissionStart,
-		"Start the active mission.",
+		"Start the mission.",
 		MissionStatusRequest.START,
 	),
 	changeStatus(
 		C2Call.MissionPause,
-		"Pause the active mission.",
+		"Pause the mission.",
 		MissionStatusRequest.PAUSE,
 	),
 	changeStatus(
 		C2Call.MissionStop,
-		"Stop the active mission (teardown runtime).",
+		"Stop the mission.",
 		MissionStatusRequest.STOP,
 	),
 	changeStatus(
 		C2Call.MissionDelete,
-		"Delete the active mission's runtime.",
+		"Delete the mission's running state on the C2.",
 		MissionStatusRequest.DELETE,
 	),
 	{
 		name: C2Call.MissionsList,
-		description: "List stored mission definitions (C2DB).",
+		description: "List stored missions.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,
@@ -387,13 +388,13 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MissionsSave,
-		description: "Create/update a stored mission definition.",
+		description: "Create or update a stored mission.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		validate: (req) => {
 			const bad = findUnsafeMongoKey(req.mission);
 			return bad
-				? `The request contains the key "${bad}", which the C2 rejects ("$"-prefixed or dotted keys — INVALID_BODY).`
+				? `The request contains a key the C2 rejects: "${bad}".`
 				: null;
 		},
 		requestSchema: {
@@ -412,7 +413,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MissionsDelete,
-		description: "Delete a stored mission definition.",
+		description: "Delete a stored mission.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		requestSchema: {
@@ -427,7 +428,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapsList,
-		description: "List registered maps (MapDB registry).",
+		description: "List registered maps.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,
@@ -464,7 +465,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapsDelete,
-		description: "Delete a map (and its features).",
+		description: "Delete a map and its features.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		requestSchema: {
@@ -481,7 +482,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapFeaturesList,
-		description: "List geojson features for a map.",
+		description: "List a map's features.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: {
@@ -496,13 +497,13 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapFeaturesAdd,
-		description: "Add a geojson feature to a map.",
+		description: "Add a feature to a map.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		validate: (req) => {
 			const bad = findUnsafeMongoKey(req.feature);
 			return bad
-				? `The request contains the key "${bad}", which the C2 rejects ("$"-prefixed or dotted keys — INVALID_BODY).`
+				? `The request contains a key the C2 rejects: "${bad}".`
 				: null;
 		},
 		requestSchema: {
@@ -524,13 +525,13 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapFeaturesUpdate,
-		description: "Update (upsert) a geojson feature on a map.",
+		description: "Create or update a feature on a map.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		validate: (req) => {
 			const bad = findUnsafeMongoKey(req.feature);
 			return bad
-				? `The request contains the key "${bad}", which the C2 rejects ("$"-prefixed or dotted keys — INVALID_BODY).`
+				? `The request contains a key the C2 rejects: "${bad}".`
 				: null;
 		},
 		requestSchema: {
@@ -553,7 +554,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.MapFeaturesDelete,
-		description: "Delete a geojson feature from a map.",
+		description: "Delete a feature from a map.",
 		scope: "db",
 		timeoutMs: COMMAND_TIMEOUT_MS,
 		requestSchema: {
@@ -571,7 +572,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.PlannerStatus,
-		description: "Read the planner status (loaded map, mode, graph size).",
+		description: "Read the planner status.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,
@@ -582,8 +583,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.PlannerGraph,
-		description:
-			"Read the planner navigation graph (GeoJSON node/edge FeatureCollection).",
+		description: "Read the planner's navigation graph.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,
@@ -594,8 +594,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.FeedbackLatest,
-		description:
-			"Read the latest stored MissionFeedback snapshot of every mission (newest first).",
+		description: "Read the latest stored feedback of every mission.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,
@@ -606,8 +605,7 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 	},
 	{
 		name: C2Call.FeedbackGet,
-		description:
-			"Read the latest stored MissionFeedback snapshot of one mission (404 MISSION_NOT_FOUND when none).",
+		description: "Read the latest stored feedback of one mission.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: {
@@ -621,8 +619,23 @@ export const C2_CALL_SPECS: C2CallSpec[] = [
 		}),
 	},
 	{
+		name: C2Call.MissionContacts,
+		description: "Read a mission's contacts and who visited each.",
+		scope: "db",
+		timeoutMs: READ_TIMEOUT_MS,
+		requestSchema: {
+			type: "object",
+			properties: { mission_id: { type: "string", title: "Mission ID" } },
+			required: ["mission_id"],
+		},
+		build: (s, req) => ({
+			url: `${s.dbUrl}/missions/${enc(String(req.mission_id ?? ""))}/contacts`,
+			init: { method: "GET" },
+		}),
+	},
+	{
 		name: C2Call.VehiclesList,
-		description: "List registered vehicles (VehicleDB).",
+		description: "List registered vehicles.",
 		scope: "db",
 		timeoutMs: READ_TIMEOUT_MS,
 		requestSchema: empty,

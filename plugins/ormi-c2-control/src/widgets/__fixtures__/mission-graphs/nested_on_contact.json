@@ -1,0 +1,134 @@
+{
+	"name": "nested_on_contact",
+	"description": "Contact loops do not nest.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "fr",
+				"kind": "agent",
+				"label": "fr",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-fr"
+			},
+			{
+				"id": "sweep",
+				"kind": "action",
+				"label": "sweep",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "COVERAGE",
+				"feature_id": "feat-zone"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "outer",
+				"kind": "on_contact",
+				"label": "outer",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "inner",
+				"kind": "on_contact",
+				"label": "inner",
+				"position": {
+					"x": 0,
+					"y": 0
+				}
+			},
+			{
+				"id": "visit",
+				"kind": "action",
+				"label": "visit",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE"
+			}
+		],
+		"edges": [
+			{
+				"id": "fr.agent-sweep.agent",
+				"source": "fr",
+				"source_port": "agent",
+				"target": "sweep",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-outer.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "outer",
+				"target_port": "agent"
+			},
+			{
+				"id": "outer.agent-inner.agent",
+				"source": "outer",
+				"source_port": "agent",
+				"target": "inner",
+				"target_port": "agent"
+			},
+			{
+				"id": "inner.agent-visit.agent",
+				"source": "inner",
+				"source_port": "agent",
+				"target": "visit",
+				"target_port": "agent"
+			},
+			{
+				"id": "visit.agent-inner.agent",
+				"source": "visit",
+				"source_port": "agent",
+				"target": "inner",
+				"target_port": "agent"
+			},
+			{
+				"id": "sweep.contact-outer.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "outer",
+				"target_port": "event"
+			},
+			{
+				"id": "sweep.contact-inner.event",
+				"source": "sweep",
+				"source_port": "contact",
+				"target": "inner",
+				"target_port": "event"
+			},
+			{
+				"id": "inner.position-visit.target",
+				"source": "inner",
+				"source_port": "position",
+				"target": "visit",
+				"target_port": "target"
+			}
+		]
+	},
+	"expect": {
+		"errors": [
+			["NESTED_ON_CONTACT", "inner"],
+			["ON_CONTACT_BODY", "outer"],
+			["ON_CONTACT_LOOP", "outer"]
+		]
+	}
+}

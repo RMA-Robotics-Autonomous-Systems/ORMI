@@ -64,8 +64,8 @@ const MemoizedJsonCard = memo(
 							style={{
 								boxShadow:
 									"5px 5px 16px 0px rgba(0,0,0,0.1) inset",
-								backgroundColor: "darkslategrey",
-								color: "white",
+								backgroundColor: "var(--muted)",
+								color: "var(--foreground)",
 							}}
 						>
 							{JSON.stringify(dataItem, null, 2)}

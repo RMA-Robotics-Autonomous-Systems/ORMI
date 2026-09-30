@@ -90,7 +90,7 @@ const BagFileControl = (props: ControlProps) => {
 					setNotice({
 						tone: "error",
 						message: `"${file.name}" is not a SQLite database.`,
-						advice: "A rosbag2 recording is the `.db3` inside the bag directory — not the `metadata.yaml` beside it, and not an `.mcap`.",
+						advice: "A rosbag2 recording is the `.db3` inside the bag directory, not the `metadata.yaml` beside it and not an `.mcap`.",
 					});
 					return;
 				}
@@ -191,11 +191,13 @@ const BagFileControl = (props: ControlProps) => {
 					className={
 						notice.tone === "error"
 							? "flex gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
-							: "flex gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400"
+							: "flex gap-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs text-foreground"
 					}
 					role={notice.tone === "error" ? "alert" : "status"}
 				>
-					<AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+					<AlertTriangleIcon
+						className={`mt-0.5 h-4 w-4 shrink-0${notice.tone === "error" ? "" : " text-warning"}`}
+					/>
 					<div className="flex flex-col gap-1">
 						<span>{notice.message}</span>
 						{notice.advice && (
@@ -214,7 +216,7 @@ const BagFileControl = (props: ControlProps) => {
 			/>
 
 			<p className="text-muted-foreground text-xs">
-				Held in this page&apos;s memory only — nothing is uploaded, and
+				Held in this page&apos;s memory only. Nothing is uploaded, and
 				the recording is not saved with the dashboard.
 			</p>
 		</div>

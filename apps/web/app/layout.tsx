@@ -4,11 +4,9 @@ import { Inter as FontSans } from "next/font/google";
 import localFont from "next/font/local";
 
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 
 import { siteConfig } from "@/config/site";
 import { env } from "@/config/env.js";
-import { Button } from "@workspace/ui/components/button";
 import { ModeToggle } from "@workspace/ui/combined/themes/darkmode-toggle";
 import { ThemeConfigurator } from "@workspace/ui/combined/themes/theme-configurator";
 import { Toaster } from "@workspace/ui/components/sonner";
@@ -16,16 +14,75 @@ import { NavbarItem, NavBar } from "@workspace/ui/combined/navbar";
 import { cn } from "@workspace/ui/lib/utils";
 import { ClientProviders } from "@/components/client-providers";
 import { VersionBadge } from "@/components/version-badge";
+import { NavLink } from "@/components/nav-link";
 import { getThemePresets } from "@/server/theme-presets";
 
+// Each font gets its own variable, set on `<html>` (the `:root` element).
+// The theme tokens (`--font-body`, `--font-display`, `--font-code`,
+// globals.css) read these, so a preset that sets a token on `:root` wins by
+// cascade order. Naming them `--font-sans` on `<body>` shadowed every
+// preset's font.
+//
+// Robots run in the field with no internet, so no face is ever fetched from a
+// third party at runtime: next/font self-hosts every one under `/_next/`. The
+// preset faces are committed files (latin subset, OFL, licences in
+// `assets/fonts/licenses`) rather than `next/font/google`, which would fetch
+// them at build time and make every image build depend on Google Fonts.
+//
+// Only Inter, the default body face, is preloaded. The rest are `@font-face`
+// rules only: a browser downloads a face the first time text is set in it,
+// so a font no preset names costs a few hundred bytes of CSS.
 const fontSans = FontSans({
 	subsets: ["latin"],
-	variable: "--font-sans",
+	variable: "--font-inter",
 });
 
 const fontHeading = localFont({
 	src: "../assets/fonts/CalSans-SemiBold.woff2",
-	variable: "--font-heading",
+	variable: "--font-calsans",
+	preload: false,
+});
+
+const fontMono = localFont({
+	src: "../assets/fonts/JetBrainsMono-latin-wght.woff2",
+	weight: "100 800",
+	variable: "--font-jetbrains-mono",
+	preload: false,
+	// A monospace face must not fall back to Arial's metrics.
+	adjustFontFallback: false,
+	fallback: ["ui-monospace", "monospace"],
+});
+
+const fontGrotesk = localFont({
+	src: "../assets/fonts/SpaceGrotesk-latin-wght.woff2",
+	weight: "300 700",
+	variable: "--font-space-grotesk",
+	preload: false,
+});
+
+const fontTechno = localFont({
+	src: [
+		{ path: "../assets/fonts/ChakraPetch-latin-400.woff2", weight: "400" },
+		{ path: "../assets/fonts/ChakraPetch-latin-500.woff2", weight: "500" },
+		{ path: "../assets/fonts/ChakraPetch-latin-600.woff2", weight: "600" },
+		{ path: "../assets/fonts/ChakraPetch-latin-700.woff2", weight: "700" },
+	],
+	variable: "--font-chakra-petch",
+	preload: false,
+});
+
+const fontHumanist = localFont({
+	src: "../assets/fonts/NunitoSans-latin-wght.woff2",
+	weight: "200 1000",
+	variable: "--font-nunito-sans",
+	preload: false,
+});
+
+const fontGeometric = localFont({
+	src: "../assets/fonts/Righteous-latin-400.woff2",
+	weight: "400",
+	variable: "--font-righteous",
+	preload: false,
 });
 
 export const metadata: Metadata = {
@@ -76,30 +133,32 @@ export default async function RootLayout({
 	const themes = await getThemePresets();
 
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html
+			lang="en"
+			suppressHydrationWarning
+			className={cn(
+				fontSans.variable,
+				fontHeading.variable,
+				fontMono.variable,
+				fontGrotesk.variable,
+				fontTechno.variable,
+				fontHumanist.variable,
+				fontGeometric.variable,
+			)}
+		>
 			<head />
-			<body
-				className={cn(
-					"min-h-screen bg-background font-sans antialiased",
-					fontSans.variable,
-					fontHeading.variable,
-				)}
-			>
+			<body className="min-h-screen bg-background font-sans antialiased">
 				<ClientProviders>
 					<NavbarItem id="home" zone="left" priority={1}>
-						<Link href="/" passHref>
-							<Button variant="ghost">Home</Button>
-						</Link>
+						<NavLink href="/">Home</NavLink>
 					</NavbarItem>
 					<NavbarItem id="plugins" zone="left" priority={1}>
-						<Link href="/plugins" passHref>
-							<Button variant="ghost">Plugins</Button>
-						</Link>
+						<NavLink href="/plugins">Plugins</NavLink>
 					</NavbarItem>
 					<NavbarItem id="docs" zone="left" priority={1}>
-						<Link href="/docs" passHref>
-							<Button variant="ghost">Docs</Button>
-						</Link>
+						<NavLink href="/docs" section="/docs/">
+							Docs
+						</NavLink>
 					</NavbarItem>
 					<NavbarItem id="modetoggle" zone="right" priority={1}>
 						<ModeToggle />
@@ -107,20 +166,12 @@ export default async function RootLayout({
 					<NavbarItem id="themeconfig" zone="right" priority={1}>
 						<ThemeConfigurator
 							themes={themes}
-							defaultThemeId="amber"
+							defaultThemeId="nortern"
 						/>
 					</NavbarItem>
 					{/* Build stamp, last in the right zone so it sits at the
-					    far edge of the bar. `flex items-center` on the item
-					    itself because NavbarItem portals into a height:100%
-					    wrapper that does not centre its content — a full-height
-					    Button fills it, a one-line label would sit at the top. */}
-					<NavbarItem
-						id="version"
-						zone="right"
-						priority={100}
-						className="flex items-center"
-					>
+					    far edge of the bar. */}
+					<NavbarItem id="version" zone="right" priority={100}>
 						<VersionBadge />
 					</NavbarItem>
 					<NavBar />

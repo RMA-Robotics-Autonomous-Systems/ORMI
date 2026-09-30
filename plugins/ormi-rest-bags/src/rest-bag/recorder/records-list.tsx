@@ -7,7 +7,7 @@ import { Recorder } from "./recorder";
 import { RecorderCreator } from "./recorder-creator";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
-import { createRestBagDatasourceSelectHook } from "../datasource-select";
+import { restBagDatasourceProperty } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 
@@ -91,10 +91,6 @@ const BagsRecorders = (props: RecorderListProps) => {
 	);
 };
 
-/** Pick-list of the configured RestBag datasources for this widget. */
-const bagRecorderDatasourceSelectHook =
-	createRestBagDatasourceSelectHook("api_datasource_id");
-
 export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 	return {
 		id: "ros2-bag-recorder",
@@ -106,10 +102,7 @@ export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 			type: "object",
 			properties: {
 				title: { type: "string", title: "Title" },
-				api_datasource_id: {
-					type: "string",
-					title: "API Datasource ID",
-				},
+				api_datasource_id: restBagDatasourceProperty("API datasource"),
 			},
 			required: ["title"],
 		},
@@ -129,6 +122,5 @@ export function BagRecorderDefinition(): WidgetDefinition<RecorderListProps> {
 		data: { title: "ROS2 Bag Recorders" },
 
 		Component: BagsRecorders,
-		extensibilityHook: bagRecorderDatasourceSelectHook,
 	};
 }

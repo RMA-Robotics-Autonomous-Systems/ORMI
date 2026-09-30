@@ -105,7 +105,9 @@ function SortableHeader({
 				type="button"
 				onClick={() => onSort(sortKey)}
 				className={cn(
-					"-ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-left font-medium transition-colors hover:text-foreground",
+					// Inherits the head's label type (`--font-label`,
+					// `--label-*`, weight): the UA sets `text-transform: none` on buttons.
+					"-ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-left transition-colors hover:text-foreground [font-family:inherit] [font-weight:inherit] [letter-spacing:inherit] [text-transform:inherit]",
 					active ? "text-foreground" : "text-muted-foreground",
 				)}
 				aria-label={`Sort by ${label}`}
@@ -280,7 +282,7 @@ const ListView: React.FC<WorkspaceViewProps> = ({
 	}
 
 	return (
-		<div className="rounded-lg border">
+		<div className="rounded-lg border bg-content-surface">
 			<Table>
 				<TableHeader>
 					<TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -515,7 +517,7 @@ const ListView: React.FC<WorkspaceViewProps> = ({
  */
 const ListViewSkeleton: React.FC = () => {
 	return (
-		<div className="rounded-lg border">
+		<div className="rounded-lg border bg-content-surface">
 			<Table>
 				<TableHeader>
 					<TableRow className="bg-muted/50 hover:bg-muted/50">

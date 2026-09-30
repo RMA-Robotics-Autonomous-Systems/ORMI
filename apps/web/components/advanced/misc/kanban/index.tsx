@@ -35,6 +35,7 @@ import {
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { Skeleton } from "@workspace/ui/components/skeleton";
+import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import { toast } from "sonner";
 
 import { categoriesApi } from "@/lib/api/categories-api";
@@ -426,15 +427,23 @@ const KanbanView: React.FC<WorkspaceViewProps> = ({
 		setOriginalActiveContainer(null);
 	};
 
-	const dropAnimation: DropAnimation = {
-		sideEffects: defaultDropAnimationSideEffects({
-			styles: {
-				active: {
-					opacity: "0.5",
-				},
-			},
-		}),
-	};
+	// Timed from the motion tokens; none at all under reduced motion (`null`
+	// turns dnd-kit's drop animation off).
+	const dropTiming = useMotionTiming("base");
+	const dropAnimation: DropAnimation | null =
+		dropTiming.duration > 0
+			? {
+					duration: dropTiming.duration,
+					easing: dropTiming.easing,
+					sideEffects: defaultDropAnimationSideEffects({
+						styles: {
+							active: {
+								opacity: "0.5",
+							},
+						},
+					}),
+				}
+			: null;
 
 	return (
 		<DndContext
@@ -540,11 +549,9 @@ const KanbanView: React.FC<WorkspaceViewProps> = ({
 					) : activeId ? (
 						<div className="w-[300px]">
 							<WorkspaceItem
-								workspace={
-									workspaces.find(
-										(w) => `workspace-${w.id}` === activeId,
-									)!
-								}
+								workspace={workspaces.find(
+									(w) => `workspace-${w.id}` === activeId,
+								)!}
 							/>
 						</div>
 					) : null}

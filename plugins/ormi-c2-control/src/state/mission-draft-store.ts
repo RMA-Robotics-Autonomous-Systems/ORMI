@@ -2,7 +2,7 @@
 
 /**
  * Shared mission-draft store — the operator's working copy of a mission keyed by
- * `mission_id`, so the mission editor and the mission map author the SAME draft.
+ * `mission_id`, so every authoring panel authors the SAME draft.
  *
  * THE PROBLEM — the editor and the map each held a private working copy of the
  * active mission via `useState` (the editor a {@link MissionDraft}, the map a
@@ -149,12 +149,12 @@ export interface CommitSavedDraftOptions {
  * Commit a just-saved config as the mission's draft, but ONLY while the stored
  * draft still matches what was saved.
  *
- * THE PROBLEM — both save paths (`mission-map.tsx` and `mission-editor.tsx`)
- * captured the config from the render closure, awaited one or two round trips,
- * then unconditionally called {@link setMissionDraft} with the captured value
- * and cleared `dirty`. An edit made in the OTHER widget during those awaits was
- * overwritten and its dirty flag cleared, so the operator lost the edit AND lost
- * the "unsaved" warning that would have told them.
+ * THE PROBLEM — a save path captured the config from the render closure,
+ * awaited one or two round trips, then unconditionally called
+ * {@link setMissionDraft} with the captured value and cleared `dirty`. An edit
+ * made in ANOTHER panel during those awaits was overwritten and its dirty flag
+ * cleared, so the operator lost the edit AND lost the "unsaved" warning that
+ * would have told them.
  *
  * THE FIX — the caller supplies `matches`, a predicate over the CURRENT stored
  * draft. When it holds, nothing raced us: the slot becomes the saved config

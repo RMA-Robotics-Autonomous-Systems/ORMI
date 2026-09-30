@@ -135,6 +135,12 @@ interface WidgetDefinition<
 	 * Optional extensibility hook for plugins to modify the definition at registry time.
 	 * Called after initial definition creation, allows plugins to extend schema, enums, etc.
 	 * Hook receives the definition and pluginsManager; should mutate and return the definition.
+	 *
+	 * It runs while `DashboardShell` renders, before the dashboard's own
+	 * providers (datasources, topics) have registered their filters, and is
+	 * not re-run when they do. Never read dashboard state here: a choice over a
+	 * live list belongs in a JSON Forms renderer that reads the list at render
+	 * time (e.g. `datasourceSelectProperty` + the core datasource-select control).
 	 * @param definition - The widget definition to mutate.
 	 * @param pluginsManager - Plugin manager for accessing other registered extensions.
 	 * @returns The mutated definition.

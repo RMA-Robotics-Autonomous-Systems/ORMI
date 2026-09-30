@@ -124,9 +124,13 @@ export function IntStatusIndicatorDefinition(): WidgetDefinition<IntStatusIndica
 								type: "string",
 								title: "Name",
 							},
+							// A status colour is meaning the operator assigns, not
+							// chrome, so a fixed hex is right in both themes. Without
+							// a default the colour control reads as black.
 							color: {
 								type: "string",
 								title: "Color",
+								default: "#3b82f6",
 							},
 						},
 					},

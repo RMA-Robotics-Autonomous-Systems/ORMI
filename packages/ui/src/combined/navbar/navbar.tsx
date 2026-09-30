@@ -66,7 +66,7 @@ export const NavBar = () => {
 
 	// Avoid hydration mismatch: render a placeholder until the breakpoint resolves.
 	if (isMobile === undefined) {
-		return <div className="h-[50px] shadow-md w-full" />;
+		return <div className="app-frame-bar h-12" />;
 	}
 
 	const itemsByZone = zoneOrder.reduce<
@@ -83,7 +83,12 @@ export const NavBar = () => {
 
 	return (
 		<div className="relative z-30">
-			<NavigationMenu className="shadow-md w-full p-1">
+			{/* `app-frame-bar` (globals.css): the bar shares the dashboard's
+			    frame tokens, so its content edges line up with the panels
+			    below and its bottom edge is a panel edge. No `w-full`: the
+			    bar can be inset by a margin, and a full width plus a margin
+			    overflows the viewport. */}
+			<NavigationMenu className="app-frame-bar">
 				{isMobile ? (
 					<div className="p-2">
 						<Sheet open={open} onOpenChange={setOpen}>

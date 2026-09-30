@@ -4,17 +4,27 @@ import {
 	MissionGeometry,
 } from "../types/c2-types";
 import { generateMissionId } from "./mission-list";
-import type { DraftGeometry } from "../state/map-editing-store";
 
 /**
- * Pure mission-editor draft logic (build / hydrate / push-geometry /
- * merge-vehicles).
+ * Pure mission-draft logic (build / hydrate / clean / merge-for-save).
  *
- * No React, no fetch — the editor widget owns the draft via `useState` and calls
- * these to mutate it immutably, so each step is unit-testable.
+ * No React, no fetch — the authoring panels (the mission map, the mission
+ * browser and the submit path) hold the draft in the shared draft store and
+ * call these to mutate it immutably, so each step is unit-testable.
  *
- * ⚠ COORDINATE RULE — inline geometries are GeoJSON `[lng, lat]` end-to-end (the
- * map hands off `[lng, lat]`; no swap here). See `feature-geojson.ts`.
+ * ⚠ OWNERSHIP — the shared mission draft is the single in-memory truth for a
+ * mission. `objective.geometries`, `vehicles` and `behavior` are compiled into
+ * it by the behaviour graph and are authored NOWHERE else; the map contributes
+ * the assets those geometries reference, never the geometry itself. Nothing in
+ * this module overlays a panel's own copy of a mission field onto a save — see
+ * {@link mergeStoredMission}.
+ *
+ * The module keeps its `mission-editor-helpers` name from the mission-editor
+ * widget these were factored out of; that widget has been removed and the
+ * helpers outlived it.
+ *
+ * ⚠ COORDINATE RULE — `[lng, lat]` end-to-end; no swap here. See
+ * `feature-geojson.ts`.
  */
 
 /** A draft mission carries a guaranteed string id + name (ORMI-side). */
@@ -24,9 +34,9 @@ export type MissionDraft = MissionConfig & {
 };
 
 /**
- * Decide whether the editor should (re)load the active mission into the draft.
+ * Decide whether a panel should (re)load the active mission into the draft.
  *
- * The mission editor follows the active mission from the selection store: it loads a
+ * An authoring panel follows the active mission from the selection store: it loads a
  * mission whenever the active id is a non-empty id that differs from the one
  * already loaded in the draft. A `null`/empty active id (no selection) and an
  * active id that already matches the draft both yield `false` — the latter is
@@ -69,6 +79,18 @@ export function buildMissionDraft(
 		objective: { geometries: [] },
 		vehicles: [],
 	};
+}
+
+/** A stored geometry without the `_id` the store gave it. */
+function dropMongoId(geometry: MissionGeometry): MissionGeometry {
+	if (!geometry || typeof geometry !== "object" || !("_id" in geometry)) {
+		return geometry;
+	}
+	const { _id: _omitMongoId, ...kept } = geometry as MissionGeometry & {
+		_id?: unknown;
+	};
+	void _omitMongoId;
+	return kept as MissionGeometry;
 }
 
 /**
@@ -116,11 +138,17 @@ export function hydrateMissionDraft(raw: unknown): MissionDraft {
 		!Array.isArray(rest.objective)
 			? {
 					...(rest.objective as Record<string, unknown>),
+					// The store gives each geometry an `_id` of its own too. Kept,
+					// it made every saved mission differ from its graph's
+					// `{ feature_id }` list, so it opened with unsaved edits.
 					geometries: Array.isArray(
 						(rest.objective as { geometries?: unknown }).geometries,
 					)
-						? ((rest.objective as { geometries: MissionGeometry[] })
-								.geometries as MissionGeometry[])
+						? (
+								rest.objective as {
+									geometries: MissionGeometry[];
+								}
+							).geometries.map(dropMongoId)
 						: [],
 				}
 			: { geometries: [] };
@@ -160,28 +188,6 @@ export function advancedSliceEquals(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Return a new draft with an objective geometry appended that REFERENCES a
- * stored MapDB feature by id (`{ feature_id }`).
- *
- * @param draft - The current draft.
- * @param featureId - The MapDB feature id to reference.
- * @returns A new draft (the original is not mutated).
- */
-export function pushFeatureRef(
-	draft: MissionDraft,
-	featureId: string,
-): MissionDraft {
-	const geometry: MissionGeometry = { feature_id: featureId };
-	return {
-		...draft,
-		objective: {
-			...draft.objective,
-			geometries: [...draft.objective.geometries, geometry],
-		},
-	};
-}
-
-/**
  * Return `true` only when `coords` contains at least one usable leaf `[lon, lat]`
  * pair (two numbers) somewhere in its GeoJSON nesting.
  *
@@ -211,109 +217,11 @@ export function hasUsableCoordinates(coords: unknown): boolean {
 }
 
 /**
- * Return a new draft with an INLINE objective geometry appended
- * (`{ geometry: { geometry_type, coordinates } }`).
- *
- * Coordinates pass through unchanged (`[lng, lat]`). A drawn geometry whose
- * coordinates have no usable `[lon, lat]` leaf (an empty or degenerate draw) is
- * REFUSED — the draft is returned unchanged so a degenerate geometry can never be
- * added. Does not throw.
- *
- * @param draft - The current draft.
- * @param drawn - The drawn geometry handed off from the mission map.
- * @returns A new draft (the original is not mutated); unchanged if the draw is unusable.
- */
-export function pushInlineGeometry(
-	draft: MissionDraft,
-	drawn: DraftGeometry,
-): MissionDraft {
-	if (!hasUsableCoordinates(drawn.coordinates)) {
-		return draft;
-	}
-	const geometry: MissionGeometry = {
-		geometry: {
-			geometry_type: drawn.geometry_type,
-			coordinates: drawn.coordinates,
-		},
-	};
-	return {
-		...draft,
-		objective: {
-			...draft.objective,
-			geometries: [...draft.objective.geometries, geometry],
-		},
-	};
-}
-
-/**
- * Return a new draft with an objective geometry removed by index. Out-of-range
- * indices yield the draft unchanged (new identity).
- *
- * @param draft - The current draft.
- * @param index - The geometry index to remove.
- * @returns A new draft.
- */
-export function removeGeometryAt(
-	draft: MissionDraft,
-	index: number,
-): MissionDraft {
-	return {
-		...draft,
-		objective: {
-			...draft.objective,
-			geometries: draft.objective.geometries.filter(
-				(_, i) => i !== index,
-			),
-		},
-	};
-}
-
-/**
- * Return a new draft whose `vehicles` is set to the given allocation, deduped
- * and order-preserving (the multi-select hands the full checked set on each
- * change, so this is a replace, not a merge-append).
- *
- * @param draft - The current draft.
- * @param vehicleIds - The full set of allocated vehicle ids.
- * @returns A new draft.
- */
-export function mergeVehicles(
-	draft: MissionDraft,
-	vehicleIds: string[],
-): MissionDraft {
-	const seen = new Set<string>();
-	const deduped: string[] = [];
-	for (const id of vehicleIds) {
-		if (typeof id !== "string" || id.length === 0 || seen.has(id)) continue;
-		seen.add(id);
-		deduped.push(id);
-	}
-	return { ...draft, vehicles: deduped };
-}
-
-/**
- * Toggle a single vehicle id in the draft allocation (checkbox handler helper):
- * add it when absent, remove it when present.
- *
- * @param draft - The current draft.
- * @param vehicleId - The vehicle id to toggle.
- * @returns A new draft.
- */
-export function toggleVehicle(
-	draft: MissionDraft,
-	vehicleId: string,
-): MissionDraft {
-	const present = draft.vehicles.includes(vehicleId);
-	const next = present
-		? draft.vehicles.filter((id) => id !== vehicleId)
-		: [...draft.vehicles, vehicleId];
-	return { ...draft, vehicles: next };
-}
-
-/**
- * The drawable shapes the map toolbar offers. `point` is a single-vertex mission
- * objective geometry only — C2 map features stay line/polygon (the C2 rejects
- * `Point` map features), so the map-editor context never offers it.
+ * The drawable shapes the map toolbar offers. `point` is a single-vertex
+ * geometry: a mission objective, or — since the C2 gained the asset feature
+ * types — a `waypoint` / `cue` map feature. The map-editor context offers it
+ * only for those two types (`FEATURE_TYPE_GEOMETRY` in `feature-geojson.ts`),
+ * because the backend still refuses a Point for `road`/`geofence`/`risk`/`zone`.
  */
 export type DrawShape = "point" | "line" | "polygon" | "rectangle";
 
@@ -324,7 +232,7 @@ export type DrawGeometryMode = "point" | "linestring" | "polygon" | "rectangle";
  * Map a toolbar {@link DrawShape} to the terra-draw mode string the Draw tool
  * activates. `rectangle` is an axis-aligned bounding rectangle (a fast polygon);
  * it produces a `Polygon` geometry just like `polygon`. `point` activates the
- * single-vertex point mode (mission objective geometry only).
+ * single-vertex point mode (a mission objective, or a waypoint/cue asset).
  *
  * Pure (no React / no map) so the mapping is unit-testable in isolation.
  *
@@ -346,103 +254,81 @@ export function drawShapeToMode(shape: DrawShape): DrawGeometryMode {
 }
 
 /**
- * The slice of a {@link MissionConfig} the MAP owns and may overwrite on
- * save: the objective geometries, the vehicle allocation, the behavior, and the
- * (optional) display name. Everything else — the editor's advanced `transit` / `start`
- * blocks, `arrival_time`, etc. — is owned elsewhere and must be preserved.
- */
-export interface MissionOwnedFields {
-	geometries: MissionGeometry[];
-	vehicles: string[];
-	behavior: MissionBehavior;
-	name?: string;
-}
-
-/**
- * Merge the MAP-owned fields into a freshly-fetched mission config, preserving
- * every other field verbatim (so the map's save never clobbers the editor's advanced
- * `transit` / `start` / `arrival_time` blocks).
+ * Fold a working draft onto the freshly-fetched stored mission, so a save
+ * persists the DRAFT and still carries every stored field the draft has never
+ * seen.
  *
- * Only `objective.geometries`, top-level `vehicles`, `behavior`, and `name` are
- * replaced; the rest of `objective` and the rest of the config carry through.
- * `name` is only written when provided (a non-empty string), so the map never
- * blanks a name set in the editor. Pure (no fetch / no React) so the merge is testable.
+ * ## Why this replaced `mergeMissionOwnedFields`
  *
- * This is the deadlock fix: a mission the browser created (empty) gains behavior +
- * geometry + vehicles here, so `validateMissionConfig` passes and the save
- * succeeds. Concurrent edits to the same field are last-writer-wins by design.
+ * There used to be a `MissionOwnedFields` quartet — `objective.geometries`,
+ * `vehicles`, `behavior`, `name` — that the MAP claimed and overwrote from its
+ * own panel state on every save. Three of those four are now compiled by the
+ * behaviour graph (`compileMissionGraph`, in `mission-graph.ts`), which writes them into the same
+ * shared draft. Two authors over one set of fields is last-writer-wins, and the
+ * map's save was always the last writer: a graph could compile a correct
+ * allocation and the map's next save threw it away, with nothing on screen
+ * saying so.
+ *
+ * So there is now exactly ONE author. The shared **mission draft** is the
+ * in-memory truth: the graph compiles into it, the map reads it, and this
+ * function is how a save gets it onto the wire. Nothing is overlaid from panel
+ * state.
+ *
+ * ## What `fresh` is still for
+ *
+ * The draft is not a superset of what the server holds. A field the backend
+ * added after the draft was loaded — and the `transit` / `start` /
+ * `arrival_time` blocks, which have no UI at all right now — exists only in
+ * `fresh`, and a save that sent the draft alone would delete it. So `fresh` is
+ * the base and the draft is layered on top, top level and inside `objective`,
+ * which keeps every unknown stored field verbatim.
+ *
+ * `name` is the one normalised value: a blank / whitespace-only draft name
+ * never blanks the stored one.
  *
  * @param fresh - The re-fetched stored mission config.
- * @param owned - The MAP-owned fields to overlay.
- * @returns A new merged config (neither input is mutated).
+ * @param draft - The working draft to persist.
+ * @returns A new merged draft (neither input is mutated).
  */
-export function mergeMissionOwnedFields(
+export function mergeStoredMission(
 	fresh: MissionConfig,
-	owned: MissionOwnedFields,
-): MissionConfig {
-	const merged: MissionConfig = {
-		...fresh,
-		behavior: owned.behavior,
-		vehicles: owned.vehicles,
+	draft: MissionDraft,
+): MissionDraft {
+	const merged = {
+		...(fresh as unknown as Record<string, unknown>),
+		...(draft as unknown as Record<string, unknown>),
 		objective: {
-			...fresh.objective,
-			geometries: owned.geometries,
+			...((fresh.objective ?? {}) as unknown as Record<string, unknown>),
+			...((draft.objective ?? {}) as unknown as Record<string, unknown>),
 		},
-	};
-	const name = owned.name?.trim();
-	if (name) merged.name = name;
+	} as unknown as MissionDraft;
+	const name = draft.name?.trim();
+	merged.name = name && name.length > 0 ? name : (fresh.name ?? draft.name);
 	return merged;
 }
 
 /**
- * Stable signature of the MAP-owned slice of a config (`objective.geometries`,
- * `vehicles`, `behavior`, `name`).
+ * Stable signature of a whole mission draft — the map's "did someone else
+ * change this while my save was in flight?" guard.
  *
- * The concurrency check for the map's save path. The map only authors these four
- * fields, so "did someone else change the draft while my save was in flight?"
- * means "did any of THESE change?" — a full-draft comparison would also fire on
- * an editor-only change to `transit`/`start`, which the map's write does not
- * touch and must not treat as a conflict.
+ * ⚠ This is deliberately NOT the narrow `missionOwnedFieldsSignature` it
+ * replaced. That one fingerprinted only the four fields the map claimed,
+ * because the map's write touched only those and an edit to `transit` was
+ * therefore not a conflict. The save now persists the WHOLE draft
+ * ({@link mergeStoredMission}), so every field of it is in flight and every
+ * field of it can be raced. Narrowing the signature while widening the write is
+ * exactly how a concurrent edit gets silently overwritten — the guard has to
+ * follow what is written, not what a panel happens to render.
+ *
+ * Compared on the CLEANED config with sorted keys, so key order and a
+ * half-formed optional block that `cleanMissionConfig` prunes before the wire
+ * never read as a difference.
  *
  * @param config - The config (or draft) to fingerprint.
- * @returns A stable signature over the map-owned fields only.
+ * @returns A stable signature over the whole mission.
  */
-export function missionOwnedFieldsSignature(config: MissionConfig): string {
-	return JSON.stringify({
-		geometries: config.objective?.geometries ?? [],
-		vehicles: config.vehicles ?? [],
-		behavior: config.behavior,
-		name: config.name ?? null,
-	});
-}
-
-/**
- * Fold the MAP-owned fields of a saved config into a working draft, keeping
- * every other field of the draft as it is.
- *
- * The map's save writes only its owned slice, so committing its result must not
- * replace the draft wholesale: the saved config carries the SERVER's `transit` /
- * `start` / `arrival_time`, and adopting them would silently discard the
- * editor's unsaved edits to those blocks.
- *
- * @param draft - The current working draft.
- * @param saved - The config the map just persisted.
- * @returns A new draft (neither input is mutated).
- */
-export function applyMissionOwnedFields(
-	draft: MissionDraft,
-	saved: MissionConfig,
-): MissionDraft {
-	return {
-		...draft,
-		name: saved.name ?? draft.name,
-		behavior: saved.behavior,
-		vehicles: saved.vehicles ?? [],
-		objective: {
-			...draft.objective,
-			geometries: saved.objective?.geometries ?? [],
-		},
-	};
+export function missionDraftSignature(config: MissionConfig): string {
+	return canonicalJson(cleanMissionConfig(config as MissionDraft));
 }
 
 /** JSON with object keys sorted, so key order never reads as a difference. */

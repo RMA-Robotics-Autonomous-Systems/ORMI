@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { createSafeContext } from "@workspace/utils";
+import { cn } from "@workspace/ui/lib/utils";
 
 export type NavbarZone = "left" | "center" | "right";
 
@@ -167,11 +168,14 @@ export const NavbarItem = ({
 		return null;
 	}
 
+	// The host is the full height of the bar's content box, and every item is
+	// centred in it: an item shorter than the bar (a 36px button in the 40px
+	// row, a one-line label) sat at the top, 2px above the bar's centre. A
+	// full-height child still fills it.
 	return createPortal(
 		<div
-			className={className}
+			className={cn("flex h-full items-center", className)}
 			data-navbar-item={id}
-			style={{ height: "100%" }}
 		>
 			{children}
 		</div>,

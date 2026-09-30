@@ -12,7 +12,7 @@ export default function PluginPage() {
 
 	if (!page) {
 		return (
-			<div className="container mx-auto mt-8">
+			<div className="motion-page-in container mx-auto mt-8">
 				<h1>Page not found</h1>
 				<p className="text-muted-foreground">
 					No plugin registered a page at{" "}

@@ -245,7 +245,7 @@ createDatasourceWorker<EmiReplaySettings>(
 			if (!tables.includes("topics") || !tables.includes("messages")) {
 				throw new BagProblem(
 					"not-a-bag",
-					`"${s.bagName}" is a SQLite database, but not a rosbag2 recording — it has no \`topics\`/\`messages\` tables.`,
+					`"${s.bagName}" is a SQLite database, but not a rosbag2 recording: it has no \`topics\`/\`messages\` tables.`,
 					"Open the `.db3` from inside a rosbag2 bag directory.",
 				);
 			}
@@ -277,7 +277,7 @@ createDatasourceWorker<EmiReplaySettings>(
 				throw new BagProblem(
 					"no-emi-topics",
 					`"${s.bagName}" opened, but carries no \`${EMI_TYPES.emiGnss}\` topic, so there is nothing for the EMI cockpit to read.`,
-					"Check `ros2 bag info` — this is usually the wrong bag, or one filtered without the EMI topics.",
+					"Check `ros2 bag info`: this is usually the wrong bag, or one filtered without the EMI topics.",
 				);
 			}
 

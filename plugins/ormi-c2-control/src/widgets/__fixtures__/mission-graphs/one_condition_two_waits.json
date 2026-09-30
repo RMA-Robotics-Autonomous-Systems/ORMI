@@ -1,0 +1,191 @@
+{
+	"name": "one_condition_two_waits",
+	"description": "One condition node can feed the Waits of two chains.",
+	"known_agents": ["agent-es", "agent-ge", "agent-fr"],
+	"graph": {
+		"version": 3,
+		"nodes": [
+			{
+				"id": "es",
+				"kind": "agent",
+				"label": "es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-es"
+			},
+			{
+				"id": "ge",
+				"kind": "agent",
+				"label": "ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"agent_id": "agent-ge"
+			},
+			{
+				"id": "late",
+				"kind": "condition",
+				"label": "late",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"condition": {
+					"op": "ElapsedSeconds",
+					"threshold": 30,
+					"negate": false
+				}
+			},
+			{
+				"id": "w-es",
+				"kind": "wait",
+				"label": "w-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "w-ge",
+				"kind": "wait",
+				"label": "w-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"mode": "all"
+			},
+			{
+				"id": "go-es",
+				"kind": "action",
+				"label": "go-es",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp"
+			},
+			{
+				"id": "go-ge",
+				"kind": "action",
+				"label": "go-ge",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"action": "NAVIGATE",
+				"feature_id": "feat-wp-2"
+			}
+		],
+		"edges": [
+			{
+				"id": "es.agent-w-es.agent",
+				"source": "es",
+				"source_port": "agent",
+				"target": "w-es",
+				"target_port": "agent"
+			},
+			{
+				"id": "w-es.agent-go-es.agent",
+				"source": "w-es",
+				"source_port": "agent",
+				"target": "go-es",
+				"target_port": "agent"
+			},
+			{
+				"id": "ge.agent-w-ge.agent",
+				"source": "ge",
+				"source_port": "agent",
+				"target": "w-ge",
+				"target_port": "agent"
+			},
+			{
+				"id": "w-ge.agent-go-ge.agent",
+				"source": "w-ge",
+				"source_port": "agent",
+				"target": "go-ge",
+				"target_port": "agent"
+			},
+			{
+				"id": "late.value-w-es.when",
+				"source": "late",
+				"source_port": "value",
+				"target": "w-es",
+				"target_port": "when"
+			},
+			{
+				"id": "late.value-w-ge.when",
+				"source": "late",
+				"source_port": "value",
+				"target": "w-ge",
+				"target_port": "when"
+			}
+		]
+	},
+	"expect": {
+		"errors": [],
+		"program": {
+			"chains": [
+				{
+					"agents": ["agent-es"],
+					"steps": [
+						{
+							"step_id": "go-es",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "w-es",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 30,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["late"]
+						}
+					]
+				},
+				{
+					"agents": ["agent-ge"],
+					"steps": [
+						{
+							"step_id": "go-ge",
+							"kind": "STEP",
+							"action": "NAVIGATE",
+							"feature_id": "feat-wp-2",
+							"contact_node": "",
+							"source_step": "",
+							"body": -1,
+							"next": -1,
+							"wait_node": "w-ge",
+							"mode": "all",
+							"gate": [
+								{
+									"op": "ElapsedSeconds",
+									"key": "",
+									"arg": "",
+									"threshold": 30,
+									"negate": false
+								}
+							],
+							"gate_nodes": ["late"]
+						}
+					]
+				}
+			]
+		}
+	}
+}

@@ -16,6 +16,7 @@ import {
 import { DashboardEmptyState } from "../dashboard-empty-state";
 import { useFlexLayoutModel } from "./hooks/useFlexLayoutModel";
 import { useWidgetFactory } from "./hooks/useWidgetFactory";
+import { usePanelMotion } from "./hooks/usePanelMotion";
 import { renderTab } from "./components/TabRenderer";
 import { NavbarIntegration } from "./components/NavbarIntegration";
 import { FlexLayoutPortalProvider } from "./components/FlexLayoutPortalContext";
@@ -49,6 +50,11 @@ const FlexLayoutDashboard = () => {
 
 	const layoutRef = useRef<Layout>(null);
 
+	// Panel motion (FLIP on the real panels; see panel-motion.ts) and the tab
+	// strip indicator (tab-indicator.ts).
+	const { areaRef, captureBefore, captureBeforeTabSelect, onRenderTabSet } =
+		usePanelMotion();
+
 	// Core FlexLayout integration - hook handles all model management
 	const { model, onModelChange, onAction } = useFlexLayoutModel({
 		widgets,
@@ -57,6 +63,8 @@ const FlexLayoutDashboard = () => {
 		getDefinition,
 		removeWidget,
 		updateLayouts,
+		onBeforeLayoutChange: captureBefore,
+		onBeforeTabSelect: captureBeforeTabSelect,
 	});
 	const factory = useWidgetFactory({ widgets, getDefinition });
 
@@ -82,7 +90,14 @@ const FlexLayoutDashboard = () => {
 
 	return (
 		<FlexLayoutPortalProvider>
-			<div className="w-full h-[96dvh] flex flex-col">
+			{/* Fills what the navbar leaves. `max-h-full` bounds it inside the
+			    workspace app shell, where the parent has a definite height; on
+			    a plugin page (a scrolling document, indefinite parent) the
+			    percentage is ignored and the 3rem desktop navbar, plus the
+			    inset a floating navbar adds above it (`--navbar-inset`,
+			    globals.css), is taken off the viewport instead. `96dvh`
+			    under a 48px bar overflowed both by 8px. */}
+			<div className="w-full h-[calc(100dvh_-_3rem_-_var(--navbar-inset))] max-h-full flex flex-col">
 				{/* Navbar integration */}
 				<NavbarIntegration
 					locked={locked}
@@ -91,9 +106,17 @@ const FlexLayoutDashboard = () => {
 					onSave={save}
 				/>
 
-				{/* Main FlexLayout */}
-				<div className="flex-1 p-1.5 pt-0">
-					<div className="w-full h-full relative">
+				{/* Main FlexLayout. `ormi-frame` / `ormi-frame__area`
+				    (flex-layout-theme.css) carry the outer half of the
+				    gutter and the optional outline around the panel area. */}
+				<div className="ormi-frame flex-1 min-h-0">
+					<div
+						ref={areaRef}
+						className="ormi-frame__area w-full h-full relative"
+					>
+						{/* Resolves the motion tokens to numbers
+						    (flex-layout-theme.css, `.ormi-motion-metrics`). */}
+						<div className="ormi-motion-metrics" aria-hidden />
 						{widgets.size === 0 ? (
 							<DashboardEmptyState
 								hasDatasource={datasources.size > 0}
@@ -106,6 +129,7 @@ const FlexLayoutDashboard = () => {
 								onAction={onAction}
 								onModelChange={onModelChange}
 								onRenderTab={onRenderTab}
+								onRenderTabSet={onRenderTabSet}
 							/>
 						)}
 					</div>

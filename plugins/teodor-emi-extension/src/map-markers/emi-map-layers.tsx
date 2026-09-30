@@ -478,7 +478,7 @@ function EmiCursorOverlay(props: { keyId: string }) {
 export function EmiDetectionsLayer(props: EmiLayerProps) {
 	const { run, result, snapshot } = useEmiReplay();
 	const key = layerKey(props.topic);
-	const show = useLayerToggle(key, "EMI detections — recorded and replayed");
+	const show = useLayerToggle(key, "EMI detections, recorded and replayed");
 
 	// Keyed on the snapshot, not on `run`: the builder returns the same run
 	// object on every commit and reassigns `recorded.alerts` on it, so a memo

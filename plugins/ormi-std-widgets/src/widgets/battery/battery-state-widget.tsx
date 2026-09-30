@@ -39,9 +39,9 @@ interface BatteryWidgetProps extends Record<string, unknown> {
 /** True when a number is a real, finite measurement (not NaN/Inf). */
 const isMeasured = (v: number): boolean => Number.isFinite(v);
 
-/** Format a measured float with a unit, or "—" when unmeasured. */
+/** Format a measured float with a unit, or "n/a" when unmeasured. */
 const fmt = (v: number, unit: string, digits = 2): string =>
-	isMeasured(v) ? `${v.toFixed(digits)}${unit}` : "—";
+	isMeasured(v) ? `${v.toFixed(digits)}${unit}` : "n/a";
 
 /** One labelled metric cell in the secondary grid. */
 function Metric({ label, value }: { label: string; value: string }) {
@@ -165,7 +165,7 @@ function BatteryCard({
 						{fmt(state.voltage, " V")}
 					</span>
 					<span className="text-sm text-muted-foreground tabular-nums">
-						{hasPct ? `${(pct * 100).toFixed(0)}%` : "—"}
+						{hasPct ? `${(pct * 100).toFixed(0)}%` : "n/a"}
 					</span>
 				</div>
 				{hasPct && (

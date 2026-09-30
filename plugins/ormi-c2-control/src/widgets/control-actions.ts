@@ -347,6 +347,37 @@ export function primaryAction(
 	return null;
 }
 
+/**
+ * Which action, if any, gets the panel's ONE FILLED button.
+ *
+ * {@link primaryAction} says what the next step IS — that answer is unchanged
+ * and is still what the panel points at. This says what the next step is
+ * allowed to LOOK like, and the rule is that Stop owns the fill whenever Stop
+ * is offered.
+ *
+ * WHY — Stop is filled `destructive` and, since the field incident where an
+ * operator's Stop produced no feedback while the robot kept moving ~50 m, it is
+ * offered for every mission that is not terminal. So in a 380 px rail the panel
+ * was showing two filled buttons side by side: a black Submit and a red Stop,
+ * with Approve / Start / Pause / Delete outlined and disabled around them. Two
+ * filled buttons say nothing about what to press, and the one that must never
+ * be mistaken for anything else is the red one. Submit cedes.
+ *
+ * The next step does not lose its mark — the panel renders a ceded primary as
+ * outlined-and-accented rather than filled, which is a signal an operator can
+ * still read and is not a second call to action.
+ *
+ * @param primary - {@link primaryAction}'s answer.
+ * @param stopOffered - Whether the panel is offering Stop at all.
+ * @returns The action to fill, or null when nothing but Stop is filled.
+ */
+export function filledPrimaryAction(
+	primary: PrimaryControlAction | null,
+	stopOffered: boolean,
+): PrimaryControlAction | null {
+	return stopOffered ? null : primary;
+}
+
 /** The mission status the panel displays, and whether it is being heard now. */
 export interface DisplayedStatus {
 	/** The status to render (null when nothing at all is known). */

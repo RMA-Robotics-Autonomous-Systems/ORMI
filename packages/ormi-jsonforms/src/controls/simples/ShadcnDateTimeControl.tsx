@@ -39,6 +39,7 @@ import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import { cn } from "@workspace/ui/lib/utils";
 import { controlAriaProps, descriptionId, errorId } from "../../utils/aria";
+import { useFieldErrorText } from "../../utils/field-errors";
 
 /**
  * Date + time control.
@@ -60,11 +61,13 @@ const ShadcnDateTimeControl = ({
 	visible,
 	enabled,
 	path,
+	schema,
 	handleChange,
 	data,
 	config,
 }: ControlProps) => {
 	const isValid = errors.length === 0;
+	const errorText = useFieldErrorText({ path, schema, errors });
 	const appliedUiSchemaOptions = merge({}, config, uischema.options);
 
 	const showDescription = !isDescriptionHidden(
@@ -136,7 +139,7 @@ const ShadcnDateTimeControl = ({
 					id={errorId(id)}
 					className="col-start-2 text-sm text-destructive"
 				>
-					{errors}
+					{errorText}
 				</p>
 			)}
 		</div>

@@ -62,7 +62,7 @@ const DISARM_MS = 5000;
 
 /** `mm:ss`, or `h:mm:ss` past an hour. */
 function duration(seconds: number): string {
-	if (!Number.isFinite(seconds) || seconds < 0) return "—";
+	if (!Number.isFinite(seconds) || seconds < 0) return "n/a";
 	const s = Math.floor(seconds % 60);
 	const m = Math.floor((seconds / 60) % 60);
 	const h = Math.floor(seconds / 3600);
@@ -91,7 +91,7 @@ const when = (ms: number): string =>
 				dateStyle: "short",
 				timeStyle: "short",
 			})
-		: "—";
+		: "n/a";
 
 /**
  * The mission controls.
@@ -155,7 +155,7 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 								if (startMission(name)) setName("");
 							}}
 						>
-							<CircleIcon className="size-3 fill-red-500 text-red-500" />
+							<CircleIcon className="size-3 fill-destructive text-destructive" />
 							Record
 						</Button>
 					)}
@@ -189,23 +189,23 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 
 				{/* ── What is happening right now ─────────────────────────── */}
 				<div className="grid grid-cols-3 gap-2 rounded border border-border/60 p-2">
-					<Stat label="samples" value={run ? String(run.n) : "—"} />
+					<Stat label="samples" value={run ? String(run.n) : "n/a"} />
 					<Stat label="surveyed" value={duration(surveyed)} />
 					<Stat
 						label={recording ? "unwritten" : "source"}
 						value={
 							recording
 								? `${pending} sample${pending === 1 ? "" : "s"}`
-								: (snapshot.bundle?.datasourceTitle ?? "—")
+								: (snapshot.bundle?.datasourceTitle ?? "n/a")
 						}
 					/>
 				</div>
 
 				{/* ── Where it goes, and what went wrong ──────────────────── */}
 				{mission.persistence === "memory" && (
-					<p className="rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400">
+					<p className="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] text-foreground">
 						This browser is not allowing a database. Missions are
-						held in memory and are lost when the tab closes — export
+						held in memory and are lost when the tab closes. Export
 						before leaving.
 					</p>
 				)}
@@ -217,7 +217,7 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 					<p className="rounded bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
 						This mission is <strong>not</strong> being written to
 						disk. Whatever is on screen is complete, but a reload
-						will lose it — export before leaving.
+						will lose it. Export before leaving.
 					</p>
 				)}
 				{mission.error && (
@@ -228,7 +228,7 @@ const EmiMissionControl = (props: MissionControlSettings) => {
 				{snapshot.adopted && (
 					<div className="flex items-center justify-between rounded bg-primary/10 px-2 py-1 text-[11px]">
 						<span className="truncate">
-							Reviewing a stored mission — the live source is not
+							Reviewing a stored mission. The live source is not
 							being read.
 						</span>
 						<Button
@@ -329,7 +329,7 @@ function MissionRow(props: {
 					)}{" "}
 					· {bytes(m.bytes)}
 					{interrupted && (
-						<span className="ml-1 text-amber-600 dark:text-amber-400">
+						<span className="ml-1 text-warning-text">
 							· interrupted
 						</span>
 					)}

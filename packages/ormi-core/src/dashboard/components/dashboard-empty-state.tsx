@@ -45,7 +45,7 @@ export const DashboardEmptyState: React.FC<DashboardEmptyStateProps> = ({
 					<>
 						Open{" "}
 						<span className="text-foreground font-medium">＋</span>{" "}
-						in the bottom-right corner and click a topic — it opens
+						in the bottom-right corner and click a topic to open it
 						in the widget that fits it. Or pick a panel yourself
 						from{" "}
 						<span className="text-foreground font-medium">
