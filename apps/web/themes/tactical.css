@@ -26,9 +26,9 @@
  * Dark mode is the real mode. Light mode is the daylight briefing sheet:
  * neutral grey paper, black ink, the same status semantics, still quiet.
  *
- * Square, tiled panels sharing one dim rule, no shadows, no texture, no
- * tweening. Inter for body text (legibility at wall distance), JetBrains
- * Mono for labels, tab titles and figures, uppercase and tracked.
+ * Square, tiled panels sharing one dim rule, no shadows, no texture. Inter
+ * for body text (legibility at wall distance), JetBrains Mono for labels,
+ * tab titles and figures, uppercase and tracked.
  *
  * Tokens only: everything below the colours is the preset token contract in
  * packages/ui/src/styles/globals.css, and this file has no selector besides
@@ -124,7 +124,7 @@
 }
 
 /*
- * Shape, type, motion and frame. Declared once: the colours they read are
+ * Shape, type and frame. Declared once: the colours they read are
  * the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -164,9 +164,6 @@
 	--field-background: var(--background);
 	--action-border-color: transparent;
 
-	/* Nothing moves except the data. */
-	--motion-duration: 0ms;
-	--press-scale: 1;
 	--surface-texture: none;
 
 	/* Tiled, like a multi-function display: panels share single dim rules,

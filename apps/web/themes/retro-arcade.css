@@ -132,7 +132,7 @@
 }
 
 /*
- * Shape, type, elevation, motion and frame. Declared once: the colours they
+ * Shape, type, elevation and frame. Declared once: the colours they
  * read are the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -167,13 +167,6 @@
 	--field-border-color: var(--memphis-ink);
 	--action-border-color: var(--memphis-ink);
 
-	/* Playful: overlays bounce in (about 9% overshoot) from further away. */
-	--motion-duration: 100ms;
-	--motion-base: 160ms;
-	--motion-ease-emphasis: cubic-bezier(0.34, 1.56, 0.64, 1);
-	--motion-scale: 0.94;
-	/* A button sinks into its offset; no give on top of that. */
-	--press-scale: 1;
 	/* Page-level content (the workspace list) sits on the card colour, so
 	   the confetti stays in the margins and never under a row. */
 	--content-surface: var(--card);

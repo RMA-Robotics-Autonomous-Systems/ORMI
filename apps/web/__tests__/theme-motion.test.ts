@@ -3,16 +3,16 @@
  * `apps/web/themes/*.css`.
  *
  * Motion is the UI's own state changes (presses, toggles, overlays, tabs) and
- * must stay fast: every duration token resolves, merged over `globals.css`
- * the way the runtime cascade does, to at most {@link MAX_MS}. The presets
- * that switch motion off (amber, tactical) resolve every step to 0, and
- * `prefers-reduced-motion: reduce` forces every step to 0 whatever a preset
- * writes. The durations are evaluated, not string-matched: the steps are
- * `calc()`s of `--motion-duration`, so a preset that raises the knob can push
- * a derived step over the ceiling without writing it.
+ * must stay fast: every duration token of the app default resolves to at most
+ * {@link MAX_MS}, and `prefers-reduced-motion: reduce` forces every step to 0.
+ * The durations are evaluated, not string-matched: the steps are `calc()`s of
+ * `--motion-duration`, so raising the knob can push a derived step over the
+ * ceiling without writing it.
  *
- * The press give (`--press-scale`) is held to [0.95, 1], and to 1 (none) in
- * the motionless presets and under reduced motion.
+ * Every theme moves the same way: no preset declares a motion token, in
+ * either mode, and every preset therefore resolves each one to exactly the
+ * app default. The press give (`--press-scale`) is held to [0.95, 1], and to
+ * 1 (none) under reduced motion.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -35,8 +35,14 @@ const DURATION_TOKENS = [
 
 const EASE_TOKENS = ["--motion-ease", "--motion-ease-emphasis"] as const;
 
-/** Presets that switch motion off entirely. */
-const MOTIONLESS = ["amber", "tactical"];
+/** Every motion token: the durations, the curves, the shape of an overlay and the press. */
+const MOTION_TOKENS = [
+	...DURATION_TOKENS,
+	...EASE_TOKENS,
+	"--motion-distance",
+	"--motion-scale",
+	"--press-scale",
+] as const;
 
 const THEMES_DIR = path.join(import.meta.dir, "..", "themes");
 const GLOBALS_CSS = readFileSync(
@@ -144,9 +150,33 @@ const cases = [{ id: "app default", css: "" }, ...presets];
 
 test("there are theme presets to check", () => {
 	expect(presets.length).toBeGreaterThan(0);
-	for (const id of MOTIONLESS) {
-		expect(presets.map((preset) => preset.id)).toContain(id);
-	}
+});
+
+describe.each(presets)("$id moves like every other theme", ({ css }) => {
+	test("declares no motion token, in any block", () => {
+		const declared = readTopLevelBlocks(css).flatMap((block) =>
+			[...block.properties.keys()].filter(
+				(key) =>
+					key.startsWith("--motion-") ||
+					(MOTION_TOKENS as readonly string[]).includes(key),
+			),
+		);
+		expect(declared).toEqual([]);
+	});
+
+	test.each(["light", "dark"] as const)(
+		"resolves every motion token to the app default in %s",
+		(mode) => {
+			const defaults = resolveTokens(GLOBALS_CSS, "", mode);
+			const tokens = resolveTokens(GLOBALS_CSS, css, mode);
+			for (const token of MOTION_TOKENS) {
+				expect({ token, value: tokens.get(token) }).toEqual({
+					token,
+					value: defaults.get(token),
+				});
+			}
+		},
+	);
 });
 
 describe("the evaluator", () => {
@@ -174,7 +204,7 @@ describe("the evaluator", () => {
 	});
 });
 
-describe.each(cases)("motion in $id", ({ id, css }) => {
+describe.each(cases)("motion in $id", ({ css }) => {
 	const tokens = resolveTokens(GLOBALS_CSS, css, "light");
 
 	test.each([...DURATION_TOKENS])(`%s is at most ${MAX_MS}ms`, (token) => {
@@ -239,20 +269,14 @@ describe.each(cases)("motion in $id", ({ id, css }) => {
 		expect(pressScale(withReducedMotion(tokens))).toBe(1);
 	});
 
-	if (MOTIONLESS.includes(id)) {
-		test("turns the press give off", () => {
-			expect(pressScale(tokens)).toBe(1);
-		});
-
-		test("switches every duration step off", () => {
-			for (const token of DURATION_TOKENS) {
-				expect({ token, ms: durationMs(tokens, token) }).toEqual({
-					token,
-					ms: 0,
-				});
-			}
-		});
-	}
+	test("every duration step moves (only reduced motion turns it off)", () => {
+		for (const token of DURATION_TOKENS) {
+			expect({ token, moves: durationMs(tokens, token) > 0 }).toEqual({
+				token,
+				moves: true,
+			});
+		}
+	});
 });
 
 test("the reduced-motion rule lists every step, each !important", () => {

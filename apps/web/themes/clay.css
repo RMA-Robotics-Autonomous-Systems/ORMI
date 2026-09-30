@@ -122,7 +122,7 @@
 }
 
 /*
- * Shape, elevation, motion and frame. Declared once: the colours they read
+ * Shape, elevation and frame. Declared once: the colours they read
  * are the ones above, resolved per mode on the same root element.
  *
  * Every lifted shadow uses a negative spread so its reach stays small: a
@@ -165,13 +165,6 @@
 	/* Raised surfaces and fields are shaped by shadow, not outlined. */
 	--surface-border-color: transparent;
 	--field-border-color: transparent;
-
-	/* Default durations; a soft spring on overlays entering (about 4%
-	   overshoot) from a deeper scale, so the give reads. */
-	--motion-ease-emphasis: cubic-bezier(0.3, 1.35, 0.5, 1);
-	--motion-scale: 0.95;
-	/* Clay gives under a finger: a deeper press than the default. */
-	--press-scale: 0.97;
 
 	--frame-gutter: 16px;
 	--panel-radius: 1.25rem;

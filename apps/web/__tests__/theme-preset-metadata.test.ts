@@ -117,6 +117,30 @@ describe("mergeThemeMetadata", () => {
 		expect(warnSpy).toHaveBeenCalledTimes(1);
 	});
 
+	test("follows the order themes.json lists, unlisted presets last in file order", () => {
+		const presets = mergeThemeMetadata(
+			[
+				{ id: "amber", css: "" },
+				{ id: "clay", css: "" },
+				{ id: "nortern", css: "" },
+				{ id: "zulu", css: "" },
+				{ id: "alpha", css: "" },
+			],
+			{
+				nortern: { name: "Nortern" },
+				clay: { name: "Clay" },
+				amber: { name: "Amber" },
+			},
+		);
+		expect(presets.map((preset) => preset.id)).toEqual([
+			"nortern",
+			"clay",
+			"amber",
+			"zulu",
+			"alpha",
+		]);
+	});
+
 	test("an id that names an Object prototype member is not metadata", () => {
 		const [preset] = mergeThemeMetadata(
 			[{ id: "constructor", css: "" }],
@@ -191,6 +215,18 @@ describe("the shipped themes.json", () => {
 		for (const meta of Object.values(metadata)) {
 			expect(meta.movement).toBeTruthy();
 		}
+	});
+
+	test("opens the picker on nortern, then tactical, then clay", async () => {
+		const presets = await loadThemePresets(THEMES_DIR);
+		expect(presets.slice(0, 3).map((preset) => preset.id)).toEqual([
+			"nortern",
+			"tactical",
+			"clay",
+		]);
+		expect(presets.map((preset) => preset.id).sort()).toEqual(
+			[...ids].sort(),
+		);
 	});
 
 	test("follows the UI copy rules: no em dash, no en dash", () => {

@@ -25,7 +25,7 @@ export type MotionStep = "fast" | "base" | "layout" | "exit";
 
 /** A resolved step: milliseconds and a CSS easing function. */
 export type MotionTiming = {
-	/** Milliseconds; 0 under reduced motion or a motionless preset. */
+	/** Milliseconds; 0 under reduced motion. */
 	duration: number;
 	/** A CSS `<easing-function>` (`--motion-ease`). */
 	easing: string;

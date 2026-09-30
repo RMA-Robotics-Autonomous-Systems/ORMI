@@ -11,13 +11,17 @@
  * edges, the hot red darkened until white text on it and it as text on the
  * page both read.
  *
- * Shape is sharp: square panels in a near-tiled frame (3px gutter with a teal
- * splitter line), 2px corners on controls, square switch and slider tracks.
- * Chakra Petch (condensed, squared techno) sets headings and labels,
- * uppercase and widely tracked; the body stays Inter so topic lists and
- * configuration forms keep their density; code is JetBrains Mono. A faint
- * HUD grid lies on the page behind the panels, never on panel content.
- * Motion is short and never decorative: no flicker, no glitch.
+ * Shape is cut, not rounded: every corner is a chamfer (`--corner-shape:
+ * bevel`), on panels in a near-tiled frame (3px gutter with a teal splitter
+ * line), tabs, controls, fields, overlays and switch tracks. Chakra Petch
+ * (condensed, squared techno) sets headings and labels, uppercase and widely
+ * tracked; the body stays Inter so topic lists and configuration forms keep
+ * their density; code is JetBrains Mono. Display type (headings, titles, tab
+ * titles) carries a still chromatic aberration: a crimson fringe to the left,
+ * a cyan one to the right, a twentieth of an em each, the glyphs themselves
+ * untouched. Never on body text or a reading, and never animated: no
+ * flicker, no glitch. A faint HUD grid lies on the page behind the panels,
+ * never on panel content.
  *
  * Primary versus destructive. The DNA of this preset is a hot red primary,
  * and destructive is a red status. The previous values put both at hue 21,
@@ -72,6 +76,10 @@
 	--hud-edge: oklch(0.42 0.06 205);
 	--hud-splitter: oklch(0.7 0.06 200);
 	--hud-grid: oklch(0.45 0.06 205 / 0.045);
+	/* Aberration fringes on pale paper: deep enough to register next to
+	   dark text, faint enough that the glyph edge stays the text's own. */
+	--hud-fringe-red: oklch(0.58 0.24 355 / 0.4);
+	--hud-fringe-cyan: oklch(0.62 0.13 200 / 0.45);
 	/* Daylight has no glow to show: overlays lift on a crisp teal-black
 	   shadow and a hairline instead. */
 	--elevation-overlay:
@@ -119,6 +127,9 @@
 	--hud-edge: oklch(0.54 0.1 190);
 	--hud-splitter: oklch(0.4 0.07 192);
 	--hud-grid: oklch(0.8 0.12 185 / 0.03);
+	/* On teal-black the fringes are light: neon crimson and neon cyan. */
+	--hud-fringe-red: oklch(0.66 0.25 355 / 0.6);
+	--hud-fringe-cyan: oklch(0.84 0.14 195 / 0.55);
 	/* The one glow: a hairline plus a tight halo, low alpha, then a plain
 	   drop to lift the overlay off the panels. Never a bloom. */
 	--elevation-overlay:
@@ -132,7 +143,7 @@
 }
 
 /*
- * Shape, type, motion and frame. Declared once: the colours they read are
+ * Shape, type and frame. Declared once: the colours they read are
  * the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -147,9 +158,14 @@
 	--label-tracking: 0.08em;
 	--label-transform: uppercase;
 
-	/* Sharp: 2px on controls, square panels, square toggles and tracks. */
-	--radius: 2px;
-	--radius-pill: 0px;
+	/* Chamfered: every token radius is cut straight. 6px base (a 4.5px cut
+	   on buttons and fields, 9px on cards), 3px on switch and slider
+	   tracks. Radios and avatars stay circles. */
+	--corner-shape: bevel;
+	--radius: 6px;
+	--radius-pill: 3px;
+	--display-text-shadow:
+		-0.05em 0 var(--hud-fringe-red), 0.05em 0 var(--hud-fringe-cyan);
 
 	/* Flat. Depth belongs to overlays and the pressed state only (set per
 	   mode above). */
@@ -165,12 +181,6 @@
 	--surface-border-color: var(--hud-edge);
 	--field-border-color: var(--input);
 
-	/* Quick, with a sharp settle: almost all of the travel in the first
-	   third, a longer dash in from the side. */
-	--motion-duration: 100ms;
-	--motion-ease: cubic-bezier(0.05, 0.9, 0.1, 1);
-	--motion-ease-emphasis: var(--motion-ease);
-	--motion-distance: 8px;
 	/* A 32px HUD grid on the page, behind the panels only. */
 	--surface-texture:
 		repeating-linear-gradient(
@@ -184,10 +194,10 @@
 			transparent 1px 32px
 		);
 
-	/* Near-tiled: square panels in thin neon rules, a 3px gutter with a
+	/* Near-tiled: chamfered panels in thin neon rules, a 3px gutter with a
 	   teal line down it. */
 	--frame-gutter: 3px;
-	--panel-radius: 0px;
+	--panel-radius: 8px;
 	--panel-border-width: 1px;
 	--panel-border-color: var(--hud-edge);
 	--panel-elevation: none;

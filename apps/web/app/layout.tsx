@@ -166,20 +166,12 @@ export default async function RootLayout({
 					<NavbarItem id="themeconfig" zone="right" priority={1}>
 						<ThemeConfigurator
 							themes={themes}
-							defaultThemeId="amber"
+							defaultThemeId="nortern"
 						/>
 					</NavbarItem>
 					{/* Build stamp, last in the right zone so it sits at the
-					    far edge of the bar. `flex items-center` on the item
-					    itself because NavbarItem portals into a height:100%
-					    wrapper that does not centre its content — a full-height
-					    Button fills it, a one-line label would sit at the top. */}
-					<NavbarItem
-						id="version"
-						zone="right"
-						priority={100}
-						className="flex items-center"
-					>
+					    far edge of the bar. */}
+					<NavbarItem id="version" zone="right" priority={100}>
 						<VersionBadge />
 					</NavbarItem>
 					<NavBar />

@@ -13,8 +13,7 @@
  * hairlines just visible.
  *
  * Nunito Sans (humanist) for everything, headings at a regular weight with a
- * hair of negative tracking, sentence case throughout. Gentle motion,
- * no texture. Fields are flat with a hairline, quietly set a shade into the
+ * hair of negative tracking, sentence case throughout. No texture. Fields are flat with a hairline, quietly set a shade into the
  * surface; a pressed button sinks by shade, never by offset.
  *
  * Tokens only: everything below the colours is the preset token contract in
@@ -101,7 +100,7 @@
 }
 
 /*
- * Shape, type, motion and frame. Declared once: the colours they read are
+ * Shape, type and frame. Declared once: the colours they read are
  * the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -138,10 +137,6 @@
 	--elevation-well: inset 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 6%, transparent);
 	--elevation-thumb: 0 1px 2px 0 color-mix(in oklch, var(--nortern-shade) 18%, transparent);
 
-	/* Gentle: a little longer than the default, a soft ease. */
-	--motion-duration: 140ms;
-	--motion-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
-	--motion-ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
 	--surface-texture: none;
 
 	/* Floating panels with room around them, and the navbar floating on the

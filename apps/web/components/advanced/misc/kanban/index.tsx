@@ -427,8 +427,8 @@ const KanbanView: React.FC<WorkspaceViewProps> = ({
 		setOriginalActiveContainer(null);
 	};
 
-	// Timed from the motion tokens; none at all under reduced motion or a
-	// motionless preset (`null` turns dnd-kit's drop animation off).
+	// Timed from the motion tokens; none at all under reduced motion (`null`
+	// turns dnd-kit's drop animation off).
 	const dropTiming = useMotionTiming("base");
 	const dropAnimation: DropAnimation | null =
 		dropTiming.duration > 0

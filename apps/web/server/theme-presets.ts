@@ -27,7 +27,10 @@ const themeMetaSchema = z
 	})
 	.strict();
 
-/** `themes.json`: preset id (CSS file name without extension) → metadata. */
+/**
+ * `themes.json`: preset id (CSS file name without extension) → metadata. The
+ * order of its keys is the picker's order.
+ */
 export const themeMetadataSchema = z.record(z.string(), themeMetaSchema);
 
 export type ThemeMetadata = z.infer<typeof themeMetadataSchema>;
@@ -75,6 +78,10 @@ export function parseThemeMetadata(raw: string | null): ThemeMetadata {
  * Join CSS files with their metadata. A preset with no entry gets its
  * title-cased id and no movement; an entry with no CSS file is ignored
  * (logged), since there is nothing to apply.
+ *
+ * Presets come back in the order `themes.json` lists them (JSON object keys
+ * keep their document order); presets it does not list follow, in the order
+ * they were given (file name).
  */
 export function mergeThemeMetadata(
 	files: { id: string; css: string }[],
@@ -88,7 +95,17 @@ export function mergeThemeMetadata(
 		);
 	}
 
-	return files.map(({ id, css }) => {
+	const listed = Object.keys(metadata);
+	const rank = (id: string) => {
+		const index = listed.indexOf(id);
+		return index === -1 ? listed.length : index;
+	};
+	// Array.prototype.sort is stable, so unlisted presets keep file order.
+	const ordered = [...files].sort(
+		(left, right) => rank(left.id) - rank(right.id),
+	);
+
+	return ordered.map(({ id, css }) => {
 		const meta = Object.prototype.hasOwnProperty.call(metadata, id)
 			? metadata[id]
 			: undefined;

@@ -118,7 +118,7 @@
 }
 
 /*
- * Shape, type, elevation, motion and frame. Declared once: the colours they
+ * Shape, type, elevation and frame. Declared once: the colours they
  * read are the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -165,14 +165,6 @@
 	/* Switches and sliders are square bars, as the rest of the sheet. */
 	--radius-pill: 0px;
 
-	/* Snappy and mechanical: 80ms steps, a near-linear curve, no overshoot
-	   and no zoom. */
-	--motion-duration: 80ms;
-	--motion-ease: cubic-bezier(0.25, 0.25, 0.4, 1);
-	--motion-ease-emphasis: var(--motion-ease);
-	--motion-scale: 1;
-	/* The press is the hard offset into the shadow; no give on top. */
-	--press-scale: 1;
 	--surface-texture: none;
 
 	/* Tiled: panels touch, each outlined in ink, so a seam between two is a

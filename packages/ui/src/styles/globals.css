@@ -97,7 +97,8 @@
 }
 
 /*
- * Preset token contract: shape, type, motion, texture and the layout frame.
+ * Preset token contract: shape, type, texture and the layout frame (and the
+ * motion tokens, which are app-wide and not a preset's to set).
  *
  * A theme preset (`apps/web/themes/*.css`) is plain CSS injected at runtime
  * into `<style id="dynamic-theme-preset">`, after this stylesheet and outside
@@ -161,6 +162,14 @@
  *   --tab-title-active-color  The active tab's title, which is the panel's
  *                        title. Default `var(--foreground)`. A dark cockpit
  *                        mutes both.
+ *   --display-text-shadow  A `text-shadow` on display type only: h1-h4, card,
+ *                        dialog, sheet and alert-dialog titles, and panel tab
+ *                        titles. Never on body text, inputs or anything
+ *                        inside a panel's body (a widget heading next to a
+ *                        live value keeps none), and never animated. Unset
+ *                        by default, so the property inherits as before. A
+ *                        chromatic aberration is two offset copies in two
+ *                        hues at partial alpha, the text itself unchanged.
  *
  * Shape and elevation
  *   --radius             Base radius (shadcn). Every Tailwind radius step
@@ -171,6 +180,15 @@
  *                        range and thumb, progress bar. Default is
  *                        `rounded-full`'s value; 0 squares them. Circles that
  *                        mean "circle" (radio, avatar) keep `rounded-full`.
+ *   --corner-shape       CSS `corner-shape` of every corner the radius tokens
+ *                        draw: anything with a `rounded-*` class, the panels,
+ *                        tabs and strip controls, the navbar. Default `round`.
+ *                        `bevel` cuts the radius as a straight chamfer;
+ *                        borders, shadows (elevation), focus rings and
+ *                        `overflow` clipping follow it. `rounded-full` and
+ *                        `rounded-[50%]` stay round whatever it says: those
+ *                        mean "circle". A browser without `corner-shape`
+ *                        draws round corners.
  *   --border-width       Tailwind's bare `border`, `border-x/y/t/r/b/l`,
  *                        `divide-*`; FlexLayout control borders and splitter
  *                        lines. `border-2` etc. keep their literal widths.
@@ -211,11 +229,15 @@
  *   reading or a live badge never moves through intermediate states, nothing
  *   loops, and every transition is CSS, so a second click interrupts it and
  *   never waits for it.
+ *   The motion tokens are NOT preset tokens: every theme moves the same way,
+ *   at these defaults, and a preset file declares none of them (asserted by
+ *   apps/web/__tests__/theme-motion.test.ts). They are listed here because
+ *   they are still variables the app reads; the only thing that changes them
+ *   is `prefers-reduced-motion: reduce`.
  *   --motion-duration    The one scale knob: the fast step. Tailwind's default
  *                        transition duration (a bare `transition*` utility; an
  *                        explicit `duration-*` keeps its own) and FlexLayout's
- *                        transitions. Default 120ms. A preset that sets 0ms
- *                        switches every motion token off, since the others
+ *                        transitions. Default 120ms; the other durations
  *                        derive from it.
  *   --motion-fast        Presses, toggles, hovers, focus rings. Derived:
  *                        `--motion-duration`.
@@ -235,9 +257,7 @@
  *                        Default 0.98; 1 turns the zoom off.
  *   --press-scale        The scale a button or toggle takes while held
  *                        (`:active`), through `scale`, so nothing around it
- *                        moves. Default 0.98; 1 turns the give off (a preset
- *                        whose press is a `--pressed-offset` needs no more).
- *                        Keep it within [0.95, 1]. Forced to 1 under reduced
+ *                        moves. Default 0.98. Forced to 1 under reduced
  *                        motion.
  *   Utilities built on these: `motion-pop` (overlays), `motion-page-in` (a
  *   page root entering: fade and a `--motion-distance` rise, never on
@@ -245,11 +265,9 @@
  *   motion on a `CollapsibleContent`), `nav-current` (a navbar link's
  *   active-page underline). A segmented control's active indicator
  *   (`TabsList`, a single-select `ToggleGroup`) slides over `--motion-base`.
- *   A preset may set any of them; each derived step is computed on `:root`
- *   from what the preset wrote. Keep every duration at or under 300ms
- *   (asserted by apps/web/__tests__/theme-motion.test.ts). All of them are
- *   forced to 0ms under `prefers-reduced-motion: reduce`, whatever the
- *   preset says.
+ *   Every duration stays at or under 300ms (asserted by
+ *   apps/web/__tests__/theme-motion.test.ts), and all of them are forced to
+ *   0ms under `prefers-reduced-motion: reduce`.
  *   --surface-texture    A `background-image` laid on the page behind
  *                        everything (fixed, does not scroll): scanlines,
  *                        patterns, noise. Panels keep a solid background, so
@@ -401,6 +419,7 @@
 	--title-weight: 600;
 	--tab-title-color: var(--muted-foreground);
 	--tab-title-active-color: var(--foreground);
+	--display-text-shadow: initial;
 
 	--border-width: 1px;
 	--elevation-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -420,6 +439,7 @@
 	--elevation-thumb: 0 0 #0000;
 	--pressed-offset: 0px;
 	--radius-pill: calc(infinity * 1px);
+	--corner-shape: round;
 	--surface-border-color: var(--border);
 	--field-border-color: var(--input);
 	--field-background: transparent;
@@ -477,9 +497,9 @@
 	--field-background: color-mix(in oklab, var(--input) 30%, transparent);
 }
 
-/* Reduced motion beats a preset: `!important` because a preset's own `:root`
-   comes later in the cascade and would otherwise restore its duration. Every
-   step is listed, not only the knob: a preset may set a step directly. */
+/* Reduced motion beats everything: `!important` because a preset's `:root`
+   comes later in the cascade, and presets declare no motion token today but
+   nothing structural stops one. Every step is listed, not only the knob. */
 @media (prefers-reduced-motion: reduce) {
 	:root {
 		--motion-duration: 0ms !important;
@@ -525,7 +545,7 @@
  * `--motion-base`. Only on document pages (the workspace list, plugins, a docs
  * article), never on anything that wraps live widgets, and never through a
  * `key` or a `template.tsx` (either remounts the page). It plays once per
- * mount, and a motionless preset or reduced motion makes it instant.
+ * mount, and reduced motion makes it instant.
  */
 @utility motion-page-in {
 	animation: motion-page-in var(--motion-base) var(--motion-ease);
@@ -957,6 +977,59 @@
 		letter-spacing: var(--label-tracking);
 		text-transform: var(--label-transform);
 	}
+
+	/* Display type only, never a panel body: a heading inside a widget sits
+	   next to live readings, and those are never dressed. Unset by default,
+	   so `text-shadow` inherits exactly as it did. A field inside a title
+	   (renaming a tab) is text being edited, not display type. */
+	:where(
+			h1,
+			h2,
+			h3,
+			h4,
+			[data-slot="card-title"],
+			[data-slot="dialog-title"],
+			[data-slot="sheet-title"],
+			[data-slot="alert-dialog-title"]
+		):not(:where(.flexlayout__tab, .react-grid-item) *),
+	.flexlayout__tab_button_content {
+		text-shadow: var(--display-text-shadow);
+	}
+
+	:where(
+			h1,
+			h2,
+			h3,
+			h4,
+			[data-slot="card-title"],
+			[data-slot="dialog-title"],
+			[data-slot="sheet-title"],
+			[data-slot="alert-dialog-title"],
+			.flexlayout__tab_button_content
+		)
+		:where(input, textarea) {
+		text-shadow: none;
+	}
+
+	/* The radius tokens' corner shape. `corner-shape` is not inherited, so it
+	   goes on everything that draws a token radius: a `rounded-*` utility,
+	   FlexLayout's panels, tabs and strip controls (and the pseudo-elements
+	   that draw the sliding tab and the panel's inner shadow), the frame and
+	   the navbar. Circles are circles in every theme. */
+	:where(
+		[class*="rounded"],
+		[class*="flexlayout__"],
+		[class*="ormi-frame"],
+		.app-frame-bar
+	),
+	[class*="flexlayout__"]::before,
+	[class*="flexlayout__"]::after {
+		corner-shape: var(--corner-shape);
+	}
+
+	:where([class*="rounded-full"], [class*="rounded-[50%]"]) {
+		corner-shape: round;
+	}
 }
 
 @layer components {
@@ -971,8 +1044,8 @@
 	   The inline padding takes back the inset and the side border, which
 	   keeps the content on the panel edge while both fit in the gutter.
 
-	   The vertical padding gives back the borders' widths, so the bar itself
-	   stays 3rem tall; the inset is added above it, and the pages that
+	   The vertical padding gives back the borders' widths, split evenly
+	   above and below, so the bar itself stays 3rem tall; the inset is added above it, and the pages that
 	   subtract the bar from the viewport subtract `--navbar-inset` too. The
 	   workspace dashboard needs nothing (the body is a flex column there,
 	   `(home)/layout.css`); a plugin page's dashboard subtracts it in
@@ -987,8 +1060,15 @@
 			0px,
 			calc(var(--frame-gutter) - var(--navbar-inset) - var(--navbar-edge))
 		);
-		padding-top: max(0px, calc(0.25rem - var(--navbar-edge)));
-		padding-bottom: max(0px, calc(0.25rem - var(--panel-border-width)));
+		/* The two vertical paddings are equal, so the content sits on the
+		   centre of the space inside the borders even when the bar has a
+		   bottom edge only, or a thick one. */
+		padding-block: max(
+			0px,
+			calc(
+				(0.5rem - var(--navbar-edge) - var(--panel-border-width)) / 2
+			)
+		);
 		border: var(--navbar-edge) solid var(--panel-border-color);
 		border-bottom-width: var(--panel-border-width);
 		border-radius: var(--navbar-radius);
@@ -1089,9 +1169,9 @@
  * stay, so each value below lines up with sonner's own list: transform,
  * opacity, height, box-shadow), `!important` because sonner's removal rules
  * carry up to five attribute selectors. A toast being swiped keeps sonner's
- * `transition: none`, or it would lag behind the pointer. Reduced motion and a
- * motionless preset zero the tokens, so both get no motion; sonner's own
- * reduced-motion rule stays in force as well. The loading spinner is sonner's
+ * `transition: none`, or it would lag behind the pointer. Reduced motion zeroes
+ * the tokens, so it gets no motion; sonner's own reduced-motion rule stays in
+ * force as well. The loading spinner is sonner's
  * progress signal and keeps its loop.
  */
 [data-sonner-toaster] {

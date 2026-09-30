@@ -2,8 +2,8 @@ import type { MotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 
 /**
  * dnd-kit's sortable `transition` option from a motion step: the token's
- * duration and easing, or `null` (no transition) when the step is 0ms, under
- * reduced motion or a motionless preset.
+ * duration and easing, or `null` (no transition) when the step is 0ms, as it
+ * is under reduced motion.
  *
  * @param timing - A resolved motion step (`useMotionTiming`).
  * @returns The `useSortable({ transition })` value.

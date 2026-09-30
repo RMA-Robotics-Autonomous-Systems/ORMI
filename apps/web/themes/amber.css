@@ -1,5 +1,5 @@
 /*
- * Amber phosphor terminal preset (the app default).
+ * Amber phosphor terminal preset.
  *
  * An 80s amber-phosphor control-room console, read as a modern operator UI.
  * Dark mode is the terminal: a warm near-black glass, amber phosphor text at
@@ -9,10 +9,9 @@
  * highlighter for the primary action.
  *
  * Square viewports in a thin bezel, one-pixel phosphor rules, no shadows,
- * no tweening, faint scanlines on the page behind the panels (never on
- * panel content). Monospace for headings, code and figures; the body
- * stays in Inter so long topic lists and configuration forms keep their
- * density.
+ * faint scanlines on the page behind the panels (never on panel content).
+ * Monospace for headings, code and figures; the body stays in Inter so long
+ * topic lists and configuration forms keep their density.
  *
  * Tokens only: everything below the colours is the preset token contract in
  * packages/ui/src/styles/globals.css, and this file has no selector besides
@@ -97,7 +96,7 @@
 }
 
 /*
- * Shape, type, motion and frame. Declared once: the colours they read are
+ * Shape, type and frame. Declared once: the colours they read are
  * the ones above, resolved per mode on the same root element.
  */
 :root {
@@ -134,8 +133,6 @@
 	--elevation-thumb: 0 0 #0000;
 	--field-background: var(--background);
 
-	--motion-duration: 0ms;
-	--press-scale: 1;
 	--surface-texture: repeating-linear-gradient(
 		0deg,
 		var(--scanline) 0 1px,
