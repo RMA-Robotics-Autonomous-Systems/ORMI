@@ -219,6 +219,16 @@
 	pointer-events: none;
 }
 
+/* A maximised panel's widget is raised by FlexLayout itself (an inline
+   `z-index: 10` on its `.flexlayout__tab`), which would bury the inner-light
+   layer under an opaque widget for as long as the panel stays maximised.
+   Its strip carries `.flexlayout__tabset-maximized`; the layer clears the
+   widget by one. Still under the tab overlay (20) and the drawers (30); the
+   splitters (10) are hidden while a panel is maximised. */
+.flexlayout__tabset:has(> .flexlayout__tabset-maximized)::after {
+	z-index: 11;
+}
+
 /* A stacking context per widget, which is what keeps the inner-light layer
    above it (see above). It also keeps a widget's z-indexed chrome (map
    controls, floating toolbars) below the drawers, which a widget z-index
@@ -247,6 +257,17 @@
 .flexlayout__tabset_container.ormi-panel-motion {
 	z-index: 1;
 	pointer-events: none;
+}
+
+/* The panel being maximised: its widget carries FlexLayout's inline
+   `z-index: 10`, so a lift of 1 would leave the frame, and the inner-light
+   layer trapped inside it, under the opaque moving content, and the rim
+   would pop back in on the last frame. The lift clears it by one, the same
+   order as the layer at rest (above). */
+.flexlayout__tabset_container.ormi-panel-motion:has(
+		.flexlayout__tabset-maximized
+	) {
+	z-index: 11;
 }
 
 .flexlayout__tabset_container.ormi-panel-motion > .flexlayout__tabset,

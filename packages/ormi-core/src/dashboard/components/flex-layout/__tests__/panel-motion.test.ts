@@ -155,10 +155,38 @@ describe("moveGeometry", () => {
 		});
 	});
 
-	test("shrinking never clips or scales: the size snaps, the corner slides", () => {
-		// A new panel lands on the left: the old one is pushed right.
+	test("shrinking never clips or scales: the size snaps where it lands", () => {
+		// A new panel lands on the left: the old one is pushed right. It
+		// snaps to its new half in place, never drawn over the arriving one
+		// with a hole where it used to be.
 		const g = moveGeometry(r(0, 0, 1000, 400), r(500, 0, 500, 400));
+		expect(g).toEqual({ tx: 0, ty: 0, clipRight: 0, clipBottom: 0 });
+		expect(isNoopMove(g)).toBe(true);
+	});
+
+	test("restoring from maximise: the panel never flies in from the old corner", () => {
+		// The bottom-right panel of a 2x2 layout, maximised over the whole
+		// area and restored: its slot lies inside the maximised rect.
+		const g = moveGeometry(r(0, 0, 1384, 836), r(1001, 418, 383, 418));
+		expect(g).toEqual({ tx: 0, ty: 0, clipRight: 0, clipBottom: 0 });
+	});
+
+	test("a shrink that also moves away slides from the nearest point of its old rect", () => {
+		// A 400-wide panel becomes 200 wide, 300 px to the right of where
+		// its old rect ended: it starts flush with the old right edge.
+		const g = moveGeometry(r(0, 0, 400, 300), r(700, 0, 200, 300));
 		expect(g).toEqual({ tx: -500, ty: 0, clipRight: 0, clipBottom: 0 });
+		// And to the left, flush with the old left edge.
+		expect(moveGeometry(r(500, 0, 400, 300), r(0, 0, 200, 300)).tx).toBe(
+			500,
+		);
+	});
+
+	test("the axes are independent: grow on one, shrink on the other", () => {
+		// Wider and shorter, lower in its old extent: the width is revealed
+		// from the old leading edge, the height snaps where it lands.
+		const g = moveGeometry(r(100, 0, 300, 600), r(0, 300, 600, 300));
+		expect(g).toEqual({ tx: 100, ty: 0, clipRight: 300, clipBottom: 0 });
 	});
 
 	test("shrinking away from a held corner is a no-op", () => {
@@ -184,14 +212,15 @@ describe("visualRectAt", () => {
 		expect(visualRectAt(plan, 0.5, 0.96)).toEqual(r(250, 0, 750, 400));
 	});
 
-	test("a shrink starts at the new size, placed at the old corner", () => {
+	test("a shrink starts at the new size, inside the old rect", () => {
 		const plan = {
 			kind: "move" as const,
 			tabsetId: "a",
-			from: r(0, 0, 1000, 400),
-			to: r(500, 0, 500, 400),
+			from: r(0, 0, 400, 300),
+			to: r(700, 0, 200, 300),
 		};
-		expect(visualRectAt(plan, 0, 1)).toEqual(r(0, 0, 500, 400));
+		expect(visualRectAt(plan, 0, 1)).toEqual(r(200, 0, 200, 300));
+		expect(visualRectAt(plan, 1, 1)).toEqual(plan.to);
 	});
 
 	test("an arrival scales about its origin", () => {
@@ -308,6 +337,69 @@ describe("planLayoutMotion", () => {
 		).toEqual(["arrive:b"]);
 	});
 
+	test("maximise from the bottom-right: one move that opens out to the whole area", () => {
+		// A 2x2 layout; the bottom-right panel is maximised.
+		const before = snapshot({
+			a: { rect: r(0, 0, 692, 418), selected: "t1" },
+			b: { rect: r(692, 0, 692, 418), selected: "t2" },
+			c: { rect: r(0, 418, 692, 418), selected: "t3" },
+			d: { rect: r(692, 418, 692, 418), selected: "t4" },
+		});
+		const after = snapshot({
+			a: { rect: HIDDEN, selected: "t1" },
+			b: { rect: HIDDEN, selected: "t2" },
+			c: { rect: HIDDEN, selected: "t3" },
+			d: { rect: r(0, 0, 1384, 836), selected: "t4" },
+		});
+		const plans = planLayoutMotion(before, after);
+		expect(plans).toEqual([
+			{
+				kind: "move",
+				tabsetId: "d",
+				from: r(692, 418, 692, 418),
+				to: r(0, 0, 1384, 836),
+			},
+		]);
+		const plan = plans[0] as Extract<(typeof plans)[0], { kind: "move" }>;
+		// It starts exactly on its slot and ends on the whole area.
+		expect(visualRectAt(plan, 0, 1)).toEqual(plan.from);
+		expect(visualRectAt(plan, 1, 1)).toEqual(plan.to);
+	});
+
+	test("restore to the bottom-right: the panel snaps in place, the others arrive around it", () => {
+		const before = snapshot({
+			a: { rect: HIDDEN, selected: "t1" },
+			b: { rect: HIDDEN, selected: "t2" },
+			c: { rect: HIDDEN, selected: "t3" },
+			d: { rect: r(0, 0, 1384, 836), selected: "t4" },
+		});
+		const after = snapshot({
+			a: { rect: r(0, 0, 692, 418), selected: "t1" },
+			b: { rect: r(692, 0, 692, 418), selected: "t2" },
+			c: { rect: r(0, 418, 692, 418), selected: "t3" },
+			d: { rect: r(692, 418, 692, 418), selected: "t4" },
+		});
+		const plans = planLayoutMotion(before, after);
+		// No move for d: it used to fly in from the top-left corner.
+		expect(plans.map((p) => `${p.kind}:${p.tabsetId}`)).toEqual([
+			"arrive:a",
+			"arrive:b",
+			"arrive:c",
+		]);
+		const origin = (id: string) =>
+			(
+				plans.find((p) => p.tabsetId === id) as Extract<
+					(typeof plans)[0],
+					{ kind: "arrive" }
+				>
+			).origin;
+		// The two neighbours grow out of the seam they share with it; the
+		// diagonal one, which shares no edge, from its own centre.
+		expect(origin("b")).toEqual({ x: 1038, y: 418 });
+		expect(origin("c")).toEqual({ x: 692, y: 627 });
+		expect(origin("a")).toEqual({ x: 346, y: 209 });
+	});
+
 	test("a tab dragged into a stationary tabset grows in there alone", () => {
 		const before = snapshot({
 			a: { rect: r(0, 0, 500, 400), selected: "t1", tabs: ["t1"] },
@@ -420,6 +512,17 @@ describe("stylesheet contract", () => {
 		);
 		expect(section).toMatch(
 			/\.flexlayout__tab\.ormi-panel-motion \{[^}]*background-color: var\(--panel-background\);[^}]*transition: none;/,
+		);
+	});
+
+	test("a maximised panel's frame clears FlexLayout's own z-index 10 on its widget", () => {
+		// At rest: the inner-light layer over the maximised widget.
+		expect(CSS).toMatch(
+			/\.flexlayout__tabset:has\(> \.flexlayout__tabset-maximized\)::after \{[^}]*z-index: 11;/,
+		);
+		// In motion: the lifted container, which traps that layer.
+		expect(section).toMatch(
+			/\.flexlayout__tabset_container\.ormi-panel-motion:has\(\s*\.flexlayout__tabset-maximized\s*\) \{[^}]*z-index: 11;/,
 		);
 	});
 

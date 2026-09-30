@@ -128,7 +128,7 @@ export function arrivalScaleFrom(motionScale: number): number {
 }
 
 /**
- * The skip rule: no motion at 0 ms (amber, tactical, reduced motion) and no
+ * The skip rule: no motion at 0 ms (reduced motion) and no
  * motion when the operator asked the OS for less, whatever a preset says.
  * @param timing - Resolved timing.
  * @param reducedMotion - `prefers-reduced-motion: reduce`.
@@ -150,10 +150,15 @@ export function shouldAnimate(
  * The leading (top-left) corner always carries the panel, because that is
  * where the tab strip and the panel's title are: anchoring anywhere else
  * hides the title while an edge sweeps. A dimension that grows is revealed
- * by the clip; a dimension that shrinks takes its new size at once (content
- * cannot be shown larger than it is laid out without scaling it) while the
- * translate still carries its corner over, so a panel pushed aside by a new
- * one slides over to make room.
+ * by the clip, carried from the old leading edge. A dimension that shrinks
+ * takes its new size at once (content cannot be shown larger than it is
+ * laid out without scaling it), and the snapped panel starts INSIDE its old
+ * extent, as close to its new place as that extent allows. It never starts
+ * at the old leading edge: a panel restored from maximise would then be
+ * drawn small at the top-left of the dashboard and fly across every other
+ * panel to its slot, and a panel pushed aside by a split would leave a hole
+ * where it was. A shrink that stays within the old rect therefore has no
+ * translate at all; one that also moves away slides from the nearest point.
  */
 export interface MoveGeometry {
 	tx: number;
@@ -170,11 +175,27 @@ export interface MoveGeometry {
  */
 export function moveGeometry(from: PanelRect, to: PanelRect): MoveGeometry {
 	return {
-		tx: from.x - to.x,
-		ty: from.y - to.y,
+		tx: startEdge(from.x, from.width, to.x, to.width) - to.x,
+		ty: startEdge(from.y, from.height, to.y, to.height) - to.y,
 		clipRight: Math.max(0, to.width - from.width),
 		clipBottom: Math.max(0, to.height - from.height),
 	};
+}
+
+/**
+ * Where a panel's leading edge starts on one axis. Growing, it is the old
+ * leading edge (the clip reveals the rest). Shrinking, the new size is
+ * placed inside the old extent, as near its destination as the old extent
+ * allows (see {@link MoveGeometry}).
+ */
+function startEdge(
+	fromPos: number,
+	fromSize: number,
+	toPos: number,
+	toSize: number,
+): number {
+	if (toSize >= fromSize) return fromPos;
+	return Math.min(Math.max(toPos, fromPos), fromPos + fromSize - toSize);
 }
 
 /**
@@ -338,8 +359,9 @@ export function planLayoutMotion(
 			continue;
 		}
 		if (!rectsEqual(b.rect, a.rect)) {
-			// A panel that only shrank away from a held corner has nothing to
-			// play: its size snaps by design and its corner did not move.
+			// A panel that only shrank within its old rect (the restored one
+			// after a maximise, the pushed one in a split) has nothing to
+			// play: its size snaps by design and it starts where it lands.
 			if (!isNoopMove(moveGeometry(b.rect, a.rect))) {
 				plans.push({
 					kind: "move",
