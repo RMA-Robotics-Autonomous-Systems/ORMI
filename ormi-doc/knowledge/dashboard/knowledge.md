@@ -86,9 +86,13 @@ widgets, datasources, locked}` — built fresh on every call so a caller cannot
   reload even after the operator adds a datasource. A page therefore re-asserts
   its own panels in a page-scoped filter at `Infinity` priority, appending only
   what the gate removed, and holds `loading` until it is registered
-  (`plugins/ormi-c2-control/src/page/page-panels.ts`). The EMI cockpit registers
-  its panels page-scoped at priority 10 and is **below** the gate, so it has the
-  same first-open defect.
+  (`plugins/ormi-c2-control/src/page/page-panels.ts`). The EMI cockpit also
+  places the standard map, which it cannot rebuild, so it brackets the gate:
+  a capture filter just below it keeps the definitions the page places, and a
+  restore filter at `Infinity` appends whichever the gate removed
+  (`plugins/teodor-emi-extension/src/page/cockpit-panels.ts`). Since the shell
+  re-reads the registry when the gate registers, a page without this shows
+  unsupported tiles on its first open.
 
 Where the panels are registered depends on whether they mean anything elsewhere:
 page-scoped (an effect that adds the `WIDGETS_LIST` filter and removes it on
@@ -159,6 +163,15 @@ Engines mutate state via `useDashboardActions()`:
 
 ## Notes
 
+- The shell resolves the registry (widgets, datasources, engines) during its own
+  render and re-resolves it whenever a filter is added to or removed from a hook
+  that read touches (`DASHBOARD_REGISTRY_FILTER_HOOKS`,
+  `packages/ormi-core/src/dashboard/shell/registry-filter-hooks.ts`, through
+  `usePluginFiltersRevision`). Its child `GlobalDataSourcesProvider` registers
+  the datasource gate from an effect, so the first render offers the ungated
+  list and the gate's registration re-renders the shell into the gated one.
+  Before that subscription the shell kept the ungated list until an unrelated
+  atom change re-rendered it.
 - The dashboard mounts immediately — there is no "all datasources connected" gate.
   Widgets mount before datasources connect and degrade per-datasource (see
   `../widgets/knowledge.md` and `../shared/data-flow.md`).

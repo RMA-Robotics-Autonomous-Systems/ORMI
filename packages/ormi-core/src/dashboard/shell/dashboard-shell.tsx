@@ -4,6 +4,7 @@ import React, { ReactNode, useMemo, useEffect } from "react";
 import {
 	PluginsManager,
 	usePluginsManager,
+	usePluginFiltersRevision,
 	PluginsHooks,
 } from "@workspace/ormi-plugins";
 import {
@@ -23,6 +24,7 @@ import { WidgetDefinition } from "../../widgets/widget-interface";
 import { LayoutEngineDefinition } from "../layout/layout-engine";
 import { gridEngineDefinition } from "../components/react-grid-layout/dashboard";
 import { flexLayoutEngineDefinition } from "../components/flex-layout/flex-layout-dashboard";
+import { DASHBOARD_REGISTRY_FILTER_HOOKS } from "./registry-filter-hooks";
 
 // ---------------------------------------------------------------------------
 // Context 1 — Shell state (changes on every save / lock toggle)
@@ -119,6 +121,20 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	children,
 }) => {
 	const pluginsManager = usePluginsManager() as PluginsManager;
+
+	// The registries below are read during this render, but part of what
+	// shapes them is registered later, from effects in components this shell
+	// is the PARENT of: the datasource gate (`GlobalDataSourcesProvider`, once
+	// it has initialized) and the built-in engines below. Those effects
+	// re-render only their own component, so without this subscription the
+	// shell kept the list from before the gate existed (every widget of every
+	// plugin) until an unrelated atom change happened to re-render it. The
+	// subscription re-renders the shell once per registration. The revision is
+	// not a memo key because nothing here is memoised on the registry: every
+	// render re-applies the filters (the React Compiler leaves those calls
+	// unmemoised, since they take fresh accumulators), so the re-render is the
+	// whole of its use.
+	usePluginFiltersRevision(DASHBOARD_REGISTRY_FILTER_HOOKS);
 
 	// Resolve plugin registries as plain statements so any hooks called inside
 	// definition factories (e.g. KeyboardControlDefinition → usePluginsManager)

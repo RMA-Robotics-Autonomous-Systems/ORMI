@@ -104,6 +104,16 @@ panel), and `PLUGIN_PROVIDER_BEFORE_CHILDREN` /
 `PLUGIN_PROVIDER_AFTER_CHILDREN` (wrap the provider tree). See
 `packages/ormi-plugins/src/plugins/plugins-types.ts` for the full enum.
 
+## Registration changes
+
+Filters are pulled, so a component that applies one during render does not see a
+filter registered after that render. `PluginsManager.getFilterRevision(hook)`
+grows on every post-construction `addFilter`/`removeFilter` on the hook and
+`subscribeFilters(listener)` announces each change with the hook name;
+`usePluginFiltersRevision(hooks)` wraps both in a `useSyncExternalStore` that
+re-renders on a change to any of the named hooks only. `DashboardShell` uses it
+over the hooks its registry read touches.
+
 ## Priority system
 
 Filters run in ascending priority (lower = earlier). There is no enforced banding

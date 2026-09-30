@@ -256,9 +256,10 @@ function usePagePanels(): boolean {
 			priority: Infinity,
 			filter: ensurePagePanels,
 		});
-		// The cascading render is the point. `WIDGETS_LIST` is read during the
-		// shell's render and the plugin registry has nothing to subscribe to, so
-		// this state change is what tells the tree the list is no longer gated.
+		// The cascading render is the point. The shell re-reads `WIDGETS_LIST`
+		// when a filter registers, but this page renders the shell, so only
+		// this state change can hold its `loading` until the list is no longer
+		// gated.
 		// It happens once per mount, in a layout effect, before paint.
 		// NOTE: this directive opts `usePagePanels` out of React Compiler
 		// compilation, which costs nothing here — the hook has no work to memo.
