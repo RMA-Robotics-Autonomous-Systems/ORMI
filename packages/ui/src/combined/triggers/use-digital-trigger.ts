@@ -157,49 +157,74 @@ export function useDigitalTrigger(
 	} = options;
 
 	const [isActive, setIsActive] = useState(false);
-	const isActiveRef = useRef(isActive);
+	const isActiveRef = useRef(false);
 	const previousValueRef = useRef<number | null>(null);
 	// True only while a press this hook started from the keyboard is held.
 	const isKeyboardHeldRef = useRef(false);
 
+	// Callers hand over fresh callbacks (and often a fresh binding object) on
+	// every render, and a press itself re-renders the caller. The listeners
+	// read the latest callbacks through this ref so the subscription below is
+	// keyed on the binding's content alone: re-subscribing mid-press drops the
+	// held-key state, and the release that follows is then ignored, leaving
+	// the trigger active.
+	const callbacksRef = useRef({
+		onActive,
+		onInactive,
+		shouldHandleKeyboardEvent,
+		isGamepadBlocked,
+	});
 	useEffect(() => {
-		isActiveRef.current = isActive;
-	}, [isActive]);
+		callbacksRef.current = {
+			onActive,
+			onInactive,
+			shouldHandleKeyboardEvent,
+			isGamepadBlocked,
+		};
+	}, [onActive, onInactive, shouldHandleKeyboardEvent, isGamepadBlocked]);
 
-	const activate = useCallback(
-		(value = 1) => {
-			if (!isActiveRef.current) {
-				setIsActive(true);
-			}
-			onActive(value);
-			previousValueRef.current = value;
-		},
-		[onActive],
-	);
+	const activate = useCallback((value = 1) => {
+		isActiveRef.current = true;
+		setIsActive(true);
+		callbacksRef.current.onActive(value);
+		previousValueRef.current = value;
+	}, []);
 
-	const deactivate = useCallback(
-		(value = 0) => {
-			if (!isActiveRef.current) return;
-			setIsActive(false);
-			onInactive(value);
-			previousValueRef.current = null;
-		},
-		[onInactive],
-	);
+	const deactivate = useCallback((value = 0) => {
+		if (!isActiveRef.current) return;
+		isActiveRef.current = false;
+		setIsActive(false);
+		callbacksRef.current.onInactive(value);
+		previousValueRef.current = null;
+	}, []);
+
+	const inputType = digitalInput?.type;
+	const inputKey = digitalInput?.key;
+	const inputGamepadId = digitalInput?.gamepadId;
+	const inputGamepadButtonIndex = digitalInput?.gamepadButtonIndex;
 
 	useEffect(() => {
-		if (!enabled || !digitalInput) {
+		if (!enabled || !inputType) {
 			return;
 		}
+
+		const binding: DigitalInput = {
+			type: inputType,
+			key: inputKey,
+			gamepadId: inputGamepadId,
+			gamepadButtonIndex: inputGamepadButtonIndex,
+		};
 
 		const keyPressEvent = (event: KeyboardEvent) => {
 			if (
 				!shouldActivateOnKeyDown({
 					event,
-					digitalInput,
+					digitalInput: binding,
 					isActive: isActiveRef.current,
 					allowKeyboardWhileTyping,
-					shouldHandleKeyboardEvent,
+					shouldHandleKeyboardEvent: (e) =>
+						callbacksRef.current.shouldHandleKeyboardEvent?.(e) ??
+						true,
 				})
 			) {
 				return;
@@ -213,7 +238,7 @@ export function useDigitalTrigger(
 			if (
 				!shouldDeactivateOnKeyUp({
 					event,
-					digitalInput,
+					digitalInput: binding,
 					isKeyboardHeld: isKeyboardHeldRef.current,
 				})
 			) {
@@ -226,19 +251,19 @@ export function useDigitalTrigger(
 
 		const gamePadInterval = setInterval(() => {
 			if (
-				digitalInput.type !== "gamepad" ||
-				digitalInput.gamepadButtonIndex === undefined
+				binding.type !== "gamepad" ||
+				binding.gamepadButtonIndex === undefined
 			) {
 				return;
 			}
 
-			if (isGamepadBlocked?.()) {
+			if (callbacksRef.current.isGamepadBlocked?.()) {
 				return;
 			}
 
 			const currentFrameGamepads = navigator.getGamepads();
 			const targetGamepad = Array.from(currentFrameGamepads).find(
-				(gp) => gp?.id === digitalInput.gamepadId,
+				(gp) => gp?.id === binding.gamepadId,
 			);
 
 			if (!targetGamepad) {
@@ -246,8 +271,7 @@ export function useDigitalTrigger(
 				return;
 			}
 
-			const button =
-				targetGamepad.buttons[digitalInput.gamepadButtonIndex];
+			const button = targetGamepad.buttons[binding.gamepadButtonIndex];
 			if (!button) {
 				deactivate(0);
 				return;
@@ -272,6 +296,8 @@ export function useDigitalTrigger(
 		window.addEventListener("keydown", keyPressEvent);
 		window.addEventListener("keyup", keyUpEvent);
 
+		// Runs only when the binding or its guard configuration changes, or on
+		// unmount: the press, if any, ends here.
 		return () => {
 			window.removeEventListener("keydown", keyPressEvent);
 			window.removeEventListener("keyup", keyUpEvent);
@@ -281,13 +307,14 @@ export function useDigitalTrigger(
 		};
 	}, [
 		enabled,
-		digitalInput,
+		inputType,
+		inputKey,
+		inputGamepadId,
+		inputGamepadButtonIndex,
 		activate,
 		deactivate,
 		gamepadThreshold,
-		shouldHandleKeyboardEvent,
 		allowKeyboardWhileTyping,
-		isGamepadBlocked,
 	]);
 
 	return {
