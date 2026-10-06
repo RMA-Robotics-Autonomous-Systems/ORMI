@@ -7,14 +7,22 @@ import {
 	SelectedTopic,
 	useLocalDataSource,
 } from "@workspace/ormi-core/datasources";
+import { useDashboardActions } from "@workspace/ormi-core/dashboard";
 import { DiagnosticArray, DiagnosticStatus } from "@workspace/ormi-core/types";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { Badge } from "@workspace/ui/components/badge";
+import { useWidgetScope } from "@workspace/ui/combined/ButtonHolder";
 import { Input } from "@workspace/ui/components/input";
-import { Activity } from "lucide-react";
+import { Activity, Pin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { levelLabel, levelRank, levelVariant } from "./diagnostic-enums";
+import {
+	describePin,
+	diagnosticKey,
+	readPinned,
+	togglePin,
+} from "./diagnostic-pins";
 import { useDiscoveredTopics } from "../shared/use-discovered-topics";
 
 /** Webapp type tag applied by the converter to DiagnosticArray topics. */
@@ -43,6 +51,11 @@ interface DiagnosticsWidgetProps extends Record<string, unknown> {
 	 * publishers, so entries are latched and aged out rather than snapshotted.
 	 */
 	staleTimeout: number;
+	/**
+	 * Latch keys of the statuses the operator pinned, in pin order. Written by
+	 * the pin control on each row, never by the configuration dialog.
+	 */
+	pinned?: string[];
 }
 
 /**
@@ -110,18 +123,52 @@ function SummaryPill({
 }
 
 /**
+ * Pin control of a row. A sibling of the row's expand button, never nested in
+ * it. Filled while the status is pinned.
+ */
+function PinButton({
+	pinned,
+	onToggle,
+}: {
+	pinned: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			aria-label={pinned ? "Unpin" : "Pin"}
+			aria-pressed={pinned}
+			className={`shrink-0 rounded p-0.5 ${
+				pinned
+					? "text-foreground"
+					: "text-muted-foreground/60 hover:text-foreground"
+			}`}
+		>
+			<Pin className={`size-3.5 ${pinned ? "fill-current" : ""}`} />
+		</button>
+	);
+}
+
+/**
  * One diagnostic row: severity badge, short name (full name on hover), message,
- * a muted source tag, and an expandable key/value table. Offline rows dim but
- * keep their last-known data (per-topic gating — the widget never blanks).
+ * a muted source tag, a pin control, and an expandable key/value table. Offline
+ * rows dim but keep their last-known data (per-topic gating — the widget never
+ * blanks). A pinned row sits outside its hardware group, so it carries the
+ * hardware id itself.
  */
 function DiagnosticStatusRow({
 	resolved,
 	expanded,
 	onToggle,
+	pinned,
+	onTogglePin,
 }: {
 	resolved: ResolvedEntry;
 	expanded: boolean;
 	onToggle: () => void;
+	pinned: boolean;
+	onTogglePin: () => void;
 }) {
 	const { entry, level, health } = resolved;
 	const { status, source } = entry;
@@ -134,32 +181,40 @@ function DiagnosticStatusRow({
 				offline ? "opacity-50" : ""
 			}`}
 		>
-			<button
-				type="button"
-				onClick={onToggle}
-				className="flex w-full items-center gap-2 text-left"
-			>
-				<Badge variant={levelVariant(level)} className="shrink-0">
-					{levelLabel(level)}
-				</Badge>
-				<span
-					className="min-w-0 flex-1 truncate text-sm font-medium"
-					title={status.name}
+			<div className="flex items-center gap-2">
+				<button
+					type="button"
+					onClick={onToggle}
+					className="flex min-w-0 flex-1 items-center gap-2 text-left"
 				>
-					{shortName(status.name)}
-				</span>
-				{status.message && (
-					<span className="hidden min-w-0 max-w-[45%] truncate text-xs text-muted-foreground sm:block">
-						{status.message}
+					<Badge variant={levelVariant(level)} className="shrink-0">
+						{levelLabel(level)}
+					</Badge>
+					<span
+						className="min-w-0 flex-1 truncate text-sm font-medium"
+						title={status.name}
+					>
+						{shortName(status.name)}
 					</span>
-				)}
-				<span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
-					{source.title || source.id}
-				</span>
-				<span className="shrink-0 text-[11px] text-muted-foreground">
-					{expanded ? "▾" : "▸"}
-				</span>
-			</button>
+					{status.message && (
+						<span className="hidden min-w-0 max-w-[45%] truncate text-xs text-muted-foreground sm:block">
+							{status.message}
+						</span>
+					)}
+					{pinned && status.hardwareId && (
+						<span className="max-w-[25%] shrink-0 truncate text-[10px] text-muted-foreground">
+							{status.hardwareId}
+						</span>
+					)}
+					<span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+						{source.title || source.id}
+					</span>
+					<span className="shrink-0 text-[11px] text-muted-foreground">
+						{expanded ? "▾" : "▸"}
+					</span>
+				</button>
+				<PinButton pinned={pinned} onToggle={onTogglePin} />
+			</div>
 
 			{/* The full message is always kept accessible on small widths. */}
 			{status.message && (
@@ -203,8 +258,14 @@ function DiagnosticStatusRow({
  * Diagnostics body: latches the newest status per `(source, hardwareId, name)`
  * across EVERY buffered message (not just the latest sample) so low-Hz / bursty
  * publishers on a shared `/diagnostics` topic never vanish, ages silent nodes to
- * STALE, then renders a summary bar, search + "Show OK" controls, and a
- * hardware-grouped list (worst severity first).
+ * STALE, then renders a summary bar, search + "Show OK" controls, the pinned
+ * statuses, and a hardware-grouped list (worst severity first).
+ *
+ * Pinned statuses render first, in pin order, and are exempt from the search,
+ * the "Show OK" toggle and the severity sort: a pinned row is where the
+ * operator left it whatever the rest of the list does. A pin with no latched
+ * status yet (after a reload, or a silent node) still renders, so it can be
+ * read as missing and unpinned.
  *
  * The latch is component `useState` (compiler-tracked), fed by an effect keyed
  * on the provider's per-flush `sources` map. Health is recomputed fresh each
@@ -216,10 +277,14 @@ function DiagnosticsBody({
 	topics,
 	defaultShowOk,
 	staleMs,
+	pinned,
+	onTogglePin,
 }: {
 	topics: SelectedTopic[];
 	defaultShowOk: boolean;
 	staleMs: number;
+	pinned: string[];
+	onTogglePin: (key: string) => void;
 }) {
 	const { sources, getSourceId, getTopicHealth } = useLocalDataSource();
 	const [search, setSearch] = useState("");
@@ -282,7 +347,11 @@ function DiagnosticsBody({
 				for (const status of array.status ?? []) {
 					// Include hardwareId so sibling statuses that share a name
 					// but describe different hardware are not merged away.
-					const key = `${topic.source.id}::${status.hardwareId}::${status.name}`;
+					const key = diagnosticKey(
+						topic.source.id,
+						status.hardwareId,
+						status.name,
+					);
 					upserts.push({
 						key,
 						status,
@@ -346,8 +415,14 @@ function DiagnosticsBody({
 	// Apply the search filter and the "Show OK" toggle. STALE/WARN/ERROR are
 	// always shown; only OK (effective level 0) is hidden when the toggle is
 	// off — a stale entry is level 3, so it stays visible.
+	// Pinned entries are listed separately and never repeated in a group.
+	const pinnedKeys = new Set(pinned);
+	const resolvedByKey = new Map(
+		resolved.map((item) => [item.entry.key, item]),
+	);
 	const query = search.trim().toLowerCase();
 	const visible = resolved.filter((item) => {
+		if (pinnedKeys.has(item.entry.key)) return false;
 		if (!showOk && item.level === 0) return false;
 		if (!query) return true;
 		const { name, message, hardwareId } = item.entry.status;
@@ -441,10 +516,67 @@ function DiagnosticsBody({
 				</label>
 			</div>
 
-			{/* Grouped list */}
-			<div className="flex-1 overflow-auto min-h-0">
-				{groups.length === 0 ? (
-					<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+			{/* Pinned statuses, then the grouped list */}
+			<div className="flex flex-1 flex-col gap-2 overflow-auto min-h-0">
+				{pinned.length > 0 && (
+					<div className="flex shrink-0 flex-col gap-1">
+						<div className="flex items-center gap-2">
+							<span className="min-w-0 flex-1 truncate text-xs font-semibold">
+								Pinned
+							</span>
+							<span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+								{pinned.length}
+							</span>
+						</div>
+						{pinned.map((key) => {
+							const item = resolvedByKey.get(key);
+							if (item) {
+								return (
+									<DiagnosticStatusRow
+										key={key}
+										resolved={item}
+										expanded={expanded.has(key)}
+										onToggle={() => toggleExpanded(key)}
+										pinned
+										onTogglePin={() => onTogglePin(key)}
+									/>
+								);
+							}
+							const { hardwareId, name } = describePin(key);
+							return (
+								<div
+									key={key}
+									className="flex items-center gap-2 rounded-md border border-dashed px-2 py-1.5"
+								>
+									<Badge
+										variant="secondary"
+										className="shrink-0"
+									>
+										No data
+									</Badge>
+									<span
+										className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground"
+										title={name}
+									>
+										{shortName(name)}
+									</span>
+									{hardwareId && (
+										<span className="max-w-[25%] shrink-0 truncate text-[10px] text-muted-foreground">
+											{hardwareId}
+										</span>
+									)}
+									<PinButton
+										pinned
+										onToggle={() => onTogglePin(key)}
+									/>
+								</div>
+							);
+						})}
+					</div>
+				)}
+				{groups.length === 0 &&
+				pinned.length > 0 ? null : groups.length === 0 ? (
+					<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
 						{store.size === 0
 							? "Waiting for diagnostics…"
 							: "No entries match the current filter"}
@@ -480,6 +612,10 @@ function DiagnosticsBody({
 											)}
 											onToggle={() =>
 												toggleExpanded(item.entry.key)
+											}
+											pinned={false}
+											onTogglePin={() =>
+												onTogglePin(item.entry.key)
 											}
 										/>
 									))}
@@ -517,6 +653,16 @@ const DiagnosticsWidget: React.FC<DiagnosticsWidgetProps> = (props) => {
 	const staleMs =
 		Math.max(1, Number(props.staleTimeout) || DEFAULT_STALE_SECONDS) * 1000;
 
+	// Pins are part of the widget's own settings, so they are saved with the
+	// dashboard. The host spreads the stored settings into these props, which
+	// makes `props` the settings object to write back.
+	const boxId = useWidgetScope();
+	const { updateWidget } = useDashboardActions();
+	const pinned = readPinned(props.pinned);
+	const handleTogglePin = (key: string) => {
+		updateWidget(boxId, { ...props, pinned: togglePin(pinned, key) });
+	};
+
 	if (topics.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-3 text-sm text-muted-foreground">
@@ -535,6 +681,8 @@ const DiagnosticsWidget: React.FC<DiagnosticsWidgetProps> = (props) => {
 				topics={topics}
 				defaultShowOk={showOk}
 				staleMs={staleMs}
+				pinned={pinned}
+				onTogglePin={handleTogglePin}
 			/>
 		</LocalDataSourcesProvider>
 	);
@@ -570,6 +718,12 @@ export function DiagnosticsWidgetDefinition(): WidgetDefinition<DiagnosticsWidge
 					minimum: 1,
 					default: DEFAULT_STALE_SECONDS,
 				},
+				// Written by the pin control on each row; deliberately absent
+				// from the uischema.
+				pinned: {
+					type: "array",
+					items: { type: "string" },
+				},
 			},
 			required: ["title"],
 		},
@@ -596,6 +750,7 @@ export function DiagnosticsWidgetDefinition(): WidgetDefinition<DiagnosticsWidge
 			title: "Diagnostics",
 			showOk: false,
 			staleTimeout: DEFAULT_STALE_SECONDS,
+			pinned: [],
 		},
 		Component: DiagnosticsWidget,
 	} as WidgetDefinition<DiagnosticsWidgetProps>;

@@ -247,38 +247,41 @@ const asTabset = (tab: IJsonTabNode): IJsonTabSetNode => ({
 	selected: 0,
 });
 
-/** Place one tab, mutating the working layout and its measurements. */
-const placeOne = (
+/**
+ * Where one new tab goes, before anything is written: a first panel, a tab
+ * stacked into an existing panel, or a split of one.
+ */
+type PlacementDecision =
+	| { kind: "create" }
+	| { kind: "stack"; target: PanelCandidate }
+	| { kind: "split"; target: PanelCandidate; sideBySide: boolean };
+
+/**
+ * Decide where one tab goes. Reads the layout and its measurements and writes
+ * nothing, so the same decision can be applied to the JSON
+ * ({@link placeNewTabs}) or to a live model ({@link planNewTab}).
+ */
+const decidePlacement = (
 	layout: IJsonRowNode,
-	tab: IJsonTabNode,
 	sizes: Map<string, PanelSize>,
 	rootSize: PanelSize | null,
 	rootIsHorizontal: boolean,
 	minWidth: number,
 	minHeight: number,
-): void => {
+): PlacementDecision => {
 	const panels: PanelCandidate[] = [];
 	collectPanels(layout, rootSize, rootIsHorizontal, sizes, panels);
 
 	// No panel at all: the layout is empty, so the widget makes the first one.
-	if (panels.length === 0) {
-		layout.children.push(asTabset(tab));
-		return;
-	}
+	if (panels.length === 0) return { kind: "create" };
 
 	// An empty panel is a hole in the layout, not something to split — splitting
 	// it would leave a half nobody asked for, which FlexLayout then prunes.
 	const empty = panels.find((panel) => panel.tabset.children.length === 0);
-	if (empty) {
-		appendTab(empty.tabset, tab);
-		return;
-	}
+	if (empty) return { kind: "stack", target: empty };
 
 	const target = pickLargest(panels);
-	if (!target) {
-		layout.children.push(asTabset(tab));
-		return;
-	}
+	if (!target) return { kind: "create" };
 
 	// Split the longer axis: a wide panel becomes left/right, a tall one
 	// top/bottom. That is what turns repeated splits into a grid rather than a
@@ -295,17 +298,47 @@ const placeOne = (
 			? size.width / 2 >= minWidth
 			: size.height / 2 >= minHeight);
 
-	if (!fits) {
-		appendTab(target.tabset, tab);
+	return fits
+		? { kind: "split", target, sideBySide }
+		: { kind: "stack", target };
+};
+
+/** Place one tab, mutating the working layout and its measurements. */
+const placeOne = (
+	layout: IJsonRowNode,
+	tab: IJsonTabNode,
+	sizes: Map<string, PanelSize>,
+	rootSize: PanelSize | null,
+	rootIsHorizontal: boolean,
+	minWidth: number,
+	minHeight: number,
+): void => {
+	const decision = decidePlacement(
+		layout,
+		sizes,
+		rootSize,
+		rootIsHorizontal,
+		minWidth,
+		minHeight,
+	);
+
+	if (decision.kind === "create") {
+		layout.children.push(asTabset(tab));
+		return;
+	}
+
+	if (decision.kind === "stack") {
+		appendTab(decision.target.tabset, tab);
 		return;
 	}
 
 	// The target's measurement describes the panel before this split; drop it so
 	// the next placement in this pass measures the half it actually became,
 	// rather than splitting the same panel over and over into slivers.
+	const { target } = decision;
 	if (target.tabset.id) sizes.delete(target.tabset.id);
 
-	splitPanel(target, asTabset(tab), sideBySide);
+	splitPanel(target, asTabset(tab), decision.sideBySide);
 };
 
 /**
@@ -380,6 +413,71 @@ export function placeNewTabs(
 	}
 
 	return next;
+}
+
+/**
+ * Where one new tab goes in a live model, named by the id of the tabset it
+ * lands in or beside, so the caller can apply it as a FlexLayout action.
+ *
+ * - `stack`: add the tab to `tabsetId` and select it.
+ * - `split`: dock the tab on the right (`sideBySide`) or the bottom edge of
+ *   `tabsetId`. FlexLayout halves that tabset's weight, or wraps it in a row
+ *   at 50/50, exactly as {@link placeNewTabs} does in the JSON.
+ * - `rebuild`: the layout has no tabset to act on (or one without an id), so
+ *   there is nothing to dock against and the caller falls back to
+ *   {@link placeNewTabs}.
+ */
+export type TabPlacement =
+	| { kind: "stack"; tabsetId: string }
+	| { kind: "split"; tabsetId: string; sideBySide: boolean }
+	| { kind: "rebuild" };
+
+/**
+ * Decide where ONE new tab goes in a live model, with the same rules as
+ * {@link placeNewTabs}, without building a new layout.
+ *
+ * It exists because replacing the model remounts every widget on the
+ * dashboard: FlexLayout renders a tab's content only once its node has a
+ * measured size, and every node of a model built by `Model.fromJson` starts
+ * unmeasured, so each existing panel drops out for a render and comes back as
+ * a fresh mount. A widget holding a connection (a video stream) then tears it
+ * down and negotiates again. Applying the placement as an action on the model
+ * already on screen keeps every existing node, and so every existing widget.
+ *
+ * `sizes` is the caller's working copy: after a `split` it deletes the target
+ * tabset's entry before planning the next tab, for the reason given in
+ * `placeOne`.
+ *
+ * @param layout - The live model's root row, as `Model.toJson().layout`.
+ * @param options - Measured sizes and split floors.
+ * @returns The placement to apply.
+ */
+export function planNewTab(
+	layout: IJsonRowNode,
+	options: PlaceNewTabsOptions = {},
+): TabPlacement {
+	if (!Array.isArray(layout.children)) return { kind: "rebuild" };
+
+	const sizes = new Map<string, PanelSize>(
+		Object.entries(options.sizes ?? {}),
+	);
+	const decision = decidePlacement(
+		layout,
+		sizes,
+		resolveRootSize(layout, sizes, options.viewport),
+		!options.rootOrientationVertical,
+		options.minWidth ?? MIN_SPLIT_WIDTH,
+		options.minHeight ?? MIN_SPLIT_HEIGHT,
+	);
+
+	if (decision.kind === "create") return { kind: "rebuild" };
+
+	const tabsetId = decision.target.tabset.id;
+	if (!tabsetId) return { kind: "rebuild" };
+
+	return decision.kind === "split"
+		? { kind: "split", tabsetId, sideBySide: decision.sideBySide }
+		: { kind: "stack", tabsetId };
 }
 
 /**

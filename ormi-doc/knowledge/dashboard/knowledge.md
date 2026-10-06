@@ -137,6 +137,19 @@ The decision is a pure function over layout JSON precisely because a layout bug
 is invisible in a passing build — it is measured against a live `Model` in tests
 so that FlexLayout's own `tidy()` cannot silently rearrange what it produces.
 
+**The placement is applied to the live model, never by rebuilding it.**
+`addTabsToModel` (`flex-layout/live-placement.ts`) takes the same decision
+through `planNewTab` and applies it as a FlexLayout action (`addNode` docked
+`CENTER`, `RIGHT` or `BOTTOM`), and the lock toggle is
+`updateModelAttributes`. FlexLayout renders a tab's content only once its node
+has a measured size, and every node of a model built by `Model.fromJson` starts
+unmeasured, so a replaced model drops every panel for one render and remounts
+every widget on the dashboard. A widget holding a connection pays for that
+visibly: each WebRTC viewer closed its peer connection and negotiated again
+whenever any widget was added or the dashboard was locked. `placeNewTabs`
+remains for the one case with nothing to dock against (a layout with no
+tabset), where there is no widget on screen to protect.
+
 ## State contract (atoms)
 
 | Atom              | Shape                                            |

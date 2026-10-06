@@ -1,6 +1,5 @@
 import "@workspace/ui/globals.css";
 
-import { Inter as FontSans } from "next/font/google";
 import localFont from "next/font/local";
 
 import type { Metadata, Viewport } from "next";
@@ -24,16 +23,17 @@ import { getThemePresets } from "@/server/theme-presets";
 // preset's font.
 //
 // Robots run in the field with no internet, so no face is ever fetched from a
-// third party at runtime: next/font self-hosts every one under `/_next/`. The
-// preset faces are committed files (latin subset, OFL, licences in
-// `assets/fonts/licenses`) rather than `next/font/google`, which would fetch
-// them at build time and make every image build depend on Google Fonts.
+// third party at runtime: next/font self-hosts every one under `/_next/`.
+// Every face, Inter included, is a committed file (latin subset, OFL, licences
+// in `assets/fonts/licenses`) rather than `next/font/google`, which would
+// fetch it at build time and make every build depend on Google Fonts.
 //
 // Only Inter, the default body face, is preloaded. The rest are `@font-face`
 // rules only: a browser downloads a face the first time text is set in it,
 // so a font no preset names costs a few hundred bytes of CSS.
-const fontSans = FontSans({
-	subsets: ["latin"],
+const fontSans = localFont({
+	src: "../assets/fonts/Inter-latin-wght.woff2",
+	weight: "100 900",
 	variable: "--font-inter",
 });
 

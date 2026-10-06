@@ -8,6 +8,7 @@ import {
 	getDefaultFlexLayoutConfig,
 } from "../layout-serializer";
 import { measureFlexLayoutPanels, placeNewTabs } from "../widget-placement";
+import { addTabsToModel } from "../live-placement";
 import { isAnimatedLayoutAction } from "../panel-motion";
 
 /** Props for useFlexLayoutModel. */
@@ -51,6 +52,23 @@ export const useFlexLayoutModel = ({
 }: UseFlexLayoutModelProps) => {
 	const [model, setModel] = useState<Model | null>(null);
 	const lastSerializedRef = useRef<string>("");
+
+	// Write the model's serialized layout to the provider, once per distinct
+	// layout. The flex engine keeps its layout under the "flex" key, preserving
+	// other engines' layouts.
+	const syncLayout = useCallback(
+		(source: Model) => {
+			const serializedModel = serializeFlexLayoutModel(source);
+			const serializedString = JSON.stringify(serializedModel);
+			if (serializedString === lastSerializedRef.current) return;
+			lastSerializedRef.current = serializedString;
+			updateLayouts((prev: Record<string, unknown>) => ({
+				...prev,
+				flex: serializedModel,
+			}));
+		},
+		[updateLayouts],
+	);
 
 	// Manage FlexLayout model - handle initialization and widget synchronization together
 	useEffect(() => {
@@ -116,33 +134,29 @@ export const useFlexLayoutModel = ({
 			return;
 		}
 
-		// Model exists - sync widgets and update lock state
-		const modelJson = model.toJson();
+		// Model exists - sync widgets and update lock state.
+		//
+		// Both changes are applied to the model that is on screen, as
+		// FlexLayout actions, and never by building a new model from JSON. A
+		// rebuilt model remounts every widget on the dashboard (see
+		// `planNewTab` in widget-placement.ts): each existing panel drops out
+		// for a render, so anything holding a connection, a video stream
+		// above all, restarts whenever an unrelated widget is added or the
+		// dashboard is locked.
+		let changed = false;
 
-		// Update lock state if needed
-		if (modelJson.global && modelJson.global.tabEnableClose === locked) {
-			modelJson.global.tabEnableClose = !locked;
+		if (model.toJson().global?.tabEnableClose === locked) {
+			model.doAction(
+				Actions.updateModelAttributes({ tabEnableClose: !locked }),
+			);
+			changed = true;
 		}
 
 		// Find existing tabs in the model
 		const existingTabIds = new Set<string>();
-		const extractTabIds = (node: any) => {
-			if (node.type === "tab" && node.id) {
-				existingTabIds.add(node.id);
-			}
-			if (node.children) {
-				node.children.forEach(extractTabIds);
-			}
-		};
-
-		if (modelJson.layout) {
-			extractTabIds(modelJson.layout);
-		}
-		if (modelJson.borders) {
-			modelJson.borders.forEach((border: any) => {
-				extractTabIds(border);
-			});
-		}
+		model.visitNodes((node) => {
+			if (node.getType() === "tab") existingTabIds.add(node.getId());
+		});
 
 		// Find missing widgets that need to be added (only if not locked)
 		const missingWidgets = locked
@@ -151,65 +165,64 @@ export const useFlexLayoutModel = ({
 					(id) => !existingTabIds.has(id),
 				);
 
-		// Update model if lock state changed or widgets need to be added
-		if (
-			(modelJson.global && modelJson.global.tabEnableClose === locked) ||
-			missingWidgets.length > 0
-		) {
-			const newModelJson = JSON.parse(JSON.stringify(modelJson));
+		let activeModel = model;
 
-			if (missingWidgets.length > 0) {
-				// Create tabs for missing widgets
-				const missingTabs = missingWidgets.map((id) => {
-					const widget = widgets.get(id);
-					const definition = widget
-						? getDefinition(widget.widget_id)
-						: null;
-					const title = widget?.title || definition?.name || "Widget";
-					return createTabConfig(id, title, id);
-				});
+		if (missingWidgets.length > 0) {
+			// Create tabs for missing widgets
+			const missingTabs = missingWidgets.map((id) => {
+				const widget = widgets.get(id);
+				const definition = widget
+					? getDefinition(widget.widget_id)
+					: null;
+				const title = widget?.title || definition?.name || "Widget";
+				return createTabConfig(id, title, id);
+			});
 
-				// Split rather than stack: measure the model that is on
-				// screen right now, then let the placement rules decide
-				// where each new widget goes. Only widgets missing from
-				// the model reach here, so a restored layout is never
-				// rearranged.
-				newModelJson.layout = placeNewTabs(
-					newModelJson.layout ?? {
+			// Measure the model that is on screen before anything moves:
+			// panel motion takes its "before" here, and the placement rules
+			// their sizes.
+			onBeforeLayoutChange?.(model);
+			const sizes = measureFlexLayoutPanels(model);
+
+			// Split rather than stack. Only widgets missing from the model
+			// reach here, so a restored layout is never rearranged.
+			const unplaced = addTabsToModel(model, missingTabs, sizes);
+
+			// A layout with no tabset has nothing to dock against, and no
+			// widget on screen to protect either, so it is rebuilt.
+			if (unplaced.length > 0) {
+				const modelJson = model.toJson();
+				modelJson.layout = placeNewTabs(
+					modelJson.layout ?? {
 						type: "row",
 						weight: 100,
 						children: [],
 					},
-					missingTabs,
+					unplaced,
 					{
-						sizes: measureFlexLayoutPanels(model),
+						sizes,
 						rootOrientationVertical:
-							newModelJson.global?.rootOrientationVertical,
+							modelJson.global?.rootOrientationVertical,
 					},
 				);
+				activeModel = Model.fromJson(modelJson);
+				setModel(activeModel);
 			}
-
-			const updatedModel = Model.fromJson(newModelJson);
-			if (missingWidgets.length > 0) onBeforeLayoutChange?.(model);
-			setModel(updatedModel);
-
-			// Sync layout to provider after programmatic model updates
-			if (updatedModel) {
-				const serializedModel = serializeFlexLayoutModel(updatedModel);
-				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
-				updateLayouts((prev: Record<string, unknown>) => ({
-					...prev,
-					flex: serializedModel,
-				}));
-			}
+			changed = true;
 		}
+
+		// Sync layout to provider after programmatic model updates. `Layout`
+		// reports these actions itself while it is mounted, but it is not
+		// mounted on an empty dashboard, and `onModelChange` ignores a locked
+		// one.
+		if (changed) syncLayout(activeModel);
 	}, [
 		layouts,
 		widgets,
 		locked,
 		getDefinition,
 		model,
-		updateLayouts,
+		syncLayout,
 		onBeforeLayoutChange,
 	]);
 
@@ -237,16 +250,7 @@ export const useFlexLayoutModel = ({
 	const onModelChange = (newModel: any) => {
 		if (!locked) {
 			setModel(newModel);
-			const serializedModel = serializeFlexLayoutModel(newModel);
-			const serializedString = JSON.stringify(serializedModel);
-			if (serializedString !== lastSerializedRef.current) {
-				lastSerializedRef.current = serializedString;
-				// Flex engine wraps its layout under the "flex" key, preserving other engines' layouts
-				updateLayouts((prev: Record<string, unknown>) => ({
-					...prev,
-					flex: serializedModel,
-				}));
-			}
+			syncLayout(newModel);
 		}
 	};
 
