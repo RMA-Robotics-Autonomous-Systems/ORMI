@@ -8,10 +8,16 @@ import {
 	extractAgentPosition,
 	extractAgentTelemetry,
 	extractOdometryLngLat,
+	FEEDBACK_STALE_MS,
 	mergeFleet,
+	formatBattery,
 	parseAgentProfileTelemetry,
 	parseAutonomyStatus,
+	parseVehicleHealth,
+	presenceLabel,
 	readNamespace,
+	resolveAgentPresence,
+	stampArrivals,
 } from "./fleet-helpers";
 
 describe("readNamespace (namespace probe order)", () => {
@@ -135,6 +141,52 @@ describe("collectTelemetry (per-agent, interleaved single-agent messages)", () =
 	});
 });
 
+describe("agent presence (reporting now, not ever seen)", () => {
+	const a1 = { agent_id: "a1", state: 0 };
+	const a2 = { agent_id: "a2", state: 0 };
+
+	it("stamps a first sighting and keeps the stamp while the message is unchanged", () => {
+		const first = stampArrivals(new Map(), [a1, a2], 1_000);
+		expect(first.get("a1")?.at).toBe(1_000);
+		// Same objects, later tick: nothing arrived, so nothing is restamped.
+		const second = stampArrivals(first, [a1, a2], 9_000);
+		expect(second.get("a1")?.at).toBe(1_000);
+		expect(second.get("a2")?.at).toBe(1_000);
+	});
+
+	it("restamps only the agent whose newest message is a new object", () => {
+		const first = stampArrivals(new Map(), [a1, a2], 1_000);
+		// Identical content, new object: that is a new message from a1.
+		const second = stampArrivals(first, [a1, a2, { ...a1 }], 4_000);
+		expect(second.get("a1")?.at).toBe(4_000);
+		expect(second.get("a2")?.at).toBe(1_000);
+	});
+
+	it("drops an agent that has left the buffer and tolerates junk", () => {
+		const first = stampArrivals(new Map(), [a1, a2], 1_000);
+		const second = stampArrivals(first, [null, "x", a2], 2_000);
+		expect([...second.keys()]).toEqual(["a2"]);
+	});
+
+	it("is live only for recent feedback on an online datasource", () => {
+		const now = 100_000;
+		const recent = now - (FEEDBACK_STALE_MS - 1);
+		const old = now - FEEDBACK_STALE_MS;
+		expect(resolveAgentPresence(recent, now, "online")).toBe("live");
+		expect(resolveAgentPresence(old, now, "online")).toBe("stale");
+		expect(resolveAgentPresence(recent, now, "connecting")).toBe("stale");
+		expect(resolveAgentPresence(recent, now, "offline")).toBe("none");
+		expect(resolveAgentPresence(undefined, now, "online")).toBe("none");
+	});
+
+	it("words the dot, with the age when the agent went quiet", () => {
+		expect(presenceLabel("live", 200)).toBe("live telemetry");
+		expect(presenceLabel("none")).toBe("no live telemetry");
+		expect(presenceLabel("stale", 12_400)).toBe("last feedback 12 s ago");
+		expect(presenceLabel("stale", 185_000)).toBe("last feedback 3 min ago");
+	});
+});
+
 describe("extractOdometryLngLat (frame_id-gated geographic position)", () => {
 	const odom = { pose: { pose: { position: { x: 4.2, y: 50.1, z: 12 } } } };
 
@@ -240,6 +292,92 @@ describe("parseAgentProfileTelemetry (vehicle_info.*)", () => {
 		expect(parseAgentProfileTelemetry({})).toEqual({ sensors: [] });
 		expect(parseAgentProfileTelemetry(null)).toEqual({ sensors: [] });
 		expect(parseAgentProfileTelemetry(42)).toEqual({ sensors: [] });
+	});
+});
+
+describe("vehicle_health (the platform's live state)", () => {
+	// What the supervisor writes for a robot that reports a voltage but no
+	// level: null numbers, and a 0 placeholder in vehicle_info.
+	const voltageOnly = {
+		vehicle_info: { battery_status_pct: 0, fuel_status_pct: 0 },
+		vehicle_health: {
+			level: 1,
+			estop: 1,
+			control_mode: 2,
+			battery_pct: null,
+			battery_voltage: 73.04,
+			battery_current: null,
+			battery_hours: null,
+			temperature_c: null,
+			faults: 0,
+			native_error_code: 0,
+		},
+	};
+
+	it("reads the enums and omits the numbers the platform does not report", () => {
+		expect(parseVehicleHealth(voltageOnly.vehicle_health)).toEqual({
+			level: "ok",
+			estop: "released",
+			controlMode: "autonomy",
+			batteryVoltage: 73.04,
+			faults: [],
+			nativeErrorCode: 0,
+		});
+	});
+
+	it("does not show the 0 placeholder as an empty battery", () => {
+		const telemetry = parseAgentProfileTelemetry(voltageOnly);
+		expect(telemetry.batteryPct).toBeUndefined();
+		expect(formatBattery(telemetry)).toBe("73.0 V");
+	});
+
+	it("prefers the live level over vehicle_info's static one", () => {
+		const telemetry = parseAgentProfileTelemetry({
+			vehicle_info: { battery_status_pct: 90 },
+			vehicle_health: { battery_pct: 41.6, battery_voltage: 70.2 },
+		});
+		expect(telemetry.batteryPct).toBe(41.6);
+		expect(formatBattery(telemetry)).toBe("42% · 70.2 V");
+	});
+
+	it("keeps vehicle_info's battery when the profile has no health", () => {
+		const telemetry = parseAgentProfileTelemetry({
+			vehicle_info: { battery_status_pct: 87 },
+		});
+		expect(telemetry.health).toBeUndefined();
+		expect(formatBattery(telemetry)).toBe("87%");
+		expect(formatBattery({})).toBe("n/a");
+	});
+
+	it("names the fault bits, and numbers the ones it has no name for", () => {
+		const health = parseVehicleHealth({
+			level: 3,
+			estop: 2,
+			control_mode: 3,
+			faults: 1 | 128 | (1 << 20),
+			native_error_code: 18,
+		});
+		expect(health?.level).toBe("error");
+		expect(health?.estop).toBe("engaged");
+		expect(health?.controlMode).toBe("remote");
+		expect(health?.faults).toEqual([
+			"battery low",
+			"system",
+			"fault bit 20",
+		]);
+		expect(health?.nativeErrorCode).toBe(18);
+	});
+
+	it("reads out-of-range or garbage enums as unknown (no throw)", () => {
+		expect(parseVehicleHealth({ level: 9, estop: "x" })).toEqual({
+			level: "unknown",
+			estop: "unknown",
+			controlMode: "unknown",
+			faults: [],
+			nativeErrorCode: 0,
+		});
+		expect(parseVehicleHealth(null)).toBeUndefined();
+		expect(parseVehicleHealth(42)).toBeUndefined();
 	});
 });
 

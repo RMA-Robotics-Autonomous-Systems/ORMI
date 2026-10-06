@@ -19,7 +19,7 @@ import { Button } from "@workspace/ui/components/button";
 import { ScrollArea } from "@workspace/ui/components/scroll-area";
 import { ChevronDown, ChevronRight, RefreshCw, Truck } from "lucide-react";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
@@ -31,14 +31,21 @@ import {
 import { agentStateLabel } from "../types/agent-state-labels";
 import { C2Vehicle } from "../types/c2-types";
 import {
+	AgentArrival,
+	AgentPresence,
 	FleetRow,
+	VehicleHealthLevel,
 	autonomyStatusLabel,
 	buildNamespacedTopic,
 	collectTelemetry,
+	formatBattery,
 	mergeFleet,
 	parseAgentProfileTelemetry,
 	parseAutonomyStatus,
+	presenceLabel,
 	readNamespace,
+	resolveAgentPresence,
+	stampArrivals,
 	vehicleAgentId,
 } from "./fleet-helpers";
 import { PanelEmptyState } from "./panel-empty-state";
@@ -85,6 +92,16 @@ interface BufferedSource {
  * event, and the call is a single small GET against the Mongo REST service.
  */
 const ROSTER_POLL_MS = 30_000;
+
+/** How often presence is re-evaluated: arrivals stamped, ages recomputed. */
+const PRESENCE_TICK_MS = 1_000;
+
+/** Dot fill per presence. Grey is "nothing to report", amber is "went quiet". */
+const PRESENCE_DOT_CLASS: Record<AgentPresence, string> = {
+	live: "bg-success",
+	stale: "bg-warning",
+	none: "bg-muted-foreground",
+};
 
 /**
  * Roster fetcher: runs `c2.vehicles.list` once on mount (and when the call
@@ -260,8 +277,8 @@ function useAgentProfilePublisher(
  * Choose which parsed telemetry a row renders: the live `agent_profile` topic
  * stash when it carries anything, else the roster record.
  *
- * "Carries anything" means a battery reading, a fuel reading, or at least one
- * sensor — a profile message that parsed to all-empty is not better than the
+ * "Carries anything" means a battery reading, a fuel reading, the platform's
+ * health, or at least one sensor — a profile message that parsed to all-empty is not better than the
  * roster and must not mask it.
  *
  * Pure and exported so the precedence is testable without a renderer.
@@ -278,6 +295,7 @@ export function pickProfileTelemetry(
 		stash != null &&
 		(stash.batteryPct != null ||
 			stash.fuelPct != null ||
+			stash.health != null ||
 			stash.sensors.length > 0);
 	return stashHasData ? stash : (roster ?? stash);
 }
@@ -292,6 +310,16 @@ function healthBadgeVariant(
 	if (health === "online") return "success";
 	if (health === "offline") return "destructive";
 	return "warning";
+}
+
+/** Badge variant for the platform's own health level (`VehicleHealth.level`). */
+function platformLevelBadgeVariant(
+	level: VehicleHealthLevel,
+): "success" | "warning" | "destructive" | "outline" {
+	if (level === "ok") return "success";
+	if (level === "warn") return "warning";
+	if (level === "error") return "destructive";
+	return "outline";
 }
 
 /** A small labelled key/value line inside the expanded detail. */
@@ -406,11 +434,17 @@ function AgentAutonomyBody({ topic }: { topic: SelectedTopic }) {
  */
 function FleetRowItem({
 	row,
+	presence,
+	feedbackAgeMs,
 	telemetrySource,
 	profileStash,
 	narrow,
 }: {
 	row: FleetRow;
+	/** Whether the agent is reporting now (see {@link resolveAgentPresence}). */
+	presence: AgentPresence;
+	/** Time since the agent's last feedback, when it has been seen. */
+	feedbackAgeMs?: number;
 	/** Narrow container: the collapsed row drops the position readout. */
 	narrow?: boolean;
 	/** The fleet's configured feedback-topic ROS source, used as the autonomy
@@ -422,7 +456,7 @@ function FleetRowItem({
 	const name = useAgentName(row.agent_id);
 	const record = useAgentRecord(row.agent_id);
 	const [open, setOpen] = useState(false);
-	const live = row.telemetry != null;
+	const presenceText = presenceLabel(presence, feedbackAgeMs);
 	const pos = row.telemetry?.position;
 
 	// Battery/fuel/sensors: the `agent_profile` TOPIC stash first (it carries
@@ -468,15 +502,11 @@ function FleetRowItem({
 				    the pointer (title) and for assistive tech (sr-only), which
 				    also puts them into the row button's accessible name. */}
 				<span
-					className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-						live ? "bg-success" : "bg-muted-foreground"
-					}`}
-					title={live ? "live telemetry" : "no live telemetry"}
+					className={`inline-block w-2 h-2 rounded-full shrink-0 ${PRESENCE_DOT_CLASS[presence]}`}
+					title={presenceText}
 					aria-hidden
 				/>
-				<span className="sr-only">
-					{live ? "live telemetry" : "no live telemetry"}
-				</span>
+				<span className="sr-only">{presenceText}</span>
 				<span
 					className="font-medium truncate flex-1 min-w-0"
 					title={row.agent_id}
@@ -542,8 +572,8 @@ function FleetRowItem({
 						<DetailLine
 							label="battery"
 							value={
-								profileTelemetry?.batteryPct != null
-									? `${profileTelemetry.batteryPct}%`
+								profileTelemetry
+									? formatBattery(profileTelemetry)
 									: "n/a"
 							}
 						/>
@@ -563,6 +593,55 @@ function FleetRowItem({
 								/>
 							)}
 					</div>
+
+					{/* Platform health, when the robot's base driver reports it */}
+					{profileTelemetry?.health && (
+						<div className="flex flex-col gap-1">
+							<div className="font-medium">Platform</div>
+							<DetailLine
+								label="health"
+								value={
+									<Badge
+										variant={platformLevelBadgeVariant(
+											profileTelemetry.health.level,
+										)}
+									>
+										{profileTelemetry.health.level}
+									</Badge>
+								}
+							/>
+							<DetailLine
+								label="e-stop"
+								value={profileTelemetry.health.estop}
+							/>
+							<DetailLine
+								label="control"
+								value={profileTelemetry.health.controlMode}
+							/>
+							{profileTelemetry.health.temperatureC != null && (
+								<DetailLine
+									label="temperature"
+									value={`${profileTelemetry.health.temperatureC.toFixed(0)} °C`}
+								/>
+							)}
+							{(profileTelemetry.health.faults.length > 0 ||
+								profileTelemetry.health.nativeErrorCode !==
+									0) && (
+								<DetailLine
+									label="faults"
+									value={[
+										...profileTelemetry.health.faults,
+										...(profileTelemetry.health
+											.nativeErrorCode !== 0
+											? [
+													`code 0x${profileTelemetry.health.nativeErrorCode.toString(16)}`,
+												]
+											: []),
+									].join(", ")}
+								/>
+							)}
+						</div>
+					)}
 
 					{/* Autonomy status + progress (subscribes only while open) */}
 					<div className="flex flex-col gap-1">
@@ -631,6 +710,30 @@ function FleetBody(props: {
 		? getTopicHealth(props.topic)
 		: "offline";
 
+	// Presence is a function of time as well as of data: an agent that goes
+	// quiet delivers nothing to re-render on. One slow tick stamps each agent's
+	// newest feedback on arrival and advances the clock the ages are read
+	// against. The buffer is read through a ref so the interval is set up once.
+	const feedbackRef = useRef(feedbackSource);
+	useEffect(() => {
+		feedbackRef.current = feedbackSource;
+	}, [feedbackSource]);
+	const [clock, setClock] = useState<{
+		now: number;
+		arrivals: Map<string, AgentArrival>;
+	}>(() => ({ now: 0, arrivals: new Map() }));
+	useEffect(() => {
+		const id = setInterval(() => {
+			const now = Date.now();
+			const buffer = feedbackRef.current?.data ?? [];
+			setClock((prev) => ({
+				now,
+				arrivals: stampArrivals(prev.arrivals, buffer, now),
+			}));
+		}, PRESENCE_TICK_MS);
+		return () => clearInterval(id);
+	}, []);
+
 	return (
 		<div
 			ref={rootRef}
@@ -689,15 +792,30 @@ function FleetBody(props: {
 					className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block"
 				>
 					<div className="flex flex-col gap-1 pr-2">
-						{rows.map((row) => (
-							<FleetRowItem
-								key={row.agent_id}
-								row={row}
-								telemetrySource={props.topic?.source}
-								profileStash={profileTelemetry[row.agent_id]}
-								narrow={narrow}
-							/>
-						))}
+						{rows.map((row) => {
+							const seenAt = clock.arrivals.get(row.agent_id)?.at;
+							return (
+								<FleetRowItem
+									key={row.agent_id}
+									row={row}
+									presence={resolveAgentPresence(
+										seenAt,
+										clock.now,
+										telemetryHealth,
+									)}
+									feedbackAgeMs={
+										seenAt != null
+											? clock.now - seenAt
+											: undefined
+									}
+									telemetrySource={props.topic?.source}
+									profileStash={
+										profileTelemetry[row.agent_id]
+									}
+									narrow={narrow}
+								/>
+							);
+						})}
 					</div>
 				</ScrollArea>
 			)}
