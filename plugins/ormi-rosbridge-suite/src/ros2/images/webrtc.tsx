@@ -1,12 +1,16 @@
 import { RosBridgeSuiteDataSourceSettings } from "../../rosbridge-suite-source";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
+import { useDashboardActions } from "@workspace/ormi-core/dashboard";
 import { SelectedTopic } from "@workspace/ormi-core/datasources";
 import {
 	TopicSelectElement,
 	WidgetDefinition,
 } from "@workspace/ormi-core/widgets";
-import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
+import {
+	useButtonHolder,
+	useWidgetScope,
+} from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { Badge } from "@workspace/ui/components/badge";
 import { Spinner } from "@workspace/ui/components/spinner";
@@ -25,6 +29,8 @@ import { CctvIcon, RefreshCw, RotateCcw, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { readRotation, rotateBy } from "./video-rotation";
+
 /** Watchdog interval (ms) used to detect a stalled stream via `currentTime`. */
 const STALL_CHECK_INTERVAL = 1000;
 /** How long `currentTime` may stay frozen before the stream is considered stalled. */
@@ -39,6 +45,12 @@ interface WebrtcRos2VideoStreamProps extends Record<string, unknown> {
 	title: string;
 	topic: SelectedTopic;
 	iceServersUrls?: string[];
+	/**
+	 * Clockwise rotation of the picture in degrees (0, 90, 180 or 270). Written
+	 * by the rotate buttons in the widget toolbar, never by the configuration
+	 * dialog.
+	 */
+	rotation?: number;
 }
 
 /**
@@ -82,7 +94,21 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 
 	const hasTopic = Boolean(topicName && host);
 
-	const [rotation, setRotation] = useState(0);
+	// The rotation is part of the widget's own settings, so it is saved with
+	// the dashboard. The host spreads the stored settings into these props,
+	// which makes `props` the settings object to write back.
+	const boxId = useWidgetScope();
+	const { updateWidget } = useDashboardActions();
+	const rotation = readRotation(props.rotation);
+	const rotate = useCallback(
+		(quarterTurns: number) => {
+			updateWidget(boxId, {
+				...props,
+				rotation: rotateBy(rotation, quarterTurns),
+			});
+		},
+		[updateWidget, boxId, props, rotation],
+	);
 
 	// Raw WebRTC state string (exposed via tooltip for power users).
 	const [rawState, setRawState] = useState("new");
@@ -371,7 +397,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 					<Button
 						variant="ghost"
 						aria-label="Rotate counter-clockwise"
-						onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
+						onClick={() => rotate(-1)}
 					>
 						<RotateCcw />
 					</Button>
@@ -388,7 +414,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 					<Button
 						variant="ghost"
 						aria-label="Rotate clockwise"
-						onClick={() => setRotation((r) => (r + 90) % 360)}
+						onClick={() => rotate(1)}
 					>
 						<RotateCw />
 					</Button>
@@ -420,7 +446,7 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 			removeButtonItem("webrtc-viewer-widget-rotate-ccw");
 			removeButtonItem("webrtc-viewer-widget-reconnect");
 		};
-	}, [setButtonItem, removeButtonItem, reconnect]);
+	}, [setButtonItem, removeButtonItem, reconnect, rotate]);
 
 	// --- Empty state ------------------------------------------------------
 	if (!hasTopic) {
@@ -594,6 +620,11 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 					},
 					default: [],
 				},
+				// Written by the rotate buttons in the widget toolbar;
+				// deliberately absent from the uischema.
+				rotation: {
+					type: "number",
+				},
 			},
 			required: ["title"],
 		},
@@ -601,6 +632,7 @@ export function WebRtcRos2Definition(): WidgetDefinition<WebrtcRos2VideoStreamPr
 		data: {
 			title: "WebRTC viewer",
 			iceServersUrls: [],
+			rotation: 0,
 		},
 		// Stable, module-level component reference. The definition factory is
 		// re-invoked on every dashboard render, so an inline arrow here would
