@@ -25,6 +25,7 @@ import type { KnownDatasourceConfig } from "@workspace/ormi-core/datasources/ide
 import { workspaceApi, type Workspace } from "@/lib/api/workspace-api";
 import type { ApiResult } from "@/lib/http/client";
 import { useParams } from "next/navigation";
+import { WorkspaceAutosave } from "@/components/advanced/misc/workspace-autosave";
 
 /**
  * Read the operator's datasource configurations from their other workspaces.
@@ -49,6 +50,11 @@ export default function Page() {
 		DEFAULT_DASHBOARD_TYPE,
 	);
 	const [loading, setLoading] = useState(true);
+	// The workspace id whose content has been loaded into the dashboard.
+	// Autosave is held until it matches the page's workspace.
+	const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(
+		null,
+	);
 
 	// One workspace fetch per navigation, shared by both consumers below
 	// (the dashboardType effect and the shell's onLoad). The shell's effect
@@ -146,6 +152,7 @@ export default function Page() {
 		}
 
 		setState(toDashboardState(workspace.content));
+		setLoadedWorkspaceId(workspaceId);
 		return true;
 	};
 
@@ -165,6 +172,7 @@ export default function Page() {
 			onLoad={wrappedHandleLoad}
 			onSave={wrappedHandleSave}
 		>
+			<WorkspaceAutosave enabled={loadedWorkspaceId === workspaceId} />
 			<TemplatesProvider
 				onLoad={tl}
 				addTemplate={ts}
