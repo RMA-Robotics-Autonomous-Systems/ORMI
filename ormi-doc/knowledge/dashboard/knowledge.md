@@ -199,6 +199,16 @@ Engines mutate state via `useDashboardActions()`:
 - Primary menus open on left click from a labelled trigger. The grid engine's
   layout presets live in the `Arrange` dropdown; a right-click-only context menu
   hides the choice behind a gesture nobody discovers.
+- The grid presets are `Grid`, `Columns`, `Rows` and `Focus`, computed by the
+  pure `react-grid-layout/grid-arrange.ts` (`arrangeGrid`), which also owns the
+  geometry constants the grid is given as props. The height budget is measured
+  from the grid container (a `ResizeObserver` on the element the app shell
+  bounds to the visible area), never from `window.innerHeight`, and converted
+  to rows with the true pitch plus react-grid-layout's container padding. The
+  breakpoint comes from the container width through react-grid-layout's own
+  `getBreakpointFromWidth`, and only that breakpoint's layout is rewritten.
+  Tiles keep a minimum of 6 rows and 2 columns; a budget that cannot honour it
+  is exceeded and the grid container scrolls vertically.
 - An engine renders an explicit empty state while `widgetsAtom` is empty, naming
   the one next step — add a datasource when `datasourcesAtom` is empty, add a
   widget otherwise. The grid engine implements this; the flex engine does not yet.
