@@ -1,10 +1,12 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useCallback, useRef } from "react";
 
 import { GamepadIcon, KeyboardIcon } from "lucide-react";
+import { cn } from "@workspace/ui/lib/utils";
 import { DigitalInput, getGamepadButtonName } from "./digital-trigger-input";
 import { TRIGGER_CHIP_WIDTH, triggerChipVariants } from "./trigger-chip";
 import { useDigitalTrigger } from "./use-digital-trigger";
+import { usePointerHold } from "./use-pointer-hold";
 
 interface DigitalInputComponentProps {
 	onActive: (value: number) => void;
@@ -16,36 +18,44 @@ interface DigitalInputComponentProps {
 export const DigitalComponent = (props: DigitalInputComponentProps) => {
 	const { onActive, onInactive, digitalInput } = props;
 	const data = digitalInput;
-	const isMouseDownRef = useRef(false); // Ref to track mouse down state
+	// A gamepad poll must not release a press a pointer is holding.
+	const isPointerHeldRef = useRef(false);
 
 	const { isActive, activate, deactivate } = useDigitalTrigger({
 		digitalInput,
 		onActive,
 		onInactive,
-		isGamepadBlocked: () => isMouseDownRef.current,
+		isGamepadBlocked: () => isPointerHeldRef.current,
 	});
 
-	const handMouseDown = () => {
-		isMouseDownRef.current = true; // Set mouse down state
+	const press = useCallback(() => {
+		isPointerHeldRef.current = true;
 		activate(1);
-	};
-
-	const handMouseUp = () => {
-		isMouseDownRef.current = false; // Reset mouse down state
+	}, [activate]);
+	const release = useCallback(() => {
+		isPointerHeldRef.current = false;
 		deactivate(0);
-	};
+	}, [deactivate]);
+	const { holdProps } = usePointerHold({
+		onPress: press,
+		onRelease: release,
+	});
 
 	return (
 		<div className={TRIGGER_CHIP_WIDTH}>
 			{/* Use isActive state for visual feedback */}
 			<span
 				data-active={isActive}
-				className={triggerChipVariants({
-					active: isActive,
-					interactive: true,
-				})}
-				onMouseDown={handMouseDown}
-				onMouseUp={handMouseUp}
+				// `touch-none` keeps a held finger a press: without it the
+				// browser takes the touch for scrolling and cancels the hold.
+				className={cn(
+					triggerChipVariants({
+						active: isActive,
+						interactive: true,
+					}),
+					"touch-none any-pointer-coarse:min-h-11",
+				)}
+				{...holdProps}
 			>
 				{data?.type === "keyboard" ? (
 					<>

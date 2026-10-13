@@ -8,7 +8,14 @@ import React, {
 	useState,
 } from "react";
 
-import { GaugeIcon, Gamepad2Icon, LockIcon, UnlockIcon } from "lucide-react";
+import {
+	GaugeIcon,
+	Gamepad2Icon,
+	LockIcon,
+	MinusIcon,
+	PlusIcon,
+	UnlockIcon,
+} from "lucide-react";
 import { ControlElement, RuleEffect, VerticalLayout } from "@jsonforms/core";
 import {
 	SelectedTopic,
@@ -23,6 +30,7 @@ import { axisControlType, KeyControlType } from "@workspace/ormi-jsonforms";
 import {
 	AnalogComponent,
 	DigitalComponent,
+	usePointerHold,
 } from "@workspace/ui/combined/triggers";
 import type { DigitalInput } from "@workspace/ui/combined/triggers";
 import { toast } from "sonner";
@@ -68,6 +76,13 @@ export interface TeleopControlData extends Record<string, unknown> {
 const SPEED_STEP = 0.1;
 /** Highest speed the speed bindings will step to, in m/s. */
 const MAX_SPEED = 10;
+
+/**
+ * On-screen speed step. Held like the key it mirrors, and deliberately not a
+ * focusable button: a focused one would also answer the unlock key (space).
+ */
+const SPEED_STEP_CLASS =
+	"flex min-w-8 cursor-pointer touch-none items-center justify-center rounded-sm hover:bg-foreground/10 active:bg-foreground/20 any-pointer-coarse:min-w-11";
 
 /** Activate/deactivate handles for both directions of one axis binding. */
 interface AxisSideHandlers {
@@ -116,7 +131,10 @@ const TeleopAxisRow: React.FC<TeleopAxisRowProps> = ({
 	handlers,
 	value,
 }) => {
-	const bar = axisBarGeometry(value);
+	// The bar grows towards the chip that is held. Positive sits on the left
+	// (as ROS has it: positive `linear.y` and `angular.z` are to the left), so
+	// the track is mirrored against the number line `axisBarGeometry` draws.
+	const bar = axisBarGeometry(-value);
 
 	if (binding.kind === "invalid") {
 		return (
@@ -372,6 +390,21 @@ export function TeleopControl(props: TeleopControlData) {
 	const handleUnlockActive = useCallback(() => setUnlockActive(true), []);
 	const handleUnlockInactive = useCallback(() => setUnlockActive(false), []);
 
+	// The on-screen controls follow the same press/release as their bindings,
+	// under a finger as well as a mouse.
+	const { holdProps: unlockHoldProps } = usePointerHold({
+		onPress: handleUnlockActive,
+		onRelease: handleUnlockInactive,
+	});
+	const { holdProps: incSpeedHoldProps } = usePointerHold({
+		onPress: handleIncSpeedActive,
+		onRelease: handleIncSpeedInactive,
+	});
+	const { holdProps: decSpeedHoldProps } = usePointerHold({
+		onPress: handleDecSpeedActive,
+		onRelease: handleDecSpeedInactive,
+	});
+
 	return (
 		<div className="flex h-full flex-col overflow-auto">
 			<div className="flex h-full min-h-0 flex-col items-center justify-start gap-1 p-1 sm:gap-2 sm:p-2 lg:gap-3 lg:p-4">
@@ -400,13 +433,14 @@ export function TeleopControl(props: TeleopControlData) {
 						data-active={!isLocked}
 						className="
                             bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
-                            flex justify-center items-center select-none cursor-pointer
+                            flex justify-center items-center select-none cursor-pointer touch-none
                             hover:bg-foreground/20 transition-all duration-100
                             data-[active=true]:bg-success/20
-                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem] any-pointer-coarse:min-h-11
                         "
-						onMouseUp={handleUnlockInactive}
-						onMouseDown={handleUnlockActive}
+						role="button"
+						aria-label={isLocked ? "Unlock" : "Lock"}
+						{...unlockHoldProps}
 						style={{ padding: "0.25rem 0.5rem", cursor: "pointer" }}
 					>
 						{isLocked ? (
@@ -420,19 +454,34 @@ export function TeleopControl(props: TeleopControlData) {
 						data-active={speedIncActive || speedDecActive}
 						className="
                             bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
-                            flex justify-center items-center select-none cursor-pointer
-                            hover:bg-foreground/20 transition-all duration-100
+                            flex justify-between items-stretch select-none
+                            transition-all duration-100
                             data-[active=true]:bg-success/20
-                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem]
+                            min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem] any-pointer-coarse:min-h-11
                         "
-						style={{ padding: "0.25rem 0.5rem" }}
 					>
-						<span className="flex items-center gap-1">
+						<div
+							role="button"
+							aria-label="Decrease speed"
+							className={SPEED_STEP_CLASS}
+							{...decSpeedHoldProps}
+						>
+							<MinusIcon className="h-4 w-4" />
+						</div>
+						<span className="flex items-center gap-1 px-1">
 							<GaugeIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-							<span className="text-xs sm:text-sm">
+							<span className="text-xs whitespace-nowrap sm:text-sm">
 								{speed.toFixed(1)} m/s
 							</span>
 						</span>
+						<div
+							role="button"
+							aria-label="Increase speed"
+							className={SPEED_STEP_CLASS}
+							{...incSpeedHoldProps}
+						>
+							<PlusIcon className="h-4 w-4" />
+						</div>
 					</div>
 				</div>
 
