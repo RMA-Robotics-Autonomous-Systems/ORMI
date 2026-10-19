@@ -86,6 +86,7 @@ const devSourceAliases = isDev
 		"ormi-emi-bag-analyzer": src("plugins/ormi-emi-bag-analyzer/src/index.ts"),
 		"ormi-flight-indicator": src("plugins/ormi-flight-indicator/src/index.ts"),
 		"ormi-foxglove": src("plugins/ormi-foxglove/src/index.ts"),
+		"ormi-map-servers": src("plugins/ormi-map-servers/src/index.ts"),
 		"ormi-randoms-datasources": src(
 			"plugins/ormi-randoms-datasources/src/index.ts",
 		),
@@ -126,6 +127,7 @@ const nextConfig = {
 		"ormi-emi-bag-analyzer",
 		"ormi-flight-indicator",
 		"ormi-foxglove",
+		"ormi-map-servers",
 		"ormi-randoms-datasources",
 		"ormi-rest-bags",
 		"ormi-rosbridge-suite",

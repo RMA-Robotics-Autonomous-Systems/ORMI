@@ -13,15 +13,11 @@ import { createVectorBasemapStyle } from "@workspace/utils/basemap-style";
 import { GridUtils } from "../gps-components/maps-grid";
 
 /**
- * Custom layer configuration.
+ * Id of the grid layer every built style carries (its opacity follows the
+ * grid toggle). The map widget inserts its raster overlays under it when the
+ * style has no overlay anchor (every raster basemap).
  */
-interface CustomLayer {
-	name: string;
-	url: string;
-	opacity: number;
-	visible: boolean;
-	bounds?: [[number, number], [number, number]];
-}
+export const GRID_LAYER_ID = "grid-layer";
 
 /**
  * Props for useMapStyle.
@@ -32,21 +28,24 @@ interface UseMapStyleProps {
 	basemapApiKey?: string;
 	use3D: boolean;
 	apiKey?: string;
-	customLayers: CustomLayer[];
 	showGrid: boolean;
 }
 
 /**
- * Generates MapLibre style specification with custom layers and grid.
+ * Generates the MapLibre style specification: basemap, grid and 3D buildings.
+ *
+ * Map-server raster layers are NOT part of the style: they are declarative
+ * `<RasterOverlayLayers>` children inserted under {@link GRID_LAYER_ID} (or the
+ * overlay anchor, when the style has one), so switching a layer never
+ * rebuilds the style.
  *
  * Two branches, picked on the persisted `mapUrl`:
  * - a **vector** sentinel selects an ORMI-bundled style, whose anchor layers
- *   place the custom raster layers under the basemap's labels and the grid
- *   directly above them, and whose own `building-3d` layer serves the 3D
- *   toggle — no MapTiler key needed;
+ *   place the grid under the basemap's labels, and whose own `building-3d`
+ *   layer serves the 3D toggle — no MapTiler key needed;
  * - anything else is a **raster** XYZ template and takes the original path.
- *   That style carries no anchors, so `insertLayersAt` appends, reproducing the
- *   pre-anchor layer order exactly: base tiles, custom layers, grid.
+ *   That style carries no anchors, so `insertLayersAt` appends: base tiles,
+ *   grid.
  *
  * @param props - Hook props.
  * @returns MapLibre style specification or undefined.
@@ -56,66 +55,9 @@ export function useMapStyle({
 	basemapApiKey,
 	use3D,
 	apiKey,
-	customLayers,
 	showGrid,
 }: UseMapStyleProps): StyleSpecification | undefined {
 	return useMemo(() => {
-		// Generate custom layer sources and layers
-		const customSources: { [key: string]: any } = {};
-		const customLayersData: any[] = [];
-
-		customLayers.forEach((layer, index) => {
-			if (layer.url && layer.visible) {
-				const sourceId = `custom-layer-${index}`;
-				const layerId = `custom-layer-${index}`;
-
-				// Determine source type based on URL
-				if (layer.url.startsWith("cog://")) {
-					// COG protocol source
-					customSources[sourceId] = {
-						type: "raster",
-						url: layer.url,
-					};
-				} else if (
-					layer.url.includes("{z}") &&
-					layer.url.includes("{x}") &&
-					layer.url.includes("{y}")
-				) {
-					// Standard tile template - fix TiTiler URL format
-					let tileUrl = layer.url;
-					if (
-						layer.url.includes("cog/tiles/") &&
-						!layer.url.includes("WebMercatorQuad")
-					) {
-						tileUrl = layer.url.replace(
-							"cog/tiles/",
-							"cog/tiles/WebMercatorQuad/",
-						);
-						tileUrl = tileUrl.replace(".png", "");
-					}
-					customSources[sourceId] = {
-						type: "raster",
-						tiles: [tileUrl],
-						tileSize: 256,
-					};
-				} else {
-					customSources[sourceId] = {
-						type: "raster",
-						url: layer.url,
-					};
-				}
-
-				customLayersData.push({
-					id: layerId,
-					type: "raster",
-					source: sourceId,
-					paint: {
-						"raster-opacity": layer.opacity || 1,
-					},
-				});
-			}
-		});
-
 		const gridSource = {
 			type: "geojson" as const,
 			data: GridUtils.createGridLines([-180, -85, 180, 85], 1000),
@@ -125,7 +67,7 @@ export function useMapStyle({
 		// layer: on a vector basemap a structural diff across 100+ layers is far
 		// more expensive than a single paint property change.
 		const gridLayer = {
-			id: "grid-layer",
+			id: GRID_LAYER_ID,
 			type: "line",
 			source: "grid",
 			layout: {
@@ -140,27 +82,17 @@ export function useMapStyle({
 		};
 
 		/**
-		 * Slot the operator's raster layers and the grid into a style: custom
-		 * layers under the basemap's labels, grid directly above them. Both
-		 * append when the style has no anchors (every raster basemap).
+		 * Slot the grid into a style at the graticule anchor; appends when the
+		 * style has no anchors (every raster basemap).
 		 */
 		const withOverlays = (
 			style: StyleSpecification,
-		): StyleSpecification => {
-			const withCustom = insertLayersAt(
-				style.layers,
-				ORMI_STYLE_ANCHORS.overlay,
-				customLayersData,
-			);
-			return {
-				...style,
-				layers: insertLayersAt(
-					withCustom,
-					ORMI_STYLE_ANCHORS.graticule,
-					[gridLayer as never],
-				),
-			};
-		};
+		): StyleSpecification => ({
+			...style,
+			layers: insertLayersAt(style.layers, ORMI_STYLE_ANCHORS.graticule, [
+				gridLayer as never,
+			]),
+		});
 
 		// --- Vector basemap: an ORMI-bundled style, fresh copy per call ------
 		const vectorStyleId = isVectorBasemap(mapUrl)
@@ -173,7 +105,6 @@ export function useMapStyle({
 				sources: {
 					...vectorStyle.sources,
 					grid: gridSource,
-					...customSources,
 				},
 				layers: vectorStyle.layers.map((layer) =>
 					layer.id === ORMI_BUILDINGS_3D_LAYER
@@ -214,7 +145,6 @@ export function useMapStyle({
 					}),
 				},
 				grid: gridSource,
-				...customSources,
 			},
 			layers: [
 				{
@@ -282,5 +212,5 @@ export function useMapStyle({
 		}
 
 		return baseStyle;
-	}, [mapUrl, basemapApiKey, use3D, apiKey, customLayers, showGrid]);
+	}, [mapUrl, basemapApiKey, use3D, apiKey, showGrid]);
 }

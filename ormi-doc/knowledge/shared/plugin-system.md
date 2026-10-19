@@ -74,6 +74,7 @@ meeting that card has lost a panel, however gracefully.
 | `DASHBOARD_LAYOUTS_LIST`      | Register dashboard layout engines    | `(e: LayoutEngineDefinition[]) => LayoutEngineDefinition[]`                 |
 | `WIDGET_LIST_WITH_DATASOURCE` | Filter widgets by active datasource  | `(w: WidgetDefinition[], datasourceId: string) => WidgetDefinition[]`       |
 | `TOPIC_ROUTING_CLAIMS`        | Claim a topic type for a widget slot | `(claims: TopicClaim[]) => TopicClaim[]`                                    |
+| `MAP_LAYER_PROVIDERS`         | Register map-server adapters         | `(p: MapLayerProviderDefinition[]) => MapLayerProviderDefinition[]`         |
 
 `TOPIC_ROUTING_CLAIMS` is the whole of what topic-first routing decides from: a
 claim names a topic type (webapp or raw schema name), a widget id, a
@@ -81,6 +82,16 @@ claim names a topic type (webapp or raw schema name), a widget id, a
 `fallback`), and nothing infers a destination from a widget's `accepts` list.
 Register claims from the plugin that ships the widget — it is the only one that
 can keep the widget id honest. See `../widgets/knowledge.md`.
+
+`MAP_LAYER_PROVIDERS` registers map-server **adapters** (one server type each:
+settings schema, declared auth kinds, browser-direct `discover`, pure
+`toSource`); `plugins/ormi-map-servers` ships `geoserver`, `ogc-wms`, `titiler`
+and `xyz`. Core owns the contract (`@workspace/ormi-core/map-layers/model`),
+the per-user server registry and all rendering. The hook is deliberately
+**not** in `DASHBOARD_REGISTRY_FILTER_HOOKS`: the shell does not read it during
+render, and its readers (`useMapLayerProviders`: the `mapLayersSelect` control,
+every map, the settings page) subscribe with `usePluginFiltersRevision`
+themselves. See `../widgets/knowledge.md` (Basemaps > Raster overlays).
 
 ## Datasource runtime hooks
 

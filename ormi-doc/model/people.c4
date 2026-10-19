@@ -34,4 +34,8 @@ model {
   basemapProviders = externalSystem 'Basemap Tile Providers' {
     description 'The six hosted map vendors behind the shared basemap catalogue (packages/utils/src/basemap-providers.ts): Carto, OpenStreetMap (incl. HOT and OpenTopoMap), Stadia Maps, Esri ArcGIS, BKG TopPlus, and OpenFreeMap. Ten catalogue rows are raster XYZ tiles; OpenFreeMap additionally serves the vector tiles, glyphs and sprites behind the three MapLibre styles ORMI bundles. Carto and Stadia require an operator-supplied API key; OpenFreeMap states no SLA, which is why raster stays the default.'
   }
+
+  tileServers = externalSystem 'Map / Tile Servers' {
+    description 'Raster map servers an operator registers in their map-server registry: GeoServer (GWC WMTS or WMS), TiTiler (COG), any OGC WMS, any XYZ template, plus the public overlay hosts of the xyz preset. Reached by the OPERATOR BROWSER directly, for discovery and tiles; never proxied by the ORMI server. Must answer CORS from the ORMI origin, and name Authorization in Access-Control-Allow-Headers when header or basic auth is used.'
+  }
 }

@@ -630,15 +630,66 @@ own control has the same limit.
 Each bundled style carries four no-op anchor layers over an empty GeoJSON source
 (`ormi-anchor`), at documented seams. Bottom to top:
 
-| anchor                  | sits                                             | who inserts there                          |
-| ----------------------- | ------------------------------------------------ | ------------------------------------------ |
-| `ormi-anchor-imagery`   | above the background, below the basemap geometry | full-coverage imagery                      |
-| `ormi-anchor-overlay`   | above all geometry, below the label stack        | COG/TiTiler layers, raster overlays, radar |
-| `ormi-anchor-graticule` | directly above `overlay`                         | the coordinate grid                        |
-| `ormi-anchor-top`       | last layer of the style                          | anything that must clear the labels        |
+| anchor                  | sits                                             | who inserts there                   |
+| ----------------------- | ------------------------------------------------ | ----------------------------------- |
+| `ormi-anchor-imagery`   | above the background, below the basemap geometry | full-coverage imagery               |
+| `ormi-anchor-overlay`   | above all geometry, below the label stack        | map-server raster layers, radar     |
+| `ormi-anchor-graticule` | directly above `overlay`                         | the coordinate grid                 |
+| `ormi-anchor-top`       | last layer of the style                          | anything that must clear the labels |
 
 Helpers live in `packages/utils/src/style-layers.ts` (`ORMI_STYLE_ANCHORS`,
 `insertLayersAt`, `resolveAnchor`) and are barrel-safe.
+
+### Raster overlays: the user's map-server registry
+
+A map widget never owns a raster list. Every GeoServer layer, TiTiler COG, WMS
+layer or XYZ template an operator sees on a map comes from **their own
+map-server registry**: servers registered once on Settings > Map servers, kept
+as per-user `MapServer` rows, and switched on per map from that map's
+configuration dialog. The std map's `customLayers` and C2's `overlays` (the
+`MAP_OVERLAYS` `oneOf`) were removed outright; their four public XYZ overlays
+became the `xyz` adapter's "Public overlays" preset. Contract and rules:
+`apps/web/content/docs/Map-Layers.md`; the rule itself is in `AGENTS.md`.
+
+| piece                            | where                                                       | role                                                                                                |
+| -------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| model, `serverKey`, auth         | `packages/ormi-core/src/map-layers/` → `…/map-layers/model` | pure; the API routes and adapters import only this subpath                                          |
+| `mapServersAtom` + provider      | `…/map-layers`                                              | `unavailable` / `waiting` / `settled` / `failed` on `appStore`, loaded once by `MapServersProvider` |
+| `mapLayersProperty` + renderer   | `…/map-layers`, `renderers/map-layers-select-renderer.tsx`  | `mapLayersSelect` keyword, list read at render from the atom, one group per server                  |
+| `useMapRasterLayers` and friends | `…/map-layers/map` (react-map-gl runtime)                   | resolve refs, scoped `transformRequest`, declarative layers, centre-on-layer overlay                |
+| adapters                         | `plugins/ormi-map-servers` on `MAP_LAYER_PROVIDERS`         | `geoserver`, `ogc-wms`, `titiler`, `xyz`                                                            |
+
+What a map stores is `mapLayers: MapLayerRef[]` (`{ serverKey, layerId,
+enabled, opacity }`), `[]` in `data` and never required. Every ref resolves to
+exactly one state (`ok`, `missing-server`, `missing-layer`,
+`adapter-unavailable`, `not-web-mercator`); only enabled `ok` refs draw, and
+the dialog names the rest in the unsupported vocabulary until the operator
+removes them. Draw order is the registry's (server position, then catalogue
+position), never click order.
+
+How each map wires it:
+
+| map            | `beforeId`                                                             | centre-on-layer                                                                  |
+| -------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| std map        | `resolveAnchor(style, overlay) ?? resolveAnchor(style, GRID_LAYER_ID)` | `MapLayersOverlay` in its control panel                                          |
+| C2 mission map | `resolveAnchor(style, overlay) ?? "c2-features-fill"`                  | a section of its in-map panel, above the live layers (RainViewer, planner graph) |
+
+The layers are `<Source>`/`<Layer>` children chained under `beforeId`, never
+part of the style object: switching one does not rebuild the style, which on
+the C2 map is what keeps terra-draw's `td-*` layers alive (see the next
+section for why a style rebuild deletes them). Each source carries the layer's
+`bounds`, which matters here more than anywhere: the aidedex layers are 100 to
+200 m wide, so without bounds MapLibre requests world-wide tiles, and without
+the centre button an operator cannot find them below about z15. `maxzoom` is
+clamped to `MAP_MAX_ZOOM` on the source and never set on the layer.
+
+Header and basic auth ride the hook's `transformRequest`, which is
+identity-stable (react-map-gl hands it to MapLibre once, at construction) and
+reads its per-server rules at call time; it attaches headers only to URLs
+under a registered server's `origin + pathname`, so a credential never reaches
+the basemap vendor. Tile errors are counted per source: three in a row mark a
+layer "Not responding" on its dialog row for the session; the map draws
+nothing extra.
 
 ### 3D buildings: the basemap answers it when it can
 

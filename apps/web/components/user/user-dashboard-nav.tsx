@@ -12,6 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu";
 import { UserAvatar } from "@/components/user/user-avatar";
+import { MAP_SERVERS_SETTINGS_HREF } from "@/lib/map-servers/map-server-settings";
 
 interface UserAccountNavProps extends React.HTMLAttributes<HTMLDivElement> {
 	user: Pick<User, "name" | "image" | "email">;
@@ -46,9 +47,9 @@ export function UserAccountNav({ user }: UserAccountNavProps) {
 				<DropdownMenuItem asChild>
 					<Link href="/">Home</Link>
 				</DropdownMenuItem>
-				{/*         <DropdownMenuItem asChild>
-          <Link href="/dashboard/settings">Settings</Link>
-        </DropdownMenuItem> */}
+				<DropdownMenuItem asChild>
+					<Link href={MAP_SERVERS_SETTINGS_HREF}>Settings</Link>
+				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="cursor-pointer"

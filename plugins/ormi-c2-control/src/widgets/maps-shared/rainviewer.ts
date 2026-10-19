@@ -2,7 +2,7 @@
  * RainViewer live weather-radar overlay helpers for the C2 mission map.
  *
  * RainViewer is the one weather-tile provider that needs **no API key and no
- * registration**. Unlike the static `MAP_OVERLAYS` entries it is a two-step,
+ * registration**. Unlike a map-server raster layer it is a two-step,
  * time-stamped source: fetch the frame index, then build a tile template per
  * frame. Animating across the frames (past → nowcast) and re-fetching the index
  * every ~10 min is what makes the layer "live".
@@ -13,7 +13,7 @@
  * let MapLibre overzoom above it, or the layer blanks at the map's z14.
  */
 
-/** Overlay id used in the config `overlays` list and the Layers toggle panel. */
+/** Overlay id used by the Live layers toggle. */
 export const RAINVIEWER_OVERLAY_ID = "rainviewer-radar";
 
 /** Public, key-free frame index endpoint. */

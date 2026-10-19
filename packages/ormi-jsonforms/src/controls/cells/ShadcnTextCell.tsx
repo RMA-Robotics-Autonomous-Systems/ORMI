@@ -33,19 +33,23 @@ import {
 } from "@jsonforms/core";
 import { withJsonFormsCellProps } from "@jsonforms/react";
 import { Input } from "@workspace/ui/components/input";
+import { isSecretSchema, SecretInput } from "../secret-input";
 
 export const ShadcnTextCell = (props: CellProps & WithClassname) => {
-	const { data, className, id, enabled, handleChange, path } = props;
+	const { data, className, id, enabled, handleChange, path, schema } = props;
+	const shared = {
+		value: data || "",
+		onChange: (ev: React.ChangeEvent<HTMLInputElement>) =>
+			handleChange(path, ev.target.value),
+		className,
+		id,
+		disabled: !enabled,
+	};
 
-	return (
-		<Input
-			type="text"
-			value={data || ""}
-			onChange={(ev) => handleChange(path, ev.target.value)}
-			className={className}
-			id={id}
-			disabled={!enabled}
-		/>
+	return isSecretSchema(schema) ? (
+		<SecretInput {...shared} />
+	) : (
+		<Input type="text" {...shared} />
 	);
 };
 

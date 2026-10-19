@@ -249,7 +249,6 @@ import {
 	ORMI_BUILDINGS_3D_LAYER,
 	basemapOneOf,
 	isVectorBasemap,
-	resolveAnchor,
 	setLayerVisibility,
 } from "@workspace/utils";
 import { MapChrome } from "@workspace/utils/map-chrome";
@@ -263,9 +262,29 @@ import {
 import { FINDING_RAW_TYPE } from "./findings";
 import { MissionContactPopup } from "./contact-popup";
 import { MissionContactsWatch } from "./mission-contacts-watch";
-import { MAP_OVERLAYS, resolveOverlays } from "./maps-shared/overlay-layers";
 import { RAINVIEWER_OVERLAY_ID } from "./maps-shared/rainviewer";
-import { RainviewerOverlay } from "./rainviewer-overlay";
+import { mapLayersProperty } from "@workspace/ormi-core/map-layers";
+import {
+	handleMapError,
+	MapLayersOverlay,
+	RasterOverlayLayers,
+	useMapRasterLayers,
+	type RasterOverlayLayer,
+} from "@workspace/ormi-core/map-layers/map";
+import { RAINVIEWER_ANCHOR_ID, RainviewerOverlay } from "./rainviewer-overlay";
+
+/**
+ * Where the raster overlays (map-server layers, radar) slot in: under the
+ * basemap's labels on a vector style, under the C2 feature fill otherwise.
+ * Bare ids on purpose: `RasterOverlayLayers` and `RainviewerOverlay` resolve
+ * them against the live map's layer order before every move, so a raster
+ * basemap (no anchors) or a basemap swap in flight never names a layer the
+ * map does not contain.
+ */
+const OVERLAY_BEFORE_IDS = [
+	ORMI_STYLE_ANCHORS.overlay,
+	"c2-features-fill",
+] as const;
 
 /**
  * Mission map widget on the first-class maps API.
@@ -368,8 +387,8 @@ interface MissionMapProps extends Record<string, unknown> {
 	defaultMap?: string;
 	/** Pin to a specific C2 datasource id; empty → first available. */
 	datasource_id?: string;
-	/** Overlay layer ids enabled by default (see `MAP_OVERLAYS`). */
-	overlays?: string[];
+	/** Raster layers from the user's map servers (`MapLayerRef[]`). */
+	mapLayers?: unknown;
 	/** `/multi_robot/mission_feedback` topic for the waypoint overlay. */
 	feedbackTopic?: SelectedTopic;
 	/**
@@ -1413,44 +1432,6 @@ function WaypointInteractions(props: {
 	return null;
 }
 
-// ---------------------------------------------------------------------------
-// Open-source overlay layers — raster tiles above the base, below features
-// ---------------------------------------------------------------------------
-
-/**
- * Render the active open-source overlays as raster layers.
- *
- * `beforeId` pins them under the C2 feature fill (so they sit above the base map
- * but below the feature / draw / live layers); that id is always present because
- * `FeatureLayers` renders unconditionally. On a vector basemap the caller passes
- * the style's resolved overlay anchor instead, which additionally keeps the
- * overlays under the basemap's own label stack.
- *
- * @param props.beforeId - MapLibre layer id to insert the overlays before.
- */
-function OverlayLayers(props: { active: string[]; beforeId: string }) {
-	return (
-		<>
-			{resolveOverlays(props.active).map((overlay) => (
-				<Source
-					key={overlay.id}
-					id={`c2-overlay-${overlay.id}`}
-					type="raster"
-					tiles={overlay.tiles}
-					tileSize={256}
-				>
-					<Layer
-						id={`c2-overlay-${overlay.id}-layer`}
-						type="raster"
-						beforeId={props.beforeId}
-						paint={{ "raster-opacity": 1 }}
-					/>
-				</Source>
-			))}
-		</>
-	);
-}
-
 /**
  * Extrude OSM building footprints as a MapLibre `fill-extrusion` 3D layer.
  * `fill-extrusion-height` reads the numeric `height` (metres) baked onto each
@@ -1513,7 +1494,7 @@ function PlannerGraphLayer(props: { data: GeoJsonFeatureCollection }) {
 	);
 }
 
-/** One labelled checkbox row in the overlay panel. */
+/** One labelled checkbox row in the live-layers panel. */
 function OverlayToggle(props: {
 	id: string;
 	checked: boolean;
@@ -1538,10 +1519,17 @@ function OverlayToggle(props: {
 	);
 }
 
-/** In-map checklist to toggle overlays live (session-only; config seeds it). */
-function OverlayPanel(props: {
-	active: string[];
-	onToggle: (id: string) => void;
+/**
+ * In-map panel: the map-server layers this map draws (centre only; they are
+ * switched in the configuration dialog), then the session-only live layers
+ * (radar, 3D buildings, planner graph), which are views of live state rather
+ * than catalogue rasters.
+ */
+function LiveLayersPanel(props: {
+	mapLayers: readonly RasterOverlayLayer[];
+	mapRef: React.RefObject<MapRef | null>;
+	rainviewer: boolean;
+	onToggleRainviewer: () => void;
 	onClose: () => void;
 	buildings3d: boolean;
 	/** True when the basemap answers 3D itself (vector), which has a zoom floor. */
@@ -1552,43 +1540,40 @@ function OverlayPanel(props: {
 }) {
 	return (
 		<div className="absolute top-2 right-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-56 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto">
-			<div className="flex items-center gap-2 min-w-0">
-				<div className="text-xs font-medium truncate">
-					Overlay layers
+			<div className="flex items-start gap-2 min-w-0">
+				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					{/* Map-server layers, centre only. Renders nothing while
+					    no map-server layer is drawn. */}
+					<MapLayersOverlay
+						layers={props.mapLayers}
+						mapRef={props.mapRef}
+						title="Map layers"
+					/>
+					<span className="text-muted-foreground px-1 text-xs font-medium uppercase">
+						Live layers
+					</span>
 				</div>
-				<div className="ml-auto flex shrink-0 items-center gap-1">
-					<Button
-						size="icon-sm"
-						variant="ghost"
-						aria-label="Close overlay layers"
-						onClick={props.onClose}
-					>
-						<X />
-					</Button>
-				</div>
-			</div>
-			{MAP_OVERLAYS.map((overlay) => (
-				<OverlayToggle
-					key={overlay.id}
-					id={overlay.id}
-					checked={props.active.includes(overlay.id)}
-					onToggle={() => props.onToggle(overlay.id)}
+				<Button
+					size="icon-sm"
+					variant="ghost"
+					className="shrink-0"
+					aria-label="Close layers"
+					onClick={props.onClose}
 				>
-					{overlay.title}
-				</OverlayToggle>
-			))}
-			{/* Dynamic (time-stamped, animated) overlay — not in MAP_OVERLAYS. */}
+					<X />
+				</Button>
+			</div>
+			{/* Dynamic (time-stamped, animated): not a catalogue raster. */}
 			<OverlayToggle
 				id={RAINVIEWER_OVERLAY_ID}
-				checked={props.active.includes(RAINVIEWER_OVERLAY_ID)}
-				onToggle={() => props.onToggle(RAINVIEWER_OVERLAY_ID)}
+				checked={props.rainviewer}
+				onToggle={props.onToggleRainviewer}
 			>
-				RainViewer radar (live)
+				RainViewer radar
 			</OverlayToggle>
 			{/* 3D buildings — the basemap's own extrusion layer on a vector
 			    basemap, an Overpass fill-extrusion source on a raster one.
-			    Either way not a raster overlay, so it has its own toggle rather
-			    than an entry in MAP_OVERLAYS.
+			    Either way not a raster overlay, so it has its own toggle.
 
 			    The zoom floor is named when it applies: the bundled styles
 			    carry `building-3d` from z14, so below that an operator would
@@ -2107,7 +2092,7 @@ function MissionMapBody(props: {
 	feedbackTopic?: SelectedTopic;
 	agentTopic?: SelectedTopic;
 	observationTopic?: SelectedTopic;
-	overlays?: string[];
+	mapLayers?: unknown;
 }) {
 	// All calls are routed through one fallback definition so the hook order stays
 	// stable when an individual call is unavailable (we guard at call sites).
@@ -2200,14 +2185,11 @@ function MissionMapBody(props: {
 	// imperatively added source and layer, terra-draw's authoring layers
 	// included. The 3D flip is applied to the live map below instead.
 	const mapStyle = useMapStyle(props.mapUrl, props.basemapApiKey);
-	// Where the raster overlays (open-source tiles, radar) slot into the style.
-	// `resolveAnchor` returns undefined for a raster basemap — it carries no
-	// anchors — and MapLibre THROWS on a `beforeId` naming a layer the style does
-	// not contain, so the C2 feature fill stays the fallback. Never pass a bare
-	// anchor constant.
-	const overlayBeforeId =
-		resolveAnchor(mapStyle, ORMI_STYLE_ANCHORS.overlay) ??
-		"c2-features-fill";
+	// Raster layers from the user's map servers. Rendered as declarative
+	// children at `OVERLAY_BEFORE_IDS`; the style object above never sees them.
+	const raster = useMapRasterLayers(props.mapLayers, {
+		maxZoom: MAP_MAX_ZOOM,
+	});
 
 	// Show or hide the basemap's own 3D building layer, in place.
 	//
@@ -2399,9 +2381,9 @@ function MissionMapBody(props: {
 	const [plannerStatus, setPlannerStatus] = useState<PlannerStatus | null>(
 		null,
 	);
-	const [activeOverlays, setActiveOverlays] = useState<string[]>(
-		() => props.overlays ?? [],
-	);
+	// RainViewer radar: session-only, off on open.
+	const [rainviewer, setRainviewer] = useState(false);
+	const activeLayerCount = raster.layers.length + (rainviewer ? 1 : 0);
 	const [overlaysOpen, setOverlaysOpen] = useState(false);
 	// Planner navigation graph (faint backdrop). The FeatureCollection is fetched
 	// from the C2 on toggle-on and refreshed when the planner's loaded_map changes
@@ -2421,11 +2403,8 @@ function MissionMapBody(props: {
 		drawCtxRef.current = { mapFeatureType, selectedMap, missionScope };
 	}, [mapFeatureType, selectedMap, missionScope]);
 
-	// Toggle a single overlay on/off (session-only; config seeds the initial set).
-	const toggleOverlay = useCallback((id: string) => {
-		setActiveOverlays((prev) =>
-			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-		);
+	const toggleRainviewer = useCallback(() => {
+		setRainviewer((on) => !on);
 	}, []);
 
 	// Toggle the 3D-buildings layer. Turning it off drops any cached footprints so
@@ -4451,9 +4430,9 @@ function MissionMapBody(props: {
 				>
 					<Layers />
 					Layers
-					{activeOverlays.length > 0 && (
+					{activeLayerCount > 0 && (
 						<Badge variant="secondary" className="px-1">
-							{activeOverlays.length}
+							{activeLayerCount}
 						</Badge>
 					)}
 				</Button>
@@ -4641,9 +4620,11 @@ function MissionMapBody(props: {
 					/>
 				)}
 				{overlaysOpen && (
-					<OverlayPanel
-						active={activeOverlays}
-						onToggle={toggleOverlay}
+					<LiveLayersPanel
+						mapLayers={raster.layers}
+						mapRef={mapRef}
+						rainviewer={rainviewer}
+						onToggleRainviewer={toggleRainviewer}
 						onClose={() => setOverlaysOpen(false)}
 						buildings3d={buildings3d}
 						buildingsFromBasemap={basemapCarriesBuildings}
@@ -4667,6 +4648,8 @@ function MissionMapBody(props: {
 						zoom: 14,
 					}}
 					maxZoom={MAP_MAX_ZOOM}
+					transformRequest={raster.transformRequest}
+					onError={handleMapError}
 					onLoad={handleMapLoad}
 					onClick={handleMapClick}
 					style={{ width: "100%", height: "100%" }}
@@ -4679,22 +4662,34 @@ function MissionMapBody(props: {
 					    top corners and MapLibre's attribution owns the bottom
 					    edge. */}
 					<MapChrome />
-					<OverlayLayers
-						active={activeOverlays}
-						beforeId={overlayBeforeId}
-					/>
-					{activeOverlays.includes(RAINVIEWER_OVERLAY_ID) && (
-						<RainviewerOverlay beforeId={overlayBeforeId} />
-					)}
-					{/* Planner navigation graph — faint backdrop UNDER the
-					    operator's features (beforeId), drawn before them. */}
-					{plannerGraph && plannerGraphFc && (
-						<PlannerGraphLayer data={plannerGraphFc} />
-					)}
 					{/* Both feature layers always render, in distinct styles. */}
 					<LibraryLayers features={libraryFeatures} />
 					<FeatureLayers features={shownFeatures} />
 					<MissionFeatureLayers geometries={missionGeometryFc} />
+					{/* Everything below stacks under "c2-features-fill"
+					    (directly, or as the live-resolved fallback), so it
+					    mounts after FeatureLayers, which adds it: a direct
+					    `beforeId` the map does not contain yet throws. */}
+					{/* Planner navigation graph: faint backdrop UNDER the
+					    operator's features (beforeId). */}
+					{plannerGraph && plannerGraphFc && (
+						<PlannerGraphLayer data={plannerGraphFc} />
+					)}
+					{/* Radar above the map-server stack: the stack sits under
+					    the radar's own anchor while it is on. */}
+					{rainviewer && (
+						<RainviewerOverlay beforeIds={OVERLAY_BEFORE_IDS} />
+					)}
+					{/* Declarative children: a layer change never touches the
+					    style object, so terra-draw's layers survive. */}
+					<RasterOverlayLayers
+						layers={raster.layers}
+						beforeIds={
+							rainviewer
+								? [RAINVIEWER_ANCHOR_ID, ...OVERLAY_BEFORE_IDS]
+								: OVERLAY_BEFORE_IDS
+						}
+					/>
 					{/* The raster fallback only: on a vector basemap the
 					    buildings are a layer of the style itself. Drawn only
 					    while the collection still matches the geofence it was
@@ -4895,7 +4890,7 @@ const MissionMapWidget: React.FC<MissionMapProps> = (props) => {
 			feedbackTopic={props.feedbackTopic}
 			agentTopic={props.agentTopic}
 			observationTopic={props.observationTopic}
-			overlays={props.overlays}
+			mapLayers={props.mapLayers}
 		/>
 	);
 };
@@ -4937,24 +4932,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 					title: "Default map",
 				},
 				datasource_id: c2DatasourceProperty(),
-				overlays: {
-					type: "array",
-					title: "Default overlay layers",
-					uniqueItems: true,
-					items: {
-						type: "string",
-						oneOf: [
-							...MAP_OVERLAYS.map((o) => ({
-								const: o.id,
-								title: o.title,
-							})),
-							{
-								const: RAINVIEWER_OVERLAY_ID,
-								title: "RainViewer radar (live)",
-							},
-						],
-					},
-				},
+				mapLayers: mapLayersProperty({ title: "Map layers" }),
 				feedbackTopic: {
 					type: "object",
 					title: "Mission feedback topic",
@@ -5003,7 +4981,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				} as ControlElement,
 				{
 					type: "Control",
-					scope: "#/properties/overlays",
+					scope: "#/properties/mapLayers",
 				} as ControlElement,
 				{
 					type: "TopicSelect",
@@ -5048,7 +5026,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 		data: {
 			title: "Mission Map",
 			mapUrl: DEFAULT_MAP_URL,
-			overlays: [],
+			mapLayers: [],
 		},
 		Component: MissionMapWidget,
 	} as WidgetDefinition<MissionMapProps>;

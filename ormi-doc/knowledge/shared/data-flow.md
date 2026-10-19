@@ -142,3 +142,38 @@ credentials. And the definition filter can only live at the last step — the
 server has no `DATASOURCES_LIST`, since the datasource registry is a
 client-side plugin registry whose dev-only entries are removed at registry
 generation.
+
+## Map-layer flow: browser → external tile servers
+
+Raster overlays leave the robot data path entirely. Nothing goes through a
+datasource, a worker or the PluginsManager's pub/sub, and nothing goes through
+the ORMI server except the stored records.
+
+```
+Settings > Map servers (browser)
+  → adapter.discover(settings, ctx)        // ctx.fetch applies auth; browser → server, direct
+      ↳ blocked-insecure pre-check (http: non-loopback from an https: page)
+      ↳ unreachable | cors | unauthorized | not-a-server, in words
+  → mapServerApi.create / update / putCatalog
+  → /api/map-servers (withAuth, Zod envelope, apiResponse)
+  → prisma-map-servers (where: { id, userId })  → MapServer row (settings + catalogue snapshot)
+
+App load (browser)
+  → MapServersProvider.onLoad → mapServerApi.list() → GET /api/map-servers (owner's own read)
+  → mapServersAtom on appStore              // unavailable | waiting | settled | failed
+      ↳ mapLayersSelect renderer (config dialog, read at render) → widget settings.mapLayers
+      ↳ useMapRasterLayers(settings.mapLayers)
+          → resolveLayerRefs (registry order, query auth appended, bounds, clamped maxzoom)
+          → <RasterOverlayLayers> children at resolveAnchor(overlay) ?? fallback
+          → transformRequest (headers scoped by isUnderServerPrefix)
+  → MapLibre → tile server, direct            // tiles, never proxied
+  → tile errors → mapLayerHealthAtom ("Not responding" after 3 in a row, session only)
+```
+
+Three properties of this edge are load-bearing. **Vantage**: the browser
+resolves the URL, so `localhost` is the operator's machine. **No SSRF**: the
+server never dereferences what it stores. **No capabilities fetch per map
+open**: maps draw from the stored snapshot, so a server that is down still
+lists its layers, and a refresh that no longer contains one is what turns a ref
+into `missing-layer`. The cost is the browser's rules: mixed content and CORS
+(header or basic auth needs `Access-Control-Allow-Headers` naming the header).

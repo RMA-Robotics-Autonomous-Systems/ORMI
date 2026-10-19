@@ -66,6 +66,22 @@ model {
       description 'Aggregates callable datasource services (AVAILABLE_REMOTE_CALLS / REMOTE_CALL_DEFINITION) into appStore via setRemoteCalls; widgets invoke them through useRemoteCall.'
     }
 
+    // ---- Map layers (map-server registry) -----------------------------------
+
+    mapLayers = component 'Map Layers' {
+      #core
+      #store
+      technology 'packages/ormi-core/src/map-layers · subpaths map-layers/model (server-safe), map-layers, map-layers/map (react-map-gl runtime)'
+      description 'The user map-server registry and everything a map needs to draw it. A registered server is a per-user record, not a datasource: no topics, no READY, no subscriptions. MapServersProvider loads the records once into mapServersAtom on appStore (unavailable | waiting | settled | failed). A map widget stores mapLayers: MapLayerRef[] ({ serverKey, layerId, enabled, opacity }) declared with mapLayersProperty and picked in its config dialog by the mapLayersSelect renderer, which reads the atom at render (never a oneOf). useMapRasterLayers resolves every ref to exactly one state (ok, missing-server, missing-layer, adapter-unavailable, not-web-mercator; never dropped), appends query auth, sets bounds, clamps maxzoom, and returns an identity-stable transformRequest that adds header auth only under a registered server prefix. RasterOverlayLayers draws declarative Source/Layer children at resolveAnchor(overlay) ?? fallback, never touching the style object, so C2 terra-draw survives. MapLayersOverlay offers centre-on-layer. Adapters come from MAP_LAYER_PROVIDERS.'
+
+      link ../knowledge/widgets/knowledge.md 'Raster overlays'
+    }
+
+    mapServerSettings = component 'Settings > Map servers' {
+      technology 'apps/web settings page · mapServerApi'
+      description 'Where an operator registers, tests, refreshes and removes their map servers. Runs the adapter discover() in the browser, straight against the server (mixed-content pre-check, CORS and auth failures reported in words), and stores the record plus a catalogue snapshot through /api/map-servers; maps render from the snapshot and never fetch capabilities on open.'
+    }
+
     // ---- Forms & templates --------------------------------------------------
 
     renderers = component 'JSON Forms Renderers' {
@@ -88,6 +104,11 @@ model {
     apiRoutes = component 'API Route Handlers' {
       technology 'apps/web/app/api — Next.js route handlers'
       description 'REST endpoints for workspaces, dashboards, categories, templates, users, devlogs, and the read-only GET /api/datasources/known (the datasource configurations owned by the session user across their workspaces — session-scoped, never a user id from the request). Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
+    }
+
+    mapServersApi = component 'Map Servers API' {
+      technology 'apps/web/app/api/map-servers · lib/validations/map-server.ts · lib/data/prisma-map-servers.ts'
+      description 'GET/POST /api/map-servers, PUT/DELETE /api/map-servers/:id, PUT /api/map-servers/:id/catalog. withAuth + Zod envelope + apiResponse. The owner is always the session user (another user id is a 404); secrets are returned only on the owner own read, never logged, and kept on an edit that omits them. serverKey is computed here; a URL with userinfo is refused. Stores records and catalogue snapshots and never fetches a registered URL (no SSRF surface).'
     }
 
     httpClient = component 'HTTP Client + API Wrappers' {

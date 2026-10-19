@@ -92,8 +92,11 @@ import ShadcnColorControl, {
 	shadcnColorControlTester,
 } from "./controls/simples/ShadcnColorControl";
 import axisSelectorControl, { axisSelectorTester } from "./controls/key/axis";
-import {
-	ShadcnOneOfLayoutRenderer,
+// The registered renderer is the default export, wrapped in
+// `withJsonFormsOneOfProps`: the bare component receives the dispatch's
+// props, whose `schema` is the parent's and carries no `oneOf`, so every
+// oneOf property rendered as "No options available".
+import ShadcnOneOfLayout, {
 	shadcnOneOfTester,
 } from "./layouts/ShadcnOneOfLayout";
 
@@ -161,7 +164,7 @@ export const shadcnRenderer: JsonFormsRendererRegistryEntry[] = [
 	},
 	{
 		tester: shadcnOneOfTester,
-		renderer: ShadcnOneOfLayoutRenderer,
+		renderer: ShadcnOneOfLayout,
 	},
 ];
 

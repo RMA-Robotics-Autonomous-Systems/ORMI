@@ -23,7 +23,8 @@ import {
 } from "@workspace/ui/components/tooltip";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { createAvatarDataUri } from "@workspace/utils";
-import { CustomLayer, LayersSection } from "./layers-overlay";
+import type { RasterOverlayLayer } from "@workspace/ormi-core/map-layers/map";
+import { MapLayersOverlay } from "@workspace/ormi-core/map-layers/map";
 import { isFollowableMarker } from "./follow-camera";
 
 /** A GPS topic entry rendered as a row in the control panel. */
@@ -45,7 +46,9 @@ interface TopicEntry {
  *
  * Replaces the previous two independent hover-expand overlays with a single
  * panel that holds a "Topics" section (GPS markers, requires the surrounding
- * `LocalDataSourcesProvider`) and a "Layers" section (custom raster layers).
+ * `LocalDataSourcesProvider`) and a "Layers" section (the map-server raster
+ * layers the map draws, each with a centre-on-layer button; selection lives in
+ * the configuration dialog).
  * Each section only renders when it has items; when both are empty the panel
  * renders nothing.
  *
@@ -60,28 +63,25 @@ interface TopicEntry {
  */
 export function MapControlPanel({
 	topics,
-	customLayers,
+	mapLayers,
 	mapRef,
 	followedId,
 	onToggleFollow,
-	onLayerVisibilityChange,
-	onLayerOpacityChange,
 }: {
 	topics: TopicEntry[];
-	customLayers: CustomLayer[];
+	/** The raster layers the map draws: `useMapRasterLayers().layers`. */
+	mapLayers: readonly RasterOverlayLayer[];
 	mapRef?: React.RefObject<MapRef | null>;
 	/** The `instanceId` of the entry the camera follows, or null. */
 	followedId: string | null;
 	/** Starts following an entry, switches to it, or stops when it is followed. */
 	onToggleFollow: (instanceId: string) => void;
-	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
-	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
 }) {
 	const [open, setOpen] = useState(false);
 
 	const hasTopics = topics.length > 0;
-	const hasLayers = customLayers.length > 0;
-	const itemCount = topics.length + customLayers.length;
+	const hasLayers = mapLayers.length > 0;
+	const itemCount = topics.length + mapLayers.length;
 
 	if (!hasTopics && !hasLayers) {
 		return null;
@@ -125,15 +125,9 @@ export function MapControlPanel({
 								{hasTopics && hasLayers && <Separator />}
 
 								{hasLayers && (
-									<LayersSection
-										customLayers={customLayers}
+									<MapLayersOverlay
+										layers={mapLayers}
 										mapRef={mapRef}
-										onLayerVisibilityChange={
-											onLayerVisibilityChange
-										}
-										onLayerOpacityChange={
-											onLayerOpacityChange
-										}
 									/>
 								)}
 							</div>

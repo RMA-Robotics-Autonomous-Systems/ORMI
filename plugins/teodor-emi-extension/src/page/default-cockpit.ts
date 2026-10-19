@@ -133,7 +133,7 @@ const PANELS: Panel[] = [
 			// `mapUrl` is an undefined tile template, not a fallback.
 			mapUrl: CARTO_VOYAGER,
 			use3D: false,
-			customLayers: [],
+			mapLayers: [],
 			localTopics: { pathTopics: [], imuTopics: [] },
 			// All four, on by default. Detections without their targets is half
 			// the answer; the ghosts are what make the map a check on the

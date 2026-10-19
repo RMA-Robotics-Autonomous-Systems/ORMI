@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useId, useMemo, useRef, useState } from "react";
 import MapLibreMap, { MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ControlElement, Categorization } from "@jsonforms/core";
@@ -15,11 +15,21 @@ import {
 	TopicSelectElement,
 	WidgetDefinition,
 } from "@workspace/ormi-core/widgets";
+import {
+	mapLayersProperty,
+	type MapLayerRef,
+} from "@workspace/ormi-core/map-layers";
+import {
+	handleMapError,
+	RasterOverlayLayers,
+	useMapRasterLayers,
+} from "@workspace/ormi-core/map-layers/map";
 import { PluginsManager } from "@workspace/ormi-plugins";
 import {
 	BASEMAPS_REQUIRING_KEY,
 	DEFAULT_BASEMAP_URL,
 	MAP_MAX_ZOOM,
+	ORMI_STYLE_ANCHORS,
 	VECTOR_BASEMAPS,
 	basemapOneOf,
 } from "@workspace/utils";
@@ -28,7 +38,7 @@ import { Spinner } from "@workspace/ui/components/spinner";
 import { WidgetScopeProvider } from "@workspace/ui/combined/ButtonHolder";
 
 // Import new sub-components and hooks
-import { useMapStyle } from "./hooks/useMapStyle";
+import { GRID_LAYER_ID, useMapStyle } from "./hooks/useMapStyle";
 import { useMapInitialization } from "./hooks/useMapInitialization";
 import { MapToolbar } from "./components/MapToolbar";
 import { GpsTopicsLayer } from "./components/GpsTopicsLayer";
@@ -64,13 +74,8 @@ interface MapsViewerSettings extends Record<string, unknown> {
 		imuTopics: IMULocalTopic[];
 	};
 
-	customLayers: {
-		name: string;
-		url: string;
-		opacity: number;
-		visible: boolean;
-		bounds?: [[number, number], [number, number]];
-	}[];
+	/** Map-server raster layers, chosen in the configuration dialog. */
+	mapLayers?: MapLayerRef[];
 }
 
 /**
@@ -82,9 +87,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 	// State management
 	const [refreshCounter, setRefreshCounter] = useState(0);
 	const [showGrid, setShowGrid] = useState(false);
-	const [customLayersState, setCustomLayersState] = useState(
-		props.customLayers,
-	);
 
 	// Refs
 	const mapRef = useRef<MapRef>(null);
@@ -105,8 +107,17 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 		basemapApiKey: props.basemapApiKey,
 		use3D: props.use3D,
 		apiKey: props.apiKey,
-		customLayers: customLayersState,
 		showGrid,
+	});
+
+	// Map-server raster layers: declarative children, never part of the
+	// style, so switching one does not rebuild it. They sit under the
+	// basemap's labels on a vector style (overlay anchor) and under the grid
+	// otherwise. Bare candidate ids: `RasterOverlayLayers` resolves them
+	// against the live map's layer order before every move, so a basemap
+	// swap never names a layer the map does not contain yet.
+	const raster = useMapRasterLayers(props.mapLayers ?? [], {
+		maxZoom: MAP_MAX_ZOOM,
 	});
 
 	// Entries the map cannot draw from their stored settings. Collected here
@@ -131,26 +142,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 		[props.topics, props.localTopics],
 	);
 
-	// Handlers for custom layer control
-	const handleLayerVisibilityChange = (
-		layerIndex: number,
-		visible: boolean,
-	) => {
-		setCustomLayersState((prevLayers) =>
-			prevLayers.map((layer, index) =>
-				index === layerIndex ? { ...layer, visible } : layer,
-			),
-		);
-	};
-
-	const handleLayerOpacityChange = (layerIndex: number, opacity: number) => {
-		setCustomLayersState((prevLayers) =>
-			prevLayers.map((layer, index) =>
-				index === layerIndex ? { ...layer, opacity } : layer,
-			),
-		);
-	};
-
 	const handleRefresh = () => {
 		setRefreshCounter((prev) => prev + 1);
 	};
@@ -158,11 +149,6 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 	const handleToggleGrid = () => {
 		setShowGrid((prev) => !prev);
 	};
-
-	// Sync customLayersState with props.customLayers when props change
-	useEffect(() => {
-		setCustomLayersState(props.customLayers);
-	}, [props.customLayers]);
 
 	if (isLoading) {
 		return <Spinner />;
@@ -197,10 +183,18 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					style={{ width: "100%", height: "100%" }}
 					mapStyle={mapStyle}
 					maxZoom={MAP_MAX_ZOOM}
+					transformRequest={raster.transformRequest}
+					onError={handleMapError}
 					ref={mapRef}
 					onMoveEnd={gridHook.updateGridForViewport}
 					onZoomEnd={gridHook.updateGridForViewport}
 				>
+					{/* Map-server raster layers, under the labels and the grid. */}
+					<RasterOverlayLayers
+						layers={raster.layers}
+						beforeIds={[ORMI_STYLE_ANCHORS.overlay, GRID_LAYER_ID]}
+					/>
+
 					{/* Grid overlay */}
 					<MapsGrid mapRef={mapRef} showGrid={showGrid} />
 
@@ -217,9 +211,7 @@ export default function MapsBoxViewer(props: MapsViewerSettings) {
 					<GpsTopicsLayer
 						topics={props.topics || []}
 						mapRef={mapRef}
-						customLayers={customLayersState}
-						onLayerVisibilityChange={handleLayerVisibilityChange}
-						onLayerOpacityChange={handleLayerOpacityChange}
+						mapLayers={raster.layers}
 					/>
 
 					{/* Local Topics Layer */}
@@ -403,36 +395,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 						},
 					},
 				},
-				customLayers: {
-					type: "array",
-					title: "Custom Layers",
-					items: {
-						type: "object",
-						properties: {
-							name: { type: "string", title: "Layer Name" },
-							url: {
-								type: "string",
-								title: "Source URL",
-								description:
-									"COG protocol (cog://...) or tile URL template ({z}/{x}/{y})",
-							},
-							opacity: {
-								type: "number",
-								title: "Opacity",
-								default: 1,
-								minimum: 0,
-								maximum: 1,
-								multipleOf: 0.1,
-							},
-							visible: {
-								type: "boolean",
-								title: "Visible",
-								default: true,
-							},
-						},
-						required: ["name", "url"],
-					},
-				},
+				mapLayers: mapLayersProperty({ title: "Map layers" }),
 			},
 			required: ["title"],
 		},
@@ -677,30 +640,7 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 					elements: [
 						{
 							type: "Control",
-							scope: "#/properties/customLayers",
-							options: {
-								detail: {
-									type: "VerticalLayout",
-									elements: [
-										{
-											type: "Control",
-											scope: "#/properties/name",
-										} as ControlElement,
-										{
-											type: "Control",
-											scope: "#/properties/url",
-										} as ControlElement,
-										{
-											type: "Control",
-											scope: "#/properties/opacity",
-										} as ControlElement,
-										{
-											type: "Control",
-											scope: "#/properties/visible",
-										} as ControlElement,
-									],
-								},
-							},
+							scope: "#/properties/mapLayers",
 						} as ControlElement,
 					],
 				},
@@ -708,8 +648,11 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 		} as Categorization,
 		data: {
 			title: "Maps",
+			// The host spreads `data` into the component and never applies the
+			// schema `default`, so the basemap must be here.
+			mapUrl: DEFAULT_BASEMAP_URL,
 			use3D: false,
-			customLayers: [],
+			mapLayers: [],
 			localTopics: {
 				pathTopics: [],
 				imuTopics: [],

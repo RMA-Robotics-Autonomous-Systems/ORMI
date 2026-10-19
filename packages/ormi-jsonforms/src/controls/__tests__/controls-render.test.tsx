@@ -5,10 +5,11 @@
 import { describe, expect, it } from "bun:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { JsonSchema, UISchemaElement } from "@jsonforms/core";
+import { CellProps, JsonSchema, UISchemaElement } from "@jsonforms/core";
 import { JsonForms } from "@jsonforms/react";
 
 import { shadcnCells, shadcnRenderer } from "../../index";
+import { ShadcnTextCell } from "../cells/ShadcnTextCell";
 import { isAutomaticColor } from "../simples/ShadcnColorControl";
 
 /**
@@ -141,5 +142,119 @@ describe("colour control", () => {
 		expect(isAutomaticColor("")).toBe(true);
 		expect(isAutomaticColor("  ")).toBe(true);
 		expect(isAutomaticColor("#ffffff")).toBe(false);
+	});
+});
+
+describe("secret text controls", () => {
+	const schema: JsonSchema = {
+		type: "object",
+		properties: {
+			url: { type: "string", title: "URL" },
+			token: { type: "string", title: "Token", writeOnly: true },
+		},
+	} as JsonSchema;
+
+	it("masks a writeOnly string and offers a reveal toggle", () => {
+		const html = render(
+			schema,
+			{ type: "Control", scope: "#/properties/token" } as UISchemaElement,
+			{ token: "s3cr3t" },
+		);
+		expect(html).toContain('type="password"');
+		expect(html).toContain('autoComplete="new-password"');
+		expect(html).toContain('aria-label="Show value"');
+		expect(html).toContain('aria-pressed="false"');
+		expect(html).not.toContain('type="text"');
+	});
+
+	it("leaves an ordinary string as a plain text input", () => {
+		const html = render(
+			schema,
+			{ type: "Control", scope: "#/properties/url" } as UISchemaElement,
+			{ url: "https://tiles.example" },
+		);
+		expect(html).toContain('type="text"');
+		expect(html).not.toContain('type="password"');
+		expect(html).not.toContain("Show value");
+	});
+
+	it("masks a writeOnly string in the text cell", () => {
+		const cellProps = {
+			data: "abc",
+			id: "cell",
+			path: "value",
+			enabled: true,
+			visible: true,
+			handleChange: () => {},
+			rootSchema: {},
+			uischema: { type: "Control", scope: "#" },
+			errors: "",
+			isValid: true,
+		} as unknown as CellProps;
+		const masked = renderToStaticMarkup(
+			<ShadcnTextCell
+				{...cellProps}
+				schema={{ type: "string", writeOnly: true } as JsonSchema}
+			/>,
+		);
+		const plain = renderToStaticMarkup(
+			<ShadcnTextCell {...cellProps} schema={{ type: "string" }} />,
+		);
+		expect(masked).toContain('type="password"');
+		expect(masked).toContain('aria-label="Show value"');
+		expect(plain).toContain('type="text"');
+		expect(plain).not.toContain('type="password"');
+	});
+});
+
+describe("oneOf layout", () => {
+	const schema = {
+		type: "object",
+		properties: {
+			auth: {
+				title: "Authentication",
+				type: "object",
+				default: { kind: "none" },
+				oneOf: [
+					{
+						title: "None",
+						type: "object",
+						properties: {
+							kind: { const: "none", default: "none" },
+						},
+						required: ["kind"],
+					},
+					{
+						title: "Bearer token",
+						type: "object",
+						properties: {
+							kind: { const: "bearer", default: "bearer" },
+							token: {
+								type: "string",
+								title: "Token",
+								writeOnly: true,
+							},
+						},
+						required: ["kind", "token"],
+					},
+				],
+			},
+		},
+	} as JsonSchema;
+	const uischema = {
+		type: "VerticalLayout",
+		elements: [{ type: "Control", scope: "#/properties/auth" }],
+	} as UISchemaElement;
+
+	it("renders one tab per branch and the fitting branch's fields", () => {
+		const html = render(schema, uischema, {
+			auth: { kind: "bearer", token: "" },
+		});
+		expect(html).not.toContain("No options available");
+		expect(html).toContain(">None</button>");
+		expect(html).toContain(">Bearer token</button>");
+		expect(html).toMatch(
+			/<input type="password"[^>]*id="#\/properties\/token\d*"/,
+		);
 	});
 });

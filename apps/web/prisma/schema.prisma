@@ -56,6 +56,31 @@ model Template {
     tags   String[]
 }
 
+// A raster map server (GeoServer, TiTiler, WMS, XYZ) an operator registered
+// once, as a user setting. Every map widget of that user can switch its
+// layers on. `serverKey` is the canonical server identity computed by
+// `serverKey()` in `@workspace/ormi-core/map-layers/model`; `settings` holds
+// the adapter settings including auth (secrets, owner reads only); `catalog`
+// is the last discovery snapshot.
+model MapServer {
+    id               String    @id @default(cuid())
+    serverKey        String
+    adapterId        String
+    title            String
+    settings         Json
+    catalog          Json?
+    catalogFetchedAt DateTime?
+    position         Int       @default(0)
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@unique([userId, serverKey])
+    @@index([userId, position])
+}
+
 enum TemplateType {
     WIDGET
     DATASOURCE
@@ -74,6 +99,7 @@ model User {
     workspaces Workspace[]
     templates  Template[]
     categories Category[]
+    mapServers MapServer[]
 
     //// Optional for WebAuthn support
     // Authenticator Authenticator[]

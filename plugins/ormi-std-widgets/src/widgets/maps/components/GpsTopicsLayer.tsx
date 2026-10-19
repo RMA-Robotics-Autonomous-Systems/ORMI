@@ -14,7 +14,7 @@ import { GPS_ENTRY_SLOTS, isEntryConfigured } from "../unconfigured-entries";
 import { MapControlPanel } from "../topics-overlay";
 import { isFollowableMarker, toggleFollow } from "../follow-camera";
 import { FollowCamera } from "./FollowCamera";
-import { CustomLayer } from "../layers-overlay";
+import type { RasterOverlayLayer } from "@workspace/ormi-core/map-layers/map";
 import TopicMarker from "../gps-components/marker-simple";
 import HeatMarker from "../gps-components/marker-heat";
 import PathMarker from "../gps-components/marker-path";
@@ -36,10 +36,8 @@ interface GpsTopicConfig {
 interface GpsTopicsLayerProps extends Record<string, unknown> {
 	topics: GpsTopicConfig[];
 	mapRef?: React.RefObject<MapRef | null>;
-	/** Custom raster layers rendered in the consolidated control panel. */
-	customLayers: CustomLayer[];
-	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
-	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
+	/** Map-server raster layers the map draws, listed in the control panel. */
+	mapLayers: readonly RasterOverlayLayer[];
 }
 
 /**
@@ -50,9 +48,7 @@ interface GpsTopicsLayerProps extends Record<string, unknown> {
 export function GpsTopicsLayer({
 	topics,
 	mapRef,
-	customLayers,
-	onLayerVisibilityChange,
-	onLayerOpacityChange,
+	mapLayers,
 }: GpsTopicsLayerProps) {
 	const pluginsManager = usePluginsManager();
 
@@ -117,10 +113,7 @@ export function GpsTopicsLayer({
 	const handleStopFollow = useCallback(() => setFollowedId(null), []);
 
 	// Render nothing only when there is neither a topic nor a layer to control.
-	if (
-		(!topics || topics.length === 0) &&
-		(!customLayers || customLayers.length === 0)
-	) {
+	if ((!topics || topics.length === 0) && mapLayers.length === 0) {
 		return null;
 	}
 
@@ -200,12 +193,10 @@ export function GpsTopicsLayer({
 
 			<MapControlPanel
 				topics={entries}
-				customLayers={customLayers}
+				mapLayers={mapLayers}
 				mapRef={mapRef}
 				followedId={followed?.instanceId ?? null}
 				onToggleFollow={handleToggleFollow}
-				onLayerVisibilityChange={onLayerVisibilityChange}
-				onLayerOpacityChange={onLayerOpacityChange}
 			/>
 		</LocalDataSourcesProvider>
 	);

@@ -31,7 +31,7 @@ maps-box-viewer.tsx (Main orchestrator - ~150 LOC)
 	<MapToolbar />
 	<GpsTopicsLayer />
 	<LocalTopicsLayer />
-	<CustomLayersOverlay />
+	<RasterOverlayLayers /> (map-server layers, from core map-layers/map)
 </MapsBoxViewer>
 ```
 
@@ -42,11 +42,12 @@ maps-box-viewer.tsx (Main orchestrator - ~150 LOC)
 Generates MapLibre style specification including:
 
 - Base raster tiles
-- Custom overlay layers (COG, WMS, etc.)
 - Grid layer
 - 3D buildings (when enabled)
 
-**Input**: Map URL, 3D settings, custom layers, grid visibility
+**Input**: Map URL, 3D settings, grid visibility
+
+Map-server raster layers are not part of the style: `useMapRasterLayers` (core) resolves the `mapLayers` setting and `<RasterOverlayLayers>` renders them as declarative children, so a layer change never rebuilds the style.
 **Output**: MapLibre `StyleSpecification`
 
 #### `useMapInitialization`
@@ -126,7 +127,7 @@ Each component/hook has a single, well-defined responsibility:
 ```
 Props → State → Hooks → Components → Rendered Output
   ↓       ↓       ↓         ↓
-Settings → Custom layers state → Map style → MapLibre
+Settings → Map style / useMapRasterLayers → MapLibre
 ```
 
 ## Usage Examples
@@ -197,7 +198,6 @@ plugins/ormi-std-widgets/src/widgets/maps/
 │   └── LocalTopicsLayer.tsx
 ├── marker-*.tsx                  (Individual marker types)
 ├── topics-overlay.tsx
-├── layers-overlay.tsx
 └── maps-grid.tsx
 ```
 

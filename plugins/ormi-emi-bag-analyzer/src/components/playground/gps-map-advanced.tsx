@@ -14,6 +14,7 @@ import Map, {
 	type LayerProps,
 	type MapRef,
 	type MapMouseEvent,
+	AttributionControl,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { GpsPoint, TimeSeriesPoint } from "../../bag-reader/bag-types";
@@ -21,6 +22,13 @@ import { gpsAtTimestamp } from "../../algorithms/clustering";
 import { Card, CardContent } from "@workspace/ui/components/card";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Label } from "@workspace/ui/components/label";
+import {
+	handleMapError,
+	MapLayersOverlay,
+	RasterOverlayLayers,
+	useMapRasterLayers,
+} from "@workspace/ormi-core/map-layers/map";
+import { MAP_MAX_ZOOM, ORMI_STYLE_ANCHORS } from "@workspace/utils";
 
 export interface GpsDetectionGroup {
 	name: string;
@@ -41,6 +49,8 @@ interface GpsMapAdvancedProps {
 	height?: number;
 	/** Called when the user clicks a heatline or detection point. tsNs is nanoseconds from bag start. */
 	onSeek?: (tsNs: number) => void;
+	/** Raster layers from the user's map servers (`MapLayerRef[]`). */
+	mapLayers?: unknown;
 }
 
 interface PopupState {
@@ -94,6 +104,15 @@ const BASE_MAP_STYLE = {
 	layers: [{ id: "osm", type: "raster", source: "osm-tiles" }],
 } as const;
 
+/**
+ * Where map-server rasters slot in: the style's overlay anchor when it has
+ * one, else under the GPS track (the bottom data layer, always rendered), so a
+ * layer switched on later never covers the track, heatline or detections. The
+ * OSM style carries no anchors today. Resolved against the live map by
+ * `RasterOverlayLayers`, never against the style object.
+ */
+const RASTER_BEFORE_IDS = [ORMI_STYLE_ANCHORS.overlay, "gps-track"] as const;
+
 /** Draws a filled equilateral triangle into an offscreen canvas and returns its ImageData. */
 function makeTriangleImage(color: string, size = 28): ImageData {
 	const canvas = document.createElement("canvas");
@@ -122,8 +141,10 @@ export function GpsMapAdvanced({
 	timeRange,
 	height = 420,
 	onSeek,
+	mapLayers,
 }: GpsMapAdvancedProps) {
 	const mapRef = useRef<MapRef>(null);
+	const raster = useMapRasterLayers(mapLayers, { maxZoom: MAP_MAX_ZOOM });
 	const [mapLoaded, setMapLoaded] = useState(false);
 
 	// ── Visibility toggles ────────────────────────────────────────────────────
@@ -394,6 +415,8 @@ export function GpsMapAdvanced({
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				mapStyle={BASE_MAP_STYLE as any}
 				attributionControl={false}
+				transformRequest={raster.transformRequest}
+				onError={handleMapError}
 				onLoad={() => setMapLoaded(true)}
 				interactiveLayerIds={interactiveLayerIds}
 				onMouseMove={handleMouseMove}
@@ -401,10 +424,21 @@ export function GpsMapAdvanced({
 				onClick={handleClick}
 				cursor={cursor}
 			>
+				{/* Basemap and map-server attributions, collapsed to an icon.
+				    Bottom-right, under the legend (which sits above it). */}
+				<AttributionControl compact position="bottom-right" />
+
 				{/* Track */}
 				<Source id="gps-track" type="geojson" data={trackGeoJson}>
 					<Layer {...trackLayer} />
 				</Source>
+
+				{/* Map-server rasters, under the track. Rendered after it so
+				    the track exists when they are inserted before it. */}
+				<RasterOverlayLayers
+					layers={raster.layers}
+					beforeIds={RASTER_BEFORE_IDS}
+				/>
 
 				{/* Heatline */}
 				<Source id="gps-heatline" type="geojson" data={heatlineGeoJson}>
@@ -568,6 +602,26 @@ export function GpsMapAdvanced({
 				</CardContent>
 			</Card>
 
+			{/* Map-server layers: centre only, top-right (the legend owns the
+			    bottom-right corner). Absent while no layer is drawn. */}
+			{raster.layers.length > 0 && (
+				<Card
+					className="z-10 w-56 max-w-[calc(100%-1rem)] text-xs shadow"
+					style={{
+						position: "absolute",
+						top: "var(--spacing)",
+						right: "var(--spacing)",
+					}}
+				>
+					<CardContent className="p-2">
+						<MapLayersOverlay
+							layers={raster.layers}
+							mapRef={mapRef}
+						/>
+					</CardContent>
+				</Card>
+			)}
+
 			{/* EMI legend. The label plates are UI chrome and read the theme
 			    tokens; the ramp is the data encoding and stays fixed. The map
 			    layers above are drawn against the OSM basemap, not the app
@@ -576,7 +630,9 @@ export function GpsMapAdvanced({
 				<div
 					style={{
 						position: "absolute",
-						bottom: 20,
+						// Clear of the compact attribution control (24px at a
+						// 10px margin) in the bottom-right corner.
+						bottom: 44,
 						right: 10,
 						display: "flex",
 						flexDirection: "column",

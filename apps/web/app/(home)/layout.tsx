@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { UserAccountNav } from "@/components/user/user-home-nav";
 import { PluginPagesNav } from "@/components/plugin-pages-nav";
 import { NavLink } from "@/components/nav-link";
+import { MapServersHost } from "@/components/map-servers/map-servers-host";
 import { preloadWorkspaces } from "@/lib/api/workspace-api";
 
 import { User } from "next-auth";
@@ -38,8 +39,10 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 		preloadWorkspaces();
 	}, [status, pathname]);
 
+	// One map-server registry for everything under `(home)`: workspaces and
+	// plugin pages (`/plugin-pages/...`) alike.
 	return (
-		<>
+		<MapServersHost>
 			<NavbarItem id="plugin-pages-nav" zone="left" priority={5}>
 				<PluginPagesNav />
 			</NavbarItem>
@@ -79,6 +82,6 @@ export default function HomeLayout({ children }: HomeLayoutProps) {
 				{children}
 				{/* <SiteFooter className="container mx-auto px-2 mb-1 bg-background/95 backdrop-blur rounded-2xl border z-50" /> */}
 			</div>
-		</>
+		</MapServersHost>
 	);
 }

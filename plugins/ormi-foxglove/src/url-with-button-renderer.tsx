@@ -2,7 +2,13 @@
 
 import React, { useMemo } from "react";
 import { withJsonFormsControlProps } from "@jsonforms/react";
-import { ControlProps, rankWith, and, scopeEndsWith } from "@jsonforms/core";
+import {
+	ControlProps,
+	rankWith,
+	and,
+	scopeEndsWith,
+	type Tester,
+} from "@jsonforms/core";
 import { Label } from "@workspace/ui/components/label";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
@@ -77,6 +83,23 @@ const UrlWithButtonRenderer = (props: ControlProps) => {
 export default withJsonFormsControlProps(UrlWithButtonRenderer);
 
 /**
- * Tester that matches the URL field in Foxglove datasource.
+ * True when the form is a datasource's settings: its root schema declares the
+ * `enable` base field every `DatasourceProviderSettings` carries. The renderer
+ * is registered on the app-wide `JSON_FORMS_RENDERER` hook, so without this a
+ * `url` in any other form (a map server's, a COG's) would take the websocket
+ * placeholder and button, and lose its own description and errors.
  */
-export const urlWithButtonTester = rankWith(100, and(scopeEndsWith("url")));
+const isDatasourceForm: Tester = (_uischema, _schema, context) => {
+	const root = context?.rootSchema as
+		{ properties?: Record<string, unknown> } | undefined;
+	return root?.properties?.enable !== undefined;
+};
+
+/**
+ * Tester that matches the URL field of a websocket datasource (Foxglove,
+ * ROSBridge).
+ */
+export const urlWithButtonTester = rankWith(
+	100,
+	and(scopeEndsWith("url"), isDatasourceForm),
+);

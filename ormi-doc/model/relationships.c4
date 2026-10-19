@@ -28,7 +28,27 @@ model {
   // that selected that basemap.
 
   ormi.web.plugins.stdWidgets -> basemapProviders 'fetches basemap tiles + bundled vector style sources (browser -> vendor CDN)'
-  ormi.web.plugins.c2Control -> basemapProviders 'fetches basemap + open-source overlay tiles (browser -> vendor CDN)'
+  ormi.web.plugins.c2Control -> basemapProviders 'fetches basemap tiles (browser -> vendor CDN)'
+
+  // ---- Map layers: the user map-server registry ----------------------------
+  // Discovery and tiles are browser-direct. The ORMI server stores records and
+  // catalogue snapshots and never fetches a registered URL.
+
+  ormi.web.plugins.mapServersPlugin -> ormi.web.pluginsManager 'registers adapters (MAP_LAYER_PROVIDERS)'
+  ormi.web.mapLayers -> ormi.web.pluginsManager 'reads MAP_LAYER_PROVIDERS (usePluginFiltersRevision)'
+  ormi.web.mapServerSettings -> ormi.web.pluginsManager 'reads MAP_LAYER_PROVIDERS (types, forms, presets)'
+  ormi.web.mapServerSettings -> tileServers 'adapter.discover() capabilities (browser-direct, auth via ctx.fetch)'
+  ormi.web.mapServerSettings -> ormi.web.httpClient 'create / update / remove / putCatalog (mapServerApi)'
+  ormi.web.mapServerSettings -> ormi.web.mapLayers 'settles mapServersAtom after an edit'
+  ormi.web.mapLayers -> ormi.web.httpClient 'load the registry (GET /api/map-servers)'
+  ormi.web.mapLayers -> ormi.web.appStore 'mapServersAtom, mapLayerHealthAtom'
+  ormi.web.renderers -> ormi.web.mapLayers 'mapLayersSelect control reads mapServersAtom at render'
+  ormi.web.plugins.stdWidgets -> ormi.web.mapLayers 'useMapRasterLayers, RasterOverlayLayers, MapLayersOverlay'
+  ormi.web.plugins.c2Control -> ormi.web.mapLayers 'useMapRasterLayers, RasterOverlayLayers, MapLayersOverlay'
+  ormi.web.mapLayers -> tileServers 'raster tiles (browser-direct, query auth or scoped headers)'
+  ormi.web.httpClient -> ormi.web.mapServersApi 'HTTP /api/map-servers (ApiResult<T>)'
+  ormi.web.mapServersApi -> ormi.web.auth 'withAuth guard'
+  ormi.web.mapServersApi -> ormi.db 'MapServer rows via prisma-map-servers (where: { id, userId })'
 
   // ---- Plugin registration -------------------------------------------------
 

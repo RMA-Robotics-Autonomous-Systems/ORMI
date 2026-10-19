@@ -23,6 +23,7 @@
   THE SOFTWARE.
 */
 "use client";
+import type React from "react";
 import {
 	ControlProps,
 	isStringControl,
@@ -33,19 +34,24 @@ import { withJsonFormsControlProps } from "@jsonforms/react";
 import { ShadcnInputControl } from "./ShadcnInputControl";
 import { Input } from "@workspace/ui/components/input";
 import type { WithAria } from "../../utils/aria";
+import { isSecretSchema, SecretInput } from "../secret-input";
 
 const ShadcnInputText = (props: ControlProps & WithAria) => {
 	const { id, enabled, schema, path, handleChange, data, ariaProps } = props;
 
-	return (
-		<Input
-			type="text"
-			value={data || schema.default || schema.const || ""}
-			onChange={(ev) => handleChange(path, ev.target.value)}
-			disabled={!enabled}
-			id={id}
-			{...ariaProps}
-		/>
+	const shared = {
+		value: data || schema.default || schema.const || "",
+		onChange: (ev: React.ChangeEvent<HTMLInputElement>) =>
+			handleChange(path, ev.target.value),
+		disabled: !enabled,
+		id,
+		...ariaProps,
+	};
+
+	return isSecretSchema(schema) ? (
+		<SecretInput {...shared} />
+	) : (
+		<Input type="text" {...shared} />
 	);
 };
 

@@ -31,6 +31,8 @@ import type { TimelineEvent } from "./playground/timeline-scrubber";
 import { LabelingChart } from "./playground/labeling-chart";
 import type { ConfidencePoint } from "./playground/labeling-chart";
 import { BaselineSketchDialog } from "./playground/baseline-sketch-dialog";
+import { useStoredMapLayers } from "./playground/map-layers-storage";
+import { MapLayersSelectControl } from "@workspace/ormi-core/map-layers";
 import type { DrawnBaselinePoint } from "../algorithms";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import {
@@ -96,6 +98,9 @@ export function EmiAnalyzerPage() {
 	const [data, setData] = useState<PlaygroundData | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	// ── Map layers (per browser) ───────────────────────────────────────────
+	const [mapLayers, setMapLayers] = useStoredMapLayers();
 
 	// ── Topic selection ────────────────────────────────────────────────────
 	const [selectedNumeric, setSelectedNumeric] = useState<string[]>([]);
@@ -936,6 +941,22 @@ export function EmiAnalyzerPage() {
 								/>
 							</CardContent>
 						</Card>
+
+						{/* 4. Map layers */}
+						<Card>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">
+									Map layers
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<MapLayersSelectControl
+									value={mapLayers}
+									onChange={setMapLayers}
+									id="emi-bag-map-layers"
+								/>
+							</CardContent>
+						</Card>
 					</div>
 
 					{/* ── Right 2/3: visualisation ───────────────────────── */}
@@ -1074,6 +1095,7 @@ export function EmiAnalyzerPage() {
 											timeRange={timeRange}
 											height={600}
 											onSeek={handleMapSeek}
+											mapLayers={mapLayers}
 										/>
 									</CardContent>
 								</Card>

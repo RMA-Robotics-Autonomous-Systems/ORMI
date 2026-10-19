@@ -1,0 +1,671 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xsi:schemaLocation="http://www.opengis.net/wmts/1.0 http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd" version="1.0.0">
+  <ows:ServiceIdentification>
+    <ows:Title>GeoServer Web Map Tile Service</ows:Title>
+    <ows:Abstract>A compliant implementation of WMTS service.</ows:Abstract>
+    <ows:Keywords>
+      <ows:Keyword>WMTS</ows:Keyword>
+    </ows:Keywords>
+    <ows:ServiceType>OGC WMTS</ows:ServiceType>
+    <ows:ServiceTypeVersion>1.0.0</ows:ServiceTypeVersion>
+    <ows:Fees>NONE</ows:Fees>
+    <ows:AccessConstraints>NONE</ows:AccessConstraints>
+  </ows:ServiceIdentification>
+  <ows:ServiceProvider>
+    <ows:ProviderName>http://geoserver.org/com</ows:ProviderName>
+    <ows:ProviderSite xlink:href="http://geoserver.org"/>
+    <ows:ServiceContact>
+      <ows:IndividualName>Claudius Ptolomaeus</ows:IndividualName>
+      <ows:PositionName>Chief Geographer</ows:PositionName>
+      <ows:ContactInfo>
+        <ows:Address>
+          <ows:City>Alexandria</ows:City>
+          <ows:Country>Roman Empire</ows:Country>
+          <ows:ElectronicMailAddress>claudius.ptolomaeus@mercury.olympus.gov</ows:ElectronicMailAddress>
+        </ows:Address>
+      </ows:ContactInfo>
+    </ows:ServiceContact>
+  </ows:ServiceProvider>
+  <ows:OperationsMetadata>
+    <ows:Operation name="GetCapabilities">
+      <ows:DCP>
+        <ows:HTTP>
+          <ows:Get xlink:href="http://localhost:8095/geoserver/gwc/service/wmts?">
+            <ows:Constraint name="GetEncoding">
+              <ows:AllowedValues>
+                <ows:Value>KVP</ows:Value>
+              </ows:AllowedValues>
+            </ows:Constraint>
+          </ows:Get>
+        </ows:HTTP>
+      </ows:DCP>
+    </ows:Operation>
+    <ows:Operation name="GetTile">
+      <ows:DCP>
+        <ows:HTTP>
+          <ows:Get xlink:href="http://localhost:8095/geoserver/gwc/service/wmts?">
+            <ows:Constraint name="GetEncoding">
+              <ows:AllowedValues>
+                <ows:Value>KVP</ows:Value>
+              </ows:AllowedValues>
+            </ows:Constraint>
+          </ows:Get>
+        </ows:HTTP>
+      </ows:DCP>
+    </ows:Operation>
+    <ows:Operation name="GetFeatureInfo">
+      <ows:DCP>
+        <ows:HTTP>
+          <ows:Get xlink:href="http://localhost:8095/geoserver/gwc/service/wmts?">
+            <ows:Constraint name="GetEncoding">
+              <ows:AllowedValues>
+                <ows:Value>KVP</ows:Value>
+              </ows:AllowedValues>
+            </ows:Constraint>
+          </ows:Get>
+        </ows:HTTP>
+      </ows:DCP>
+    </ows:Operation>
+  </ows:OperationsMetadata>
+  <Contents>
+    <Layer>
+      <ows:Title>Pk50095</ows:Title>
+      <ows:Abstract>Pk50095 is a raster file accompanied by a spatial data file.</ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>12.99944682265046 46.722110379286</ows:LowerCorner>
+        <ows:UpperCorner>13.308182612644663 46.91359611878293</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>nurc:Pk50095</ows:Identifier>
+      <Style isDefault="true">
+        <ows:Identifier>raster</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=nurc%3APk50095" width="20" height="20"/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>2</MinTileCol>
+            <MaxTileCol>2</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>250996</MinTileRow>
+            <MaxTileRow>252111</MaxTileRow>
+            <MinTileCol>1124303</MinTileCol>
+            <MaxTileCol>1126101</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>501992</MinTileRow>
+            <MaxTileRow>504223</MaxTileRow>
+            <MinTileCol>2248606</MinTileCol>
+            <MaxTileCol>2252203</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>189020362</MinTileRow>
+            <MaxTileRow>189437659</MaxTileRow>
+            <MinTileCol>287821636</MinTileCol>
+            <MaxTileCol>288282056</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>378040725</MinTileRow>
+            <MaxTileRow>378875319</MaxTileRow>
+            <MinTileCol>575643272</MinTileCol>
+            <MaxTileCol>576564112</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/nurc:Pk50095/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/nurc:Pk50095/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/nurc:Pk50095/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/nurc:Pk50095/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <Layer>
+      <ows:Title>USA Population</ows:Title>
+      <ows:Abstract>This is some census data on the states.</ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-124.73142200000001 24.955967</ows:LowerCorner>
+        <ows:UpperCorner>-66.969849 49.371735</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>topp:states</ows:Identifier>
+      <Style>
+        <ows:Identifier>polygon</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=topp%3Astates&amp;style=polygon" width="20" height="20"/>
+      </Style>
+      <Style>
+        <ows:Identifier>pophatch</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=84&amp;height=80&amp;layer=topp%3Astates&amp;style=pophatch" width="84" height="80"/>
+      </Style>
+      <Style isDefault="true">
+        <ows:Identifier>population</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=84&amp;height=80&amp;layer=topp%3Astates" width="84" height="80"/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>236676</MinTileRow>
+            <MaxTileRow>378908</MaxTileRow>
+            <MinTileCol>321962</MinTileCol>
+            <MaxTileCol>658448</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>473353</MinTileRow>
+            <MaxTileRow>757817</MaxTileRow>
+            <MinTileCol>643925</MinTileCol>
+            <MaxTileCol>1316896</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>183525166</MinTileRow>
+            <MaxTileRow>229982558</MaxTileRow>
+            <MinTileCol>82422477</MinTileCol>
+            <MaxTileCol>168562778</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>367050332</MinTileRow>
+            <MaxTileRow>459965116</MaxTileRow>
+            <MinTileCol>164844954</MinTileCol>
+            <MaxTileCol>337125556</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/topp:states/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/topp:states/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/topp:states/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/topp:states/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <Layer>
+      <ows:Title>atlas_openfield_aidedex_v1_crop</ows:Title>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-3.175198013 38.138152901</ows:LowerCorner>
+        <ows:UpperCorner>-3.174003713 38.138745708</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>spain:atlas_openfield_aidedex_v1_crop</ows:Identifier>
+      <Style isDefault="true">
+        <ows:Identifier>raster</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=spain%3Aatlas_openfield_aidedex_v1_crop" width="20" height="20"/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>302113</MinTileRow>
+            <MaxTileRow>302117</MaxTileRow>
+            <MinTileCol>1030079</MinTileCol>
+            <MaxTileCol>1030086</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>604227</MinTileRow>
+            <MaxTileRow>604234</MaxTileRow>
+            <MinTileCol>2060158</MinTileCol>
+            <MaxTileCol>2060172</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>206823673</MinTileRow>
+            <MaxTileRow>206824797</MaxTileRow>
+            <MinTileCol>263700257</MinTileCol>
+            <MaxTileCol>263702038</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>413647346</MinTileRow>
+            <MaxTileRow>413649594</MaxTileRow>
+            <MinTileCol>527400515</MinTileCol>
+            <MaxTileCol>527404077</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_openfield_aidedex_v1_crop/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_openfield_aidedex_v1_crop/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_openfield_aidedex_v1_crop/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_openfield_aidedex_v1_crop/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <Layer>
+      <ows:Title>Spearfish</ows:Title>
+      <ows:Abstract>Spearfish City in Lawrence County, South Dakota
+
+The area covered by the data set is in the vicinity of Spearfish and includes a majority of the Black Hills National Forest (i.e., Mount Rushmore).</ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-103.877932069774 44.37253205619695</ows:LowerCorner>
+        <ows:UpperCorner>-103.62280482877419 44.50241740988299</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>spearfish</ows:Identifier>
+      <Style isDefault="true">
+        <ows:Identifier/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>265042</MinTileRow>
+            <MaxTileRow>265799</MaxTileRow>
+            <MinTileCol>443443</MinTileCol>
+            <MaxTileCol>444929</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>530085</MinTileRow>
+            <MaxTileRow>531598</MaxTileRow>
+            <MinTileCol>886886</MinTileCol>
+            <MaxTileCol>889858</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>194170806</MinTileRow>
+            <MaxTileRow>194442088</MaxTileRow>
+            <MinTileCol>113521455</MinTileCol>
+            <MaxTileCol>113901928</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>388341613</MinTileRow>
+            <MaxTileRow>388884176</MaxTileRow>
+            <MinTileCol>227042911</MinTileCol>
+            <MaxTileCol>227803857</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spearfish/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spearfish/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spearfish/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spearfish/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <Layer>
+      <ows:Title>T1_AIDEDEX</ows:Title>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>17.81805617452983 59.0755129008352</ows:LowerCorner>
+        <ows:UpperCorner>17.82060976412126 59.07818323437433</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>Sweden:T1_AIDEDEX</ows:Identifier>
+      <Style isDefault="true">
+        <ows:Identifier>raster</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=Sweden%3AT1_AIDEDEX" width="20" height="20"/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>2</MinTileCol>
+            <MaxTileCol>2</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>180132</MinTileRow>
+            <MaxTileRow>180148</MaxTileRow>
+            <MinTileCol>1152373</MinTileCol>
+            <MaxTileCol>1152388</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>360265</MinTileRow>
+            <MaxTileRow>360296</MaxTileRow>
+            <MinTileCol>2304747</MinTileCol>
+            <MaxTileCol>2304777</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>158619048</MinTileRow>
+            <MaxTileRow>158626798</MaxTileRow>
+            <MinTileCol>295007667</MinTileCol>
+            <MaxTileCol>295011475</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>317238097</MinTileRow>
+            <MaxTileRow>317253596</MaxTileRow>
+            <MinTileCol>590015334</MinTileCol>
+            <MaxTileCol>590022950</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/Sweden:T1_AIDEDEX/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/Sweden:T1_AIDEDEX/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/Sweden:T1_AIDEDEX/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/Sweden:T1_AIDEDEX/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <Layer>
+      <ows:Title>atlas_road_aidedex_v1</ows:Title>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-3.1735870761 38.1379515783844</ows:LowerCorner>
+        <ows:UpperCorner>-3.17129735636 38.1389010390831</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>spain:atlas_road_aidedex_v1</ows:Identifier>
+      <Style isDefault="true">
+        <ows:Identifier>raster</ows:Identifier>
+        <LegendURL format="image/png" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;request=GetLegendGraphic&amp;version=1.1.0&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=spain%3Aatlas_road_aidedex_v1" width="20" height="20"/>
+      </Style>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:4326</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>1</MinTileCol>
+            <MaxTileCol>1</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:20</TileMatrix>
+            <MinTileRow>302112</MinTileRow>
+            <MaxTileRow>302118</MaxTileRow>
+            <MinTileCol>1030088</MinTileCol>
+            <MaxTileCol>1030101</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:4326:21</TileMatrix>
+            <MinTileRow>604225</MinTileRow>
+            <MaxTileRow>604236</MaxTileRow>
+            <MinTileCol>2060177</MinTileCol>
+            <MaxTileCol>2060203</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <TileMatrixSetLink>
+        <TileMatrixSet>EPSG:900913</TileMatrixSet>
+        <TileMatrixSetLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:0</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:1</TileMatrix>
+            <MinTileRow>0</MinTileRow>
+            <MaxTileRow>0</MaxTileRow>
+            <MinTileCol>0</MinTileCol>
+            <MaxTileCol>0</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:29</TileMatrix>
+            <MinTileRow>206823378</MinTileRow>
+            <MaxTileRow>206825178</MaxTileRow>
+            <MinTileCol>263702659</MinTileCol>
+            <MaxTileCol>263706074</MaxTileCol>
+          </TileMatrixLimits>
+          <TileMatrixLimits>
+            <TileMatrix>EPSG:900913:30</TileMatrix>
+            <MinTileRow>413646757</MinTileRow>
+            <MaxTileRow>413650357</MaxTileRow>
+            <MinTileCol>527405319</MinTileCol>
+            <MaxTileCol>527412149</MaxTileCol>
+          </TileMatrixLimits>
+        </TileMatrixSetLimits>
+      </TileMatrixSetLink>
+      <ResourceURL format="image/png" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_road_aidedex_v1/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/png"/>
+      <ResourceURL format="image/jpeg" resourceType="tile" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_road_aidedex_v1/{style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}?format=image/jpeg"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_road_aidedex_v1/{style}/tilejson/png?format=application/json"/>
+      <ResourceURL format="application/json" resourceType="TileJSON" template="http://localhost:8095/geoserver/gwc/service/wmts/rest/spain:atlas_road_aidedex_v1/{style}/tilejson/jpeg?format=application/json"/>
+    </Layer>
+    <TileMatrixSet>
+      <ows:Identifier>EPSG:4326</ows:Identifier>
+      <ows:SupportedCRS>urn:ogc:def:crs:EPSG::4326</ows:SupportedCRS>
+      <TileMatrix>
+        <ows:Identifier>EPSG:4326:0</ows:Identifier>
+        <ScaleDenominator>2.795411320143589E8</ScaleDenominator>
+        <TopLeftCorner>90.0 -180.0</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>2</MatrixWidth>
+        <MatrixHeight>1</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:4326:1</ows:Identifier>
+        <ScaleDenominator>1.3977056600717944E8</ScaleDenominator>
+        <TopLeftCorner>90.0 -180.0</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>4</MatrixWidth>
+        <MatrixHeight>2</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:4326:20</ows:Identifier>
+        <ScaleDenominator>266.591197981223</ScaleDenominator>
+        <TopLeftCorner>90.0 -180.0</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>2097152</MatrixWidth>
+        <MatrixHeight>1048576</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:4326:21</ows:Identifier>
+        <ScaleDenominator>133.2955989906115</ScaleDenominator>
+        <TopLeftCorner>90.0 -180.0</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>4194304</MatrixWidth>
+        <MatrixHeight>2097152</MatrixHeight>
+      </TileMatrix>
+    </TileMatrixSet>
+    <TileMatrixSet>
+      <ows:Identifier>EPSG:900913</ows:Identifier>
+      <ows:SupportedCRS>urn:ogc:def:crs:EPSG::900913</ows:SupportedCRS>
+      <TileMatrix>
+        <ows:Identifier>EPSG:900913:0</ows:Identifier>
+        <ScaleDenominator>5.590822639508929E8</ScaleDenominator>
+        <TopLeftCorner>-2.003750834E7 2.0037508E7</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>1</MatrixWidth>
+        <MatrixHeight>1</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:900913:1</ows:Identifier>
+        <ScaleDenominator>2.7954113197544646E8</ScaleDenominator>
+        <TopLeftCorner>-2.003750834E7 2.0037508E7</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>2</MatrixWidth>
+        <MatrixHeight>2</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:900913:29</ows:Identifier>
+        <ScaleDenominator>1.0413718669691923</ScaleDenominator>
+        <TopLeftCorner>-2.003750834E7 2.0037508E7</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>536870912</MatrixWidth>
+        <MatrixHeight>536870912</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>EPSG:900913:30</ows:Identifier>
+        <ScaleDenominator>0.5206859334845961</ScaleDenominator>
+        <TopLeftCorner>-2.003750834E7 2.0037508E7</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>1073741824</MatrixWidth>
+        <MatrixHeight>1073741824</MatrixHeight>
+      </TileMatrix>
+    </TileMatrixSet>
+  </Contents>
+  <ServiceMetadataURL xlink:href="http://localhost:8095/geoserver/gwc/service/wmts?SERVICE=wmts&amp;REQUEST=getcapabilities&amp;VERSION=1.0.0"/>
+  <ServiceMetadataURL xlink:href="http://localhost:8095/geoserver/gwc/service/wmts/rest/WMTSCapabilities.xml"/>
+</Capabilities>

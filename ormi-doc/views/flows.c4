@@ -69,4 +69,22 @@ views {
 
     autoLayout LeftRight
   }
+
+  // ---- Map layers (browser-direct) ------------------------------------------
+
+  dynamic view flow_map_layers {
+    title 'Map Layers — register, select, draw (browser-direct)'
+
+    ormi.web.mapServerSettings -> tileServers 'discover() capabilities'
+    ormi.web.mapServerSettings -> ormi.web.httpClient 'store record + catalogue snapshot'
+    ormi.web.httpClient -> ormi.web.mapServersApi 'POST /api/map-servers'
+    ormi.web.mapServersApi -> ormi.db 'MapServer row'
+    ormi.web.mapLayers -> ormi.web.httpClient 'GET /api/map-servers (owner read)'
+    ormi.web.mapLayers -> ormi.web.appStore 'mapServersAtom settled'
+    ormi.web.renderers -> ormi.web.mapLayers 'mapLayersSelect reads the registry at render'
+    ormi.web.plugins.stdWidgets -> ormi.web.mapLayers 'useMapRasterLayers(settings.mapLayers)'
+    ormi.web.mapLayers -> tileServers 'raster tiles, scoped auth'
+
+    autoLayout LeftRight
+  }
 }

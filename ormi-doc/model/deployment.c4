@@ -33,8 +33,14 @@ deployment {
     description 'Runs the robot bridges (rosbridge / Foxglove / Tello) the browser connects to.'
   }
 
+  // Raster map servers the browser fetches discovery documents and tiles from.
+  tileServerHost = host 'Map / Tile Server' {
+    description 'GeoServer, TiTiler, a WMS or an XYZ host, on the operator network or the internet. Reached straight from the browser (mixed content and CORS apply); the ORMI server never contacts it.'
+  }
+
   // Derived + explicit deployment relationships.
   browserNode -> appRuntime 'HTTPS (pages + /api)'
   browserNode -> robotHost 'WebSocket (ws:// main thread · wss:// worker)'
   appRuntime -> dbRuntime 'Prisma (PostgreSQL wire)'
+  browserNode -> tileServerHost 'HTTP(S) capabilities + raster tiles (browser-direct, no proxy)'
 }

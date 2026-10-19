@@ -17,7 +17,8 @@ views {
       tello,
       restEndpoint,
       rostainer,
-      basemapProviders
+      basemapProviders,
+      tileServers
     autoLayout LeftRight
   }
 
@@ -61,7 +62,8 @@ views {
       tello,
       restEndpoint,
       rostainer,
-      basemapProviders
+      basemapProviders,
+      tileServers
     autoLayout LeftRight
   }
 

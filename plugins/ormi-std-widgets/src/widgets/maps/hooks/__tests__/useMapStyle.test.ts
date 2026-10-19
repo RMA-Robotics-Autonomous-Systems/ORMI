@@ -39,7 +39,6 @@ function buildStyle(mapUrl: string): StyleSpecification {
 		captured = useMapStyle({
 			mapUrl,
 			use3D: false,
-			customLayers: [],
 			showGrid: false,
 		});
 		return null;

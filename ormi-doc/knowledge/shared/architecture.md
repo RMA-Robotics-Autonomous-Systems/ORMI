@@ -41,6 +41,20 @@ See `data-flow.md` for the full protocol and subscription lifecycle,
 `plugin-system.md` for the hook system, `../widgets/knowledge.md`,
 `../datasources/knowledge.md`, and `../dashboard/knowledge.md` for each layer.
 
+## Map-server registry (browser-direct raster overlays)
+
+Raster overlays on every map (GeoServer, TiTiler COG, OGC WMS, XYZ) come from
+the operator's own map-server registry, a **per-user** record (`MapServer`
+table, `/api/map-servers`, `lib/data/prisma-map-servers.ts`) and **not a
+datasource**. Core owns the contract in `packages/ormi-core/src/map-layers/`
+(three subpaths: `map-layers/model` server-safe, `map-layers` client state and
+the dialog control, `map-layers/map` the react-map-gl runtime); server types
+are adapters on `PluginsHooks.MAP_LAYER_PROVIDERS`, shipped in
+`plugins/ormi-map-servers`. Discovery and tiles go **browser → tile server
+directly**; the ORMI server stores records and catalogue snapshots and never
+fetches a registered URL. See `data-flow.md` (map-layer flow) and
+`../widgets/knowledge.md` (Basemaps > Raster overlays).
+
 ## Type system
 
 ORMI normalizes all incoming data into a small, **fixed** set of _webapp types_.

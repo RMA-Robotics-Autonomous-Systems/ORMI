@@ -8,6 +8,9 @@ import FrameSelectRenderer, {
 import DatasourceSelectRenderer, {
 	datasourceSelectTester,
 } from "./datasource-select-renderer";
+import MapLayersSelectRenderer, {
+	mapLayersSelectTester,
+} from "./map-layers-select-renderer";
 
 /** JsonForms renderer registry for core controls. */
 export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
@@ -15,6 +18,7 @@ export const coreRenderer: JsonFormsRendererRegistryEntry[] = [
 	{ tester: topicSelectTester, renderer: TopicSelectRenderer },
 	{ tester: frameSelectTester, renderer: FrameSelectRenderer },
 	{ tester: datasourceSelectTester, renderer: DatasourceSelectRenderer },
+	{ tester: mapLayersSelectTester, renderer: MapLayersSelectRenderer },
 ];
 
 // Export new system components
@@ -25,3 +29,8 @@ export {
 	DatasourceSelectControl,
 	datasourceSelectTester,
 } from "./datasource-select-renderer";
+export {
+	MapLayersSelectControl,
+	mapLayersSelectTester,
+	type MapLayersSelectControlProps,
+} from "./map-layers-select-renderer";

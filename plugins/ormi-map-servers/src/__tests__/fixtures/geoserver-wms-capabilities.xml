@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><WMS_Capabilities version="1.3.0" updateSequence="347" xmlns="http://www.opengis.net/wms" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wms http://localhost:8095/geoserver/schemas/wms/1.3.0/capabilities_1_3_0.xsd">
+  <Service>
+    <Name>WMS</Name>
+    <Title>GeoServer Web Map Service</Title>
+    <Abstract>A compliant implementation of WMS plus most of the SLD extension (dynamic styling). Can also generate PDF, SVG, KML, GeoRSS</Abstract>
+    <KeywordList>
+      <Keyword>WMS</Keyword>
+      <Keyword>GEOSERVER</Keyword>
+    </KeywordList>
+    <OnlineResource xlink:type="simple" xlink:href="http://geoserver.org"/>
+    <ContactInformation>
+      <ContactPersonPrimary>
+        <ContactPerson>Claudius Ptolomaeus</ContactPerson>
+        <ContactOrganization>OSGeo</ContactOrganization>
+      </ContactPersonPrimary>
+      <ContactPosition>Chief Geographer</ContactPosition>
+      <ContactAddress>
+        <AddressType>Work</AddressType>
+        <Address/>
+        <City>Alexandria</City>
+        <StateOrProvince>Egypt</StateOrProvince>
+        <PostCode/>
+        <Country>Roman Empire</Country>
+      </ContactAddress>
+      <ContactVoiceTelephone/>
+      <ContactFacsimileTelephone/>
+      <ContactElectronicMailAddress>claudius.ptolomaeus@mercury.olympus.gov</ContactElectronicMailAddress>
+    </ContactInformation>
+    <Fees>NONE</Fees>
+    <AccessConstraints>NONE</AccessConstraints>
+  </Service>
+  <Capability>
+    <Request>
+      <GetCapabilities>
+        <Format>text/xml</Format>
+        <DCPType>
+          <HTTP>
+            <Get>
+              <OnlineResource xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?SERVICE=WMS&amp;"/>
+            </Get>
+            <Post>
+              <OnlineResource xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?SERVICE=WMS&amp;"/>
+            </Post>
+          </HTTP>
+        </DCPType>
+      </GetCapabilities>
+      <GetMap>
+        <Format>image/png</Format>
+        <Format>image/jpeg</Format>
+        <DCPType>
+          <HTTP>
+            <Get>
+              <OnlineResource xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?SERVICE=WMS&amp;"/>
+            </Get>
+          </HTTP>
+        </DCPType>
+      </GetMap>
+      <GetFeatureInfo>
+        <Format>text/xml</Format>
+        <DCPType>
+          <HTTP>
+            <Get>
+              <OnlineResource xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?SERVICE=WMS&amp;"/>
+            </Get>
+          </HTTP>
+        </DCPType>
+      </GetFeatureInfo>
+    </Request>
+    <Exception>
+      <Format>XML</Format>
+    </Exception>
+    <Layer>
+      <Title>GeoServer Web Map Service</Title>
+      <Abstract>A compliant implementation of WMS plus most of the SLD extension (dynamic styling). Can also generate PDF, SVG, KML, GeoRSS</Abstract>
+      
+      <CRS>CRS:84</CRS>
+      <CRS>EPSG:3857</CRS>
+      <CRS>EPSG:4326</CRS>
+      <CRS>EPSG:900913</CRS>
+      <EX_GeographicBoundingBox>
+        <westBoundLongitude>-180.0</westBoundLongitude>
+        <eastBoundLongitude>180.0</eastBoundLongitude>
+        <southBoundLatitude>-90.0</southBoundLatitude>
+        <northBoundLatitude>90.0</northBoundLatitude>
+      </EX_GeographicBoundingBox>
+      <BoundingBox CRS="CRS:84" minx="-180.0" miny="-90.0" maxx="180.0" maxy="90.0"/>
+      <Layer queryable="1">
+        <Name>spearfish</Name>
+        <Title>Spearfish</Title>
+        <Abstract>Spearfish City in Lawrence County, South Dakota&#13;
+&#13;
+The area covered by the data set is in the vicinity of Spearfish and includes a majority of the Black Hills National Forest (i.e., Mount Rushmore).</Abstract>
+        <KeywordList/>
+        <CRS>EPSG:26713</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>-103.877932069774</westBoundLongitude>
+          <eastBoundLongitude>-103.62280482877419</eastBoundLongitude>
+          <southBoundLatitude>44.37253205619695</southBoundLatitude>
+          <northBoundLatitude>44.50241740988299</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="-103.877932069774" miny="44.37253205619695" maxx="-103.62280482877419" maxy="44.50241740988299"/>
+        <BoundingBox CRS="EPSG:26713" minx="589425.9342365642" miny="4913959.224611808" maxx="609518.6719560538" maxy="4928082.949945881"/>
+        <Style>
+          <Name>default-style-spearfish</Name>
+          <Title>spearfish style</Title>
+          <Abstract>Default style for spearfish layer</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=spearfish"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+      <Layer queryable="1" opaque="0">
+        <Name>nurc:Pk50095</Name>
+        <Title>Pk50095</Title>
+        <Abstract>Pk50095 is a raster file accompanied by a spatial data file.</Abstract>
+        <KeywordList>
+          <Keyword>WCS</Keyword>
+          <Keyword>img_sample2</Keyword>
+          <Keyword>Pk50095</Keyword>
+        </KeywordList>
+        <CRS>EPSG:32633</CRS>
+        <CRS>CRS:84</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>12.999446822650462</westBoundLongitude>
+          <eastBoundLongitude>13.308182612644663</eastBoundLongitude>
+          <southBoundLatitude>46.722110379286</southBoundLatitude>
+          <northBoundLatitude>46.91359611878293</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="12.999446822650462" miny="46.722110379286" maxx="13.308182612644663" maxy="46.91359611878293"/>
+        <BoundingBox CRS="EPSG:32633" minx="347649.93086859107" miny="5176214.082539256" maxx="370725.976428591" maxy="5196961.352859256"/>
+        <Style>
+          <Name>raster</Name>
+          <Title>Opaque Raster</Title>
+          <Abstract>A sample style that draws a raster, good for displaying imagery</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=nurc%3APk50095"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+      <Layer queryable="1" opaque="0">
+        <Name>Sweden:T1_AIDEDEX</Name>
+        <Title>T1_AIDEDEX</Title>
+        <Abstract/>
+        <KeywordList/>
+        <CRS>EPSG:32633</CRS>
+        <CRS>CRS:84</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>17.81805617452983</westBoundLongitude>
+          <eastBoundLongitude>17.82060976412126</eastBoundLongitude>
+          <southBoundLatitude>59.0755129008352</southBoundLatitude>
+          <northBoundLatitude>59.07818323437433</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="17.81805617452983" miny="59.0755129008352" maxx="17.82060976412126" maxy="59.07818323437433"/>
+        <BoundingBox CRS="EPSG:32633" minx="661518.2419200001" miny="6551874.62382" maxx="661652.46447" maxy="6552166.66062"/>
+        <Style>
+          <Name>raster</Name>
+          <Title>Opaque Raster</Title>
+          <Abstract>A sample style that draws a raster, good for displaying imagery</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=Sweden%3AT1_AIDEDEX"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+      <Layer queryable="1" opaque="0">
+        <Name>spain:atlas_openfield_aidedex_v1_crop</Name>
+        <Title>atlas_openfield_aidedex_v1_crop</Title>
+        <Abstract/>
+        <KeywordList>
+          <Keyword>atlas_openfield_aidedex_v1_crop</Keyword>
+          <Keyword>WCS</Keyword>
+          <Keyword>GeoTIFF</Keyword>
+        </KeywordList>
+        <CRS>EPSG:4326</CRS>
+        <CRS>CRS:84</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>-3.175198013</westBoundLongitude>
+          <eastBoundLongitude>-3.174003713</eastBoundLongitude>
+          <southBoundLatitude>38.138152901</southBoundLatitude>
+          <northBoundLatitude>38.138745708</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="-3.175198013" miny="38.138152901" maxx="-3.174003713" maxy="38.138745708"/>
+        <BoundingBox CRS="EPSG:4326" minx="38.138152901" miny="-3.175198013" maxx="38.138745708" maxy="-3.174003713"/>
+        <Style>
+          <Name>raster</Name>
+          <Title>Opaque Raster</Title>
+          <Abstract>A sample style that draws a raster, good for displaying imagery</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=spain%3Aatlas_openfield_aidedex_v1_crop"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+      <Layer queryable="1" opaque="0">
+        <Name>spain:atlas_road_aidedex_v1</Name>
+        <Title>atlas_road_aidedex_v1</Title>
+        <Abstract/>
+        <KeywordList>
+          <Keyword>atlas_road_aidedex_v1</Keyword>
+          <Keyword>WCS</Keyword>
+          <Keyword>GeoTIFF</Keyword>
+        </KeywordList>
+        <CRS>EPSG:4326</CRS>
+        <CRS>CRS:84</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>-3.1735870761</westBoundLongitude>
+          <eastBoundLongitude>-3.17129735636</eastBoundLongitude>
+          <southBoundLatitude>38.1379515783844</southBoundLatitude>
+          <northBoundLatitude>38.1389010390831</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="-3.1735870761" miny="38.1379515783844" maxx="-3.17129735636" maxy="38.1389010390831"/>
+        <BoundingBox CRS="EPSG:4326" minx="38.1379515783844" miny="-3.1735870761" maxx="38.1389010390831" maxy="-3.17129735636"/>
+        <Style>
+          <Name>raster</Name>
+          <Title>Opaque Raster</Title>
+          <Abstract>A sample style that draws a raster, good for displaying imagery</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=spain%3Aatlas_road_aidedex_v1"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+      <Layer queryable="1" opaque="0">
+        <Name>topp:states</Name>
+        <Title>USA Population</Title>
+        <Abstract>This is some census data on the states.</Abstract>
+        <KeywordList>
+          <Keyword>census</Keyword>
+          <Keyword>united</Keyword>
+          <Keyword>boundaries</Keyword>
+          <Keyword>state</Keyword>
+          <Keyword>states</Keyword>
+        </KeywordList>
+        <CRS>EPSG:4326</CRS>
+        <CRS>CRS:84</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>-124.731422</westBoundLongitude>
+          <eastBoundLongitude>-66.969849</eastBoundLongitude>
+          <southBoundLatitude>24.955967</southBoundLatitude>
+          <northBoundLatitude>49.371735</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="CRS:84" minx="-124.731422" miny="24.955967" maxx="-66.969849" maxy="49.371735"/>
+        <BoundingBox CRS="EPSG:4326" minx="24.955967" miny="-124.73142200000001" maxx="49.371735" maxy="-66.969849"/>
+        <Style>
+          <Name>population</Name>
+          <Title>Population in the United States</Title>
+          <Abstract>A sample filter that filters the United States into three
+        categories of population, drawn in different colors</Abstract>
+          <LegendURL width="84" height="80">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=topp%3Astates"/>
+          </LegendURL>
+        </Style>
+        <Style>
+          <Name>pophatch</Name>
+          <Title>Population in the United States</Title>
+          <Abstract>A sample filter that filters the United States into three
+        categories of population, drawn in different colors</Abstract>
+          <LegendURL width="84" height="80">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=topp%3Astates&amp;style=pophatch"/>
+          </LegendURL>
+        </Style>
+        <Style>
+          <Name>polygon</Name>
+          <Title>Default Polygon</Title>
+          <Abstract>A sample style that draws a polygon</Abstract>
+          <LegendURL width="20" height="20">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://localhost:8095/geoserver/ows?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image%2Fpng&amp;width=20&amp;height=20&amp;layer=topp%3Astates&amp;style=polygon"/>
+          </LegendURL>
+        </Style>
+      </Layer>
+    </Layer>
+  </Capability>
+</WMS_Capabilities>

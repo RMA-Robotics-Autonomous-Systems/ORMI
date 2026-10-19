@@ -90,6 +90,16 @@ enum PluginsHooks {
 	 * @param pages - Array of PageDefinition.
 	 */
 	PAGES_LIST = "plugins-pages-list",
+
+	/**
+	 * Filter that returns every registered map-server adapter (GeoServer,
+	 * OGC WMS, TiTiler, XYZ, ...). Plugins push a `MapLayerProviderDefinition`
+	 * (`@workspace/ormi-core/map-layers/model`); core owns the contract only.
+	 * Not read during the dashboard shell's render: its readers subscribe with
+	 * `usePluginFiltersRevision`.
+	 * @param providers - Array of MapLayerProviderDefinition.
+	 */
+	MAP_LAYER_PROVIDERS = "plugins-map-layer-providers",
 }
 
 /**
