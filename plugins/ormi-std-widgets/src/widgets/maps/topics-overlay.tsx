@@ -4,7 +4,7 @@ import {
 	SelectedTopic,
 	useLocalDataSource,
 } from "@workspace/ormi-core/datasources";
-import { Layers, Target } from "lucide-react";
+import { Layers, LocateFixed, Target } from "lucide-react";
 import { useState } from "react";
 import { MapRef } from "react-map-gl/maplibre";
 import { Badge } from "@workspace/ui/components/badge";
@@ -24,6 +24,7 @@ import {
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { createAvatarDataUri } from "@workspace/utils";
 import { CustomLayer, LayersSection } from "./layers-overlay";
+import { isFollowableMarker } from "./follow-camera";
 
 /** A GPS topic entry rendered as a row in the control panel. */
 interface TopicEntry {
@@ -51,6 +52,9 @@ interface TopicEntry {
  * The per-row visibility toggle is injected by the marker components through
  * the keyed ButtonHolder bus (`items`); its key is the entry's `instanceId`.
  *
+ * The follow state is owned by the caller, because this panel's rows unmount
+ * when it is collapsed and a follow has to outlive that.
+ *
  * @param props - Component props.
  * @returns React element or null when there is nothing to show.
  */
@@ -58,12 +62,18 @@ export function MapControlPanel({
 	topics,
 	customLayers,
 	mapRef,
+	followedId,
+	onToggleFollow,
 	onLayerVisibilityChange,
 	onLayerOpacityChange,
 }: {
 	topics: TopicEntry[];
 	customLayers: CustomLayer[];
 	mapRef?: React.RefObject<MapRef | null>;
+	/** The `instanceId` of the entry the camera follows, or null. */
+	followedId: string | null;
+	/** Starts following an entry, switches to it, or stops when it is followed. */
+	onToggleFollow: (instanceId: string) => void;
 	onLayerVisibilityChange: (layerIndex: number, visible: boolean) => void;
 	onLayerOpacityChange: (layerIndex: number, opacity: number) => void;
 }) {
@@ -107,6 +117,8 @@ export function MapControlPanel({
 									<TopicsSection
 										topics={topics}
 										mapRef={mapRef}
+										followedId={followedId}
+										onToggleFollow={onToggleFollow}
 									/>
 								)}
 
@@ -134,40 +146,35 @@ export function MapControlPanel({
 }
 
 /**
- * "Topics" section: one always-visible row per GPS topic with a center action
+ * "Topics" section: one always-visible row per GPS topic with a camera action
  * and the marker-injected visibility toggle.
+ *
+ * The camera action follows an entry that draws a moving position
+ * ({@link isFollowableMarker}) and fits the map to a heatmap's points once.
  * @param props - Component props.
  * @returns React element.
  */
 function TopicsSection({
 	topics,
 	mapRef,
+	followedId,
+	onToggleFollow,
 }: {
 	topics: TopicEntry[];
 	mapRef?: React.RefObject<MapRef | null>;
+	followedId: string | null;
+	onToggleFollow: (instanceId: string) => void;
 }) {
 	const { getSource } = useLocalDataSource();
 	const { items } = useButtonHolder();
 
-	const handleTopicClick = (topic: TopicEntry) => {
+	/** One-shot fit to every buffered point of a heatmap entry. */
+	const fitToEntry = (topic: TopicEntry) => {
 		if (!mapRef?.current) return;
 
 		const data = getSource(topic.topic);
 		if (!data || data.data.length === 0) return;
 
-		if (topic.makerType === "simple") {
-			const lastData = data.data[
-				data.data.length - 1
-			] as GeolocationPosition;
-			mapRef.current.flyTo({
-				center: [lastData.coords.longitude, lastData.coords.latitude],
-				zoom: 16,
-				duration: 1000,
-			});
-			return;
-		}
-
-		// heatmap / path / multipoints: fit the bounds of all points.
 		const coordinates: [number, number][] = [];
 		data.data.forEach((item: unknown) => {
 			const geoItem = item as GeolocationPosition;
@@ -205,6 +212,8 @@ function TopicsSection({
 			</span>
 			{topics.map((topic) => {
 				const instanceId = topic.instanceId;
+				const followable = isFollowableMarker(topic.makerType);
+				const following = followedId === instanceId;
 				return (
 					<div
 						key={instanceId}
@@ -226,17 +235,37 @@ function TopicsSection({
 						</Badge>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="h-6 w-6 shrink-0"
-									onClick={() => handleTopicClick(topic)}
-								>
-									<Target className="h-3 w-3" />
-								</Button>
+								{followable ? (
+									<Button
+										variant={
+											following ? "default" : "ghost"
+										}
+										size="icon"
+										className="h-6 w-6 shrink-0"
+										aria-pressed={following}
+										onClick={() =>
+											onToggleFollow(instanceId)
+										}
+									>
+										<LocateFixed className="h-3 w-3" />
+									</Button>
+								) : (
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-6 w-6 shrink-0"
+										onClick={() => fitToEntry(topic)}
+									>
+										<Target className="h-3 w-3" />
+									</Button>
+								)}
 							</TooltipTrigger>
 							<TooltipContent>
-								Center map on &quot;{topic.name}&quot;
+								{!followable
+									? `Center map on "${topic.name}"`
+									: following
+										? `Stop following "${topic.name}"`
+										: `Follow "${topic.name}"`}
 							</TooltipContent>
 						</Tooltip>
 						{items.has(instanceId) && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, JSX, useMemo } from "react";
+import { Fragment, JSX, useCallback, useMemo, useState } from "react";
 import { MapRef } from "react-map-gl/maplibre";
 import {
 	SelectedTopic,
@@ -12,6 +12,8 @@ import { createTopicKey, isBoundTopic } from "@workspace/utils";
 import { GPS_ENTRY_SLOTS, isEntryConfigured } from "../unconfigured-entries";
 
 import { MapControlPanel } from "../topics-overlay";
+import { isFollowableMarker, toggleFollow } from "../follow-camera";
+import { FollowCamera } from "./FollowCamera";
 import { CustomLayer } from "../layers-overlay";
 import TopicMarker from "../gps-components/marker-simple";
 import HeatMarker from "../gps-components/marker-heat";
@@ -101,6 +103,19 @@ export function GpsTopicsLayer({
 		[topics],
 	);
 
+	// The entry the camera follows. Held here, not in the control panel: the
+	// panel unmounts its rows when collapsed, and the follow must outlive that.
+	// An id that no longer names a followable entry (removed or retyped in the
+	// settings) follows nothing.
+	const [followedId, setFollowedId] = useState<string | null>(null);
+	const followed = entries.find(
+		(e) => e.instanceId === followedId && isFollowableMarker(e.makerType),
+	);
+	const handleToggleFollow = useCallback((instanceId: string) => {
+		setFollowedId((current) => toggleFollow(current, instanceId));
+	}, []);
+	const handleStopFollow = useCallback(() => setFollowedId(null), []);
+
 	// Render nothing only when there is neither a topic nor a layer to control.
 	if (
 		(!topics || topics.length === 0) &&
@@ -174,10 +189,21 @@ export function GpsTopicsLayer({
 				);
 			})}
 
+			{followed && (
+				<FollowCamera
+					key={followed.instanceId}
+					name={followed.name}
+					topic={followed.topic}
+					onStop={handleStopFollow}
+				/>
+			)}
+
 			<MapControlPanel
 				topics={entries}
 				customLayers={customLayers}
 				mapRef={mapRef}
+				followedId={followed?.instanceId ?? null}
+				onToggleFollow={handleToggleFollow}
 				onLayerVisibilityChange={onLayerVisibilityChange}
 				onLayerOpacityChange={onLayerOpacityChange}
 			/>
