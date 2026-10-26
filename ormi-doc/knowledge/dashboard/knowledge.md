@@ -211,7 +211,7 @@ Engines mutate state via `useDashboardActions()`:
   is exceeded and the grid container scrolls vertically.
 - An engine renders an explicit empty state while `widgetsAtom` is empty, naming
   the one next step — add a datasource when `datasourcesAtom` is empty, add a
-  widget otherwise. The grid engine implements this; the flex engine does not yet.
+  widget otherwise. Both engines render `DashboardEmptyState`.
 - Pulsing means "this is the next required step", so at most one control pulses
   at a time along **datasource → widget → save**: the `Datasources` button while
   no datasource is configured, then the save button once there are unsaved

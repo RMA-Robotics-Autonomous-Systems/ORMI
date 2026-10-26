@@ -86,7 +86,7 @@ interface DatasourceTopic {
 	source: DatasourceProviderSettings;
 	type: string; // webapp type — one of WebTypes
 	rawType: string; // datasource-native type — e.g. "sensor_msgs/Imu"
-	bufferSize?: number; // estimated message size (bytes), when known
+	bufferSize?: number; // history depth (messages), when the widget declares one
 }
 ```
 
@@ -128,7 +128,7 @@ This depends on `output: "standalone"` plus `outputFileTracingRoot` pointed at
 the workspace root in `apps/web/next.config.mjs`; without that root, tracing
 stops at `apps/web` and the shipped server cannot resolve the symlinked
 `@workspace/*` and `ormi-*` packages. The container entrypoint runs
-`prisma migrate deploy` and then `node apps/web/server.js`; watchtower pulls
+`prisma migrate deploy` and then `bun apps/web/server.js`; watchtower pulls
 new images in the field, so image size is deployment latency. The image is
 published to GHCR as a two-platform manifest (`linux/amd64`, `linux/arm64`)
 built natively on one runner per platform; `:latest` is written once, by the

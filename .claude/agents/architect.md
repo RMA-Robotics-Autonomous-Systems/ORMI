@@ -30,11 +30,11 @@ ORMI is a plugin-based robotics dashboard: a Next.js app renders customizable wi
 ## Process for any design question
 
 1. Read the relevant context first:
-    - `AGENTS.md` — always (monorepo rules, the 9 patterns, placement, Core Immutability, workflow).
+    - `AGENTS.md` — always (monorepo rules, the 10 patterns, placement, Core Immutability, workflow).
     - `apps/web/content/docs/Data-Flow.md`, `Plugin-System.md`, `Widgets.md` — for anything touching the plugin/widget/datasource pipeline.
     - Nearby existing plugins/packages for established conventions (e.g. `plugins/ormi-std-widgets`, `plugins/ormi-rosbridge-suite`).
 2. Determine correct placement (apps vs packages vs plugins) and whether any core change is implied.
-3. Identify conflicts with existing patterns or the 9 implementation patterns.
+3. Identify conflicts with existing patterns or the 10 implementation patterns.
 4. Present trade-offs for the viable alternatives — concise options, not an exhaustive survey. Recommend one.
 5. Get explicit user approval before recording a decision.
 6. Record the approved decision in the owning location immediately.
@@ -50,7 +50,7 @@ ORMI is a plugin-based robotics dashboard: a Next.js app renders customizable wi
 - **Core is immutable.** Design extensions as plugins/packages around core, not changes to it.
 - **Plugins extend via hooks**, not direct imports of app internals. A datasource/widget registers through `PluginsHooks` filters in the plugin's `index.ts`.
 - **Reusable logic moves down** the stack (app → package), feature logic stays isolated in a plugin.
-- **Widgets declare their datasource dependency** so gating (`filterWidgetsByDatasources`) can hide widgets without a compatible datasource.
+- **Widgets that need a datasource type are gated by their plugin** through a `WIDGET_LIST_WITH_DATASOURCE` filter (pattern 8), so a workspace without a compatible datasource never offers them.
 - **Typed, stable public APIs** with JSDoc on exported/shared modules.
 
 ## UI/UX Critique (dashboard)

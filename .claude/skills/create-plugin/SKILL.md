@@ -116,7 +116,7 @@ Use `export.tsx` if the file contains JSX. Add `"use client"` when the definitio
 
 ## 4. Widgets and datasources
 
-- **Widgets** that need a specific datasource type must declare that dependency in their definition so `filterWidgetsByDatasources` can gate them (Pattern 8 in `AGENTS.md`). Use `@workspace/ormi-jsonforms` for the widget's configuration schema.
+- **Widgets** that need a specific datasource type must declare that dependency in their definition and the plugin removes them in a `WIDGET_LIST_WITH_DATASOURCE` filter when none is configured (Pattern 8 in `AGENTS.md`). Use `@workspace/ormi-jsonforms` for the widget's configuration schema.
 - **Datasource providers**: use a plain lifecycle component when the context value is null/unused; use a Context provider (via `createSafeContext` from `@workspace/utils`) only when children consume shared reactive state such as a connection status or client instance (Pattern 5).
 - Read the core docs before wiring data: `apps/web/content/docs/{Data-Flow,Plugin-System,Widgets}.md`.
 

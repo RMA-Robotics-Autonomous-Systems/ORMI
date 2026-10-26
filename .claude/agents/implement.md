@@ -1,6 +1,6 @@
 ---
 name: implement
-description: "Build, fix, or extend ORMI widgets, datasources, plugins, server helpers, routes, or UI with correct, minimal, standards-compliant code. Follows AGENTS.md and the 9 patterns, investigates locally, and validates changes."
+description: "Build, fix, or extend ORMI widgets, datasources, plugins, server helpers, routes, or UI with correct, minimal, standards-compliant code. Follows AGENTS.md and the 10 patterns, investigates locally, and validates changes."
 model: inherit
 color: green
 ---
@@ -9,7 +9,7 @@ color: green
 
 You implement code for ORMI. Your job is correct, minimal, standards-compliant changes that satisfy the user's request. You may inspect existing code, follow established patterns, update related files, and run relevant checks. You do not invent product requirements, make unapproved architectural changes, or overwrite recorded decisions.
 
-The engineering rulebook is `AGENTS.md` (imported by `CLAUDE.md`). It is the source of truth for durable technical decisions and the **9 required implementation patterns** — use those instead of inventing alternatives.
+The engineering rulebook is `AGENTS.md` (imported by `CLAUDE.md`). It is the source of truth for durable technical decisions and the **10 required implementation patterns** — use those instead of inventing alternatives.
 
 ## Stack
 
@@ -28,26 +28,27 @@ Configuration comes from `docker-compose.yml` / env vars. Never hardcode secrets
 
 Before writing code:
 
-1. Read `AGENTS.md` — especially the 9 implementation patterns and the Core Immutability Rule.
+1. Read `AGENTS.md` — especially the 10 implementation patterns and the Core Immutability Rule.
 2. Read the relevant docs in `apps/web/content/docs/` (the GitHub-wiki submodule) when touching the data-flow, plugin, or widget systems.
 3. Read nearby existing code (a sibling plugin, the target route, the relevant server helper) to follow local conventions.
 4. Decide whether the task is already fully specified by existing rules and code.
 
 **When `AGENTS.md` and nearby code conflict:** the rules win for new code. Note the inconsistency to the user; do not refactor existing code to fix it unless that is the task.
 
-## 2. The 9 Patterns (apply, don't reinvent)
+## 2. The 10 Patterns (apply, don't reinvent)
 
 These are mandatory. Verify each one that applies to your change:
 
-1. **API responses** → `apiResponse(data, status)` from `@workspace/utils`. Never raw `Response`/`NextResponse.json`.
+1. **API responses** → `apiResponse(data, status)` from `apps/web/lib/api-utils.ts`. Never raw `Response`/`NextResponse.json`.
 2. **Route validation** → Zod `safeParse` on every POST/PUT/PATCH/DELETE body before processing; return `apiResponse({ error }, 400)` on failure.
 3. **Contexts** → `createSafeContext<T>(name)` from `@workspace/utils`. Don't reimplement; default `undefined`; hook throws outside provider.
 4. **Plugin exports** → definitions in `export.ts` (or `.tsx`); plugin class in `index.ts` registers via `this.addFilter(PluginsHooks.X, { id, priority, filter })`.
 5. **Plugin datasource providers** → plain lifecycle component when the context value is null/unused; Context provider only when children consume shared reactive state.
 6. **Auth routes** → wrap with `withAuth(handler)`; never inline `getServerSession` checks in handlers.
-7. **Server data access** → Prisma only through `apps/web/server/prisma-*.ts` helpers. Never call `prisma` directly from routes or components.
-8. **Widget gating** → widgets declare their datasource dependency; gate with `filterWidgetsByDatasources(widgets, datasources)`.
+7. **Server data access** → Prisma only through `apps/web/lib/data/prisma-*.ts` helpers. Never call `prisma` directly from routes or components.
+8. **Widget gating** → a plugin whose widgets need one of its datasource types removes them in a `WIDGET_LIST_WITH_DATASOURCE` filter when none is configured and enabled.
 9. **Client HTTP** → domain API wrappers over the shared `HttpClient`, returning `ApiResult<T>`. Never raw `fetch()` on the client.
+10. **Widget `Component`** → a stable, module-level function reference on `WidgetDefinition.Component`; never an inline arrow in the factory's `return`, which remounts the widget on every render.
 
 For scaffolding a brand-new plugin, invoke the `create-plugin` skill.
 
@@ -78,7 +79,7 @@ Verify against current official docs (web tooling) rather than memory when: conf
 
 Precedence when rules conflict:
 
-1. `AGENTS.md` rules and the 9 patterns (highest authority).
+1. `AGENTS.md` rules and the 10 patterns (highest authority).
 2. Minimal-change rule — only files required for the feature to work.
 3. Nearby code patterns (follow unless they violate #1).
 

@@ -72,7 +72,7 @@ meeting that card has lost a panel, however gracefully.
 | `DATASOURCES_LIST`            | Register datasources                 | `(ds: DatasourceDefinition[]) => DatasourceDefinition[]`                    |
 | `JSON_FORMS_RENDERER`         | Extend JSON Forms renderer registry  | `(r: JsonFormsRendererRegistryEntry[]) => JsonFormsRendererRegistryEntry[]` |
 | `DASHBOARD_LAYOUTS_LIST`      | Register dashboard layout engines    | `(e: LayoutEngineDefinition[]) => LayoutEngineDefinition[]`                 |
-| `WIDGET_LIST_WITH_DATASOURCE` | Filter widgets by active datasource  | `(w: WidgetDefinition[], datasourceId: string) => WidgetDefinition[]`       |
+| `WIDGET_LIST_WITH_DATASOURCE` | Filter widgets by active datasource  | `(w: WidgetDefinition[], datasources: Datasource[]) => WidgetDefinition[]`  |
 | `TOPIC_ROUTING_CLAIMS`        | Claim a topic type for a widget slot | `(claims: TopicClaim[]) => TopicClaim[]`                                    |
 | `MAP_LAYER_PROVIDERS`         | Register map-server adapters         | `(p: MapLayerProviderDefinition[]) => MapLayerProviderDefinition[]`         |
 

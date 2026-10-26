@@ -244,34 +244,6 @@ Selection is by tester rank — there is **no** `options.renderer` string id and
 `RENDERERS_LIST` hook. Real example:
 `plugins/ormi-foxglove/` → `url-with-button-renderer.tsx`.
 
-### Datasource pick-lists
-
-A widget that pins itself to ONE configured datasource stores that datasource's
-_instance_ id (`datasource_<uuid>`, i.e. `Datasource.settings.id` — not the
-definition id). As a plain `{ type: "string" }` property that renders as a text
-box the operator has to fill from memory, so the field is rewritten into a
-`oneOf` of `{ const, title }` members — the same shape `basemapOneOf()` produces,
-but built at runtime from the datasources actually configured.
-
-`createDatasourceSelectHook({ field, definitionId, autoLabel? })`
-(`packages/utils/src/datasource-select-schema.ts`) returns a
-`WidgetDefinition.extensibilityHook`. The dashboard shell runs that hook on every
-render with the live `PluginsManager`, so the hook resolves
-`AVAILABLE_DATASOURCES`, keeps the instances whose _definition_ id matches, and
-replaces the property with the pick-list. Persisted values are unchanged.
-
-Two rules keep it safe:
-
-- **No match → no rewrite.** An empty `oneOf` is invalid schema, and a widget
-  whose datasource is not configured (or not loaded yet) must stay configurable,
-  so the property is left as the free-text field.
-- **`autoLabel` only where unset is meaningful.** The five C2 widgets resolve
-  their `c2.*` remote calls across every datasource when the field is blank, so
-  they get a leading `{ const: "" }` "automatic" member — the value they already
-  treat as unset — and the operator can go back to it. Widgets that build a
-  per-instance hook name from the id (`rqt-graph`, the Tello command widget, both
-  RestBag widgets) need a concrete datasource and get no empty member.
-
 ### Config dialogs commit only valid input
 
 `WidgetCard` and `DatasourceCard` render the JSON Forms config surface in a
@@ -669,12 +641,12 @@ position), never click order.
 
 How each map wires it:
 
-| map            | `beforeId`                                                             | centre-on-layer                                                                  |
-| -------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| std map        | `resolveAnchor(style, overlay) ?? resolveAnchor(style, GRID_LAYER_ID)` | `MapLayersOverlay` in its control panel                                          |
-| C2 mission map | `resolveAnchor(style, overlay) ?? "c2-features-fill"`                  | a section of its in-map panel, above the live layers (RainViewer, planner graph) |
+| map            | `beforeIds`                     | centre-on-layer                                                                  |
+| -------------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| std map        | `[overlay, GRID_LAYER_ID]`      | `MapLayersOverlay` in its control panel                                          |
+| C2 mission map | `[overlay, "c2-features-fill"]` | a section of its in-map panel, above the live layers (RainViewer, planner graph) |
 
-The layers are `<Source>`/`<Layer>` children chained under `beforeId`, never
+The layers are `<Source>`/`<Layer>` children chained under the first `beforeIds` candidate the live map contains, never
 part of the style object: switching one does not rebuild the style, which on
 the C2 map is what keeps terra-draw's `td-*` layers alive (see the next
 section for why a style rebuild deletes them). Each source carries the layer's

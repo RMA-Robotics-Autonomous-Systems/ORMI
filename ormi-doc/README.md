@@ -40,6 +40,6 @@ bun run build      # likec4 build --output dist — static site (git-ignored)
 - **Nested references are fully qualified** (e.g. `ormi.web.dashboard`).
 - **Element `link`s are file-relative** — the model links into the knowledge base
   via `link ../knowledge/…`; preserve the `model/` ↔ `knowledge/` layout or links break.
-- Coding standards are **not duplicated here** — see the repo's `AGENTS.md` (the 9
-  patterns) as the single source of truth.
+- Coding standards are **not duplicated here** — see the repo's `AGENTS.md` (the
+  implementation patterns) as the single source of truth.
 - LikeC4 versions are **pinned** for reproducible validation and icon resolution.

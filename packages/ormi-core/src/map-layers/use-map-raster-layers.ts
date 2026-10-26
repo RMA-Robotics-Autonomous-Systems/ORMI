@@ -54,7 +54,7 @@ const NO_SERVERS = [] as const;
  * @example
  * const raster = useMapRasterLayers(settings.mapLayers, { maxZoom: MAP_MAX_ZOOM });
  * // <Map transformRequest={raster.transformRequest} …>
- * //   <RasterOverlayLayers layers={raster.layers} beforeId={overlayBeforeId} />
+ * //   <RasterOverlayLayers layers={raster.layers} beforeIds={[ORMI_STYLE_ANCHORS.overlay]} />
  */
 export function useMapRasterLayers(
 	refs: unknown,

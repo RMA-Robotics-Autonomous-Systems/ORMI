@@ -1,5 +1,7 @@
 # ORMI UX / HMI Plan
 
+> Historical as of 2026-10-26. Several proposals here were replaced by what `AGENTS.md` now describes (see the Stele finding `ux-plan-proposals-superseded-by-agents-md`). Statuses below are not current.
+
 Status as of 2026-09-16. Detail doc for the `TODO.md` entry of the same date.
 
 Driving complaint, in the user's words:

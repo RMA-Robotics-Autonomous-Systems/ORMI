@@ -5,10 +5,10 @@
 
 **This is a pointer doc, not a copy.** The single source of truth for coding
 standards is the repo root **`AGENTS.md`** — it owns the monorepo placement rules,
-the Core Immutability Rule, the 9 required implementation patterns, the workflow,
+the Core Immutability Rule, the required implementation patterns, the workflow,
 and the Definition of Done. Read it directly; do not restate the patterns here.
 
-The 9 patterns (see `AGENTS.md` for each in full):
+The implementation patterns (see `AGENTS.md` for each in full):
 
 1. API responses via `apiResponse(data, status)` — never raw `Response`/`NextResponse.json`.
 2. Zod validation on every mutating route (POST/PUT/PATCH/DELETE).
@@ -16,8 +16,8 @@ The 9 patterns (see `AGENTS.md` for each in full):
 4. Plugin definitions in `export.ts`.
 5. Datasource providers are plain lifecycle components when their context value is null/unused.
 6. Auth routes wrapped with `withAuth(handler)`.
-7. Server-side Prisma access only through `apps/web/server/prisma-*.ts` helpers.
-8. Widget gating via `filterWidgetsByDatasources`.
+7. Server-side Prisma access only through `apps/web/lib/data/prisma-*.ts` helpers.
+8. Widget gating through a plugin filter on `WIDGET_LIST_WITH_DATASOURCE`.
 9. Client HTTP via the shared `HttpClient` + domain API wrappers (returning `ApiResult<T>`).
 10. `WidgetDefinition.Component` must be a stable, module-level reference.
 
