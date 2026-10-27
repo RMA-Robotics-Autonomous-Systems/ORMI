@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { TransformTreeManager } from "./transform-tree-manager";
 import { FoxgloveDataSourceSettings } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { FoxgloveDataHandler } from "./foxglove-data-handler";
 import { SubscriptionManager } from "./subscription-manager";
 import { PublisherManager } from "./publisher-manager";
@@ -80,6 +81,11 @@ const useConnectionStatus = (toasts: boolean) => {
 
 const FoxgloveSourceProvider = (props: FoxgloveDataSourceSettings) => {
 	const pluginsManager = usePluginsManager();
+	// Registry-before-READY. Called during render, not in an effect: READY is
+	// fired by the child SubscriptionManager / PublisherManager, and child
+	// effects run before this component's own. Memoised per manager, so a
+	// repeated render is free.
+	getDatasourceSubscriptionRegistry(pluginsManager);
 	const [initialized, setInitialized] = useState(false);
 
 	const handleInitialized = useCallback(

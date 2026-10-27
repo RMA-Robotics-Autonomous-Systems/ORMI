@@ -64,7 +64,7 @@ export type TopicPickerMode = "inline" | "dialog";
 export interface TopicPickerModeOptions {
 	/**
 	 * Whether the slot's auto-select pass may bind a sole candidate itself —
-	 * `canAutoBindSlot` of the slot's requirements and role.
+	 * `canAutoBindSlot` of the slot's requirements, role and direction.
 	 *
 	 * Omitted or `true` keeps {@link INLINE_CANDIDATE_MIN}. Only an explicit
 	 * `false` lowers the threshold, so a caller that has not worked out the

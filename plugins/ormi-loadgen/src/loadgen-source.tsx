@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LoadgenSettings } from "./index";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { LoadgenMainThreadProvider } from "./loadgen-main-thread-source";
 
 /**
@@ -17,8 +18,26 @@ const LoadgenWorkerProvider = (props: LoadgenSettings) => {
 	const hostRef = useRef<WorkerDatasourceHost<LoadgenSettings> | null>(null);
 	const [, setInitialized] = useState(false);
 
+	// The props object is new on every parent render, so the worker is keyed on
+	// the content of what it consumes (title is display-only: a rename must not
+	// restart it) and reads the settings through a ref.
+	const settingsKey = JSON.stringify([
+		props.id,
+		props.enable,
+		props.preset,
+		props.generators,
+		props.faults,
+	]);
+	const settingsRef = useRef(props);
 	useEffect(() => {
+		settingsRef.current = props;
+	}, [props]);
+
+	useEffect(() => {
+		const props = settingsRef.current;
 		let disposed = false;
+		// Registry-before-READY: it must exist before READY is fired below.
+		getDatasourceSubscriptionRegistry(pluginsManager);
 		let host: WorkerDatasourceHost<LoadgenSettings> | null = null;
 
 		const worker = new Worker(
@@ -67,15 +86,7 @@ const LoadgenWorkerProvider = (props: LoadgenSettings) => {
 			if (host) host.dispose();
 			hostRef.current = null;
 		};
-	}, [
-		pluginsManager,
-		props.id,
-		props.enable,
-		props.title,
-		props.preset,
-		props.generators,
-		props.faults,
-	]);
+	}, [pluginsManager, settingsKey]);
 
 	return null;
 };

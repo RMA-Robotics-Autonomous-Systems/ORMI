@@ -10,6 +10,7 @@ import {
 	clearRemoteCallsFromDatasource,
 } from "@workspace/ormi-core/datasources";
 
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { C2ControlSettings } from "../types/c2-types";
 import { buildC2RemoteCalls } from "./remote-calls";
 import { executeC2Call } from "./rest";
@@ -39,6 +40,7 @@ export function C2SourceProvider(props: C2ControlSettings) {
 
 	// Discovery + readiness: publish defs to the atoms, announce ready, clean up.
 	useEffect(() => {
+		getDatasourceSubscriptionRegistry(pluginsManager);
 		setRemoteCalls(dsId, calls);
 		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, dsId);
 		return () => {

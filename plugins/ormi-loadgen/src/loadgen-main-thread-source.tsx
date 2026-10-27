@@ -8,7 +8,11 @@ import {
 	SelectedTopic,
 } from "@workspace/ormi-core/datasources";
 import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
-import { metrics, MessageCoalescer } from "@workspace/utils";
+import {
+	getDatasourceSubscriptionRegistry,
+	metrics,
+	MessageCoalescer,
+} from "@workspace/utils";
 
 import { LoadgenGenerator, LoadgenSettings } from "./index";
 import { resolveGenerators } from "./presets";
@@ -132,8 +136,26 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 			),
 	);
 
+	// The props object is new on every parent render: key the effect on the
+	// content of what it consumes (a rename must not tear the generators down)
+	// and read the settings through a ref.
+	const settingsKey = JSON.stringify([
+		props.enable,
+		props.preset,
+		props.generators,
+		props.faults,
+	]);
+	const settingsRef = useRef(props);
 	useEffect(() => {
+		settingsRef.current = props;
+	}, [props]);
+
+	useEffect(() => {
+		const props = settingsRef.current;
 		if (!props.enable) return;
+
+		// Registry-before-READY: it must exist before READY is fired below.
+		getDatasourceSubscriptionRegistry(pluginsManager);
 
 		const runtimes = runtimesRef.current;
 		const subscribersCount = subscribersCountRef.current;
@@ -340,7 +362,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 		pluginsManager.addFilter(definition_hook, {
 			id: definition_hook,
 			priority: 10,
-			filter: () => props,
+			filter: () => settingsRef.current,
 		});
 
 		// Actions are registered — let the subscription registry flush any
@@ -379,7 +401,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 		subscribe_hook,
 		unsubscribe_hook,
 		definition_hook,
-		props,
+		settingsKey,
 	]);
 
 	return null;

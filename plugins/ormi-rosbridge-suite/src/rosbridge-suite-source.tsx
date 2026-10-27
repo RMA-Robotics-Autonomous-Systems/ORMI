@@ -31,8 +31,14 @@ import {
 	PluginsHooks,
 	PluginsManager,
 } from "@workspace/ormi-plugins";
-import { metrics, MessageCoalescer } from "@workspace/utils";
+import {
+	getDatasourceSubscriptionRegistry,
+	metrics,
+	MessageCoalescer,
+} from "@workspace/utils";
+import { withRpcTimeout } from "@workspace/ormi-core/datasources/worker";
 import { toast } from "sonner";
+import { rosbridgeConnectionKey } from "./connection-key";
 import { TransformTreeManager } from "./transform-tree-manager";
 import {
 	topicsToResubscribe,
@@ -287,6 +293,9 @@ function convertAndPublish(
 	);
 }
 
+/** Longest the topic list waits for this datasource before listing none for it. */
+const AVAILABLE_TOPICS_TIMEOUT_MS = 4000;
+
 // Create a provider component
 const RosBridgeSuiteSourceProvider = (
 	props: RosBridgeSuiteDataSourceSettings,
@@ -312,6 +321,17 @@ const RosBridgeSuiteSourceProvider = (
 	// connection and die on reconnect; this record survives so we can rebuild
 	// every subscription on the new connection (see reconcileSubscriptions).
 	const requestedTopicsRef = useRef(new Map<string, RequestedTopic>());
+
+	// `GlobalDataSourcesProvider` hands this component a NEW props object on
+	// every one of its renders, so the connection effect is keyed on the
+	// content of the settings the connection depends on (`connectionKey`) and
+	// reads everything else through this ref at call time. A rename or a
+	// toggled toast flag must not reconnect.
+	const propsRef = useRef(props);
+	useEffect(() => {
+		propsRef.current = props;
+	}, [props]);
+	const connectionKey = rosbridgeConnectionKey(props);
 
 	// constant for the datasource
 	const datasource_id = props.id;
@@ -397,7 +417,7 @@ const RosBridgeSuiteSourceProvider = (
 			const topic: DatasourceTopic = {
 				topic: topicName,
 				datasource_id: "rosbridge-suite-source",
-				source: props,
+				source: propsRef.current,
 				type: UnifiedConverter.getWebappTypeFromROSType(rawType) || "",
 				rawType,
 			};
@@ -408,7 +428,8 @@ const RosBridgeSuiteSourceProvider = (
 				ros: ROSRef.current!,
 				name: topicName,
 				messageType: rawType,
-				compression: props.compression === "none" ? "none" : "cbor",
+				compression:
+					propsRef.current.compression === "none" ? "none" : "cbor",
 			});
 
 			// TF-like topics carry deltas and DiagnosticArray on a shared
@@ -418,7 +439,9 @@ const RosBridgeSuiteSourceProvider = (
 			// publishers, so both get a lossless queue.
 			const lossless =
 				isLosslessRawType(rawType) ||
-				(props.transformTreeTopics || []).includes(topicName);
+				(propsRef.current.transformTreeTopics || []).includes(
+					topicName,
+				);
 			const decodeCapMs = decodeCapMsForRawType(rawType);
 
 			// The side map the instance-level coalescer dispatch resolves
@@ -441,7 +464,7 @@ const RosBridgeSuiteSourceProvider = (
 			subscribersRef.current.set(topicName, subscriber);
 			coalescer.start();
 		},
-		[props, datasource_id, coalescer],
+		[datasource_id, coalescer],
 	);
 
 	/**
@@ -464,23 +487,27 @@ const RosBridgeSuiteSourceProvider = (
 	}, [subscribeTopicOnCurrentConnection]);
 
 	useEffect(() => {
-		if (!props.enable) {
+		const { enable, url, reconnectTimeout } = propsRef.current;
+		if (!enable) {
 			setConnected(true); // allow to render children
 			return;
 		}
+
+		// Registry-before-READY: it learns which datasources are ready from
+		// its own DATASOURCE_READY listener, so it must exist before the
+		// "connection" handler below fires that action.
+		getDatasourceSubscriptionRegistry(pluginsManager);
 
 		const waitTimeOut = setTimeout(() => {
 			connectionRef.current = new Promise<boolean>((resolve, reject) => {
 				if (!ROSRef.current || !(ROSRef.current as any).isConnected) {
 					const ros = new ROSLIB.Ros({
-						url: props.url,
+						url,
 					});
 
 					ros.on("connection", () => {
-						if (props.toasts) {
-							toast(
-								"Connecting to ROSBridge Suite at " + props.url,
-							);
+						if (propsRef.current.toasts) {
+							toast("Connecting to ROSBridge Suite at " + url);
 						}
 
 						setConnected(true);
@@ -510,7 +537,7 @@ const RosBridgeSuiteSourceProvider = (
 					});
 
 					ros.on("error", (error: any) => {
-						if (props.toasts) {
+						if (propsRef.current.toasts) {
 							toast(
 								"Error connecting to ROSBridge Suite: " +
 									(error?.message || String(error)),
@@ -521,11 +548,8 @@ const RosBridgeSuiteSourceProvider = (
 					});
 
 					ros.on("close", () => {
-						if (props.toasts) {
-							toast(
-								"Disconnected from ROSBridge Suite: " +
-									props.url,
-							);
+						if (propsRef.current.toasts) {
+							toast("Disconnected from ROSBridge Suite: " + url);
 						}
 
 						pluginsManager.doAction(
@@ -534,7 +558,7 @@ const RosBridgeSuiteSourceProvider = (
 						);
 						setTimeout(() => {
 							setRetry(retry + 1);
-						}, props.reconnectTimeout * 1000);
+						}, reconnectTimeout * 1000);
 
 						setConnected(false);
 						resolve(false);
@@ -557,15 +581,25 @@ const RosBridgeSuiteSourceProvider = (
 				id: available_topics_handler,
 				filter: async (topics) => {
 					try {
-						await connectionRef.current;
-						const rosTopics = await GetTopicsList(ROSRef.current!);
+						// Bounded: this filter runs sequentially across every
+						// datasource, so a connection that never settles must
+						// not hold up (or empty) everyone else's topic list.
+						const rosTopics = await withRpcTimeout(
+							(async () => {
+								await connectionRef.current;
+								return await GetTopicsList(ROSRef.current!);
+							})(),
+							AVAILABLE_TOPICS_TIMEOUT_MS,
+							null,
+						);
+						if (!rosTopics) return topics;
 
 						return [
 							...topics,
 							...rosTopics.map((topic) => ({
 								topic: topic.topic,
 								datasource_id: "rosbridge-suite-source",
-								source: props,
+								source: propsRef.current,
 								type:
 									UnifiedConverter.getWebappTypeFromROSType(
 										topic.type,
@@ -614,7 +648,7 @@ const RosBridgeSuiteSourceProvider = (
 						);
 						subscribersCountRef.current.set(topic.topic, 1);
 					} catch (error) {
-						if (props.toasts) {
+						if (propsRef.current.toasts) {
 							toast(
 								"Error subscribing to topic " +
 									topic.topic +
@@ -679,7 +713,7 @@ const RosBridgeSuiteSourceProvider = (
 						}
 					} catch (error) {
 						console.error("Unsubscribe error:", error);
-						if (props.toasts) {
+						if (propsRef.current.toasts) {
 							toast(
 								"Error unsubscribing from topic " +
 									topic.topic +
@@ -849,7 +883,7 @@ const RosBridgeSuiteSourceProvider = (
 									`ROS2 Advertise for ${topicName}: Cleaned up publisher state due to error.`,
 								);
 							}
-							if (props.toasts) {
+							if (propsRef.current.toasts) {
 								toast(
 									"Error advertising topic " +
 										topicName +
@@ -996,7 +1030,7 @@ const RosBridgeSuiteSourceProvider = (
 								`ROS2 Unadvertise for ${topicName}: Error during operation:`,
 								error,
 							);
-							if (props.toasts) {
+							if (propsRef.current.toasts) {
 								toast(
 									"Error unadvertising topic " +
 										topicName +
@@ -1146,7 +1180,13 @@ const RosBridgeSuiteSourceProvider = (
 			disconnect(); // Disconnect the ROS connection
 			console.log("ROS2 Cleanup: Disconnect called.");
 		};
-	}, [retry, props, pluginsManager, reconcileSubscriptions, coalescer]);
+	}, [
+		retry,
+		connectionKey,
+		pluginsManager,
+		reconcileSubscriptions,
+		coalescer,
+	]);
 
 	// Mount the transform manager once connected, so its subscribe runs after this provider has
 	// registered the subscribe action. It feeds /tf and /tf_static into the shared table.

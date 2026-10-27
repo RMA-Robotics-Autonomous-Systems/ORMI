@@ -18,7 +18,11 @@ import {
 	DatasourceTopic,
 	SelectedTopic,
 } from "../datasources/datasource-interface";
-import { DataRequirements, TopicSlotRole } from "../widgets/widget-interface";
+import {
+	DataRequirements,
+	TopicSlotDirection,
+	TopicSlotRole,
+} from "../widgets/widget-interface";
 import { TopicSelectionDialog } from "./topic-selection/topic-selection-dialog";
 import {
 	buildSelectedTopic,
@@ -51,6 +55,7 @@ interface TopicSlotInputs {
 	) => void;
 	requirements?: DataRequirements;
 	role?: TopicSlotRole;
+	direction?: TopicSlotDirection;
 	bufferOptions?: TopicBufferOptions;
 }
 
@@ -67,7 +72,7 @@ interface TopicSlotInputs {
  *   — the settled-value button that opens the two-pane selection dialog.
  *
  * Which slots may bind themselves is `canAutoBindSlot`: a scalar-only slot
- * (`number`, `boolean`, `string`) or a `secondary` slot never does, because
+ * (`number`, `boolean`, `string`), a `secondary` slot or a `publish` slot never does, because
  * "the only match right now" says nothing about intent there. Those slots offer
  * their lone candidate as a one-click row instead.
  *
@@ -96,6 +101,9 @@ const TopicSelectRenderer = (props: ControlProps) => {
 		DataRequirements | undefined;
 
 	const slotRole = uischema.options?.role as TopicSlotRole | undefined;
+
+	const slotDirection = uischema.options?.direction as
+		TopicSlotDirection | undefined;
 
 	const bufferOptions = uischema.options as TopicBufferOptions | undefined;
 
@@ -134,6 +142,7 @@ const TopicSelectRenderer = (props: ControlProps) => {
 		},
 		requirements: dataRequirements,
 		role: slotRole,
+		direction: slotDirection,
 		bufferOptions,
 	});
 
@@ -205,10 +214,12 @@ const TopicSelectRenderer = (props: ControlProps) => {
 			applyDerivedNames,
 			requirements,
 			role,
+			direction,
 			bufferOptions: options,
 		} = inputsRef.current;
 		const sole = findSoleDirectMatch(availableTopics, requirements, {
 			role,
+			direction,
 		});
 		if (!sole) return;
 
@@ -248,6 +259,7 @@ const TopicSelectRenderer = (props: ControlProps) => {
 		autoBindable: canAutoBindSlot({
 			requirements: dataRequirements,
 			role: slotRole,
+			direction: slotDirection,
 		}),
 	});
 

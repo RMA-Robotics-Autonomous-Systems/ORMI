@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { RestBagClient } from "./rest-bag-client";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import {
 	DatasourceDefinition,
 	DatasourceProviderSettings,
@@ -42,6 +43,7 @@ const RestBagDataSourceProvider = (props: RestBagDatasourceSettings) => {
 			},
 		});
 
+		getDatasourceSubscriptionRegistry(pluginsManager);
 		setInitialized(true);
 		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, id);
 		return () => {

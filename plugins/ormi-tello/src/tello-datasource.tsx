@@ -19,6 +19,7 @@ import {
 	usePluginsManager,
 	PluginsHooks,
 } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { toast } from "sonner";
 
 /**
@@ -231,7 +232,21 @@ const TelloSourceProvider = (props: TelloSourceSettings) => {
 
 	const [initialized, setInitialized] = useState(false);
 
+	// The props object is new on every parent render: key the connection on the
+	// content it uses (id, ip; a rename must not drop the socket) and read the
+	// settings through a ref.
+	const connectionKey = JSON.stringify([props.id, props.ip]);
+	const propsRef = useRef(props);
 	useEffect(() => {
+		propsRef.current = props;
+	}, [props]);
+
+	useEffect(() => {
+		const props = propsRef.current;
+
+		// Registry-before-READY: it must exist before READY is fired on open.
+		getDatasourceSubscriptionRegistry(pluginsManager);
+
 		// setup the connection inside a timeout to avoid
 		// the effect of react strict mode
 		const waitTimeOut = setTimeout(() => {
@@ -367,7 +382,7 @@ const TelloSourceProvider = (props: TelloSourceSettings) => {
 					Object.keys(telloTopics).forEach((topic) => {
 						const telloTopic = telloTopics[topic]!;
 						telloTopic.datasource_id = datasource_id;
-						telloTopic.source = props;
+						telloTopic.source = propsRef.current;
 						telloTopic.topic = topic;
 						telloTopic.bufferSize = 1;
 
@@ -650,7 +665,7 @@ const TelloSourceProvider = (props: TelloSourceSettings) => {
 				socketRef.current = null;
 			}
 		};
-	}, [props]);
+	}, [connectionKey, pluginsManager]);
 
 	return null;
 };

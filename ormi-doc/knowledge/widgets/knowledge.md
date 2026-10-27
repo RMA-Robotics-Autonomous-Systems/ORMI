@@ -106,7 +106,9 @@ one robot, one matching topic — costs no modal trip.
   number that is plausible and wrong — the one failure mode nobody catches. A
   property match is still offered in the dialog, it is just never chosen for the
   operator. Two distinct direct matches (the same message type on two robots)
-  are ambiguous and bind nothing.
+  are ambiguous and bind nothing. A slot declaring `direction: "publish"` never
+  auto-binds (it would wire a topic into something that commands a robot); the
+  picker offers its sole candidate as a one-click row.
 - **`FrameSelect`** waits for the transform tree to **settle** (~1.5 s with an
   unchanged frame list) before deciding. A TF tree fills in edge by edge, so the
   first non-empty list routinely holds one frame that is about to be joined by

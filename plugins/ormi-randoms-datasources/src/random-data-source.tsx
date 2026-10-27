@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { RandomDataSourceSettings } from "./index";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
 
 /**
@@ -30,7 +31,21 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 		useRef<WorkerDatasourceHost<RandomDataSourceSettings> | null>(null);
 	const [initialized, setInitialized] = useState(false);
 
+	// Connection effect keys on settings content (id/enable/topics), not the props object.
+	const propsRef = useRef(props);
 	useEffect(() => {
+		propsRef.current = props;
+	});
+	const settingsKey = JSON.stringify({
+		id: props.id,
+		enable: props.enable,
+		topics: props.topics,
+	});
+
+	useEffect(() => {
+		const settings = propsRef.current;
+		// Registry-before-READY.
+		getDatasourceSubscriptionRegistry(pluginsManager);
 		let disposed = false;
 		let host: WorkerDatasourceHost<RandomDataSourceSettings> | null = null;
 
@@ -38,14 +53,14 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 			new URL("./random-data-source.worker", import.meta.url),
 			{
 				type: "module",
-				name: `datasource:${props.id}`,
+				name: `datasource:${settings.id}`,
 			},
 		);
 
 		host = new WorkerDatasourceHost({
 			worker,
-			datasourceId: props.id,
-			settings: props,
+			datasourceId: settings.id,
+			settings,
 			pluginsManager,
 		});
 
@@ -58,7 +73,7 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 					setInitialized(true);
 					pluginsManager.doAction(
 						PluginsHooks.DATASOURCE_READY,
-						props.id,
+						settings.id,
 					);
 				}
 			})
@@ -76,11 +91,14 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 
 		return () => {
 			disposed = true;
-			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, props.id);
+			pluginsManager.doAction(
+				PluginsHooks.DATASOURCE_DISPOSED,
+				settings.id,
+			);
 			if (host) host.dispose();
 			hostRef.current = null;
 		};
-	}, [pluginsManager, props.id, props.enable, props.title, props.topics]);
+	}, [pluginsManager, settingsKey]);
 
 	return null;
 };

@@ -21,6 +21,7 @@ import {
 } from "../../datasources/datasource-interface";
 import {
 	DataRequirements,
+	TopicSlotDirection,
 	TopicSlotRole,
 } from "../../widgets/widget-interface";
 import { isTopicCompatible } from "../../widgets/topic-compatibility";
@@ -148,12 +149,14 @@ export interface TopicSlotPolicy {
 	requirements?: DataRequirements | undefined;
 	/** Declared role; defaults to `"primary"`. */
 	role?: TopicSlotRole | undefined;
+	/** Declared direction; defaults to `"subscribe"`. */
+	direction?: TopicSlotDirection | undefined;
 }
 
 /**
  * Whether a slot is allowed to bind a topic without the operator.
  *
- * Three refusals, each of which produced a binding that was plausible, wrong
+ * Four refusals, each of which produced a binding that was plausible, wrong
  * and silent:
  *
  * - **no requirements** — "any topic will do" is not a reason to pick one;
@@ -163,7 +166,10 @@ export interface TopicSlotPolicy {
  *   arrived first, and binding it reads as a considered choice;
  * - **a `secondary` slot** — a supporting input (a heatmap's weighting channel,
  *   a local frame's GPS origin) is by definition not what the operator's intent
- *   determines, so there is no intent to infer.
+ *   determines, so there is no intent to infer;
+ * - **a `publish` slot** — binding it unattended would wire the one matching
+ *   topic into something that commands a robot. Publish slots are offered,
+ *   never automatic.
  *
  * Refusing does not hide the topics: they are still offered by the picker, which
  * lowers its inline threshold for exactly these slots.
@@ -174,6 +180,7 @@ export interface TopicSlotPolicy {
 export const canAutoBindSlot = (slot: TopicSlotPolicy | undefined): boolean => {
 	if (!slot?.requirements) return false;
 	if (slot.role === "secondary") return false;
+	if (slot.direction === "publish") return false;
 	if (isPrimitiveOnlySlot(slot.requirements)) return false;
 	return true;
 };
@@ -209,7 +216,14 @@ export const findSoleDirectMatch = (
 	requirements: DataRequirements | undefined,
 	slot?: Omit<TopicSlotPolicy, "requirements">,
 ): DatasourceTopic | null => {
-	if (!canAutoBindSlot({ requirements, role: slot?.role })) return null;
+	if (
+		!canAutoBindSlot({
+			requirements,
+			role: slot?.role,
+			direction: slot?.direction,
+		})
+	)
+		return null;
 
 	let sole: DatasourceTopic | null = null;
 

@@ -291,6 +291,27 @@ describe("findSoleDirectMatch", () => {
 		).toBe("/cam");
 	});
 
+	test("never binds a publish slot", () => {
+		const topics = [makeTopic({ topic: "/cam", type: "Image" })];
+
+		expect(
+			findSoleDirectMatch(topics, imageRequirements, {
+				direction: "publish",
+			}),
+		).toBeNull();
+		expect(
+			findSoleDirectMatch(topics, imageRequirements, {
+				direction: "subscribe",
+			})?.topic,
+		).toBe("/cam");
+		expect(
+			canAutoBindSlot({
+				requirements: imageRequirements,
+				direction: "publish",
+			}),
+		).toBe(false);
+	});
+
 	test("declines when the slot has no requirements", () => {
 		const topics = [makeTopic({ topic: "/cam", type: "Image" })];
 
