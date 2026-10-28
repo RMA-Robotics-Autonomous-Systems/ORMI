@@ -33,6 +33,7 @@ import type { ConfidencePoint } from "./playground/labeling-chart";
 import { BaselineSketchDialog } from "./playground/baseline-sketch-dialog";
 import { useStoredMapLayers } from "./playground/map-layers-storage";
 import { MapLayersSelectControl } from "@workspace/ormi-core/map-layers";
+import { attemptAsync } from "@workspace/utils/attempt";
 import type { DrawnBaselinePoint } from "../algorithms";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import {
@@ -98,6 +99,10 @@ export function EmiAnalyzerPage() {
 	const [data, setData] = useState<PlaygroundData | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	// Declared before `handleFileLoaded`, which clears it on a new bag.
+	const [sketchHandles, setSketchHandles] = useState<DrawnBaselinePoint[]>(
+		[],
+	);
 
 	// ── Map layers (per browser) ───────────────────────────────────────────
 	const [mapLayers, setMapLayers] = useStoredMapLayers();
@@ -144,71 +149,79 @@ export function EmiAnalyzerPage() {
 		const reader = new Db3ReaderHost();
 		readerRef.current = reader;
 
-		try {
-			setLoading(true);
-			await reader.openBag(buffer);
-			const bagSummary = await reader.getSummary();
-			setSummary(bagSummary);
-			setTimeRange([0, 0]);
+		await attemptAsync(
+			async () => {
+				setLoading(true);
+				await reader.openBag(buffer);
+				const bagSummary = await reader.getSummary();
+				setSummary(bagSummary);
+				setTimeRange([0, 0]);
 
-			const numericTypes = new Set([
-				"std_msgs/msg/Float32",
-				"std_msgs/msg/Float64",
-				"std_msgs/msg/Int32",
-				"std_msgs/msg/Int64",
-				"geometry_msgs/msg/Twist",
-				"geometry_msgs/msg/Vector3Stamped",
-			]);
-			const numTopics = bagSummary.topics.filter((t) =>
-				numericTypes.has(t.type),
-			);
-			const navTopics = bagSummary.topics.filter(
-				(t) => t.type === "sensor_msgs/msg/NavSatFix",
-			);
+				const numericTypes = new Set([
+					"std_msgs/msg/Float32",
+					"std_msgs/msg/Float64",
+					"std_msgs/msg/Int32",
+					"std_msgs/msg/Int64",
+					"geometry_msgs/msg/Twist",
+					"geometry_msgs/msg/Vector3Stamped",
+				]);
+				const numTopics = bagSummary.topics.filter((t) =>
+					numericTypes.has(t.type),
+				);
+				const navTopics = bagSummary.topics.filter(
+					(t) => t.type === "sensor_msgs/msg/NavSatFix",
+				);
 
-			// Compute defaults locally — don't rely on state which hasn't updated yet
-			const defaultNumeric = numTopics
-				.filter((t) => ["/emi/pulse/avg", "/cmd_vel"].includes(t.name))
-				.map((t) => t.name);
-			const autoNumeric = defaultNumeric.length
-				? defaultNumeric
-				: numTopics.slice(0, 2).map((t) => t.name);
+				// Compute defaults locally — don't rely on state which hasn't updated yet
+				const defaultNumeric = numTopics
+					.filter((t) =>
+						["/emi/pulse/avg", "/cmd_vel"].includes(t.name),
+					)
+					.map((t) => t.name);
+				const autoNumeric = defaultNumeric.length
+					? defaultNumeric
+					: numTopics.slice(0, 2).map((t) => t.name);
 
-			const autoEvents = navTopics
-				.filter((t) => t.name.toLowerCase().includes("detection"))
-				.map((t) => t.name);
+				const autoEvents = navTopics
+					.filter((t) => t.name.toLowerCase().includes("detection"))
+					.map((t) => t.name);
 
-			const autoGps = smartDefault(navTopics, ["/gps/fix", "/fix"]);
+				const autoGps = smartDefault(navTopics, ["/gps/fix", "/fix"]);
 
-			const detTopic =
-				numTopics.find((t) => t.name === "/emi/pulse/avg")?.name ??
-				numTopics[0]?.name ??
-				"";
+				const detTopic =
+					numTopics.find((t) => t.name === "/emi/pulse/avg")?.name ??
+					numTopics[0]?.name ??
+					"";
 
-			// Push selections into state for the controls to reflect
-			setSelectedNumeric(autoNumeric);
-			setSelectedEvents(autoEvents);
-			setGpsTopic(autoGps);
-			setDetectionConfig((prev) => ({
-				...prev,
-				detectionTopic: detTopic,
-			}));
+				// Push selections into state for the controls to reflect
+				setSelectedNumeric(autoNumeric);
+				setSelectedEvents(autoEvents);
+				setGpsTopic(autoGps);
+				setDetectionConfig((prev) => ({
+					...prev,
+					detectionTopic: detTopic,
+				}));
 
-			// Auto-load immediately using local vars (state updates are async)
-			const playground = await reader.readPlayground(
-				autoNumeric,
-				autoEvents,
-				autoGps || null,
-			);
-			setData(playground);
-			setTimeRange([0, playground.duration]);
-		} catch (err) {
-			// A newer drop terminated this reader: its rejection is not an error.
-			if (readerRef.current !== reader) return;
-			setError(err instanceof Error ? err.message : "Failed to open bag");
-		} finally {
-			if (readerRef.current === reader) setLoading(false);
-		}
+				// Auto-load immediately using local vars (state updates are async)
+				const playground = await reader.readPlayground(
+					autoNumeric,
+					autoEvents,
+					autoGps || null,
+				);
+				setData(playground);
+				setTimeRange([0, playground.duration]);
+			},
+			(err) => {
+				// A newer drop terminated this reader: its rejection is not an error.
+				if (readerRef.current !== reader) return;
+				setError(
+					err instanceof Error ? err.message : "Failed to open bag",
+				);
+			},
+			() => {
+				if (readerRef.current === reader) setLoading(false);
+			},
+		);
 	}, []);
 
 	// ──────────────────────────────────────────────────────────────────────
@@ -219,22 +232,28 @@ export function EmiAnalyzerPage() {
 		if (!reader) return;
 		setError(null);
 		setLoading(true);
-		try {
-			const playground = await reader.readPlayground(
-				selectedNumeric,
-				selectedEvents,
-				gpsTopic || null,
-			);
-			setData(playground);
-			setTimeRange([0, playground.duration]);
-		} catch (err) {
-			if (readerRef.current !== reader) return;
-			setError(
-				err instanceof Error ? err.message : "Failed to read topics",
-			);
-		} finally {
-			if (readerRef.current === reader) setLoading(false);
-		}
+		await attemptAsync(
+			async () => {
+				const playground = await reader.readPlayground(
+					selectedNumeric,
+					selectedEvents,
+					gpsTopic || null,
+				);
+				setData(playground);
+				setTimeRange([0, playground.duration]);
+			},
+			(err) => {
+				if (readerRef.current !== reader) return;
+				setError(
+					err instanceof Error
+						? err.message
+						: "Failed to read topics",
+				);
+			},
+			() => {
+				if (readerRef.current === reader) setLoading(false);
+			},
+		);
 	}, [selectedNumeric, selectedEvents, gpsTopic]);
 
 	// ──────────────────────────────────────────────────────────────────────
@@ -519,9 +538,6 @@ export function EmiAnalyzerPage() {
 			? never
 			: NonNullable<typeof data>["lineSeries"][0]["points"]
 	>([]);
-	const [sketchHandles, setSketchHandles] = useState<DrawnBaselinePoint[]>(
-		[],
-	);
 
 	/**
 	 * For each active algorithm, classify each detection as TP (confidence ≥ 0.5

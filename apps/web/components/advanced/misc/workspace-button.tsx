@@ -29,6 +29,7 @@ import {
 	DEFAULT_DASHBOARD_TYPE,
 } from "@workspace/ormi-core/dashboard";
 import { workspaceApi } from "@/lib/api/workspace-api";
+import { attemptAsync } from "@workspace/utils/attempt";
 
 interface CreateWSButtonProps {
 	onWorkspaceCreated?: (workspaceId: number | string) => void;
@@ -78,42 +79,43 @@ export function CreateWSButton({
 
 		setIsLoading(true);
 
-		try {
-			const result = await workspaceApi.create(
-				workspaceName.trim(),
-				session!.user.id,
-				dashboardType,
-			);
-
-			if (!result.ok) throw new Error(result.error);
-
-			const workspaceId = String(result.data.id);
-			window.sessionStorage.setItem(
-				`workspace-draft:${workspaceId}`,
-				JSON.stringify({ dashboardType }),
-			);
-
-			toast(`Workspace "${workspaceName}" created successfully!`);
-			handleDialogChange(false);
-			onWorkspaceCreated?.(result.data.id);
-
-			if (!navigator.onLine) {
-				toast(
-					"Workspace saved locally. Reconnect or reopen it after the route has been cached.",
+		await attemptAsync(
+			async () => {
+				const result = await workspaceApi.create(
+					workspaceName.trim(),
+					session!.user.id,
+					dashboardType,
 				);
-				return;
-			}
 
-			router.push(`/dashboard/ws/${workspaceId}`);
-		} catch (error) {
-			toast(
-				error instanceof Error
-					? error.message
-					: "An unknown error occurred",
-			);
-		} finally {
-			setIsLoading(false);
-		}
+				if (!result.ok) throw new Error(result.error);
+
+				const workspaceId = String(result.data.id);
+				window.sessionStorage.setItem(
+					`workspace-draft:${workspaceId}`,
+					JSON.stringify({ dashboardType }),
+				);
+
+				toast(`Workspace "${workspaceName}" created successfully!`);
+				handleDialogChange(false);
+				onWorkspaceCreated?.(result.data.id);
+
+				if (!navigator.onLine) {
+					toast(
+						"Workspace saved locally. Reconnect or reopen it after the route has been cached.",
+					);
+					return;
+				}
+
+				router.push(`/dashboard/ws/${workspaceId}`);
+			},
+			(error) =>
+				toast(
+					error instanceof Error
+						? error.message
+						: "An unknown error occurred",
+				),
+			() => setIsLoading(false),
+		);
 	}
 
 	return (

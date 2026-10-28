@@ -2,7 +2,6 @@
 
 import React, {
 	ReactNode,
-	useRef,
 	useEffect,
 	useCallback,
 	useSyncExternalStore,
@@ -39,9 +38,10 @@ interface PluginsProviderProps {
 const PluginsProvider = (props: PluginsProviderProps) => {
 	const { children, PluginsInfo } = props;
 
-	const pluginsManagerRef = useRef<PluginsManager | null>(null);
-
-	const [initialized, setInitialized] = React.useState(false);
+	// State, not a ref: the provider renders the manager, and a ref read during
+	// render keeps the React Compiler from compiling this component.
+	const [pluginsManager, setPluginsManager] =
+		React.useState<PluginsManager | null>(null);
 
 	// Initialize plugins map
 	useEffect(() => {
@@ -73,21 +73,20 @@ const PluginsProvider = (props: PluginsProviderProps) => {
 			}
 
 			// Update the plugins manager with the loaded plugins
-			pluginsManagerRef.current = new PluginsManager(pluginsMap);
-			setInitialized(true);
+			setPluginsManager(new PluginsManager(pluginsMap));
 		};
 
 		loadPlugins();
 	}, [PluginsInfo]);
 
-	// const elements_before_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
-	// const elements_after_children = pluginsManagerRef.current.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
+	// const elements_before_children = pluginsManager.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_BEFORE_CHILDREN, []);
+	// const elements_after_children = pluginsManager.applyFilter<ReactNode>(PluginsHooks.PLUGIN_PROVIDER_AFTER_CHILDREN, []);
 
 	return (
-		pluginsManagerRef.current && (
-			<PluginsContextProvider value={pluginsManagerRef.current}>
+		pluginsManager && (
+			<PluginsContextProvider value={pluginsManager}>
 				{/* {elements_before_children} */}
-				{initialized && children}
+				{children}
 				{/* {elements_after_children} */}
 			</PluginsContextProvider>
 		)

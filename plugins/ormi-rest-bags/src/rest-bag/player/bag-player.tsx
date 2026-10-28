@@ -1,7 +1,7 @@
 import { BagInfo } from "../bags";
 
 import { PlayIcon, PauseIcon, SquareIcon } from "lucide-react";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, type RefObject } from "react";
 import { RestBagClient } from "../rest-bag-client";
 import { PlayerPlayRequest } from "../player-types";
 import {
@@ -16,6 +16,93 @@ interface BagPlayerProps extends Record<string, unknown> {
 	bag: BagInfo;
 	datasource_id: string;
 	title: string;
+}
+
+/** What the status poll writes back into the player. */
+interface PlayerState {
+	setPlayId: (playId: string | null) => void;
+	setStatus: (status: string) => void;
+	setError: (error: string | null) => void;
+	statusPollInterval: RefObject<number | null>;
+}
+
+/**
+ * Reads one player status and stops the poll once playback has ended.
+ * Module-level because the React Compiler cannot lower the conditionals inside
+ * this try/catch within a component.
+ */
+async function fetchPlayerStatus(
+	client: RestBagClient,
+	playId: string,
+	{ setPlayId, setStatus, setError, statusPollInterval }: PlayerState,
+): Promise<void> {
+	try {
+		const statusResponse = await client.getPlayerStatus(playId);
+		setStatus(statusResponse.status?.toUpperCase() || "UNKNOWN");
+
+		// Auto-stop polling when playback ends
+		if (
+			statusResponse.status === "stopped" ||
+			statusResponse.status === "completed"
+		) {
+			clearInterval(statusPollInterval.current!);
+			statusPollInterval.current = null;
+
+			// Reset the player when status is completed
+			if (statusResponse.status === "completed") {
+				setPlayId(null);
+				setStatus("READY");
+				setError(null);
+			}
+		}
+	} catch (error) {
+		setError(`Error: ${error}`);
+	}
+}
+
+/**
+ * Syncs the player with a playback of `bag` already running on the server and
+ * starts polling its status. Module-level for the same reason as
+ * {@link fetchPlayerStatus}.
+ */
+async function checkExistingPlayback(
+	client: RestBagClient,
+	bag: BagInfo,
+	state: PlayerState,
+): Promise<void> {
+	const { setPlayId, setStatus, statusPollInterval } = state;
+	try {
+		// Fetch active players from the API
+		const response = await client.listPlayers();
+
+		// Extract the players array from the response
+		const activePlayers = response.active_players || [];
+
+		const activePlayer = activePlayers.find(
+			(player) => player.bag_name === bag.name,
+		);
+
+		if (activePlayer) {
+			// Sync UI with existing playback
+			setPlayId(activePlayer.play_id);
+			setStatus(activePlayer.status?.toUpperCase() || "UNKNOWN");
+
+			// Start polling for status updates
+			if (!statusPollInterval.current) {
+				const fetchStatus = () =>
+					fetchPlayerStatus(client, activePlayer.play_id, state);
+
+				fetchStatus(); // Fetch once immediately
+				statusPollInterval.current = window.setInterval(
+					fetchStatus,
+					1000,
+				);
+			}
+		}
+	} catch (error) {
+		console.error("Failed to check for existing playback:", error);
+		// Don't set UI error here as it's not a critical failure
+	}
 }
 
 export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
@@ -44,70 +131,14 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
 
 		// Check for existing playback session when client is initialized
 		if (new_client && bag) {
-			checkExistingPlayback(new_client);
+			checkExistingPlayback(new_client, bag, {
+				setPlayId,
+				setStatus,
+				setError,
+				statusPollInterval,
+			});
 		}
 	}, [datasource_id, bag, clientRevision]);
-
-	// Function to check for existing playback
-	const checkExistingPlayback = async (client: RestBagClient) => {
-		try {
-			// Fetch active players from the API
-			const response = await client.listPlayers();
-
-			// Extract the players array from the response
-			const activePlayers = response.active_players || [];
-
-			const activePlayer = activePlayers.find(
-				(player) => player.bag_name === bag.name,
-			);
-
-			if (activePlayer) {
-				// Sync UI with existing playback
-				setPlayId(activePlayer.play_id);
-				setStatus(activePlayer.status?.toUpperCase() || "UNKNOWN");
-
-				// Start polling for status updates
-				if (!statusPollInterval.current) {
-					const fetchStatus = async () => {
-						try {
-							const statusResponse = await client.getPlayerStatus(
-								activePlayer.play_id,
-							);
-							setStatus(
-								statusResponse.status?.toUpperCase() ||
-									"UNKNOWN",
-							);
-
-							if (
-								statusResponse.status === "stopped" ||
-								statusResponse.status === "completed"
-							) {
-								clearInterval(statusPollInterval.current!);
-								statusPollInterval.current = null;
-
-								if (statusResponse.status === "completed") {
-									setPlayId(null);
-									setStatus("READY");
-									setError(null);
-								}
-							}
-						} catch (error) {
-							setError(`Error: ${error}`);
-						}
-					};
-
-					fetchStatus(); // Fetch once immediately
-					statusPollInterval.current = window.setInterval(
-						fetchStatus,
-						1000,
-					);
-				}
-			}
-		} catch (error) {
-			console.error("Failed to check for existing playback:", error);
-			// Don't set UI error here as it's not a critical failure
-		}
-	};
 
 	// Clean up interval on component unmount
 	useEffect(() => {
@@ -122,30 +153,13 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
 	useEffect(() => {
 		if (!client || !playId) return;
 
-		const fetchStatus = async () => {
-			try {
-				const statusResponse = await client.getPlayerStatus(playId);
-				setStatus(statusResponse.status?.toUpperCase() || "UNKNOWN");
-
-				// Auto-stop polling when playback ends
-				if (
-					statusResponse.status === "stopped" ||
-					statusResponse.status === "completed"
-				) {
-					clearInterval(statusPollInterval.current!);
-					statusPollInterval.current = null;
-
-					// Reset the player when status is completed
-					if (statusResponse.status === "completed") {
-						setPlayId(null);
-						setStatus("READY");
-						setError(null);
-					}
-				}
-			} catch (error) {
-				setError(`Error: ${error}`);
-			}
-		};
+		const fetchStatus = () =>
+			fetchPlayerStatus(client, playId, {
+				setPlayId,
+				setStatus,
+				setError,
+				statusPollInterval,
+			});
 
 		// Start polling
 		fetchStatus();

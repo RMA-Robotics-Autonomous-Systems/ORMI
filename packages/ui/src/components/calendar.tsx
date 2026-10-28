@@ -11,6 +11,12 @@ import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 import { cn } from "@workspace/ui/lib/utils";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 
+// Module scope: the React Compiler cannot lower a tagged template whose cooked
+// value differs from its raw one, and String.raw keeps the source text Tailwind
+// scans identical to the runtime class.
+const RTL_NEXT_ICON_CLASS = String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`;
+const RTL_PREVIOUS_ICON_CLASS = String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`;
+
 function Calendar({
 	className,
 	classNames,
@@ -30,8 +36,8 @@ function Calendar({
 			showOutsideDays={showOutsideDays}
 			className={cn(
 				"bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
-				String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
-				String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
+				RTL_NEXT_ICON_CLASS,
+				RTL_PREVIOUS_ICON_CLASS,
 				className,
 			)}
 			captionLayout={captionLayout}

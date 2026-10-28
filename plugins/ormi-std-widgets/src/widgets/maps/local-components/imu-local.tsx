@@ -233,6 +233,87 @@ function createArrowGeometry(
 	};
 }
 
+/**
+ * Builds one heading arrow per GPS fix that moved at least `minDistance` from
+ * the last arrow and has an IMU sample within `timeWindow`. Advances
+ * `lastArrowPosition` as arrows are placed. Module-level so the caller's
+ * try/catch holds no value blocks (React Compiler).
+ */
+function buildImuArrows(
+	gpsSource: { data: unknown[]; times: (number | undefined)[] },
+	imuSource: { data: unknown[]; times: (number | undefined)[] },
+	lastArrowPosition: { current: { lat: number; lon: number } | null },
+	minDistance: number,
+	timeWindow: number,
+	imuFrame: "ENU" | "NED" | "NWU",
+	headingAxis: "X" | "Y" | "Z",
+): ArrowData[] {
+	const newArrows: ArrowData[] = [];
+
+	// Process each GPS data point
+	for (let i = 0; i < gpsSource.data.length; i++) {
+		const gpsData = gpsSource.data[i] as GeolocationPosition;
+		const gpsTime = gpsSource.times[i];
+
+		if (gpsTime === undefined) continue;
+
+		const currentLat = gpsData.coords.latitude;
+		const currentLon = gpsData.coords.longitude;
+
+		// Check distance from last arrow to reduce clutter when stationary
+		if (lastArrowPosition.current) {
+			const distance = calculateDistance(
+				lastArrowPosition.current.lat,
+				lastArrowPosition.current.lon,
+				currentLat,
+				currentLon,
+			);
+
+			// Skip if GPS hasn't moved enough
+			if (distance < minDistance) {
+				continue;
+			}
+		}
+
+		// Find matching IMU data using improved matching
+		const bestMatch = findMatchingIMU(
+			gpsTime,
+			imuSource.data,
+			imuSource.times,
+			timeWindow,
+		);
+
+		if (bestMatch && bestMatch.orientation) {
+			// Extract quaternion (assuming Vector4 is {x, y, z, w})
+			const { x: qx, y: qy, z: qz, w: qw } = bestMatch.orientation;
+
+			// Calculate heading
+			const heading = quaternionToHeading(
+				qx,
+				qy,
+				qz,
+				qw,
+				imuFrame,
+				headingAxis,
+			);
+
+			newArrows.push({
+				coords: [currentLon, currentLat],
+				heading,
+				timestamp: gpsTime,
+			});
+
+			// Update last arrow position
+			lastArrowPosition.current = {
+				lat: currentLat,
+				lon: currentLon,
+			};
+		}
+	}
+
+	return newArrows;
+}
+
 export default function IMULocalMarker(props: IMUVisualizerProps) {
 	const { name, topic, gpsOriginTopic, settings } = props;
 	const { getSource, getSourceId } = useLocalDataSource();
@@ -286,91 +367,17 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
 			return;
 		}
 
+		let newArrows: ArrowData[] = [];
 		try {
-			const newArrows: ArrowData[] = [];
-
-			// Process each GPS data point
-			for (let i = 0; i < gpsOriginSourceData.data.length; i++) {
-				const gpsData = gpsOriginSourceData.data[
-					i
-				] as GeolocationPosition;
-				const gpsTime = gpsOriginSourceData.times[i];
-
-				if (gpsTime === undefined) continue;
-
-				const currentLat = gpsData.coords.latitude;
-				const currentLon = gpsData.coords.longitude;
-
-				// Check distance from last arrow to reduce clutter when stationary
-				if (lastArrowPosition.current) {
-					const distance = calculateDistance(
-						lastArrowPosition.current.lat,
-						lastArrowPosition.current.lon,
-						currentLat,
-						currentLon,
-					);
-
-					// Skip if GPS hasn't moved enough
-					if (distance < minDistance) {
-						continue;
-					}
-				}
-
-				// Find matching IMU data using improved matching
-				const bestMatch = findMatchingIMU(
-					gpsTime,
-					imuSourceData.data,
-					imuSourceData.times,
-					timeWindow,
-				);
-
-				if (bestMatch && bestMatch.orientation) {
-					// Extract quaternion (assuming Vector4 is {x, y, z, w})
-					const {
-						x: qx,
-						y: qy,
-						z: qz,
-						w: qw,
-					} = bestMatch.orientation;
-
-					// Calculate heading
-					const heading = quaternionToHeading(
-						qx,
-						qy,
-						qz,
-						qw,
-						imuFrame,
-						headingAxis,
-					);
-
-					newArrows.push({
-						coords: [currentLon, currentLat],
-						heading,
-						timestamp: gpsTime,
-					});
-
-					// Update last arrow position
-					lastArrowPosition.current = {
-						lat: currentLat,
-						lon: currentLon,
-					};
-				}
-			}
-
-			if (newArrows.length > 0) {
-				setArrows((prevArrows) => {
-					const updatedArrows = [...prevArrows, ...newArrows];
-
-					// Enforce max arrows limit (keep most recent)
-					if (updatedArrows.length > maxArrows) {
-						return updatedArrows.slice(
-							updatedArrows.length - maxArrows,
-						);
-					}
-
-					return updatedArrows;
-				});
-			}
+			newArrows = buildImuArrows(
+				gpsOriginSourceData,
+				imuSourceData,
+				lastArrowPosition,
+				minDistance,
+				timeWindow,
+				imuFrame,
+				headingAxis,
+			);
 		} catch (error) {
 			console.error(`Error processing IMU data for ${name}:`, error);
 
@@ -381,6 +388,21 @@ export default function IMULocalMarker(props: IMUVisualizerProps) {
 					description: `Cannot display IMU arrows for "${name}": ${error}`,
 				});
 			}
+		}
+
+		if (newArrows.length > 0) {
+			setArrows((prevArrows) => {
+				const updatedArrows = [...prevArrows, ...newArrows];
+
+				// Enforce max arrows limit (keep most recent)
+				if (updatedArrows.length > maxArrows) {
+					return updatedArrows.slice(
+						updatedArrows.length - maxArrows,
+					);
+				}
+
+				return updatedArrows;
+			});
 		}
 
 		// Add visibility toggle button

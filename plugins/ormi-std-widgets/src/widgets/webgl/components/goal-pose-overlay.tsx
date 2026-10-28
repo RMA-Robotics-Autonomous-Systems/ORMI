@@ -81,6 +81,34 @@ export interface GoalPoseOverlayProps {
 }
 
 /**
+ * Sets a canvas cursor. Module-level so the R3F objects `useThree` returns are
+ * mutated outside the component, which the React Compiler requires.
+ * @param canvas - The renderer's canvas.
+ * @param cursor - CSS cursor value.
+ */
+function setCanvasCursor(canvas: HTMLCanvasElement, cursor: string): void {
+	canvas.style.cursor = cursor;
+}
+
+/**
+ * Disables orbit controls and shows a crosshair while a pose mode is active.
+ * @param controls - The scene's default controls, if any.
+ * @param canvas - The renderer's canvas.
+ * @param isActive - Whether a pose mode is active.
+ */
+function applyPoseModeToScene(
+	controls: THREE.EventDispatcher | null,
+	canvas: HTMLCanvasElement,
+	isActive: boolean,
+): void {
+	if (controls) {
+		(controls as THREE.EventDispatcher & { enabled: boolean }).enabled =
+			!isActive;
+	}
+	setCanvasCursor(canvas, isActive ? "crosshair" : "");
+}
+
+/**
  * Unified pose overlay placed inside the R3F Canvas.
  *
  * An invisible ground-plane mesh handles `onPointerDown / Move / Up`.
@@ -215,14 +243,9 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	// Enable / disable OrbitControls and update cursor
 	// -----------------------------------------------------------------------
 	useEffect(() => {
-		if (controls) {
-			(controls as THREE.EventDispatcher & { enabled: boolean }).enabled =
-				!isActive;
-		}
-		gl.domElement.style.cursor = isActive ? "crosshair" : "";
-		return () => {
-			gl.domElement.style.cursor = "";
-		};
+		const canvas = gl.domElement;
+		applyPoseModeToScene(controls, canvas, isActive);
+		return () => setCanvasCursor(canvas, "");
 	}, [isActive, controls, gl.domElement]);
 
 	// -----------------------------------------------------------------------

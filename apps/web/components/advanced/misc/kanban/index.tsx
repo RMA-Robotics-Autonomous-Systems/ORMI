@@ -39,6 +39,7 @@ import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import { toast } from "sonner";
 
 import { categoriesApi } from "@/lib/api/categories-api";
+import { attemptAsync } from "@workspace/utils/attempt";
 import type { WorkspaceViewProps } from "@/components/advanced/workspace-views/types";
 
 import { WorkspaceItem } from "../workspace-item";
@@ -103,48 +104,56 @@ const KanbanView: React.FC<WorkspaceViewProps> = ({
 	const handleUpdateCategory = async () => {
 		if (!editingCategory || !editCategoryName.trim()) return;
 
-		try {
-			const result = await categoriesApi.update(
-				editingCategory.id,
-				editCategoryName,
-			);
+		await attemptAsync(
+			async () => {
+				const result = await categoriesApi.update(
+					editingCategory.id,
+					editCategoryName,
+				);
 
-			if (!result.ok) throw new Error(result.error);
+				if (!result.ok) throw new Error(result.error);
 
-			setCategories((prev) =>
-				prev.map((c) =>
-					c.id === result.data.id ? (result.data as Category) : c,
-				),
-			);
-			setEditingCategory(null);
-			setEditCategoryName("");
-			toast("Category updated");
-		} catch (error) {
-			console.error(error);
-			toast("Failed to update category");
-		}
+				setCategories((prev) =>
+					prev.map((c) =>
+						c.id === result.data.id ? (result.data as Category) : c,
+					),
+				);
+				setEditingCategory(null);
+				setEditCategoryName("");
+				toast("Category updated");
+			},
+			(error) => {
+				console.error(error);
+				toast("Failed to update category");
+			},
+		);
 	};
 
 	const handleDeleteCategory = async (categoryId: number) => {
-		try {
-			const result = await categoriesApi.delete(categoryId);
+		await attemptAsync(
+			async () => {
+				const result = await categoriesApi.delete(categoryId);
 
-			if (!result.ok) throw new Error(result.error);
+				if (!result.ok) throw new Error(result.error);
 
-			setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-			// Move workspaces to uncategorized locally
-			setWorkspaces((prev) =>
-				prev.map((w) =>
-					w.categoryId === categoryId
-						? { ...w, categoryId: null }
-						: w,
-				),
-			);
-			toast("Category deleted");
-		} catch (error) {
-			console.error(error);
-			toast("Failed to delete category");
-		}
+				setCategories((prev) =>
+					prev.filter((c) => c.id !== categoryId),
+				);
+				// Move workspaces to uncategorized locally
+				setWorkspaces((prev) =>
+					prev.map((w) =>
+						w.categoryId === categoryId
+							? { ...w, categoryId: null }
+							: w,
+					),
+				);
+				toast("Category deleted");
+			},
+			(error) => {
+				console.error(error);
+				toast("Failed to delete category");
+			},
+		);
 	};
 
 	// Organize workspaces into columns
@@ -270,18 +279,24 @@ const KanbanView: React.FC<WorkspaceViewProps> = ({
 					setCategories(newCategories);
 
 					// Persist order
-					try {
-						const updates = newCategories.map((cat, index) => ({
-							id: cat.id,
-							order: index,
-						}));
+					await attemptAsync(
+						async () => {
+							const updates = newCategories.map((cat, index) => ({
+								id: cat.id,
+								order: index,
+							}));
 
-						const result = await categoriesApi.reorder(updates);
-						if (!result.ok) throw new Error(result.error);
-					} catch (error) {
-						console.error("Failed to update category order", error);
-						toast("Failed to save category order");
-					}
+							const result = await categoriesApi.reorder(updates);
+							if (!result.ok) throw new Error(result.error);
+						},
+						(error) => {
+							console.error(
+								"Failed to update category order",
+								error,
+							);
+							toast("Failed to save category order");
+						},
+					);
 				}
 			}
 			setActiveId(null);

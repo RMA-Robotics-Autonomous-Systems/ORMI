@@ -65,8 +65,7 @@ export interface ViewOnlyInput {
  * Resolve whether the map is in View (showing) rather than Edit (authoring).
  *
  * Derived, not stored: a status-driven `setState` in an effect would be a
- * cascading render on every feedback message, and silencing the lint rule for it
- * would opt the whole map body out of React Compiler.
+ * cascading render on every feedback message.
  *
  * The mission context is required because map-feature authoring — roads,
  * geofences, risk areas — belongs to the map, not to any mission. An operator

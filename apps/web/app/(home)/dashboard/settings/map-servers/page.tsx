@@ -25,6 +25,7 @@ import {
 } from "@/components/map-servers/map-server-dialog";
 import { MapServerRow } from "@/components/map-servers/map-server-row";
 import { mapServerApi } from "@/lib/api/map-server-api";
+import { attemptAsync } from "@workspace/utils/attempt";
 import { discoverMapServer } from "@/lib/map-servers/connection-test";
 import { describeDiscoveryFailure } from "@/lib/map-servers/map-server-settings";
 import { MAP_SERVER_LIMITS } from "@/lib/validations/map-server";
@@ -107,34 +108,42 @@ export default function MapServersSettingsPage() {
 	const refreshServer = async (record: MapServerRecord) => {
 		const provider = providerOf(record);
 		if (!provider) return;
-		abortRef.current ??= new AbortController();
+		if (abortRef.current == null) abortRef.current = new AbortController();
+		const { signal } = abortRef.current;
 		setRefreshingFor(record.id, true);
-		try {
-			const result = await discoverMapServer(
-				provider,
-				record.settings,
-				abortRef.current.signal,
-			);
-			if (result.status === "error") {
-				// The stored snapshot stays; the row shows its age and why.
-				setFailure(
-					record.id,
-					describeDiscoveryFailure(result.reason, result.detail),
+		await attemptAsync(
+			async () => {
+				const result = await discoverMapServer(
+					provider,
+					record.settings,
+					signal,
 				);
-				return;
-			}
-			const put = await mapServerApi.putCatalog(record.id, result.layers);
-			if (!put.ok) {
-				setFailure(record.id, ["The layer list could not be stored."]);
-				return;
-			}
-			setFailure(record.id, undefined);
-			await registry.refresh();
-		} catch {
-			// Aborted: the page is going away.
-		} finally {
-			setRefreshingFor(record.id, false);
-		}
+				if (result.status === "error") {
+					// The stored snapshot stays; the row shows its age and why.
+					setFailure(
+						record.id,
+						describeDiscoveryFailure(result.reason, result.detail),
+					);
+					return;
+				}
+				const put = await mapServerApi.putCatalog(
+					record.id,
+					result.layers,
+				);
+				if (!put.ok) {
+					setFailure(record.id, [
+						"The layer list could not be stored.",
+					]);
+					return;
+				}
+				setFailure(record.id, undefined);
+				await registry.refresh();
+			},
+			() => {
+				// Aborted: the page is going away.
+			},
+			() => setRefreshingFor(record.id, false),
+		);
 	};
 
 	const removeServer = async (record: MapServerRecord) => {

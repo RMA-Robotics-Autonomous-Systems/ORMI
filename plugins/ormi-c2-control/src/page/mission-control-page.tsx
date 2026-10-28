@@ -261,8 +261,6 @@ function usePagePanels(): boolean {
 		// this state change can hold its `loading` until the list is no longer
 		// gated.
 		// It happens once per mount, in a layout effect, before paint.
-		// NOTE: this directive opts `usePagePanels` out of React Compiler
-		// compilation, which costs nothing here — the hook has no work to memo.
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setRegistered(true);
 		return () => {

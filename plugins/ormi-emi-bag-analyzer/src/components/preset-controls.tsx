@@ -36,10 +36,11 @@ export function PresetControls({ config, onLoad }: PresetControlsProps) {
 			if (!file) return;
 			const reader = new FileReader();
 			reader.onload = (ev) => {
+				// Read outside the try: the React Compiler cannot lower optional
+				// chaining inside one.
+				const text = ev.target?.result as string;
 				try {
-					const preset = JSON.parse(
-						ev.target?.result as string,
-					) as VisualizationPreset;
+					const preset = JSON.parse(text) as VisualizationPreset;
 					onLoad(preset);
 				} catch {
 					// ignore malformed files

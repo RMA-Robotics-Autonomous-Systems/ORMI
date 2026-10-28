@@ -466,10 +466,18 @@ function LoadSinkSummary({ topics }: { topics: SelectedTopic[] }) {
 	let aggregateRate = 0;
 	let offlineCount = 0;
 
-	const rows = topics.map((topic) => {
+	// A loop, not `topics.map`: the totals are reassigned per topic, and the
+	// React Compiler refuses a reassignment from inside a callback.
+	const rows: {
+		key: string;
+		name: string;
+		health: ReturnType<typeof getTopicHealth>;
+		lastTime: number | undefined;
+	}[] = [];
+	for (const topic of topics) {
 		const source = getSource(topic);
 		const health = getTopicHealth(topic);
-		if (health === "offline") offlineCount++;
+		if (health === "offline") offlineCount += 1;
 
 		const times = source?.times ?? [];
 		totalBuffered += source?.data.length ?? 0;
@@ -486,13 +494,13 @@ function LoadSinkSummary({ topics }: { topics: SelectedTopic[] }) {
 
 		const lastTime = times.length > 0 ? times[times.length - 1] : undefined;
 
-		return {
+		rows.push({
 			key: `${topic.source.id}::${topic.topic}`,
 			name: topic.topic,
 			health,
 			lastTime,
-		};
-	});
+		});
+	}
 
 	if (topics.length === 0) {
 		return (

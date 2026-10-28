@@ -11,6 +11,39 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 
+/** Great-circle (haversine) distance in metres between two lat/lon points. */
+const distance = (
+	lat1: number,
+	lon1: number,
+	lat2: number,
+	lon2: number,
+): number => {
+	const R = 6371e3; // Earth's radius in meters
+
+	function radians(degrees: number) {
+		return (degrees * Math.PI) / 180;
+	}
+
+	const lat1Rad = radians(lat1);
+	const lon1Rad = radians(lon1);
+	const lat2Rad = radians(lat2);
+	const lon2Rad = radians(lon2);
+
+	const dLat = lat2Rad - lat1Rad;
+	const dLon = lon2Rad - lon1Rad;
+
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos(lat1Rad) *
+			Math.cos(lat2Rad) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+
+	const c = 2 * Math.asin(Math.sqrt(a));
+
+	return R * c;
+};
+
 /**
  * GPS path marker rendering a line from multiple GPS points.
  * @param props - Component props.
@@ -105,38 +138,6 @@ export default function PathMarker(props: {
 			removeButtonItem(props.instanceId);
 		};
 	}, [props.instanceId, show, setButtonItem, removeButtonItem]);
-
-	const distance = (
-		lat1: number,
-		lon1: number,
-		lat2: number,
-		lon2: number,
-	): number => {
-		const R = 6371e3; // Earth's radius in meters
-
-		function radians(degrees: number) {
-			return (degrees * Math.PI) / 180;
-		}
-
-		const lat1Rad = radians(lat1);
-		const lon1Rad = radians(lon1);
-		const lat2Rad = radians(lat2);
-		const lon2Rad = radians(lon2);
-
-		const dLat = lat2Rad - lat1Rad;
-		const dLon = lon2Rad - lon1Rad;
-
-		const a =
-			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-			Math.cos(lat1Rad) *
-				Math.cos(lat2Rad) *
-				Math.sin(dLon / 2) *
-				Math.sin(dLon / 2);
-
-		const c = 2 * Math.asin(Math.sqrt(a));
-
-		return R * c;
-	};
 
 	if (!show) {
 		return null;

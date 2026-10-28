@@ -11,6 +11,9 @@ import type ForceGraphInstance from "force-graph";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
 
+/** Lazy loader for force-graph (browser-only), kept at module level for the React Compiler. */
+const loadForceGraph = () => import("force-graph");
+
 /**
  * A webapp type node. Fixed: it is the one category this view encodes, and
  * the orange holds contrast on both themes. Everything else is chrome.
@@ -98,7 +101,7 @@ function Ros2ConvertionGraph(): JSX.Element {
 		let cancelled = false;
 		let fitTimer: ReturnType<typeof setTimeout> | undefined;
 		(async () => {
-			const { default: ForceGraph } = await import("force-graph");
+			const { default: ForceGraph } = await loadForceGraph();
 			if (cancelled || !divRef.current) return;
 
 			// Compute nodes and links from UnifiedConverter's converters mapping.

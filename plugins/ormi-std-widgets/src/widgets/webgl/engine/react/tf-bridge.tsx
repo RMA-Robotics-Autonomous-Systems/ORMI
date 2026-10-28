@@ -16,7 +16,7 @@
  * It must render inside `SceneEngineProvider`.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	buildAnchoredTable,
 	createAnchorEdgeCache,
@@ -53,18 +53,11 @@ export function TFBridge({
 
 	// Per-instance anchor-edge cache: reuses the stable anchor edges across bumps
 	// so a steady anchor set doesn't re-derive/re-allocate them each re-resolve.
-	const cacheRef = useRef<AnchorEdgeCache>(createAnchorEdgeCache());
+	const [cache] = useState<AnchorEdgeCache>(createAnchorEdgeCache);
 
 	const effectiveTable = useMemo(
-		() =>
-			buildAnchoredTable(
-				table,
-				anchors,
-				worldFrame,
-				autoAnchor,
-				cacheRef.current,
-			),
-		[table, anchors, worldFrame, autoAnchor],
+		() => buildAnchoredTable(table, anchors, worldFrame, autoAnchor, cache),
+		[table, anchors, worldFrame, autoAnchor, cache],
 	);
 
 	useEffect(() => {

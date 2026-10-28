@@ -54,6 +54,25 @@ interface TopicSelectionDialogProps {
 }
 
 /**
+ * Runs one topic load with the loading flag raised for its duration; a
+ * failure is logged, never thrown. Kept outside the component because the
+ * React Compiler cannot lower a `try` with a `finally`.
+ */
+async function runTopicLoad(
+	setIsLoading: (loading: boolean) => void,
+	load: () => Promise<void>,
+): Promise<void> {
+	setIsLoading(true);
+	try {
+		await load();
+	} catch (error) {
+		console.error("Failed to load topics:", error);
+	} finally {
+		setIsLoading(false);
+	}
+}
+
+/**
  * Dialog for selecting a datasource topic.
  * @param props - Component props.
  * @returns React element.
@@ -78,48 +97,6 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 	// opens (the gear card that hosts it does), so focusing only on mount
 	// would work exactly once per dashboard.
 	const searchRef = useAutoFocus<HTMLInputElement>(isOpen);
-
-	// Load topics when dialog opens
-	useEffect(() => {
-		if (!isOpen) return;
-
-		const loadTopics = async () => {
-			setIsLoading(true);
-			try {
-				// Load all available topics
-				const topics = await pluginsManager.applyFilterAsync<
-					DatasourceTopic[]
-				>(PluginsHooks.AVAILABLE_TOPICS, []);
-
-				dispatch({ type: "SET_TOPICS", topics });
-				dispatch({ type: "SET_REQUIREMENTS", requirements });
-
-				// Set initial topic selection if provided
-				if (initialValue) {
-					const matchingTopic = topics.find(
-						(t) =>
-							t.topic === initialValue.topic &&
-							t.source.id === initialValue.source.id,
-					);
-					if (matchingTopic) {
-						dispatch({
-							type: "SELECT_TOPIC",
-							topic: matchingTopic,
-						});
-					}
-				}
-
-				// Start compatibility analysis (works with or without requirements)
-				await analyzeAllTopics(topics, requirements);
-			} catch (error) {
-				console.error("Failed to load topics:", error);
-			} finally {
-				setIsLoading(false);
-			}
-		};
-
-		loadTopics();
-	}, [isOpen, pluginsManager, requirements, initialValue]);
 
 	// Analyze compatibility for all topics
 	const analyzeAllTopics = async (
@@ -202,6 +179,42 @@ export const TopicSelectionDialog: React.FC<TopicSelectionDialogProps> = ({
 			}
 		}
 	};
+
+	// Load topics when dialog opens
+	useEffect(() => {
+		if (!isOpen) return;
+
+		const loadTopics = () =>
+			runTopicLoad(setIsLoading, async () => {
+				// Load all available topics
+				const topics = await pluginsManager.applyFilterAsync<
+					DatasourceTopic[]
+				>(PluginsHooks.AVAILABLE_TOPICS, []);
+
+				dispatch({ type: "SET_TOPICS", topics });
+				dispatch({ type: "SET_REQUIREMENTS", requirements });
+
+				// Set initial topic selection if provided
+				if (initialValue) {
+					const matchingTopic = topics.find(
+						(t) =>
+							t.topic === initialValue.topic &&
+							t.source.id === initialValue.source.id,
+					);
+					if (matchingTopic) {
+						dispatch({
+							type: "SELECT_TOPIC",
+							topic: matchingTopic,
+						});
+					}
+				}
+
+				// Start compatibility analysis (works with or without requirements)
+				await analyzeAllTopics(topics, requirements);
+			});
+
+		loadTopics();
+	}, [isOpen, pluginsManager, requirements, initialValue]);
 
 	const handleTopicSelect = (topic: DatasourceTopic) => {
 		dispatch({ type: "SELECT_TOPIC", topic });

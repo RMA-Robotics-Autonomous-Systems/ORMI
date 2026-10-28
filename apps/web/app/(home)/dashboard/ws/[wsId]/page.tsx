@@ -24,6 +24,7 @@ import { datasourceApi } from "@/lib/api/datasource-api";
 import type { KnownDatasourceConfig } from "@workspace/ormi-core/datasources/identity";
 import { workspaceApi, type Workspace } from "@/lib/api/workspace-api";
 import type { ApiResult } from "@/lib/http/client";
+import { attemptAsync } from "@workspace/utils/attempt";
 import { useParams } from "next/navigation";
 import { WorkspaceAutosave } from "@/components/advanced/misc/workspace-autosave";
 
@@ -115,18 +116,18 @@ export default function Page() {
 				return;
 			}
 
-			try {
-				const result = await getWorkspace();
-				if (result.ok) {
-					setDashboardType(
-						resolveDashboardType(result.data?.dashboardType),
-					);
-				}
-			} catch {
-				setDashboardType(DEFAULT_DASHBOARD_TYPE);
-			} finally {
-				setLoading(false);
-			}
+			await attemptAsync(
+				async () => {
+					const result = await getWorkspace();
+					if (result.ok) {
+						setDashboardType(
+							resolveDashboardType(result.data?.dashboardType),
+						);
+					}
+				},
+				() => setDashboardType(DEFAULT_DASHBOARD_TYPE),
+				() => setLoading(false),
+			);
 		}
 		fetchWorkspaceType();
 	}, [workspaceId, getWorkspace]);

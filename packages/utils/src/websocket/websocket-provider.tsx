@@ -84,6 +84,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 	);
 	const [error, setError] = useState<WebSocketError | null>(null);
 	const [reconnectAttempt, setReconnectAttempt] = useState<number>(0);
+	// Render-visible mirror of `socketRef`, written beside every ref write so
+	// the context exposes the same socket the ref holds without reading the
+	// ref during render.
+	const [socket, setSocket] = useState<WebSocket | null>(null);
 
 	const clearTimeouts = useCallback(() => {
 		if (timeoutRef.current) {
@@ -111,9 +115,15 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		if (socketRef.current) {
 			socketRef.current.close();
 			socketRef.current = null;
+			setSocket(null);
 		}
 		clearTimeouts();
 	}, [clearTimeouts]);
+
+	// `connect` and `scheduleReconnection` call each other; the reconnect timer
+	// reaches `connect` through this ref (synced in an effect, always before the
+	// timer can fire) so neither is read before it is declared.
+	const connectRef = useRef<() => void>(() => {});
 
 	const scheduleReconnection = useCallback(() => {
 		if (!isMountedRef.current) return;
@@ -135,7 +145,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		// Always use the reconnection interval for any reconnection attempt
 		reconnectTimeoutRef.current = setTimeout(() => {
 			if (isMountedRef.current) {
-				connect();
+				connectRef.current();
 			}
 		}, reconnectInterval);
 	}, [reconnectAttempts, reconnectInterval, handleError]);
@@ -156,6 +166,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		try {
 			const socket = new WebSocket(url, protocols);
 			socketRef.current = socket;
+			setSocket(socket);
 
 			// Set connection timeout
 			timeoutRef.current = setTimeout(() => {
@@ -247,6 +258,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		scheduleReconnection,
 	]);
 
+	useEffect(() => {
+		connectRef.current = connect;
+	}, [connect]);
+
 	const disconnect = useCallback(() => {
 		reconnectAttemptRef.current = reconnectAttempts; // Prevent reconnection
 		closeSocket();
@@ -304,7 +319,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 	}, [url]); // Only depend on URL, not the functions
 
 	const contextValue: WebSocketContextValue = {
-		socket: socketRef.current,
+		socket,
 		status,
 		isConnected: status === WebSocketStatus.CONNECTED,
 		isConnecting: status === WebSocketStatus.CONNECTING,

@@ -11,6 +11,39 @@ import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { EyeClosedIcon, EyeIcon } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 
+/** Great-circle (haversine) distance in metres between two lat/lon points. */
+const distance = (
+	lat1: number,
+	lon1: number,
+	lat2: number,
+	lon2: number,
+): number => {
+	const R = 6371e3; // Earth's radius in meters
+
+	function radians(degrees: number) {
+		return (degrees * Math.PI) / 180;
+	}
+
+	const lat1Rad = radians(lat1);
+	const lon1Rad = radians(lon1);
+	const lat2Rad = radians(lat2);
+	const lon2Rad = radians(lon2);
+
+	const dLat = lat2Rad - lat1Rad;
+	const dLon = lon2Rad - lon1Rad;
+
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos(lat1Rad) *
+			Math.cos(lat2Rad) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+
+	const c = 2 * Math.asin(Math.sqrt(a));
+
+	return R * c;
+};
+
 /**
  * Multiple points GPS marker with hover support.
  * @param props - Component props.
@@ -158,38 +191,6 @@ export default function MultiPoints(props: {
 			console.error("Error parsing data", error, data);
 		}
 	}, [getSource, props.topic]);
-
-	const distance = (
-		lat1: number,
-		lon1: number,
-		lat2: number,
-		lon2: number,
-	): number => {
-		const R = 6371e3; // Earth's radius in meters
-
-		function radians(degrees: number) {
-			return (degrees * Math.PI) / 180;
-		}
-
-		const lat1Rad = radians(lat1);
-		const lon1Rad = radians(lon1);
-		const lat2Rad = radians(lat2);
-		const lon2Rad = radians(lon2);
-
-		const dLat = lat2Rad - lat1Rad;
-		const dLon = lon2Rad - lon1Rad;
-
-		const a =
-			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-			Math.cos(lat1Rad) *
-				Math.cos(lat2Rad) *
-				Math.sin(dLon / 2) *
-				Math.sin(dLon / 2);
-
-		const c = 2 * Math.asin(Math.sqrt(a));
-
-		return R * c;
-	};
 
 	const hashStringToColor = (str: string): string => {
 		// Use a more sophisticated hash function (FNV-1a variant)

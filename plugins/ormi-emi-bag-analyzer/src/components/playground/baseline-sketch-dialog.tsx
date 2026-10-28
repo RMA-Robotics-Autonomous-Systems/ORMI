@@ -65,6 +65,40 @@ function fmtTime(ns: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
+/**
+ * Parses a saved sketch file and hands its points to `setHandles`, alerting on
+ * a malformed file. Module-level because the React Compiler cannot lower the
+ * conditionals inside this try/catch within a component.
+ */
+function applySketchFile(
+	text: string,
+	setHandles: (points: DrawnBaselinePoint[]) => void,
+): void {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		if (
+			!Array.isArray(parsed) ||
+			!parsed.every(
+				(p) =>
+					typeof p === "object" &&
+					p !== null &&
+					typeof (p as Record<string, unknown>).tsNs === "number" &&
+					typeof (p as Record<string, unknown>).value === "number",
+			)
+		) {
+			alert(
+				"Invalid sketch file: expected an array of {tsNs, value} objects.",
+			);
+			return;
+		}
+		setHandles(
+			(parsed as DrawnBaselinePoint[]).sort((a, b) => a.tsNs - b.tsNs),
+		);
+	} catch {
+		alert("Could not parse sketch file.");
+	}
+}
+
 export interface BaselineSketchDialogProps {
 	open: boolean;
 	/** The raw signal series (same array passed to runAutoLabel). */
@@ -305,35 +339,7 @@ export function BaselineSketchDialog({
 			if (!file) return;
 			const reader = new FileReader();
 			reader.onload = (ev) => {
-				try {
-					const parsed: unknown = JSON.parse(
-						ev.target?.result as string,
-					);
-					if (
-						!Array.isArray(parsed) ||
-						!parsed.every(
-							(p) =>
-								typeof p === "object" &&
-								p !== null &&
-								typeof (p as Record<string, unknown>).tsNs ===
-									"number" &&
-								typeof (p as Record<string, unknown>).value ===
-									"number",
-						)
-					) {
-						alert(
-							"Invalid sketch file: expected an array of {tsNs, value} objects.",
-						);
-						return;
-					}
-					setHandles(
-						(parsed as DrawnBaselinePoint[]).sort(
-							(a, b) => a.tsNs - b.tsNs,
-						),
-					);
-				} catch {
-					alert("Could not parse sketch file.");
-				}
+				applySketchFile(ev.target?.result as string, setHandles);
 			};
 			reader.readAsText(file);
 			// Reset so the same file can be re-imported

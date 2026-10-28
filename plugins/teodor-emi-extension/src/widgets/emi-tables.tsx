@@ -77,13 +77,13 @@ const EmiTables = (props: TablesSettings) => {
 
 		for (const a of run.recorded.alerts) {
 			const ci = idIndex.get(a.coil);
-			if (ci !== undefined) rec[ci]!++;
+			if (ci !== undefined) rec[ci] = rec[ci]! + 1;
 		}
-		for (const d of result.detsOld) old[d.ci]!++;
-		for (const d of result.detsNew) now[d.ci]!++;
+		for (const d of result.detsOld) old[d.ci] = old[d.ci]! + 1;
+		for (const d of result.detsNew) now[d.ci] = now[d.ci]! + 1;
 		for (const t of result.targets) {
 			const ci = idIndex.get(t.bestCoil);
-			if (ci !== undefined) led[ci]!++;
+			if (ci !== undefined) led[ci] = led[ci]! + 1;
 		}
 		return Array.from({ length: nc }, (_, c) => ({
 			id: run.coilIds[c]!,

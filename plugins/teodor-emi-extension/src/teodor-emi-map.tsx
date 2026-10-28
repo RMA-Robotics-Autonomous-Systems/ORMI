@@ -53,6 +53,39 @@ interface EmiData {
 	referenceFrameId: string;
 }
 
+/** Great-circle distance in metres between two lat/lon points (haversine). */
+const distance = (
+	lat1: number,
+	lon1: number,
+	lat2: number,
+	lon2: number,
+): number => {
+	const R = 6371e3; // Earth's radius in meters
+
+	function radians(degrees: number) {
+		return (degrees * Math.PI) / 180;
+	}
+
+	const lat1Rad = radians(lat1);
+	const lon1Rad = radians(lon1);
+	const lat2Rad = radians(lat2);
+	const lon2Rad = radians(lon2);
+
+	const dLat = lat2Rad - lat1Rad;
+	const dLon = lon2Rad - lon1Rad;
+
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos(lat1Rad) *
+			Math.cos(lat2Rad) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+
+	const c = 2 * Math.asin(Math.sqrt(a));
+
+	return R * c;
+};
+
 export default function TeodorEmiMap(props: {
 	topic: SelectedTopic;
 	name: string;
@@ -238,39 +271,6 @@ export default function TeodorEmiMap(props: {
 			map.off("mouseleave", layerId, handleMouseLeave);
 		};
 	}, [map, layerId, show]);
-
-	// Distance calculation function
-	const distance = (
-		lat1: number,
-		lon1: number,
-		lat2: number,
-		lon2: number,
-	): number => {
-		const R = 6371e3; // Earth's radius in meters
-
-		function radians(degrees: number) {
-			return (degrees * Math.PI) / 180;
-		}
-
-		const lat1Rad = radians(lat1);
-		const lon1Rad = radians(lon1);
-		const lat2Rad = radians(lat2);
-		const lon2Rad = radians(lon2);
-
-		const dLat = lat2Rad - lat1Rad;
-		const dLon = lon2Rad - lon1Rad;
-
-		const a =
-			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-			Math.cos(lat1Rad) *
-				Math.cos(lat2Rad) *
-				Math.sin(dLon / 2) *
-				Math.sin(dLon / 2);
-
-		const c = 2 * Math.asin(Math.sqrt(a));
-
-		return R * c;
-	};
 
 	// Calculate min and max values from the data
 	const values = locations.map((loc) => loc.value);

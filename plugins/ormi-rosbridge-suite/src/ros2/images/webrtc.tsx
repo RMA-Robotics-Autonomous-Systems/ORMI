@@ -261,70 +261,72 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 			}
 		};
 
+		// The offer/answer exchange sits outside the try: the React Compiler
+		// cannot lower a throw inside a try block.
+		const exchangeOffer = async () => {
+			if (cleanupRef.current) return;
+
+			const offer = await pc.createOffer();
+			if (cleanupRef.current) return;
+
+			await pc.setLocalDescription(offer);
+
+			await new Promise<void>((resolve) => {
+				const timeout = setTimeout(() => {
+					resolve();
+				}, 5000);
+
+				if (pc.iceGatheringState === "complete") {
+					clearTimeout(timeout);
+					resolve();
+				} else {
+					const checkState = () => {
+						if (
+							pc.iceGatheringState === "complete" ||
+							cleanupRef.current
+						) {
+							pc.removeEventListener(
+								"icegatheringstatechange",
+								checkState,
+							);
+							clearTimeout(timeout);
+							resolve();
+						}
+					};
+					pc.addEventListener("icegatheringstatechange", checkState);
+				}
+			});
+
+			if (cleanupRef.current) return;
+
+			const response = await fetch(`http://${host}:8080/offer`, {
+				method: "POST",
+				body: JSON.stringify({
+					sdp: pc.localDescription?.sdp,
+					type: pc.localDescription?.type,
+					topic: topicName,
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			if (cleanupRef.current) return;
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(
+					`Server responded with ${response.status}: ${errorText}`,
+				);
+			}
+
+			const answer = (await response.json()) as RTCSessionDescriptionInit;
+			if (cleanupRef.current) return;
+
+			await pc.setRemoteDescription(answer);
+		};
+
 		const negotiate = async () => {
 			try {
-				if (cleanupRef.current) return;
-
-				const offer = await pc.createOffer();
-				if (cleanupRef.current) return;
-
-				await pc.setLocalDescription(offer);
-
-				await new Promise<void>((resolve) => {
-					const timeout = setTimeout(() => {
-						resolve();
-					}, 5000);
-
-					if (pc.iceGatheringState === "complete") {
-						clearTimeout(timeout);
-						resolve();
-					} else {
-						const checkState = () => {
-							if (
-								pc.iceGatheringState === "complete" ||
-								cleanupRef.current
-							) {
-								pc.removeEventListener(
-									"icegatheringstatechange",
-									checkState,
-								);
-								clearTimeout(timeout);
-								resolve();
-							}
-						};
-						pc.addEventListener(
-							"icegatheringstatechange",
-							checkState,
-						);
-					}
-				});
-
-				if (cleanupRef.current) return;
-
-				const response = await fetch(`http://${host}:8080/offer`, {
-					method: "POST",
-					body: JSON.stringify({
-						sdp: pc.localDescription?.sdp,
-						type: pc.localDescription?.type,
-						topic: topicName,
-					}),
-					headers: { "Content-Type": "application/json" },
-				});
-
-				if (cleanupRef.current) return;
-
-				if (!response.ok) {
-					const errorText = await response.text();
-					throw new Error(
-						`Server responded with ${response.status}: ${errorText}`,
-					);
-				}
-
-				const answer =
-					(await response.json()) as RTCSessionDescriptionInit;
-				if (cleanupRef.current) return;
-
-				await pc.setRemoteDescription(answer);
+				await exchangeOffer();
 			} catch (error) {
 				if (!cleanupRef.current) {
 					console.error("WebRTC negotiation failed:", error);

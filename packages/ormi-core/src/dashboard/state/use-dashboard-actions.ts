@@ -65,7 +65,9 @@ export function useDashboardActions(): DashboardActions {
 	// getDefinition a new reference on every render, propagating through
 	// updateWidget → handleSaveWidget → widgets_elements useMemo → all tiles.
 	// Instead, write to a ref during render (parent always renders before
-	// children so GridWidgetTile reads the latest value).
+	// children so GridWidgetTile reads the latest value). Consequently this
+	// hook is uncompiled by the React Compiler, by decision: it is the one
+	// entry in ALLOWED_BAILOUTS (apps/web/__tests__/react-compiler-coverage.test.ts).
 	const widgetDefinitionsRef = useRef(widgetDefinitions);
 	widgetDefinitionsRef.current = widgetDefinitions;
 

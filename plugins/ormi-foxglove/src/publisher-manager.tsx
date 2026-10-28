@@ -6,7 +6,6 @@ import React, {
 	useEffect,
 	useRef,
 	useState,
-	useMemo,
 	useCallback,
 } from "react";
 
@@ -31,10 +30,19 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 	const publisherServiceRef = useRef<PublisherService | null>(null);
 
 	// Memoize channels to prevent unnecessary re-renders
-	const memoizedChannels = useMemo(() => {
-		// Create a stable reference for channels comparison
-		return new Map(channels);
-	}, [channels.size, Array.from(channels.keys()).join(",")]);
+	// Keyed on the channel id set, not the Map's identity: a new Map carrying the
+	// same ids keeps the snapshot. Held as derived state (updated during render)
+	// because a memo keyed on a computed string while its body reads `channels`
+	// is not something the React Compiler can preserve.
+	const channelKeys = Array.from(channels.keys()).join(",");
+	const [channelSnapshot, setChannelSnapshot] = useState(() => ({
+		keys: channelKeys,
+		map: new Map(channels),
+	}));
+	if (channelSnapshot.keys !== channelKeys) {
+		setChannelSnapshot({ keys: channelKeys, map: new Map(channels) });
+	}
+	const memoizedChannels = channelSnapshot.map;
 
 	// Stable callback for updating channels
 	const updateChannels = useCallback((newChannels: Map<number, any>) => {

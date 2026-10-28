@@ -24,7 +24,7 @@
 */
 "use client";
 import debounce from "lodash/debounce";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 
 const eventToValue = (ev: any) => ev.target.value;
 export const useDebouncedChange = (
@@ -39,8 +39,12 @@ export const useDebouncedChange = (
 	useEffect(() => {
 		setInput(data ?? defaultValue);
 	}, [data]);
-	const debouncedUpdate = useCallback(
-		debounce((newValue: string) => handleChange(path, newValue), timeout),
+	const debouncedUpdate = useMemo(
+		() =>
+			debounce(
+				(newValue: string) => handleChange(path, newValue),
+				timeout,
+			),
 		[handleChange, path, timeout],
 	);
 	const onChange = useCallback(
@@ -49,7 +53,7 @@ export const useDebouncedChange = (
 			setInput(newValue ?? defaultValue);
 			debouncedUpdate(newValue);
 		},
-		[debouncedUpdate, eventToValueFunction],
+		[debouncedUpdate, eventToValueFunction, defaultValue],
 	);
 	const onClear = useCallback(() => {
 		setInput(defaultValue);

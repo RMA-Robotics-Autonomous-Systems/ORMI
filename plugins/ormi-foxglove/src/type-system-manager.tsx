@@ -3,6 +3,7 @@
 
 import React, { ReactNode, useEffect, useState } from "react";
 import { parse } from "@foxglove/rosmsg";
+import type { Channel } from "@foxglove/ws-protocol";
 
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { UnifiedConverter } from "./unified-converter";
@@ -14,6 +15,37 @@ import { foxgloveIdlToJsonSchema } from "./foxglove-idl-to-jsonschema";
 interface TypeSystemManagerProps {
 	children: ReactNode;
 	settings: FoxgloveDataSourceSettings;
+}
+
+/**
+ * Resolves a topic's JSON schema from its channel's ROS2 IDL. Throws when the
+ * channel or its schema is missing. Kept outside the component so the throw
+ * does not sit inside a try block the React Compiler cannot lower.
+ */
+function resolveTopicDefinition(
+	channels: Map<number, Channel>,
+	topic: DatasourceTopic,
+): any {
+	// Find the channel for this topic
+	const channel = Array.from(channels.values()).find((channel) => {
+		return channel.topic === topic.topic;
+	});
+
+	if (!channel) {
+		throw new Error(`Channel not found for topic ${topic.topic}`);
+	}
+
+	const channelSchema = channel.schema;
+
+	if (!channelSchema) {
+		throw new Error(`Channel schema not found for topic ${topic.topic}`);
+	}
+
+	// Parse the schema using Foxglove's parser
+	const parsedIDL = parse(channelSchema, { ros2: true });
+
+	// Convert parsed IDL to JsonSchema format
+	return foxgloveIdlToJsonSchema(parsedIDL);
 }
 
 const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
@@ -56,34 +88,7 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 				topic: DatasourceTopic,
 			): Promise<any> => {
 				try {
-					// Find the channel for this topic
-					const channel = Array.from(channels.values()).find(
-						(channel) => {
-							return channel.topic === topic.topic;
-						},
-					);
-
-					if (!channel) {
-						throw new Error(
-							`Channel not found for topic ${topic.topic}`,
-						);
-					}
-
-					const channelSchema = channel.schema;
-
-					if (!channelSchema) {
-						throw new Error(
-							`Channel schema not found for topic ${topic.topic}`,
-						);
-					}
-
-					// Parse the schema using Foxglove's parser
-					const parsedIDL = parse(channelSchema, { ros2: true });
-
-					// Convert parsed IDL to JsonSchema format
-					const jsonSchema = foxgloveIdlToJsonSchema(parsedIDL);
-
-					return jsonSchema;
+					return resolveTopicDefinition(channels, topic);
 				} catch (error) {
 					console.error(
 						`TypeSystemManager: Error in definition filter for topic ${topic.topic}:`,

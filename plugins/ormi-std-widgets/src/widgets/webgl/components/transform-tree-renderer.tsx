@@ -211,6 +211,23 @@ const nextCapacity = (n: number): number => {
 // Reused scratch objects — the per-instance matrix/color composition runs over
 // every node on each update, so it must not allocate. One instance of each is
 // shared across the whole update pass (single-threaded, no reentrancy).
+/**
+ * Pooled `Vector3` at `index`, created on first use and overwritten in place.
+ * Module-level so the pool mutation stays outside the component.
+ */
+const pooledVector = (
+	pool: THREE.Vector3[],
+	index: number,
+	p: { x: number; y: number; z: number },
+): THREE.Vector3 => {
+	let v = pool[index];
+	if (!v) {
+		v = new THREE.Vector3();
+		pool[index] = v;
+	}
+	return v.set(p.x, p.y, p.z);
+};
+
 const SCRATCH_MATRIX = new THREE.Matrix4();
 const SCRATCH_POSITION = new THREE.Vector3();
 const SCRATCH_SCALE = new THREE.Vector3();
@@ -383,39 +400,18 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 	// `frameNodes`; consumers only read (instance writes copy, handlers clone), so
 	// in-place reuse is safe. Grows monotonically; entries past the live count are
 	// inert.
-	const worldPosPoolRef = useRef<THREE.Vector3[]>([]);
-	const parentPosPoolRef = useRef<THREE.Vector3[]>([]);
+	// Held in state (never replaced) rather than refs: the memo reads them during
+	// render, and `pooledVector` does the in-place writes outside the component.
+	const [worldPool] = useState<THREE.Vector3[]>(() => []);
+	const [parentPool] = useState<THREE.Vector3[]>(() => []);
 
 	const frameNodes = useMemo<FrameNode[]>(() => {
 		if (!enabled) return [];
-		const worldPool = worldPosPoolRef.current;
-		const parentPool = parentPosPoolRef.current;
 		return worldFrames.map((wf, index) => {
-			let worldPos = worldPool[index];
-			if (!worldPos) {
-				worldPos = new THREE.Vector3();
-				worldPool[index] = worldPos;
-			}
-			worldPos.set(
-				wf.worldPosition.x,
-				wf.worldPosition.y,
-				wf.worldPosition.z,
-			);
-
-			let parentPos: THREE.Vector3 | null = null;
-			if (wf.parentWorldPosition) {
-				let pooled = parentPool[index];
-				if (!pooled) {
-					pooled = new THREE.Vector3();
-					parentPool[index] = pooled;
-				}
-				pooled.set(
-					wf.parentWorldPosition.x,
-					wf.parentWorldPosition.y,
-					wf.parentWorldPosition.z,
-				);
-				parentPos = pooled;
-			}
+			const worldPos = pooledVector(worldPool, index, wf.worldPosition);
+			const parentPos: THREE.Vector3 | null = wf.parentWorldPosition
+				? pooledVector(parentPool, index, wf.parentWorldPosition)
+				: null;
 
 			return {
 				id: wf.rawFrameId,
@@ -426,7 +422,7 @@ export const TransformTreeRenderer: React.FC<TransformTreeRendererProps> = ({
 				index,
 			};
 		});
-	}, [worldFrames, enabled]);
+	}, [worldFrames, enabled, worldPool, parentPool]);
 
 	// Partition spheres into a solid set and a wireframe set (inferred roots).
 	// `wireframe` is a material flag and cannot vary per instance on a shared

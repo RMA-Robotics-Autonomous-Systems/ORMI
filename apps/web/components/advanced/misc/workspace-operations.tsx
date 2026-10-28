@@ -53,6 +53,7 @@ import { MoreVertical, Loader2, Trash, AlertTriangle } from "lucide-react";
 import WorkspaceImport from "./workspace-import";
 
 import { workspaceApi } from "@/lib/api/workspace-api";
+import { attemptAsync } from "@workspace/utils/attempt";
 
 /** Sentinel value used by the category Select for the "Uncategorized" (null) option. */
 const UNCATEGORIZED_VALUE = "uncategorized";
@@ -232,15 +233,18 @@ export function WorkspaceOperations({
 		// 2. Persist category through the shared reorder path, when changed.
 		if (categoryChanged) {
 			onWorkspacePatch?.(workspace.id, { categoryId: nextCategoryId });
-			try {
-				await onWorkspaceReorder?.([
-					{
-						id: workspace.id,
-						order: workspace.order ?? 0,
-						categoryId: nextCategoryId,
-					},
-				]);
-			} catch {
+			const reordered = await attemptAsync(
+				() =>
+					onWorkspaceReorder?.([
+						{
+							id: workspace.id,
+							order: workspace.order ?? 0,
+							categoryId: nextCategoryId,
+						},
+					]),
+				() => {},
+			);
+			if (!reordered) {
 				setIsSaving(false);
 				toast("Failed to update category. Please try again.");
 				return;

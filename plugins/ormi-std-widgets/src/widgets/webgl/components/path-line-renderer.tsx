@@ -80,6 +80,64 @@ function applyLinePose(
 	line.matrixWorldNeedsUpdate = true;
 }
 
+/**
+ * Write the line's style onto its material. Module-level (as is
+ * `fillLinePositions`) because the React Compiler rejects mutating a memoised
+ * value from inside the component.
+ */
+function applyLineStyle(
+	material: LineMaterial,
+	lineColor: string,
+	lineWidth: number,
+	lineOpacity: number,
+): void {
+	material.color.set(lineColor);
+	material.linewidth = lineWidth;
+	material.opacity = lineOpacity;
+	material.transparent = lineOpacity < 1;
+	(material as unknown as { linecap?: string; linejoin?: string }).linecap =
+		"round";
+	(material as unknown as { linecap?: string; linejoin?: string }).linejoin =
+		"round";
+	material.needsUpdate = true;
+}
+
+/**
+ * Write `count` poses starting at `startIndex` into `positions` as xyz
+ * triples in the THREE convention.
+ */
+function fillLinePositions(
+	positions: Float32Array,
+	poses: Path["poses"],
+	startIndex: number,
+	count: number,
+	sourceConvention: CoordinateConvention,
+): void {
+	if (sourceConvention === "THREE") {
+		// Already in the render convention — copy coordinates directly
+		// instead of allocating a converted position object per pose.
+		for (let i = 0; i < count; i++) {
+			const position = poses[startIndex + i]!.position;
+			const idx = i * 3;
+			positions[idx] = position.x;
+			positions[idx + 1] = position.y;
+			positions[idx + 2] = position.z;
+		}
+	} else {
+		for (let i = 0; i < count; i++) {
+			const idx = i * 3;
+			const convertedPosition = convertPosition(
+				poses[startIndex + i]!.position,
+				sourceConvention,
+				"THREE",
+			);
+			positions[idx] = convertedPosition.x;
+			positions[idx + 1] = convertedPosition.y;
+			positions[idx + 2] = convertedPosition.z;
+		}
+	}
+}
+
 export const PathLineRenderer = ({
 	source,
 	datasourceId,
@@ -126,17 +184,7 @@ export const PathLineRenderer = ({
 	);
 
 	useEffect(() => {
-		material.color.set(lineColor);
-		material.linewidth = lineWidth;
-		material.opacity = lineOpacity;
-		material.transparent = lineOpacity < 1;
-		(
-			material as unknown as { linecap?: string; linejoin?: string }
-		).linecap = "round";
-		(
-			material as unknown as { linecap?: string; linejoin?: string }
-		).linejoin = "round";
-		material.needsUpdate = true;
+		applyLineStyle(material, lineColor, lineWidth, lineOpacity);
 	}, [material, lineColor, lineWidth, lineOpacity]);
 
 	useEffect(() => {
@@ -202,29 +250,13 @@ export const PathLineRenderer = ({
 			linePositionsRef.current = positions;
 		}
 
-		if (sourceConvention === "THREE") {
-			// Already in the render convention — copy coordinates directly
-			// instead of allocating a converted position object per pose.
-			for (let i = 0; i < usedPoseCount; i++) {
-				const position = poses[startIndex + i]!.position;
-				const idx = i * 3;
-				positions[idx] = position.x;
-				positions[idx + 1] = position.y;
-				positions[idx + 2] = position.z;
-			}
-		} else {
-			for (let i = 0; i < usedPoseCount; i++) {
-				const idx = i * 3;
-				const convertedPosition = convertPosition(
-					poses[startIndex + i]!.position,
-					sourceConvention,
-					"THREE",
-				);
-				positions[idx] = convertedPosition.x;
-				positions[idx + 1] = convertedPosition.y;
-				positions[idx + 2] = convertedPosition.z;
-			}
-		}
+		fillLinePositions(
+			positions,
+			poses,
+			startIndex,
+			usedPoseCount,
+			sourceConvention,
+		);
 
 		geometry.setPositions(positions.subarray(0, needed));
 		// The point count changes every update; clear the latched instance cap so the

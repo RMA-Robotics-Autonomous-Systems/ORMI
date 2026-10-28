@@ -37,6 +37,7 @@ import {
 	subscribeMissionStore,
 } from "../mission/mission-store";
 import { EmiPanelFrame } from "./emi-panel-frame";
+import { attempt } from "@workspace/utils/attempt";
 
 /** Settings for the exporter. */
 interface ExportSettings extends Record<string, unknown> {
@@ -118,48 +119,52 @@ const EmiExport = (props: ExportSettings) => {
 		if (!run || building) return;
 		setBuilding(true);
 		setFailed(null);
-		try {
-			const doc = buildEmiGeoJson({
-				run,
-				result,
-				params,
-				layers,
-				selection: usingSelection ? selection : null,
-				startedAt: source?.startedAt,
-				missionId: source?.id ?? null,
-				missionName: source?.name ?? null,
-			});
-			const name = geoJsonFilename(run);
-			const blob = new Blob([JSON.stringify(doc)], {
-				type: "application/geo+json",
-			});
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = name;
-			// Attached before the click: a detached anchor's download is ignored
-			// in Firefox, which fails as "the button does nothing".
-			document.body.append(a);
-			a.click();
-			a.remove();
-			// The object URL pins the whole document in memory until it is
-			// revoked, and a survey's worth of geometry is not small — but
-			// revoking in the same task can cancel the download just started.
-			setTimeout(() => URL.revokeObjectURL(url), 10_000);
-			setWrote(name);
-		} catch (err) {
-			// Building and stringifying a long survey can exceed the engine's
-			// string limit. Silently doing nothing is the worst outcome: the
-			// operator presses the button, no file appears, and nothing says why.
-			setFailed(
-				err instanceof Error
-					? err.message
-					: "The export could not be built.",
-			);
-			setWrote(null);
-		} finally {
-			setBuilding(false);
-		}
+		attempt(
+			() => {
+				const doc = buildEmiGeoJson({
+					run,
+					result,
+					params,
+					layers,
+					selection: usingSelection ? selection : null,
+					startedAt: source?.startedAt,
+					missionId: source?.id ?? null,
+					missionName: source?.name ?? null,
+				});
+				const name = geoJsonFilename(run);
+				const blob = new Blob([JSON.stringify(doc)], {
+					type: "application/geo+json",
+				});
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement("a");
+				a.href = url;
+				a.download = name;
+				// Attached before the click: a detached anchor's download is ignored
+				// in Firefox, which fails as "the button does nothing".
+				document.body.append(a);
+				a.click();
+				a.remove();
+				// The object URL pins the whole document in memory until it is
+				// revoked, and a survey's worth of geometry is not small — but
+				// revoking in the same task can cancel the download just started.
+				setTimeout(() => URL.revokeObjectURL(url), 10_000);
+				setWrote(name);
+			},
+			(err) => {
+				// Building and stringifying a long survey can exceed the engine's
+				// string limit. Silently doing nothing is the worst outcome: the
+				// operator presses the button, no file appears, and nothing says why.
+				setFailed(
+					err instanceof Error
+						? err.message
+						: "The export could not be built.",
+				);
+				setWrote(null);
+			},
+			() => {
+				setBuilding(false);
+			},
+		);
 	};
 
 	return (

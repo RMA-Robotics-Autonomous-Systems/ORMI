@@ -29,6 +29,7 @@ import {
 	usePluginFiltersRevision,
 } from "@workspace/ormi-plugins";
 import { restBagDatasourceProperty } from "../datasource-select";
+import { attemptAsync } from "@workspace/utils/attempt";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
 import { Button } from "@workspace/ui/components/button";
@@ -115,25 +116,29 @@ const BagList = (props: BagListProps) => {
 		const fetchBags = async () => {
 			setLoading(true);
 			setError(null);
-			try {
-				const bagsList = await client.getBags();
-				const bags: BagInfo[] = [];
+			await attemptAsync(
+				async () => {
+					const bagsList = await client.getBags();
+					const bags: BagInfo[] = [];
 
-				for (const path in bagsList) {
-					for (const bagName in bagsList[path]) {
-						bags.push(bagsList[path]![bagName]!);
+					for (const path in bagsList) {
+						for (const bagName in bagsList[path]) {
+							bags.push(bagsList[path]![bagName]!);
+						}
 					}
-				}
 
-				setBags(bags);
-			} catch (err: unknown) {
-				console.error("Failed to fetch bags:", err);
-				setError(
-					`Failed to fetch bags: ${err instanceof Error ? err.message : String(err)}`,
-				);
-			} finally {
-				setLoading(false);
-			}
+					setBags(bags);
+				},
+				(err) => {
+					console.error("Failed to fetch bags:", err);
+					setError(
+						`Failed to fetch bags: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				},
+				() => {
+					setLoading(false);
+				},
+			);
 		};
 
 		fetchBags();
@@ -282,16 +287,20 @@ const BagList = (props: BagListProps) => {
 			return;
 		}
 
-		try {
-			await client.deleteBag(bagName);
-			// Refresh the bag list after deletion
-			setBags(bags.filter((bag) => bag.name !== bagName));
-		} catch (err) {
-			console.error("Failed to delete bag:", err);
-			setError("Failed to delete bag. Please try again later.");
-		} finally {
-			setDeleteConfirm(null);
-		}
+		await attemptAsync(
+			async () => {
+				await client.deleteBag(bagName);
+				// Refresh the bag list after deletion
+				setBags(bags.filter((bag) => bag.name !== bagName));
+			},
+			(err) => {
+				console.error("Failed to delete bag:", err);
+				setError("Failed to delete bag. Please try again later.");
+			},
+			() => {
+				setDeleteConfirm(null);
+			},
+		);
 	};
 
 	const formatDateTime = (timestamp: Timestamp) => {

@@ -121,7 +121,7 @@ export const ShadcnCategorizationStepperLayoutRenderer = (
 				(category: Categorization | Category) =>
 					isVisible(category, data, "", ajv, config),
 			),
-		[categorization, data, ajv],
+		[categorization, data, ajv, config],
 	);
 	const childProps: shadcnLayoutRendererProps = {
 		elements: categories[activeCategory]!.elements,

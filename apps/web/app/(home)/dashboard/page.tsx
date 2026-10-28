@@ -27,6 +27,7 @@ import { CreateWSButton } from "@/components/advanced/misc/workspace-button";
 import { DashboardShell } from "@/components/advanced/misc/dashboard-shell";
 import { WorkspaceItem } from "@/components/advanced/misc/workspace-item";
 import { WORKSPACE_VIEWS } from "@/components/advanced/workspace-views/registry";
+import { attemptAsync } from "@workspace/utils/attempt";
 import type { WorkspaceViewId } from "@/components/advanced/workspace-views/types";
 import type { WorkspaceWithCategory } from "@/components/advanced/misc/kanban/types";
 import { workspaceApi } from "@/lib/api/workspace-api";
@@ -73,32 +74,32 @@ export default function DashboardPage() {
 	}, [session, status, router]);
 
 	const fetchData = useCallback(async () => {
-		try {
-			const [wsResult, catResult] = await Promise.all([
-				workspaceApi.getAll(),
-				categoriesApi.getAll(),
-			]);
+		await attemptAsync(
+			async () => {
+				const [wsResult, catResult] = await Promise.all([
+					workspaceApi.getAll(),
+					categoriesApi.getAll(),
+				]);
 
-			if (wsResult.ok) {
-				setWorkspaces(wsResult.data as WorkspaceWithCategory[]);
-			} else {
-				console.error("Failed to fetch workspaces", wsResult.error);
-				setWorkspaces([]);
-			}
+				if (wsResult.ok) {
+					setWorkspaces(wsResult.data as WorkspaceWithCategory[]);
+				} else {
+					console.error("Failed to fetch workspaces", wsResult.error);
+					setWorkspaces([]);
+				}
 
-			if (catResult.ok) {
-				setCategories(catResult.data as Category[]);
-			} else {
-				toast.error(
-					"Failed to fetch categories, rendering uncategorized workspaces only",
-				);
-				setCategories([]);
-			}
-		} catch (error) {
-			console.error("Failed to fetch data", error);
-		} finally {
-			setIsLoading(false);
-		}
+				if (catResult.ok) {
+					setCategories(catResult.data as Category[]);
+				} else {
+					toast.error(
+						"Failed to fetch categories, rendering uncategorized workspaces only",
+					);
+					setCategories([]);
+				}
+			},
+			(error) => console.error("Failed to fetch data", error),
+			() => setIsLoading(false),
+		);
 	}, []);
 
 	useEffect(() => {
@@ -124,18 +125,21 @@ export default function DashboardPage() {
 				categoryId?: number | null;
 			}[],
 		) => {
-			try {
-				const result = await workspaceApi.reorder(updates);
+			await attemptAsync(
+				async () => {
+					const result = await workspaceApi.reorder(updates);
 
-				if (!result.ok) throw new Error(result.error);
+					if (!result.ok) throw new Error(result.error);
 
-				toast("Workspaces updated");
-			} catch (error) {
-				console.error("Error updating workspaces:", error);
-				toast("Failed to update workspaces");
-				// Refresh to restore the correct state
-				fetchData();
-			}
+					toast("Workspaces updated");
+				},
+				(error) => {
+					console.error("Error updating workspaces:", error);
+					toast("Failed to update workspaces");
+					// Refresh to restore the correct state
+					fetchData();
+				},
+			);
 		},
 		[fetchData],
 	);
@@ -151,19 +155,22 @@ export default function DashboardPage() {
 	const handleCreateCategory = useCallback(async () => {
 		if (!newCategoryName.trim()) return;
 
-		try {
-			const result = await categoriesApi.create(newCategoryName);
+		await attemptAsync(
+			async () => {
+				const result = await categoriesApi.create(newCategoryName);
 
-			if (!result.ok) throw new Error(result.error);
+				if (!result.ok) throw new Error(result.error);
 
-			setCategories((prev) => [...prev, result.data as Category]);
-			setNewCategoryName("");
-			setIsCreateDialogOpen(false);
-			toast("Category created");
-		} catch (error) {
-			console.error(error);
-			toast("Failed to create category");
-		}
+				setCategories((prev) => [...prev, result.data as Category]);
+				setNewCategoryName("");
+				setIsCreateDialogOpen(false);
+				toast("Category created");
+			},
+			(error) => {
+				console.error(error);
+				toast("Failed to create category");
+			},
+		);
 	}, [newCategoryName]);
 
 	if (status === "loading") {

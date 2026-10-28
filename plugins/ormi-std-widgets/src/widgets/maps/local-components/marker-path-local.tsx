@@ -12,6 +12,46 @@ import { LocalTopicVisualizerProps } from "../local-topic-visualizer-types";
 import { toast } from "sonner";
 
 /**
+ * Transforms the latest path's poses to MapLibre `[longitude, latitude]` pairs.
+ * Module-level so its try/catch stays outside the component (React Compiler).
+ * @returns `null` when the latest path has no poses; otherwise the transformed
+ * coordinates (empty when a transform throws, which is logged).
+ */
+function transformLatestPath(
+	data: unknown[],
+	transformPointToGPS: (
+		point: Vector3,
+	) => { latitude: number; longitude: number } | null | undefined,
+	name: string,
+): [number, number][] | null {
+	try {
+		// Get the latest path
+		const latestPath = data[data.length - 1] as Path;
+
+		if (!latestPath || !latestPath.poses || latestPath.poses.length === 0) {
+			return null;
+		}
+
+		// Transform all poses to GPS coordinates
+		const transformedCoords: [number, number][] = [];
+
+		for (const pose of latestPath.poses) {
+			const localPoint: Vector3 = pose.position;
+			const gpsCoord = transformPointToGPS(localPoint);
+
+			if (gpsCoord) {
+				// MapLibre uses [longitude, latitude] order
+				transformedCoords.push([gpsCoord.longitude, gpsCoord.latitude]);
+			}
+		}
+		return transformedCoords;
+	} catch (error) {
+		console.error(`Error transforming path ${name}:`, error);
+		return [];
+	}
+}
+
+/**
  * Local path marker with GPS origin transformation.
  * @param props - Component props.
  * @returns React element or null when hidden or no data.
@@ -101,41 +141,14 @@ export default function PathLocalMarker(props: LocalTopicVisualizerProps) {
 			return;
 		}
 
-		try {
-			// Get the latest path
-			const latestPath = sourceData.data[
-				sourceData.data.length - 1
-			] as Path;
-
-			if (
-				!latestPath ||
-				!latestPath.poses ||
-				latestPath.poses.length === 0
-			) {
-				return;
-			}
-
-			// Transform all poses to GPS coordinates
-			const transformedCoords: [number, number][] = [];
-
-			for (const pose of latestPath.poses) {
-				const localPoint: Vector3 = pose.position;
-				const gpsCoord = transformPointToGPS(localPoint);
-
-				if (gpsCoord) {
-					// MapLibre uses [longitude, latitude] order
-					transformedCoords.push([
-						gpsCoord.longitude,
-						gpsCoord.latitude,
-					]);
-				}
-			}
-
-			if (transformedCoords.length > 0) {
-				setGpsCoordinates(transformedCoords);
-			}
-		} catch (error) {
-			console.error(`Error transforming path ${name}:`, error);
+		const transformedCoords = transformLatestPath(
+			sourceData.data,
+			transformPointToGPS,
+			name,
+		);
+		if (transformedCoords === null) return;
+		if (transformedCoords.length > 0) {
+			setGpsCoordinates(transformedCoords);
 		}
 
 		// Add visibility toggle button

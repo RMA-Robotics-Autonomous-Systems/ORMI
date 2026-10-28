@@ -31,6 +31,7 @@ import {
 	formatBytes,
 	looksLikeSqlite,
 } from "./bag-limits";
+import { attemptAsync } from "@workspace/utils/attempt";
 
 /** What the control is telling the operator about the last pick. */
 interface PickNotice {
@@ -77,56 +78,60 @@ const BagFileControl = (props: ControlProps) => {
 			}
 
 			setReading(true);
-			try {
-				// A sixteen-byte range read, before the whole file. It proves
-				// the file is readable at all — which is where a stale picker
-				// snapshot or a sandboxed browser fails — and it catches the
-				// two easy mistakes (an `.mcap`, or the metadata `.yaml`) for
-				// the price of one small read instead of a gigabyte.
-				const head = new Uint8Array(
-					await file.slice(0, SQLITE_MAGIC_BYTES).arrayBuffer(),
-				);
-				if (!looksLikeSqlite(head)) {
+			await attemptAsync(
+				async () => {
+					// A sixteen-byte range read, before the whole file. It proves
+					// the file is readable at all — which is where a stale picker
+					// snapshot or a sandboxed browser fails — and it catches the
+					// two easy mistakes (an `.mcap`, or the metadata `.yaml`) for
+					// the price of one small read instead of a gigabyte.
+					const head = new Uint8Array(
+						await file.slice(0, SQLITE_MAGIC_BYTES).arrayBuffer(),
+					);
+					if (!looksLikeSqlite(head)) {
+						setNotice({
+							tone: "error",
+							message: `"${file.name}" is not a SQLite database.`,
+							advice: "A rosbag2 recording is the `.db3` inside the bag directory, not the `metadata.yaml` beside it and not an `.mcap`.",
+						});
+						return;
+					}
+
+					const buffer = await file.arrayBuffer();
+					// Keyed on name+size+lastModified, not the bare name:
+					// `rosbag2_0.db3` is the ROS 2 default, so two surveys
+					// routinely share one.
+					const stored = putBag(file, buffer);
+					handleChange(path, stored.key);
+					// A recording that opened but is large enough to be slow: said
+					// after the fact, because it is information, not a refusal.
+					if (size.verdict === "warn") {
+						setNotice({
+							tone: "warn",
+							message: size.message,
+							advice: size.advice,
+						});
+					}
+				},
+				(err) => {
+					// The read is the failure this control exists to catch. It used
+					// to be an unhandled rejection: the console got a
+					// `NotReadableError`, the form kept its old value, and every
+					// panel showed a bare "offline" card with no way to connect the
+					// two.
+					console.error(
+						"[EMI replay] could not read the recording:",
+						err,
+					);
 					setNotice({
 						tone: "error",
-						message: `"${file.name}" is not a SQLite database.`,
-						advice: "A rosbag2 recording is the `.db3` inside the bag directory, not the `metadata.yaml` beside it and not an `.mcap`.",
+						...explainReadFailure(err, file.name),
 					});
-					return;
-				}
-
-				const buffer = await file.arrayBuffer();
-				// Keyed on name+size+lastModified, not the bare name:
-				// `rosbag2_0.db3` is the ROS 2 default, so two surveys
-				// routinely share one.
-				const stored = putBag(file, buffer);
-				handleChange(path, stored.key);
-				// A recording that opened but is large enough to be slow: said
-				// after the fact, because it is information, not a refusal.
-				if (size.verdict === "warn") {
-					setNotice({
-						tone: "warn",
-						message: size.message,
-						advice: size.advice,
-					});
-				}
-			} catch (err) {
-				// The read is the failure this control exists to catch. It used
-				// to be an unhandled rejection: the console got a
-				// `NotReadableError`, the form kept its old value, and every
-				// panel showed a bare "offline" card with no way to connect the
-				// two.
-				console.error(
-					"[EMI replay] could not read the recording:",
-					err,
-				);
-				setNotice({
-					tone: "error",
-					...explainReadFailure(err, file.name),
-				});
-			} finally {
-				setReading(false);
-			}
+				},
+				() => {
+					setReading(false);
+				},
+			);
 		},
 		[handleChange, path],
 	);

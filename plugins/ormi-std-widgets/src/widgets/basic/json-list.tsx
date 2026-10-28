@@ -78,6 +78,21 @@ const MemoizedJsonCard = memo(
 );
 
 /**
+ * Returns the timestamp first recorded for `itemId`, recording now on first sight.
+ * @param map - Per-instance timestamp store.
+ * @param itemId - Row id.
+ * @returns ISO timestamp, stable across renders.
+ */
+function stableTimestamp(map: Map<string, string>, itemId: string): string {
+	let timestamp = map.get(itemId);
+	if (timestamp === undefined) {
+		timestamp = new Date().toISOString();
+		map.set(itemId, timestamp);
+	}
+	return timestamp;
+}
+
+/**
  * JSON list widget body.
  * @param props - Component props.
  * @returns React element.
@@ -90,7 +105,9 @@ function JsonList(props: JsonListProps) {
 	const [isAtBottom, setIsAtBottom] = useState(true);
 
 	// Store stable timestamps for items without their own timestamp
-	const timestampMapRef = useRef<Map<string, string>>(new Map());
+	// Held in state (never replaced) rather than a ref: the memo below reads it
+	// during render, and the mutation lives in a module-level helper.
+	const [timestampMap] = useState(() => new Map<string, string>());
 
 	// Process the data only when source changes
 	const processedData = useMemo(() => {
@@ -110,14 +127,7 @@ function JsonList(props: JsonListProps) {
 					// Use the item's own timestamp
 					timestamp = (dataItem as any).timestamp;
 				} else {
-					// Check if we already have a stable timestamp for this item
-					if (timestampMapRef.current.has(itemId)) {
-						timestamp = timestampMapRef.current.get(itemId)!;
-					} else {
-						// Create a new stable timestamp for this item
-						timestamp = new Date().toISOString();
-						timestampMapRef.current.set(itemId, timestamp);
-					}
+					timestamp = stableTimestamp(timestampMap, itemId);
 				}
 
 				result.push({
@@ -129,7 +139,7 @@ function JsonList(props: JsonListProps) {
 		}
 
 		return result;
-	}, [getSource, props.topic]);
+	}, [getSource, props.topic, timestampMap]);
 
 	// Track total number of data items for auto-scrolling detection
 	const totalDataItems = processedData.length;

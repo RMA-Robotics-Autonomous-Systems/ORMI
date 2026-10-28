@@ -739,8 +739,7 @@ The rule is a pure function (`widgets/map-view-mode.ts`), not state:
   down, unless the operator has deliberately taken Edit back _at that status_.
 
 Three things it is careful about. It is **derived** — a status-driven `setState`
-in an effect would re-render on every feedback message, and silencing the lint
-rule would cost the whole map body its React Compiler pass. It is a
+in an effect would re-render on every feedback message. It is a
 **transition, not a lock** — the remembered `editUnlockedAt` is what lets an
 operator edit an approved plan on purpose while the next transition
 (approved → started) still stands the map down. And it is **scoped to the

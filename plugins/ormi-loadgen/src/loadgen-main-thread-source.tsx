@@ -86,7 +86,6 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 	const definition_hook = `${datasource_id}-definition`;
 
 	// Live per-topic timers/state, refcount, and worker-parity produced counters.
-	const runtimesRef = useRef(new Map<string, TopicRuntime>());
 	const subscribersCountRef = useRef(new Map<string, number>());
 	const producedRef = useRef(new Map<string, number>());
 	const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
@@ -104,11 +103,18 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 	// isolated by the engine, so one bad frame cannot starve the other topics.
 	// Coarse per-datasource metrics (overwrites, decoded, dispatch time) feed the
 	// diagnostics panel — the same signals the rosbridge main-thread path emits.
-	const [coalescer] = useState(
-		() =>
-			new MessageCoalescer<RawFrame, string>(
+	//
+	// The runtime map is created with the coalescer, in the same lazy
+	// initializer, so the dispatch closes over the map itself rather than a ref
+	// (a ref handed to a constructor during render is something the React
+	// Compiler refuses).
+	const [{ coalescer, runtimes }] = useState(() => {
+		const runtimes = new Map<string, TopicRuntime>();
+		return {
+			runtimes,
+			coalescer: new MessageCoalescer<RawFrame, string>(
 				(raw, topicName) => {
-					const runtime = runtimesRef.current.get(topicName);
+					const runtime = runtimes.get(topicName);
 					if (!runtime) return;
 					const decoded = decodeFrame(raw, runtime.generator);
 					// Latency stamp is the production time (raw.time), so
@@ -139,7 +145,8 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 						),
 				},
 			),
-	);
+		};
+	});
 
 	// The props object is new on every parent render: key the effect on the
 	// content of what it consumes (a rename must not tear the generators down)
@@ -161,7 +168,6 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 		// Registry-before-READY: it must exist before READY is fired below.
 		getDatasourceSubscriptionRegistry(pluginsManager);
 
-		const runtimes = runtimesRef.current;
 		const subscribersCount = subscribersCountRef.current;
 		const produced = producedRef.current;
 
@@ -408,6 +414,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 	}, [
 		pluginsManager,
 		coalescer,
+		runtimes,
 		datasource_id,
 		available_topics_hook,
 		subscribe_hook,

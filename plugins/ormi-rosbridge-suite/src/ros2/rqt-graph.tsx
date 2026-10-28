@@ -9,6 +9,9 @@ import { usePluginsManager } from "@workspace/ormi-plugins";
 import { useThemeColors } from "@workspace/ui/hooks/use-theme-colors";
 import { datasourceSelectProperty } from "@workspace/utils";
 
+/** Lazy loader for force-graph (browser-only), kept at module level for the React Compiler. */
+const loadForceGraph = () => import("force-graph");
+
 /**
  * Theme tokens for the graph. Nodes, edges and labels are UI here (a view of
  * the ROS graph, not a data encoding), so all of it follows the theme.
@@ -153,22 +156,6 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 			return;
 		}
 
-		// Initial data fetch
-		fetchNodeData();
-
-		// Set up interval for periodic updates
-		const refreshTimer = setInterval(() => {
-			fetchNodeData();
-		}, 1000 / props.poolingRateHz);
-
-		setTimer(refreshTimer);
-
-		return () => {
-			if (refreshTimer) {
-				clearInterval(refreshTimer);
-			}
-		};
-
 		function fetchNodeData() {
 			roslib!.getNodes((nodes: string[]) => {
 				// Create a fresh map for the new state
@@ -198,7 +185,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 								services: result.services,
 							});
 
-							processedCount++;
+							processedCount += 1;
 							if (processedCount === nodes.length) {
 								// Update state with the complete new map when all nodes are processed
 								setRosNodes(newNodeMap);
@@ -213,6 +200,22 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 				}
 			});
 		}
+
+		// Initial data fetch
+		fetchNodeData();
+
+		// Set up interval for periodic updates
+		const refreshTimer = setInterval(() => {
+			fetchNodeData();
+		}, 1000 / props.poolingRateHz);
+
+		setTimer(refreshTimer);
+
+		return () => {
+			if (refreshTimer) {
+				clearInterval(refreshTimer);
+			}
+		};
 	}, [roslib, props.poolingRateHz]);
 
 	// Initialize the graph once
@@ -220,7 +223,7 @@ function RQTGraph(props: RQTGraphProps): JSX.Element {
 		let cancelled = false;
 		if (divRef.current && !graphRef.current) {
 			(async () => {
-				const { default: ForceGraph } = await import("force-graph");
+				const { default: ForceGraph } = await loadForceGraph();
 				if (cancelled || !divRef.current) return;
 
 				graphRef.current = new ForceGraph(divRef.current)

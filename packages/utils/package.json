@@ -55,6 +55,11 @@
 			"types": "./dist/coalesced-publisher.d.ts",
 			"development": "./src/coalesced-publisher.ts",
 			"import": "./dist/coalesced-publisher.js"
+		},
+		"./attempt": {
+			"types": "./dist/attempt.d.ts",
+			"development": "./src/attempt.ts",
+			"import": "./dist/attempt.js"
 		}
 	},
 	"private": true,

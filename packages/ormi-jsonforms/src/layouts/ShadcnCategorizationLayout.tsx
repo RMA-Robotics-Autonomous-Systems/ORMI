@@ -114,7 +114,7 @@ export const ShadcnCategorizationLayoutRenderer = (
 				(category: Categorization | Category) =>
 					isVisible(category, data, "", ajv, config),
 			),
-		[categorization, data, ajv],
+		[categorization, data, ajv, config],
 	);
 
 	if (categorization !== previousCategorization) {

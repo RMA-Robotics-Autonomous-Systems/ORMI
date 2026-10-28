@@ -1,6 +1,7 @@
 import { InfoIcon, SquareIcon } from "lucide-react";
 import { RecordingStatus } from "../recording-types";
 import { RestBagClient } from "../rest-bag-client";
+import { attemptAsync } from "@workspace/utils/attempt";
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@workspace/ui/components/button";
 import { Card, CardHeader, CardTitle } from "@workspace/ui/components/card";
@@ -73,37 +74,41 @@ export const Recorder = (props: RecorderProps) => {
 		setStopError(null);
 		let hasError = false;
 
-		try {
-			const response = (await client.stopRecording(
-				recorder.recording_id,
-			)) as any;
+		await attemptAsync(
+			async () => {
+				const response = (await client.stopRecording(
+					recorder.recording_id,
+				)) as any;
 
-			// Check for error in response
-			if (response && response.error) {
-				hasError = true;
-				setStopError(response.error);
-				console.error("Failed to stop recording:", response.error);
-			}
-		} catch (error) {
-			hasError = true;
-			setStopError(
-				error instanceof Error
-					? error.message
-					: "Failed to stop recording",
-			);
-			console.error("Error stopping recording:", error);
-		} finally {
-			setIsStoppingRecording(false);
-
-			// if no error, update the recorder status, stop the update interval
-			if (!hasError) {
-				setRecorder({ ...recorder, status: "STOPPED" });
-				if (intervalRef.current) {
-					clearInterval(intervalRef.current);
-					intervalRef.current = null;
+				// Check for error in response
+				if (response && response.error) {
+					hasError = true;
+					setStopError(response.error);
+					console.error("Failed to stop recording:", response.error);
 				}
-			}
-		}
+			},
+			(error) => {
+				hasError = true;
+				setStopError(
+					error instanceof Error
+						? error.message
+						: "Failed to stop recording",
+				);
+				console.error("Error stopping recording:", error);
+			},
+			() => {
+				setIsStoppingRecording(false);
+
+				// if no error, update the recorder status, stop the update interval
+				if (!hasError) {
+					setRecorder({ ...recorder, status: "STOPPED" });
+					if (intervalRef.current) {
+						clearInterval(intervalRef.current);
+						intervalRef.current = null;
+					}
+				}
+			},
+		);
 	};
 
 	return (

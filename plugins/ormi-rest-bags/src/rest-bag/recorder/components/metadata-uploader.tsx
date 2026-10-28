@@ -1,9 +1,89 @@
-import { useRef } from "react";
+import { useRef, type RefObject } from "react";
 import { UploadIcon } from "lucide-react";
 import yaml from "js-yaml";
 import { MetadataUploaderProps } from "../types";
 import { Topic } from "../../recording-types";
 import { Button } from "@workspace/ui/components/button";
+
+/**
+ * Parses a bag `metadata.yaml` and reports the topics through the callbacks.
+ * Module-level because the React Compiler cannot lower the conditionals inside
+ * this try/catch within a component.
+ */
+function applyMetadataFile(
+	content: string,
+	onMetadataUploaded: MetadataUploaderProps["onMetadataUploaded"],
+	onError: MetadataUploaderProps["onError"],
+	onSuccess: MetadataUploaderProps["onSuccess"],
+	fileInputRef: RefObject<HTMLInputElement | null>,
+): void {
+	try {
+		const yamlData = yaml.load(content) as any;
+
+		let metadataTopics: Topic[] = [];
+		let suggestedName: string | undefined;
+
+		// Check for ROS2 bag format (rosbag2_bagfile_information)
+		if (
+			yamlData.rosbag2_bagfile_information &&
+			yamlData.rosbag2_bagfile_information.topics_with_message_count
+		) {
+			// Extract topics from ROS2 bag metadata format
+			const topicsWithMessageCount =
+				yamlData.rosbag2_bagfile_information.topics_with_message_count;
+
+			metadataTopics = topicsWithMessageCount.map((topicInfo: any) => ({
+				name: topicInfo.topic_metadata.name,
+				type: topicInfo.topic_metadata.type,
+			}));
+
+			if (metadataTopics.length === 0) {
+				onError("No topics found in the metadata file.");
+				return;
+			}
+
+			// Auto fill the recording name based on the bag file
+			if (
+				yamlData.rosbag2_bagfile_information.relative_file_paths
+					?.length > 0
+			) {
+				const bagPath =
+					yamlData.rosbag2_bagfile_information.relative_file_paths[0];
+				// Extract filename without extension
+				suggestedName = bagPath.split("/").pop()?.split(".")[0] || "";
+			}
+		} else if (yamlData.topics) {
+			// Fallback to original BagMeta format
+			metadataTopics = yamlData.topics.map((topic: any) => ({
+				name: topic.name,
+				type: topic.type,
+			}));
+
+			if (metadataTopics.length === 0) {
+				onError("No topics found in the metadata file.");
+				return;
+			}
+		} else {
+			onError(
+				"Unsupported metadata format. Could not find topics information.",
+			);
+			return;
+		}
+
+		onMetadataUploaded(metadataTopics, suggestedName);
+		onSuccess(
+			`Successfully loaded ${metadataTopics.length} topics from metadata.yaml`,
+		);
+
+		// Clear the file input
+		if (fileInputRef.current) {
+			fileInputRef.current.value = "";
+		}
+	} catch (error) {
+		console.error("Failed to parse metadata.yaml:", error);
+		onError("Failed to parse metadata.yaml file. Please check the format.");
+	}
+}
 
 /**
  * Component for uploading and parsing bag metadata files.
@@ -25,81 +105,13 @@ export const MetadataUploader = ({
 
 		const reader = new FileReader();
 		reader.onload = (e) => {
-			try {
-				const content = e.target?.result as string;
-				const yamlData = yaml.load(content) as any;
-
-				let metadataTopics: Topic[] = [];
-				let suggestedName: string | undefined;
-
-				// Check for ROS2 bag format (rosbag2_bagfile_information)
-				if (
-					yamlData.rosbag2_bagfile_information &&
-					yamlData.rosbag2_bagfile_information
-						.topics_with_message_count
-				) {
-					// Extract topics from ROS2 bag metadata format
-					const topicsWithMessageCount =
-						yamlData.rosbag2_bagfile_information
-							.topics_with_message_count;
-
-					metadataTopics = topicsWithMessageCount.map(
-						(topicInfo: any) => ({
-							name: topicInfo.topic_metadata.name,
-							type: topicInfo.topic_metadata.type,
-						}),
-					);
-
-					if (metadataTopics.length === 0) {
-						onError("No topics found in the metadata file.");
-						return;
-					}
-
-					// Auto fill the recording name based on the bag file
-					if (
-						yamlData.rosbag2_bagfile_information.relative_file_paths
-							?.length > 0
-					) {
-						const bagPath =
-							yamlData.rosbag2_bagfile_information
-								.relative_file_paths[0];
-						// Extract filename without extension
-						suggestedName =
-							bagPath.split("/").pop()?.split(".")[0] || "";
-					}
-				} else if (yamlData.topics) {
-					// Fallback to original BagMeta format
-					metadataTopics = yamlData.topics.map((topic: any) => ({
-						name: topic.name,
-						type: topic.type,
-					}));
-
-					if (metadataTopics.length === 0) {
-						onError("No topics found in the metadata file.");
-						return;
-					}
-				} else {
-					onError(
-						"Unsupported metadata format. Could not find topics information.",
-					);
-					return;
-				}
-
-				onMetadataUploaded(metadataTopics, suggestedName);
-				onSuccess(
-					`Successfully loaded ${metadataTopics.length} topics from metadata.yaml`,
-				);
-
-				// Clear the file input
-				if (fileInputRef.current) {
-					fileInputRef.current.value = "";
-				}
-			} catch (error) {
-				console.error("Failed to parse metadata.yaml:", error);
-				onError(
-					"Failed to parse metadata.yaml file. Please check the format.",
-				);
-			}
+			applyMetadataFile(
+				e.target?.result as string,
+				onMetadataUploaded,
+				onError,
+				onSuccess,
+				fileInputRef,
+			);
 		};
 
 		reader.onerror = () => {

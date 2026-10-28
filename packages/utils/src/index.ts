@@ -12,6 +12,7 @@ export * from "./ring-point-buffer";
 export * from "./message-coalescer";
 export * from "./coalesced-publisher";
 export * from "./transferables";
+export * from "./attempt";
 
 export * from "./colors";
 

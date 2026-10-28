@@ -72,9 +72,12 @@ const PublisherDataSourcesProvider = (
 	const pluginsManager = usePluginsManager();
 
 	// Always keep a ref in sync so the effect closure reads the current topics
-	// without needing the array itself as a dependency.
+	// without needing the array itself as a dependency. Synced in an effect
+	// declared before the advertise effect, so it is current when that runs.
 	const selectedTopicsRef = useRef(SelectedTopics);
-	selectedTopicsRef.current = SelectedTopics;
+	useEffect(() => {
+		selectedTopicsRef.current = SelectedTopics;
+	});
 
 	// Stable key: only changes when the actual topic set changes.
 	// Prevents the effect from re-running (and tearing down publishers) when

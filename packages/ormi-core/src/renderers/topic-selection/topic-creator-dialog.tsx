@@ -68,6 +68,47 @@ const EMPTY_FORM: TopicCreationForm = {
 	rawType: "",
 };
 
+// The two helpers below hold the component's `try` blocks: the React Compiler
+// cannot lower a `try` with a `finally`, nor a `throw` inside a `try`.
+
+/** Runs one raw-type load with its loading flag raised for the duration. */
+async function runRawTypesLoad(
+	setLoading: (loading: boolean) => void,
+	load: () => Promise<void>,
+	onError: (error: unknown) => void,
+): Promise<void> {
+	setLoading(true);
+	try {
+		await load();
+	} catch (error) {
+		onError(error);
+	} finally {
+		setLoading(false);
+	}
+}
+
+/**
+ * Runs a topic creation synchronously with the creating flag raised; a thrown
+ * error is shown in the dialog.
+ */
+function runTopicCreation(
+	setIsCreating: (creating: boolean) => void,
+	setError: (error: string | null) => void,
+	create: () => void,
+): void {
+	setIsCreating(true);
+	setError(null);
+	try {
+		create();
+	} catch (error) {
+		setError(
+			error instanceof Error ? error.message : "Failed to create topic",
+		);
+	} finally {
+		setIsCreating(false);
+	}
+}
+
 /**
  * Dialog for creating a topic the datasource does not advertise.
  *
@@ -133,31 +174,32 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 		}
 
 		const loadRawTypes = async () => {
-			setIsLoadingRawTypes(true);
 			setError(null);
 
-			try {
-				// Try to get raw types from the datasource via plugin hooks
-				const rawTypes = await pluginsManager.applyFilterAsync<
-					string[]
-				>(
-					`${form.datasourceId}-available-types`,
-					[],
-					[form.webappType],
-				);
+			await runRawTypesLoad(
+				setIsLoadingRawTypes,
+				async () => {
+					// Try to get raw types from the datasource via plugin hooks
+					const rawTypes = await pluginsManager.applyFilterAsync<
+						string[]
+					>(
+						`${form.datasourceId}-available-types`,
+						[],
+						[form.webappType],
+					);
 
-				if (rawTypes && rawTypes.length > 0) {
-					setAvailableRawTypes(rawTypes);
-				} else {
-					// No raw types available from this datasource
+					if (rawTypes && rawTypes.length > 0) {
+						setAvailableRawTypes(rawTypes);
+					} else {
+						// No raw types available from this datasource
+						setAvailableRawTypes([]);
+					}
+				},
+				(error) => {
+					console.warn("Failed to load raw types:", error);
 					setAvailableRawTypes([]);
-				}
-			} catch (error) {
-				console.warn("Failed to load raw types:", error);
-				setAvailableRawTypes([]);
-			} finally {
-				setIsLoadingRawTypes(false);
-			}
+				},
+			);
 		};
 
 		loadRawTypes();
@@ -202,10 +244,7 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 			return;
 		}
 
-		setIsCreating(true);
-		setError(null);
-
-		try {
+		runTopicCreation(setIsCreating, setError, () => {
 			const selectedDatasource = datasources.get(form.datasourceId);
 			if (!selectedDatasource) {
 				throw new Error("Selected datasource not found");
@@ -230,15 +269,7 @@ export const TopicCreatorDialog: React.FC<TopicCreatorDialogProps> = ({
 			onClose();
 
 			setForm({ ...EMPTY_FORM, datasourceId: soleDatasourceId });
-		} catch (error) {
-			setError(
-				error instanceof Error
-					? error.message
-					: "Failed to create topic",
-			);
-		} finally {
-			setIsCreating(false);
-		}
+		});
 	};
 
 	const handleCancel = () => {

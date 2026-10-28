@@ -53,6 +53,19 @@ const BACKGROUND_TOKENS = {
 } as const;
 
 /**
+ * Sets the scene clear colour. Module-level so the R3F scene `useThree` returns
+ * is mutated outside the component, which the React Compiler requires.
+ * @param scene - The R3F scene.
+ * @param background - Clear colour, or null for transparent.
+ */
+function setSceneBackground(
+	scene: THREE.Scene,
+	background: THREE.Color | null,
+): void {
+	scene.background = background;
+}
+
+/**
  * The 3D viewers' clear colour, from `--scene-background` (globals.css).
  *
  * The default is transparent, which leaves `scene.background` null and the
@@ -66,11 +79,9 @@ export const SceneBackground: React.FC = () => {
 	const scene = useThree((state) => state.scene);
 	const invalidate = useThree((state) => state.invalidate);
 	useEffect(() => {
-		scene.background = clear ? new THREE.Color(clear) : null;
+		setSceneBackground(scene, clear ? new THREE.Color(clear) : null);
 		invalidate();
-		return () => {
-			scene.background = null;
-		};
+		return () => setSceneBackground(scene, null);
 	}, [scene, invalidate, clear]);
 	return null;
 };

@@ -58,6 +58,147 @@ interface UseRemoteCallReturn<
 // useRemoteCall Hook
 // ============================================================================
 
+/** Everything one remote-call execution reads and writes in the hook. */
+interface RemoteCallExecution<TResponse, TFeedback> {
+	pluginsManager: ReturnType<typeof usePluginsManager>;
+	definition: RemoteCallDefinition;
+	handleRef: { current: RemoteCallHandle<TFeedback, TResponse> | null };
+	feedbackUnsubscribeRef: { current: (() => void) | null };
+	statusUnsubscribeRef: { current: (() => void) | null };
+	setStatus: (status: RemoteCallStatus) => void;
+	setIsExecuting: (executing: boolean) => void;
+	setFeedback: (feedback: TFeedback | null) => void;
+	setError: (error: string | null) => void;
+	setLastDuration: (duration: number | null) => void;
+}
+
+/**
+ * The body of {@link useRemoteCall}'s `execute`, kept outside the hook because
+ * the React Compiler cannot lower its `try` block.
+ */
+async function executeRemoteCall<TRequest, TResponse, TFeedback>(
+	{
+		pluginsManager,
+		definition,
+		handleRef,
+		feedbackUnsubscribeRef,
+		statusUnsubscribeRef,
+		setStatus,
+		setIsExecuting,
+		setFeedback,
+		setError,
+		setLastDuration,
+	}: RemoteCallExecution<TResponse, TFeedback>,
+	request: TRequest,
+	options?: RemoteCallOptions,
+): Promise<RemoteCallResult<TResponse>> {
+	// Reset state for new call
+	setError(null);
+	setFeedback(null);
+	setIsExecuting(true);
+	setStatus("pending");
+
+	// Cleanup previous subscriptions
+	if (feedbackUnsubscribeRef.current) {
+		feedbackUnsubscribeRef.current();
+		feedbackUnsubscribeRef.current = null;
+	}
+	if (statusUnsubscribeRef.current) {
+		statusUnsubscribeRef.current();
+		statusUnsubscribeRef.current = null;
+	}
+
+	const startTime = Date.now();
+
+	try {
+		// The hook pattern for remote calls:
+		// {datasource_id}-execute-remote-call
+		const executeHook = `${definition.datasource_id}-execute-remote-call`;
+
+		// Execute the call through the datasource's registered filter
+		// The filter returns a RemoteCallHandle
+		const handle = await pluginsManager.applyFilterAsync<RemoteCallHandle<
+			TFeedback,
+			TResponse
+		> | null>(executeHook, null, definition, request, options);
+
+		if (!handle) {
+			const duration = Date.now() - startTime;
+			const errorResult: RemoteCallResult<TResponse> = {
+				success: false,
+				error: `No handler found for remote call: ${definition.name}`,
+				duration,
+				status: "failed",
+			};
+			setError(errorResult.error!);
+			setStatus("failed");
+			setIsExecuting(false);
+			setLastDuration(duration);
+			return errorResult;
+		}
+
+		handleRef.current = handle;
+
+		// Subscribe to status changes
+		statusUnsubscribeRef.current = handle.onStatusChange((newStatus) => {
+			setStatus(newStatus);
+		});
+
+		// Subscribe to feedback if available
+		if (handle.onFeedback && definition.feedbackType) {
+			feedbackUnsubscribeRef.current = handle.onFeedback((fb) => {
+				setFeedback(fb);
+			});
+		}
+
+		setStatus("executing");
+
+		// Wait for result
+		const result = await handle.result;
+
+		setStatus(result.status);
+		setIsExecuting(false);
+		setLastDuration(result.duration);
+
+		if (!result.success) {
+			setError(result.error || "Unknown error");
+		}
+
+		// Cleanup subscriptions after completion
+		if (feedbackUnsubscribeRef.current) {
+			feedbackUnsubscribeRef.current();
+			feedbackUnsubscribeRef.current = null;
+		}
+		if (statusUnsubscribeRef.current) {
+			statusUnsubscribeRef.current();
+			statusUnsubscribeRef.current = null;
+		}
+
+		return result;
+	} catch (err) {
+		const duration = Date.now() - startTime;
+		const errorMessage = err instanceof Error ? err.message : String(err);
+
+		const errorResult: RemoteCallResult<TResponse> = {
+			success: false,
+			error: errorMessage,
+			duration,
+			status: "failed",
+		};
+
+		setError(errorMessage);
+		setStatus("failed");
+		setIsExecuting(false);
+		setLastDuration(duration);
+
+		if (options?.throwOnError) {
+			throw err;
+		}
+
+		return errorResult;
+	}
+}
+
 /**
  * React hook for executing remote calls (services/actions).
  * @param definition - Remote call definition.
@@ -112,120 +253,26 @@ function useRemoteCall<
 	 * Execute the remote call
 	 */
 	const execute = useCallback(
-		async (
+		(
 			request: TRequest,
 			options?: RemoteCallOptions,
-		): Promise<RemoteCallResult<TResponse>> => {
-			// Reset state for new call
-			setError(null);
-			setFeedback(null);
-			setIsExecuting(true);
-			setStatus("pending");
-
-			// Cleanup previous subscriptions
-			if (feedbackUnsubscribeRef.current) {
-				feedbackUnsubscribeRef.current();
-				feedbackUnsubscribeRef.current = null;
-			}
-			if (statusUnsubscribeRef.current) {
-				statusUnsubscribeRef.current();
-				statusUnsubscribeRef.current = null;
-			}
-
-			const startTime = Date.now();
-
-			try {
-				// The hook pattern for remote calls:
-				// {datasource_id}-execute-remote-call
-				const executeHook = `${definition.datasource_id}-execute-remote-call`;
-
-				// Execute the call through the datasource's registered filter
-				// The filter returns a RemoteCallHandle
-				const handle =
-					await pluginsManager.applyFilterAsync<RemoteCallHandle<
-						TFeedback,
-						TResponse
-					> | null>(executeHook, null, definition, request, options);
-
-				if (!handle) {
-					const duration = Date.now() - startTime;
-					const errorResult: RemoteCallResult<TResponse> = {
-						success: false,
-						error: `No handler found for remote call: ${definition.name}`,
-						duration,
-						status: "failed",
-					};
-					setError(errorResult.error!);
-					setStatus("failed");
-					setIsExecuting(false);
-					setLastDuration(duration);
-					return errorResult;
-				}
-
-				handleRef.current = handle;
-
-				// Subscribe to status changes
-				statusUnsubscribeRef.current = handle.onStatusChange(
-					(newStatus) => {
-						setStatus(newStatus);
-					},
-				);
-
-				// Subscribe to feedback if available
-				if (handle.onFeedback && definition.feedbackType) {
-					feedbackUnsubscribeRef.current = handle.onFeedback((fb) => {
-						setFeedback(fb);
-					});
-				}
-
-				setStatus("executing");
-
-				// Wait for result
-				const result = await handle.result;
-
-				setStatus(result.status);
-				setIsExecuting(false);
-				setLastDuration(result.duration);
-
-				if (!result.success) {
-					setError(result.error || "Unknown error");
-				}
-
-				// Cleanup subscriptions after completion
-				if (feedbackUnsubscribeRef.current) {
-					feedbackUnsubscribeRef.current();
-					feedbackUnsubscribeRef.current = null;
-				}
-				if (statusUnsubscribeRef.current) {
-					statusUnsubscribeRef.current();
-					statusUnsubscribeRef.current = null;
-				}
-
-				return result;
-			} catch (err) {
-				const duration = Date.now() - startTime;
-				const errorMessage =
-					err instanceof Error ? err.message : String(err);
-
-				const errorResult: RemoteCallResult<TResponse> = {
-					success: false,
-					error: errorMessage,
-					duration,
-					status: "failed",
-				};
-
-				setError(errorMessage);
-				setStatus("failed");
-				setIsExecuting(false);
-				setLastDuration(duration);
-
-				if (options?.throwOnError) {
-					throw err;
-				}
-
-				return errorResult;
-			}
-		},
+		): Promise<RemoteCallResult<TResponse>> =>
+			executeRemoteCall<TRequest, TResponse, TFeedback>(
+				{
+					pluginsManager,
+					definition,
+					handleRef,
+					feedbackUnsubscribeRef,
+					statusUnsubscribeRef,
+					setStatus,
+					setIsExecuting,
+					setFeedback,
+					setError,
+					setLastDuration,
+				},
+				request,
+				options,
+			),
 		[definition, pluginsManager],
 	);
 
@@ -290,34 +337,30 @@ function useAvailableRemoteCalls(filter?: UseAvailableRemoteCallsFilter) {
 	const count = useAtomValue(remoteCallCountAtom, { store: appStore });
 
 	// Apply local filters
+	const datasourceId = filter?.datasource_id;
+	const hasFeedback = filter?.hasFeedback;
+	const cancelable = filter?.cancelable;
 	const filteredCalls = useMemo(() => {
 		let result = allCalls;
 
-		if (filter?.datasource_id) {
-			result = result.filter(
-				(c) => c.datasource_id === filter.datasource_id,
-			);
+		if (datasourceId) {
+			result = result.filter((c) => c.datasource_id === datasourceId);
 		}
 
-		if (filter?.hasFeedback !== undefined) {
+		if (hasFeedback !== undefined) {
 			result = result.filter((c) =>
-				filter.hasFeedback
+				hasFeedback
 					? c.feedbackType !== undefined
 					: c.feedbackType === undefined,
 			);
 		}
 
-		if (filter?.cancelable !== undefined) {
-			result = result.filter((c) => c.cancelable === filter.cancelable);
+		if (cancelable !== undefined) {
+			result = result.filter((c) => c.cancelable === cancelable);
 		}
 
 		return result;
-	}, [
-		allCalls,
-		filter?.datasource_id,
-		filter?.hasFeedback,
-		filter?.cancelable,
-	]);
+	}, [allCalls, datasourceId, hasFeedback, cancelable]);
 
 	return {
 		/** Filtered list of remote calls */

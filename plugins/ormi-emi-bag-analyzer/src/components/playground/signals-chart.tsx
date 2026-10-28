@@ -81,12 +81,13 @@ function axisRangesForWindow(
 	return result;
 }
 
+/** Module-level loader: the React Compiler cannot lower `import()` in a hook. */
+const loadPlotly = () => import("plotly.js-dist-min");
+
 function usePlotly(): PlotlyModule | null {
 	const [plotly, setPlotly] = useState<PlotlyModule | null>(null);
 	useEffect(() => {
-		import("plotly.js-dist-min").then((m) =>
-			setPlotly(m as unknown as PlotlyModule),
-		);
+		loadPlotly().then((m) => setPlotly(m as unknown as PlotlyModule));
 	}, []);
 	return plotly;
 }
@@ -181,6 +182,7 @@ export function SignalsChart({
 			yRanges: Record<string, [number, number]> = {},
 		) => {
 			const [t0, t1] = timeRange;
+			const eventAxisKey = `yaxis${axisKeys.length + 1}`;
 			const layout: Record<string, unknown> = {
 				height,
 				margin: { l: 50, r: 50, t: 20, b: 40 },
@@ -192,7 +194,7 @@ export function SignalsChart({
 					uirevision: "signals",
 				},
 				// Hide event axis
-				[`yaxis${axisKeys.length + 1}`]: {
+				[eventAxisKey]: {
 					overlaying: "y",
 					range: [0, 1],
 					visible: false,

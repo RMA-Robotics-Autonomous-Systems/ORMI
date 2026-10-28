@@ -12,7 +12,13 @@
  * single-source scenes are unaffected).
  */
 
-import React, { useCallback, useMemo, useRef } from "react";
+import React, {
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { createSafeContext } from "@workspace/utils";
 import {
 	frameRawName,
@@ -41,7 +47,11 @@ export function useTransformStatusReporter(
 	onTransformStatus?: (status: LayerTransformStatus) => void,
 ): (status: LayerTransformStatus) => void {
 	const callbackRef = useRef(onTransformStatus);
-	callbackRef.current = onTransformStatus;
+	// Synced in a layout effect (not during render): callers report from their
+	// passive effects, which run after this.
+	useLayoutEffect(() => {
+		callbackRef.current = onTransformStatus;
+	});
 	const lastRef = useRef<LayerTransformStatus | null>(null);
 	return useCallback((status: LayerTransformStatus) => {
 		if (lastRef.current === status) return;
@@ -184,7 +194,7 @@ function anchorSignature(pending: PendingAnchor[]): string {
  * Per-consumer cache for {@link buildAnchoredTable}. Holds the last anchor-edge set (reused
  * across bumps while the anchor set is unchanged) and the last effective table (returned by
  * reference when the exact inputs recur). Create one via {@link createAnchorEdgeCache} and keep
- * it in a `useRef` — it is a mutable scratch, never a reactive value.
+ * one per instance (a lazy `useState`, never replaced) — it is a mutable scratch, never a reactive value.
  */
 export interface AnchorEdgeCache {
 	current: {
@@ -303,7 +313,7 @@ export function useSceneTransformTable(
 	autoAnchor = false,
 ): TransformTable {
 	const coreTable = useTransformTable();
-	const cacheRef = useRef<AnchorEdgeCache>(createAnchorEdgeCache());
+	const [cache] = useState<AnchorEdgeCache>(createAnchorEdgeCache);
 	return useMemo(() => {
 		const hasManual = Boolean(anchors && anchors.length > 0);
 		if (!hasManual && !autoAnchor) return coreTable;
@@ -312,9 +322,9 @@ export function useSceneTransformTable(
 			anchors,
 			worldFrame,
 			autoAnchor,
-			cacheRef.current,
+			cache,
 		);
-	}, [coreTable, anchors, worldFrame, autoAnchor]);
+	}, [coreTable, anchors, worldFrame, autoAnchor, cache]);
 }
 
 interface SceneAnchoredTransformProviderProps {

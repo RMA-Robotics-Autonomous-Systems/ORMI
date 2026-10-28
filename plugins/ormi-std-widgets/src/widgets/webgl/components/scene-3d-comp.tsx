@@ -33,6 +33,24 @@ import {
 // Path layers render at a fixed 0.7 opacity in the scene (not a saved config field).
 const PATH_LINE_OPACITY = 0.7;
 
+/**
+ * Identity-stable status sink for `key`, created on first use and cached in
+ * `sinks` for the component's lifetime. Module-level so the cache write stays
+ * outside the component (the sinks are read during render).
+ */
+function cachedStatusSink(
+	sinks: Map<string, (status: LayerTransformStatus) => void>,
+	key: string,
+	report: (key: string, status: LayerTransformStatus) => void,
+): (status: LayerTransformStatus) => void {
+	let sink = sinks.get(key);
+	if (!sink) {
+		sink = (status: LayerTransformStatus) => report(key, status);
+		sinks.set(key, sink);
+	}
+	return sink;
+}
+
 // ============================================================================
 // Main Scene 3D Component
 // ============================================================================
@@ -198,20 +216,12 @@ export const Scene3DComp: React.FC<Scene3DProps> = (props) => {
 	// reference keeps the bridges' config effect from re-firing on every render
 	// (the sink is a `setConfig` dependency). Cached by key for the component's
 	// lifetime; `handleLayerStatus` already dedupes by key.
-	const statusSinksRef = useRef<
-		Map<string, (status: LayerTransformStatus) => void>
-	>(new Map());
+	const [statusSinks] = useState(
+		() => new Map<string, (status: LayerTransformStatus) => void>(),
+	);
 	const getStatusSink = useCallback(
-		(key: string) => {
-			let sink = statusSinksRef.current.get(key);
-			if (!sink) {
-				sink = (status: LayerTransformStatus) =>
-					handleLayerStatus(key, status);
-				statusSinksRef.current.set(key, sink);
-			}
-			return sink;
-		},
-		[handleLayerStatus],
+		(key: string) => cachedStatusSink(statusSinks, key, handleLayerStatus),
+		[statusSinks, handleLayerStatus],
 	);
 
 	const layerEntries: SceneLayerEntry[] = visibilityConfig

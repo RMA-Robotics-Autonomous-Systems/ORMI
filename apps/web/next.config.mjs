@@ -115,6 +115,7 @@ const devSourceAliases = isDev
 		"@workspace/utils/coalesced-publisher": src(
 			"packages/utils/src/coalesced-publisher.ts",
 		),
+		"@workspace/utils/attempt": src("packages/utils/src/attempt.ts"),
 		"ormi-emi-bag-analyzer": src("plugins/ormi-emi-bag-analyzer/src/index.ts"),
 		"ormi-flight-indicator": src("plugins/ormi-flight-indicator/src/index.ts"),
 		"ormi-foxglove": src("plugins/ormi-foxglove/src/index.ts"),

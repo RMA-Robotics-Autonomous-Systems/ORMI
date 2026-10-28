@@ -179,12 +179,13 @@ function exportCsv(
 	URL.revokeObjectURL(url);
 }
 
+/** Module-level loader: the React Compiler cannot lower `import()` in a hook. */
+const loadPlotly = () => import("plotly.js-dist-min");
+
 function usePlotly(): PlotlyModule | null {
 	const [plotly, setPlotly] = useState<PlotlyModule | null>(null);
 	useEffect(() => {
-		import("plotly.js-dist-min").then((m) =>
-			setPlotly(m as unknown as PlotlyModule),
-		);
+		loadPlotly().then((m) => setPlotly(m as unknown as PlotlyModule));
 	}, []);
 	return plotly;
 }

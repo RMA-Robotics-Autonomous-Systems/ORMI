@@ -104,7 +104,7 @@ export const RecorderCreator = (props: RecorderCreatorProps) => {
 		value: string,
 	) => {
 		const updatedTopics = [...recordingRequest.topics];
-		updatedTopics[index]! = {
+		updatedTopics[index] = {
 			...updatedTopics[index]!,
 			[field]: value!,
 		};

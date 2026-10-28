@@ -11,6 +11,23 @@ import {
 const REFRESH_MS = 10 * 60_000;
 
 /**
+ * Fetch and parse the frame index once; `null` on any failure. Kept outside
+ * the hook because the React Compiler cannot lower its `try` block.
+ */
+async function fetchRainviewerFrames(): Promise<RainviewerFrames | null> {
+	try {
+		const res = await fetch(RAINVIEWER_INDEX_URL, {
+			cache: "no-store",
+		});
+		if (!res.ok) return null;
+		return parseWeatherMaps(await res.json());
+	} catch {
+		/* degrade silently — keep last good frames */
+		return null;
+	}
+}
+
+/**
  * Fetch and keep-fresh the RainViewer radar frame index.
  *
  * Runs only while mounted (mount the consumer conditionally on the toggle).
@@ -35,16 +52,8 @@ export function useRainviewerFrames(): RainviewerFrames {
 	useEffect(() => {
 		let alive = true;
 		const load = async () => {
-			try {
-				const res = await fetch(RAINVIEWER_INDEX_URL, {
-					cache: "no-store",
-				});
-				if (!res.ok) return;
-				const parsed = parseWeatherMaps(await res.json());
-				if (alive && parsed) setState(parsed);
-			} catch {
-				/* degrade silently — keep last good frames */
-			}
+			const parsed = await fetchRainviewerFrames();
+			if (alive && parsed) setState(parsed);
 		};
 		void load();
 		const id = setInterval(() => void load(), REFRESH_MS);

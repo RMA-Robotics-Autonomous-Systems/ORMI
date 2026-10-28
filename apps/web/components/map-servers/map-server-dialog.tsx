@@ -48,6 +48,7 @@ import {
 	type MapServerCreateInput,
 	type MapServerUpdateInput,
 } from "@/lib/api/map-server-api";
+import { attemptAsync } from "@workspace/utils/attempt";
 import {
 	testMapServerConnection,
 	type ConnectionTestOutcome,
@@ -237,18 +238,22 @@ export function MapServerDialog({
 		abortRef.current = controller;
 		const key = settingsKey;
 		setTesting(true);
-		try {
-			const outcome = await testMapServerConnection(
-				draft.provider,
-				withStoredSecrets(draft.settings),
-				controller.signal,
-			);
-			if (!controller.signal.aborted) setTested({ key, outcome });
-		} catch {
-			// Aborted: the operator closed the dialog or started another test.
-		} finally {
-			if (abortRef.current === controller) setTesting(false);
-		}
+		await attemptAsync(
+			async () => {
+				const outcome = await testMapServerConnection(
+					draft.provider,
+					withStoredSecrets(draft.settings),
+					controller.signal,
+				);
+				if (!controller.signal.aborted) setTested({ key, outcome });
+			},
+			() => {
+				// Aborted: the operator closed the dialog or started another test.
+			},
+			() => {
+				if (abortRef.current === controller) setTesting(false);
+			},
+		);
 	};
 
 	/** Discover with the saved record's own settings, then store the snapshot. */
@@ -280,45 +285,50 @@ export function MapServerDialog({
 	const save = async () => {
 		if (!draft || blocked || saving) return;
 		setSaving(true);
-		try {
-			const title = draft.title.trim() || draft.defaultTitle;
-			// Adapter settings are validated by AJV in the form; the API's own
-			// envelope re-checks the shape.
-			const settings = settingsForSave(draft.settings);
-			const result = stored
-				? await mapServerApi.update(stored.id, {
-						title,
-						settings: settings as NonNullable<
-							MapServerUpdateInput["settings"]
-						>,
-					})
-				: await mapServerApi.create({
-						adapterId: draft.provider.id,
-						title,
-						settings: settings as MapServerCreateInput["settings"],
-					});
-			if (!result.ok) {
-				toast.error(
-					isConflict(result.details)
-						? ALREADY_REGISTERED_MESSAGE
-						: "Could not save the map server.",
+		await attemptAsync(
+			async () => {
+				const title = draft.title.trim() || draft.defaultTitle;
+				// Adapter settings are validated by AJV in the form; the API's own
+				// envelope re-checks the shape.
+				const settings = settingsForSave(draft.settings);
+				const result = stored
+					? await mapServerApi.update(stored.id, {
+							title,
+							settings: settings as NonNullable<
+								MapServerUpdateInput["settings"]
+							>,
+						})
+					: await mapServerApi.create({
+							adapterId: draft.provider.id,
+							title,
+							settings:
+								settings as MapServerCreateInput["settings"],
+						});
+				if (!result.ok) {
+					toast.error(
+						isConflict(result.details)
+							? ALREADY_REGISTERED_MESSAGE
+							: "Could not save the map server.",
+					);
+					return;
+				}
+				await attemptAsync(
+					() =>
+						storeCatalog(
+							result.data,
+							draft.provider,
+							currentTest?.outcome.layers,
+						),
+					() => {
+						// Aborted by a close: the record is saved, the list waits for a refresh.
+					},
 				);
-				return;
-			}
-			try {
-				await storeCatalog(
-					result.data,
-					draft.provider,
-					currentTest?.outcome.layers,
-				);
-			} catch {
-				// Aborted by a close: the record is saved, the list waits for a refresh.
-			}
-			await onSaved();
-			onOpenChange(false);
-		} finally {
-			setSaving(false);
-		}
+				await onSaved();
+				onOpenChange(false);
+			},
+			undefined,
+			() => setSaving(false),
+		);
 	};
 
 	const presets = providers.flatMap((provider) =>

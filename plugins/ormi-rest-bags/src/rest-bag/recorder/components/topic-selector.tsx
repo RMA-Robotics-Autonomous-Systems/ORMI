@@ -12,6 +12,10 @@ import {
 	PopoverContent,
 } from "@workspace/ui/components/popover";
 
+/** Joins the truthy class names. Module-level so the React Compiler can lower the rest parameter. */
+const cn = (...classes: (string | boolean | undefined)[]) =>
+	classes.filter(Boolean).join(" ");
+
 export const TopicSelector = ({
 	topic,
 	index,
@@ -36,10 +40,6 @@ export const TopicSelector = ({
 		topic: "",
 		type: "",
 	});
-
-	// Utility for class names
-	const cn = (...classes: (string | boolean | undefined)[]) =>
-		classes.filter(Boolean).join(" ");
 
 	// Field key mapping for consistency
 	const fieldKeyMap = {

@@ -409,7 +409,7 @@ function DiagnosticsBody({
 		// Fold any out-of-range level into Stale so the pills always sum to the
 		// number of rendered rows.
 		const bucket = item.level >= 0 && item.level <= 3 ? item.level : 3;
-		counts[bucket]!++;
+		counts[bucket] = counts[bucket]! + 1;
 	}
 
 	// Apply the search filter and the "Show OK" toggle. STALE/WARN/ERROR are

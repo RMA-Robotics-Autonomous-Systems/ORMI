@@ -291,16 +291,6 @@ const RosBridgeSuiteSourceProvider = (
 	const subscribersRef = useRef(new Map<string, ROSLIB.Topic<any>>());
 	const subscribersCountRef = useRef(new Map<string, number>());
 
-	// Per-topic coalescer metadata the shared engine's dispatch resolves against
-	// by key (topic name): the DatasourceTopic to convert into, and the topic's
-	// lossless flag / decode cap. Populated where the DatasourceTopic is built.
-	const subscribersMetaRef = useRef(
-		new Map<
-			string,
-			{ topic: DatasourceTopic; lossless: boolean; decodeCapMs: number }
-		>(),
-	);
-
 	// Durable record of which topics the subscription registry has asked us to
 	// subscribe, keyed by topic name and independent of the ROS connection. The
 	// live `subscribersRef` entries are `ROSLIB.Topic` objects bound to a single
@@ -343,11 +333,23 @@ const RosBridgeSuiteSourceProvider = (
 	// cannot starve the other topics. Coarse per-datasource metrics (overwrites,
 	// decoded, dispatch time) feed the diagnostics panel — rosbridge's first
 	// decode-time signal and an honest coalescing drop counter.
-	const [coalescer] = useState(
-		() =>
-			new MessageCoalescer<unknown, string>(
+	//
+	// Per-topic coalescer metadata the shared engine's dispatch resolves against
+	// by key (topic name): the DatasourceTopic to convert into, and the topic's
+	// lossless flag / decode cap. Populated where the DatasourceTopic is built.
+	// Created with the coalescer, in the same lazy initializer, so its dispatch
+	// closes over the map itself rather than a ref (a ref handed to a
+	// constructor during render is something the React Compiler refuses).
+	const [{ coalescer, subscribersMeta }] = useState(() => {
+		const subscribersMeta = new Map<
+			string,
+			{ topic: DatasourceTopic; lossless: boolean; decodeCapMs: number }
+		>();
+		return {
+			subscribersMeta,
+			coalescer: new MessageCoalescer<unknown, string>(
 				(message, topicName) => {
-					const meta = subscribersMetaRef.current.get(topicName);
+					const meta = subscribersMeta.get(topicName);
 					if (!meta) return;
 					convertAndPublish(
 						pluginsManager,
@@ -372,7 +374,8 @@ const RosBridgeSuiteSourceProvider = (
 						console.error("ROS2 message dispatch failed:", error),
 				},
 			),
-	);
+		};
+	});
 
 	// ROS Websocket
 	const ROSRef = useRef<ROSLIB.Ros | null>(null);
@@ -446,7 +449,7 @@ const RosBridgeSuiteSourceProvider = (
 			// against by key. Must be set before the first push. The push
 			// reads `meta.lossless` per message, so a later lossless
 			// subscriber on this live wire raises it in place.
-			subscribersMetaRef.current.set(topicName, meta);
+			subscribersMeta.set(topicName, meta);
 
 			const producedId = metrics.counter(
 				`ds.${datasource_id}.topic.${topicName}.produced`,
@@ -465,7 +468,7 @@ const RosBridgeSuiteSourceProvider = (
 			subscribersRef.current.set(topicName, subscriber);
 			coalescer.start();
 		},
-		[datasource_id, coalescer],
+		[datasource_id, coalescer, subscribersMeta],
 	);
 
 	/**
@@ -524,7 +527,7 @@ const RosBridgeSuiteSourceProvider = (
 						// action populates it after DATASOURCE_READY.
 						subscribersRef.current.clear();
 						subscribersCountRef.current.clear();
-						subscribersMetaRef.current.clear();
+						subscribersMeta.clear();
 						// Discard any payloads stashed for the dead connection;
 						// reconcile restarts the tick as it rebuilds topics.
 						coalescer.stop();
@@ -577,7 +580,9 @@ const RosBridgeSuiteSourceProvider = (
 			pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
 				id: available_topics_handler,
 				filter: async (topics) => {
-					try {
+					// Body hoisted out of the try: the React Compiler cannot lower
+					// conditional/logical expressions inside a try block.
+					const listRosTopics = async () => {
 						// Bounded: this filter runs sequentially across every
 						// datasource, so a connection that never settles must
 						// not hold up (or empty) everyone else's topic list.
@@ -604,6 +609,9 @@ const RosBridgeSuiteSourceProvider = (
 								rawType: topic.type,
 							})),
 						];
+					};
+					try {
+						return await listRosTopics();
 					} catch (error) {
 						return topics;
 					}
@@ -614,7 +622,9 @@ const RosBridgeSuiteSourceProvider = (
 			pluginsManager.addAction(subscribe_hook, {
 				id: subscribe_hook,
 				action: async (topic: DatasourceTopic) => {
-					try {
+					// Body hoisted out of the try: the React Compiler cannot lower
+					// conditional/logical expressions inside a try block.
+					const subscribeTopic = async () => {
 						// Record intent BEFORE awaiting the connection so it
 						// survives reconnects: the registry re-flushes subscribe
 						// on the new connection, and reconcileSubscriptions reads
@@ -642,9 +652,7 @@ const RosBridgeSuiteSourceProvider = (
 							// One wire, N consumers arriving in any order:
 							// raise, never lower, so samples are not dropped
 							// underneath the consumer that asked for them.
-							const meta = subscribersMetaRef.current.get(
-								topic.topic,
-							);
+							const meta = subscribersMeta.get(topic.topic);
 							if (meta && topic.lossless) meta.lossless = true;
 							return;
 						}
@@ -654,6 +662,9 @@ const RosBridgeSuiteSourceProvider = (
 							topic.rawType,
 						);
 						subscribersCountRef.current.set(topic.topic, 1);
+					};
+					try {
+						return await subscribeTopic();
 					} catch (error) {
 						if (propsRef.current.toasts) {
 							toast(
@@ -676,7 +687,9 @@ const RosBridgeSuiteSourceProvider = (
 					topic: DatasourceTopic,
 					ignoreCount: boolean = false,
 				) => {
-					try {
+					// Body hoisted out of the try: the React Compiler cannot lower
+					// conditional/logical expressions inside a try block.
+					const unsubscribeTopic = async () => {
 						await connectionRef.current;
 
 						// Drop the durable intent in lockstep with the live
@@ -714,11 +727,14 @@ const RosBridgeSuiteSourceProvider = (
 							coalescer.remove(topic.topic, true);
 							subscribersRef.current.delete(topic.topic);
 							subscribersCountRef.current.delete(topic.topic);
-							subscribersMetaRef.current.delete(topic.topic);
+							subscribersMeta.delete(topic.topic);
 							if (subscribersRef.current.size === 0) {
 								coalescer.stop();
 							}
 						}
+					};
+					try {
+						return await unsubscribeTopic();
 					} catch (error) {
 						console.error("Unsubscribe error:", error);
 						if (propsRef.current.toasts) {
@@ -786,7 +802,9 @@ const RosBridgeSuiteSourceProvider = (
 
 					// Create a new promise to represent the advertise operation
 					const advertisePromise = (async (): Promise<boolean> => {
-						try {
+						// Body hoisted out of the try: the React Compiler cannot lower
+						// conditional/logical expressions inside a try block.
+						const advertiseTopic = async () => {
 							console.log(
 								`ROS2 Advertise for ${topicName}: Starting operation...`,
 							);
@@ -876,6 +894,9 @@ const RosBridgeSuiteSourceProvider = (
 								`ROS2 Advertise for ${topicName}: Operation setup complete, returning true.`,
 							);
 							return true; // Indicate success
+						};
+						try {
+							return await advertiseTopic();
 						} catch (error) {
 							console.error(
 								`ROS2 Advertise for ${topicName}: Error during operation:`,
@@ -902,14 +923,16 @@ const RosBridgeSuiteSourceProvider = (
 								);
 							}
 							return false; // Indicate failure
-						} finally {
-							// Remove the promise from the map once it's settled
-							advertisingPromisesRef.current.delete(topicName);
-							console.log(
-								`ROS2 Advertise for ${topicName}: Operation finished, removed promise.`,
-							);
 						}
-					})();
+					})().finally(() => {
+						// Remove the promise from the map once it's settled.
+						// `.finally()` rather than a `finally` clause: the React
+						// Compiler cannot lower a try statement with a finalizer.
+						advertisingPromisesRef.current.delete(topicName);
+						console.log(
+							`ROS2 Advertise for ${topicName}: Operation finished, removed promise.`,
+						);
+					});
 
 					// Store the promise and return it
 					advertisingPromisesRef.current.set(
@@ -947,7 +970,9 @@ const RosBridgeSuiteSourceProvider = (
 						console.log(
 							`ROS2 Unadvertise for ${topicName}: Starting operation (ignoreCount: ${ignoreCount}).`,
 						);
-						try {
+						// Body hoisted out of the try: the React Compiler cannot lower
+						// conditional/logical expressions inside a try block.
+						const unadvertiseTopic = async () => {
 							await connectionRef.current; // Ensure connection
 
 							// --- Critical Section Start (Protected by unadvertisePromise) ---
@@ -1033,6 +1058,9 @@ const RosBridgeSuiteSourceProvider = (
 								);
 							}
 							// --- Critical Section End ---
+						};
+						try {
+							return await unadvertiseTopic();
 						} catch (error) {
 							console.error(
 								`ROS2 Unadvertise for ${topicName}: Error during operation:`,
@@ -1049,14 +1077,14 @@ const RosBridgeSuiteSourceProvider = (
 								);
 							}
 							// Don't re-throw, just log
-						} finally {
-							// Remove the promise from the map once this operation is fully settled
-							unadvertisingPromisesRef.current.delete(topicName);
-							console.log(
-								`ROS2 Unadvertise for ${topicName}: Operation finished, removed promise.`,
-							);
 						}
-					})();
+					})().finally(() => {
+						// Remove the promise from the map once this operation is fully settled
+						unadvertisingPromisesRef.current.delete(topicName);
+						console.log(
+							`ROS2 Unadvertise for ${topicName}: Operation finished, removed promise.`,
+						);
+					});
 
 					// Store the promise and await it to ensure the caller waits for completion
 					unadvertisingPromisesRef.current.set(
@@ -1146,7 +1174,7 @@ const RosBridgeSuiteSourceProvider = (
 			// unmount a remount gets fresh refs anyway.
 			subscribersRef.current.clear();
 			subscribersCountRef.current.clear();
-			subscribersMetaRef.current.clear();
+			subscribersMeta.clear();
 			// Stop the drain tick and discard undrained payloads — their
 			// connection is gone. Reconnect rebuilds and restarts.
 			coalescer.stop();
