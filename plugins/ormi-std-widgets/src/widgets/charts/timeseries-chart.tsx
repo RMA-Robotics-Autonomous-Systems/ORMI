@@ -84,7 +84,7 @@ interface ChartChrome {
 	gridStroke: string;
 }
 
-/** uPlot configuration derived from the widget's settings and the theme. */
+/** uPlot configuration derived from the widget's settings, health and theme. */
 interface ChartPlan {
 	series: uPlot.Series[];
 	axes: ResolvedChartAxis[];
@@ -121,12 +121,15 @@ function clampSetting(
  * @param topics - Series settings, in configuration order.
  * @param axis - Chart-wide axis settings.
  * @param chrome - Theme colours for the axes and grid.
+ * @param offline - Per series, in `topics` order: its datasource is offline.
+ * Such a series is labelled offline in the legend; the others are unaffected.
  * @returns The plan the render effect assembles `uPlot.Options` from.
  */
 function buildChartPlan(
 	topics: readonly ChartSeriesSettings[],
 	axis: ChartAxisSettings | undefined,
 	chrome: ChartChrome,
+	offline: readonly boolean[],
 ): ChartPlan {
 	const { axes, scaleKeys } = resolveChartAxes(topics, axis);
 
@@ -140,7 +143,7 @@ function buildChartPlan(
 		const dash = resolveDash(entry.lineStyle, width);
 
 		series.push({
-			label: resolveSeriesLabel(entry),
+			label: resolveSeriesLabel(entry, offline[index] === true),
 			scale: scaleKeys[index],
 			stroke: color,
 			width,
@@ -177,13 +180,14 @@ function buildChartPlan(
  * Owns its uPlot instance imperatively: the frame loop writes into arrays the
  * instance already holds and calls `setData`, so a chart running at 32 Hz costs
  * no React renders at all. The instance is rebuilt only when the plan changes —
- * a series added, a colour or axis edited, the theme flipped.
+ * a series added, a colour or axis edited, the theme flipped, a series'
+ * datasource going offline or coming back (its legend label says offline).
  *
  * @param props - Widget settings.
  * @returns React element.
  */
 const TimeSeriesChartBody: React.FC<TimeSeriesSettings> = (props) => {
-	const { getSource } = useLocalDataSource();
+	const { getSource, getTopicHealth } = useLocalDataSource();
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	// Follows light/dark and theme presets; a change rebuilds the plan, and
@@ -194,13 +198,23 @@ const TimeSeriesChartBody: React.FC<TimeSeriesSettings> = (props) => {
 	const gridStroke =
 		themeColors.gridStroke || CHART_CHROME_FALLBACK.gridStroke;
 
+	// Multi-topic: degrade per series (offline-gating rule), never blank the
+	// chart. Folded to a string so the plan, and with it the uPlot instance, is
+	// rebuilt only when a series' health actually flips, not whenever any
+	// datasource's status map takes a new identity.
+	const offlineKey = props.topics
+		.map((entry) => (getTopicHealth(entry.topic) === "offline" ? "1" : "0"))
+		.join("");
+
 	const plan = useMemo(
 		() =>
-			buildChartPlan(props.topics, props.axis, {
-				axisStroke,
-				gridStroke,
-			}),
-		[props.topics, props.axis, axisStroke, gridStroke],
+			buildChartPlan(
+				props.topics,
+				props.axis,
+				{ axisStroke, gridStroke },
+				Array.from(offlineKey, (flag) => flag === "1"),
+			),
+		[props.topics, props.axis, axisStroke, gridStroke, offlineKey],
 	);
 
 	// The frame loop must see the current settings and the current source

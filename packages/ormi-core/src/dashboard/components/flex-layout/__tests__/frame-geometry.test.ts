@@ -45,6 +45,19 @@ const GLOBALS = readFileSync(
 	"utf8",
 );
 
+/**
+ * Every innermost rule in `css` as `{ selector, body }`, comments stripped.
+ * Rules nested in `@media` / `@supports` are included, which `ruleBody`
+ * (first top-level match only) cannot see.
+ */
+function allRules(css: string): { selector: string; body: string }[] {
+	const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+	return [...bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+		selector: m[1]!.trim(),
+		body: m[2]!,
+	}));
+}
+
 /** The declaration block of the first rule whose selector is exactly `selector`. */
 function ruleBody(css: string, selector: string): string | undefined {
 	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -133,10 +146,13 @@ describe("gutter geometry", () => {
 	});
 
 	test("the theme reads the frame tokens instead of redeclaring them", () => {
-		// A declaration of a root token on .flexlayout__layout would shadow
-		// the value a preset writes on :root.
-		const bridge = ruleBody(CSS, ".flexlayout__layout") ?? "";
-		for (const token of [
+		// A declaration of a root token on .flexlayout__layout, or on any
+		// other element of the layout, would shadow the value a preset writes
+		// on :root. Every rule is checked, those inside @media included: the
+		// high-contrast block once redeclared the border widths there.
+		const rules = allRules(CSS);
+		expect(rules.length).toBeGreaterThan(50);
+		const tokens = [
 			"--panel-background",
 			"--panel-border-color",
 			"--panel-border-width",
@@ -149,9 +165,15 @@ describe("gutter geometry", () => {
 			"--label-weight",
 			"--tab-title-color",
 			"--tab-title-active-color",
-		]) {
-			expect(bridge).not.toMatch(new RegExp(`\\s${token}:`));
-		}
+		];
+		const redeclared = rules.flatMap(({ selector, body }) =>
+			tokens
+				.filter((token) =>
+					new RegExp(`(?:^|[;\\s])${token}\\s*:`).test(body),
+				)
+				.map((token) => `${selector} { ${token} }`),
+		);
+		expect(redeclared).toEqual([]);
 	});
 });
 

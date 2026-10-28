@@ -140,8 +140,8 @@ export function ThemePreviewMock({ id }: { id: string }) {
 				<span className="text-sm" style={headingStyle}>
 					ORMI
 				</span>
-				<span className="bg-muted-foreground/40 h-1.5 w-7 rounded-full" />
-				<span className="bg-muted-foreground/40 h-1.5 w-5 rounded-full" />
+				<span className="bg-muted-foreground/40 h-1.5 w-7 rounded-(--radius-pill)" />
+				<span className="bg-muted-foreground/40 h-1.5 w-5 rounded-(--radius-pill)" />
 				<span className="bg-success ml-auto size-2 rounded-full" />
 			</div>
 

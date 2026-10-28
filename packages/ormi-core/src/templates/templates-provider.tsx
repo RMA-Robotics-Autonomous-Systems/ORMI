@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Widget } from "../widgets/widget-interface";
 import { Datasource } from "../datasources";
 
@@ -10,6 +10,7 @@ import {
 	TemplateType,
 } from "./templates-types";
 import { createSafeContext } from "@workspace/utils";
+import { startTemplatesLoad } from "./load-templates";
 
 /** Templates provider context value. */
 interface TemplatesProviderContextInterface {
@@ -57,10 +58,9 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 			return;
 		}
 
-		// Add the new template to the existing templates map
-		const newTemplates = new Map(templates);
-		newTemplates.set(template_id, template);
-		setTemplates(newTemplates);
+		// Functional updates throughout: the persistence call is awaited, and
+		// the initial load may land in the meantime.
+		setTemplates((prev) => new Map(prev).set(template_id, template));
 	};
 
 	const removeTemplate = async (id: string) => {
@@ -73,9 +73,11 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 			return;
 		}
 
-		const newTemplates = new Map(templates);
-		newTemplates.delete(id);
-		setTemplates(newTemplates);
+		setTemplates((prev) => {
+			const next = new Map(prev);
+			next.delete(id);
+			return next;
+		});
 	};
 
 	const updateTemplate = async (id: string, updatedTemplate: Template) => {
@@ -88,9 +90,7 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 			return;
 		}
 
-		const newTemplates = new Map(templates);
-		newTemplates.set(id, updatedTemplate);
-		setTemplates(newTemplates);
+		setTemplates((prev) => new Map(prev).set(id, updatedTemplate));
 	};
 
 	const getTemplatesByType = (type: TemplateType): Map<string, Template> => {
@@ -123,12 +123,14 @@ const TemplatesProvider = (props: TemplatesProviderProps) => {
 		return datasourceTemplates;
 	};
 
+	// Load once per mount. `onLoad` is read through a ref: callers pass an
+	// inline callback, so keying the effect on it (or on `props`) refetched on
+	// every parent render.
+	const onLoadRef = useRef(props.onLoad);
 	useEffect(() => {
-		new Promise(async () => {
-			const loadedTemplates = await props.onLoad();
-			setTemplates(loadedTemplates);
-		});
-	}, [props]);
+		onLoadRef.current = props.onLoad;
+	});
+	useEffect(() => startTemplatesLoad(onLoadRef.current, setTemplates), []);
 
 	return (
 		<TemplatesProviderContextProvider

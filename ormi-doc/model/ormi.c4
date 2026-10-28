@@ -17,7 +17,7 @@ model {
 
     db = database 'PostgreSQL' {
       technology 'Prisma ORM'
-      description 'Workspaces, dashboards (layouts + widget/datasource instances), categories, templates, map servers (MapServer: per-user, settings with auth, catalogue snapshot, unique per user and serverKey), users, accounts, and sessions.'
+      description 'Workspaces (a dashboard is the Workspace.content column: layouts + widget/datasource instances; there is no dashboard table), categories, templates, map servers (MapServer: per-user, settings with auth, catalogue snapshot, unique per user and serverKey), users, accounts, and sessions.'
     }
   }
 }

@@ -120,7 +120,7 @@ export function niceTicks(lo: number, hi: number, target = 5): number[] {
 /** Compact number for an axis label: 12.3k, 1.2M, 450. */
 export function shortNum(v: number): string {
 	const a = Math.abs(v);
-	if (!Number.isFinite(v)) return "–";
+	if (!Number.isFinite(v)) return "n/a";
 	if (a >= 1e6) return `${(v / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
 	if (a >= 1e3) return `${(v / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k`;
 	if (a >= 10) return v.toFixed(0);
@@ -391,5 +391,5 @@ export function arrowHead(
 
 /** Format a number with a fixed number of decimals, tolerating NaN. */
 export function fmt(v: number, digits = 1): string {
-	return Number.isFinite(v) ? v.toFixed(digits) : "–";
+	return Number.isFinite(v) ? v.toFixed(digits) : "n/a";
 }

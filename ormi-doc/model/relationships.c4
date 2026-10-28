@@ -18,8 +18,12 @@ model {
   ormi.web.plugins.foxglovePlugin -> foxglove 'connects (wss:// worker · ws:// main thread)'
   ormi.web.plugins.rosbridgePlugin -> rosbridge 'subscribes / calls services'
   ormi.web.plugins.telloPlugin -> tello 'telemetry & flight commands (ws://)'
-  ormi.web.plugins.restBagsPlugin -> restEndpoint 'fetches bag data'
-  ormi.web.plugins.rostainerPlugin -> rostainer 'starts / stops ROS2 nodes'
+  ormi.web.plugins.restBagsPlugin -> restEndpoint 'manages bags: list, download, compress, record, play back (browser-direct)'
+  ormi.web.plugins.rostainerPlugin -> ormi.web.remoteCalls 'restart / pull through the bound status topic datasource remote calls'
+  rostainer -> robot 'answers the <ns>/docker/restart and <ns>/docker/pull actions on the robot ROS graph'
+  ormi.web.plugins.c2Control -> c2MissionControl 'mission commands (browser-direct REST, auth token on every request)'
+  ormi.web.plugins.c2Control -> c2MongoRest 'mission CRUD (browser-direct REST, auth token on mutations)'
+  ormi.web.plugins.rosbridgePlugin -> webrtcOffer 'WebRTC widget POSTs its SDP offer (browser-direct, http://<host>:8080/offer)'
 
   // ---- Map widgets -> basemap providers ------------------------------------
   // Tiles, styles, glyphs and sprites are fetched by the OPERATOR BROWSER
@@ -29,6 +33,8 @@ model {
 
   ormi.web.plugins.stdWidgets -> basemapProviders 'fetches basemap tiles + bundled vector style sources (browser -> vendor CDN)'
   ormi.web.plugins.c2Control -> basemapProviders 'fetches basemap tiles (browser -> vendor CDN)'
+  ormi.web.plugins.emiBagAnalyzer -> basemapProviders 'fetches OpenStreetMap raster tiles itself (gps-map-advanced)'
+  ormi.web.plugins.teodorEmi -> basemapProviders 'seeds Carto Voyager on its cockpit map'
 
   // ---- Map layers: the user map-server registry ----------------------------
   // Discovery and tiles are browser-direct. The ORMI server stores records and
@@ -45,6 +51,7 @@ model {
   ormi.web.renderers -> ormi.web.mapLayers 'mapLayersSelect control reads mapServersAtom at render'
   ormi.web.plugins.stdWidgets -> ormi.web.mapLayers 'useMapRasterLayers, RasterOverlayLayers, MapLayersOverlay'
   ormi.web.plugins.c2Control -> ormi.web.mapLayers 'useMapRasterLayers, RasterOverlayLayers, MapLayersOverlay'
+  ormi.web.plugins.emiBagAnalyzer -> ormi.web.mapLayers 'useMapRasterLayers, RasterOverlayLayers, MapLayersOverlay, handleMapError'
   ormi.web.mapLayers -> tileServers 'raster tiles (browser-direct, query auth or scoped headers)'
   ormi.web.httpClient -> ormi.web.mapServersApi 'HTTP /api/map-servers (ApiResult<T>)'
   ormi.web.mapServersApi -> ormi.web.auth 'withAuth guard'
@@ -58,8 +65,8 @@ model {
   // ---- Datasource plugins plug into the shared runtime ---------------------
 
   ormi.web.plugins.foxglovePlugin -> ormi.web.datasourceRuntime 'runs its worker / main-thread connection in'
-  ormi.web.plugins.rosbridgePlugin -> ormi.web.datasourceRuntime 'runs its worker in'
-  ormi.web.plugins.telloPlugin -> ormi.web.datasourceRuntime.mainThreadConn 'runs on (insecure ws://)'
+  ormi.web.plugins.rosbridgePlugin -> ormi.web.datasourceRuntime.mainThreadConn 'runs roslib on the main thread (ws:// and wss://), through the shared coalescer'
+  ormi.web.plugins.telloPlugin -> ormi.web.datasourceRuntime.mainThreadConn 'runs on (insecure ws://), onmessage straight to doAction (no coalescer)'
   ormi.web.plugins.loadgenPlugin -> ormi.web.datasourceRuntime 'drives synthetic load through its worker / main-thread coalescer path'
 
   // ---- Ingest data flow (datasource → PluginsManager) ----------------------
@@ -81,14 +88,15 @@ model {
 
   // ---- Consumer data flow (PluginsManager → widget) ------------------------
 
-  ormi.web.pluginsManager -> ormi.web.datasourceRuntime.localData 'dispatches data to subscribers'
+  ormi.web.pluginsManager -> ormi.web.datasourceRuntime.subscriptionRegistry 'published action, one per wire key'
+  ormi.web.datasourceRuntime.subscriptionRegistry -> ormi.web.datasourceRuntime.localData 'fans out to each intent callback'
   ormi.web.datasourceRuntime.localData -> ormi.web.widgetHost 'buffered data via useLocalDataSource (30Hz) + health'
   ormi.web.dashboard -> ormi.web.widgetHost 'mounts placed widgets (per-widget error boundary)'
 
   // ---- Transform (TF) flow -------------------------------------------------
 
   ormi.web.datasourceRuntime.converter -> ormi.web.transforms 'processTFMessage(datasourceId, msg, { isStatic })'
-  ormi.web.transforms -> ormi.web.appStore 'writes edges + version bump'
+  ormi.web.transforms -> ormi.web.appStore 'version bump + sources (transformVersionAtom, transformSourcesAtom); the edges stay in a module Map'
   ormi.web.transforms -> ormi.web.widgetHost 'frame data via useTransformEdges / useWorldFrames / useTransformToGPS'
 
   // ---- Remote calls --------------------------------------------------------
@@ -107,11 +115,13 @@ model {
   ormi.web.dashboard -> ormi.web.ui 'uses primitives'
   ormi.web.widgetHost -> ormi.web.ui 'uses primitives (DatasourceGate offline card)'
   ormi.web.dashboard -> ormi.web.templates 'save/apply widget & datasource templates'
-  ormi.web.ui -> ormi.web.dashboard 'DATASOURCE_CONFIGURE_EVENT (offline card → datasource settings dialog)'
+  ormi.web.ui -> ormi.web.datasourceRuntime.globalDatasources 'DATASOURCE_CONFIGURE_EVENT (offline card → its own Datasources dialog)'
+  ormi.web.datasourceRuntime.globalDatasources -> ormi.web.pluginsManager 'registers AVAILABLE_DATASOURCES + the WIDGETS_LIST datasource gate'
+  ormi.web.datasourceRuntime.globalDatasources -> ormi.web.appStore 'reads datasourcesAtom, mounts each datasource Provider'
 
   // ---- Client → server -----------------------------------------------------
 
-  ormi.web.dashboard -> ormi.web.httpClient 'load/save dashboards & workspaces'
+  ormi.web.dashboard -> ormi.web.httpClient 'load/save workspaces (a dashboard is Workspace.content, /api/workspaces)'
   ormi.web.templates -> ormi.web.httpClient 'persist via /api/templates'
   ormi.web.datasourceRuntime.knownDatasources -> ormi.web.httpClient 'read known configurations (GET /api/datasources/known, on dialog open)'
   ormi.web.datasourceRuntime.knownDatasources -> ormi.web.dashboard 'offers a saved configuration to the add-datasource picker; adding seeds a new instance'

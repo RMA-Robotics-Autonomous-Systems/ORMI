@@ -43,6 +43,7 @@ ORMI is a plugin-based robotics dashboard: a Next.js app renders customizable wi
 
 - **`AGENTS.md`** — new mandatory patterns/anti-patterns, placement rules, conventions, Definition-of-Done changes.
 - **`apps/web/content/docs/*`** (the GitHub-wiki submodule) — core architecture, data flow, plugin-system, and widget-system documentation. Update these when a core change is approved.
+- **`ormi-doc/`** (local-only LikeC4 model + `ormi-doc/knowledge/`): platform architecture. Any structural change (container, component, datasource, plugin, data-flow edge) updates the owning knowledge file and the LikeC4 model in the same change, per the lockstep rule in `AGENTS.md`.
 - **Plugin/package READMEs** — feature-local decisions scoped to one extension.
 
 ## ORMI Design Principles
@@ -59,7 +60,7 @@ When asked whether a screen, widget, dialog, or flow works:
 
 - Identify what is hard to scan, ambiguous, noisy, inconsistent, or easy to misuse, and explain _why_ it creates friction.
 - Propose better structure with clear reasoning and trade-offs; prioritize highest-impact changes first.
-- Stay within the existing system: Radix UI + shadcn/ui primitives, Tailwind tokens, the drag-and-drop grid layout, and existing spacing/density conventions. Reuse established patterns over novelty.
+- Stay within the existing system: Radix UI + shadcn/ui primitives, Tailwind tokens, the dashboard layout engines (FLEX, flexlayout-react, is the default; GRID, react-grid-layout, remains available), and existing spacing/density conventions. Reuse established patterns over novelty.
 - Respect high-consequence actions (deleting workspaces/layouts, destructive controls) — they must be clearly marked and deliberate.
 - Give guidance only — hand implementation to `implement`.
 

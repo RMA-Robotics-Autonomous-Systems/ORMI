@@ -924,13 +924,10 @@
 	}
 }
 
-/* High contrast mode support */
+/* High contrast mode support. The wider borders are the root tokens, set on
+   `:root` in packages/ui/src/styles/globals.css: redeclaring them here would
+   shadow the preset and leave `--radius-inner` and the navbar edge behind. */
 @media (prefers-contrast: high) {
-	.flexlayout__layout {
-		--border-width: 2px;
-		--panel-border-width: 2px;
-	}
-
 	.flexlayout__tab_selected {
 		border-width: 2px;
 	}

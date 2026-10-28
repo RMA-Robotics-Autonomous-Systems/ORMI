@@ -19,7 +19,7 @@ ORMI is a Next.js dashboard with a Prisma/PostgreSQL backend, NextAuth sessions,
 
 1. Read the relevant target files completely.
 2. Read `AGENTS.md` for the project's intended security controls (the 10 patterns — especially `withAuth`, Zod validation, `apiResponse`, and Prisma-helper access).
-3. Read the auth wiring (`apps/web/lib/auth/*`, NextAuth options) and the server helpers (`apps/web/lib/data/prisma-*.ts`) relevant to the code under review.
+3. Read the auth wiring (`apps/web/server/auth.ts` for the NextAuth options, `apps/web/lib/with-auth.ts` for the `withAuth` wrapper) and the server helpers (`apps/web/lib/data/prisma-*.ts`) relevant to the code under review.
 4. Identify trust boundaries:
     - anonymous vs authenticated user
     - one user vs another user's data (object-level ownership)

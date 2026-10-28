@@ -15,7 +15,7 @@ model Workspace {
     createdAT DateTime @default(now())
     updatedAT DateTime @default(now())
 
-    dashboardType String @default("GRID") // GRID or FREE
+    dashboardType String @default("FLEX") // a layout engine id; DEFAULT_DASHBOARD_TYPE (ormi-core) is the app default
 
     // Category relationship for Kanban view
     category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)

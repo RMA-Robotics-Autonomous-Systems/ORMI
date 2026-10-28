@@ -48,9 +48,7 @@ export function BagUpload({ onFileLoaded, loading }: BagUploadProps) {
 		>
 			<Upload className="h-8 w-8 text-muted-foreground" />
 			<span className="text-sm font-medium">
-				{loading
-					? "Loading bag…"
-					: "Drop a .db3 bag file or click to browse"}
+				{loading ? "Loading bag…" : "Drop a .db3 bag file"}
 			</span>
 			<span className="text-xs text-muted-foreground">
 				Processed in the browser. Nothing is uploaded.

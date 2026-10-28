@@ -264,16 +264,20 @@ export function MapsBoxViewerDefinition(): WidgetDefinition<MapsViewerSettings> 
 				basemapApiKey: {
 					type: "string",
 					title: "Basemap API Key",
+					writeOnly: true,
 				},
 
 				use3D: {
 					type: "boolean",
 					title: "Use 3D",
+					description:
+						"Buildings show from zoom 14 on vector basemaps, zoom 15 on raster basemaps.",
 					default: false,
 				},
 				apiKey: {
 					type: "string",
 					title: "MapTiler API Key (3D buildings, raster basemaps only)",
+					writeOnly: true,
 				},
 				topics: {
 					type: "array",

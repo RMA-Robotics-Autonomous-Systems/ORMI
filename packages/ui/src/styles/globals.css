@@ -511,6 +511,17 @@
 	}
 }
 
+/* High contrast widens every border, the panels' included. On `:root`, never
+   on a descendant, so what derives from them (`--radius-inner`, the navbar
+   edge) follows; `!important` because a preset's `:root` comes later in the
+   cascade and nearly every preset declares `--panel-border-width`. */
+@media (prefers-contrast: high) {
+	:root {
+		--border-width: 2px !important;
+		--panel-border-width: 2px !important;
+	}
+}
+
 /*
  * An overlay's enter and exit shape: fade, `--motion-scale`, and
  * `--motion-distance` in from the side it is anchored on (Radix sets

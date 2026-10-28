@@ -17,6 +17,9 @@ views {
       tello,
       restEndpoint,
       rostainer,
+      c2MissionControl,
+      c2MongoRest,
+      webrtcOffer,
       basemapProviders,
       tileServers
     autoLayout LeftRight
@@ -62,6 +65,9 @@ views {
       tello,
       restEndpoint,
       rostainer,
+      c2MissionControl,
+      c2MongoRest,
+      webrtcOffer,
       basemapProviders,
       tileServers
     autoLayout LeftRight

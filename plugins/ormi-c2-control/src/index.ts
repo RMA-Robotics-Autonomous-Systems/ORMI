@@ -39,7 +39,8 @@ export {
 } from "./state/selection-store";
 
 // C2 catalog store: shared id→name maps plus the per-map feature catalogue the
-// mission map publishes and the behaviour-graph editor reads.
+// mission map publishes. The behaviour-graph editor reads `useMissionAssets`
+// instead; nothing in the repo reads the per-map catalogue today.
 export {
 	publishMapFeatures,
 	hasMapFeatures,

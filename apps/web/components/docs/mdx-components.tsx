@@ -269,7 +269,7 @@ const components = {
 	}) => {
 		const icons = {
 			info: <Info className="h-4 w-4 text-info" />,
-			warning: <AlertTriangle className="h-4 w-4 text-warning" />,
+			warning: <AlertTriangle className="h-4 w-4 text-warning-text" />,
 			success: <CheckCircle2 className="h-4 w-4 text-success" />,
 			error: <AlertCircle className="h-4 w-4 text-destructive" />,
 		};

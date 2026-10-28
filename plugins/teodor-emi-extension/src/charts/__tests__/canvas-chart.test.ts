@@ -10,6 +10,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	decadeTicks,
+	fmt,
 	LOG_FLOOR,
 	lowerBound,
 	makeProjection,
@@ -147,7 +148,15 @@ describe("shortNum", () => {
 		expect(shortNum(12300)).toBe("12k");
 		expect(shortNum(1200)).toBe("1.2k");
 		expect(shortNum(2_400_000)).toBe("2.4M");
-		expect(shortNum(NaN)).toBe("–");
+		expect(shortNum(NaN)).toBe("n/a");
+	});
+});
+
+describe("fmt", () => {
+	it("names an empty value n/a, never a dash", () => {
+		expect(fmt(1.234, 2)).toBe("1.23");
+		expect(fmt(NaN)).toBe("n/a");
+		expect(fmt(Infinity)).toBe("n/a");
 	});
 });
 

@@ -8,15 +8,11 @@ import {
 	type ReactNode,
 } from "react";
 import { createSafeContext } from "@workspace/utils";
-import { httpClient } from "@/lib/http/client";
+import { devlogApi, type DevlogRendered } from "@/lib/api/devlog-api";
 
 const STORAGE_KEY = "ormi:last-devlog";
 
-/** A devlog entry with its markdown already rendered to HTML by the API. */
-export interface DevlogRendered {
-	id: string;
-	html: string;
-}
+export type { DevlogRendered };
 
 /**
  * How the dialog was opened, which decides whether it can be dismissed:
@@ -55,11 +51,8 @@ export function DevlogProvider({ children }: { children: ReactNode }) {
 	// On load, show only what the user has not read yet.
 	useEffect(() => {
 		const lastSeen = localStorage.getItem(STORAGE_KEY) ?? "";
-		const url = lastSeen
-			? `/api/devlogs?since=${encodeURIComponent(lastSeen)}`
-			: "/api/devlogs";
 
-		httpClient.get<DevlogRendered[]>(url).then((result) => {
+		devlogApi.getAll(lastSeen).then((result) => {
 			if (result.ok && result.data.length > 0) {
 				setDevlogs(result.data);
 				setMode("unseen");
@@ -68,7 +61,7 @@ export function DevlogProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const showAll = useCallback(() => {
-		httpClient.get<DevlogRendered[]>("/api/devlogs").then((result) => {
+		devlogApi.getAll().then((result) => {
 			if (result.ok) {
 				setDevlogs(result.data);
 				setMode("all");

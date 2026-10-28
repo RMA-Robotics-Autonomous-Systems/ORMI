@@ -244,6 +244,55 @@ describe("EmiRunBuilder — ordering and seeks", () => {
 		expect(after.n).toBeLessThan(before.n);
 	});
 
+	it("drops a forward stamp jump instead of wiping the run", () => {
+		const b = new EmiRunBuilder(init);
+		b.onQuaternion(quat(0));
+		for (let i = 0; i < 100; i++) {
+			b.onEmiGnss(gnssMessage(100 + i * 0.03, [i, i, i, i, i]));
+		}
+		const before = b.finalize()!;
+
+		// One sample stamped 53 s ahead raises the mark; every on-cadence
+		// sample after it lands behind, which on its own reads as a seek.
+		b.onEmiGnss(gnssMessage(156, [99, 99, 99, 99, 99]));
+		for (let i = 100; i < 120; i++) {
+			b.onEmiGnss(gnssMessage(100 + i * 0.03, [i, i, i, i, i]));
+		}
+
+		const run = b.finalize()!;
+		expect(b.status.seeks).toBe(0);
+		// The outlier and the seven samples it put behind the mark are lost;
+		// everything before it, and the confirming sample on, are kept.
+		expect(run.n).toBe(100 + 20 - 7);
+		expect(b.status.droppedOutOfOrder).toBe(8);
+		expect(run.raw1[0]).toBe(0);
+		expect(run.raw1[99 * run.ncoil]).toBe(99);
+		expect(run.raw1[100 * run.ncoil]).toBe(107);
+		for (let i = 1; i < run.n; i++) {
+			expect(run.t[i]!).toBeGreaterThanOrEqual(run.t[i - 1]!);
+		}
+		// Same id, new object: a consumer that swept the outlier re-derives.
+		expect(run).not.toBe(before);
+		expect(run.id).toBe(before.id);
+	});
+
+	it("still resets on a real seek that follows a forward stamp jump", () => {
+		const b = new EmiRunBuilder(init);
+		b.onQuaternion(quat(0));
+		for (let i = 0; i < 10; i++) {
+			b.onEmiGnss(gnssMessage(100 + i, [i, i, i, i, i]));
+		}
+		b.onEmiGnss(gnssMessage(200, [50, 50, 50, 50, 50]));
+		// Behind the jumped stamp AND behind the one before it: a seek.
+		for (let i = 0; i < 12; i++) {
+			b.onEmiGnss(gnssMessage(i * 0.03, [7, 7, 7, 7, 7]));
+		}
+		const run = b.finalize()!;
+		expect(b.status.seeks).toBe(1);
+		expect(run.raw1[0]).toBe(7);
+		expect(run.n).toBe(5);
+	});
+
 	it("refuses a message whose coil set disagrees with the run's", () => {
 		const b = new EmiRunBuilder(init);
 		b.onQuaternion(quat(0));

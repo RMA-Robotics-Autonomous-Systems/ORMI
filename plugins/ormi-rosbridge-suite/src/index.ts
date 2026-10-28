@@ -18,19 +18,19 @@ class RosBridgeSuitePlugin extends Plugin {
 		this.email = "florian.lebecque@mil.be";
 
 		this.addFilter(PluginsHooks.DATASOURCES_LIST, {
-			id: "ros-2-datasources",
+			id: "ormi-rosbridge-suite-datasources",
 			priority: 12,
 			filter: dataSourceExport,
 		});
 
 		this.addFilter(PluginsHooks.WIDGETS_LIST, {
-			id: "ros-2-widgets",
+			id: "ormi-rosbridge-suite-widgets",
 			priority: 12,
 			filter: widgetsExport,
 		});
 
 		this.addFilter(PluginsHooks.WIDGET_LIST_WITH_DATASOURCE, {
-			id: "ros-2-widgets-with-datasource",
+			id: "ormi-rosbridge-suite-widgets-with-datasource",
 			priority: 12,
 			filter: widgetFilters,
 		});
@@ -38,7 +38,7 @@ class RosBridgeSuitePlugin extends Plugin {
 		// Which topic types this plugin's widgets answer — see
 		// `topic-claims.ts`.
 		this.addFilter(PluginsHooks.TOPIC_ROUTING_CLAIMS, {
-			id: "ros-2-topic-routing-claims",
+			id: "ormi-rosbridge-suite-topic-routing-claims",
 			priority: 12,
 			filter: (claims: TopicRoutingClaims) => {
 				claims.push(...topicClaims);

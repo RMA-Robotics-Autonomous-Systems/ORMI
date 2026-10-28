@@ -98,7 +98,7 @@ themselves. See `../widgets/knowledge.md` (Basemaps > Raster overlays).
 | Hook                     | Purpose                                  | Signature                                                                                     |
 | ------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `AVAILABLE_TOPICS`       | Aggregate topics from active datasources | `(t: DatasourceTopic[], filter?) => DatasourceTopic[] \| Promise<…>`                          |
-| `AVAILABLE_DATASOURCES`  | List available datasource instance ids   | `(ids: string[]) => string[]`                                                                 |
+| `AVAILABLE_DATASOURCES`  | List available datasource instances      | `(datasources: Datasource[]) => Datasource[]`                                                 |
 | `DATASOURCE_READY`       | Action: datasource provider is ready     | `(datasourceId: string) => void`                                                              |
 | `DATASOURCE_DISPOSED`    | Action: datasource provider disposed     | `(datasourceId: string) => void`                                                              |
 | `AVAILABLE_REMOTE_CALLS` | Aggregate remote calls                   | `(calls: RemoteCallDefinition[], filter?) => RemoteCallDefinition[]`                          |

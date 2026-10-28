@@ -50,9 +50,10 @@ interface WireRow {
 	deliveredRate: number | null;
 	fanout: number;
 	/**
-	 * Worker-side produced rate from the matching
-	 * `ds.<dsId>.topic.<topic>.produced` counter, or `null` when the
-	 * datasource does not report produced counts (non-worker datasources).
+	 * Produced rate from the matching `ds.<dsId>.topic.<topic>.produced`
+	 * counter (written by worker hosts and by the main-thread foxglove `ws://`,
+	 * rosbridge and loadgen sources), or `null` when the datasource does not
+	 * report produced counts.
 	 */
 	producedRate: number | null;
 	/**

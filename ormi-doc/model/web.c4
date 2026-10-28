@@ -96,14 +96,14 @@ model {
 
     ui = component 'Shared UI Kit' {
       technology 'packages/ui — Radix UI + shadcn/ui + Tailwind'
-      description 'Primitive components and tokens (buttons, dialogs, cards, DatasourceGate offline card) reused across dashboard, widgets, and plugins. Also owns the keyboard-safety guards every control widget publishes behind (input-guards.ts + useDigitalTrigger): a bound key is ignored while the operator types in an editable element or while a modal is open, default-on with an explicit opt-out. It cannot depend on ormi-core, so the offline card asks for its datasource settings by dispatching a window event rather than calling into the dashboard.'
+      description 'Primitive components and tokens (buttons, dialogs, cards, DatasourceGate offline card) reused across dashboard, widgets, and plugins. Also owns the keyboard-safety guards every control widget publishes behind (input-guards.ts + useDigitalTrigger): a bound key is ignored while the operator types in an editable element or while a modal is open, default-on with an explicit opt-out. It cannot depend on ormi-core, so the offline card asks for its datasource settings by dispatching a window event (DATASOURCE_CONFIGURE_EVENT, handled by GlobalDataSourcesProvider) rather than calling into the dashboard.'
     }
 
     // ---- Server side --------------------------------------------------------
 
     apiRoutes = component 'API Route Handlers' {
       technology 'apps/web/app/api — Next.js route handlers'
-      description 'REST endpoints for workspaces, dashboards, categories, templates, users, devlogs, and the read-only GET /api/datasources/known (the datasource configurations owned by the session user across their workspaces — session-scoped, never a user id from the request). Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
+      description 'REST endpoints for workspaces (a dashboard is Workspace.content, saved through /api/workspaces; there is no dashboards endpoint), categories, templates, users, devlogs, and the read-only GET /api/datasources/known (the datasource configurations owned by the session user across their workspaces — session-scoped, never a user id from the request). Mutating routes parse the body with Zod, wrap in withAuth, and return via the apiResponse helper.'
     }
 
     mapServersApi = component 'Map Servers API' {

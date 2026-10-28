@@ -147,7 +147,10 @@ export function RainviewerOverlay(props: {
 					/>
 				</Source>
 			))}
-			<div className="absolute bottom-2 right-2 z-10 flex items-center gap-2 bg-background/95 border rounded-md px-2 py-1 shadow-md text-xs">
+			{/* Bottom-left: MapLibre's attribution (a licence term, the
+			    RainViewer credit included) and MapChrome own the
+			    bottom-right, and the mission map's panels the top corners. */}
+			<div className="absolute bottom-2 left-2 z-10 flex items-center gap-2 bg-background/95 border rounded-md px-2 py-1 shadow-md text-xs">
 				<Button
 					size="sm"
 					variant="ghost"

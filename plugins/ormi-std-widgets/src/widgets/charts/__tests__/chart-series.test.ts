@@ -147,6 +147,14 @@ describe("resolveSeriesLabel", () => {
 			),
 		).toBe("/odom.twist.twist.linear.x");
 	});
+
+	test("marks an offline series in its label", () => {
+		expect(resolveSeriesLabel(series(), true)).toBe("/speed (offline)");
+		expect(
+			resolveSeriesLabel(series({ title: "Ground speed" }), true),
+		).toBe("Ground speed (offline)");
+		expect(resolveSeriesLabel(series(), false)).toBe("/speed");
+	});
 });
 
 describe("resolveDash", () => {

@@ -18,7 +18,7 @@ import {
 import {
 	convertPosition,
 	convertQuaternion,
-} from "@workspace/ormi-core/transforms";
+} from "@workspace/ormi-core/transforms/coordinate-systems";
 import { PluginsManager } from "@workspace/ormi-plugins";
 import { canReadRgb, canUseFloatView } from "./pointcloud-fast-path";
 

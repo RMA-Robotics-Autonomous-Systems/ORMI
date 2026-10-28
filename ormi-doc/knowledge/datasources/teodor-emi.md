@@ -619,8 +619,18 @@ The discriminator is persistence, not magnitude (a bad stamp is _larger_ than
 most seeks): a seek stays behind the run's high-water mark forever, an outlier
 does not. `SEEK_CONFIRM_SAMPLES = 8` sits well clear of the observed artefact and
 still confirms a genuine seek within a quarter of a second. An out-of-order
-sample is dropped and counted in `BuilderStatus.droppedOutOfOrder`; the same
-mechanism bounds the damage from a _forward_ stamp jump to eight samples.
+sample is dropped and counted in `BuilderStatus.droppedOutOfOrder`.
+
+A _forward_ stamp jump is the mirror case, and it is told apart rather than
+read as a seek: the jumped sample raises the mark, and the on-cadence samples
+after it land behind the mark but still at or after the stamp the run held
+before the jump (`tPrev`), which a seek's samples are not. When more than half
+of the confirming samples are, the jumped sample is taken for the outlier
+(`dropNewest`): it is removed, the mark goes back to `tPrev`, and the run
+carries on as a new object over the same buffers (the streamed sample domain
+keys on the run object, so consumers re-derive once rather than watch `n`
+shrink). The cost is eight samples (the outlier and the seven it put behind
+the mark), never the recording (`plugins/teodor-emi-extension/src/state/run-builder.ts`).
 
 The same measurement pass found two recordings whose SQLite image is malformed
 and one too large to open — worth knowing before blaming the cockpit for a bag

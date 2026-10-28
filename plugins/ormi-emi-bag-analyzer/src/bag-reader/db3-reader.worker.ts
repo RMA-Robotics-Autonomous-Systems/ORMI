@@ -2,6 +2,8 @@
  * Web Worker: loads a ROS2 .db3 bag file (ArrayBuffer) using sql.js,
  * parses topic metadata and CDR message payloads, and posts results back.
  *
+ * Every request carries an `id`, and every reply (`error` included) echoes it.
+ *
  * Legacy protocol (kept for backward compat):
  *   receive: { type: "open"; buffer: ArrayBuffer }
  *   receive: { type: "topics" }
@@ -40,33 +42,38 @@ self.onmessage = async (event: MessageEvent) => {
 	try {
 		switch (msg.type) {
 			case "open":
-				await handleOpen(msg.buffer);
+				await handleOpen(msg.id, msg.buffer);
 				break;
 			case "topics":
-				handleTopics();
+				handleTopics(msg.id);
 				break;
 			case "read":
-				handleRead(msg.topicName);
+				handleRead(msg.id, msg.topicName);
 				break;
 			case "readGps":
-				handleReadGps(msg.topicName);
+				handleReadGps(msg.id, msg.topicName);
 				break;
 			case "readAll":
-				handleReadAll(msg.numericTopics, msg.eventTopics, msg.gpsTopic);
+				handleReadAll(
+					msg.id,
+					msg.numericTopics,
+					msg.eventTopics,
+					msg.gpsTopic,
+				);
 				break;
 			case "detect":
-				handleDetect(msg.points, msg.detectionConfig);
+				handleDetect(msg.id, msg.points, msg.detectionConfig);
 				break;
 		}
 	} catch (err) {
-		self.postMessage({
+		post(msg.id, {
 			type: "error",
 			message: err instanceof Error ? err.message : String(err),
 		});
 	}
 };
 
-async function handleOpen(buffer: ArrayBuffer): Promise<void> {
+async function handleOpen(id: number, buffer: ArrayBuffer): Promise<void> {
 	// In a Web Worker, bare paths like "/sql-wasm.wasm" have no base origin.
 	// We must build an absolute URL using self.location.origin.
 	// sql.js may request "sql-wasm-browser.wasm" — map any wasm request to
@@ -75,10 +82,10 @@ async function handleOpen(buffer: ArrayBuffer): Promise<void> {
 		locateFile: (_file: string) => `${self.location.origin}/sql-wasm.wasm`,
 	});
 	db = new SQL.Database(new Uint8Array(buffer));
-	self.postMessage({ type: "ready" });
+	post(id, { type: "ready" });
 }
 
-function handleTopics(): void {
+function handleTopics(id: number): void {
 	if (!db) throw new Error("No bag loaded");
 
 	const result = db.exec(
@@ -100,16 +107,16 @@ function handleTopics(): void {
 		}
 	}
 
-	self.postMessage({ type: "topics", data: topics });
+	post(id, { type: "topics", data: topics });
 }
 
-function handleRead(topicName: string): void {
+function handleRead(id: number, topicName: string): void {
 	if (!db) throw new Error("No bag loaded");
 	const topicResult = db.exec(
 		`SELECT id FROM topics WHERE name = '${esc(topicName)}' LIMIT 1`,
 	);
 	if (!topicResult[0]?.values[0]) {
-		self.postMessage({ type: "series", topicName, data: [] });
+		post(id, { type: "series", topicName, data: [] });
 		return;
 	}
 	const topicId = topicResult[0].values[0][0] as number;
@@ -131,16 +138,16 @@ function handleRead(topicName: string): void {
 			}
 		}
 	}
-	self.postMessage({ type: "series", topicName, data: points });
+	post(id, { type: "series", topicName, data: points });
 }
 
-function handleReadGps(topicName: string): void {
+function handleReadGps(id: number, topicName: string): void {
 	if (!db) throw new Error("No bag loaded");
 	const topicResult = db.exec(
 		`SELECT id FROM topics WHERE name = '${esc(topicName)}' LIMIT 1`,
 	);
 	if (!topicResult[0]?.values[0]) {
-		self.postMessage({ type: "gps", topicName, data: [] });
+		post(id, { type: "gps", topicName, data: [] });
 		return;
 	}
 	const topicId = topicResult[0].values[0][0] as number;
@@ -162,7 +169,7 @@ function handleReadGps(topicName: string): void {
 			}
 		}
 	}
-	self.postMessage({ type: "gps", topicName, data: points });
+	post(id, { type: "gps", topicName, data: points });
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +177,7 @@ function handleReadGps(topicName: string): void {
 // ---------------------------------------------------------------------------
 
 function handleReadAll(
+	id: number,
 	numericTopics: string[],
 	eventTopics: string[],
 	gpsTopic: string | null,
@@ -184,7 +192,7 @@ function handleReadAll(
 		]),
 	];
 	if (allTopics.length === 0) {
-		postPlayground({
+		postPlayground(id, {
 			lineSeries: [],
 			eventSeries: [],
 			gps: [],
@@ -209,7 +217,7 @@ function handleReadAll(
 		}
 	}
 	if (topicIds.length === 0) {
-		postPlayground({
+		postPlayground(id, {
 			lineSeries: [],
 			eventSeries: [],
 			gps: [],
@@ -242,7 +250,7 @@ function handleReadAll(
 	let bagEnd = 0;
 
 	if (!msgResult[0]) {
-		postPlayground({
+		postPlayground(id, {
 			lineSeries: [],
 			eventSeries: [],
 			gps: [],
@@ -352,7 +360,7 @@ function handleReadAll(
 	const eventSeries: PlaygroundEventSeries[] = [...eventMap.entries()].map(
 		([topic, timestamps]) => ({ name: topic, topic, timestamps }),
 	);
-	postPlayground({ lineSeries, eventSeries, gps: gpsPoints, duration });
+	postPlayground(id, { lineSeries, eventSeries, gps: gpsPoints, duration });
 }
 
 function ensureLine(
@@ -373,8 +381,20 @@ function ensureLine(
 	if (!map.has(key)) map.set(key, { topic, name, axisKey, points: [] });
 }
 
-function postPlayground(data: PlaygroundData): void {
-	self.postMessage({ type: "playgroundData", ...data });
+function postPlayground(id: number, data: PlaygroundData): void {
+	post(id, { type: "playgroundData", ...data });
+}
+
+/**
+ * Reply to one request; the host settles the call carrying the same id.
+ * @param id - The request's id.
+ * @param reply - The reply payload.
+ */
+function post(
+	id: number,
+	reply: { type: string; [key: string]: unknown },
+): void {
+	self.postMessage({ ...reply, id });
 }
 
 /**
@@ -477,6 +497,7 @@ function decodeVector3Stamped(
 // Detection — runs MAD and/or RSD off the main thread
 // ---------------------------------------------------------------------------
 function handleDetect(
+	id: number,
 	points: TimeSeriesPoint[],
 	config: DetectionConfig,
 ): void {
@@ -492,7 +513,7 @@ function handleDetect(
 		config.enabled && config.cusum.enabled
 			? runCUSUM(points, config.cusum, config)
 			: null;
-	self.postMessage({ type: "detectionResult", mad, rsd, cusum } as {
+	post(id, { type: "detectionResult", mad, rsd, cusum } as {
 		type: "detectionResult";
 		mad: DetectionRunResult | null;
 		rsd: DetectionRunResult | null;
@@ -503,7 +524,8 @@ function handleDetect(
 // ---------------------------------------------------------------------------
 // Worker message types
 // ---------------------------------------------------------------------------
-type WorkerMessage =
+/** Every request carries an `id` that its reply echoes. */
+type WorkerMessage = { id: number } & (
 	| { type: "open"; buffer: ArrayBuffer }
 	| { type: "topics" }
 	| { type: "read"; topicName: string }
@@ -518,4 +540,5 @@ type WorkerMessage =
 			type: "detect";
 			points: TimeSeriesPoint[];
 			detectionConfig: DetectionConfig;
-	  };
+	  }
+);

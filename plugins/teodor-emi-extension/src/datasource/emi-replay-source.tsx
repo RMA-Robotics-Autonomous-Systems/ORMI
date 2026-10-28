@@ -11,9 +11,12 @@
  * flows through `PluginsManager` hooks, and the context value would be null.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
-import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
+import {
+	WorkerDatasourceHost,
+	type DatasourceTopic,
+} from "@workspace/ormi-core/datasources";
 import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { getBag, useBag } from "./bag-store";
 import {
@@ -44,6 +47,14 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 	// comes back with a key whose bytes are not in this page's memory yet — so
 	// the provider has to notice the file arriving and start then.
 	const stored = useBag(bagName);
+
+	// The worker answers `listTopics` with the settings it was started with,
+	// and a rename deliberately does not restart it, so the topic list reads
+	// the title from here at call time.
+	const titleRef = useRef(title);
+	useEffect(() => {
+		titleRef.current = title;
+	});
 	const bufferReady = enable && stored !== undefined;
 
 	useEffect(() => {
@@ -91,7 +102,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			if (!problem || disposed) return;
 			setReplayProblem({
 				datasourceId: id,
-				title: title || bagName || id,
+				title: titleRef.current || bagName || id,
 				kind: problem.kind,
 				message: problem.message,
 				advice: problem.advice,
@@ -119,6 +130,26 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 		});
 		host.registerHooks();
 
+		// Runs after the host's own contribution (priority 10). Total: a map
+		// over the list it was handed cannot throw.
+		const titleHook = `${id}-available-topics-title`;
+		pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
+			id: titleHook,
+			priority: 11,
+			filter: (topics: DatasourceTopic[]) =>
+				topics.map((topic) =>
+					topic.datasource_id === id && topic.source
+						? {
+								...topic,
+								source: {
+									...topic.source,
+									title: titleRef.current,
+								},
+							}
+						: topic,
+				),
+		});
+
 		host.init()
 			.then(() => {
 				if (disposed) return;
@@ -134,7 +165,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 				console.error("[EMI replay] worker failed to start:", detail);
 				setReplayProblem({
 					datasourceId: id,
-					title: title || bagName || id,
+					title: titleRef.current || bagName || id,
 					kind: "unopenable",
 					message: `The replay engine failed to start: ${detail}`,
 					advice: "The SQLite WebAssembly module may have failed to load. Check that `/sql-wasm.wasm` is served.",
@@ -146,6 +177,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			worker.removeEventListener("message", onWorkerMessage);
 			clearReplayProblem(id);
 			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, id);
+			pluginsManager.removeFilter(titleHook);
 			host.dispose();
 		};
 		// `title` is a label, and `rate`/`autoplay` are init-time seeds with a

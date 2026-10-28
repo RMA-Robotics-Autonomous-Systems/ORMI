@@ -26,8 +26,8 @@ model {
 
       mainThreadConn = component 'Main-thread Connection' {
         #mainThread
-        technology 'ormi-core-hosted, runs in the document'
-        description 'Fallback ingest path for insecure ws:// robots. A browser site-level insecure-content exception applies to the document but NOT to Web Workers, so a ws:// socket must run on the main thread. Deliberate — do not force the worker path.'
+        technology 'per plugin, runs in the document (foxglove subscription-manager, rosbridge-suite-source, tello-datasource, loadgen-main-thread-source); core hosts none'
+        description 'Ingest path in the document. Foxglove routes insecure ws:// robots here: a browser site-level insecure-content exception applies to the document but NOT to Web Workers, so a ws:// socket must run on the main thread. Deliberate — do not force the worker path. Rosbridge runs here for ws:// and wss:// alike (roslib). Each plugin owns its own connection and reuses the @workspace/utils MessageCoalescer, except Tello, whose onmessage goes straight to doAction.'
       }
 
       coalescer = component 'Message Coalescer' {
@@ -45,6 +45,11 @@ model {
         description 'Owns all subscribe/unsubscribe + advertise/unadvertise wire traffic. Widgets declare refcounted intents per topic key (dsId::topic[::property]); the real -subscribe fires only on DATASOURCE_READY and is re-issued on every reconnect; -unsubscribe only when the last intent is released.'
 
         link ../knowledge/datasources/knowledge.md 'Subscription lifecycle'
+      }
+
+      globalDatasources = component 'GlobalDataSourcesProvider' {
+        technology 'ormi-core/datasources/components/global-datasource-provider.tsx'
+        description 'Mounts the Provider of every configured datasource (datasourcesAtom). Registers AVAILABLE_DATASOURCES (the configured Datasource[]) and the WIDGETS_LIST gate at Number.MAX_SAFE_INTEGER: no widgets while no datasource is configured, otherwise the list goes through WIDGET_LIST_WITH_DATASOURCE. Listens for DATASOURCE_CONFIGURE_EVENT (the offline card) and opens its own Datasources dialog. A child of DashboardShell, so what it registers arrives after the shell first render (usePluginFiltersRevision).'
       }
 
       knownDatasources = component 'KnownDatasourcesProvider' {

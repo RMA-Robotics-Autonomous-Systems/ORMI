@@ -65,6 +65,11 @@
 			"development": "./src/transforms/index.ts",
 			"import": "./dist/transforms/index.js"
 		},
+		"./transforms/coordinate-systems": {
+			"types": "./dist/transforms/coordinate-systems.d.ts",
+			"development": "./src/transforms/coordinate-systems.ts",
+			"import": "./dist/transforms/coordinate-systems.js"
+		},
 		"./map-layers": {
 			"types": "./dist/map-layers/index.d.ts",
 			"development": "./src/map-layers/index.ts",

@@ -249,10 +249,16 @@ consumer that asked for them. And it is **not part of the wire key**, so two
 subscribers that disagree still share one subscription instead of opening two.
 
 Only a datasource that coalesces reads it: foxglove resolves it once per
-subscriber and raises monotonically (`upgradeLossless`, both the worker and the
-main-thread `ws://` path — they mirror each other and must stay in sync).
-Rosbridge, the EMI bag replay and the REST bag reader already deliver every
-message, so ignoring the field there is correct, not a gap.
+subscriber and only ever raises it while the topic is wanted. The worker does
+this through `upgradeLossless`; the main-thread `ws://` path raises the
+existing subscriber inline (`subscription-manager.tsx`). Both keep the flag only
+while the topic is wanted and drop it with the last intent (the worker with
+its Subscriber, the main thread with `losslessTopicsRef`), so a wire reopened
+later is classified from its own consumers; the two paths mirror each other
+and must stay in sync. The EMI bag replay and the REST bag reader already
+deliver every message, so ignoring the field there is correct. Rosbridge
+coalesces latest-per-tick except TF, `DiagnosticArray` and its configured
+transform-tree topics, and does not read `topic.lossless`.
 
 The known limit: `-subscribe` fires once per wire, so an intent raising the
 requirement on an already-subscribed wire lands at the next reconnect. Amending

@@ -96,10 +96,14 @@ export interface RunBuilderInit {
  * of consecutive out-of-order samples is **two**, so this threshold sits well
  * clear of the artefact and still confirms a seek within a quarter of a second.
  *
- * It also bounds the damage from anything else the clock might do: a stamp that
- * jumps *forward* leaves every following sample behind the mark, which this
- * reads as a seek and recovers from — at a cost of eight samples rather than
- * the recording.
+ * A stamp that jumps *forward* is the mirror case: the one sample is appended
+ * and raises the mark, and every on-cadence sample after it lands behind. Those
+ * samples are still ahead of the stamp the run held *before* the jump, which a
+ * seek's are not (a seek lands before the current position), so when most of
+ * the confirming samples are contiguous with the run below the jumped one, the
+ * jumped sample is taken for the outlier: it is removed, the mark goes back to
+ * the stamp before it, and the run carries on. The cost is eight samples (the
+ * outlier and the seven it put behind the mark), never the recording.
  */
 const SEEK_CONFIRM_SAMPLES = 8;
 
@@ -180,8 +184,16 @@ export class EmiRunBuilder {
 	 * one" and "the newest one" are genuinely different values.
 	 */
 	private tMax = NaN;
+	/**
+	 * The high-water mark before the newest sample raised it: the stamp the
+	 * run held one append ago. When the newest sample was a forward outlier,
+	 * the samples that follow it are behind {@link tMax} but not behind this.
+	 */
+	private tPrev = NaN;
 	/** Samples in a row behind {@link tMax}; a seek is confirmed by this. */
 	private behind = 0;
+	/** Of {@link behind}, the samples at or after {@link tPrev}. */
+	private behindAfterPrev = 0;
 
 	/** Alerts as published, in absolute seconds. */
 	private rawAlerts: Array<Omit<RecordedAlert, "t"> & { tAbs: number }> = [];
@@ -235,7 +247,9 @@ export class EmiRunBuilder {
 		this.preByCoil.clear();
 		this.t0 = NaN;
 		this.tMax = NaN;
+		this.tPrev = NaN;
 		this.behind = 0;
+		this.behindAfterPrev = 0;
 		this.rawAlerts = [];
 		this.rawTargets.clear();
 		this.droppedOutOfOrder = 0;
@@ -369,18 +383,31 @@ export class EmiRunBuilder {
 		if (Number.isFinite(this.tMax) && tAbs < this.tMax) {
 			this.droppedOutOfOrder++;
 			this.behind++;
+			if (tAbs >= this.tPrev) this.behindAfterPrev++;
 			// Not yet a seek. One sample the device stamped wrong costs that
 			// sample and nothing else — the run keeps everything it has, and the
 			// next sample carries on from the mark.
 			if (this.behind < SEEK_CONFIRM_SAMPLES) return;
-			// Sustained: the source really is delivering from an earlier
-			// position. Rebuild from here, keeping the seek tally across the
-			// wipe so the trust panel can still say it happened.
-			const seeks = this.seeks + 1;
-			this.reset();
-			this.seeks = seeks;
+			if (this.behindAfterPrev * 2 > this.behind) {
+				// Sustained, but carrying on from the stamp before the mark: the
+				// mark itself was the outlier, a stamp the device put in the
+				// future. Take it out and resume from the mark it replaced.
+				this.dropNewest();
+				if (tAbs < this.tMax) return;
+				// This sample is appended after all; the outlier just took its
+				// place in the dropped count.
+				this.droppedOutOfOrder--;
+			} else {
+				// Sustained: the source really is delivering from an earlier
+				// position. Rebuild from here, keeping the seek tally across
+				// the wipe so the trust panel can still say it happened.
+				const seeks = this.seeks + 1;
+				this.reset();
+				this.seeks = seeks;
+			}
 		} else {
 			this.behind = 0;
+			this.behindAfterPrev = 0;
 		}
 
 		const run = this.ensureRun(
@@ -457,6 +484,7 @@ export class EmiRunBuilder {
 		}
 
 		run.n = i + 1;
+		this.tPrev = this.tMax;
 		this.tMax = tAbs;
 		this.dirty = true;
 	}
@@ -616,6 +644,34 @@ export class EmiRunBuilder {
 			frameTree: this.frameTree,
 		});
 		return this.run;
+	}
+
+	/**
+	 * Remove the newest sample, a forward outlier, and restore the mark it
+	 * raised.
+	 *
+	 * A run only ever grows in place: the streamed sample domain
+	 * (`detector/stream.ts`) keys its cache on the run *object* and extends it
+	 * over samples it takes as final. So the shorter run is a new object over
+	 * the same buffers, which every consumer reads as a restart and re-derives
+	 * once, rather than an `n` that shrinks under a stream that already swept
+	 * the outlier. The old object is left to the snapshot that still holds it
+	 * until the next commit.
+	 *
+	 * Only reached with {@link tPrev} finite, which takes two appended samples.
+	 */
+	private dropNewest(): void {
+		const run = this.run!;
+		const n = run.n - 1;
+		this.run = { ...run, n };
+		this.tMax = this.tPrev;
+		// The stamp one append before the restored mark, read back off the
+		// run's own time column.
+		this.tPrev = n >= 2 ? this.t0 + run.t[n - 2]! : NaN;
+		this.behind = 0;
+		this.behindAfterPrev = 0;
+		this.droppedOutOfOrder++;
+		this.dirty = true;
 	}
 
 	/** Index of a published coil id in the run's stride order. */

@@ -169,9 +169,9 @@ function BatteryCard({
 					</span>
 				</div>
 				{hasPct && (
-					<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+					<div className="h-2 w-full overflow-hidden rounded-(--radius-pill) bg-muted">
 						<div
-							className="h-full rounded-full bg-primary"
+							className="h-full rounded-(--radius-pill) bg-primary"
 							style={{ width: `${pct * 100}%` }}
 						/>
 					</div>

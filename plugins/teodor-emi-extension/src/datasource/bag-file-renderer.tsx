@@ -196,7 +196,7 @@ const BagFileControl = (props: ControlProps) => {
 					role={notice.tone === "error" ? "alert" : "status"}
 				>
 					<AlertTriangleIcon
-						className={`mt-0.5 h-4 w-4 shrink-0${notice.tone === "error" ? "" : " text-warning"}`}
+						className={`mt-0.5 h-4 w-4 shrink-0${notice.tone === "error" ? "" : " text-warning-text"}`}
 					/>
 					<div className="flex flex-col gap-1">
 						<span>{notice.message}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	RemoteCallDefinition,
@@ -30,6 +30,13 @@ import { executeC2Call } from "./rest";
 export function C2SourceProvider(props: C2ControlSettings) {
 	const pluginsManager = usePluginsManager();
 	const dsId = props.id;
+
+	// Executions read the settings at call time, so a token, URL or title edit
+	// reaches the next request without re-registering the filters.
+	const propsRef = useRef(props);
+	useEffect(() => {
+		propsRef.current = props;
+	});
 
 	// Stable across settings-object identity churn — recompute only on real changes.
 	const calls = useMemo(
@@ -73,7 +80,7 @@ export function C2SourceProvider(props: C2ControlSettings) {
 				options?: RemoteCallOptions,
 			): RemoteCallHandle | null => {
 				if (def.datasource_id !== dsId) return initial; // pass through other datasources
-				return executeC2Call(props, def, request, options);
+				return executeC2Call(propsRef.current, def, request, options);
 			},
 		});
 
@@ -84,8 +91,7 @@ export function C2SourceProvider(props: C2ControlSettings) {
 			pluginsManager.removeFilter(availableHook);
 			pluginsManager.removeFilter(executeHook);
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [pluginsManager, dsId, calls, props.missionControlUrl, props.dbUrl]);
+	}, [pluginsManager, dsId, calls]);
 
 	return null;
 }

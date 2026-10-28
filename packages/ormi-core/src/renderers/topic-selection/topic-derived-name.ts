@@ -1,20 +1,18 @@
 /**
  * Name a thing after the topic it shows.
  *
- * The routing path already does this: an array item appended by
- * `seedArrayItem` takes the topic name into its `name`/`label` property, so a
- * chart series or a map layer created by clicking a topic arrives already
- * named. The configuration dialog did not, so every layer, series and marker
- * added by hand still opened with an empty title field that the operator had to
- * fill in by hand with the name of the topic they had just picked two rows
- * above.
+ * Both paths that bind a topic use it. The routing path seeds an appended
+ * array item through `seedArrayItem` and names a top-level slot's siblings (the
+ * widget's own title) through `resolveDerivedNameUpdates`; the configuration
+ * dialog calls `resolveDerivedNameUpdates` on every bind. So a chart series, a
+ * map layer or a widget created by clicking a topic, or bound by hand, arrives
+ * named after the topic.
  *
- * This module is that rule, stated once, for the dialog path:
+ * This module is that rule, stated once, for both paths:
  *
  * - the sibling must be a plain string property named `name`, `label` or
- *   `title` in the same object as the `TopicSelect` — the same matching
- *   `seedArrayItem` does, plus `title`, because a widget's own title property
- *   and a map layer's are the two the operator actually complained about;
+ *   `title` (`TOPIC_NAME_SIBLING_PROPERTIES`) in the same object as the
+ *   `TopicSelect`;
  * - it is only written when it is a **placeholder**: absent, blank, still the
  *   schema's `default`, or still the name derived from the topic that was bound
  *   a moment ago. Anything else was typed by the operator and is theirs;
@@ -37,9 +35,10 @@ import { TopicSlotRole } from "../../widgets/widget-interface";
 /**
  * Sibling property names that may be filled in from a bound topic, lowercased.
  *
- * `name` and `label` mirror `seedArrayItem` so the routing path and the dialog
- * path cannot drift. `title` is the dialog path's addition: a widget's
- * `titleProp` is `title` by convention, and so is a map layer's.
+ * Shared by the routing path (`seedArrayItem` and the top-level bind in
+ * `applyTopicToSettings`, `widgets/topic-routing.ts`) and the dialog path, so
+ * the two cannot drift. `title` is included because a widget's `titleProp` is
+ * `title` by convention, and so is a map layer's.
  */
 export const TOPIC_NAME_SIBLING_PROPERTIES: readonly string[] = [
 	"name",

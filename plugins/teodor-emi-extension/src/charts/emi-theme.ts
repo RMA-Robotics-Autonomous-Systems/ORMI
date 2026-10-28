@@ -19,7 +19,10 @@
 
 import { useMemo } from "react";
 import { useTheme } from "next-themes";
-import { useThemeVersion } from "@workspace/ui/hooks/use-theme-colors";
+import {
+	resolveThemeColor,
+	useThemeVersion,
+} from "@workspace/ui/hooks/use-theme-colors";
 
 /** The palette a panel draws with. */
 export interface EmiTheme {
@@ -96,7 +99,7 @@ const FALLBACK_DARK = {
 	band: "rgba(255, 255, 255, 0.06)",
 } as const;
 
-/** Read a CSS custom property off an element, or "" when unset. */
+/** Read a non-colour CSS custom property off an element, or "" when unset. */
 function cssVar(el: Element, name: string): string {
 	return getComputedStyle(el).getPropertyValue(name).trim();
 }
@@ -117,8 +120,10 @@ export function resolveEmiTheme(el: Element | null, dark: boolean): EmiTheme {
 	if (!el || typeof getComputedStyle !== "function") {
 		return { ...fb, ...MEANING, font: "sans-serif", dark };
 	}
+	// Through resolveThemeColor, so the palette is `#rrggbb` / `rgba()` and
+	// never the stylesheet's `oklch(...)`.
 	const pick = (name: string, fallback: string) =>
-		cssVar(el, name) || fallback;
+		resolveThemeColor(name, el) || fallback;
 	return {
 		grid: pick("--border", fb.grid),
 		axis: pick("--border", fb.axis),

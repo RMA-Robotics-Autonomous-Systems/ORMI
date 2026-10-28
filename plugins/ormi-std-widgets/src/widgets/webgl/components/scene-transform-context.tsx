@@ -12,13 +12,8 @@
  * single-source scenes are unaffected).
  */
 
-import React, {
-	createContext,
-	useCallback,
-	useContext,
-	useMemo,
-	useRef,
-} from "react";
+import React, { useCallback, useMemo, useRef } from "react";
+import { createSafeContext } from "@workspace/utils";
 import {
 	frameRawName,
 	isNamespacedFrame,
@@ -280,17 +275,20 @@ export function buildAnchoredTable(
 
 type SceneTransformValue = { table: TransformTable };
 
-const SceneTransformContext = createContext<SceneTransformValue | null>(null);
+// Only the optional hook is used: no provider is a supported state (a
+// standalone widget reads the global core table), not a wiring mistake.
+const [SceneTransformContextProvider, , useSceneTransformContextOptional] =
+	createSafeContext<SceneTransformValue>("SceneTransform");
 
 /** Provider for a scene's effective (anchored) transform table. */
-export const SceneTransformProvider = SceneTransformContext.Provider;
+export const SceneTransformProvider = SceneTransformContextProvider;
 
 /**
  * Read the scene's effective transform table when inside a {@link SceneTransformProvider},
  * else a live snapshot of the global core table. Drop-in for renderers that resolve chains.
  */
 export function useSceneTransforms(): SceneTransformValue {
-	const ctx = useContext(SceneTransformContext);
+	const ctx = useSceneTransformContextOptional();
 	const fallback = useTransformTable();
 	return ctx ?? { table: fallback };
 }

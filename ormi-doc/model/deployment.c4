@@ -30,7 +30,12 @@ deployment {
 
   // Robots the browser client talks to directly over WebSockets.
   robotHost = host 'Robot / Bridge Host' {
-    description 'Runs the robot bridges (rosbridge / Foxglove / Tello) the browser connects to.'
+    description 'Runs the robot bridges (rosbridge / Foxglove / Tello) the browser connects to, and the WebRTC video server whose offer endpoint is http://<host>:8080/offer.'
+  }
+
+  // The C2 backend the C2 datasource calls straight from the browser.
+  c2Host = host 'C2 Host' {
+    description 'Runs the C2 Mission Control REST service (missionControlUrl, :5001) and the C2 Mongo REST service (dbUrl, :5000). Reached straight from the browser (CORS and the C2_ALLOWED_ORIGINS allowlist apply); the ORMI server never contacts it.'
   }
 
   // Raster map servers the browser fetches discovery documents and tiles from.
@@ -40,7 +45,9 @@ deployment {
 
   // Derived + explicit deployment relationships.
   browserNode -> appRuntime 'HTTPS (pages + /api)'
-  browserNode -> robotHost 'WebSocket (ws:// main thread · wss:// worker)'
+  browserNode -> robotHost 'WebSocket (foxglove: ws:// main thread, wss:// worker; rosbridge and Tello: main thread)'
+  browserNode -> robotHost 'HTTP POST WebRTC offer (:8080/offer, browser-direct)'
+  browserNode -> c2Host 'HTTP(S) C2 REST (browser-direct, auth token per the C2 rules)'
   appRuntime -> dbRuntime 'Prisma (PostgreSQL wire)'
   browserNode -> tileServerHost 'HTTP(S) capabilities + raster tiles (browser-direct, no proxy)'
 }

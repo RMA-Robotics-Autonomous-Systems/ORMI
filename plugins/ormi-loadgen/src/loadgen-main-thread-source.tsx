@@ -265,13 +265,16 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				topics: DatasourceTopic[],
 				filter?: DatasourceTopicFilter,
 			) => {
+				// Pull filter: the title is read at call time, since a rename
+				// does not re-run this effect.
+				const source = settingsRef.current;
 				const produced_topics: DatasourceTopic[] = [];
 				for (const generator of resolveGenerators(props)) {
 					for (let i = 0; i < generator.topicCount; i++) {
 						produced_topics.push({
 							topic: `${generator.topicPrefix}/${i}`,
 							datasource_id: datasource_id,
-							source: props,
+							source,
 							type: topicTypeFor(generator),
 							rawType: generator.type,
 						});
@@ -280,7 +283,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				produced_topics.push({
 					topic: STATS_TOPIC,
 					datasource_id: datasource_id,
-					source: props,
+					source,
 					type: "object",
 					rawType: "object",
 				});

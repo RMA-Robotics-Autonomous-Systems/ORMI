@@ -164,7 +164,7 @@ App load (browser)
       ↳ mapLayersSelect renderer (config dialog, read at render) → widget settings.mapLayers
       ↳ useMapRasterLayers(settings.mapLayers)
           → resolveLayerRefs (registry order, query auth appended, bounds, clamped maxzoom)
-          → <RasterOverlayLayers> children at resolveAnchor(overlay) ?? fallback
+          → <RasterOverlayLayers> children at candidate beforeIds [ORMI_STYLE_ANCHORS.overlay, <fallback>], resolved against the live map
           → transformRequest (headers scoped by isUnderServerPrefix)
   → MapLibre → tile server, direct            // tiles, never proxied
   → tile errors → mapLayerHealthAtom ("Not responding" after 3 in a row, session only)

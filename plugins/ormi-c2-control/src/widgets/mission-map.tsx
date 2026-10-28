@@ -4926,6 +4926,7 @@ export function MissionMapDefinition(): WidgetDefinition<MissionMapProps> {
 				basemapApiKey: {
 					type: "string",
 					title: "Basemap API Key",
+					writeOnly: true,
 				},
 				defaultMap: {
 					type: "string",

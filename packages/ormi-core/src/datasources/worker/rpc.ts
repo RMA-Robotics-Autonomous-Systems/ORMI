@@ -1,4 +1,4 @@
-import { metrics } from "@workspace/utils";
+import { metrics } from "@workspace/utils/metrics";
 
 /**
  * RPC client metric ids, registered once per JS runtime (cold path).

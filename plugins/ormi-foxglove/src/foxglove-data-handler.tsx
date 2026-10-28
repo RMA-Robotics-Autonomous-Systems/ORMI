@@ -2,10 +2,8 @@
 "use client";
 
 import React, {
-	createContext,
 	ReactNode,
 	useCallback,
-	useContext,
 	useEffect,
 	useRef,
 	useState,
@@ -22,18 +20,20 @@ import {
 	FoxgloveMessageData,
 } from "./types";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { createSafeContext } from "@workspace/utils";
 import { toast } from "sonner";
 
 /**
  * Context for sharing Foxglove client and data across components.
+ * `useFoxgloveData` throws outside a {@link FoxgloveDataHandler}.
  */
-const FoxgloveDataContext = createContext<{
+const [FoxgloveDataProvider, useFoxgloveData] = createSafeContext<{
 	client: FoxgloveClient | null;
 	isConnected: boolean;
 	channels: Map<number, Channel>;
 	addCallback?: (eventType: string, callback: () => void) => void;
 	removeCallback?: (eventType: string, callback: () => void) => void;
-} | null>(null);
+}>("FoxgloveData");
 
 /**
  * Props for FoxgloveDataHandler.
@@ -246,22 +246,11 @@ const FoxgloveDataHandler: React.FC<FoxgloveDataHandlerProps> = ({
 	};
 
 	return (
-		<FoxgloveDataContext.Provider value={contextValue}>
+		<FoxgloveDataProvider value={contextValue}>
 			{client && children}
-		</FoxgloveDataContext.Provider>
+		</FoxgloveDataProvider>
 	);
 };
 
-// Hook to use the Foxglove data context
-export const useFoxgloveData = () => {
-	const context = useContext(FoxgloveDataContext);
-	if (!context) {
-		throw new Error(
-			"useFoxgloveData must be used within a FoxgloveDataHandler",
-		);
-	}
-	return context;
-};
-
-export { FoxgloveDataHandler };
+export { FoxgloveDataHandler, useFoxgloveData };
 export type { FoxgloveDataHandlerProps };

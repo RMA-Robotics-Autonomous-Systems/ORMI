@@ -1929,6 +1929,106 @@ describe("applying a route to settings", () => {
 		expect(selected.bufferSize).toBe(256);
 	});
 
+	test("an appended item's `title` takes the topic name, as in the dialog", () => {
+		const series = defineWidget(
+			"series",
+			"Series",
+			{
+				type: "object",
+				properties: {
+					topics: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								topic: { type: "object" },
+								title: { type: "string" },
+							},
+						},
+					},
+				},
+			},
+			{
+				type: "VerticalLayout",
+				elements: [
+					{
+						type: "Control",
+						scope: "#/properties/topics",
+						options: {
+							detail: {
+								type: "Group",
+								elements: [
+									{
+										type: "TopicSelect",
+										scope: "#/properties/topic",
+										options: {
+											dataRequirements: {
+												accepts: ["number"],
+											},
+										},
+									},
+								],
+							},
+						},
+					},
+				],
+			} as unknown as UISchemaElement,
+		);
+		const slot = collectRoutableSlots(series)[0]!;
+		const { settings } = applyTopicToSettings(
+			{ topics: [] },
+			slot,
+			topic("/battery", "number"),
+			series.schema,
+		);
+		expect((settings.topics as { title: string }[])[0]!.title).toBe(
+			"/battery",
+		);
+	});
+
+	describe("a top-level slot names the widget the way the dialog does", () => {
+		const viewer = defineWidget(
+			"viewer",
+			"Viewer",
+			{
+				type: "object",
+				properties: {
+					title: { type: "string", default: "Viewer" },
+					topic: { type: "object" },
+				},
+			},
+			{
+				type: "VerticalLayout",
+				elements: [
+					{ type: "Control", scope: "#/properties/title" },
+					{
+						type: "TopicSelect",
+						scope: "#/properties/topic",
+						options: { dataRequirements: { accepts: ["Image"] } },
+					},
+				],
+			} as unknown as UISchemaElement,
+		);
+		const slot = collectRoutableSlots(viewer)[0]!;
+		const bind = (settings: Record<string, unknown>) =>
+			applyTopicToSettings(
+				settings,
+				slot,
+				topic("/camera", "Image"),
+				viewer.schema,
+			).settings.title;
+
+		test("over a placeholder: absent, blank or the schema default", () => {
+			expect(bind({})).toBe("/camera");
+			expect(bind({ title: "" })).toBe("/camera");
+			expect(bind({ title: "Viewer" })).toBe("/camera");
+		});
+
+		test("never over a title the operator typed", () => {
+			expect(bind({ title: "Front camera" })).toBe("Front camera");
+		});
+	});
+
 	test("binds the whole message, never a guessed property", () => {
 		const slot = collectRoutableSlots(timeSeriesChart)[0]!;
 		const { selected } = applyTopicToSettings(

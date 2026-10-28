@@ -1,6 +1,6 @@
 import type { PluginsManager } from "@workspace/ormi-plugins";
 import { PluginsHooks } from "@workspace/ormi-plugins";
-import { metrics, type CounterId } from "@workspace/utils";
+import { metrics, type CounterId } from "@workspace/utils/metrics";
 import type {
 	DatasourceProviderSettings,
 	DatasourceTopicFilter,
@@ -260,6 +260,9 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 			console.warn(
 				`[Worker Host] Graceful shutdown timeout for ${this.datasourceId}, forcing termination`,
 			);
+			// A terminated worker answers nothing: reject what is still in
+			// flight (`shutdown` included) rather than leave it pending forever.
+			this.rpc.dispose();
 			this.worker.terminate();
 		}, 5000);
 

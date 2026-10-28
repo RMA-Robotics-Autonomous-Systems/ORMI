@@ -104,6 +104,9 @@ export const datasourceDefinition = {
 			missionControlToken: {
 				type: "string",
 				title: "Mission Control auth token (optional)",
+				// A bearer credential: rendered masked (`SecretInput`). The
+				// value still lives in the settings and round-trips into edits.
+				writeOnly: true,
 				description: "Leave blank if the C2 does not require one.",
 			},
 		},

@@ -15,7 +15,7 @@ A comprehensive React WebSocket provider with reconnection, timeout handling, an
 ## Basic Usage
 
 ```tsx
-import { WebSocketProvider, useWebSocket } from "@ormi/utils";
+import { WebSocketProvider, useWebSocket } from "@workspace/utils";
 
 function App() {
 	return (
@@ -53,7 +53,7 @@ function YourComponent() {
 ## Advanced Usage with Typed Messages
 
 ```tsx
-import { WebSocketProvider, useWebSocketMessages } from "@ormi/utils";
+import { WebSocketProvider, useWebSocketMessages } from "@workspace/utils";
 
 interface ChatMessage {
 	type: "chat";

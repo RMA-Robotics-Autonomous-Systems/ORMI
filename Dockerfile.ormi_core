@@ -26,7 +26,8 @@ FROM node-base AS base
 # the React Compiler's babel plugin relative to next's own bundle instead of the
 # project root, which fails every `reactCompiler: true` build with
 # "Cannot find module '../../node_modules/babel-plugin-react-compiler'".
-# (Root package.json still declares `packageManager: bun@1.2.17`; it is stale.)
+# Root package.json `packageManager` and .github/workflows/ci.yml pin the same
+# version (bun@1.4.2); bump all three together.
 COPY --from=oven/bun:1.4.2 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
@@ -61,7 +62,8 @@ COPY . .
 ARG APP_VERSION=""
 ENV APP_VERSION=${APP_VERSION}
 # Development-only plugins (synthetic datasources, benchmarking fixtures) are
-# left out of the generated plugin registry by `next build`, so they are not in
+# left out of the generated plugin registry by `plugin-init --production` (run by
+# apps/web's `build` script before `next build`), so they are not in
 # this image at all. Set to 1 to build a staging image that keeps them — e.g. to
 # run the load generator against a production build, which is the only build
 # worth profiling.

@@ -157,10 +157,22 @@ export function resolveChartAxes(
  * Legend label for a series.
  *
  * @param entry - Series settings.
+ * @param offline - The series' datasource is offline. The label says so, so
+ * the operator does not read a line that stopped as a reading that stopped.
  * @returns The configured title, else the topic name with the bound property
- * appended when the series plots a property rather than the message itself.
+ * appended when the series plots a property rather than the message itself,
+ * followed by ` (offline)` when `offline` is set.
  */
-export function resolveSeriesLabel(entry: ChartSeriesSettings): string {
+export function resolveSeriesLabel(
+	entry: ChartSeriesSettings,
+	offline = false,
+): string {
+	const label = baseSeriesLabel(entry);
+	return offline ? `${label} (offline)` : label;
+}
+
+/** {@link resolveSeriesLabel} without the health suffix. */
+function baseSeriesLabel(entry: ChartSeriesSettings): string {
 	const title = entry.title?.trim();
 	if (title) return title;
 

@@ -267,9 +267,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	 * counts — a flag that lived solely on the Subscriber would be lost on every
 	 * reconnect, and the run would silently start being decimated again.
 	 *
-	 * Monotonic, like the flag itself: an entry is never removed on unsubscribe.
-	 * The failure it guards is a consumer that misses samples, and the cost of
-	 * being wrong the other way is delivering more than someone asked for.
+	 * Rises only, for as long as the topic is wanted: an unsubscribe that
+	 * leaves other consumers keeps it, and it is dropped with the last intent
+	 * (with `requestedTopicsRef`), so a wire reopened later is classified from
+	 * its own consumers. Mirrors the worker, where the flag lives and dies with
+	 * the Subscriber.
 	 */
 	const losslessTopicsRef = useRef<Set<string>>(new Set());
 
@@ -923,6 +925,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					requestedTopicsRef.current.get(topic.topic) ?? 0;
 				if (ignoreCount || requested <= 1) {
 					requestedTopicsRef.current.delete(topic.topic);
+					losslessTopicsRef.current.delete(topic.topic);
 				} else {
 					requestedTopicsRef.current.set(topic.topic, requested - 1);
 				}

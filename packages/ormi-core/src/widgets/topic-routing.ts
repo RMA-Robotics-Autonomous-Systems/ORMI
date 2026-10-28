@@ -42,6 +42,10 @@ import {
 	deriveTopicBufferSize,
 } from "../renderers/topic-selection/topic-auto-select";
 import {
+	TOPIC_NAME_SIBLING_PROPERTIES,
+	resolveDerivedNameUpdates,
+} from "../renderers/topic-selection/topic-derived-name";
+import {
 	EMPTY_TOPIC_CLAIM_INDEX,
 	claimDestination,
 	claimsForTopic,
@@ -858,8 +862,10 @@ function getAtPath(
  * Every property with a `default` takes it. A property with an `enum` and no
  * default takes its first value — a map marker with no marker type, or a chart
  * series with no series type, renders nothing at all, which reads as "the
- * topic did not arrive". A `name`/`label` takes the topic name and a `color`
- * takes the next palette entry, both of which are otherwise blank.
+ * topic did not arrive". A `name`/`label`/`title`
+ * (`TOPIC_NAME_SIBLING_PROPERTIES`, shared with the dialog path) takes the
+ * topic name and a `color` takes the next palette entry, both of which are
+ * otherwise blank.
  */
 function seedArrayItem(
 	itemSchema: JsonSchema | undefined,
@@ -882,7 +888,7 @@ function seedArrayItem(
 		}
 		if (property.type === "string") {
 			const lower = name.toLowerCase();
-			if (lower === "name" || lower === "label") {
+			if (TOPIC_NAME_SIBLING_PROPERTIES.includes(lower)) {
 				item[name] = topic.topic;
 			} else if (lower === "color") {
 				item[name] =
@@ -974,10 +980,21 @@ export function applyTopicToSettings(
 	const selected = buildSelectedTopic(topic, "", slot.bufferSize);
 
 	if (!slot.isArray || slot.arrayPath === undefined) {
-		return {
-			settings: setAtPath(settings, slot.path, selected),
-			selected,
-		};
+		// Name the slot's siblings (a top-level slot: the widget's own title)
+		// exactly as the configuration dialog would on the same bind.
+		let next = setAtPath(settings, slot.path, selected);
+		for (const update of resolveDerivedNameUpdates({
+			rootSchema: schema,
+			rootData: settings,
+			path: slot.path,
+			previous: getAtPath(settings, slot.path) as
+				{ topic?: string } | undefined,
+			next: topic,
+			role: slot.role,
+		})) {
+			next = setAtPath(next, update.path, update.value);
+		}
+		return { settings: next, selected };
 	}
 
 	const existing = getAtPath(settings, slot.arrayPath);

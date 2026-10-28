@@ -203,9 +203,11 @@ export function EmiAnalyzerPage() {
 			setData(playground);
 			setTimeRange([0, playground.duration]);
 		} catch (err) {
+			// A newer drop terminated this reader: its rejection is not an error.
+			if (readerRef.current !== reader) return;
 			setError(err instanceof Error ? err.message : "Failed to open bag");
 		} finally {
-			setLoading(false);
+			if (readerRef.current === reader) setLoading(false);
 		}
 	}, []);
 
@@ -213,11 +215,12 @@ export function EmiAnalyzerPage() {
 	// Load data from worker
 	// ──────────────────────────────────────────────────────────────────────
 	const handleLoad = useCallback(async () => {
-		if (!readerRef.current) return;
+		const reader = readerRef.current;
+		if (!reader) return;
 		setError(null);
 		setLoading(true);
 		try {
-			const playground = await readerRef.current.readPlayground(
+			const playground = await reader.readPlayground(
 				selectedNumeric,
 				selectedEvents,
 				gpsTopic || null,
@@ -225,11 +228,12 @@ export function EmiAnalyzerPage() {
 			setData(playground);
 			setTimeRange([0, playground.duration]);
 		} catch (err) {
+			if (readerRef.current !== reader) return;
 			setError(
 				err instanceof Error ? err.message : "Failed to read topics",
 			);
 		} finally {
-			setLoading(false);
+			if (readerRef.current === reader) setLoading(false);
 		}
 	}, [selectedNumeric, selectedEvents, gpsTopic]);
 
@@ -258,12 +262,18 @@ export function EmiAnalyzerPage() {
 		const timer = setTimeout(() => {
 			if (cancelled) return;
 			setDetectionStatus("computing");
-			reader.runDetection(pts, cfg).then((res) => {
-				if (!cancelled) {
-					setDetectionResult(res);
-					setDetectionStatus("done");
-				}
-			});
+			reader
+				.runDetection(pts, cfg)
+				.then((res) => {
+					if (!cancelled) {
+						setDetectionResult(res);
+						setDetectionStatus("done");
+					}
+				})
+				.catch(() => {
+					// Rejected when the reader is terminated by a newer bag.
+					if (!cancelled) setDetectionStatus("idle");
+				});
 		}, 350);
 		return () => {
 			cancelled = true;

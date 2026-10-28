@@ -193,7 +193,6 @@ export const FloatingWindow: React.FC<FloatingWindowProps> = ({
 				<div
 					onMouseDown={handleResizeStart}
 					className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize hover:bg-primary/10 transition-colors"
-					title="Drag to resize"
 				>
 					<svg
 						className="absolute bottom-0 right-0 w-4 h-4 text-muted-foreground opacity-50"

@@ -334,6 +334,9 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 			console.error(
 				`[Foxglove Worker] Graceful shutdown timeout for ${this.datasourceId}, forcing termination`,
 			);
+			// A terminated worker answers nothing: reject what is still in
+			// flight (`shutdown` included) rather than leave it pending forever.
+			this.rpc.dispose();
 			this.worker.terminate();
 		}, 5000);
 

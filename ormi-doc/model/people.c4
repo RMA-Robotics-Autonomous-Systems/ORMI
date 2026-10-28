@@ -24,15 +24,27 @@ model {
   }
 
   restEndpoint = externalSystem 'REST / Bag Endpoint' {
-    description 'HTTP endpoint serving recorded bags or REST-shaped data consumed by the REST datasource.'
+    description 'Remote rosbag service behind the REST Bags datasource: list, delete, download and compress bags, record, and play back. Reached browser-direct through RestBagClient.'
+  }
+
+  c2MissionControl = externalSystem 'C2 Mission Control REST' {
+    description 'The C2 command service (C++ REST, missionControlUrl, :5001 by default). Reached browser-direct by the C2 datasource remote calls; every request carries the auth token (missionControlToken, as Authorization: Bearer and X-C2-Token) when one is configured.'
+  }
+
+  c2MongoRest = externalSystem 'C2 Mongo REST' {
+    description 'The C2 mission database service (Mongo REST, dbUrl, :5000 by default). Reached browser-direct by the C2 datasource remote calls; the token rides on mutating requests only, GETs stay bare.'
+  }
+
+  webrtcOffer = externalSystem 'WebRTC Offer Endpoint' {
+    description 'Robot-side WebRTC video server. The rosbridge WebRTC widget POSTs its SDP offer to http://<host>:8080/offer straight from the browser.'
   }
 
   rostainer = externalSystem 'ROS Container Host' {
-    description 'Docker/container backend that runs ROS2 nodes on demand, driven by the ROSTainer plugin.'
+    description 'Docker container manager beside the robot ROS graph. Publishes container status as a DiagnosticArray topic and exposes <ns>/docker/restart and <ns>/docker/pull, which the ROSTainer widget reaches only through a ROS datasource remote calls, never directly.'
   }
 
   basemapProviders = externalSystem 'Basemap Tile Providers' {
-    description 'The six hosted map vendors behind the shared basemap catalogue (packages/utils/src/basemap-providers.ts): Carto, OpenStreetMap (incl. HOT and OpenTopoMap), Stadia Maps, Esri ArcGIS, BKG TopPlus, and OpenFreeMap. Ten catalogue rows are raster XYZ tiles; OpenFreeMap additionally serves the vector tiles, glyphs and sprites behind the three MapLibre styles ORMI bundles. Carto and Stadia require an operator-supplied API key; OpenFreeMap states no SLA, which is why raster stays the default.'
+    description 'The six hosted map vendors behind the shared basemap catalogue (packages/utils/src/basemap-providers.ts): Carto, OpenStreetMap (incl. HOT and OpenTopoMap), Stadia Maps, Esri ArcGIS, BKG TopPlus, and OpenFreeMap. Ten catalogue rows are raster XYZ tiles; OpenFreeMap additionally serves the vector tiles, glyphs and sprites behind the three MapLibre styles ORMI bundles. Carto and Stadia require an operator-supplied API key; the default basemap is OpenFreeMap Liberty (vector, DEFAULT_BASEMAP_URL); OpenFreeMap states no SLA.'
   }
 
   tileServers = externalSystem 'Map / Tile Servers' {
