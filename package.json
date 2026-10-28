@@ -49,7 +49,7 @@
 	},
 	"simple-git-hooks": {
 		"pre-commit": "bun run precommit",
-		"pre-push": "bun run typecheck"
+		"pre-push": "bun --bun run typecheck"
 	},
 	"comments": {
 		"pre-commit": "Fast checks on staged files only (format, patterns)",
