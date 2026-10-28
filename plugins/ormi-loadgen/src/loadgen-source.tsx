@@ -31,6 +31,8 @@ const LoadgenWorkerProvider = (props: LoadgenSettings) => {
 	const settingsRef = useRef(props);
 	useEffect(() => {
 		settingsRef.current = props;
+		// A rename does not restart the worker; the host lists the new title.
+		hostRef.current?.updateSettings(props);
 	}, [props]);
 
 	useEffect(() => {

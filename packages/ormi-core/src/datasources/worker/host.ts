@@ -50,7 +50,11 @@ const LIST_TOPICS_TIMEOUT_MS = 4000;
 export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 	private readonly worker: Worker;
 	private readonly datasourceId: string;
-	private readonly settings: Settings;
+	/**
+	 * The settings the worker was started with, plus whatever the provider has
+	 * pushed since through {@link WorkerDatasourceHost.updateSettings}.
+	 */
+	private settings: Settings;
 	private readonly pluginsManager: PluginsManager;
 	private readonly rpc;
 	private readonly disposers: Array<() => void> = [];
@@ -96,6 +100,25 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 	}
 
 	/**
+	 * Merge settings that changed without restarting the worker.
+	 *
+	 * A provider restarts its worker for anything the worker consumes, and
+	 * deliberately not for a rename: `title` is display-only. The worker's
+	 * topic rows still carry the title it was started with, so the host
+	 * stamps the current one on each row at call time. Call this from the
+	 * provider's ref-sync effect.
+	 */
+	updateSettings(patch: Partial<Settings>): void {
+		this.settings = { ...this.settings, ...patch };
+	}
+
+	/** The current title, or `undefined` when the settings carry none. */
+	private currentTitle(): string | undefined {
+		const title = (this.settings as { title?: unknown }).title;
+		return typeof title === "string" ? title : undefined;
+	}
+
+	/**
 	 * Wait for the worker's `init` when waiting can still help.
 	 *
 	 * `init` rejects on an unreachable endpoint or after its connect timeout —
@@ -119,7 +142,6 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 		const availableTopicsHook = `${this.datasourceId}-available-topics`;
 		const subscribeHook = `${this.datasourceId}-subscribe`;
 		const unsubscribeHook = `${this.datasourceId}-unsubscribe`;
-		const definitionHook = `${this.datasourceId}-definition`;
 		const executeRemoteCallHook = `${this.datasourceId}-execute-remote-call`;
 
 		// `AVAILABLE_TOPICS` is applied sequentially across every datasource in
@@ -147,9 +169,21 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 						LIST_TOPICS_TIMEOUT_MS,
 						[] as DatasourceTopic[],
 					);
+					const title = this.currentTitle();
+					const current =
+						title === undefined
+							? workerTopics
+							: workerTopics.map((t) =>
+									t.source
+										? {
+												...t,
+												source: { ...t.source, title },
+											}
+										: t,
+								);
 					const toAdd = filter
-						? workerTopics.filter((t) => filter.filter(t))
-						: workerTopics;
+						? current.filter((t) => filter.filter(t))
+						: current;
 					topics.push(...toAdd);
 				} catch (error) {
 					console.warn(
@@ -179,11 +213,10 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 			},
 		});
 
-		this.pluginsManager.addFilter(definitionHook, {
-			id: definitionHook,
-			priority: 10,
-			filter: () => this.settings,
-		});
+		// No `-definition` filter: that hook answers a raw message schema for a
+		// topic (`topic-compatibility.ts`), and the host has none to give. It
+		// used to return the settings, which no consumer could use and which,
+		// for the EMI replay, handed out the whole recording buffer.
 
 		this.pluginsManager.addFilter(executeRemoteCallHook, {
 			id: executeRemoteCallHook,
@@ -230,7 +263,6 @@ export class WorkerDatasourceHost<Settings = DatasourceProviderSettings> {
 			this.pluginsManager.removeFilter(availableTopicsHook);
 			this.pluginsManager.removeAction(subscribeHook);
 			this.pluginsManager.removeAction(unsubscribeHook);
-			this.pluginsManager.removeFilter(definitionHook);
 			this.pluginsManager.removeFilter(executeRemoteCallHook);
 		});
 	}

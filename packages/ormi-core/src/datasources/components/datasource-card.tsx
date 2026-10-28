@@ -5,7 +5,7 @@ import {
 	materialCells,
 } from "@jsonforms/material-renderers";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { JsonForms } from "@jsonforms/react";
 import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 
@@ -144,6 +144,12 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
+	// The topic picker reads the definition's `data` from here to tell a
+	// default name (an Image viewer's "Image viewer") from a typed one. Stable
+	// identity: JsonForms re-dispatches its config whenever this changes.
+	const definitionData = props.definition.data;
+	const formConfig = useMemo(() => ({ definitionData }), [definitionData]);
+
 	return (
 		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
 			<Card
@@ -226,6 +232,7 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 						data={data}
 						renderers={renderers}
 						cells={cellsRenderers}
+						config={formConfig}
 						onChange={({ data, errors }) => {
 							setData(data);
 							setErrors(errors ?? null);

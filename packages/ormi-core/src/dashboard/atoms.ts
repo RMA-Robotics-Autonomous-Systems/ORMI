@@ -11,8 +11,6 @@ export const layoutsAtom = atom<Record<string, unknown>>({});
 export const lockedAtom = atom<boolean>(false);
 /** Atom indicating whether the dashboard has unsaved changes. */
 export const hasChangedAtom = atom<boolean>(false);
-/** Atom used to force a dashboard reload. */
-export const forceReloadAtom = atom<boolean>(false);
 /** Atom holding datasources by id. */
 export const datasourcesAtom = atom<Map<string, Datasource>>(new Map());
 

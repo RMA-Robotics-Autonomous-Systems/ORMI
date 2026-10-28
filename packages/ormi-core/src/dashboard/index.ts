@@ -45,6 +45,7 @@ export {
 	useAvailableTopics,
 	AVAILABLE_TOPICS_POLL_MS,
 } from "./state/use-available-topics";
+export type { AvailableTopics } from "./state/use-available-topics";
 
 // Layout engine contract
 export type { LayoutEngineDefinition } from "./layout/layout-engine";

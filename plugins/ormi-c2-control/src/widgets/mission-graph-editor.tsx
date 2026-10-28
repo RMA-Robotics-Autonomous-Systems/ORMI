@@ -8,6 +8,7 @@ import {
 } from "@workspace/ormi-core/datasources";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { Badge } from "@workspace/ui/components/badge";
+import { useMotionTiming } from "@workspace/ui/hooks/use-motion-timing";
 import { Button } from "@workspace/ui/components/button";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
@@ -453,7 +454,8 @@ function portDotStyle(type: PortType, state: PortDotState) {
 			state === "fits" || state === "armed"
 				? "0 0 0 3px var(--ring)"
 				: undefined,
-		transition: "width 80ms, height 80ms, opacity 80ms",
+		transition:
+			"width var(--motion-fast), height var(--motion-fast), opacity var(--motion-fast)",
 	} as const;
 }
 
@@ -924,6 +926,16 @@ const REVEAL_MARGIN = 16;
 const REVEAL_MS = 200;
 
 /**
+ * A camera move's duration: as asked, or 0 under reduced motion.
+ *
+ * @param ms - The move's duration with motion allowed.
+ * @param reducedMotion - Whether the operator asked for reduced motion.
+ */
+function cameraMs(ms: number, reducedMotion: boolean): number {
+	return reducedMotion ? 0 : ms;
+}
+
+/**
  * "No wire is being dragged", as one frozen object. `useConnection` compares its
  * selector's result shallowly, so a fresh literal per store update would
  * re-render every node on every pointer move of an unrelated pan.
@@ -1248,6 +1260,10 @@ function MissionGraphEditorBody(props: {
 		getViewport,
 		setViewport,
 	} = useReactFlow();
+	// Camera moves are navigation, exempt from the 300 ms motion ceiling, but
+	// reduced motion still stops them: MapLibre does that itself, xyflow does
+	// not. Every motion step resolves to 0ms exactly under reduced motion.
+	const reducedMotion = useMotionTiming("base").duration === 0;
 	/**
 	 * A node selected together with a camera move of its own (the focus
 	 * requests below), which the reveal must not interrupt.
@@ -1277,10 +1293,10 @@ function MissionGraphEditorBody(props: {
 				void setCenter(
 					node.position.x + (measured?.width ?? 180) / 2,
 					node.position.y + (measured?.height ?? 80) / 2,
-					{ zoom: 1.1, duration: 400 },
+					{ zoom: 1.1, duration: cameraMs(400, reducedMotion) },
 				);
 			}),
-		[getNode, setCenter],
+		[getNode, setCenter, reducedMotion],
 	);
 	// An asset picked in the asset panel: select every node that uses it.
 	useEffect(
@@ -1299,10 +1315,10 @@ function MissionGraphEditorBody(props: {
 				void setCenter(
 					first.position.x + (measured?.width ?? 180) / 2,
 					first.position.y + (measured?.height ?? 80) / 2,
-					{ zoom: 1.1, duration: 400 },
+					{ zoom: 1.1, duration: cameraMs(400, reducedMotion) },
 				);
 			}),
-		[getNode, setCenter],
+		[getNode, setCenter, reducedMotion],
 	);
 	/** Map resolved from the registry — the last resort, see `fallbackMap`. */
 	const [registryMap, setRegistryMap] = useState<string>("");
@@ -1924,9 +1940,9 @@ function MissionGraphEditorBody(props: {
 		const { x, y, zoom } = getViewport();
 		void setViewport(
 			{ x: x + dx, y: y + dy, zoom },
-			{ duration: REVEAL_MS },
+			{ duration: cameraMs(REVEAL_MS, reducedMotion) },
 		);
-	}, [inspectedId, getViewport, setViewport]);
+	}, [inspectedId, getViewport, setViewport, reducedMotion]);
 
 	const deleteNodes = useCallback(
 		(nodeIds: readonly string[]) => {
@@ -2352,8 +2368,18 @@ function MissionGraphEditorBody(props: {
 		lastFitKey.current = key;
 		// The opening fit is animated; the ones that track a resize drag are
 		// not, or every intermediate width would start its own 300 ms tween.
-		void fitView({ duration: first ? 300 : 0, padding: FIT_PADDING });
-	}, [missionId, canvasWidth, canvasHeight, nodeCount, fitView]);
+		void fitView({
+			duration: first ? cameraMs(300, reducedMotion) : 0,
+			padding: FIT_PADDING,
+		});
+	}, [
+		missionId,
+		canvasWidth,
+		canvasHeight,
+		nodeCount,
+		fitView,
+		reducedMotion,
+	]);
 
 	// ---- Keyboard ----------------------------------------------------------
 
@@ -2381,8 +2407,11 @@ function MissionGraphEditorBody(props: {
 	const tidy = useCallback(() => {
 		if (!missionId || viewOnly) return;
 		editMissionGraph(missionId, layoutLanes);
-		void fitView({ duration: 300, padding: FIT_PADDING });
-	}, [missionId, viewOnly, fitView]);
+		void fitView({
+			duration: cameraMs(300, reducedMotion),
+			padding: FIT_PADDING,
+		});
+	}, [missionId, viewOnly, fitView, reducedMotion]);
 
 	/** Copy the selected nodes (not agents) and the edges between them. */
 	const copy = useCallback(() => {

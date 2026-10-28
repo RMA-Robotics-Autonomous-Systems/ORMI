@@ -36,12 +36,11 @@ services:
         image: postgres:17.0-alpine
         restart: unless-stopped
         ports:
-            - 5432:5432
+            - 127.0.0.1:5432:5432
         environment:
             POSTGRES_USER: rasappdbuser
             POSTGRES_PASSWORD: rasappdbpwd
             POSTGRES_DB: rasapppostgresqldb
-            POSTGRES_HOST_AUTH_METHOD: trust
         volumes:
             - ./postgres:/var/lib/postgresql/data
         healthcheck:

@@ -859,13 +859,14 @@ function getAtPath(
  * Seed one array item from its schema so an appended entry is usable without
  * opening the settings dialog.
  *
- * Every property with a `default` takes it. A property with an `enum` and no
- * default takes its first value — a map marker with no marker type, or a chart
- * series with no series type, renders nothing at all, which reads as "the
- * topic did not arrive". A `name`/`label`/`title`
- * (`TOPIC_NAME_SIBLING_PROPERTIES`, shared with the dialog path) takes the
- * topic name and a `color` takes the next palette entry, both of which are
- * otherwise blank.
+ * A free-text `name`/`label`/`title` (`TOPIC_NAME_SIBLING_PROPERTIES`, shared
+ * with the dialog path) takes the topic name even over a schema `default`,
+ * because the dialog treats that default as a placeholder and replaces it on
+ * the same bind. Every other property with a `default` takes it. A property
+ * with an `enum` and no default takes its first value — a map marker with no
+ * marker type, or a chart series with no series type, renders nothing at all,
+ * which reads as "the topic did not arrive". A `color` with no default takes
+ * the next palette entry.
  */
 function seedArrayItem(
 	itemSchema: JsonSchema | undefined,
@@ -878,6 +879,16 @@ function seedArrayItem(
 	if (!properties) return item;
 
 	for (const [name, property] of Object.entries(properties)) {
+		const lower = name.toLowerCase();
+		if (
+			property.type === "string" &&
+			!Array.isArray(property.enum) &&
+			property.const === undefined &&
+			TOPIC_NAME_SIBLING_PROPERTIES.includes(lower)
+		) {
+			item[name] = topic.topic;
+			continue;
+		}
 		if (property.default !== undefined) {
 			item[name] = property.default;
 			continue;
@@ -887,10 +898,7 @@ function seedArrayItem(
 			continue;
 		}
 		if (property.type === "string") {
-			const lower = name.toLowerCase();
-			if (TOPIC_NAME_SIBLING_PROPERTIES.includes(lower)) {
-				item[name] = topic.topic;
-			} else if (lower === "color") {
+			if (lower === "color") {
 				item[name] =
 					TOPIC_ROUTING_PALETTE[
 						position % TOPIC_ROUTING_PALETTE.length
@@ -969,6 +977,8 @@ export interface AppliedTopicRoute {
  * @param slot - Slot resolved by {@link resolveTopicRoute}.
  * @param topic - Topic to bind.
  * @param schema - Widget settings schema, used to seed appended array items.
+ * @param definitionData - The definition's `data`; a name still equal to its
+ * value there is a placeholder the bound topic replaces.
  * @returns The new settings and the bound topic value.
  */
 export function applyTopicToSettings(
@@ -976,6 +986,7 @@ export function applyTopicToSettings(
 	slot: RoutableSlot,
 	topic: DatasourceTopic,
 	schema?: JsonSchema,
+	definitionData?: unknown,
 ): AppliedTopicRoute {
 	const selected = buildSelectedTopic(topic, "", slot.bufferSize);
 
@@ -991,6 +1002,7 @@ export function applyTopicToSettings(
 				{ topic?: string } | undefined,
 			next: topic,
 			role: slot.role,
+			definitionData,
 		})) {
 			next = setAtPath(next, update.path, update.value);
 		}

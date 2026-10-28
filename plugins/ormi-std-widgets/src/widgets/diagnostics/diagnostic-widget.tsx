@@ -643,7 +643,7 @@ function DiagnosticsBody({
  * subscriptions, so a per-render inline component would remount and thrash them.
  */
 const DiagnosticsWidget: React.FC<DiagnosticsWidgetProps> = (props) => {
-	const topics = useDiscoveredTopics({
+	const discovered = useDiscoveredTopics({
 		webappType: DIAGNOSTIC_WEBAPP_TYPE,
 		rosType: DIAGNOSTIC_ROS_TYPE,
 	});
@@ -663,13 +663,16 @@ const DiagnosticsWidget: React.FC<DiagnosticsWidgetProps> = (props) => {
 		updateWidget(boxId, { ...props, pinned: togglePin(pinned, key) });
 	};
 
-	if (topics.length === 0) {
+	if (discovered.status === "waiting" || discovered.topics.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-3 text-sm text-muted-foreground">
-				No diagnostic topics found
+				{discovered.status === "waiting"
+					? "Looking for diagnostic topics…"
+					: "No diagnostic topics found"}
 			</div>
 		);
 	}
+	const { topics } = discovered;
 
 	// buffersSize > 1 guards against dropping messages when the widget skips a
 	// render: the provider appends at most one message per source per ~33ms pump

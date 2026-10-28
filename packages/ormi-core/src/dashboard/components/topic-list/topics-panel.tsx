@@ -176,7 +176,7 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 	autoFocusSearch = false,
 }) => {
 	const searchRef = useAutoFocus<HTMLInputElement>(autoFocusSearch);
-	const topics = useAvailableTopics();
+	const available = useAvailableTopics();
 	const routing = useTopicRouter();
 	const previews = useTopicPreviews();
 	const datasources = useAtomValue(datasourcesAtom);
@@ -190,8 +190,15 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 	const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
 	const visibleTopics = useMemo(
-		() => selectTopics(topics, { query, sortKey, sortDirection }),
-		[topics, query, sortKey, sortDirection],
+		() =>
+			available.status === "settled"
+				? selectTopics(available.topics, {
+						query,
+						sortKey,
+						sortDirection,
+					})
+				: [],
+		[available, query, sortKey, sortDirection],
 	);
 
 	const handleSort = useCallback((key: TopicSortKey) => {
@@ -287,7 +294,7 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 			<div className="min-h-0 flex-1 overflow-auto">
 				{visibleTopics.length === 0 ? (
 					<div className="text-muted-foreground flex flex-col items-center gap-2 p-4 text-center text-sm">
-						{topics.length === 0 ? (
+						{available.status === "waiting" ? (
 							<>
 								<Loader2
 									className="size-5 animate-spin"
@@ -298,6 +305,8 @@ export const TopicsPanel: React.FC<TopicsPanelProps> = ({
 									datasources.
 								</p>
 							</>
+						) : available.topics.length === 0 ? (
+							<p>The connected datasources list no topics.</p>
 						) : (
 							<p>No topic matches your search.</p>
 						)}

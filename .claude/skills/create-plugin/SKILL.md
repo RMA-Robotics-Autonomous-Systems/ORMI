@@ -12,7 +12,7 @@ Before scaffolding, confirm placement with the rules in `AGENTS.md`: feature ext
 
 ## 0. Scaffold manually
 
-Plugins are created **manually** — there is no working generator (the `bun run create` / `scripts/create-package.js` reference in `package.json` is dead; do not use it). The fastest start is to copy an existing plugin (e.g. `plugins/ormi-std-widgets` or `plugins/ormi-rest-bags`), rename it, and strip it down to the structure below.
+Plugins are created **manually**: there is no generator script. Copy an existing plugin (e.g. `plugins/ormi-std-widgets` or `plugins/ormi-rest-bags`), rename it, and strip it down to the structure below.
 
 ## 1. Directory layout
 
@@ -34,6 +34,8 @@ plugins/ormi-<name>/
 	"name": "ormi-<name>",
 	"version": "1.0.0",
 	"private": true,
+	"ormi_plugin": true, // required: plugin-init skips any package without it
+	// "ormi_plugin_dev_only": true, // fixtures/synthetic data only: dropped from production builds
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
@@ -122,10 +124,11 @@ Use `export.tsx` if the file contains JSX. Add `"use client"` when the definitio
 
 ## 5. Wire into the monorepo and verify
 
-1. Plugins are discovered and loaded by the plugin manager at runtime — confirm how the app enumerates `plugins/` (a sibling plugin shows the registration path) and add your package there if registration is explicit.
-2. Install workspace deps: `bun install`.
-3. Validate: `bun run typecheck`, `bun run lint`, and `bun run build` (Turbo-cached). Add Bun tests for non-trivial logic and run `bun run test`.
-4. Keep the change minimal and self-contained; do not touch `packages/ormi-core`.
+1. Registration is generated, not hand-written. `plugin-init` (`packages/utils/src/cli/commands/init.ts`, run by `apps/web`'s `dev`, `build`, `test` and `typecheck` scripts) scans `node_modules` for packages whose `package.json` has `"ormi_plugin": true` and regenerates `apps/web/ormi-plugins.ts`. A package without the marker is skipped silently and the plugin never loads. A plugin that only fabricates data (synthetic sources, benchmark fixtures) also sets `"ormi_plugin_dev_only": true`, which drops it from the registry under `--production` (the `build` script) unless `ORMI_DEV_PLUGINS=1` (see the development-only plugins rule in `AGENTS.md`).
+2. Add the package name to `transpilePackages` **and** to `devSourceAliases` in `apps/web/next.config.mjs` (one alias per `exports` entry, pointing at `src`); without the alias, `next dev` serves the prebuilt `dist/` and edits to `src` do nothing.
+3. Install workspace deps: `bun install`.
+4. Validate: `bun run typecheck`, `bun run lint`, and `bun run build` (Turbo-cached). Add Bun tests for non-trivial logic and run `bun run test`.
+5. Keep the change minimal and self-contained; do not touch `packages/ormi-core`.
 
 ## Checklist
 
@@ -133,6 +136,7 @@ Use `export.tsx` if the file contains JSX. Add `"use client"` when the definitio
 - [ ] `index.ts` default-exports a `Plugin` subclass; every `addFilter` has a unique `id`.
 - [ ] Definitions live in `export.ts(x)`, not inline in the class.
 - [ ] Widgets declare datasource dependencies; datasource provider style matches Pattern 5.
-- [ ] `package.json` exports `./dist`; workspace deps use `workspace:*`.
+- [ ] `package.json` has `"ormi_plugin": true` (plus `"ormi_plugin_dev_only": true` for fixtures), exports `./dist`; workspace deps use `workspace:*`.
+- [ ] Added to `transpilePackages` and `devSourceAliases` in `apps/web/next.config.mjs`; `apps/web/ormi-plugins.ts` lists it after `bun run plugin-init`.
 - [ ] `typecheck`, `lint`, and `build` pass; tests added where it matters.
 - [ ] No core changes, no hardcoded secrets.

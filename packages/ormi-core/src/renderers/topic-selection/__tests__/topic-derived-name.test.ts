@@ -212,4 +212,27 @@ describe("resolveDerivedNameUpdates", () => {
 			}),
 		).toEqual([]);
 	});
+
+	test("treats the definition's own data value as a placeholder", () => {
+		// The Image viewer ships `data.title: "Image viewer"` with no schema
+		// default: binding a topic must still name it.
+		const args = {
+			rootSchema: layerSchema,
+			path: "topic",
+			next: gps,
+			definitionData: { title: "Image viewer" },
+		};
+		expect(
+			resolveDerivedNameUpdates({
+				...args,
+				rootData: { title: "Image viewer" },
+			}),
+		).toEqual([{ path: "title", value: "/robot/gps" }]);
+		expect(
+			resolveDerivedNameUpdates({
+				...args,
+				rootData: { title: "Front camera" },
+			}),
+		).toEqual([]);
+	});
 });

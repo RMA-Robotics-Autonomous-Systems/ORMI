@@ -44,26 +44,12 @@ import {
 	topicsToResubscribe,
 	type RequestedTopic,
 } from "./subscription-reconcile";
+import { isLosslessTopic } from "./topic-lossless";
 
 // time to wait before trying to connect to the ROSBridge Suite
 const WAIT_FOR_CONNECTION = 500;
 
-/**
- * Raw ROS types whose messages must never be dropped by last-wins coalescing,
- * so their topics use the lossless queue mode:
- * - `tf2_msgs/msg/TFMessage`: deltas — different frame pairs arrive in
- *   different messages.
- * - `diagnostic_msgs/msg/DiagnosticArray`: a shared `/diagnostics` topic is
- *   multi-publisher — many nodes (including low-Hz ones) interleave messages
- *   that each carry only that node's statuses.
- *
- * Both are low-rate, so lossless decode cost is negligible. Configured
- * transform-tree topics are handled separately (they are keyed by topic name,
- * not raw type).
- */
-export const isLosslessRawType = (rawType: string): boolean =>
-	rawType === "tf2_msgs/msg/TFMessage" ||
-	rawType === "diagnostic_msgs/msg/DiagnosticArray";
+export { isLosslessRawType } from "./topic-lossless";
 
 /** Raw ROS type whose per-point decode we throttle on the main thread. */
 const POINTCLOUD2_RAW_TYPE = "sensor_msgs/msg/PointCloud2";
@@ -322,6 +308,13 @@ const RosBridgeSuiteSourceProvider = (
 	// every subscription on the new connection (see reconcileSubscriptions).
 	const requestedTopicsRef = useRef(new Map<string, RequestedTopic>());
 
+	// Topic names a consumer has asked to receive losslessly
+	// (`DatasourceTopic.lossless`). Held by name beside `requestedTopicsRef`
+	// so it survives a reconnect; rises only while the topic is wanted and is
+	// dropped with the last intent, so a wire reopened later is classified
+	// from its own consumers. Mirrors foxglove's `losslessTopicsRef`.
+	const losslessTopicsRef = useRef(new Set<string>());
+
 	// `GlobalDataSourcesProvider` hands this component a NEW props object on
 	// every one of its renders, so the connection effect is keyed on the
 	// content of the settings the connection depends on (`connectionKey`) and
@@ -436,21 +429,24 @@ const RosBridgeSuiteSourceProvider = (
 			// /diagnostics topic is multi-publisher (many nodes interleave
 			// messages, each carrying only its own statuses): last-wins
 			// coalescing would silently drop transforms / low-Hz diagnostic
-			// publishers, so both get a lossless queue.
-			const lossless =
-				isLosslessRawType(rawType) ||
-				(propsRef.current.transformTreeTopics || []).includes(
+			// publishers, so both get a lossless queue — as does any topic a
+			// consumer declared lossless.
+			const meta = {
+				topic,
+				lossless: isLosslessTopic(
 					topicName,
-				);
-			const decodeCapMs = decodeCapMsForRawType(rawType);
+					rawType,
+					propsRef.current.transformTreeTopics,
+					losslessTopicsRef.current,
+				),
+				decodeCapMs: decodeCapMsForRawType(rawType),
+			};
 
 			// The side map the instance-level coalescer dispatch resolves
-			// against by key. Must be set before the first push.
-			subscribersMetaRef.current.set(topicName, {
-				topic,
-				lossless,
-				decodeCapMs,
-			});
+			// against by key. Must be set before the first push. The push
+			// reads `meta.lossless` per message, so a later lossless
+			// subscriber on this live wire raises it in place.
+			subscribersMetaRef.current.set(topicName, meta);
 
 			const producedId = metrics.counter(
 				`ds.${datasource_id}.topic.${topicName}.produced`,
@@ -458,7 +454,12 @@ const RosBridgeSuiteSourceProvider = (
 
 			subscriber.subscribe((message: any) => {
 				metrics.add(producedId);
-				coalescer.push(topicName, message, lossless, decodeCapMs);
+				coalescer.push(
+					topicName,
+					message,
+					meta.lossless,
+					meta.decodeCapMs,
+				);
 			});
 
 			subscribersRef.current.set(topicName, subscriber);
@@ -630,6 +631,9 @@ const RosBridgeSuiteSourceProvider = (
 							rawType: topic.rawType,
 							count: (existingRequest?.count ?? 0) + 1,
 						});
+						if (topic.lossless) {
+							losslessTopicsRef.current.add(topic.topic);
+						}
 
 						await connectionRef.current;
 
@@ -639,6 +643,13 @@ const RosBridgeSuiteSourceProvider = (
 								(subscribersCountRef.current.get(topic.topic) ||
 									0) + 1,
 							);
+							// One wire, N consumers arriving in any order:
+							// raise, never lower, so samples are not dropped
+							// underneath the consumer that asked for them.
+							const meta = subscribersMetaRef.current.get(
+								topic.topic,
+							);
+							if (meta && topic.lossless) meta.lossless = true;
 							return;
 						}
 
@@ -682,6 +693,7 @@ const RosBridgeSuiteSourceProvider = (
 						if (request) {
 							if (ignoreCount || request.count <= 1) {
 								requestedTopicsRef.current.delete(topic.topic);
+								losslessTopicsRef.current.delete(topic.topic);
 							} else {
 								request.count -= 1;
 							}

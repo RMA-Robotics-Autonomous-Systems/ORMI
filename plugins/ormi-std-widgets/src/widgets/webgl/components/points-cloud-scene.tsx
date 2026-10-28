@@ -1,9 +1,12 @@
 import React, { useMemo } from "react";
 import * as THREE from "three";
+import { XCircle } from "lucide-react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { SceneBackground, SceneGizmo, ThemedGrid } from "./scene-chrome";
 import { createTopicKey } from "@workspace/utils";
+import { useLocalDataSource } from "@workspace/ormi-core/datasources";
+import { offlineCloudSeries } from "./points-cloud-health";
 import {
 	DEFAULT_POINT_CLOUD_THEME,
 	PointsCloudProps,
@@ -44,6 +47,14 @@ export const PointsCloudScene: React.FC<PointsCloudProps> = (props) => {
 	const maxPoints = props.maxPoints;
 	const topics = props.topics;
 
+	// Multi-topic: degrade per series (offline-gating rule). The cloud keeps
+	// its last-known points; the overlay names which series are offline.
+	const { getTopicHealth } = useLocalDataSource();
+	const offline = offlineCloudSeries(
+		topics,
+		(topic) => getTopicHealth(topic) === "offline",
+	);
+
 	const axesHelper = useMemo(() => new THREE.AxesHelper(5), []);
 
 	// The data layers resolve into the widget's target frame. With an empty target
@@ -52,7 +63,7 @@ export const PointsCloudScene: React.FC<PointsCloudProps> = (props) => {
 	const dataTargetFrame = targetFrame;
 
 	return (
-		<div style={{ width: "100%", height: "100%" }}>
+		<div className="relative" style={{ width: "100%", height: "100%" }}>
 			<Canvas
 				frameloop="demand"
 				dpr={[1, 1.5]}
@@ -110,6 +121,19 @@ export const PointsCloudScene: React.FC<PointsCloudProps> = (props) => {
 					<DataBridge />
 				</SceneEngineProvider>
 			</Canvas>
+			{offline.length > 0 && (
+				<ul className="pointer-events-none absolute top-2 left-2 flex flex-col gap-1">
+					{offline.map((name) => (
+						<li
+							key={name}
+							className="border-destructive/40 bg-background/80 text-foreground flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs"
+						>
+							<XCircle className="text-destructive size-3.5 shrink-0" />
+							{name} (offline)
+						</li>
+					))}
+				</ul>
+			)}
 		</div>
 	);
 };

@@ -92,7 +92,8 @@ interface TopicSlotInputs {
  * @returns React element.
  */
 const TopicSelectRenderer = (props: ControlProps) => {
-	const { data, handleChange, path, rootSchema, uischema, label } = props;
+	const { data, handleChange, path, rootSchema, uischema, label, config } =
+		props;
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [autoSelected, setAutoSelected] = useState(false);
 
@@ -136,6 +137,9 @@ const TopicSelectRenderer = (props: ControlProps) => {
 				previous,
 				next,
 				role: slotRole,
+				definitionData: (
+					config as { definitionData?: unknown } | undefined
+				)?.definitionData,
 			})) {
 				handleChange(update.path, update.value);
 			}

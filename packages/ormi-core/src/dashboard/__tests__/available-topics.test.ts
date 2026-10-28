@@ -16,7 +16,10 @@
 
 import { describe, test, expect } from "bun:test";
 
-import { sameTopics } from "../state/use-available-topics";
+import {
+	reduceAvailableTopics,
+	sameTopics,
+} from "../state/use-available-topics";
 import type { DatasourceTopic } from "../../datasources/datasource-interface";
 
 /** A topic as a datasource reports it. */
@@ -128,5 +131,66 @@ describe("sameTopics", () => {
 				[topic({ topic: "/b" }), topic({ topic: "/a" })],
 			),
 		).toBe(false);
+	});
+});
+
+describe("reduceAvailableTopics", () => {
+	const waiting = { status: "waiting" } as const;
+
+	test("waiting until a poll answers, then settled on its list", () => {
+		const listed = [topic({ topic: "/a" })];
+		expect(
+			reduceAvailableTopics(waiting, { ok: true, topics: listed }),
+		).toEqual({ status: "settled", topics: listed });
+	});
+
+	test("an empty answer is settled, not waiting", () => {
+		expect(
+			reduceAvailableTopics(waiting, { ok: true, topics: [] }),
+		).toEqual({
+			status: "settled",
+			topics: [],
+		});
+	});
+
+	test("a failed first poll settles on an empty list instead of waiting forever", () => {
+		expect(reduceAvailableTopics(waiting, { ok: false })).toEqual({
+			status: "settled",
+			topics: [],
+		});
+	});
+
+	test("a failed later poll keeps the list it had", () => {
+		const settled = reduceAvailableTopics(waiting, {
+			ok: true,
+			topics: [topic({ topic: "/a" })],
+		});
+		expect(reduceAvailableTopics(settled, { ok: false })).toBe(settled);
+	});
+
+	test("an unchanged poll hands back the same state object", () => {
+		const settled = reduceAvailableTopics(waiting, {
+			ok: true,
+			topics: [topic({ topic: "/a" })],
+		});
+		expect(
+			reduceAvailableTopics(settled, {
+				ok: true,
+				topics: [topic({ topic: "/a" })],
+			}),
+		).toBe(settled);
+	});
+
+	test("a changed poll replaces the list, including back to empty", () => {
+		const settled = reduceAvailableTopics(waiting, {
+			ok: true,
+			topics: [topic({ topic: "/a" })],
+		});
+		expect(
+			reduceAvailableTopics(settled, { ok: true, topics: [] }),
+		).toEqual({
+			status: "settled",
+			topics: [],
+		});
 	});
 });

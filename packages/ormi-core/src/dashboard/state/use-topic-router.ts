@@ -98,6 +98,7 @@ export function useTopicRouter(): TopicRouting {
 					option.slot,
 					topic,
 					definition.schema,
+					definition.data,
 				);
 				updateWidget(boxId, settings);
 				const pending = option.slot.requiresCompanions;
@@ -147,6 +148,7 @@ export function useTopicRouter(): TopicRouting {
 				slot,
 				topic,
 				definition.schema,
+				definition.data,
 			);
 			const boxId = addWidget(definition, settings);
 			const missing = slot.requiresCompanions;

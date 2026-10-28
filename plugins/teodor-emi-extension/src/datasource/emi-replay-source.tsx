@@ -13,10 +13,7 @@
 
 import { useEffect, useRef } from "react";
 import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
-import {
-	WorkerDatasourceHost,
-	type DatasourceTopic,
-} from "@workspace/ormi-core/datasources";
+import { WorkerDatasourceHost } from "@workspace/ormi-core/datasources";
 import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
 import { getBag, useBag } from "./bag-store";
 import {
@@ -48,12 +45,15 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 	// the provider has to notice the file arriving and start then.
 	const stored = useBag(bagName);
 
-	// The worker answers `listTopics` with the settings it was started with,
-	// and a rename deliberately does not restart it, so the topic list reads
-	// the title from here at call time.
+	// A rename deliberately does not restart the worker: the host stamps the
+	// current title on its topic rows, and the problem banner reads it here.
 	const titleRef = useRef(title);
+	const hostRef = useRef<WorkerDatasourceHost<EmiReplaySettings> | null>(
+		null,
+	);
 	useEffect(() => {
 		titleRef.current = title;
+		hostRef.current?.updateSettings({ title });
 	});
 	const bufferReady = enable && stored !== undefined;
 
@@ -118,7 +118,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			datasourceId: id,
 			settings: {
 				id,
-				title,
+				title: titleRef.current,
 				enable,
 				bagName,
 				rate,
@@ -128,27 +128,8 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			},
 			pluginsManager,
 		});
+		hostRef.current = host;
 		host.registerHooks();
-
-		// Runs after the host's own contribution (priority 10). Total: a map
-		// over the list it was handed cannot throw.
-		const titleHook = `${id}-available-topics-title`;
-		pluginsManager.addFilter(PluginsHooks.AVAILABLE_TOPICS, {
-			id: titleHook,
-			priority: 11,
-			filter: (topics: DatasourceTopic[]) =>
-				topics.map((topic) =>
-					topic.datasource_id === id && topic.source
-						? {
-								...topic,
-								source: {
-									...topic.source,
-									title: titleRef.current,
-								},
-							}
-						: topic,
-				),
-		});
 
 		host.init()
 			.then(() => {
@@ -177,7 +158,7 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			worker.removeEventListener("message", onWorkerMessage);
 			clearReplayProblem(id);
 			pluginsManager.doAction(PluginsHooks.DATASOURCE_DISPOSED, id);
-			pluginsManager.removeFilter(titleHook);
+			hostRef.current = null;
 			host.dispose();
 		};
 		// `title` is a label, and `rate`/`autoplay` are init-time seeds with a

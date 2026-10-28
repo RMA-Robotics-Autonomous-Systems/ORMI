@@ -51,7 +51,12 @@ interface TopicRuntime {
 	acc: EmitAccumulator;
 	/** Per-topic produced counter id (worker-parity: counts every generated frame). */
 	producedId: ReturnType<typeof metrics.counter>;
-	/** Cached coalescer push params for this generator's payload shape. */
+	/**
+	 * Cached coalescer push params for this generator's payload shape.
+	 * `lossless` is the generator's own classification OR any live consumer's
+	 * `DatasourceTopic.lossless`; it only rises while the topic is subscribed
+	 * and goes with the runtime when the last consumer leaves.
+	 */
 	lossless: boolean;
 	decodeCapMs: number;
 }
@@ -213,6 +218,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 		const startTopic = (
 			topicName: string,
 			generator: LoadgenGenerator,
+			consumerLossless: boolean,
 		): void => {
 			runtimes.set(topicName, {
 				generator,
@@ -221,7 +227,7 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				producedId: metrics.counter(
 					`ds.${datasource_id}.topic.${topicName}.produced`,
 				),
-				lossless: losslessFor(generator),
+				lossless: losslessFor(generator) || consumerLossless,
 				decodeCapMs: decodeCapMsFor(generator),
 			});
 		};
@@ -313,8 +319,12 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 				const count = subscribersCount.get(topic.topic) ?? 0;
 				subscribersCount.set(topic.topic, count + 1);
 
-				if (generator && !runtimes.has(topic.topic)) {
-					startTopic(topic.topic, generator);
+				const runtime = runtimes.get(topic.topic);
+				if (runtime) {
+					// One wire, N consumers: raise, never lower.
+					if (topic.lossless) runtime.lossless = true;
+				} else if (generator) {
+					startTopic(topic.topic, generator, topic.lossless === true);
 					coalescer.start();
 					ensureDriver();
 				}

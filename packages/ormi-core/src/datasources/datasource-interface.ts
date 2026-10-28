@@ -77,8 +77,9 @@ interface DatasourceTopic {
 	 * consumer that asked.
 	 *
 	 * Honouring it is a datasource's choice, and most have nothing to do: only a
-	 * datasource that coalesces reads it (foxglove does; rosbridge, the EMI
-	 * replay and the REST bag reader deliver every message already).
+	 * datasource that coalesces reads it (rosbridge, foxglove and the loadgen
+	 * main-thread source do; the EMI replay and the REST bag reader deliver
+	 * every message already).
 	 */
 	lossless?: boolean;
 }

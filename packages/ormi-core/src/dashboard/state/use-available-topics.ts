@@ -5,6 +5,10 @@ import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
 
 import { DatasourceTopic } from "../../datasources/datasource-interface";
 import { getCreatedTopicsStore } from "../../datasources/created-topics";
+import {
+	WAITING_FOR_TOPICS,
+	type SettledTopics,
+} from "../../renderers/topic-selection/use-settled-topics";
 
 /**
  * How long the poll waits between reads of `AVAILABLE_TOPICS`.
@@ -54,11 +58,59 @@ export function sameTopics(
 }
 
 /**
+ * What {@link useAvailableTopics} returns: `waiting` until the first poll has
+ * answered, then `settled` with the current list (which may be empty).
+ *
+ * The same union as `SettledTopics`, per the rule that an asynchronously
+ * injected list crossing the core boundary is never a bare array: "nothing has
+ * answered yet" and "the datasources list no topics" are different answers.
+ * Unlike `useSettledTopics`, `settled` here is not a latch: the list keeps
+ * following later polls.
+ */
+export type AvailableTopics = SettledTopics;
+
+/** The outcome of one `AVAILABLE_TOPICS` poll. */
+export type AvailableTopicsPoll =
+	| { readonly ok: true; readonly topics: DatasourceTopic[] }
+	| { readonly ok: false };
+
+/**
+ * Folds one poll outcome into the hook's state.
+ *
+ * - A successful poll settles on its list, and hands back `previous` when the
+ *   rows are unchanged ({@link sameTopics}), so memoised consumers are not torn
+ *   down twice a second.
+ * - A failed poll settles a `waiting` state on an empty list, so a filter that
+ *   throws never leaves the topic list on a spinner forever; the next poll that
+ *   succeeds replaces it. A failed poll over a `settled` state keeps that list.
+ *
+ * Pure and exported for its unit tests; the dashboard barrel does not re-export
+ * it.
+ */
+export function reduceAvailableTopics(
+	previous: AvailableTopics,
+	poll: AvailableTopicsPoll,
+): AvailableTopics {
+	if (!poll.ok) {
+		return previous.status === "settled"
+			? previous
+			: { status: "settled", topics: [] };
+	}
+	if (
+		previous.status === "settled" &&
+		sameTopics(previous.topics, poll.topics)
+	) {
+		return previous;
+	}
+	return { status: "settled", topics: poll.topics };
+}
+
+/**
  * Live list of every topic the configured datasources currently offer.
  *
- * Returns the **previous array** when a poll reports the same topics, so
- * consumers that memoise on the list — a row list, a routing decision — are not
- * torn down twice a second while nothing has changed.
+ * Returns the **previous state object** when a poll reports the same topics,
+ * so consumers that memoise on the list — a row list, a routing decision — are
+ * not torn down twice a second while nothing has changed.
  *
  * Unlike `useSettledTopics`, this never latches: a topic list has to show one
  * that appeared after the dashboard opened, and a robot that reconnects with a
@@ -71,11 +123,12 @@ export function sameTopics(
  * interval stays — it is still the only way to learn that a *robot* advertised
  * something.
  *
- * @returns The current topics, empty until the first poll resolves.
+ * @returns `{ status: "waiting" }` until the first poll answers (or fails),
+ * then `{ status: "settled", topics }` with the current list.
  */
-export function useAvailableTopics(): DatasourceTopic[] {
+export function useAvailableTopics(): AvailableTopics {
 	const pluginsManager = usePluginsManager();
-	const [topics, setTopics] = useState<DatasourceTopic[]>([]);
+	const [state, setState] = useState<AvailableTopics>(WAITING_FOR_TOPICS);
 
 	// Resolved eagerly rather than on first use: creating the store is what
 	// registers its `AVAILABLE_TOPICS` contribution, and a list that has not
@@ -89,19 +142,18 @@ export function useAvailableTopics(): DatasourceTopic[] {
 		let cancelled = false;
 
 		const poll = async () => {
-			let listed: DatasourceTopic[] = [];
+			let poll: AvailableTopicsPoll;
 			try {
-				listed = await pluginsManager.applyFilterAsync<
+				const topics = await pluginsManager.applyFilterAsync<
 					DatasourceTopic[]
 				>(PluginsHooks.AVAILABLE_TOPICS, []);
+				poll = { ok: true, topics };
 			} catch (error) {
 				console.warn("Topics: failed to list available topics", error);
-				return;
+				poll = { ok: false };
 			}
 			if (cancelled) return;
-			setTopics((previous) =>
-				sameTopics(previous, listed) ? previous : listed,
-			);
+			setState((previous) => reduceAvailableTopics(previous, poll));
 		};
 
 		void poll();
@@ -118,5 +170,5 @@ export function useAvailableTopics(): DatasourceTopic[] {
 		};
 	}, [pluginsManager, createdTopics]);
 
-	return topics;
+	return state;
 }

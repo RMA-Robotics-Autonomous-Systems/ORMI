@@ -46,7 +46,9 @@ function resolveAppVersion() {
 // source here (with `transpilePackages` compiling it) restores real HMR.
 // Production builds are untouched: aliases are empty when NODE_ENV=production,
 // so the prebuilt `dist/` is used as before. Keep in sync with each package's
-// `exports` map; subpath exports need their own entry.
+// `exports` map; subpath exports need their own entry (keys match exactly, not
+// by prefix, so order does not matter; `./flex-layout-theme.css` already
+// points at `src` and needs none).
 // Turbopack resolves `resolveAlias` values as import requests relative to the
 // project root (apps/web), so paths must be relative (`../../…`) — an absolute
 // path is misread as a root-relative URL ("server relative imports").
@@ -59,6 +61,9 @@ const devSourceAliases = isDev
 		"@workspace/ormi-core/datasources": src(
 			"packages/ormi-core/src/datasources/index.ts",
 		),
+		"@workspace/ormi-core/datasources/identity": src(
+			"packages/ormi-core/src/datasources/datasource-identity.ts",
+		),
 		"@workspace/ormi-core/datasources/worker": src(
 			"packages/ormi-core/src/datasources/worker/index.ts",
 		),
@@ -67,6 +72,12 @@ const devSourceAliases = isDev
 		),
 		"@workspace/ormi-core/dashboard": src(
 			"packages/ormi-core/src/dashboard/index.ts",
+		),
+		"@workspace/ormi-core/dashboard/types": src(
+			"packages/ormi-core/src/dashboard/types.ts",
+		),
+		"@workspace/ormi-core/dashboard/topic-list": src(
+			"packages/ormi-core/src/dashboard/components/topic-list/index.ts",
 		),
 		"@workspace/ormi-core/templates": src(
 			"packages/ormi-core/src/templates/index.ts",
@@ -83,10 +94,27 @@ const devSourceAliases = isDev
 		"@workspace/ormi-core/transforms/coordinate-systems": src(
 			"packages/ormi-core/src/transforms/coordinate-systems.ts",
 		),
+		"@workspace/ormi-core/map-layers": src(
+			"packages/ormi-core/src/map-layers/index.ts",
+		),
+		"@workspace/ormi-core/map-layers/model": src(
+			"packages/ormi-core/src/map-layers/model-index.ts",
+		),
+		"@workspace/ormi-core/map-layers/map": src(
+			"packages/ormi-core/src/map-layers/map.ts",
+		),
 		"@workspace/ormi-jsonforms": src("packages/ormi-jsonforms/src/index.ts"),
 		"@workspace/ormi-plugins": src("packages/ormi-plugins/src/index.ts"),
 		"@workspace/utils": src("packages/utils/src/index.ts"),
 		"@workspace/utils/metrics": src("packages/utils/src/metrics/metrics-core.ts"),
+		"@workspace/utils/transferables": src("packages/utils/src/transferables.ts"),
+		"@workspace/utils/basemap-style": src(
+			"packages/utils/src/basemap-styles/index.ts",
+		),
+		"@workspace/utils/map-chrome": src("packages/utils/src/map-chrome.tsx"),
+		"@workspace/utils/coalesced-publisher": src(
+			"packages/utils/src/coalesced-publisher.ts",
+		),
 		"ormi-emi-bag-analyzer": src("plugins/ormi-emi-bag-analyzer/src/index.ts"),
 		"ormi-flight-indicator": src("plugins/ormi-flight-indicator/src/index.ts"),
 		"ormi-foxglove": src("plugins/ormi-foxglove/src/index.ts"),

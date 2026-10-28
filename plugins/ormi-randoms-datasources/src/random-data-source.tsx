@@ -35,6 +35,8 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 	const propsRef = useRef(props);
 	useEffect(() => {
 		propsRef.current = props;
+		// A rename does not restart the worker; the host lists the new title.
+		hostRef.current?.updateSettings(props);
 	});
 	const settingsKey = JSON.stringify({
 		id: props.id,

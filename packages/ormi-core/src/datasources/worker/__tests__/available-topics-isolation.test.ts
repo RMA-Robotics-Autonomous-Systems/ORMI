@@ -233,3 +233,55 @@ describe("a worker datasource that cannot connect", () => {
 		).toEqual(["/odom"]);
 	}, 10000);
 });
+
+describe("a renamed worker datasource", () => {
+	test("lists its topics under the new title without a restart", async () => {
+		const manager = new PluginsManager(new Map());
+		const worker = new ScriptedWorker();
+		const startedWith = { id: "sim", title: "Old name", enable: true };
+		const host = new WorkerDatasourceHost({
+			worker: worker as unknown as Worker,
+			datasourceId: "sim",
+			settings: startedWith,
+			pluginsManager: manager,
+		});
+		host.registerHooks();
+		const init = host.init();
+		worker.reply(worker.lastRequestId("init")!, true);
+		await init;
+
+		// The worker still answers with the settings it was started with.
+		const row: DatasourceTopic = {
+			topic: "/scan",
+			datasource_id: "sim",
+			source: startedWith,
+			type: "LaserScan",
+			rawType: "sensor_msgs/msg/LaserScan",
+		};
+		host.updateSettings({ title: "New name" });
+		const poll = listTopics(manager);
+		worker.reply(await worker.nextRequestId("listTopics"), true, [row]);
+
+		expect((await poll).map((topic) => topic.source.title)).toEqual([
+			"New name",
+		]);
+		expect(worker.requests.filter((r) => r.method === "init")).toHaveLength(
+			1,
+		);
+	});
+
+	test("registers no -definition filter", () => {
+		const manager = new PluginsManager(new Map());
+		const host = new WorkerDatasourceHost({
+			worker: new ScriptedWorker() as unknown as Worker,
+			datasourceId: "sim",
+			settings: { id: "sim", title: "x", enable: true },
+			pluginsManager: manager,
+		});
+		host.registerHooks();
+		const untouched = {};
+		expect(manager.applyFilter<object>("sim-definition", untouched)).toBe(
+			untouched,
+		);
+	});
+});

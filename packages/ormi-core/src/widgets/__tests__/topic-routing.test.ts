@@ -18,6 +18,7 @@ import { describe, test, expect, beforeEach } from "bun:test";
 import type { JsonSchema, UISchemaElement } from "@jsonforms/core";
 import {
 	applyTopicToSettings,
+	createWidgetSettings,
 	buildTopicRoutingIndex,
 	collectRoutableSlots,
 	getTopicRoutingIndex,
@@ -2027,6 +2028,107 @@ describe("applying a route to settings", () => {
 		test("never over a title the operator typed", () => {
 			expect(bind({ title: "Front camera" })).toBe("Front camera");
 		});
+	});
+
+	describe("a routed Image viewer is named after its topic", () => {
+		// Its title is in `data`, not a schema default, as the real one is.
+		const imageViewer = defineWidget(
+			"image-viewer",
+			"Image viewer",
+			{
+				type: "object",
+				properties: {
+					title: { type: "string" },
+					topic: { type: "object" },
+				},
+			},
+			{
+				type: "VerticalLayout",
+				elements: [
+					{ type: "Control", scope: "#/properties/title" },
+					{
+						type: "TopicSelect",
+						scope: "#/properties/topic",
+						options: { dataRequirements: { accepts: ["Image"] } },
+					},
+				],
+			} as unknown as UISchemaElement,
+			{ title: "Image viewer" },
+		);
+		const slot = collectRoutableSlots(imageViewer)[0]!;
+		const bind = (settings: Record<string, unknown>) =>
+			applyTopicToSettings(
+				settings,
+				slot,
+				topic("/camera", "Image"),
+				imageViewer.schema,
+				imageViewer.data,
+			).settings.title;
+
+		test("takes the topic name over the definition's title", () => {
+			expect(bind(createWidgetSettings(imageViewer))).toBe("/camera");
+		});
+
+		test("keeps a typed title", () => {
+			expect(bind({ title: "Front camera" })).toBe("Front camera");
+		});
+	});
+
+	test("an appended item's name takes the topic over a schema default", () => {
+		const layers = defineWidget(
+			"layers",
+			"Layers",
+			{
+				type: "object",
+				properties: {
+					topics: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								topic: { type: "object" },
+								name: { type: "string", default: "Layer" },
+							},
+						},
+					},
+				},
+			},
+			{
+				type: "VerticalLayout",
+				elements: [
+					{
+						type: "Control",
+						scope: "#/properties/topics",
+						options: {
+							detail: {
+								type: "Group",
+								elements: [
+									{
+										type: "TopicSelect",
+										scope: "#/properties/topic",
+										options: {
+											dataRequirements: {
+												accepts: ["number"],
+											},
+										},
+									},
+								],
+							},
+						},
+					},
+				],
+			} as unknown as UISchemaElement,
+		);
+		const slot = collectRoutableSlots(layers)[0]!;
+		const { settings } = applyTopicToSettings(
+			{ topics: [] },
+			slot,
+			topic("/battery", "number"),
+			layers.schema,
+		);
+		expect((settings.topics as { name: string }[])[0]!.name).toBe(
+			"/battery",
+		);
 	});
 
 	test("binds the whole message, never a guessed property", () => {

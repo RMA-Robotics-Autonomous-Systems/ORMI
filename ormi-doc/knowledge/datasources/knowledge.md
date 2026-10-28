@@ -200,7 +200,10 @@ function MyDatasourceProvider(props: DatasourceProviderSettings) {
 The `DATASOURCE_READY` action on `init()` completion is what lets the subscription
 registry flush pending subscribe intents; `DATASOURCE_DISPOSED` on unmount tears
 them down. Because a provider's context value here is null, it is a plain
-lifecycle component, not a context provider (pattern 5).
+lifecycle component, not a context provider (pattern 5). The effect restarts the
+worker only when `props.id` changes, so settings that change without a restart
+(a rename) reach the running host through `host.updateSettings(...)` from a
+ref-sync effect: `useEffect(() => { hostRef.current?.updateSettings(props); });`.
 
 ## Registering the definition
 

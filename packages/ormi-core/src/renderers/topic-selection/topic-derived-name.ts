@@ -2,11 +2,14 @@
  * Name a thing after the topic it shows.
  *
  * Both paths that bind a topic use it. The routing path seeds an appended
- * array item through `seedArrayItem` and names a top-level slot's siblings (the
+ * array item through `seedArrayItem` (which names the item over a schema
+ * `default`, as the dialog would) and names a top-level slot's siblings (the
  * widget's own title) through `resolveDerivedNameUpdates`; the configuration
- * dialog calls `resolveDerivedNameUpdates` on every bind. So a chart series, a
- * map layer or a widget created by clicking a topic, or bound by hand, arrives
- * named after the topic.
+ * dialog calls `resolveDerivedNameUpdates` on every bind, with the definition's
+ * `data` reaching it through the JsonForms `config` (`definitionData`, set by
+ * `WidgetCard` and `DatasourceCard`). So a chart series, a map layer or a
+ * widget created by clicking a topic, or bound by hand, arrives named after
+ * the topic.
  *
  * This module is that rule, stated once, for both paths:
  *
@@ -14,8 +17,10 @@
  *   `title` (`TOPIC_NAME_SIBLING_PROPERTIES`) in the same object as the
  *   `TopicSelect`;
  * - it is only written when it is a **placeholder**: absent, blank, still the
- *   schema's `default`, or still the name derived from the topic that was bound
- *   a moment ago. Anything else was typed by the operator and is theirs;
+ *   schema's `default`, still the definition's own `data` value (an Image
+ *   viewer's `title: "Image viewer"`, which carries no schema default), or
+ *   still the name derived from the topic that was bound a moment ago.
+ *   Anything else was typed by the operator and is theirs;
  * - a `secondary` slot never names anything. A heatmap's weighting channel is
  *   not what the layer is, so it cannot be what the layer is called.
  *
@@ -81,6 +86,11 @@ export interface ResolveDerivedNameArgs {
 	next: { topic?: string } | undefined;
 	/** Declared role of the slot; defaults to `"primary"`. */
 	role?: TopicSlotRole | undefined;
+	/**
+	 * The definition's `data`, the values a fresh instance starts with. A name
+	 * still equal to the value at the same path is a placeholder.
+	 */
+	definitionData?: unknown;
 }
 
 /** Read a dot path out of a data object, tolerating arrays and holes. */
@@ -146,11 +156,15 @@ const isPlaceholder = (
 	current: unknown,
 	property: JsonSchema,
 	previousDerived: string,
+	definitionValue: unknown,
 ): boolean => {
 	if (current === undefined || current === null) return true;
 	if (typeof current !== "string") return false;
 	if (current.trim() === "") return true;
 	if (previousDerived !== "" && current === previousDerived) return true;
+	if (typeof definitionValue === "string" && current === definitionValue) {
+		return true;
+	}
 	if (typeof property.default === "string" && current === property.default) {
 		return true;
 	}
@@ -167,7 +181,8 @@ const isPlaceholder = (
 export const resolveDerivedNameUpdates = (
 	args: ResolveDerivedNameArgs,
 ): DerivedNameUpdate[] => {
-	const { rootSchema, rootData, path, previous, next, role } = args;
+	const { rootSchema, rootData, path, previous, next, role, definitionData } =
+		args;
 
 	if (role === "secondary") return [];
 
@@ -186,6 +201,14 @@ export const resolveDerivedNameUpdates = (
 			? (values as Record<string, unknown>)
 			: undefined;
 
+	const definitionValues = readAtPath(definitionData, objectPath);
+	const definitionObject =
+		definitionValues &&
+		typeof definitionValues === "object" &&
+		!Array.isArray(definitionValues)
+			? (definitionValues as Record<string, unknown>)
+			: undefined;
+
 	const previousDerived = deriveNameFromTopic(previous);
 	const updates: DerivedNameUpdate[] = [];
 
@@ -197,7 +220,16 @@ export const resolveDerivedNameUpdates = (
 
 		const current = object?.[name];
 		if (current === derived) continue;
-		if (!isPlaceholder(current, property, previousDerived)) continue;
+		if (
+			!isPlaceholder(
+				current,
+				property,
+				previousDerived,
+				definitionObject?.[name],
+			)
+		) {
+			continue;
+		}
 
 		updates.push({
 			path: objectPath === "" ? name : `${objectPath}.${name}`,

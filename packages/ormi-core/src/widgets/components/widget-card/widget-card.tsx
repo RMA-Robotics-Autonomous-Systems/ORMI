@@ -8,7 +8,7 @@ import {
 } from "@jsonforms/material-renderers";
 import { shadcnRenderer, shadcnCells } from "@workspace/ormi-jsonforms";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { JsonForms } from "@jsonforms/react";
 import { JsonFormsRendererRegistryEntry } from "@jsonforms/core";
 import { toast } from "sonner";
@@ -147,6 +147,12 @@ export function WidgetCard(props: WidgetCardProps) {
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 
+	// The topic picker reads the definition's `data` from here to tell a
+	// default name (an Image viewer's "Image viewer") from a typed one. Stable
+	// identity: JsonForms re-dispatches its config whenever this changes.
+	const definitionData = props.definition.data;
+	const formConfig = useMemo(() => ({ definitionData }), [definitionData]);
+
 	return (
 		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
 			{/* Only render trigger if not in controlled mode */}
@@ -165,6 +171,7 @@ export function WidgetCard(props: WidgetCardProps) {
 						data={data}
 						renderers={renderers}
 						cells={cellsRenderers}
+						config={formConfig}
 						onChange={({ data, errors }) => {
 							setData(data);
 							setErrors(errors ?? null);

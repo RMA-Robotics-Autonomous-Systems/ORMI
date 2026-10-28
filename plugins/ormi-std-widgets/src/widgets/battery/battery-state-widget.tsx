@@ -302,20 +302,23 @@ function BatteryGrid({
  * subscriptions, so a per-render inline component would remount and thrash them.
  */
 const BatteryStateWidget: React.FC<BatteryWidgetProps> = (props) => {
-	const topics = useDiscoveredTopics({
+	const discovered = useDiscoveredTopics({
 		webappType: BATTERY_WEBAPP_TYPE,
 		rosType: BATTERY_ROS_TYPE,
 	});
 	const columns = Number(props.columns) || 0;
 	const showCells = props.showCells === true;
 
-	if (topics.length === 0) {
+	if (discovered.status === "waiting" || discovered.topics.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-3 text-sm text-muted-foreground">
-				No battery topics found
+				{discovered.status === "waiting"
+					? "Looking for battery topics…"
+					: "No battery topics found"}
 			</div>
 		);
 	}
+	const { topics } = discovered;
 
 	return (
 		<LocalDataSourcesProvider SelectedTopics={topics} buffersSize={1}>
