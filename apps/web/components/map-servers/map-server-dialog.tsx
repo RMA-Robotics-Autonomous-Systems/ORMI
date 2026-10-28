@@ -29,7 +29,7 @@ import {
 } from "@workspace/ormi-core/map-layers/model";
 import { coreRenderer } from "@workspace/ormi-core/renderers";
 import { shadcnCells, shadcnRenderer } from "@workspace/ormi-jsonforms";
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
+import { PluginsHooks, usePluginFilter } from "@workspace/ormi-plugins";
 import { Button } from "@workspace/ui/components/button";
 import {
 	Dialog,
@@ -108,15 +108,25 @@ function draftFromTarget(target: MapServerDialogTarget): Draft | null {
 	};
 }
 
+/** The hooks {@link useFormRenderers} reads, as a module-level array. */
+const JSON_FORMS_RENDERER_HOOKS = [PluginsHooks.JSON_FORMS_RENDERER] as const;
+
+/** Fresh accumulator for `JSON_FORMS_RENDERER` (filters may push to it). */
+const baseFormRenderers = (): JsonFormsRendererRegistryEntry[] => [
+	...materialRenderers,
+	...shadcnRenderer,
+	...coreRenderer,
+];
+
 /**
  * The JSON Forms renderers the datasource configuration dialog uses, with
- * the `JSON_FORMS_RENDERER` hook applied.
+ * the `JSON_FORMS_RENDERER` hook applied and re-applied on a registration.
  */
 function useFormRenderers(): JsonFormsRendererRegistryEntry[] {
-	const pluginsManager = usePluginsManager();
-	return pluginsManager.applyFilter<JsonFormsRendererRegistryEntry[]>(
+	return usePluginFilter(
 		PluginsHooks.JSON_FORMS_RENDERER,
-		[...materialRenderers, ...shadcnRenderer, ...coreRenderer],
+		baseFormRenderers,
+		JSON_FORMS_RENDERER_HOOKS,
 	);
 }
 

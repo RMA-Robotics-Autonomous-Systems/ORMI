@@ -142,7 +142,9 @@ export const Recorder = (props: RecorderProps) => {
 						disabled={isStoppingRecording}
 					>
 						{isStoppingRecording ? (
-							<span className="animate-pulse">Stopping...</span>
+							<span className="motion-safe:animate-pulse">
+								Stopping...
+							</span>
 						) : (
 							<SquareIcon />
 						)}

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { db } from "@/server/db";
+import { updateUserName } from "@/lib/data/prisma-users";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import { userIdParamSchema, userNameSchema } from "@/lib/validations/user";
@@ -31,14 +31,7 @@ export const PATCH = withAuth(
 				return apiResponse({ error: parsedBody.error.flatten() }, 400);
 			}
 
-			await db.user.update({
-				where: {
-					id: session.user.id,
-				},
-				data: {
-					name: parsedBody.data.name,
-				},
-			});
+			await updateUserName(session.user.id, parsedBody.data.name);
 
 			return apiResponse(null, 200);
 		} catch (error) {

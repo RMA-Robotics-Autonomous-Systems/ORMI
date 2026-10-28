@@ -158,8 +158,12 @@ interface DatasourceProviderSettings {
  * (e.g. the global datasource provider and its status badges) import one
  * shared definition rather than re-declaring it. The authoritative status
  * map lives on the global datasource provider.
+ *
+ * `disabled` is reported by core for a datasource whose `settings.enable` is
+ * off: its provider is not mounted, so it never reports anything itself.
  */
-type DatasourceStatus = "connecting" | "ready" | "error" | "disposed";
+type DatasourceStatus =
+	"connecting" | "ready" | "error" | "disposed" | "disabled";
 
 /**
  * Widget-facing datasource health.
@@ -188,6 +192,7 @@ type DatasourceHealth = "connecting" | "online" | "offline";
  * - `"connecting"` → `connecting`
  * - `"disposed"` → `offline`
  * - `"error"` → `offline`
+ * - `"disabled"` → `offline` (no provider is mounted, so no data flows)
  * - `undefined` / missing → `connecting` (unknown is treated as still coming up)
  *
  * @param status - Raw datasource status, or `undefined` when not yet tracked.
@@ -199,6 +204,7 @@ function deriveHealth(status: DatasourceStatus | undefined): DatasourceHealth {
 			return "online";
 		case "disposed":
 		case "error":
+		case "disabled":
 			return "offline";
 		case "connecting":
 		case undefined:

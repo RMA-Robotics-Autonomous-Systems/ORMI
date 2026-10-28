@@ -274,20 +274,31 @@ export function SignalsChart({
 				layout as unknown as Plotly.Layout,
 			);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [Plotly, buildTraces, buildLayout, onRangeChange, duration]);
+		// `lineSeries`/`extraSeries`/`timeRange` already key `buildTraces` and
+		// `buildLayout`, so listing them adds no re-run.
+	}, [
+		Plotly,
+		buildTraces,
+		buildLayout,
+		onRangeChange,
+		duration,
+		lineSeries,
+		extraSeries,
+		timeRange,
+	]);
 
 	// Sync x-axis range from external timeRange changes (from timeline scrubber)
+	const [rangeStart, rangeEnd] = timeRange;
 	useEffect(() => {
 		if (!divRef.current || !initializedRef.current || !Plotly) return;
 		externalUpdateRef.current = true;
 		Plotly.relayout(divRef.current, {
-			"xaxis.range[0]": nsToSec(timeRange[0]),
-			"xaxis.range[1]": nsToSec(timeRange[1]),
+			"xaxis.range[0]": nsToSec(rangeStart),
+			"xaxis.range[1]": nsToSec(rangeEnd),
 		}).then(() => {
 			externalUpdateRef.current = false;
 		});
-	}, [timeRange[0], timeRange[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [Plotly, rangeStart, rangeEnd]);
 
 	return <div ref={divRef} style={{ width: "100%", height }} />;
 }

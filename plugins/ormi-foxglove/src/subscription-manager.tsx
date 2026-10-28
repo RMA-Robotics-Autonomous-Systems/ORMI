@@ -5,8 +5,10 @@ import React, {
 	ReactNode,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import { Channel, MessageData } from "@foxglove/ws-protocol";
 import { parse } from "@foxglove/rosmsg";
@@ -197,33 +199,26 @@ function extractMessageMeta(parsed: unknown): {
 }
 
 /**
- * Builds the raw-message coalescer for one manager instance. The dispatcher
- * is dereferenced through a ref at drain time (timer/socket callbacks, never
- * during render) so the long-lived coalescer always decodes through the
- * latest closure. Coarse per-datasource coalescer metrics (overwrites, decoded,
+ * Builds the raw-message coalescer for one manager instance. `dispatch` is
+ * called at drain time (timer/socket callbacks, never during render) and
+ * forwards to the latest decode closure, so the long-lived coalescer always
+ * decodes through it. Coarse per-datasource coalescer metrics (overwrites, decoded,
  * dispatch time) are registered once and fed to the shared engine; the finer
  * PointCloud2 decode probe in `decodeAndDispatch` coexists with them.
  */
 const createDrainCoalescer = (
-	dispatchRef: React.RefObject<(messageData: MessageData) => void>,
+	dispatch: (messageData: MessageData) => void,
 	datasourceId: string,
 ) =>
-	new MessageCoalescer<MessageData>(
-		(messageData) => dispatchRef.current(messageData),
-		{
-			metrics: {
-				overwrites: metrics.counter(
-					`ds.${datasourceId}.coalescer.overwrites`,
-				),
-				decoded: metrics.counter(
-					`ds.${datasourceId}.coalescer.decoded`,
-				),
-				dispatchMs: metrics.ring(
-					`ds.${datasourceId}.coalescer.dispatchMs`,
-				),
-			},
+	new MessageCoalescer<MessageData>((messageData) => dispatch(messageData), {
+		metrics: {
+			overwrites: metrics.counter(
+				`ds.${datasourceId}.coalescer.overwrites`,
+			),
+			decoded: metrics.counter(`ds.${datasourceId}.coalescer.decoded`),
+			dispatchMs: metrics.ring(`ds.${datasourceId}.coalescer.dispatchMs`),
 		},
-	);
+	});
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	children,
@@ -232,19 +227,48 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	const { client, channels, addCallback, removeCallback } = useFoxgloveData();
 	const pluginsManager = usePluginsManager();
 
-	// Initialization state
-	const [isInitialized, setIsInitialized] = useState(false);
+	// Whether the subscribe/unsubscribe actions are registered; children render
+	// only once they are. Registration is external to React (PluginsManager), so
+	// it is a small per-instance store read through useSyncExternalStore: the
+	// registration effect writes it, never calling setState synchronously.
+	const [registration] = useState(() => {
+		let registered = false;
+		const listeners = new Set<() => void>();
+		return {
+			subscribe: (listener: () => void) => {
+				listeners.add(listener);
+				return () => {
+					listeners.delete(listener);
+				};
+			},
+			get: () => registered,
+			set: (next: boolean) => {
+				if (registered === next) return;
+				registered = next;
+				listeners.forEach((listener) => listener());
+			},
+		};
+	});
+	const isInitialized = useSyncExternalStore(
+		registration.subscribe,
+		registration.get,
+		registration.get,
+	);
 
 	// Stable refs for values used inside long-lived action closures.
 	// Using refs instead of closing over state prevents the hook-registration
 	// effect from re-running (and briefly removing/re-adding subscribe hooks)
 	// every time a channel is advertised.
-	// Assigned during render (not in a useEffect) so the ref is always
-	// current before any effect fires — the standard "latest ref" pattern.
+	// Synced in a layout effect, which runs in the commit before every passive
+	// effect in the tree (children's included), so the action closures and the
+	// stabilize effect always read the committed values. Not during render: a
+	// render-phase ref write makes the React Compiler skip this component.
 	const channelsRef = useRef(channels);
 	const clientRef = useRef(client);
-	channelsRef.current = channels;
-	clientRef.current = client;
+	useLayoutEffect(() => {
+		channelsRef.current = channels;
+		clientRef.current = client;
+	}, [channels, client]);
 
 	// State management refs
 	const subscribersRef = useRef<Map<number, Subscriber>>(new Map());
@@ -281,20 +305,25 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// disconnect so the next connection re-aligns the registry's wire state.
 	const readyFiredRef = useRef(false);
 
-	// Latest-ref so the long-lived coalescer always drains through the
-	// current decode closure (pluginsManager, settings) without being
-	// recreated. Assigned below, after decodeAndDispatch is defined.
-	const decodeAndDispatchRef = useRef<(messageData: MessageData) => void>(
-		() => {},
-	);
-
 	// One coalescer per manager instance. Raw payloads are stashed on
 	// arrival and decoded on its ~30 Hz drain tick; per-message error
 	// handling lives inside decodeAndDispatch, so one bad message cannot
 	// break a drain tick for other topics.
-	const [coalescer] = useState(() =>
-		createDrainCoalescer(decodeAndDispatchRef, settings.id),
-	);
+	// The drain forwards to `dispatchTo`, a variable the initialiser owns, so
+	// the coalescer always decodes through the current closure (pluginsManager,
+	// settings) without being recreated and without a ref crossing render.
+	const [{ coalescer, setDispatch }] = useState(() => {
+		let dispatchTo: (messageData: MessageData) => void = () => {};
+		return {
+			coalescer: createDrainCoalescer(
+				(messageData) => dispatchTo(messageData),
+				settings.id,
+			),
+			setDispatch: (next: (messageData: MessageData) => void) => {
+				dispatchTo = next;
+			},
+		};
+	});
 
 	// Function queue for ordered processing
 	const queueRef = useRef<Map<number, Array<() => Promise<void>>>>(new Map());
@@ -512,72 +541,74 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 					rawType: channel.schemaName,
 				};
 
+				// Kept out of the try block (React Compiler: no conditional inside
+				// try/catch, or the whole component goes uncompiled).
+				const subscribePending = async () => {
+					// Check if client is available
+					if (!client) {
+						// Keep the pending subscription for later retry
+						return;
+					}
+
+					const subscriptionId = client.subscribe(channel.id);
+
+					if (
+						subscriptionId === undefined ||
+						subscriptionId === null
+					) {
+						for (const rejector of pending.rejectors) {
+							rejector(
+								new Error(
+									`Failed to subscribe to topic ${pending.topic}`,
+								),
+							);
+						}
+					} else {
+						const subscriber = {
+							subscriberId: subscriptionId,
+							channelId: channel.id,
+							topic: channel.topic,
+							schemaName: channel.schemaName,
+							webtype: UnifiedConverter.getWebappTypeFromROSType(
+								channel.schemaName,
+							),
+							count: pending.count,
+							hook: `${datasource_id}-${channel.topic}-published`,
+							reader: new MessageReader(
+								parse(channel.schema, { ros2: true }),
+							),
+							lossless: isLosslessTopic(
+								channel.topic,
+								channel.schemaName,
+							),
+							decodeCapMs: decodeCapMsForSchema(
+								channel.schemaName,
+							),
+							producedId: metrics.counter(
+								`ds.${datasource_id}.topic.${channel.topic}.produced`,
+							),
+						} as Subscriber;
+
+						subscribersRef.current.set(subscriptionId, subscriber);
+						coalescer.start();
+
+						for (const resolver of pending.resolvers) {
+							resolver(true);
+						}
+
+						if (settings.toasts) {
+							toast(
+								`Subscribed to pending topic: ${pending.topic}`,
+							);
+						}
+					}
+
+					pendingSubscriptionsRef.current.delete(pendingId);
+				};
+
 				enqueueOperation(channel.id, async () => {
 					try {
-						// Check if client is available
-						if (!client) {
-							// Keep the pending subscription for later retry
-							return;
-						}
-
-						const subscriptionId = client.subscribe(channel.id);
-
-						if (
-							subscriptionId === undefined ||
-							subscriptionId === null
-						) {
-							for (const rejector of pending.rejectors) {
-								rejector(
-									new Error(
-										`Failed to subscribe to topic ${pending.topic}`,
-									),
-								);
-							}
-						} else {
-							const subscriber = {
-								subscriberId: subscriptionId,
-								channelId: channel.id,
-								topic: channel.topic,
-								schemaName: channel.schemaName,
-								webtype:
-									UnifiedConverter.getWebappTypeFromROSType(
-										channel.schemaName,
-									),
-								count: pending.count,
-								hook: `${datasource_id}-${channel.topic}-published`,
-								reader: new MessageReader(
-									parse(channel.schema, { ros2: true }),
-								),
-								lossless: isLosslessTopic(
-									channel.topic,
-									channel.schemaName,
-								),
-								decodeCapMs: decodeCapMsForSchema(
-									channel.schemaName,
-								),
-								producedId: metrics.counter(
-									`ds.${datasource_id}.topic.${channel.topic}.produced`,
-								),
-							} as Subscriber;
-
-							subscribersRef.current.set(
-								subscriptionId,
-								subscriber,
-							);
-							coalescer.start();
-
-							for (const resolver of pending.resolvers) {
-								resolver(true);
-							}
-
-							if (settings.toasts) {
-								toast(
-									`Subscribed to pending topic: ${pending.topic}`,
-								);
-							}
-						}
-
-						pendingSubscriptionsRef.current.delete(pendingId);
+						await subscribePending();
 					} catch (error) {
 						console.error(
 							`Failed to subscribe to pending topic ${pending.topic}:`,
@@ -649,6 +680,15 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// subscribed are skipped, and ensureSubscribedToChannel dedupes per channel
 	// — so it is safe to call repeatedly and concurrently with the pending
 	// machinery.
+	// `ensureSubscribedToChannel` is a fresh closure every render; reading it
+	// through a ref keeps `reconcileSubscriptions` stable. The sync effect is
+	// declared before the stabilize effect below, so it always sees this
+	// render's closure.
+	const ensureSubscribedToChannelRef = useRef(ensureSubscribedToChannel);
+	useEffect(() => {
+		ensureSubscribedToChannelRef.current = ensureSubscribedToChannel;
+	});
+
 	const reconcileSubscriptions = useCallback(() => {
 		if (!clientRef.current || channelsRef.current.size === 0) {
 			return;
@@ -666,17 +706,18 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			if (!channel) continue; // Channel vanished between diff and use.
 
 			const count = requestedTopicsRef.current.get(topicName) ?? 1;
-			ensureSubscribedToChannel(channel, count).catch((error) => {
-				console.error(
-					`Failed to reconcile subscription for ${topicName}:`,
-					error,
-				);
-			});
+			ensureSubscribedToChannelRef
+				.current(channel, count)
+				.catch((error) => {
+					console.error(
+						`Failed to reconcile subscription for ${topicName}:`,
+						error,
+					);
+				});
 		}
-		// channelValues is recomputed inside; refs are stable, so the callback
-		// only needs to change when the (re)connect identity does.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [client, channels]);
+		// Reads refs only, so it never changes; the stabilize effect below is
+		// what re-runs it on every (re)connect.
+	}, []);
 
 	// Run the reconcile when the connection and channel list stabilize — the
 	// moment channels/client become available after a (re)connect or remount.
@@ -720,7 +761,9 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 			return;
 		}
 
-		try {
+		// Kept out of the try block: the React Compiler cannot compile a
+		// conditional inside try/catch, and would skip this whole component.
+		const publishDecoded = () => {
 			// Meter the main-thread PointCloud2 decode (CDR read + convert) —
 			// the known `ws://` bottleneck. The `performance.now()` pair only
 			// runs on the heavy tier; the throughput counter is always on.
@@ -795,6 +838,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 				timestamp,
 				frameId,
 			);
+		};
+
+		try {
+			publishDecoded();
 		} catch (error) {
 			// Handle CDR reading errors gracefully
 			console.error(
@@ -822,7 +869,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 	// assignment is safe: drains only run from timers/socket events, which
 	// fire after effects have committed.
 	useEffect(() => {
-		decodeAndDispatchRef.current = decodeAndDispatch;
+		setDispatch(decodeAndDispatch);
 	});
 
 	// Handle incoming messages: stash the raw bytes only (O(1), no copy, no
@@ -865,10 +912,6 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 	// Register plugin system hooks
 	useEffect(() => {
-		if (!settings.enable) {
-			return;
-		}
-
 		// Subscribe action
 		pluginsManager.addAction(subscribe_hook, {
 			id: subscribe_hook,
@@ -1037,7 +1080,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 		});
 
 		// Mark as initialized after successful registration
-		setIsInitialized(true);
+		registration.set(true);
 
 		// The `-subscribe` action is now live. DATASOURCE_READY was already fired (by the
 		// connection) before this manager's effect ran — and child subscribers (e.g. the TF
@@ -1048,11 +1091,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
 		// Cleanup function
 		return () => {
-			setIsInitialized(false);
+			registration.set(false);
 			pluginsManager.removeAction(subscribe_hook);
 			pluginsManager.removeAction(unsubscribe_hook);
 		};
-	}, [settings.enable, settings.id, pluginsManager]);
+	}, [settings.id, pluginsManager]);
 
 	// Cleanup on unmount
 	useEffect(() => {

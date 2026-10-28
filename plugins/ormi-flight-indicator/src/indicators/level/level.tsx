@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { AttitudeIndicator } from "react-typescript-flight-indicators";
@@ -32,7 +33,7 @@ interface LevelProps extends Record<string, unknown> {
  * @returns React element.
  */
 export function WidgetLevelIndicator(props: LevelProps) {
-	const { getSource } = useLocalDataSource();
+	const { getSource, health } = useLocalDataSource();
 	const [pitch, setPitch] = useState(0);
 	const [roll, setRoll] = useState(0);
 
@@ -97,17 +98,19 @@ export function WidgetLevelIndicator(props: LevelProps) {
 	}, [getSource, props.topic, props.pitchAxis, props.rollAxis, props.invert]);
 
 	return (
-		<div
-			className="flex justify-center items-center"
-			style={{ padding: "1rem", height: "100%" }}
-		>
-			<AttitudeIndicator
-				size={"100%"}
-				pitch={pitch}
-				roll={roll}
-				showBox={false}
-			/>
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				className="flex justify-center items-center"
+				style={{ padding: "1rem", height: "100%" }}
+			>
+				<AttitudeIndicator
+					size={"100%"}
+					pitch={pitch}
+					roll={roll}
+					showBox={false}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 

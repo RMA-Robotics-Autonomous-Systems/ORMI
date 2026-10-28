@@ -4,7 +4,13 @@
  * Load available datasources and render their providers.
  */
 
-import React, { useState, useEffect } from "react";
+import React, {
+	useState,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+} from "react";
 import {
 	Datasource,
 	DatasourceDefinition,
@@ -48,7 +54,10 @@ import { createSafeContext } from "@workspace/utils";
 
 /** Global datasource context value — exposed for external consumers. */
 interface GlobalDataSources {
-	/** Per-datasource connection status: connecting, ready, error, disposed. */
+	/**
+	 * Per-datasource connection status: connecting, ready, error, disposed,
+	 * or disabled (set by core for a datasource whose `enable` is off).
+	 */
 	datasourceStatuses: Map<string, DatasourceStatus>;
 	/** Set of datasource instance IDs that are currently ready. */
 	readyDatasources: Set<string>;
@@ -98,6 +107,97 @@ function resolveDatasourceEntries(
 			? ({ kind: "supported", datasource, definition } as const)
 			: ({ kind: "unsupported", datasource } as const);
 	});
+}
+
+/**
+ * Whether a configured datasource is switched on.
+ *
+ * Core is the one place `settings.enable` is enforced: a disabled datasource
+ * mounts no provider, so it connects nothing, contributes no topics and fires
+ * no READY. Truthiness, not `=== true`, matches the per-plugin widget gates
+ * (`d.settings.enable`), so a stored config missing the field reads as off in
+ * both places.
+ *
+ * @param datasource - A configured datasource instance.
+ * @returns True when its provider should be mounted.
+ */
+function isDatasourceEnabled(datasource: Datasource): boolean {
+	return Boolean(datasource.settings.enable);
+}
+
+/**
+ * The entries whose provider is mounted: supported and enabled.
+ *
+ * Pure, so "a disabled datasource mounts nothing" is testable without a DOM.
+ *
+ * @param entries - Output of {@link resolveDatasourceEntries}.
+ * @returns The supported, enabled entries, in input order.
+ */
+function mountedDatasourceEntries(entries: readonly ResolvedDatasourceEntry[]) {
+	return entries.filter(
+		(
+			entry,
+		): entry is Extract<ResolvedDatasourceEntry, { kind: "supported" }> =>
+			entry.kind === "supported" && isDatasourceEnabled(entry.datasource),
+	);
+}
+
+/**
+ * Reconcile the tracked statuses with the configured datasources: an enabled
+ * datasource not yet tracked starts `connecting`, and a removed or disabled
+ * one is dropped (a disabled one is reported by {@link withDisabledStatuses},
+ * and dropping its entry is what makes a re-enable start at `connecting`
+ * rather than at the `disposed` its unmount reported).
+ *
+ * @param prev - Current tracked statuses.
+ * @param datasources - Configured datasources.
+ * @returns `prev` itself when nothing changed, otherwise a new map.
+ */
+function reconcileDatasourceStatuses(
+	prev: ReadonlyMap<string, DatasourceStatus>,
+	datasources: Iterable<Datasource>,
+): Map<string, DatasourceStatus> {
+	const enabled = new Set<string>();
+	for (const ds of datasources) {
+		if (isDatasourceEnabled(ds)) enabled.add(ds.settings.id);
+	}
+	let changed = false;
+	const next = new Map(prev);
+	for (const id of enabled) {
+		if (!next.has(id)) {
+			next.set(id, "connecting");
+			changed = true;
+		}
+	}
+	for (const id of prev.keys()) {
+		if (!enabled.has(id)) {
+			next.delete(id);
+			changed = true;
+		}
+	}
+	return changed ? next : (prev as Map<string, DatasourceStatus>);
+}
+
+/**
+ * The statuses the context exposes: the tracked ones, plus `disabled` for
+ * every configured datasource that is switched off.
+ *
+ * @param statuses - Tracked statuses (never carry a disabled id).
+ * @param datasources - Configured datasources.
+ * @returns `statuses` itself when nothing is disabled, so an all-enabled
+ *   dashboard keeps the exact identity it had before.
+ */
+function withDisabledStatuses(
+	statuses: Map<string, DatasourceStatus>,
+	datasources: Iterable<Datasource>,
+): Map<string, DatasourceStatus> {
+	let next: Map<string, DatasourceStatus> | null = null;
+	for (const ds of datasources) {
+		if (isDatasourceEnabled(ds)) continue;
+		next ??= new Map(statuses);
+		next.set(ds.settings.id, "disabled");
+	}
+	return next ?? statuses;
 }
 
 /** Props for {@link UnsupportedDatasourceCard}. */
@@ -236,29 +336,30 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		setInitialized(dataLoaded === true);
 	}, [dataLoaded]);
 
-	// Initialize datasources as connecting when they're added
+	// Ids of the configured datasources that are switched off, read by the
+	// lifecycle handlers below. Synced in a LAYOUT effect so it is current
+	// before any provider's passive effect runs in the same commit: the
+	// DISPOSED a provider fires while unmounting on a disable, and the READY a
+	// re-enabled provider fires on mount, must see the new value.
+	const disabledIdsRef = useRef<Set<string>>(new Set());
+	useLayoutEffect(() => {
+		const disabled = new Set<string>();
+		datasources.forEach((ds) => {
+			if (!isDatasourceEnabled(ds)) disabled.add(ds.settings.id);
+		});
+		disabledIdsRef.current = disabled;
+	}, [datasources]);
+
+	// Enabled datasources start as connecting; removed and disabled ones are
+	// dropped (a disabled one is reported as `disabled` by the overlay below).
 	useEffect(() => {
-		setDatasourceStatuses((prev) => {
-			let changed = false;
-			const next = new Map(prev);
-			datasources.forEach((ds) => {
-				if (!next.has(ds.settings.id)) {
-					next.set(ds.settings.id, "connecting");
-					changed = true;
-				}
-			});
-			// Remove statuses for deleted datasources
-			next.forEach((_, id) => {
-				if (
-					!Array.from(datasources.values()).some(
-						(ds) => ds.settings.id === id,
-					)
-				) {
-					next.delete(id);
-					changed = true;
-				}
-			});
-			return changed ? next : prev;
+		setDatasourceStatuses((prev) =>
+			reconcileDatasourceStatuses(prev, datasources.values()),
+		);
+		setReadyDatasources((prev) => {
+			const disabled = disabledIdsRef.current;
+			if (![...prev].some((id) => disabled.has(id))) return prev;
+			return new Set([...prev].filter((id) => !disabled.has(id)));
 		});
 	}, [datasources]);
 
@@ -290,7 +391,10 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	// down and rebuilds it, which fires READY again on reconnect. The datasource
 	// reconnects for as long as the dashboard is open.
 	useEffect(() => {
+		// A disabled datasource is reported by core, not by its provider: a
+		// late event from a provider being torn down must not overwrite that.
 		const handleDatasourceReady = (datasourceId: string) => {
+			if (disabledIdsRef.current.has(datasourceId)) return;
 			setReadyDatasources((prev) => {
 				if (prev.has(datasourceId)) return prev;
 				const next = new Set(prev);
@@ -306,6 +410,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 		};
 
 		const handleDatasourceDisposed = (datasourceId: string) => {
+			if (disabledIdsRef.current.has(datasourceId)) return;
 			setReadyDatasources((prev) => {
 				if (!prev.has(datasourceId)) return prev;
 				const next = new Set(prev);
@@ -404,8 +509,17 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	// rendering of `children` —
 	// the dashboard and widgets mount immediately and degrade per-datasource —
 	// but consumers may still read it for global health affordances.
+	// A disabled datasource is not waiting for anything, so it is not counted.
+	const enabledCount = Array.from(datasources.values()).filter(
+		isDatasourceEnabled,
+	).length;
 	const allDatasourcesReady =
-		datasources.size === 0 || readyDatasources.size === datasources.size;
+		enabledCount === 0 || readyDatasources.size === enabledCount;
+
+	const exposedStatuses = useMemo(
+		() => withDisabledStatuses(datasourceStatuses, datasources.values()),
+		[datasourceStatuses, datasources],
+	);
 
 	// One resolution pass feeds both the mounted providers and the cards in the
 	// dialog, so a datasource can never be mounted but unrenderable, or listed
@@ -416,11 +530,11 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	);
 
 	// Render datasources as parallel siblings. Unsupported entries mount no
-	// provider — they surface as a card in the dialog instead.
+	// provider (they surface as a card in the dialog instead), and neither do
+	// disabled ones: unmounting on a disable runs the provider's own DISPOSED
+	// cleanup, and re-enabling mounts it again under the same key.
 	const datasourceComponents = initialized
-		? datasourceEntries.map((entry) => {
-				if (entry.kind === "unsupported") return null;
-
+		? mountedDatasourceEntries(datasourceEntries).map((entry) => {
 				const Provider = entry.definition.Provider;
 				return (
 					<Provider
@@ -434,7 +548,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 	return (
 		<GlobalDataSourcesContextProvider
 			value={{
-				datasourceStatuses,
+				datasourceStatuses: exposedStatuses,
 				readyDatasources,
 				allDatasourcesReady,
 			}}
@@ -443,7 +557,7 @@ const GlobalDataSourcesProvider = (props: { children: React.ReactNode }) => {
 				<NavbarItem id="datasources_status" zone="center" priority={0}>
 					<DatasourceStatusBadges
 						datasources={Array.from(datasources.values())}
-						datasourceStatuses={datasourceStatuses}
+						datasourceStatuses={exposedStatuses}
 					/>
 				</NavbarItem>
 			)}
@@ -575,5 +689,9 @@ export {
 	GlobalDataSourcesProvider,
 	useGlobalDataSources,
 	resolveDatasourceEntries,
+	isDatasourceEnabled,
+	mountedDatasourceEntries,
+	reconcileDatasourceStatuses,
+	withDisabledStatuses,
 };
 export type { ResolvedDatasourceEntry };

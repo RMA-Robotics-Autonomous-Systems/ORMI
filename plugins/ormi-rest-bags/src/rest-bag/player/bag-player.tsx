@@ -1,10 +1,13 @@
 import { BagInfo } from "../bags";
 
 import { PlayIcon, PauseIcon, SquareIcon } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { RestBagClient } from "../rest-bag-client";
 import { PlayerPlayRequest } from "../player-types";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import {
+	usePluginsManager,
+	usePluginFiltersRevision,
+} from "@workspace/ormi-plugins";
 import { Button } from "@workspace/ui/components/button";
 import { Badge } from "@workspace/ui/components/badge";
 import { Checkbox } from "@workspace/ui/components/checkbox";
@@ -24,6 +27,12 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
 	const [client, setClient] = useState<RestBagClient | null>(null);
 
 	const pluginsManager = usePluginsManager();
+	// The provider replaces its client when the url changes: re-read it then.
+	const clientHooks = useMemo(
+		() => [`${datasource_id}-client`],
+		[datasource_id],
+	);
+	const clientRevision = usePluginFiltersRevision(clientHooks);
 
 	// Initialize RestBagClient when datasource changes
 	useEffect(() => {
@@ -37,7 +46,7 @@ export function BagPlayer({ bag, datasource_id }: BagPlayerProps) {
 		if (new_client && bag) {
 			checkExistingPlayback(new_client);
 		}
-	}, [datasource_id, bag]);
+	}, [datasource_id, bag, clientRevision]);
 
 	// Function to check for existing playback
 	const checkExistingPlayback = async (client: RestBagClient) => {

@@ -136,18 +136,26 @@ export const GoalPoseOverlay: React.FC<GoalPoseOverlayProps> = ({
 	const goalInputArmedRef = useRef(true);
 	const initialInputArmedRef = useRef(true);
 
+	// The topic objects arrive with a fresh identity on every render, so the
+	// advertise effects are keyed on datasource id + topic name and read the
+	// object through a ref.
+	const topicsRef = useRef({ goalTopic, initialTopic });
 	useEffect(() => {
-		if (!goalTopic) return;
-		const handle = registry.advertise(goalTopic);
+		topicsRef.current = { goalTopic, initialTopic };
+	});
+
+	useEffect(() => {
+		const topic = topicsRef.current.goalTopic;
+		if (!topic) return;
+		const handle = registry.advertise(topic);
 		return () => handle.unadvertise();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [registry, goalTopic?.source?.id, goalTopic?.topic]);
 
 	useEffect(() => {
-		if (!initialTopic) return;
-		const handle = registry.advertise(initialTopic);
+		const topic = topicsRef.current.initialTopic;
+		if (!topic) return;
+		const handle = registry.advertise(topic);
 		return () => handle.unadvertise();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [registry, initialTopic?.source?.id, initialTopic?.topic]);
 
 	// -----------------------------------------------------------------------

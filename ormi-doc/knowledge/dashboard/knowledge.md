@@ -180,7 +180,8 @@ Engines mutate state via `useDashboardActions()`:
   render and re-resolves it whenever a filter is added to or removed from a hook
   that read touches (`DASHBOARD_REGISTRY_FILTER_HOOKS`,
   `packages/ormi-core/src/dashboard/shell/registry-filter-hooks.ts`, through
-  `usePluginFiltersRevision`). Its child `GlobalDataSourcesProvider` registers
+  `usePluginFiltersRevision`; the set also names `std-widgets-map-type`, the
+  standard map's `extensibilityHook`). Its child `GlobalDataSourcesProvider` registers
   the datasource gate from an effect, so the first render offers the ungated
   list and the gate's registration re-renders the shell into the gated one.
   Before that subscription the shell kept the ungated list until an unrelated

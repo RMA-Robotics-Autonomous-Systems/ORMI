@@ -1,12 +1,15 @@
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { RefreshCwIcon, VideotapeIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { RestBagClient } from "../rest-bag-client";
 import { RecordingStatus } from "../recording-types";
 import { Recorder } from "./recorder";
 import { RecorderCreator } from "./recorder-creator";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import {
+	usePluginsManager,
+	usePluginFiltersRevision,
+} from "@workspace/ormi-plugins";
 import { restBagDatasourceProperty } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Button } from "@workspace/ui/components/button";
@@ -20,6 +23,12 @@ interface RecorderListProps extends Record<string, unknown> {
 // Main component
 const BagsRecorders = (props: RecorderListProps) => {
 	const pluginsManager = usePluginsManager();
+	// The provider replaces its client when the url changes: re-read it then.
+	const clientHooks = useMemo(
+		() => [`${props.api_datasource_id}-client`],
+		[props.api_datasource_id],
+	);
+	const clientRevision = usePluginFiltersRevision(clientHooks);
 
 	// Service state
 	const [client, setClient] = useState<RestBagClient | null>(null);
@@ -51,7 +60,7 @@ const BagsRecorders = (props: RecorderListProps) => {
 		return () => {
 			removeButtonItem("bag-list-refresh");
 		};
-	}, [props, pluginsManager, refreshCounter]);
+	}, [props, pluginsManager, refreshCounter, clientRevision]);
 
 	useEffect(() => {
 		if (client) {

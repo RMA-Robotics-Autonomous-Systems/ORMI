@@ -57,7 +57,7 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 	// Initialize service and register hooks (independent of channels)
 	useEffect(() => {
 		// Only proceed if we need to initialize and have the required dependencies
-		if (!settings.enable || !client || !pluginsManager) {
+		if (!client || !pluginsManager) {
 			return;
 		}
 
@@ -132,7 +132,7 @@ const PublisherManager: React.FC<PublisherManagerProps> = ({
 				publisherServiceRef.current = null;
 			}
 		};
-	}, [settings.enable, settings.id, client, pluginsManager]);
+	}, [settings.id, client, pluginsManager]);
 
 	// Initialize service with existing channels after it's created
 	useEffect(() => {

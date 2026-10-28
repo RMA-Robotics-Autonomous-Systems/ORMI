@@ -118,7 +118,7 @@ model {
 
     serverData = component 'Prisma Data Helpers' {
       technology 'apps/web/lib/data/prisma-*.ts'
-      description 'The only place Prisma is called. prisma-workspaces / prisma-dashboard / prisma-templates / prisma-datasources encapsulate all DB access for the route handlers. prisma-datasources reads the workspaces owned by the session user with a narrow select and groups them into one entry per datasource configuration.'
+      description 'The only place Prisma is called. prisma-workspaces / prisma-templates / prisma-datasources / prisma-map-servers / prisma-categories / prisma-users encapsulate all DB access for the route handlers; the client persistence glue lives in apps/web/lib/persistence/. prisma-datasources reads the workspaces owned by the session user with a narrow select and groups them into one entry per datasource configuration.'
     }
 
     auth = component 'NextAuth' {

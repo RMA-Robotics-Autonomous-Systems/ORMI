@@ -236,7 +236,10 @@ const TopicSelectRenderer = (props: ControlProps) => {
 		applyDerivedNames(undefined, selection);
 		// One cascading render, once per mount, to surface the badge on a value
 		// this control bound rather than the operator. The effect cannot re-arm
-		// (`settledRef`), so it cannot cascade further.
+		// (`settledRef`), so it cannot cascade further. The badge marks a value
+		// this effect wrote to the form, so there is nothing to derive it from.
+		// NOTE: this directive opts `TopicSelectRenderer` out of React Compiler
+		// compilation; the component is consequently uncompiled.
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setAutoSelected(true);
 	}, [availableTopics, hasSelection]);

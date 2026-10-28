@@ -140,7 +140,7 @@ export function CycleControl(props: CycleControlData) {
 					className={`
                         bg-foreground/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
                         flex justify-center items-center select-none cursor-pointer
-                        hover:bg-foreground/20 hover:scale-110 transition-all duration-100
+                        hover:bg-foreground/20 hover:scale-110 transition-all duration-(--motion-fast)
                         data-[active=true]:bg-success/20 data-[active=true]:scale-110
                     `}
 				>

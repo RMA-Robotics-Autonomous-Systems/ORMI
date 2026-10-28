@@ -12,11 +12,13 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible";
-import {
-	PluginsHooks,
-	PluginsManager,
-	usePluginsManager,
-} from "@workspace/ormi-plugins";
+import { PluginsHooks, usePluginFilter } from "@workspace/ormi-plugins";
+
+/** The hooks the catalogue reads, as a module-level array. */
+const DATASOURCES_LIST_HOOKS = [PluginsHooks.DATASOURCES_LIST] as const;
+
+/** Fresh accumulator for `DATASOURCES_LIST`. */
+const emptyDefinitions = (): DatasourceDefinition[] => [];
 
 /** Props for {@link DatasourceAdder}. */
 interface DatasourceAdderProps {
@@ -48,10 +50,11 @@ interface DatasourceAdderProps {
  * @returns React element.
  */
 const DatasourceAdder = (props: DatasourceAdderProps) => {
-	const pluginsManager = usePluginsManager() as PluginsManager;
-	const datasources_definitions = pluginsManager.applyFilter<
-		DatasourceDefinition[]
-	>(PluginsHooks.DATASOURCES_LIST, []);
+	const datasources_definitions = usePluginFilter(
+		PluginsHooks.DATASOURCES_LIST,
+		emptyDefinitions,
+		DATASOURCES_LIST_HOOKS,
+	);
 
 	const collapsible = props.hasDatasources === true;
 

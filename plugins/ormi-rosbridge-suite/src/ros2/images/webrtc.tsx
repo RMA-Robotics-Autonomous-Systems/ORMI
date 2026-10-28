@@ -90,7 +90,9 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 	const host = getHostFromWSUrl(ros2Definition?.url);
 	const topicName = props.topic?.topic;
 	const iceServersUrls = props.iceServersUrls;
-	const iceServersKey = (iceServersUrls ?? []).join("|");
+	// Content key: the array arrives with a fresh identity on every render, and
+	// the connection effect parses its URLs back out of this string.
+	const iceServersKey = JSON.stringify(iceServersUrls ?? []);
 
 	const hasTopic = Boolean(topicName && host);
 
@@ -181,7 +183,9 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 		// round-trip (or the timeout below). Leave the list empty unless the user
 		// explicitly configures STUN/TURN for a NAT-traversal scenario.
 		const pc = new RTCPeerConnection({
-			iceServers: iceServersUrls?.map((url) => ({ urls: url })) ?? [],
+			iceServers: (JSON.parse(iceServersKey) as string[]).map((url) => ({
+				urls: url,
+			})),
 		});
 		pcRef.current = pc;
 		pc.addTransceiver("video", { direction: "recvonly" });
@@ -338,7 +342,6 @@ const WebrtcRos2VideoStream = (props: WebrtcRos2VideoStreamProps) => {
 				pcRef.current = null;
 			}
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [host, topicName, iceServersKey, hasTopic, retryNonce, clearRetryTimer]);
 
 	// --- Frame-progress watchdog -----------------------------------------

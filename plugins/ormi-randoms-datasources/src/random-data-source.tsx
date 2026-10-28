@@ -31,7 +31,8 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 		useRef<WorkerDatasourceHost<RandomDataSourceSettings> | null>(null);
 	const [initialized, setInitialized] = useState(false);
 
-	// Connection effect keys on settings content (id/enable/topics), not the props object.
+	// Connection effect keys on settings content (id/topics), not the props
+	// object. `enable` is not read: core mounts this provider only while on.
 	const propsRef = useRef(props);
 	useEffect(() => {
 		propsRef.current = props;
@@ -40,7 +41,6 @@ const RandomDataSourceProvider = (props: RandomDataSourceSettings) => {
 	});
 	const settingsKey = JSON.stringify({
 		id: props.id,
-		enable: props.enable,
 		topics: props.topics,
 	});
 

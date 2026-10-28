@@ -52,14 +52,15 @@ import { toast } from "sonner";
 import { MoreVertical, Loader2, Trash, AlertTriangle } from "lucide-react";
 import WorkspaceImport from "./workspace-import";
 
-import { handleDelete } from "@/lib/data/prisma-workspaces";
 import { workspaceApi } from "@/lib/api/workspace-api";
 
 /** Sentinel value used by the category Select for the "Uncategorized" (null) option. */
 const UNCATEGORIZED_VALUE = "uncategorized";
 
 async function deleteWorkspace(wsId: number) {
-	return await handleDelete(wsId);
+	const result = await workspaceApi.delete(wsId);
+	if (!result.ok) console.error("Failed to delete workspace:", result.error);
+	return result.ok;
 }
 
 async function exportWorkspace(wsId: number) {

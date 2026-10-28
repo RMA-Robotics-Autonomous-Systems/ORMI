@@ -103,14 +103,19 @@ const usePluginsManager = () => {
 	return usePluginsContext();
 };
 
+/** The hooks {@link usePluginPages} reads, as a module-level array. */
+const PAGES_LIST_HOOKS = [PluginsHooks.PAGES_LIST] as const;
+
+/** Fresh accumulator for `PAGES_LIST`, module-level so its identity is stable. */
+const emptyPages = (): PageDefinition[] => [];
+
 /**
- * Returns all page definitions registered by plugins.
+ * Returns all page definitions registered by plugins, re-read whenever a
+ * plugin adds or removes one.
  * @returns Array of PageDefinition.
  */
-const usePluginPages = (): PageDefinition[] => {
-	const manager = usePluginsContext();
-	return manager.applyFilter<PageDefinition[]>(PluginsHooks.PAGES_LIST, []);
-};
+const usePluginPages = (): PageDefinition[] =>
+	usePluginFilter(PluginsHooks.PAGES_LIST, emptyPages, PAGES_LIST_HOOKS);
 
 /**
  * Combined registration revision of `hooks` on `manager`: the snapshot
@@ -188,6 +193,56 @@ const usePluginFiltersRevision = (
 };
 
 /**
+ * Apply `hook` to a fresh `initial()`, as of `revision`.
+ *
+ * `revision` is unused in the body on purpose: it is an argument so the React
+ * Compiler, which treats a call's arguments as its memo dependencies and
+ * cannot see into this function, re-applies the filter when it moves. Read in
+ * the caller and dropped (`void revision`) or keyed only in a `useMemo`
+ * dependency list, the compiler strips it and keys the filter call on the
+ * manager alone, so a later registration is never seen however often the
+ * component re-renders.
+ *
+ * @param manager - Plugins manager.
+ * @param revision - Combined revision of the hooks the read depends on.
+ * @param hook - Filter hook to apply.
+ * @param initial - Builds the accumulator; called on every application.
+ * @returns The filtered value.
+ */
+function applyFilterAtRevision<T>(
+	manager: PluginsManager,
+	revision: number,
+	hook: string | PluginsHooks,
+	initial: () => T,
+): T {
+	return manager.applyFilter<T>(hook, initial());
+}
+
+/**
+ * Apply a filter during render and re-apply it whenever a filter is added to
+ * or removed from one of `watched`: {@link usePluginFiltersRevision} plus a
+ * read the React Compiler cannot freeze ({@link applyFilterAtRevision}).
+ *
+ * Pass module-level `initial` and `watched`, so the result keeps its identity
+ * between registrations. `watched` names `hook` and every hook its filters
+ * apply from inside, and nothing else.
+ *
+ * @param hook - Filter hook to apply.
+ * @param initial - Builds a fresh accumulator (filters may mutate it).
+ * @param watched - Hooks whose registrations change the result.
+ * @returns The filtered value.
+ */
+const usePluginFilter = <T,>(
+	hook: string | PluginsHooks,
+	initial: () => T,
+	watched: ReadonlyArray<string | PluginsHooks>,
+): T => {
+	const manager = usePluginsContext();
+	const revision = usePluginFiltersRevision(watched);
+	return applyFilterAtRevision(manager, revision, hook, initial);
+};
+
+/**
  * Exported components and hooks for plugin system.
  */
 export {
@@ -195,6 +250,8 @@ export {
 	usePluginsManager,
 	usePluginPages,
 	usePluginFiltersRevision,
+	usePluginFilter,
+	applyFilterAtRevision,
 	combinedFilterRevision,
 	subscribeFilterHooks,
 };

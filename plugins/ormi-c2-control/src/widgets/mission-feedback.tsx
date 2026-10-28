@@ -451,7 +451,7 @@ function MissionHeader(props: {
 						className={`flex flex-col gap-0.5 text-xs ${
 							issue.severity === "fail"
 								? "text-destructive"
-								: "text-warning"
+								: "text-warning-text"
 						}`}
 					>
 						{issue.detail && (
@@ -607,7 +607,7 @@ function GraphPositions(props: { fb: MissionFeedback; missionId: string }) {
 						{p.gate.map((line, i) => (
 							<span
 								key={i}
-								className="text-[11px] text-warning truncate"
+								className="text-[11px] text-warning-text truncate"
 							>
 								{line}
 							</span>

@@ -151,6 +151,12 @@ worker composes this into the coalescer drain: coalesce → decode → transfer-
 
 ## Provider (plain lifecycle component)
 
+Core enforces `settings.enable`: `GlobalDataSourcesProvider` never mounts the
+provider of a disabled datasource and reports its status as `disabled`, which
+`deriveHealth` maps to `offline` (by decision: a widget can bind many
+datasources, and a disabled one degrades like a topic that does not publish).
+A provider therefore never checks `enable`.
+
 ```typescript
 "use client";
 import { useEffect, useRef } from "react";

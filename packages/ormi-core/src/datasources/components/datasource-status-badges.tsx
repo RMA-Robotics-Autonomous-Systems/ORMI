@@ -14,7 +14,13 @@ import {
 	TooltipTrigger,
 	TooltipProvider,
 } from "@workspace/ui/components/tooltip";
-import { CheckIcon, Loader2, AlertCircle, XCircle } from "lucide-react";
+import {
+	CheckIcon,
+	Loader2,
+	AlertCircle,
+	XCircle,
+	CircleSlash,
+} from "lucide-react";
 
 interface DatasourceStatusBadgesProps {
 	/** Datasources to display badges for. */
@@ -26,7 +32,7 @@ interface DatasourceStatusBadgesProps {
 /**
  * Datasource Status Badges Container.
  *
- * Renders colored status badges for each datasource (connecting, ready, error, disposed).
+ * Renders colored status badges for each datasource (connecting, ready, error, disposed, disabled).
  * Used in navbar to show at-a-glance datasource connection state.
  *
  * Does not use context — accepts datasources and statuses as props for external rendering.
@@ -68,6 +74,12 @@ export const DatasourceStatusBadges = (props: DatasourceStatusBadgesProps) => {
 			className: "border-transparent bg-muted text-muted-foreground",
 			iconClassName: "",
 			label: "Disposed",
+		},
+		disabled: {
+			icon: CircleSlash,
+			className: "border-transparent bg-muted text-muted-foreground",
+			iconClassName: "",
+			label: "Disabled",
 		},
 	};
 

@@ -201,7 +201,7 @@ const TeleopAxisRow: React.FC<TeleopAxisRowProps> = ({
 			</div>
 			<div className="bg-muted mt-1 h-1 w-full rounded sm:mt-2 sm:h-2">
 				<div
-					className="h-full rounded bg-primary transition-all duration-150"
+					className="h-full rounded bg-primary"
 					style={{
 						width: `${bar.widthPercent}%`,
 						marginLeft: `${bar.offsetPercent}%`,
@@ -434,7 +434,7 @@ export function TeleopControl(props: TeleopControlData) {
 						className="
                             bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
                             flex justify-center items-center select-none cursor-pointer touch-none
-                            hover:bg-foreground/20 transition-all duration-100
+                            hover:bg-foreground/20 transition-all duration-(--motion-fast)
                             data-[active=true]:bg-success/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem] any-pointer-coarse:min-h-11
                         "
@@ -455,7 +455,7 @@ export function TeleopControl(props: TeleopControlData) {
 						className="
                             bg-foreground/10 w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10
                             flex justify-between items-stretch select-none
-                            transition-all duration-100
+                            transition-all duration-(--motion-fast)
                             data-[active=true]:bg-success/20
                             min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[3rem] any-pointer-coarse:min-h-11
                         "

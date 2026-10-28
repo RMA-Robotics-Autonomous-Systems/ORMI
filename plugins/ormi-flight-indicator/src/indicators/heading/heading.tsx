@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { HeadingIndicator } from "react-typescript-flight-indicators";
@@ -32,7 +33,7 @@ interface HeadingProps extends Record<string, unknown> {
  * @returns React element.
  */
 export function WidgetHeadingIndicator(props: HeadingProps) {
-	const { getSource } = useLocalDataSource();
+	const { getSource, health } = useLocalDataSource();
 	const [heading, setHeading] = useState(0);
 
 	useEffect(() => {
@@ -102,12 +103,18 @@ export function WidgetHeadingIndicator(props: HeadingProps) {
 	}, [getSource, props.topic, props.orientationAxis, props.imuFrame]);
 
 	return (
-		<div
-			className="flex justify-center items-center"
-			style={{ padding: "1rem", height: "100%" }}
-		>
-			<HeadingIndicator size={"100%"} heading={heading} showBox={false} />
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				className="flex justify-center items-center"
+				style={{ padding: "1rem", height: "100%" }}
+			>
+				<HeadingIndicator
+					size={"100%"}
+					heading={heading}
+					showBox={false}
+				/>
+			</div>
+		</DatasourceGate>
 	);
 }
 

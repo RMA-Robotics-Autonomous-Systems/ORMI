@@ -21,9 +21,9 @@ const LoadgenWorkerProvider = (props: LoadgenSettings) => {
 	// The props object is new on every parent render, so the worker is keyed on
 	// the content of what it consumes (title is display-only: a rename must not
 	// restart it) and reads the settings through a ref.
+	// `enable` is not read: core mounts this provider only while it is on.
 	const settingsKey = JSON.stringify([
 		props.id,
-		props.enable,
 		props.preset,
 		props.generators,
 		props.faults,

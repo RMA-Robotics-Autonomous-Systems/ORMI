@@ -145,8 +145,9 @@ export function useDashboardPersistence(
 			.then(() => {
 				setInitialized(true);
 			});
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+		// `useSetAtom` setters are stable for a fixed store and atom, so this
+		// still runs once per mount.
+	}, [setLayouts, setWidgets, setLocked, setDatasources]);
 
 	// Change detection: recompute SHA-256 hash whenever atoms change after init
 	useEffect(() => {

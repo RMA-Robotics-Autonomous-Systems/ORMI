@@ -1,5 +1,9 @@
 import { NextRequest } from "next/server";
-import { db } from "@/server/db";
+import {
+	createCategory,
+	listCategories,
+	reorderCategories,
+} from "@/lib/data/prisma-categories";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import {
@@ -10,15 +14,7 @@ import {
 // GET /api/categories - List user's categories
 export const GET = withAuth(async (_request: NextRequest, session) => {
 	try {
-		const categories = await db.category.findMany({
-			where: { createdById: session.user.id },
-			orderBy: { order: "asc" },
-			include: {
-				_count: {
-					select: { workspaces: true },
-				},
-			},
-		});
+		const categories = await listCategories(session.user.id);
 
 		return apiResponse(categories);
 	} catch (error) {
@@ -38,24 +34,7 @@ export const POST = withAuth(async (request: NextRequest, session) => {
 
 		const { name } = parsedBody.data;
 
-		const maxOrder = await db.category.findFirst({
-			where: { createdById: session.user.id },
-			orderBy: { order: "desc" },
-			select: { order: true },
-		});
-
-		const category = await db.category.create({
-			data: {
-				name,
-				order: (maxOrder?.order ?? -1) + 1,
-				createdById: session.user.id,
-			},
-			include: {
-				_count: {
-					select: { workspaces: true },
-				},
-			},
-		});
+		const category = await createCategory(session.user.id, name);
 
 		return apiResponse(category, 201);
 	} catch (error) {
@@ -82,17 +61,7 @@ export const PATCH = withAuth(async (request: NextRequest, session) => {
 
 		const { updates } = parsedBody.data;
 
-		await db.$transaction(
-			updates.map(({ id, order }) =>
-				db.category.updateMany({
-					where: {
-						id,
-						createdById: session.user.id,
-					},
-					data: { order },
-				}),
-			),
-		);
+		await reorderCategories(session.user.id, updates);
 
 		return apiResponse({ success: true });
 	} catch (error) {

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { usePluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
@@ -74,16 +74,17 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 	const pluginsManager = usePluginsManager();
 
 	const datasource_id = settings.id;
-	const enable = settings.enable;
 	// Stable signature so the effect re-runs only when the topic set actually changes — not on
 	// every parent re-render. Re-running tears down + clears this datasource's transforms.
 	const topicsKey = (settings.transformTreeTopics || []).join("|");
+	// The rest of `settings` is read through a ref at setup time; id/topics key the effect.
+	const settingsRef = useRef(settings);
+	useEffect(() => {
+		settingsRef.current = settings;
+	});
 
 	useEffect(() => {
-		if (!enable) {
-			return;
-		}
-
+		const settings = settingsRef.current;
 		const registry = getDatasourceSubscriptionRegistry(pluginsManager);
 		const handles = (settings.transformTreeTopics || []).map((topic) => {
 			const isStatic = isTransientLocalTopic(topic);
@@ -109,8 +110,7 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 		// datasource provider when the datasource leaves the dashboard (a transient remount keeps
 		// its frames; see `reconcileTransformSources`).
 		return () => handles.forEach((handle) => handle.unsubscribe());
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [enable, datasource_id, topicsKey, pluginsManager]);
+	}, [datasource_id, topicsKey, pluginsManager]);
 
 	return null;
 };

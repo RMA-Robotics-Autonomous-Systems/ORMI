@@ -126,6 +126,24 @@ export function buildStratifyNodes(inputs: TfNodeInput[]): StratifyNode[] {
 	return nodes;
 }
 
+/**
+ * The current input for a laid-out node. A layout is kept across pose updates,
+ * so `node.data` is the input from the last topology change; age, staleness and
+ * magnitude must come from the live input with the same frame id.
+ *
+ * @param node - A node of the kept layout.
+ * @param byFrame - The latest inputs keyed by frame id.
+ * @returns The live input, the layout's own when the frame is no longer live,
+ *   or `undefined` for the super-root and inferred virtual roots.
+ */
+export function liveNodeInput(
+	node: StratifyNode,
+	byFrame: ReadonlyMap<string, TfNodeInput>,
+): TfNodeInput | undefined {
+	if (!node.data) return undefined;
+	return byFrame.get(node.id) ?? node.data;
+}
+
 /** Result of a layout attempt. */
 export interface TreeLayout {
 	root: HierarchyPointNode<StratifyNode> | null;

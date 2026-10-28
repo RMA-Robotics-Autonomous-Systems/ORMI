@@ -1,7 +1,12 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 
-import { db } from "@/server/db";
+import {
+	deleteWorkspace,
+	findOwnedWorkspace,
+	findWorkspaceOwner,
+	updateWorkspace,
+	updateWorkspaceContent,
+} from "@/lib/data/prisma-workspaces";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import {
@@ -27,18 +32,10 @@ export const GET = withAuth(
 				);
 			}
 
-			const workspace = await db.workspace.findUnique({
-				where: {
-					id: parsedParams.data.wsId,
-					createdById: session.user.id,
-				},
-				select: {
-					id: true,
-					name: true,
-					content: true,
-					dashboardType: true,
-				},
-			});
+			const workspace = await findOwnedWorkspace(
+				parsedParams.data.wsId,
+				session.user.id,
+			);
 
 			return apiResponse(workspace);
 		} catch (error) {
@@ -71,10 +68,7 @@ export const PATCH = withAuth(
 			}
 
 			const workspaceId = parsedParams.data.wsId;
-			const existingWorkspace = await db.workspace.findUnique({
-				where: { id: workspaceId },
-				select: { createdById: true },
-			});
+			const existingWorkspace = await findWorkspaceOwner(workspaceId);
 
 			if (!existingWorkspace) {
 				return apiResponse({ error: "Workspace not found" }, 404);
@@ -89,26 +83,10 @@ export const PATCH = withAuth(
 				);
 			}
 
-			const updateData: {
-				content?: Prisma.InputJsonValue;
-				category?: { connect: { id: number } } | { disconnect: true };
-			} = {};
-			if (parsedBody.data.content !== undefined) {
-				updateData.content = parsedBody.data
-					.content as Prisma.InputJsonValue;
-			}
-			if (parsedBody.data.categoryId !== undefined) {
-				updateData.category =
-					parsedBody.data.categoryId === null
-						? { disconnect: true }
-						: { connect: { id: parsedBody.data.categoryId } };
-			}
-
-			const updatedWorkspace = await db.workspace.update({
-				where: { id: workspaceId },
-				data: updateData,
-				select: { id: true, name: true, categoryId: true },
-			});
+			const updatedWorkspace = await updateWorkspaceContent(
+				workspaceId,
+				parsedBody.data,
+			);
 
 			return apiResponse(updatedWorkspace);
 		} catch (error) {
@@ -141,10 +119,7 @@ export const PUT = withAuth(
 			}
 
 			const workspaceId = parsedParams.data.wsId;
-			const existingWorkspace = await db.workspace.findUnique({
-				where: { id: workspaceId },
-				select: { createdById: true },
-			});
+			const existingWorkspace = await findWorkspaceOwner(workspaceId);
 
 			if (!existingWorkspace) {
 				return apiResponse({ error: "Workspace not found" }, 404);
@@ -159,39 +134,10 @@ export const PUT = withAuth(
 				);
 			}
 
-			const updateData: {
-				name?: string;
-				content?: Prisma.InputJsonValue;
-				dashboardType?: string;
-				category?: { connect: { id: number } } | { disconnect: true };
-			} = {};
-			if (parsedBody.data.name !== undefined) {
-				updateData.name = parsedBody.data.name;
-			}
-			if (parsedBody.data.content !== undefined) {
-				updateData.content = parsedBody.data
-					.content as Prisma.InputJsonValue;
-			}
-			if (parsedBody.data.dashboardType !== undefined) {
-				updateData.dashboardType = parsedBody.data.dashboardType;
-			}
-			if (parsedBody.data.categoryId !== undefined) {
-				updateData.category =
-					parsedBody.data.categoryId === null
-						? { disconnect: true }
-						: { connect: { id: parsedBody.data.categoryId } };
-			}
-
-			const updatedWorkspace = await db.workspace.update({
-				where: { id: workspaceId },
-				data: updateData,
-				select: {
-					id: true,
-					name: true,
-					categoryId: true,
-					dashboardType: true,
-				},
-			});
+			const updatedWorkspace = await updateWorkspace(
+				workspaceId,
+				parsedBody.data,
+			);
 
 			return apiResponse(updatedWorkspace);
 		} catch (error) {
@@ -224,10 +170,7 @@ export const DELETE = withAuth(
 			}
 
 			const workspaceId = parsedParams.data.wsId;
-			const workspace = await db.workspace.findUnique({
-				where: { id: workspaceId },
-				select: { createdById: true },
-			});
+			const workspace = await findWorkspaceOwner(workspaceId);
 
 			if (!workspace) {
 				return apiResponse({ error: "Workspace not found" }, 404);
@@ -242,7 +185,7 @@ export const DELETE = withAuth(
 				);
 			}
 
-			await db.workspace.delete({ where: { id: workspaceId } });
+			await deleteWorkspace(workspaceId);
 
 			return apiResponse(null, 204);
 		} catch (error) {

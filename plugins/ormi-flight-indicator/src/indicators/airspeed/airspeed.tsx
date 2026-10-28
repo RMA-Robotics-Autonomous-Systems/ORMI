@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
+import { DatasourceGate } from "@workspace/ui/components/datasource-gate";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 
 import { Airspeed } from "react-typescript-flight-indicators";
@@ -32,7 +33,7 @@ interface AirSpeedProps extends Record<string, unknown> {
  * @returns React element.
  */
 export function WidgetAirspeedIndicator(props: AirSpeedProps) {
-	const { getSource } = useLocalDataSource();
+	const { getSource, health } = useLocalDataSource();
 
 	const [speed, setSpeed] = useState(0);
 
@@ -91,12 +92,14 @@ export function WidgetAirspeedIndicator(props: AirSpeedProps) {
 	}, [getSource, props.topic, props.speedAxis, props.invert]);
 
 	return (
-		<div
-			className="flex justify-center items-center"
-			style={{ padding: "1rem", height: "100%" }}
-		>
-			<Airspeed speed={speed * 10} size={"100%"} showBox={false} />
-		</div>
+		<DatasourceGate health={health} title={props.topic.source.title}>
+			<div
+				className="flex justify-center items-center"
+				style={{ padding: "1rem", height: "100%" }}
+			>
+				<Airspeed speed={speed * 10} size={"100%"} showBox={false} />
+			</div>
+		</DatasourceGate>
 	);
 }
 

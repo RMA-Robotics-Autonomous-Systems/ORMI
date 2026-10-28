@@ -90,8 +90,8 @@ and `xyz`. Core owns the contract (`@workspace/ormi-core/map-layers/model`),
 the per-user server registry and all rendering. The hook is deliberately
 **not** in `DASHBOARD_REGISTRY_FILTER_HOOKS`: the shell does not read it during
 render, and its readers (`useMapLayerProviders`: the `mapLayersSelect` control,
-every map, the settings page) subscribe with `usePluginFiltersRevision`
-themselves. See `../widgets/knowledge.md` (Basemaps > Raster overlays).
+every map, the settings page) read it through `usePluginFilter` themselves, so
+an adapter registered late still appears. See `../widgets/knowledge.md` (Basemaps > Raster overlays).
 
 ## Datasource runtime hooks
 
@@ -123,7 +123,11 @@ grows on every post-construction `addFilter`/`removeFilter` on the hook and
 `subscribeFilters(listener)` announces each change with the hook name;
 `usePluginFiltersRevision(hooks)` wraps both in a `useSyncExternalStore` that
 re-renders on a change to any of the named hooks only. `DashboardShell` uses it
-over the hooks its registry read touches.
+over the hooks its registry read touches. A render-time read goes through
+`usePluginFilter(hook, initial, watched)`, which reads via
+`applyFilterAtRevision`: under the React Compiler the revision subscription
+alone re-renders, but a memoised `applyFilter` call returns its first result
+(`packages/ormi-plugins/src/plugins/__tests__/plugin-filter-compiled.test.ts`).
 
 ## Priority system
 

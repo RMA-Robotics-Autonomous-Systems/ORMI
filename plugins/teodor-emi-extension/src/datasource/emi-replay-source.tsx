@@ -37,7 +37,7 @@ export const EMI_REPLAY_DATASOURCE_ID = "teodor-emi-replay-source";
  */
 const EmiReplayProvider = (props: EmiReplaySettings) => {
 	const pluginsManager = usePluginsManager();
-	const { id, enable, bagName, rate, autoplay, drain, title } = props;
+	const { id, bagName, rate, autoplay, drain, title } = props;
 
 	// Watch the store rather than reading it once: a datasource is routinely
 	// enabled *before* its recording is picked, and a saved dashboard always
@@ -45,23 +45,29 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 	// the provider has to notice the file arriving and start then.
 	const stored = useBag(bagName);
 
-	// A rename deliberately does not restart the worker: the host stamps the
-	// current title on its topic rows, and the problem banner reads it here.
+	// A rename deliberately does not restart the worker, and neither do the
+	// init-time seeds `rate` / `autoplay` / `drain` (see the effect's deps).
+	// Every one of them is pushed to the host so its settings match the form;
+	// the host stamps the current title on its topic rows, and the problem
+	// banner reads it here. Never the buffer: that is added once, below.
 	const titleRef = useRef(title);
+	const seedsRef = useRef({ rate, autoplay, drain });
 	const hostRef = useRef<WorkerDatasourceHost<EmiReplaySettings> | null>(
 		null,
 	);
 	useEffect(() => {
 		titleRef.current = title;
-		hostRef.current?.updateSettings({ title });
+		seedsRef.current = { rate, autoplay, drain };
+		hostRef.current?.updateSettings({ title, rate, autoplay, drain });
 	});
-	const bufferReady = enable && stored !== undefined;
+	const bufferReady = stored !== undefined;
 
 	useEffect(() => {
 		if (!bufferReady) return;
 		const buffer = getBag(bagName)?.buffer;
 		if (!buffer) return;
 
+		const { rate, autoplay, drain } = seedsRef.current;
 		let disposed = false;
 		// A new attempt: whatever the last recording was refusing to do is no
 		// longer what the operator is looking at.
@@ -119,7 +125,8 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			settings: {
 				id,
 				title: titleRef.current,
-				enable,
+				// Core mounts a provider only while its datasource is enabled.
+				enable: true,
 				bagName,
 				rate,
 				autoplay,
@@ -161,11 +168,11 @@ const EmiReplayProvider = (props: EmiReplaySettings) => {
 			hostRef.current = null;
 			host.dispose();
 		};
-		// `title` is a label, and `rate`/`autoplay` are init-time seeds with a
-		// first-class runtime path of their own (`emi.replay.setRate`). Listing
-		// any of them here would tear down the worker, re-parse the whole
-		// recording and reset the playhead because someone nudged a form field.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		// `title` is a label, and `rate`/`autoplay`/`drain` are init-time seeds
+		// with a first-class runtime path of their own (`emi.replay.setRate`),
+		// so all four are read through refs. Keying on any of them would tear
+		// down the worker, re-parse the whole recording and reset the playhead
+		// because someone nudged a form field.
 	}, [pluginsManager, id, bagName, bufferReady]);
 
 	// A lifecycle component, not a view: providers are rendered as bare

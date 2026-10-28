@@ -54,7 +54,11 @@ const LIST_TOPICS_TIMEOUT_MS = 4000;
 export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 	private readonly worker: Worker;
 	private readonly datasourceId: string;
-	private readonly settings: Settings;
+	/**
+	 * The settings the worker was started with, plus whatever the provider has
+	 * pushed since through {@link FoxgloveWorkerHost.updateSettings}.
+	 */
+	private settings: Settings;
 	private readonly pluginsManager: PluginsManager;
 	private readonly rpc;
 	private readonly disposers: Array<() => void> = [];
@@ -103,6 +107,24 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 			this.initFailed = true;
 		});
 		await pending;
+	}
+
+	/**
+	 * Merge settings that changed without restarting the worker.
+	 *
+	 * The provider restarts the worker only for settings the connection
+	 * consumes (`foxgloveWorkerConnectionKey`); a rename is not one of them.
+	 * The worker's topic rows still carry the title it was started with, so
+	 * the host stamps the current one on each row at call time.
+	 */
+	updateSettings(patch: Partial<Settings>): void {
+		this.settings = { ...this.settings, ...patch };
+	}
+
+	/** The current title, or `undefined` when the settings carry none. */
+	private currentTitle(): string | undefined {
+		const title = (this.settings as { title?: unknown }).title;
+		return typeof title === "string" ? title : undefined;
 	}
 
 	/**
@@ -161,9 +183,21 @@ export class FoxgloveWorkerHost<Settings = DatasourceProviderSettings> {
 						LIST_TOPICS_TIMEOUT_MS,
 						[] as DatasourceTopic[],
 					);
+					const title = this.currentTitle();
+					const current =
+						title === undefined
+							? workerTopics
+							: workerTopics.map((t) =>
+									t.source
+										? {
+												...t,
+												source: { ...t.source, title },
+											}
+										: t,
+								);
 					const toAdd = filter
-						? workerTopics.filter((t) => filter.filter(t))
-						: workerTopics;
+						? current.filter((t) => filter.filter(t))
+						: current;
 					topics.push(...toAdd);
 				} catch (error) {
 					console.warn(

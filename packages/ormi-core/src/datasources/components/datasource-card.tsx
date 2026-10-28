@@ -35,13 +35,23 @@ import { toast } from "sonner";
 import { shadcnCells, shadcnRenderer } from "@workspace/ormi-jsonforms";
 import { coreRenderer } from "../../renderers";
 import { AddDatasourceToTemplatesBtn, Template } from "../../templates";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginFilter, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	ConfigValidationError,
 	formatConfigErrorNotice,
 	hasConfigErrors,
 	summarizeConfigErrors,
 } from "../../forms/config-errors";
+
+/** The hooks the form renderers read, as a module-level array. */
+const JSON_FORMS_RENDERER_HOOKS = [PluginsHooks.JSON_FORMS_RENDERER] as const;
+
+/** Fresh accumulator for `JSON_FORMS_RENDERER` (filters may push to it). */
+const baseJsonFormsRenderers = (): JsonFormsRendererRegistryEntry[] => [
+	...materialRenderers,
+	...shadcnRenderer,
+	...coreRenderer,
+];
 
 /** Props for DatasourceCard. */
 interface DatasourceCardProps {
@@ -111,36 +121,37 @@ const DatasourceCard = (props: DatasourceCardProps) => {
 	// robot is actually there. Both come from state this component already
 	// sits inside, so showing them costs nothing.
 	const { datasourceStatuses } = useGlobalDataSources();
-	const health = deriveHealth(datasourceStatuses.get(data.id));
+	// Disabled is the operator's own choice, not a failure, so it is named as
+	// such rather than reading as offline.
+	const status = datasourceStatuses.get(data.id);
+	const health = deriveHealth(status);
 	const statusLabel =
-		health === "online"
-			? "Connected"
-			: health === "offline"
-				? "Offline"
-				: "Connecting…";
+		status === "disabled"
+			? "Disabled"
+			: health === "online"
+				? "Connected"
+				: health === "offline"
+					? "Offline"
+					: "Connecting…";
 	// The dot's colour and the label beside it carry the state; the pulse on
 	// "connecting" only adds to them, so it is dropped under reduced motion.
 	const statusDotClass =
-		health === "online"
-			? "bg-success"
-			: health === "offline"
-				? "bg-destructive"
-				: "bg-muted-foreground motion-safe:animate-pulse";
+		status === "disabled"
+			? "bg-muted-foreground"
+			: health === "online"
+				? "bg-success"
+				: health === "offline"
+					? "bg-destructive"
+					: "bg-muted-foreground motion-safe:animate-pulse";
 
 	const title = data.title || props.definition.name;
 
-	const pluginsManager = usePluginsManager();
-
-	const baseRenderers = [
-		...materialRenderers,
-		...shadcnRenderer,
-		...coreRenderer,
-	];
-
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter<
-		JsonFormsRendererRegistryEntry[]
-	>(PluginsHooks.JSON_FORMS_RENDERER, baseRenderers);
+	const renderers = usePluginFilter(
+		PluginsHooks.JSON_FORMS_RENDERER,
+		baseJsonFormsRenderers,
+		JSON_FORMS_RENDERER_HOOKS,
+	);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 

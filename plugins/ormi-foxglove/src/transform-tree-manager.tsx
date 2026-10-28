@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { usePluginsManager, PluginsManager } from "@workspace/ormi-plugins";
 import {
 	processTFMessage,
@@ -118,19 +118,20 @@ const TransformTreeManager: React.FC<TransformTreeManagerProps> = ({
 }) => {
 	const pluginsManager = usePluginsManager();
 	const datasource_id = settings.id;
-	const enable = settings.enable;
 	// Stable signature so the effect re-runs only when the topic set actually changes — not on
 	// every parent re-render (e.g. connection-status updates).
 	const topicsKey = (settings.transformTreeTopics || []).join("|");
-
+	// The rest of `settings` is read through a ref at setup time; id/topics key the effect.
+	const settingsRef = useRef(settings);
 	useEffect(() => {
-		if (!enable) {
-			return;
-		}
-		return setupFoxgloveTransformManager(pluginsManager, settings);
-		// `settings` is read inside but intentionally excluded; id/enable/topics cover it.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [enable, datasource_id, topicsKey, pluginsManager]);
+		settingsRef.current = settings;
+	});
+
+	useEffect(
+		() =>
+			setupFoxgloveTransformManager(pluginsManager, settingsRef.current),
+		[datasource_id, topicsKey, pluginsManager],
+	);
 
 	return null;
 };

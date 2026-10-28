@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 
-import { db } from "@/server/db";
+import {
+	deleteCategory,
+	findOwnedCategory,
+	updateCategory,
+} from "@/lib/data/prisma-categories";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import {
@@ -33,26 +37,16 @@ export const PUT = withAuth(
 			}
 
 			const categoryId = parsedParams.data.id;
-			const existingCategory = await db.category.findFirst({
-				where: {
-					id: categoryId,
-					createdById: session.user.id,
-				},
-			});
+			const existingCategory = await findOwnedCategory(
+				categoryId,
+				session.user.id,
+			);
 
 			if (!existingCategory) {
 				return apiResponse({ error: "Category not found" }, 404);
 			}
 
-			const category = await db.category.update({
-				where: { id: categoryId },
-				data: parsedBody.data,
-				include: {
-					_count: {
-						select: { workspaces: true },
-					},
-				},
-			});
+			const category = await updateCategory(categoryId, parsedBody.data);
 
 			return apiResponse(category);
 		} catch (error) {
@@ -86,23 +80,16 @@ export const DELETE = withAuth(
 			}
 
 			const categoryId = parsedParams.data.id;
-			const existingCategory = await db.category.findFirst({
-				where: {
-					id: categoryId,
-					createdById: session.user.id,
-				},
-				include: {
-					_count: {
-						select: { workspaces: true },
-					},
-				},
-			});
+			const existingCategory = await findOwnedCategory(
+				categoryId,
+				session.user.id,
+			);
 
 			if (!existingCategory) {
 				return apiResponse({ error: "Category not found" }, 404);
 			}
 
-			await db.category.delete({ where: { id: categoryId } });
+			await deleteCategory(categoryId);
 
 			return apiResponse({
 				success: true,

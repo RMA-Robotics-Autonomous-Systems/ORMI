@@ -355,7 +355,7 @@ export function FindingsReadout(props: {
 			)}
 			{props.bound && (
 				<span
-					className={`text-[11px] ${stats.dropped > 0 ? "text-warning" : "text-muted-foreground"}`}
+					className={`text-[11px] ${stats.dropped > 0 ? "text-warning-text" : "text-muted-foreground"}`}
 					title="Dropped: no id or no usable position"
 				>
 					{stats.received} received · {stats.dropped} dropped

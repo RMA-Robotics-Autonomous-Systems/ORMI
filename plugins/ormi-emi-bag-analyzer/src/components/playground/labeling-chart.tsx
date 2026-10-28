@@ -3,6 +3,7 @@
 import React, {
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -352,22 +353,30 @@ export function LabelingChart({
 	const [isDragging, setIsDragging] = useState(false);
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-	// Always-current ref — used inside window-level event handlers to avoid stale closures
-	const controlPointsRef = useRef(controlPoints);
-	controlPointsRef.current = controlPoints;
-
-	// Series refs — read in the fast-path effect without adding to its deps
-	const seriesRef = useRef(series);
-	seriesRef.current = series;
-	const filteredSeriesRef = useRef(filteredSeries);
-	filteredSeriesRef.current = filteredSeries;
-
 	// ── Layout geometry ────────────────────────────────────────────────────
 	const innerW = svgWidth - ML - MR;
 	const innerH = height - MT - MB;
 	const viewStart = timeRange?.[0] ?? 0;
 	const viewEnd = timeRange?.[1] ?? duration;
 	const viewSpan = viewEnd - viewStart || 1;
+
+	// Always-current refs, synced in the commit (a layout effect runs before
+	// every passive effect below and before the next input event):
+	// control points for the window-level handlers, series for the fast path,
+	// and the view window and sketch for the data path, which is keyed without
+	// them: a slider move or a sketch change alone does not replot it.
+	const controlPointsRef = useRef(controlPoints);
+	const seriesRef = useRef(series);
+	const filteredSeriesRef = useRef(filteredSeries);
+	const viewRef = useRef({ start: viewStart, end: viewEnd });
+	const sketchSeriesRef = useRef(sketchSeries);
+	useLayoutEffect(() => {
+		controlPointsRef.current = controlPoints;
+		seriesRef.current = series;
+		filteredSeriesRef.current = filteredSeries;
+		viewRef.current = { start: viewStart, end: viewEnd };
+		sketchSeriesRef.current = sketchSeries;
+	});
 
 	// ── ResizeObserver ─────────────────────────────────────────────────────
 	useEffect(() => {
@@ -391,12 +400,13 @@ export function LabelingChart({
 	// Does NOT include viewStart/viewEnd — timeRange is handled by the fast path below.
 	useEffect(() => {
 		if (!Plotly || !plotDivRef.current) return;
+		const { start: viewStart, end: viewEnd } = viewRef.current;
 		const traces = buildTraces(
 			series,
 			filteredSeries,
 			sorted,
 			duration,
-			sketchSeries,
+			sketchSeriesRef.current,
 		);
 		const layout = buildLayout(viewStart, viewEnd, height, chrome);
 
@@ -424,7 +434,6 @@ export function LabelingChart({
 				"yaxis.range[1]": yr[1],
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [Plotly, series, filteredSeries, sorted, duration, height, chrome]);
 
 	// ── Plotly: fast path — slider moves update x range + left Y range ────
@@ -453,7 +462,6 @@ export function LabelingChart({
 	const xOf = (tsNs: number) => ML + ((tsNs - viewStart) / viewSpan) * innerW;
 	const yConfOf = (c: number) =>
 		MT + (1 - Math.max(0, Math.min(1, c))) * innerH;
-	const tsFromX = (x: number) => viewStart + ((x - ML) / innerW) * viewSpan;
 
 	const visibleHandles = useMemo(
 		() => sorted.filter((p) => p.tsNs >= viewStart && p.tsNs <= viewEnd),
@@ -518,7 +526,13 @@ export function LabelingChart({
 				pos.y > MT + innerH
 			)
 				return;
-			const tsNs = Math.max(viewStart, Math.min(viewEnd, tsFromX(pos.x)));
+			const tsNs = Math.max(
+				viewStart,
+				Math.min(
+					viewEnd,
+					viewStart + ((pos.x - ML) / innerW) * viewSpan,
+				),
+			);
 			const confidence = Math.max(
 				0,
 				Math.min(1, 1 - (pos.y - MT) / innerH),
@@ -528,8 +542,7 @@ export function LabelingChart({
 				{ id: uid(), tsNs, confidence },
 			]);
 		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[getSvgPos, innerW, innerH, viewStart, viewEnd, onChange],
+		[getSvgPos, innerW, innerH, viewStart, viewEnd, viewSpan, onChange],
 	);
 
 	// ── Double-click handle → remove ──────────────────────────────────────

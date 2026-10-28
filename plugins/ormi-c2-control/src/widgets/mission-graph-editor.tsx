@@ -329,7 +329,7 @@ const RUN_STYLE: Record<RunTone, { ring: string; text: string }> = {
 		ring: "ring-1 ring-muted-foreground/50",
 		text: "text-muted-foreground",
 	},
-	waiting: { ring: "ring-2 ring-warning", text: "text-warning" },
+	waiting: { ring: "ring-2 ring-warning", text: "text-warning-text" },
 	done: { ring: "ring-1 ring-success/60", text: "text-success" },
 	failed: { ring: "ring-2 ring-destructive", text: "text-destructive" },
 };
@@ -3312,7 +3312,7 @@ function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
 	const tone =
 		issue.severity === "error"
 			? "text-destructive bg-destructive/10"
-			: "text-warning bg-warning/10";
+			: "text-foreground border border-warning/40 bg-warning/10";
 	return (
 		<button
 			type="button"

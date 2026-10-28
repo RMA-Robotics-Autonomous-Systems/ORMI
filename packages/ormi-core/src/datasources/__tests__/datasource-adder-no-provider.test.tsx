@@ -47,6 +47,7 @@ await mock.module("@workspace/ormi-plugins", () => ({
 	usePluginsManager: () => ({
 		applyFilter: () => definitions,
 	}),
+	usePluginFilter: () => definitions,
 }));
 
 afterAll(async () => {

@@ -21,9 +21,11 @@ import {
 	SUPER_ROOT,
 	type StratifyNode,
 	type TfNodeInput,
+	type TreeLayout,
 	buildStratifyNodes,
 	computeTreeLayout,
 	filterByTree,
+	liveNodeInput,
 	topologySignature,
 	translationMagnitude,
 } from "./transform-tree-layout";
@@ -58,9 +60,13 @@ function stalenessOf(data: TfNodeInput, now: number): Staleness {
 }
 
 /** CSS-variable color tokens (no hardcoded hex). */
-function nodeColor(node: StratifyNode, now: number): string {
-	if (node.isVirtual || !node.data) return "var(--muted-foreground)";
-	switch (stalenessOf(node.data, now)) {
+function nodeColor(
+	node: StratifyNode,
+	input: TfNodeInput | undefined,
+	now: number,
+): string {
+	if (node.isVirtual || !input) return "var(--muted-foreground)";
+	switch (stalenessOf(input, now)) {
 		case "stale":
 			return "var(--destructive)";
 		case "aging":
@@ -73,14 +79,15 @@ function nodeColor(node: StratifyNode, now: number): string {
 /** Hover/title text for a node. `nameOf` maps a datasource id to its display title. */
 function nodeTitle(
 	node: StratifyNode,
+	input: TfNodeInput | undefined,
 	now: number,
 	nameOf: (id: string) => string,
 ): string {
-	if (node.isVirtual || !node.data) {
+	if (node.isVirtual || !input) {
 		const src = frameSource(node.id);
 		return `${frameRawName(node.id)}${src ? `\nsource: ${nameOf(src)}` : ""}\n(inferred parent, never observed)`;
 	}
-	const d = node.data;
+	const d = input;
 	const age = Math.max(0, Math.round(now - d.receivedAt));
 	const lines = [
 		d.rawFrameId,
@@ -89,6 +96,13 @@ function nodeTitle(
 		d.isStatic ? "static (/tf_static)" : `age: ${age} ms`,
 	];
 	return lines.join("\n");
+}
+
+/** Lay out the frames of one tree (or every frame when `treeId` is unset). */
+function layoutTree(inputs: TfNodeInput[], treeId?: string): TreeLayout {
+	const scoped = filterByTree(inputs, treeId);
+	if (scoped.length === 0) return { root: null, ok: true };
+	return computeTreeLayout(buildStratifyNodes(scoped));
 }
 
 /** Left-to-right link path between two laid-out nodes (node.y = depth axis, node.x = cross). */
@@ -156,19 +170,22 @@ function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
 		[inputs, treeId],
 	);
 
-	const layout = useMemo(() => {
-		const scoped = filterByTree(inputs, treeId);
-		if (scoped.length === 0) return { root: null, ok: true } as const;
-		return computeTreeLayout(buildStratifyNodes(scoped));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [topoSig]);
+	// Keyed on the signature, not on `inputs`: state adjusted during render, so
+	// a pose update (new `inputs`, same signature) keeps the previous layout.
+	const [laidOut, setLaidOut] = useState(() => ({
+		sig: topoSig,
+		layout: layoutTree(inputs, treeId),
+	}));
+	if (laidOut.sig !== topoSig) {
+		setLaidOut({ sig: topoSig, layout: layoutTree(inputs, treeId) });
+	}
+	const layout = laidOut.layout;
 
-	// A magnitude lookup keyed by frame id, refreshed on every pose update (cheap, no relayout).
-	const magnitudeByFrame = useMemo(() => {
-		const map = new Map<string, number>();
-		for (const input of inputs) map.set(input.frameId, input.magnitude);
-		return map;
-	}, [inputs]);
+	// The live inputs keyed by frame id, refreshed on every pose update (cheap, no relayout).
+	const inputByFrame = useMemo(
+		() => new Map(inputs.map((input) => [input.frameId, input])),
+		[inputs],
+	);
 
 	// Tick the clock so staleness advances even when no transforms arrive.
 	useEffect(() => {
@@ -293,18 +310,17 @@ function TransformTreeViewer(props: TransformTreeViewerProps): JSX.Element {
 						))}
 						{visibleNodes.map((node) => {
 							const data = node.data;
-							const color = nodeColor(data, now);
+							const live = liveNodeInput(data, inputByFrame);
+							const color = nodeColor(data, live, now);
 							const isInferred = data.isVirtual || !data.data;
-							const magnitude = data.data
-								? magnitudeByFrame.get(data.id)
-								: undefined;
+							const magnitude = live?.magnitude;
 							return (
 								<g
 									key={data.id}
 									transform={`translate(${node.y},${node.x})`}
 								>
 									<title>
-										{nodeTitle(data, now, nameOf)}
+										{nodeTitle(data, live, now, nameOf)}
 									</title>
 									<circle
 										r={NODE_RADIUS}

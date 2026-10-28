@@ -17,8 +17,8 @@ import {
 	handleSave as ts,
 	handleDelete as td,
 	handleUpdate as tu,
-} from "@/lib/data/prisma-templates";
-import { handleSave } from "@/lib/data/prisma-dashboard";
+} from "@/lib/persistence/template-persistence";
+import { handleSave } from "@/lib/persistence/dashboard-persistence";
 import { toDashboardState } from "@/lib/api/dashboard-api";
 import { datasourceApi } from "@/lib/api/datasource-api";
 import type { KnownDatasourceConfig } from "@workspace/ormi-core/datasources/identity";

@@ -50,7 +50,7 @@ const STEP_LABEL_CLASS: Record<MissionStepState, string> = {
 	done: "text-foreground",
 	current: "text-foreground font-semibold",
 	upcoming: "text-muted-foreground",
-	warn: "text-warning font-semibold",
+	warn: "text-warning-text font-semibold",
 	fail: "text-destructive font-semibold",
 };
 
@@ -152,7 +152,7 @@ export function MissionStateMachine(props: MissionStateMachineProps) {
 							className="inline-flex shrink-0 items-center"
 							title="Paused. Start resumes."
 						>
-							<Pause className="size-3 text-warning" />
+							<Pause className="size-3 text-warning-text" />
 						</span>
 					)}
 				</div>
@@ -190,7 +190,7 @@ export function MissionStateMachine(props: MissionStateMachineProps) {
 										className="inline-flex items-center"
 										title="Paused. Start resumes."
 									>
-										<Pause className="size-3 text-warning" />
+										<Pause className="size-3 text-warning-text" />
 									</span>
 								)}
 							</div>

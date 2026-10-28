@@ -33,6 +33,12 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 		null,
 	);
 	const reconnectAttemptRef = useRef(0);
+	// `onConnectionStatus` is re-created upstream whenever `toasts` changes;
+	// read through a ref so toggling toasts does not reconnect the socket.
+	const onConnectionStatusRef = useRef(onConnectionStatus);
+	useEffect(() => {
+		onConnectionStatusRef.current = onConnectionStatus;
+	}, [onConnectionStatus]);
 
 	useEffect(() => {
 		let disposed = false;
@@ -48,7 +54,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 		const scheduleReconnect = (error?: string) => {
 			const timeoutSeconds = settings.reconnectTimeout ?? 2;
 			if (disposed || timeoutSeconds <= 0) {
-				onConnectionStatus({
+				onConnectionStatusRef.current({
 					connected: false,
 					error: error ?? "WebSocket connection closed",
 					reconnectAttempt: 0,
@@ -59,7 +65,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 			reconnectAttemptRef.current += 1;
 			const attempt = reconnectAttemptRef.current;
 			onReconnectAttempt(attempt);
-			onConnectionStatus({
+			onConnectionStatusRef.current({
 				connected: false,
 				error: error ?? "WebSocket connection lost",
 				reconnectAttempt: attempt,
@@ -90,7 +96,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 					// Pass the socket only after it's open
 					onWebSocket(socket);
 					onInitialized(true);
-					onConnectionStatus({ connected: true });
+					onConnectionStatusRef.current({ connected: true });
 				});
 
 				socket.addEventListener("close", (event) => {
@@ -103,7 +109,7 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 								"WebSocket connection closed unexpectedly",
 						);
 					} else {
-						onConnectionStatus({
+						onConnectionStatusRef.current({
 							connected: false,
 							reconnectAttempt: 0,
 						});
@@ -140,7 +146,6 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 	}, [
 		settings.url,
 		settings.reconnectTimeout,
-		onConnectionStatus,
 		onReconnectAttempt,
 		onInitialized,
 		onWebSocket,
@@ -148,6 +153,32 @@ const FoxgloveMainThreadConnection: React.FC<MainThreadConnectionProps> = ({
 
 	return null;
 };
+
+/**
+ * Settings that never reach the worker connection: `title` is display-only
+ * (pushed to the host instead), `toasts` only decides whether a failure is
+ * also toasted, and `enable` is core's: a disabled datasource's provider is
+ * never mounted.
+ */
+const NON_CONNECTION_SETTINGS = new Set(["title", "toasts", "enable"]);
+
+/**
+ * Content key for the worker connection effect: every setting except the ones
+ * that cannot change what the worker connects to or how it decodes. A denylist
+ * on purpose, so a connection field added later restarts the worker by default.
+ *
+ * @param settings - Current provider settings.
+ * @returns A string that changes only when a restart is warranted.
+ */
+function foxgloveWorkerConnectionKey(
+	settings: FoxgloveDataSourceSettings,
+): string {
+	return JSON.stringify(
+		Object.entries(settings)
+			.filter(([key]) => !NON_CONNECTION_SETTINGS.has(key))
+			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+	);
+}
 
 interface WorkerConnectionProps {
 	settings: FoxgloveDataSourceSettings;
@@ -163,22 +194,30 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 	onInitialized,
 }) => {
 	// `GlobalDataSourcesProvider` renders `<Provider {...datasource.settings} />`,
-	// so the settings object this component receives is a NEW object on every
-	// one of that provider's renders even when nothing about the datasource
-	// changed. Keying the effect on its identity therefore terminated the worker
-	// and built a new one for unrelated reasons — opening the Datasources
-	// dialog, another datasource connecting — each restart costing a full
-	// reconnect and re-subscribe. The content is what decides whether a new
-	// worker is warranted; settings are plain JSON (they are persisted as JSON),
-	// so serializing them is a faithful identity for that question.
-	const settingsKey = JSON.stringify(settings);
+	// so the settings object is a NEW object on every one of its renders; the
+	// effect is keyed on content instead. And only on the content the worker
+	// connection consumes: a rename or a toasts toggle used to terminate the
+	// worker and reconnect the robot. Those reach the host through
+	// `updateSettings`, and the callbacks through refs, so a `toasts` change
+	// (which re-creates `onConnectionStatus` upstream) does not restart it either.
+	const connectionKey = foxgloveWorkerConnectionKey(settings);
 	const settingsRef = useRef(settings);
+	const hostRef =
+		useRef<FoxgloveWorkerHost<FoxgloveDataSourceSettings> | null>(null);
+	const onConnectionStatusRef = useRef(onConnectionStatus);
+	const onInitializedRef = useRef(onInitialized);
 
 	// Synced in an effect, never during render: a render-phase ref write is what
 	// the React Compiler's lint rules reject.
 	useEffect(() => {
 		settingsRef.current = settings;
+		hostRef.current?.updateSettings(settings);
 	}, [settings]);
+
+	useEffect(() => {
+		onConnectionStatusRef.current = onConnectionStatus;
+		onInitializedRef.current = onInitialized;
+	}, [onConnectionStatus, onInitialized]);
 
 	useEffect(() => {
 		const settings = settingsRef.current;
@@ -202,16 +241,17 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 		});
 
 		host.registerHooks();
+		hostRef.current = host;
 
 		unsubscribe = host.onConnectionStatus((status) => {
 			if (disposed) return;
-			onConnectionStatus(status);
+			onConnectionStatusRef.current(status);
 		});
 
 		host.init()
 			.then(() => {
 				if (!disposed) {
-					onInitialized(true);
+					onInitializedRef.current(true);
 				}
 			})
 			.catch((error) => {
@@ -222,13 +262,13 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 						"[Foxglove] Failed to initialize worker:",
 						errorMessage,
 					);
-					onConnectionStatus({
+					onConnectionStatusRef.current({
 						connected: false,
 						error: errorMessage,
 						reconnectAttempt: 0,
 					});
-					onInitialized(false);
-					if (settings.toasts) {
+					onInitializedRef.current(false);
+					if (settingsRef.current.toasts) {
 						toast.error("Failed to initialize Foxglove datasource");
 					}
 				}
@@ -238,14 +278,19 @@ const FoxgloveWorkerConnection: React.FC<WorkerConnectionProps> = ({
 			disposed = true;
 			if (unsubscribe) unsubscribe();
 			if (host) host.dispose();
-			onInitialized(false);
+			if (hostRef.current === host) hostRef.current = null;
+			onInitializedRef.current(false);
 		};
-	}, [settingsKey, pluginsManager, onConnectionStatus, onInitialized]);
+	}, [connectionKey, pluginsManager]);
 
 	return null;
 };
 
-export { FoxgloveMainThreadConnection, FoxgloveWorkerConnection };
+export {
+	FoxgloveMainThreadConnection,
+	FoxgloveWorkerConnection,
+	foxgloveWorkerConnectionKey,
+};
 export type {
 	ConnectionStatusPayload,
 	MainThreadConnectionProps,

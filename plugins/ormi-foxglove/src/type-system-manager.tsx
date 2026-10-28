@@ -32,7 +32,8 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 
 	// Register type system hooks (excluding duplicates handled by FoxgloveDataHandler)
 	useEffect(() => {
-		if (!settings.enable || !isConnected) {
+		// `enable` is not checked: core mounts the provider only while on.
+		if (!isConnected) {
 			setIsInitialized(false);
 			return;
 		}
@@ -178,14 +179,7 @@ const TypeSystemManager: React.FC<TypeSystemManagerProps> = ({
 				);
 			}
 		};
-	}, [
-		settings.enable,
-		settings.id,
-		pluginsManager,
-		client,
-		channels,
-		isConnected,
-	]);
+	}, [settings.id, pluginsManager, client, channels, isConnected]);
 
 	// Set up UnifiedConverter plugin manager
 	useEffect(() => {

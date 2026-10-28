@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	RemoteCallDefinition,
@@ -38,12 +38,23 @@ export function C2SourceProvider(props: C2ControlSettings) {
 		propsRef.current = props;
 	});
 
-	// Stable across settings-object identity churn — recompute only on real changes.
-	const calls = useMemo(
-		() => buildC2RemoteCalls(props),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[dsId, props.missionControlUrl, props.dbUrl, props.title, props.enable],
-	);
+	// Stable across settings-object identity churn: rebuilt only when the
+	// content key changes (state adjusted during render, not a memo, because
+	// the definitions carry the whole settings object as `source`).
+	const callsKey = JSON.stringify([
+		dsId,
+		props.missionControlUrl,
+		props.dbUrl,
+		props.title,
+	]);
+	const [built, setBuilt] = useState(() => ({
+		key: callsKey,
+		calls: buildC2RemoteCalls(props),
+	}));
+	if (built.key !== callsKey) {
+		setBuilt({ key: callsKey, calls: buildC2RemoteCalls(props) });
+	}
+	const calls = built.calls;
 
 	// Discovery + readiness: publish defs to the atoms, announce ready, clean up.
 	useEffect(() => {

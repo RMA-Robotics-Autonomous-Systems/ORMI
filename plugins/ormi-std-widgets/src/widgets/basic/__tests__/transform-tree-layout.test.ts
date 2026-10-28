@@ -4,6 +4,7 @@ import {
 	buildStratifyNodes,
 	computeTreeLayout,
 	filterByTree,
+	liveNodeInput,
 	topologySignature,
 	translationMagnitude,
 	type TfNodeInput,
@@ -125,5 +126,43 @@ describe("computeTreeLayout", () => {
 		]);
 		expect(layout.ok).toBe(false);
 		expect(layout.root).toBeNull();
+	});
+});
+
+describe("liveNodeInput", () => {
+	test("a kept layout reads the latest input for its frame, not its own copy", () => {
+		const layout = computeTreeLayout(
+			buildStratifyNodes([node("base", "odom", { receivedAt: 10 })]),
+		);
+		const base = layout
+			.root!.descendants()
+			.find((d) => d.data.id === "base")!.data;
+		const latest = node("base", "odom", { receivedAt: 900, magnitude: 2 });
+		const live = liveNodeInput(base, new Map([["base", latest]]));
+		expect(live).toBe(latest);
+	});
+
+	test("falls back to the layout's input, and is undefined for inferred nodes", () => {
+		const own = node("base", "odom");
+		const nodes = buildStratifyNodes([own]);
+		const byFrame = new Map<string, TfNodeInput>();
+		expect(
+			liveNodeInput(
+				nodes.find((n) => n.id === "base")!,
+				byFrame,
+			),
+		).toBe(own);
+		expect(
+			liveNodeInput(
+				nodes.find((n) => n.id === "odom")!,
+				byFrame,
+			),
+		).toBeUndefined();
+		expect(
+			liveNodeInput(
+				nodes.find((n) => n.id === SUPER_ROOT)!,
+				byFrame,
+			),
+		).toBeUndefined();
 	});
 });

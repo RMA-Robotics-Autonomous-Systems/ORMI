@@ -483,9 +483,16 @@ export function EmiAnalyzerPage() {
 		[],
 	);
 
-	// Seed two default endpoints (first/last timestamp) whenever a new bag loads
+	// Seed two default endpoints (first/last timestamp) whenever a new bag loads.
+	// Keyed on `data` alone: switching the detection topic must not reset the
+	// labels, so the detection series is read through a ref.
+	const detectionSourceRef = useRef(detectionSource);
 	useEffect(() => {
-		const pts = detectionSource?.points ?? data?.lineSeries[0]?.points;
+		detectionSourceRef.current = detectionSource;
+	});
+	useEffect(() => {
+		const pts =
+			detectionSourceRef.current?.points ?? data?.lineSeries[0]?.points;
 		if (!pts || pts.length === 0) {
 			setConfidencePoints([]);
 			return;
@@ -504,7 +511,7 @@ export function EmiAnalyzerPage() {
 				confidence: 0,
 			},
 		]);
-	}, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [data]);
 
 	const [sketchOpen, setSketchOpen] = useState(false);
 	const [sketchSeries, setSketchSeries] = useState<

@@ -56,6 +56,8 @@ beforeAll(async () => {
 		...realPluginsExports,
 		usePluginsManager: () => manager,
 		usePluginFiltersRevision: () => 0,
+		usePluginFilter: <T,>(name: string, initial: () => T): T =>
+			manager.applyFilter(name, initial()),
 	}));
 
 	const { JsonForms } = await import("@jsonforms/react");

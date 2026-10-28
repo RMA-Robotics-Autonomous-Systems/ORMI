@@ -33,6 +33,7 @@ describe("deriveHealth", () => {
 			"ready",
 			"error",
 			"disposed",
+			"disabled",
 		];
 		const valid = new Set(["connecting", "online", "offline"]);
 		for (const status of statuses) {

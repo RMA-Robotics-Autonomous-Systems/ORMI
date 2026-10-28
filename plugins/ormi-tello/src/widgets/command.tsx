@@ -1,4 +1,4 @@
-import { useState } from "react"; // Import useCallback
+import { useState } from "react";
 import { ControlElement, VerticalLayout } from "@jsonforms/core";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
 import { usePluginsManager } from "@workspace/ormi-plugins";
@@ -6,6 +6,7 @@ import { datasourceSelectProperty } from "@workspace/utils";
 import {
 	DigitalInput,
 	DigitalComponent,
+	usePointerHold,
 } from "@workspace/ui/combined/triggers";
 import { KeyControlType } from "@workspace/ormi-jsonforms";
 
@@ -22,6 +23,34 @@ interface TelloCommandsControlData extends Record<string, unknown> {
 	command: DigitalInput;
 	emergency: DigitalInput;
 }
+
+/** Props for one on-screen Tello command key. */
+interface TelloKeyProps {
+	label: string;
+	active: boolean;
+	onPress: () => void;
+	onRelease: () => void;
+}
+
+/**
+ * One on-screen command key: sends on press and stays lit while held.
+ *
+ * Pointer events with capture (`usePointerHold`), never mouse events: under
+ * touch a mouse press is synthesised only after the finger lifts. Not a
+ * focusable `<button>`, so the space key cannot press it; keyboard bindings go
+ * through the hidden `DigitalComponent`s instead.
+ */
+function TelloKey({ label, active, onPress, onRelease }: TelloKeyProps) {
+	const { holdProps } = usePointerHold({ onPress, onRelease });
+	return (
+		<div {...holdProps} data-active={active} className={KEY_CLASS_NAMES}>
+			{label}
+		</div>
+	);
+}
+
+const KEY_CLASS_NAMES =
+	"bg-foreground/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10 flex justify-center items-center touch-none select-none hover:bg-foreground/20 hover:cursor-pointer data-[active=true]:bg-success/20 data-[active=true]:scale-(--press-scale) transition-all duration-(--motion-fast) ease-(--motion-ease) any-pointer-coarse:min-h-11";
 
 /**
  * Tello drone command control widget.
@@ -84,53 +113,6 @@ export function TelloCommandsControl(props: TelloCommandsControlData) {
 		setActiveCommand(true);
 	};
 
-	const handleMouseDown = (key: string) => {
-		// set active to true
-		if (key === "command") {
-			handleCommandActive();
-		}
-		if (key === "takeoff") {
-			handleTakeoffActive();
-		}
-		if (key === "land") {
-			handleLandActive();
-		}
-		if (key === "streamOn") {
-			handleStreamOnActive();
-		}
-		if (key === "streamOff") {
-			handleStreamOffActive();
-		}
-		if (key === "emergency") {
-			handleEmergencyActive();
-		}
-	};
-
-	const handleMouseUp = (key: string) => {
-		// set active to false
-		if (key === "command") {
-			setActiveCommand(false);
-		}
-		if (key === "takeoff") {
-			setActiveTakeoff(false);
-		}
-		if (key === "land") {
-			setActiveLand(false);
-		}
-		if (key === "streamOn") {
-			setActiveStreamOn(false);
-		}
-		if (key === "streamOff") {
-			setActiveStreamOff(false);
-		}
-		if (key === "emergency") {
-			setActiveEmergency(false);
-		}
-	};
-
-	const keyStyleNames =
-		"bg-foreground/10 p-[5%] w-full rounded-[var(--radius)] border-[0.2rem] border-foreground/10 flex justify-center items-center select-none hover:bg-foreground/20 hover:scale-110 hover:cursor-pointer data-[active=true]:bg-success/20 data-[active=true]:scale-110 transition-all duration-100";
-
 	return (
 		<div
 			style={{
@@ -191,144 +173,42 @@ export function TelloCommandsControl(props: TelloCommandsControlData) {
 					gap: "1rem",
 				}}
 			>
-				<div
-					data-active={activeCommand}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("command");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("command");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Command
-					</span>
-				</div>
-				<div
-					data-active={activeEmergency}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("emergency");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("emergency");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Emergency
-					</span>
-				</div>
-				<div
-					data-active={activeTakeoff}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("takeoff");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("takeoff");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Take off
-					</span>
-				</div>
-				<div
-					data-active={activeLand}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("land");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("land");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Land
-					</span>
-				</div>
-				<div
-					data-active={activeStreamOn}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("streamOn");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("streamOn");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Stream On
-					</span>
-				</div>
-				<div
-					data-active={activeStreamOff}
-					className={keyStyleNames}
-					style={{ width: "100%" }}
-				>
-					<span
-						onMouseUp={() => {
-							handleMouseUp("streamOff");
-						}}
-						onMouseDown={() => {
-							handleMouseDown("streamOff");
-						}}
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
-						Stream Off
-					</span>
-				</div>
+				<TelloKey
+					label="Command"
+					active={activeCommand}
+					onPress={handleCommandActive}
+					onRelease={() => setActiveCommand(false)}
+				/>
+				<TelloKey
+					label="Emergency"
+					active={activeEmergency}
+					onPress={handleEmergencyActive}
+					onRelease={() => setActiveEmergency(false)}
+				/>
+				<TelloKey
+					label="Take off"
+					active={activeTakeoff}
+					onPress={handleTakeoffActive}
+					onRelease={() => setActiveTakeoff(false)}
+				/>
+				<TelloKey
+					label="Land"
+					active={activeLand}
+					onPress={handleLandActive}
+					onRelease={() => setActiveLand(false)}
+				/>
+				<TelloKey
+					label="Stream On"
+					active={activeStreamOn}
+					onPress={handleStreamOnActive}
+					onRelease={() => setActiveStreamOn(false)}
+				/>
+				<TelloKey
+					label="Stream Off"
+					active={activeStreamOff}
+					onPress={handleStreamOffActive}
+					onRelease={() => setActiveStreamOff(false)}
+				/>
 			</div>
 		</div>
 	);

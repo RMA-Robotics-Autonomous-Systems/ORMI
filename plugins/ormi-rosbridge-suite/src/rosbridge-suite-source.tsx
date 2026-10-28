@@ -488,11 +488,7 @@ const RosBridgeSuiteSourceProvider = (
 	}, [subscribeTopicOnCurrentConnection]);
 
 	useEffect(() => {
-		const { enable, url, reconnectTimeout } = propsRef.current;
-		if (!enable) {
-			setConnected(true); // allow to render children
-			return;
-		}
+		const { url, reconnectTimeout } = propsRef.current;
 
 		// Registry-before-READY: it learns which datasources are ready from
 		// its own DATASOURCE_READY listener, so it must exist before the

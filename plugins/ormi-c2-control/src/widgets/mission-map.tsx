@@ -4571,7 +4571,7 @@ function MissionMapBody(props: {
 			    geofences would give the planner no routable nodes there. */}
 			{context === "mission" &&
 				objectivesOutsideGeofenceIndices.length > 0 && (
-					<div className="text-xs text-warning bg-warning/10 px-2 py-1 shrink-0 space-y-0.5">
+					<div className="text-xs text-foreground border-t border-warning/40 bg-warning/10 px-2 py-1 shrink-0 space-y-0.5">
 						{objectivesOutsideGeofenceIndices.map((index) => (
 							<div key={`outside-geofence-${index}`}>
 								<span className="font-medium">

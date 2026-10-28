@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { RestBagClient } from "./rest-bag-client";
 import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
 import { getDatasourceSubscriptionRegistry } from "@workspace/utils";
@@ -20,11 +20,11 @@ interface RestBagDatasourceSettings extends DatasourceProviderSettings {
 const RestBagDataSourceProvider = (props: RestBagDatasourceSettings) => {
 	const pluginsManager = usePluginsManager();
 	const { url, id } = props;
-	const [initialized, setInitialized] = useState(false);
-
-	const [bagClient] = useState(new RestBagClient(url));
 
 	useEffect(() => {
+		// Built per url: a settings edit that changes the endpoint must reach
+		// every consumer of `${id}-client`, not only the `-api-url` filter.
+		const bagClient = new RestBagClient(url);
 		pluginsManager.addFilter(`${id}-api-url`, {
 			id: `${id}-api-url`,
 			priority: 10,
@@ -44,7 +44,6 @@ const RestBagDataSourceProvider = (props: RestBagDatasourceSettings) => {
 		});
 
 		getDatasourceSubscriptionRegistry(pluginsManager);
-		setInitialized(true);
 		pluginsManager.doAction(PluginsHooks.DATASOURCE_READY, id);
 		return () => {
 			pluginsManager.removeFilter(`${id}-api-url`);

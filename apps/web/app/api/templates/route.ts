@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
-
-import { db } from "@/server/db";
+import {
+	createTemplate,
+	listVisibleTemplates,
+} from "@/lib/data/prisma-templates";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import { templateCreateSchema } from "@/lib/validations/template";
@@ -13,18 +14,13 @@ import {
 
 export const GET = withAuth(async (_req, session) => {
 	try {
-		const templates = await db.template.findMany({
-			where: {
-				OR: [{ public: true }, { createdById: session.user.id }],
-			},
-		});
+		const templates = await listVisibleTemplates(session.user.id);
 
 		const templatesMap = new Map<string, Template>();
 
 		templates.forEach((template: any) => {
 			const templateType = template.type.toLowerCase() as
-				| "widget"
-				| "datasource";
+				"widget" | "datasource";
 
 			if (templateType === "widget") {
 				templatesMap.set(template.id.toString(), {
@@ -81,20 +77,14 @@ export const POST = withAuth(async (req: NextRequest, session) => {
 
 		const template = parsedBody.data.content;
 		const templateType = template.type.toString().toUpperCase() as
-			| "WIDGET"
-			| "DATASOURCE";
+			"WIDGET" | "DATASOURCE";
 
-		const newTemplate = await db.template.create({
-			data: {
-				name: template.name,
-				content: template as Prisma.InputJsonValue,
-				type: templateType,
-				public: template.public,
-				tags: template.tags,
-				createdById: session.user.id,
-				createdAT: new Date(),
-				updatedAT: new Date(),
-			},
+		const newTemplate = await createTemplate(session.user.id, {
+			name: template.name,
+			type: templateType,
+			public: template.public,
+			tags: template.tags,
+			content: template,
 		});
 
 		return apiResponse(newTemplate.id.toString());

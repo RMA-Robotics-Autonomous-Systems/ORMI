@@ -28,7 +28,11 @@ import {
 	RasterOverlayLayers,
 	useMapRasterLayers,
 } from "@workspace/ormi-core/map-layers/map";
-import { MAP_MAX_ZOOM, ORMI_STYLE_ANCHORS } from "@workspace/utils";
+import {
+	basemapMaxSourceZoom,
+	MAP_MAX_ZOOM,
+	ORMI_STYLE_ANCHORS,
+} from "@workspace/utils";
 
 export interface GpsDetectionGroup {
 	name: string;
@@ -91,13 +95,17 @@ function normalizeValues(values: number[]): number[] {
 	return values.map((v) => (v - min) / (max - min));
 }
 
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
 const BASE_MAP_STYLE = {
 	version: 8,
 	sources: {
 		"osm-tiles": {
 			type: "raster",
-			tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+			tiles: [OSM_TILES],
 			tileSize: 256,
+			// The vendor's own depth: MapLibre overzooms past it, never 404s.
+			maxzoom: basemapMaxSourceZoom(OSM_TILES),
 			attribution: "© OpenStreetMap contributors",
 		},
 	},
@@ -411,6 +419,7 @@ export function GpsMapAdvanced({
 			<Map
 				ref={mapRef}
 				initialViewState={{ longitude: 0, latitude: 0, zoom: 2 }}
+				maxZoom={MAP_MAX_ZOOM}
 				style={{ width: "100%", height: "100%" }}
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				mapStyle={BASE_MAP_STYLE as any}

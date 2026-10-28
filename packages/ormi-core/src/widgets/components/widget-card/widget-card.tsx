@@ -24,7 +24,7 @@ import {
 import { SettingsIcon, CheckIcon } from "lucide-react";
 import { AddToTemplatesBtn } from "../../../templates/components/add-to-templates";
 import { coreRenderer } from "../../../renderers";
-import { usePluginsManager, PluginsHooks } from "@workspace/ormi-plugins";
+import { usePluginFilter, PluginsHooks } from "@workspace/ormi-plugins";
 import {
 	ConfigValidationError,
 	formatConfigErrorNotice,
@@ -33,6 +33,16 @@ import {
 } from "../../../forms/config-errors";
 
 import styles from "./widget-card.module.css";
+
+/** The hooks the form renderers read, as a module-level array. */
+const JSON_FORMS_RENDERER_HOOKS = [PluginsHooks.JSON_FORMS_RENDERER] as const;
+
+/** Fresh accumulator for `JSON_FORMS_RENDERER` (filters may push to it). */
+const baseJsonFormsRenderers = (): JsonFormsRendererRegistryEntry[] => [
+	...materialRenderers,
+	...shadcnRenderer,
+	...coreRenderer,
+];
 
 // Import the custom renderers
 
@@ -132,18 +142,12 @@ export function WidgetCard(props: WidgetCardProps) {
 		);
 	};
 
-	const pluginsManager = usePluginsManager();
-
-	const baseRenderers = [
-		...materialRenderers,
-		...shadcnRenderer,
-		...coreRenderer,
-	];
-
 	// Apply the JSON_FORMS_RENDERER hook to allow plugins to extend renderers
-	const renderers = pluginsManager.applyFilter<
-		JsonFormsRendererRegistryEntry[]
-	>(PluginsHooks.JSON_FORMS_RENDERER, baseRenderers);
+	const renderers = usePluginFilter(
+		PluginsHooks.JSON_FORMS_RENDERER,
+		baseJsonFormsRenderers,
+		JSON_FORMS_RENDERER_HOOKS,
+	);
 
 	const cellsRenderers = [...materialCells, ...shadcnCells];
 

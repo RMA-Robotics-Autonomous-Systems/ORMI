@@ -467,7 +467,7 @@ function MissionAssetsBody(props: {
 					</p>
 				)}
 				{contacts.error && (
-					<p className="pb-2 text-xs text-warning">
+					<p className="pb-2 text-xs text-warning-text">
 						Contacts could not be read: {contacts.error}
 					</p>
 				)}

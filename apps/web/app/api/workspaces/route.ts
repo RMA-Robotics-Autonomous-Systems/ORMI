@@ -2,7 +2,11 @@ import { NextRequest } from "next/server";
 
 import { resolveDashboardType } from "@workspace/ormi-core/dashboard/types";
 
-import { db } from "@/server/db";
+import {
+	createWorkspace,
+	listWorkspaces,
+	reorderWorkspaces,
+} from "@/lib/data/prisma-workspaces";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import {
@@ -12,29 +16,7 @@ import {
 
 export const GET = withAuth(async (_req, session) => {
 	try {
-		const workspaces = await db.workspace.findMany({
-			where: {
-				createdById: session.user.id,
-			},
-			select: {
-				id: true,
-				name: true,
-				createdAT: true,
-				updatedAT: true,
-				dashboardType: true,
-				content: true,
-				categoryId: true,
-				order: true,
-				category: {
-					select: {
-						id: true,
-						name: true,
-						order: true,
-					},
-				},
-			},
-			orderBy: [{ order: "asc" }, { updatedAT: "desc" }],
-		});
+		const workspaces = await listWorkspaces(session.user.id);
 
 		return apiResponse(workspaces);
 	} catch (error) {
@@ -53,23 +35,7 @@ export const PATCH = withAuth(async (req: NextRequest, session) => {
 
 		const { updates } = parsedBody.data;
 
-		await db.$transaction(
-			updates.map(({ id, order, categoryId }) => {
-				const data: { order: number; categoryId?: number | null } = {
-					order,
-				};
-				if (categoryId !== undefined) {
-					data.categoryId = categoryId;
-				}
-				return db.workspace.updateMany({
-					where: {
-						id,
-						createdById: session.user.id,
-					},
-					data,
-				});
-			}),
-		);
+		await reorderWorkspaces(session.user.id, updates);
 
 		return apiResponse({ success: true });
 	} catch (error) {
@@ -92,14 +58,10 @@ export const POST = withAuth(async (req: NextRequest, session) => {
 			return apiResponse({ error: "Forbidden" }, 403);
 		}
 
-		const workspace = await db.workspace.create({
-			data: {
-				name: payload.title,
-				createdById: payload.userId,
-				createdAT: new Date(),
-				updatedAT: new Date(),
-				dashboardType: resolveDashboardType(payload.dashboardType),
-			},
+		const workspace = await createWorkspace({
+			name: payload.title,
+			createdById: payload.userId,
+			dashboardType: resolveDashboardType(payload.dashboardType),
 		});
 
 		return apiResponse(workspace);

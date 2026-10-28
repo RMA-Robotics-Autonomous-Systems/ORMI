@@ -416,7 +416,7 @@ function UnconfirmedNotice(props: {
 			className={`flex items-start gap-2 text-xs p-2 rounded-md shrink-0 ${
 				moving
 					? "text-destructive bg-destructive/10"
-					: "text-warning bg-warning/10"
+					: "text-foreground border border-warning/40 bg-warning/10"
 			}`}
 		>
 			<span className="flex-1 min-w-0">{text}</span>
@@ -1441,7 +1441,7 @@ function ControlPanelBody(props: {
 			    change in its confirmation, which is the part an operator can
 			    recognise as wrong. */}
 			{hasMission && draftDirty && (
-				<div className="text-xs text-warning bg-warning/10 p-2 rounded-md shrink-0 text-pretty break-words">
+				<div className="text-xs text-foreground border border-warning/40 bg-warning/10 p-2 rounded-md shrink-0 text-pretty break-words">
 					Unsaved edits. Submit saves them first.
 				</div>
 			)}

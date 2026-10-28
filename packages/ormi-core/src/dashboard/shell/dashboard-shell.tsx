@@ -132,8 +132,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 	// subscription re-renders the shell once per registration. The revision is
 	// not a memo key because nothing here is memoised on the registry: every
 	// render re-applies the filters (the React Compiler leaves those calls
-	// unmemoised, since they take fresh accumulators), so the re-render is the
-	// whole of its use.
+	// unmemoised: their results reach `children(registryValue)`, a call it must
+	// assume mutates them, past the hook calls below, and a memo scope cannot
+	// span a hook), so the re-render is the whole of its use. A refactor that
+	// drops the `children` call can freeze them; `usePluginFilter` is the safe
+	// read.
 	usePluginFiltersRevision(DASHBOARD_REGISTRY_FILTER_HOOKS);
 
 	// Resolve plugin registries as plain statements so any hooks called inside

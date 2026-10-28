@@ -106,7 +106,7 @@ export function ContactDetails(props: {
 					<div key={fact.label} className="contents">
 						<dt className="text-muted-foreground">{fact.label}</dt>
 						<dd
-							className={`break-all ${fact.warn ? "text-warning" : ""}`}
+							className={`break-all ${fact.warn ? "text-warning-text" : ""}`}
 						>
 							{fact.value}
 						</dd>

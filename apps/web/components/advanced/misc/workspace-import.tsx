@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { handleSave } from "@/lib/data/prisma-dashboard";
+import { handleSave } from "@/lib/persistence/dashboard-persistence";
 
 import { toast } from "sonner";
 import {

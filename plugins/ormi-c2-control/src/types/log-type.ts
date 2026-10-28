@@ -44,7 +44,7 @@ const LABELS: Record<SwarmLogType, string> = {
  */
 const CLASSES: Record<SwarmLogType, string> = {
 	[SwarmLogType.INFO]: "text-muted-foreground",
-	[SwarmLogType.WARNING]: "text-warning",
+	[SwarmLogType.WARNING]: "text-warning-text",
 	[SwarmLogType.ERROR]: "text-destructive",
 	[SwarmLogType.FATAL]: "text-destructive font-bold",
 };

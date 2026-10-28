@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useAtomValue } from "jotai";
 import { toast } from "sonner";
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
+import { PluginsHooks, usePluginFilter } from "@workspace/ormi-plugins";
 
 import { DatasourceTopic } from "../../datasources/datasource-interface";
 import {
@@ -21,6 +21,15 @@ import { Widget } from "../../widgets/widget-interface";
 import { widgetsAtom } from "../atoms";
 import { useDashboardRegistry } from "../shell/dashboard-shell";
 import { useDashboardActions } from "./use-dashboard-actions";
+
+/**
+ * The hooks {@link useTopicRouter} reads itself. The widget registry the claims
+ * resolve against comes from the shell, which watches its own hooks.
+ */
+const TOPIC_ROUTING_CLAIMS_HOOKS = [PluginsHooks.TOPIC_ROUTING_CLAIMS] as const;
+
+/** Fresh accumulator for `TOPIC_ROUTING_CLAIMS`. */
+const emptyClaims = (): TopicRoutingClaims => [];
 
 /**
  * Everything a topic-first surface needs to decide where a topic goes and to
@@ -56,7 +65,6 @@ export interface TopicRouting {
  * @returns The routing context.
  */
 export function useTopicRouter(): TopicRouting {
-	const pluginsManager = usePluginsManager();
 	const { widgetDefinitions } = useDashboardRegistry();
 	const { addWidget, updateWidget, removeWidget, getDefinition } =
 		useDashboardActions();
@@ -66,13 +74,10 @@ export function useTopicRouter(): TopicRouting {
 	// its render body, so the array and its definitions are new every render.
 	const index = getTopicRoutingIndex(widgetDefinitions);
 
-	const declared = useMemo(
-		() =>
-			pluginsManager.applyFilter<TopicRoutingClaims>(
-				PluginsHooks.TOPIC_ROUTING_CLAIMS,
-				[],
-			),
-		[pluginsManager],
+	const declared = usePluginFilter(
+		PluginsHooks.TOPIC_ROUTING_CLAIMS,
+		emptyClaims,
+		TOPIC_ROUTING_CLAIMS_HOOKS,
 	);
 
 	// Resolved against the registry here rather than at every call site: a

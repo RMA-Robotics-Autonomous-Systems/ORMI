@@ -9,7 +9,7 @@ import {
 	LuggageIcon,
 	Loader2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 // Add shadcn component imports
 import {
 	BagInfo,
@@ -24,7 +24,10 @@ import { BagViewer } from "./bag-viewer";
 import { RestBagClient } from "../rest-bag-client";
 import { BagPlayer } from "../player/bag-player";
 import { WidgetDefinition } from "@workspace/ormi-core/widgets";
-import { usePluginsManager } from "@workspace/ormi-plugins";
+import {
+	usePluginsManager,
+	usePluginFiltersRevision,
+} from "@workspace/ormi-plugins";
 import { restBagDatasourceProperty } from "../datasource-select";
 import { useButtonHolder } from "@workspace/ui/combined/ButtonHolder";
 import { Alert, AlertDescription } from "@workspace/ui/components/alert";
@@ -45,6 +48,12 @@ interface BagListProps extends Record<string, unknown> {
 
 const BagList = (props: BagListProps) => {
 	const pluginsManager = usePluginsManager();
+	// The provider replaces its client when the url changes: re-read it then.
+	const clientHooks = useMemo(
+		() => [`${props.datasource_id}-client`],
+		[props.datasource_id],
+	);
+	const clientRevision = usePluginFiltersRevision(clientHooks);
 	// Define per-bag download state
 	type DownloadState = {
 		status:
@@ -95,7 +104,7 @@ const BagList = (props: BagListProps) => {
 		return () => {
 			removeButtonItem("bag-list-refresh");
 		};
-	}, [props.datasource_id, pluginsManager]);
+	}, [props.datasource_id, pluginsManager, clientRevision]);
 
 	useEffect(() => {
 		if (!client) {

@@ -144,8 +144,8 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 	// The props object is new on every parent render: key the effect on the
 	// content of what it consumes (a rename must not tear the generators down)
 	// and read the settings through a ref.
+	// `enable` is not read: core mounts this provider only while it is on.
 	const settingsKey = JSON.stringify([
-		props.enable,
 		props.preset,
 		props.generators,
 		props.faults,
@@ -157,7 +157,6 @@ const LoadgenMainThreadProvider = (props: LoadgenSettings) => {
 
 	useEffect(() => {
 		const props = settingsRef.current;
-		if (!props.enable) return;
 
 		// Registry-before-READY: it must exist before READY is fired below.
 		getDatasourceSubscriptionRegistry(pluginsManager);

@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
-import { db } from "@/server/db";
+import {
+	deleteTemplate,
+	findTemplateOwner,
+	updateTemplate,
+} from "@/lib/data/prisma-templates";
 import { apiResponse } from "@/lib/api-utils";
 import { withAuth } from "@/lib/with-auth";
 import {
@@ -32,10 +35,7 @@ export const DELETE = withAuth(
 			}
 
 			const templateId = parsedParams.data.templateId;
-			const template = await db.template.findUnique({
-				where: { id: templateId },
-				select: { createdById: true },
-			});
+			const template = await findTemplateOwner(templateId);
 
 			if (!template) {
 				return apiResponse({ error: "Template not found" }, 404);
@@ -50,7 +50,7 @@ export const DELETE = withAuth(
 				);
 			}
 
-			await db.template.delete({ where: { id: templateId } });
+			await deleteTemplate(templateId);
 
 			return apiResponse(null, 204);
 		} catch (error) {
@@ -83,10 +83,7 @@ export const PUT = withAuth(
 			}
 
 			const templateId = parsedParams.data.templateId;
-			const existingTemplate = await db.template.findUnique({
-				where: { id: templateId },
-				select: { createdById: true, type: true },
-			});
+			const existingTemplate = await findTemplateOwner(templateId);
 
 			if (!existingTemplate) {
 				return apiResponse({ error: "Template not found" }, 404);
@@ -127,7 +124,7 @@ export const PUT = withAuth(
 				);
 			}
 
-			const contentData: Prisma.InputJsonValue = {
+			const contentData = {
 				...updateData,
 				yours: true,
 				type: templateType,
@@ -137,18 +134,14 @@ export const PUT = withAuth(
 				...(templateType === "datasource" && updateData.datasource
 					? { datasource: updateData.datasource }
 					: {}),
-			} as Prisma.InputJsonValue;
+			};
 
-			const updatedTemplate = await db.template.update({
-				where: { id: templateId },
-				data: {
-					name: updateData.name,
-					public: updateData.public,
-					tags: updateData.tags,
-					type: templateType.toUpperCase() as "WIDGET" | "DATASOURCE",
-					content: contentData,
-					updatedAT: new Date(),
-				},
+			const updatedTemplate = await updateTemplate(templateId, {
+				name: updateData.name,
+				public: updateData.public,
+				tags: updateData.tags,
+				type: templateType.toUpperCase() as "WIDGET" | "DATASOURCE",
+				content: contentData,
 			});
 
 			return apiResponse(updatedTemplate);

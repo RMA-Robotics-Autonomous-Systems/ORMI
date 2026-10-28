@@ -258,6 +258,8 @@ function useCockpitWidgets(): boolean {
 		// this state change can hold its `loading` until the list is no longer
 		// empty.
 		// It happens once per mount, in a layout effect, before paint.
+		// NOTE: this directive opts `useCockpitWidgets` out of React Compiler
+		// compilation, so the hook is uncompiled; it has no work to memo.
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setRegistered(true);
 		return () => {

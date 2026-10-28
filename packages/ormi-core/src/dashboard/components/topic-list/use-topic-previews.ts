@@ -1,29 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
-import { PluginsHooks, usePluginsManager } from "@workspace/ormi-plugins";
+import { PluginsHooks, usePluginFilter } from "@workspace/ormi-plugins";
 
 import type { TopicPreviewRegistry } from "./topic-preview-registry";
+
+/** The hooks {@link useTopicPreviews} reads, as a module-level array. */
+const TOPIC_PREVIEWS_HOOKS = [PluginsHooks.TOPIC_PREVIEWS] as const;
+
+/** Fresh accumulator for `TOPIC_PREVIEWS`. */
+const emptyPreviews = (): TopicPreviewRegistry => new Map();
 
 /**
  * Topic previews contributed by plugins, read the way every other plugin
  * contribution is read.
  *
- * Memoised on the manager: the filter is a pull with no change notification,
- * and plugins register in their constructors, so the result is fixed for the
- * lifetime of a manager.
+ * Re-read whenever a plugin adds or removes a preview, and otherwise keeps
+ * its identity.
  *
  * @returns Preview configurations by webapp type name.
  */
 export function useTopicPreviews(): TopicPreviewRegistry {
-	const pluginsManager = usePluginsManager();
-
-	return useMemo(
-		() =>
-			pluginsManager.applyFilter<TopicPreviewRegistry>(
-				PluginsHooks.TOPIC_PREVIEWS,
-				new Map(),
-			),
-		[pluginsManager],
+	return usePluginFilter(
+		PluginsHooks.TOPIC_PREVIEWS,
+		emptyPreviews,
+		TOPIC_PREVIEWS_HOOKS,
 	);
 }
