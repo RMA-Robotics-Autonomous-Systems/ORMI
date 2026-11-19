@@ -189,6 +189,7 @@ import {
 	nextPendingOnFinish,
 } from "./map-draw-finish";
 import {
+	MAP_SELECT_FLAGS,
 	MAP_SELECT_KEY_EVENTS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
@@ -3123,10 +3124,10 @@ function MissionMapBody(props: {
 					pointerDistance: DRAW_FINISH_DISTANCE_PX,
 				}),
 				new TerraDrawRectangleMode(),
-				// Edit tool: select-mode editing enabled per geometry — feature
-				// dragging, draggable midpoints, and draggable/deletable vertices
-				// (a point is feature-draggable only). The flags key is each mode's
-				// `.mode` string.
+				// Edit tool: select-mode editing enabled per geometry (see
+				// `MAP_SELECT_FLAGS`): feature dragging, midpoints that insert a
+				// vertex on a click or a drag, and draggable/deletable vertices
+				// (a point is feature-draggable only).
 				// Delete never removes the whole shape: terra-draw's default
 				// binding did, while the open save kept the old geometry and
 				// Save re-wrote it unchanged. Delete and Backspace remove the
@@ -3134,39 +3135,7 @@ function MissionMapBody(props: {
 				new TerraDrawSelectMode({
 					pointerDistance: SELECT_POINTER_DISTANCE_PX,
 					keyEvents: MAP_SELECT_KEY_EVENTS,
-					flags: {
-						point: { feature: { draggable: true } },
-						linestring: {
-							feature: {
-								draggable: true,
-								coordinates: {
-									midpoints: true,
-									draggable: true,
-									deletable: true,
-								},
-							},
-						},
-						polygon: {
-							feature: {
-								draggable: true,
-								coordinates: {
-									midpoints: true,
-									draggable: true,
-									deletable: true,
-								},
-							},
-						},
-						rectangle: {
-							feature: {
-								draggable: true,
-								coordinates: {
-									midpoints: true,
-									draggable: true,
-									deletable: true,
-								},
-							},
-						},
-					},
+					flags: MAP_SELECT_FLAGS,
 				}),
 			],
 		});

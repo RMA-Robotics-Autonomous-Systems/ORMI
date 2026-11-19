@@ -8,6 +8,7 @@ import {
 } from "terra-draw";
 
 import {
+	MAP_SELECT_FLAGS,
 	MAP_SELECT_KEY_EVENTS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
@@ -244,18 +245,11 @@ function stubAdapter() {
 	};
 }
 
-const EDITABLE = {
-	feature: {
-		draggable: true,
-		coordinates: { midpoints: true, draggable: true, deletable: true },
-	},
-};
-
 function startedDraw(keyEvents?: typeof MAP_SELECT_KEY_EVENTS) {
 	const select = new TerraDrawSelectMode({
 		pointerDistance: SELECT_POINTER_DISTANCE_PX,
 		keyEvents,
-		flags: { linestring: EDITABLE, polygon: EDITABLE },
+		flags: MAP_SELECT_FLAGS,
 	});
 	const draw = new TerraDraw({
 		adapter: stubAdapter() as never,
@@ -404,5 +398,68 @@ describe("the map's select mode", () => {
 		expect(deleteVertex(draw, { featureId: "nope", index: 0 }).ok).toBe(
 			false,
 		);
+	});
+});
+
+describe("a midpoint of the shape open for editing", () => {
+	const pointer = (at: VertexPosition, button: "left" | "neither") => {
+		const xy = stubAdapter().project(at[0], at[1]);
+		return {
+			lng: at[0],
+			lat: at[1],
+			containerX: xy.x,
+			containerY: xy.y,
+			button,
+			heldKeys: [],
+			isContextMenu: false,
+		};
+	};
+	const midpointNear = (draw: TerraDraw, at: VertexPosition) =>
+		draw
+			.getSnapshot()
+			.filter((f) => f.properties.midPoint === true)
+			.map((f) => f.geometry.coordinates as VertexPosition)
+			.sort(
+				(a, b) =>
+					Math.hypot(a[0] - at[0], a[1] - at[1]) -
+					Math.hypot(b[0] - at[0], b[1] - at[1]),
+			)[0]!;
+	const ringOf = (draw: TerraDraw, id: string | number) =>
+		(draw.getSnapshotFeature(id)?.geometry.coordinates as number[][][])[0]!;
+
+	it("inserts a vertex and drags it when a drag starts on it", () => {
+		const { draw, select } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const id = loadSelected(draw);
+		const finishes: (string | undefined)[] = [];
+		draw.on("finish", (_id, context) => finishes.push(context?.action));
+		// The midpoint of the bottom edge, (4.35, 50.84) to (4.36, 50.84).
+		const mid = midpointNear(draw, [4.355, 50.84]);
+		const to: VertexPosition = [4.355, 50.835];
+		const draggability: boolean[] = [];
+		const setDraggability = (enabled: boolean) =>
+			draggability.push(enabled);
+
+		select.onDragStart(pointer(mid, "left"), setDraggability);
+		select.onDrag(pointer(to, "left"), setDraggability);
+		select.onDragEnd(pointer(to, "left"), setDraggability);
+
+		// The map did not pan under the drag.
+		expect(draggability).toEqual([false, true]);
+		const ring = ringOf(draw, id);
+		expect(ring.length).toBe(7);
+		expect(ring[1]).toEqual(to);
+		// Both steps reach the open save through the finish path.
+		expect(finishes).toEqual(["insertMidpoint", "dragCoordinate"]);
+	});
+
+	it("still inserts a vertex in place on a click", () => {
+		const { draw, select } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const id = loadSelected(draw);
+		const mid = midpointNear(draw, [4.355, 50.84]);
+		select.onClick(pointer(mid, "left"));
+		const ring = ringOf(draw, id);
+		expect(ring.length).toBe(7);
+		expect(ring[1]![0]).toBeCloseTo(mid[0], 6);
+		expect(ring[1]![1]).toBeCloseTo(mid[1], 6);
 	});
 });

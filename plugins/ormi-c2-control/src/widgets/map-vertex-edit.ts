@@ -42,6 +42,33 @@ export const MAP_SELECT_KEY_EVENTS: {
 	scale: ["Control", "s"],
 };
 
+/** Select-mode flags for a line, a polygon and a rectangle. */
+const EDITABLE_SHAPE = {
+	feature: {
+		draggable: true,
+		coordinates: {
+			// A drag that starts on a midpoint inserts a vertex there and
+			// moves it; a click still inserts it in place. Without
+			// `draggable` terra-draw ignored the drag and the map panned.
+			midpoints: { draggable: true },
+			draggable: true,
+			deletable: true,
+		},
+	},
+};
+
+/**
+ * Select-mode flags of the map's Edit tool, keyed by each draw mode's `.mode`
+ * string. A point is dragged whole; a line or an area also has draggable,
+ * deletable vertices and midpoints.
+ */
+export const MAP_SELECT_FLAGS = {
+	point: { feature: { draggable: true } },
+	linestring: EDITABLE_SHAPE,
+	polygon: EDITABLE_SHAPE,
+	rectangle: EDITABLE_SHAPE,
+};
+
 /** Keys that delete the selected vertex. */
 export const VERTEX_DELETE_KEYS: readonly string[] = ["Delete", "Backspace"];
 
