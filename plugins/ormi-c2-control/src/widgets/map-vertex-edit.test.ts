@@ -8,8 +8,7 @@ import {
 } from "terra-draw";
 
 import {
-	MAP_SELECT_FLAGS,
-	MAP_SELECT_KEY_EVENTS,
+	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
 	isVertexDeleteKey,
@@ -245,12 +244,12 @@ function stubAdapter() {
 	};
 }
 
-function startedDraw(keyEvents?: typeof MAP_SELECT_KEY_EVENTS) {
-	const select = new TerraDrawSelectMode({
-		pointerDistance: SELECT_POINTER_DISTANCE_PX,
-		keyEvents,
-		flags: MAP_SELECT_FLAGS,
-	});
+function startedDraw(
+	options: ConstructorParameters<
+		typeof TerraDrawSelectMode
+	>[0] = MAP_SELECT_OPTIONS,
+) {
+	const select = new TerraDrawSelectMode(options);
 	const draw = new TerraDraw({
 		adapter: stubAdapter() as never,
 		modes: [
@@ -313,22 +312,27 @@ const keyUp = (key: string) => ({
 
 describe("the map's select mode", () => {
 	it("terra-draw's default Delete removes the whole shape (the defect)", () => {
-		const { draw, select } = startedDraw();
+		const { draw, select } = startedDraw({
+			...MAP_SELECT_OPTIONS,
+			keyEvents: undefined,
+		});
 		const id = loadSelected(draw);
 		select.onKeyUp(keyUp("Delete"));
 		expect(draw.hasFeature(id)).toBe(false);
 	});
 
 	it("keeps the shape on Delete with the map's key bindings", () => {
-		const { draw, select } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw, select } = startedDraw();
 		const id = loadSelected(draw);
 		select.onKeyUp(keyUp("Delete"));
 		select.onKeyUp(keyUp("Backspace"));
+		select.onKeyUp(keyUp("Escape"));
 		expect(draw.hasFeature(id)).toBe(true);
+		expect(draw.getSnapshotFeature(id)?.properties.selected).toBe(true);
 	});
 
 	it("finds the clicked vertex handle and deletes that vertex only", () => {
-		const { draw } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw } = startedDraw();
 		const id = loadSelected(draw);
 		const vertex = clickVertex(draw, [4.3649, 50.8451]);
 		expect(vertex).toEqual({
@@ -361,7 +365,7 @@ describe("the map's select mode", () => {
 	});
 
 	it("refuses a vertex the area cannot lose", () => {
-		const { draw } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw } = startedDraw();
 		const [loaded] = draw.addFeatures([
 			{
 				type: "Feature",
@@ -394,7 +398,7 @@ describe("the map's select mode", () => {
 	});
 
 	it("names a shape that is gone", () => {
-		const { draw } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw } = startedDraw();
 		expect(deleteVertex(draw, { featureId: "nope", index: 0 }).ok).toBe(
 			false,
 		);
@@ -428,7 +432,7 @@ describe("a midpoint of the shape open for editing", () => {
 		(draw.getSnapshotFeature(id)?.geometry.coordinates as number[][][])[0]!;
 
 	it("inserts a vertex and drags it when a drag starts on it", () => {
-		const { draw, select } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw, select } = startedDraw();
 		const id = loadSelected(draw);
 		const finishes: (string | undefined)[] = [];
 		draw.on("finish", (_id, context) => finishes.push(context?.action));
@@ -453,7 +457,7 @@ describe("a midpoint of the shape open for editing", () => {
 	});
 
 	it("still inserts a vertex in place on a click", () => {
-		const { draw, select } = startedDraw(MAP_SELECT_KEY_EVENTS);
+		const { draw, select } = startedDraw();
 		const id = loadSelected(draw);
 		const mid = midpointNear(draw, [4.355, 50.84]);
 		select.onClick(pointer(mid, "left"));
@@ -461,5 +465,67 @@ describe("a midpoint of the shape open for editing", () => {
 		expect(ring.length).toBe(7);
 		expect(ring[1]![0]).toBeCloseTo(mid[0], 6);
 		expect(ring[1]![1]).toBeCloseTo(mid[1], 6);
+	});
+});
+
+describe("a click on the shape open for editing", () => {
+	// Corners 200 px apart: every midpoint is 100 px from a corner, farther
+	// than the 40 px hit radius, as on the real map at site zoom.
+	const wide = {
+		type: "Feature",
+		properties: { mode: "polygon" },
+		geometry: {
+			type: "Polygon",
+			coordinates: [
+				[
+					[4.35, 50.84],
+					[4.37, 50.84],
+					[4.37, 50.86],
+					[4.35, 50.86],
+					[4.35, 50.84],
+				],
+			],
+		},
+	};
+	const leftClick = (at: VertexPosition) => {
+		const xy = stubAdapter().project(at[0], at[1]);
+		return {
+			lng: at[0],
+			lat: at[1],
+			containerX: xy.x,
+			containerY: xy.y,
+			button: "left" as const,
+			heldKeys: [],
+			isContextMenu: false,
+		};
+	};
+	function loadWide() {
+		const { draw, select } = startedDraw();
+		const [loaded] = draw.addFeatures([wide as GeoJSONStoreFeatures]);
+		draw.selectFeature(loaded!.id!);
+		return { draw, select, id: loaded!.id! };
+	}
+
+	it("keeps the shape selected and selects the clicked vertex", () => {
+		const { draw, select, id } = loadWide();
+		// terra-draw handles the click first, then the map's own handler.
+		select.onClick(leftClick([4.37, 50.86]));
+		expect(draw.getSnapshotFeature(id)?.properties.selected).toBe(true);
+		expect(clickVertex(draw, [4.37, 50.86])).toEqual({
+			featureId: id,
+			index: 2,
+			position: [4.37, 50.86],
+		});
+	});
+
+	it("keeps the shape selected on a stray click off it", () => {
+		const { draw, select, id } = loadWide();
+		select.onClick(leftClick([4.5, 50.9]));
+		expect(draw.getSnapshotFeature(id)?.properties.selected).toBe(true);
+		expect(
+			draw
+				.getSnapshot()
+				.filter((f) => f.properties.selectionPoint === true).length,
+		).toBe(4);
 	});
 });

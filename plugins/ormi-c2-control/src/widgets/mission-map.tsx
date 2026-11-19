@@ -189,8 +189,7 @@ import {
 	nextPendingOnFinish,
 } from "./map-draw-finish";
 import {
-	MAP_SELECT_FLAGS,
-	MAP_SELECT_KEY_EVENTS,
+	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
 	isVertexDeleteKey,
@@ -3131,12 +3130,9 @@ function MissionMapBody(props: {
 				// Delete never removes the whole shape: terra-draw's default
 				// binding did, while the open save kept the old geometry and
 				// Save re-wrote it unchanged. Delete and Backspace remove the
-				// selected vertex instead (see `map-vertex-edit.ts`).
-				new TerraDrawSelectMode({
-					pointerDistance: SELECT_POINTER_DISTANCE_PX,
-					keyEvents: MAP_SELECT_KEY_EVENTS,
-					flags: MAP_SELECT_FLAGS,
-				}),
+				// selected vertex instead. Clicks and Escape never deselect:
+				// the open edit owns the selection (`MAP_SELECT_OPTIONS`).
+				new TerraDrawSelectMode(MAP_SELECT_OPTIONS),
 			],
 		});
 		draw.start();

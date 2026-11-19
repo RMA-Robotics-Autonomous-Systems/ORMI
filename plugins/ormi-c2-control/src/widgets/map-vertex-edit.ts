@@ -28,7 +28,9 @@ export const SELECT_POINTER_DISTANCE_PX = 40;
 
 /**
  * Key bindings for the map's select mode. `delete: null` turns off
- * terra-draw's "delete the selected feature"; the others are its defaults.
+ * terra-draw's "delete the selected feature", and `deselect: null` its
+ * Escape-to-deselect: the open edit owns the selection (see
+ * {@link MAP_SELECT_OPTIONS}). Rotate and scale keep terra-draw's defaults.
  */
 export const MAP_SELECT_KEY_EVENTS: {
 	deselect: string | null;
@@ -36,7 +38,7 @@ export const MAP_SELECT_KEY_EVENTS: {
 	rotate: string[] | null;
 	scale: string[] | null;
 } = {
-	deselect: "Escape",
+	deselect: null,
 	delete: null,
 	rotate: ["Control", "r"],
 	scale: ["Control", "s"],
@@ -275,3 +277,22 @@ export function deleteVertex<F extends { geometry: EditableGeometry }>(
 		};
 	return { ok: true, feature: after };
 }
+
+/**
+ * Options of the map's select mode (the Edit tool).
+ *
+ * `allowManualDeselection: false`: a click that terra-draw does not count as
+ * on the shape never deselects it. terra-draw counted a click exactly on a
+ * vertex handle as off the shape whenever no midpoint was within reach
+ * (corners farther apart than twice the hit radius, i.e. any site-zoom
+ * shape), so selecting a vertex dropped the whole selection, and a stray
+ * click left the edit card offering Save on a shape with no handles. The
+ * edit lifecycle deselects instead: Save and Cancel clear the draw layer, a
+ * tool change stops the select mode, and opening another feature replaces it.
+ */
+export const MAP_SELECT_OPTIONS = {
+	pointerDistance: SELECT_POINTER_DISTANCE_PX,
+	keyEvents: MAP_SELECT_KEY_EVENTS,
+	flags: MAP_SELECT_FLAGS,
+	allowManualDeselection: false,
+};
