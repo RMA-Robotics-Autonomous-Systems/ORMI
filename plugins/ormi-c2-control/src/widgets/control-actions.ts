@@ -334,14 +334,24 @@ export type PrimaryControlAction = "submit" | "approve" | "start";
  * Takes the gate's answer before transient holds (a command in flight, one
  * awaiting feedback), so the emphasis does not flicker while a click settles.
  *
+ * `submitBlocked` is the mission's own graph verdict (the check Submit makes
+ * before sending, `graphSubmitBlock`): while the behaviour graph does not
+ * compile, Submit is not the next step, fixing the graph is, so nothing is
+ * marked. Submit stays offered and does what it always does; only the mark
+ * goes. Nor does Approve take the mark in its place: Submit is offered on an
+ * active mission only when the config was edited since it was submitted, and
+ * then Approve would approve the plan the operator edited away from.
+ *
  * @param allowed - What the status permits ({@link gatedActions}), with
  *   `submit` already narrowed by {@link canSubmit}.
+ * @param submitBlocked - Whether the open mission's graph blocks Submit.
  * @returns The action to render as primary, or null.
  */
 export function primaryAction(
 	allowed: Pick<AllowedActions, PrimaryControlAction>,
+	submitBlocked = false,
 ): PrimaryControlAction | null {
-	if (allowed.submit) return "submit";
+	if (allowed.submit) return submitBlocked ? null : "submit";
 	if (allowed.approve) return "approve";
 	if (allowed.start) return "start";
 	return null;

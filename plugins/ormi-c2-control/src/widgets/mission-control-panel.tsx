@@ -1186,11 +1186,19 @@ function ControlPanelBody(props: {
 		});
 	// The operator's next step. Derived from what the gate permits, not from the
 	// transient holds, so the emphasis does not flicker while a click settles.
-	const primary = primaryAction({
-		submit: submitPermitted,
-		approve: hasMission && allowed.approve && Boolean(approveDef),
-		start: hasMission && allowed.start && Boolean(startDef),
-	});
+	// The graph verdict is read off the live draft, where the graph editor
+	// writes `graph_compiles` on every edit, through the same check Submit makes
+	// before sending: one verdict, so the graph's "Submit blocked" and this
+	// panel cannot disagree.
+	const submitBlocked = draft ? graphSubmitBlock(draft) !== null : false;
+	const primary = primaryAction(
+		{
+			submit: submitPermitted,
+			approve: hasMission && allowed.approve && Boolean(approveDef),
+			start: hasMission && allowed.start && Boolean(startDef),
+		},
+		submitBlocked,
+	);
 	// Whether Stop is on offer at all. It is, for every mission that is not
 	// terminal — including one with no live status, where it is labelled
 	// "Stop (unconfirmed)" rather than withheld.

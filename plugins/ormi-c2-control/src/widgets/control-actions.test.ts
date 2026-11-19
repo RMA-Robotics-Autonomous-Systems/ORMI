@@ -557,6 +557,40 @@ describe("primaryAction (the one filled button)", () => {
 			primaryAction({ submit: false, approve: false, start: false }),
 		).toBeNull();
 	});
+
+	it("does not suggest Submit while the graph blocks it", () => {
+		expect(
+			primaryAction({ submit: true, approve: false, start: false }, true),
+		).toBeNull();
+	});
+
+	it("does not hand the mark to Approve while an edited graph blocks Submit", () => {
+		// A planned mission edited since submit: Approve would approve the
+		// plan the operator edited away from.
+		expect(
+			primaryAction({ submit: true, approve: true, start: false }, true),
+		).toBeNull();
+	});
+
+	it("still suggests Approve or Start when Submit is not offered", () => {
+		// The verdict only concerns Submit: a planned mission whose saved
+		// graph now reads as blocked is still approved by the plan it has.
+		expect(
+			primaryAction({ submit: false, approve: true, start: false }, true),
+		).toBe("approve");
+		expect(
+			primaryAction({ submit: false, approve: false, start: true }, true),
+		).toBe("start");
+	});
+
+	it("leaves no filled button for a blocked Submit, Stop offered or not", () => {
+		const primary = primaryAction(
+			{ submit: true, approve: false, start: false },
+			true,
+		);
+		expect(filledPrimaryAction(primary, false)).toBeNull();
+		expect(filledPrimaryAction(primary, true)).toBeNull();
+	});
 });
 
 describe("filledPrimaryAction (Stop owns the fill)", () => {
