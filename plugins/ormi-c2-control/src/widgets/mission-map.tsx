@@ -179,7 +179,11 @@ import {
 	hasUsableCoordinates,
 	hydrateMissionDraft,
 } from "./mission-editor-helpers";
-import { classifyDrawFinish, nextPendingOnFinish } from "./map-draw-finish";
+import {
+	DRAW_FINISH_DISTANCE_PX,
+	classifyDrawFinish,
+	nextPendingOnFinish,
+} from "./map-draw-finish";
 import {
 	GeoJsonFeatureCollection,
 	MapRegistryEntry,
@@ -3055,8 +3059,14 @@ function MissionMapBody(props: {
 			// "rectangle") draws an axis-aligned bounding box as a Polygon.
 			modes: [
 				new TerraDrawPointMode(),
-				new TerraDrawLineStringMode(),
-				new TerraDrawPolygonMode(),
+				// A small finish distance: the 40 px default closed polygons
+				// and ended lines mid-trace (DRAW_FINISH_DISTANCE_PX).
+				new TerraDrawLineStringMode({
+					pointerDistance: DRAW_FINISH_DISTANCE_PX,
+				}),
+				new TerraDrawPolygonMode({
+					pointerDistance: DRAW_FINISH_DISTANCE_PX,
+				}),
 				new TerraDrawRectangleMode(),
 				// Edit tool: select-mode editing enabled per geometry — feature
 				// dragging, draggable midpoints, and draggable/deletable vertices

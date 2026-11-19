@@ -12,6 +12,18 @@
  * Pure (no React, no map) so the rule is unit-testable on its own.
  */
 
+/**
+ * How close (screen pixels) a click must land to the first point to close a
+ * polygon, or to the last point to finish a line, in the DRAW modes.
+ *
+ * terra-draw's default is 40 px, which closed polygons mid-trace whenever two
+ * vertices of a curve were near each other at site zoom, and the remaining
+ * clicks then started a second shape (usability test 2026-11-12). Enter still
+ * finishes. The select mode's hit area for handles is a separate setting and
+ * may be larger.
+ */
+export const DRAW_FINISH_DISTANCE_PX = 10;
+
 /** The second argument terra-draw passes to `finish` listeners. */
 export interface DrawFinishContext {
 	mode?: string;

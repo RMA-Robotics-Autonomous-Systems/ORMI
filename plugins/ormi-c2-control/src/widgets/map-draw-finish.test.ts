@@ -1,5 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import { classifyDrawFinish, nextPendingOnFinish } from "./map-draw-finish";
+import {
+	DRAW_FINISH_DISTANCE_PX,
+	classifyDrawFinish,
+	nextPendingOnFinish,
+} from "./map-draw-finish";
+
+describe("DRAW_FINISH_DISTANCE_PX", () => {
+	it("is well under terra-draw's 40 px default", () => {
+		// 40 px closed polygons mid-trace (usability test 2026-11-12).
+		expect(DRAW_FINISH_DISTANCE_PX).toBeLessThanOrEqual(12);
+		expect(DRAW_FINISH_DISTANCE_PX).toBeGreaterThan(0);
+	});
+});
 
 interface Pending {
 	feature: { id: string; coords: number[][] };
