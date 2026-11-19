@@ -338,9 +338,13 @@ export function canvasWithInspector(
 	inspectorWidth: number,
 ): ScreenRect {
 	if (inspectorOpen) return canvas;
+	// Field by field, never a spread: a DOMRect's edges are prototype getters,
+	// so `{ ...rect }` copies none of them.
 	return {
-		...canvas,
+		left: canvas.left,
+		top: canvas.top,
 		right: Math.max(canvas.left, canvas.right - inspectorWidth),
+		bottom: canvas.bottom,
 	};
 }
 

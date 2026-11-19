@@ -360,6 +360,41 @@ describe("canvasWithInspector: placing against the canvas the panel leaves", () 
 		expect(canvasWithInspector(canvas, true, 256)).toBe(canvas);
 	});
 
+	it("reads a DOMRect, whose edges are prototype getters", () => {
+		class GetterRect {
+			constructor(
+				private x: number,
+				private y: number,
+				private w: number,
+				private h: number,
+			) {}
+			get left() {
+				return this.x;
+			}
+			get top() {
+				return this.y;
+			}
+			get right() {
+				return this.x + this.w;
+			}
+			get bottom() {
+				return this.y + this.h;
+			}
+		}
+		const rect = new GetterRect(100, 50, 1157, 800);
+		expect(Object.keys(rect)).not.toContain("left");
+		expect(canvasWithInspector(rect, false, 256)).toEqual(
+			box(100, 50, 901, 800),
+		);
+		// And the minimap's DOMRect as a covered box.
+		const miniMap = new GetterRect(885, 635, 200, 150);
+		expect(
+			revealDelta(box(900, 650, 130, 90), box(0, 0, 1100, 800), 16, [
+				miniMap,
+			]),
+		).toEqual({ dx: -415, dy: -295 });
+	});
+
 	it("never gives a negative width", () => {
 		const narrow = canvasWithInspector(box(0, 0, 100, 100), false, 256);
 		expect(narrow.right).toBe(narrow.left);
