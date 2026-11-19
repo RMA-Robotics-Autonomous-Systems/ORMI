@@ -147,7 +147,7 @@ import {
 } from "./mission-assets";
 import { generateMissionId } from "./mission-list";
 import { assetCenter } from "./mission-asset-tree";
-import { PICK_TOLERANCE_PX, choosePick } from "./map-pick";
+import { PICK_TOLERANCE_PX, choosePick, startsNewDrawing } from "./map-pick";
 import {
 	publishLayerFeatures,
 	subscribeMapFeatureFocus,
@@ -3197,6 +3197,13 @@ function MissionMapBody(props: {
 			);
 		});
 		draw.on("deselect", () => setSelectedVertex(null));
+		// Starting a new shape clears the pick, which can arrive while the
+		// Draw tool is armed (the assets panel picks too).
+		draw.on("change", (_ids, type, changeContext) => {
+			if (!startsNewDrawing(type, draw.getMode(), changeContext)) return;
+			setPickedId(null);
+			if (drawCtxRef.current.missionScope) selectAsset(null);
+		});
 		drawRef.current = draw;
 	}, []);
 
@@ -4536,7 +4543,15 @@ function MissionMapBody(props: {
 							aria-label="Map tool"
 							value={tool}
 							onValueChange={(value) => {
-								if (value) setTool(value as MapTool);
+								if (!value) return;
+								// Arming Draw clears the pick: its outline
+								// and bar have nothing to do with the
+								// shape about to be drawn.
+								if (value === "draw") {
+									setPickedId(null);
+									if (missionScope) selectAsset(null);
+								}
+								setTool(value as MapTool);
 							}}
 						>
 							{(

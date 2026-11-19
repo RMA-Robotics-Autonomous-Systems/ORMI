@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { PICK_TOLERANCE_PX, choosePick, rankingArea } from "./map-pick";
+import {
+	PICK_TOLERANCE_PX,
+	choosePick,
+	rankingArea,
+	startsNewDrawing,
+} from "./map-pick";
 
 const square = (size: number) => ({
 	type: "Polygon",
@@ -77,5 +82,29 @@ describe("rankingArea", () => {
 
 	it("is infinite for no geometry", () => {
 		expect(rankingArea(null)).toBe(Number.POSITIVE_INFINITY);
+	});
+});
+
+describe("startsNewDrawing", () => {
+	it("is true when a draw mode creates a feature", () => {
+		for (const mode of ["point", "linestring", "polygon", "rectangle"])
+			expect(startsNewDrawing("create", mode)).toBe(true);
+	});
+
+	it("ignores the select mode creating its handles", () => {
+		expect(startsNewDrawing("create", "select")).toBe(false);
+	});
+
+	it("ignores updates, deletes and the static mode", () => {
+		expect(startsNewDrawing("update", "polygon")).toBe(false);
+		expect(startsNewDrawing("delete", "linestring")).toBe(false);
+		expect(startsNewDrawing("create", "static")).toBe(false);
+	});
+
+	it("ignores a feature added through the API (opened for editing)", () => {
+		expect(startsNewDrawing("create", "polygon", { origin: "api" })).toBe(
+			false,
+		);
+		expect(startsNewDrawing("create", "polygon", {})).toBe(true);
 	});
 });

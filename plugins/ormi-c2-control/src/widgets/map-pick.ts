@@ -116,3 +116,35 @@ export function choosePick(
 	}
 	return best?.id ?? null;
 }
+
+/** terra-draw modes that draw a new shape (the Draw tool's modes). */
+const DRAWING_MODES: ReadonlySet<string> = new Set([
+	"point",
+	"linestring",
+	"polygon",
+	"rectangle",
+]);
+
+/**
+ * Whether a terra-draw `change` event starts a new drawing, which clears the
+ * pick: a picked feature's outline and bar stay out of the way of a shape
+ * being drawn. Only the operator drawing counts. The select mode creates its
+ * vertex handles the same way, and a feature opened for editing is added
+ * through the API (`origin: "api"`), which keeps its pick.
+ *
+ * @param changeType - The `change` event's type (`create`, `update`, ...).
+ * @param mode - The terra-draw mode active when it fired.
+ * @param context - The `change` event's context, if any.
+ * @returns True when the operator's drawing created a feature.
+ */
+export function startsNewDrawing(
+	changeType: string,
+	mode: string,
+	context?: { origin?: string; target?: string },
+): boolean {
+	return (
+		changeType === "create" &&
+		DRAWING_MODES.has(mode) &&
+		context?.origin !== "api"
+	);
+}
