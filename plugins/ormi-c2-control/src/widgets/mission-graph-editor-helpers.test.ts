@@ -15,6 +15,7 @@ import {
 	layoutLanes,
 	pasteClip,
 	revealDelta,
+	canvasWithInspector,
 	type ScreenRect,
 	applyNodeSizes,
 	type NodeSize,
@@ -242,40 +243,41 @@ function box(x: number, y: number, width: number, height: number): ScreenRect {
 	return { left: x, top: y, right: x + width, bottom: y + height };
 }
 
-describe("revealDelta: a clicked node is brought out from under the panel", () => {
+describe("revealDelta: an inspected node is brought out from under the panel and minimap", () => {
 	// The canvas once the 256 px details panel has narrowed it: 0..1100 wide.
+	// Its centre is (550, 400).
 	const view = box(0, 0, 1100, 800);
 	const MARGIN = 16;
+	// The minimap: 200 x 150, 15 px in from the bottom-right corner.
+	const miniMap = box(885, 635, 200, 150);
 
 	it("does not move a node that is already wholly visible", () => {
-		expect(revealDelta(box(400, 300, 130, 90), view, MARGIN)).toEqual({
-			dx: 0,
-			dy: 0,
-		});
+		expect(
+			revealDelta(box(400, 300, 130, 90), view, MARGIN, [miniMap]),
+		).toEqual({ dx: 0, dy: 0 });
 	});
 
 	it("does not move a node that exactly touches the edges", () => {
-		expect(revealDelta(box(970, 0, 130, 800), view, MARGIN)).toEqual({
+		expect(revealDelta(box(970, 0, 130, 600), view, MARGIN)).toEqual({
 			dx: 0,
 			dy: 0,
 		});
 	});
 
-	it("pans left exactly far enough to leave the margin on the right", () => {
-		// Right edge at 1210, 110 px under the panel: 126 px brings it to 1084.
+	it("centres a node cut off on the right, on that axis only", () => {
+		// Right edge at 1210, under the panel; centre 1145 goes to 550.
 		const { dx, dy } = revealDelta(box(1080, 300, 130, 90), view, MARGIN);
-		expect(dx).toBe(-126);
+		expect(dx).toBe(-595);
 		expect(dy).toBe(0);
-		expect(1210 + dx).toBe(view.right - MARGIN);
 	});
 
-	it("pans left for a node that is only one pixel under the panel", () => {
-		expect(revealDelta(box(971, 300, 130, 90), view, MARGIN).dx).toBe(-17);
+	it("centres a node that is only one pixel under the panel", () => {
+		expect(revealDelta(box(971, 300, 130, 90), view, MARGIN).dx).toBe(-486);
 	});
 
-	it("pans right for a node cut off on the left", () => {
+	it("centres a node cut off on the left", () => {
 		expect(revealDelta(box(-40, 300, 130, 90), view, MARGIN)).toEqual({
-			dx: 56,
+			dx: 525,
 			dy: 0,
 		});
 	});
@@ -292,37 +294,73 @@ describe("revealDelta: a clicked node is brought out from under the panel", () =
 		);
 	});
 
-	it("leaves the vertical alone when only the horizontal is out", () => {
-		expect(revealDelta(box(1080, 700, 130, 100), view, MARGIN).dy).toBe(0);
+	it("centres a node below the view instead of leaving it flush with the bottom", () => {
+		// Flush with the bottom it would still sit under the minimap.
+		expect(
+			revealDelta(box(900, 750, 130, 90), view, MARGIN, [miniMap]),
+		).toEqual({ dx: 0, dy: -395 });
 	});
 
-	it("pans up for a node below the view", () => {
-		expect(revealDelta(box(400, 750, 130, 90), view, MARGIN)).toEqual({
-			dx: 0,
-			dy: -56,
-		});
-	});
-
-	it("pans down for a node above the view", () => {
+	it("centres a node above the view", () => {
 		expect(revealDelta(box(400, -30, 130, 90), view, MARGIN)).toEqual({
 			dx: 0,
-			dy: 46,
+			dy: 385,
 		});
 	});
 
-	it("pans both ways for a node out on both axes", () => {
+	it("centres a node out on both axes", () => {
 		expect(revealDelta(box(1080, 750, 130, 90), view, MARGIN)).toEqual({
-			dx: -126,
-			dy: -56,
+			dx: -595,
+			dy: -395,
 		});
+	});
+
+	it("moves a node that is in the view but under the minimap to the centre", () => {
+		expect(
+			revealDelta(box(900, 650, 130, 90), view, MARGIN, [miniMap]),
+		).toEqual({ dx: -415, dy: -295 });
+	});
+
+	it("does not treat a node beside the minimap as covered", () => {
+		expect(
+			revealDelta(box(700, 680, 130, 90), view, MARGIN, [miniMap]),
+		).toEqual({ dx: 0, dy: 0 });
+	});
+
+	it("centres on both axes when centring one still leaves it under the minimap", () => {
+		// A tall node out at the bottom right: centring vertically alone keeps
+		// it in the minimap's column and rows.
+		const tall = box(950, 450, 100, 500);
+		const { dx, dy } = revealDelta(tall, view, MARGIN, [miniMap]);
+		expect(dx).toBe(-450);
+		expect(dy).toBe(-300);
 	});
 
 	it("works in a view that does not start at the origin", () => {
 		const offset = box(300, 150, 1100, 800);
 		expect(revealDelta(box(1380, 400, 130, 90), offset, MARGIN)).toEqual({
-			dx: -126,
+			dx: -595,
 			dy: 0,
 		});
+	});
+});
+
+describe("canvasWithInspector: placing against the canvas the panel leaves", () => {
+	const canvas = box(100, 50, 1157, 800);
+
+	it("narrows the canvas by the panel when it is about to open", () => {
+		expect(canvasWithInspector(canvas, false, 256)).toEqual(
+			box(100, 50, 901, 800),
+		);
+	});
+
+	it("keeps the canvas as measured when the panel is already open", () => {
+		expect(canvasWithInspector(canvas, true, 256)).toBe(canvas);
+	});
+
+	it("never gives a negative width", () => {
+		const narrow = canvasWithInspector(box(0, 0, 100, 100), false, 256);
+		expect(narrow.right).toBe(narrow.left);
 	});
 });
 

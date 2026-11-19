@@ -234,62 +234,113 @@ export interface ScreenRect {
 	bottom: number;
 }
 
+/** Whether two screen boxes share any area (touching edges do not). */
+function rectsOverlap(a: ScreenRect, b: ScreenRect): boolean {
+	return (
+		a.left < b.right &&
+		b.left < a.right &&
+		a.top < b.bottom &&
+		b.top < a.bottom
+	);
+}
+
 /**
- * The shift along one axis that brings `[start, end]` into `[min, max]`.
- *
- * Nothing when it is already wholly inside. Otherwise the smallest move that
- * leaves `margin` of air on the side it came in from; a span too long to fit
- * with its margins lines its START up instead, so the part an operator reads
- * first (a node's header) is the part on screen.
+ * The shift along one axis that puts `[start, end]` in the middle of
+ * `[min, max]`. A span too long to fit with its margins lines its START up
+ * instead, so the part an operator reads first (a node's header) is the part
+ * on screen.
  */
-function revealAxis(
+function centreAxis(
 	start: number,
 	end: number,
 	min: number,
 	max: number,
 	margin: number,
 ): number {
-	if (start >= min && end <= max) return 0;
 	if (end - start > max - min - 2 * margin) return min + margin - start;
-	if (end > max) return max - margin - end;
-	return min + margin - start;
+	return (min + max) / 2 - (start + end) / 2;
 }
 
 /**
  * How far to pan the view so a node is wholly visible, or `{0, 0}` when it is.
  *
- * Used when a click opens the details panel: the panel takes the right of the
- * canvas and the view deliberately does not move for it, so a node near the
- * right edge can end up underneath it. The pan is the MINIMUM that brings the
- * whole node back, per axis (an axis the node is already inside is left
- * alone), so a node that is in view never moves at all. Add the result to the
- * viewport's translation; the zoom is never touched.
+ * Used when a node becomes the inspected one (a click, or a node just added):
+ * the details panel takes the right of the canvas and the minimap sits over
+ * its bottom-right corner, so the node can end up under either. A node that
+ * is wholly inside `visible` and under none of `covered` never moves. Any
+ * other node is CENTRED in `visible` on each axis it is out on, rather than
+ * pulled flush to the edge it came in from, where it would still sit beside
+ * (or under) the minimap; when that still leaves it under a covered box, it is
+ * centred on both axes. Add the result to the viewport's translation; the
+ * zoom is never touched.
  *
  * @param node - The node's box.
  * @param visible - The part of the canvas actually on screen, same space.
- * @param margin - Air to leave between the node and the edge it is pulled to.
+ * @param margin - Air left before the start of a node too big to centre.
+ * @param covered - Boxes drawn over the canvas (the minimap), same space.
  * @returns The translation to add, in the same pixels.
  */
 export function revealDelta(
 	node: ScreenRect,
 	visible: ScreenRect,
 	margin: number,
+	covered: readonly ScreenRect[] = [],
 ): { dx: number; dy: number } {
+	const outX = node.left < visible.left || node.right > visible.right;
+	const outY = node.top < visible.top || node.bottom > visible.bottom;
+	const under = (dx: number, dy: number) => {
+		const moved = {
+			left: node.left + dx,
+			right: node.right + dx,
+			top: node.top + dy,
+			bottom: node.bottom + dy,
+		};
+		return covered.some((box) => rectsOverlap(moved, box));
+	};
+	if (!outX && !outY && !under(0, 0)) return { dx: 0, dy: 0 };
+	const cx = centreAxis(
+		node.left,
+		node.right,
+		visible.left,
+		visible.right,
+		margin,
+	);
+	const cy = centreAxis(
+		node.top,
+		node.bottom,
+		visible.top,
+		visible.bottom,
+		margin,
+	);
+	const dx = outX ? cx : 0;
+	const dy = outY ? cy : 0;
+	if ((outX || outY) && !under(dx, dy)) return { dx, dy };
+	return { dx: cx, dy: cy };
+}
+
+/**
+ * The part of the canvas a node will be visible in once it is inspected.
+ *
+ * Selecting a node opens the details panel at the canvas's right, narrowing
+ * it by `inspectorWidth`. A node added from the palette is selected in the same
+ * click, so where it is placed has to be decided against the canvas as it
+ * will be, not as it is: placed on the wider canvas, it ended up partly under
+ * the panel that its own selection opened.
+ *
+ * @param canvas - The canvas's screen box now.
+ * @param inspectorOpen - Whether the details panel is already open.
+ * @param inspectorWidth - The panel's width, in the same pixels.
+ * @returns The canvas box once the panel is open.
+ */
+export function canvasWithInspector(
+	canvas: ScreenRect,
+	inspectorOpen: boolean,
+	inspectorWidth: number,
+): ScreenRect {
+	if (inspectorOpen) return canvas;
 	return {
-		dx: revealAxis(
-			node.left,
-			node.right,
-			visible.left,
-			visible.right,
-			margin,
-		),
-		dy: revealAxis(
-			node.top,
-			node.bottom,
-			visible.top,
-			visible.bottom,
-			margin,
-		),
+		...canvas,
+		right: Math.max(canvas.left, canvas.right - inspectorWidth),
 	};
 }
 

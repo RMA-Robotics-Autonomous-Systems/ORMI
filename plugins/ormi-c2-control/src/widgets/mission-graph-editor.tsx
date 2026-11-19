@@ -156,6 +156,7 @@ import {
 	resolveGraphViewOnly,
 	revealDelta,
 	flowBoxToScreenRect,
+	canvasWithInspector,
 	applyNodeSizes,
 	type NodeSize,
 	type DropChoice,
@@ -923,8 +924,17 @@ const NO_SELECTION: readonly string[] = Object.freeze([]);
 /** No node measured yet, as one shared map. */
 const NO_SIZES: ReadonlyMap<string, NodeSize> = new Map();
 
-/** Air left between a node pulled into view and the edge it came in from. */
+/** Air left before the start of a node too big to centre in the view. */
 const REVEAL_MARGIN = 16;
+
+/**
+ * The details panel's width, in pixels. A node added from the palette is
+ * placed against the canvas as it will be once this panel has opened for it.
+ */
+const INSPECTOR_WIDTH = 256;
+
+/** xyflow's class on the minimap's panel, measured as a box over the canvas. */
+const MINIMAP_SELECTOR = ".react-flow__minimap";
 
 /** How long the pan that brings a clicked node into view takes. */
 const REVEAL_MS = 200;
@@ -1921,10 +1931,12 @@ function MissionGraphEditorBody(props: {
 	//
 	// Opening the panel narrows the canvas and deliberately leaves the view
 	// where it is, so a node clicked near the right edge can end up beneath the
-	// panel. Once the panel is laid out (a layout effect: the canvas narrowed in
-	// this same commit), the view pans by the least that shows the whole node,
-	// and not at all when it is already in view. Keyed on the id alone, so
-	// editing the node never moves anything.
+	// panel, and one near the bottom-right beneath the minimap. Once the panel
+	// is laid out (a layout effect: the canvas narrowed in this same commit),
+	// the view pans to centre the node in what is left ({@link revealDelta},
+	// with the minimap's box as covered), and not at all when it is already
+	// wholly in view. Keyed on the id alone, so editing the node never moves
+	// anything.
 	//
 	// The node's screen box is computed from its FLOW position and the viewport
 	// ({@link flowBoxToScreenRect}), never looked up in the DOM: a node added in
@@ -1934,6 +1946,7 @@ function MissionGraphEditorBody(props: {
 	// the graph yet in this commit is revealed in the next one; `revealDoneFor`
 	// keeps that from panning again on later edits of the same node.
 	const inspectedId = selectedNode?.id ?? null;
+	const inspectorOpen = selectedNode !== null;
 	const inspectedPosition = selectedNode?.position ?? null;
 	const revealDoneFor = useRef<string | null>(null);
 	useLayoutEffect(() => {
@@ -1951,6 +1964,9 @@ function MissionGraphEditorBody(props: {
 		if (!canvas || !inspectedPosition) return;
 		const measured = getNode(inspectedId)?.measured;
 		const canvasRect = canvas.getBoundingClientRect();
+		const miniMap = canvas
+			.querySelector(MINIMAP_SELECTOR)
+			?.getBoundingClientRect();
 		const nodeRect = flowBoxToScreenRect(
 			{
 				x: inspectedPosition.x,
@@ -1962,7 +1978,12 @@ function MissionGraphEditorBody(props: {
 			canvasRect,
 		);
 		revealDoneFor.current = inspectedId;
-		const { dx, dy } = revealDelta(nodeRect, canvasRect, REVEAL_MARGIN);
+		const { dx, dy } = revealDelta(
+			nodeRect,
+			canvasRect,
+			REVEAL_MARGIN,
+			miniMap ? [miniMap] : [],
+		);
 		if (dx === 0 && dy === 0) return;
 		const { x, y, zoom } = getViewport();
 		void setViewport(
@@ -2318,11 +2339,20 @@ function MissionGraphEditorBody(props: {
 					height: measured?.height ?? DEFAULT_NODE_SIZE.height,
 				};
 			};
-			const box = canvasBox.current?.getBoundingClientRect();
+			const measuredBox = canvasBox.current?.getBoundingClientRect();
+			// The new node is selected as it is added, which opens the details
+			// panel: it is centred on the canvas that panel leaves.
+			const box = measuredBox
+				? canvasWithInspector(
+						measuredBox,
+						inspectorOpen,
+						INSPECTOR_WIDTH,
+					)
+				: null;
 			const viewCentre = box
 				? screenToFlowPosition({
-						x: box.left + box.width / 2,
-						y: box.top + box.height / 2,
+						x: (box.left + box.right) / 2,
+						y: (box.top + box.bottom) / 2,
 					})
 				: { x: 0, y: 0 };
 			const after = afterId
@@ -2334,7 +2364,7 @@ function MissionGraphEditorBody(props: {
 				occupied: current.nodes.map(boxOf),
 			});
 		},
-		[getNode, screenToFlowPosition],
+		[getNode, screenToFlowPosition, inspectorOpen],
 	);
 
 	/**
@@ -3189,7 +3219,8 @@ function MissionGraphEditorBody(props: {
 					    the node being named. */}
 					{selectedNode && (
 						<div
-							className="w-64 shrink-0 border-l flex flex-col min-h-0 nokey"
+							className="shrink-0 border-l flex flex-col min-h-0 nokey"
+							style={{ width: INSPECTOR_WIDTH }}
 							role="region"
 							aria-label="Node details"
 						>
