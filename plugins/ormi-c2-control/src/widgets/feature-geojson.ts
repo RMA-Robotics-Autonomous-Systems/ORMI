@@ -352,13 +352,76 @@ export function readFeatureId(feature: C2Feature): string | null {
 }
 
 /**
+ * terra-draw's default coordinate precision, in decimal places (terra-draw
+ * 1.31.2, `coordinatePrecision: 9` on the MapLibre adapter). Every mode's
+ * `validateFeature` refuses a coordinate with more decimals ("Feature has
+ * coordinates with excessive precision"), so a stored feature is rounded to it
+ * on the way in. 1e-9 degrees is about 0.1 mm: nothing an operator can see.
+ */
+export const TERRA_DRAW_COORDINATE_PRECISION = 9;
+
+/** The terra-draw mode each single-part geometry type is loaded under. */
+export type DrawLoadMode = "point" | "linestring" | "polygon";
+
+/**
+ * The terra-draw mode a stored geometry is loaded under for editing.
+ *
+ * terra-draw's `addFeatures` routes every feature to the mode named in its
+ * `properties.mode` and refuses one without it ("Mode property does not
+ * exist"); the select mode's per-mode `flags` (draggable, midpoints, …) are
+ * keyed by the same name. These are the `.mode` strings of
+ * `TerraDrawPointMode`, `TerraDrawLineStringMode` and `TerraDrawPolygonMode`,
+ * all three of which the C2 map instantiates. A stored rectangle is a
+ * `Polygon` and is edited as one.
+ *
+ * @param type - A single-part GeoJSON geometry type.
+ * @returns The terra-draw mode name.
+ */
+export function drawModeForGeometry(
+	type: "Point" | "LineString" | "Polygon",
+): DrawLoadMode {
+	if (type === "Point") return "point";
+	if (type === "LineString") return "linestring";
+	return "polygon";
+}
+
+/**
+ * Round every number in a (nested) coordinate array to terra-draw's precision.
+ *
+ * `Math.round(v * 1e9) / 1e9` is the double nearest the 9-decimal value, whose
+ * shortest decimal form has at most 9 decimals, which is what terra-draw
+ * checks. A ring's closing coordinate rounds exactly like its first, so a
+ * closed ring stays closed.
+ *
+ * @param coordinates - GeoJSON coordinates of any nesting depth.
+ * @returns A fresh array with the same nesting, rounded.
+ */
+function roundCoordinates(coordinates: unknown): unknown {
+	if (typeof coordinates === "number") {
+		const factor = 10 ** TERRA_DRAW_COORDINATE_PRECISION;
+		return Math.round(coordinates * factor) / factor;
+	}
+	if (Array.isArray(coordinates)) return coordinates.map(roundCoordinates);
+	return coordinates;
+}
+
+/**
  * Convert a stored `C2Feature` back into a terra-draw snapshot feature so the
  * operator can load it into the authoring layer for editing.
  *
  * The persisted `feature_id` is carried into `properties.feature_id` so a
  * subsequent save round-trips under the same id (edit, not create). terra-draw's
  * own `id` is left undefined — it will assign a fresh session id on add.
- * Coordinates pass through unchanged (`[lng, lat]`).
+ * Coordinates keep their `[lng, lat]` order, rounded to
+ * {@link TERRA_DRAW_COORDINATE_PRECISION} decimals.
+ *
+ * ⚠ `properties.mode` IS REQUIRED. terra-draw's `addFeatures` refuses a feature
+ * that does not name its mode, and returns the refusal instead of throwing.
+ * This converter used to leave it out (and the save path strips it), so every
+ * stored feature the operator opened for editing was refused: nothing appeared
+ * in the draw layer, no handle could be dragged, and saving wrote the unchanged
+ * geometry back. The mode is terra-draw bookkeeping, so
+ * {@link drawFeatureToC2Feature} still drops it on the way out.
  *
  * @param feature - The stored MapDB feature.
  * @returns A terra-draw feature, or `null` when the geometry is unusable.
@@ -416,13 +479,16 @@ export function c2FeatureToDrawFeature(feature: C2Feature): DrawFeature | null {
 	}
 	const category = readFeatureCategory(feature);
 	if (category) props.category = category;
+	// Last, so a stored `mode` (persisted as noise by an older build) can never
+	// route the feature to the wrong terra-draw mode.
+	props.mode = drawModeForGeometry(type);
 
 	return {
 		type: "Feature",
 		properties: props as DrawFeature["properties"],
 		geometry: {
 			type,
-			coordinates,
+			coordinates: roundCoordinates(coordinates),
 		} as DrawFeature["geometry"],
 	};
 }

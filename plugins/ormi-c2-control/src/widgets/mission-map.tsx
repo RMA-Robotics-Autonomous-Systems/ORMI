@@ -3090,16 +3090,20 @@ function MissionMapBody(props: {
 	// and a tool left armed would keep drawing under a toolbar that has put its
 	// authoring controls away. Static is the same neutral mode the view tool
 	// uses, so nothing on screen is removed — only the arming.
+	//
+	// A mode that is already active is not set again: `setMode` stops and
+	// restarts it, and restarting the select mode drops the selection
+	// `editFeature` just made, hiding the handles the operator needs.
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw || !draw.enabled) return;
-		if (!viewOnly && tool === "draw" && canEdit) {
-			draw.setMode(drawGeometryMode);
-		} else if (!viewOnly && tool === "edit" && canEdit) {
-			draw.setMode("select");
-		} else {
-			draw.setMode("static");
-		}
+		const next =
+			!viewOnly && tool === "draw" && canEdit
+				? drawGeometryMode
+				: !viewOnly && tool === "edit" && canEdit
+					? "select"
+					: "static";
+		if (draw.getMode() !== next) draw.setMode(next);
 	}, [viewOnly, tool, canEdit, drawGeometryMode]);
 
 	/** Confirm a pending MAP-feature save: POST (create) or PUT (edit). */
@@ -3312,9 +3316,33 @@ function MissionMapBody(props: {
 			const validations = draw.addFeatures([
 				drawn as unknown as GeoJSONStoreFeatures,
 			]);
+			// terra-draw REFUSES a feature it cannot validate and says so only in
+			// the returned result. Ignoring it is what made editing a silent
+			// no-op: nothing reached the draw layer, there was no handle to drag,
+			// and the prompt still opened and saved the unchanged geometry. A
+			// refusal now stops the edit and names terra-draw's reason.
+			const loaded = validations[0];
+			if (!loaded?.valid || loaded.id == null) {
+				const reason =
+					loaded?.reason ?? "no result from the draw layer";
+				console.error(
+					"[c2 map] terra-draw refused the feature opened for editing",
+					{ featureId: readFeatureId(feature), reason },
+				);
+				editingDrawIdRef.current = null;
+				setError(
+					`This feature can't be opened for editing: ${reason}.`,
+				);
+				return;
+			}
 			// Track the terra-draw id so the save path can read the LIVE edited
 			// geometry (post drag/reshape) instead of the stale pre-edit snapshot.
-			editingDrawIdRef.current = validations[0]?.id ?? null;
+			editingDrawIdRef.current = loaded.id;
+			// Select it so its handles show at once: a point drags as a whole, a
+			// line or polygon shows draggable vertices and midpoints. terra-draw
+			// switches to its select mode itself; the tool effect below leaves an
+			// already-active select mode alone so this selection survives.
+			draw.selectFeature(loaded.id);
 			setPending({
 				feature: drawn,
 				featureId: readFeatureId(feature) ?? undefined,
