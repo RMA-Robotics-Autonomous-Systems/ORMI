@@ -97,3 +97,6 @@ Trace-*.json.gz
 # Load generator benchmark exports
 loadgen-*.json
 EMI_MISSION_PLAN.md
+
+# Playwright end-to-end output (apps/web/e2e)
+apps/web/e2e/.output/
