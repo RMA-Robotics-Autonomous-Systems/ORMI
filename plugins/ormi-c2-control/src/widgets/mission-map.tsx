@@ -3899,11 +3899,26 @@ function MissionMapBody(props: {
 				);
 			}
 			if (hit.library) return;
-			if (tool === "edit")
-				editFeature(hit.feature, selectedMap, missionId ?? undefined);
-			else if (tool === "delete") requestDeleteFeature(hit.feature);
+			if (tool === "edit") {
+				// A click on the feature already loaded for editing belongs to
+				// terra-draw (grabbing a handle, selecting a vertex). Re-loading
+				// it here cleared the draw layer and re-added the feature under
+				// the operator's pointer, dropping the grab and any reshape made
+				// since it was opened.
+				const alreadyEditing =
+					editingDrawIdRef.current != null &&
+					pending?.featureId != null &&
+					pending.featureId === hit.id;
+				if (!alreadyEditing)
+					editFeature(
+						hit.feature,
+						selectedMap,
+						missionId ?? undefined,
+					);
+			} else if (tool === "delete") requestDeleteFeature(hit.feature);
 		},
 		[
+			pending,
 			tool,
 			selectedMap,
 			selectedMission,
