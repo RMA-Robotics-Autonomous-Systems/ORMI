@@ -59,6 +59,7 @@ import { assetId, findAsset, importAsset, removeAsset } from "./mission-assets";
 import { ContactDetails } from "./contact-details";
 import { contactName } from "./mission-contacts";
 import { MissionContactsWatch } from "./mission-contacts-watch";
+import { MapLayersSection } from "./map-layers-section";
 import { generateMissionId } from "./mission-list";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
@@ -354,10 +355,17 @@ function MissionAssetsBody(props: {
 	]);
 
 	if (!missionId) {
+		// No mission: the map's own features are still listed by layer, so
+		// one covered by another can be picked and edited from here.
 		return (
-			<PanelEmptyState>
-				Select a mission to see its assets.
-			</PanelEmptyState>
+			<div className="h-full min-w-0 flex flex-col gap-2 p-3 text-sm">
+				<p className="shrink-0 text-xs text-muted-foreground">
+					Select a mission to see its assets.
+				</p>
+				<ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
+					<MapLayersSection />
+				</ScrollArea>
+			</div>
 		);
 	}
 	if (!assets) {
@@ -471,6 +479,9 @@ function MissionAssetsBody(props: {
 						Contacts could not be read: {contacts.error}
 					</p>
 				)}
+				{/* The map's other layers (roads, geofences, risk areas): the
+				    mission's waypoints, zones and cues are the tree above. */}
+				<MapLayersSection className="border-t pt-2" />
 			</ScrollArea>
 			{/* Same Radix `display: table` trap as the tree above: the
 			    contact's fact list and its measurement table are `w-full` /

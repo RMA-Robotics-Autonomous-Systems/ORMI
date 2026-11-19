@@ -856,6 +856,15 @@ and lives in two places at once.
   use each, the map's own ones to import, rename/remove and Save mission;
   picking one flies the map to it and selects its nodes in the graph editor,
   and a pick on the map selects it there (`state/asset-focus-store.ts`).
+  Under the assets, in both contexts (and alone when no mission is open), the
+  panel lists the shown map's own features by layer (`map-layers-section.tsx`,
+  fed by `state/map-layers-store.ts`, which the mission map publishes): a row
+  picks the feature on the map, flies to it and, with the Edit tool on, opens
+  it with its handles; each layer has a hide (not drawn, so not picked) and a
+  lock (drawn, never picked). A map click looks a few pixels around the
+  pointer and picks the most specific feature (a point, then a line, then the
+  smallest area: `map-pick.ts`), so a geofence drawn over a site no longer
+  swallows every click inside it.
 - **Execution ("then") edges carry the agent assignment downstream to
   everything reachable; data edges do not.** Consuming a finding is not being
   commanded by whoever produced it, so the marker stays the effector's job

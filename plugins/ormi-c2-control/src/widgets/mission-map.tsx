@@ -143,6 +143,11 @@ import {
 import { generateMissionId } from "./mission-list";
 import { assetCenter } from "./mission-asset-tree";
 import { PICK_TOLERANCE_PX, choosePick } from "./map-pick";
+import {
+	publishLayerFeatures,
+	subscribeMapFeatureFocus,
+	useMapLayers,
+} from "../state/map-layers-store";
 import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
 import {
 	getMissionContacts,
@@ -1621,7 +1626,11 @@ function LiveLayersPanel(props: {
  * `feature_id`/`feature_type`/`category` ride in the properties so the View
  * tool can pick a feature under the cursor and the styling can key on the type.
  */
-function FeatureLayers(props: { features: C2Feature[] }) {
+function FeatureLayers(props: {
+	features: C2Feature[];
+	/** The picked feature, outlined so the operator sees what is picked. */
+	selectedId?: string | null;
+}) {
 	const fc = useMemo(
 		() => ({
 			type: "FeatureCollection" as const,
@@ -1706,6 +1715,36 @@ function FeatureLayers(props: { features: C2Feature[] }) {
 					],
 					"circle-stroke-color": "#1e293b",
 					"circle-stroke-width": 1,
+				}}
+			/>
+			{/* The picked feature, outlined on top (usability test
+			    2026-11-12: a pick showed only as a line of text). */}
+			<Layer
+				id="c2-features-selected-line"
+				type="line"
+				filter={[
+					"all",
+					["==", ["get", "feature_id"], props.selectedId ?? ""],
+					["!=", ["geometry-type"], "Point"],
+				]}
+				paint={{
+					"line-color": "#f59e0b",
+					"line-width": 4,
+				}}
+			/>
+			<Layer
+				id="c2-features-selected-circle"
+				type="circle"
+				filter={[
+					"all",
+					["==", ["get", "feature_id"], props.selectedId ?? ""],
+					["==", ["geometry-type"], "Point"],
+				]}
+				paint={{
+					"circle-radius": 9,
+					"circle-color": "rgba(0,0,0,0)",
+					"circle-stroke-color": "#f59e0b",
+					"circle-stroke-width": 3,
 				}}
 			/>
 		</Source>
@@ -2867,6 +2906,64 @@ function MissionMapBody(props: {
 				: [],
 		[features, missionScope, missionAssets],
 	);
+	// Hidden and locked layers, set from the assets panel's layer list
+	// (`state/map-layers-store.ts`). Hidden: not drawn (so not picked).
+	// Locked: drawn, never picked.
+	const mapLayers = useMapLayers();
+	const lockedLayers = mapLayers.locked;
+	const renderedFeatures = useMemo(
+		() =>
+			mapLayers.hidden.size === 0
+				? shownFeatures
+				: shownFeatures.filter(
+						(f) =>
+							!mapLayers.hidden.has(
+								String(f.properties?.feature_type ?? ""),
+							),
+					),
+		[shownFeatures, mapLayers.hidden],
+	);
+	const renderedLibraryFeatures = useMemo(
+		() =>
+			mapLayers.hidden.size === 0
+				? libraryFeatures
+				: libraryFeatures.filter(
+						(f) =>
+							!mapLayers.hidden.has(
+								String(f.properties?.feature_type ?? ""),
+							),
+					),
+		[libraryFeatures, mapLayers.hidden],
+	);
+	// Publish the map's own features for the panel's layer list. In a
+	// mission, its waypoints, zones and cues are listed by the asset tree,
+	// so only the map's other layers are published.
+	useEffect(() => {
+		const listed = missionScope
+			? features.filter(
+					(f) => !isMissionAssetType(f.properties?.feature_type),
+				)
+			: features;
+		publishLayerFeatures(
+			selectedMap,
+			listed.flatMap((f) => {
+				const id = readFeatureId(f);
+				if (!id) return [];
+				return [
+					{
+						featureId: id,
+						name:
+							typeof f.properties?.name === "string" &&
+							f.properties.name.length > 0
+								? f.properties.name
+								: id,
+						featureType: String(f.properties?.feature_type ?? ""),
+					},
+				];
+			}),
+		);
+	}, [features, selectedMap, missionScope]);
+
 	/** The open mission's asset with this id, when it is one. */
 	const missionAssetOf = useCallback(
 		(id: string | null | undefined) =>
@@ -3384,6 +3481,59 @@ function MissionMapBody(props: {
 		[],
 	);
 
+	// The assets panel's layer list asks to show one of the map's features:
+	// pick it, fly to it, and in Edit open it with its handles. Read through
+	// a ref so the subscription is made once.
+	const mapFocusRef = useRef<{
+		tool: MapTool;
+		features: C2Feature[];
+		selectedMap: string;
+		missionScope: string | null;
+		editFeature: typeof editFeature;
+	}>({
+		tool: "view",
+		features: [],
+		selectedMap: "",
+		missionScope: null,
+		editFeature,
+	});
+	useEffect(() => {
+		mapFocusRef.current = {
+			tool,
+			features: shownFeatures,
+			selectedMap,
+			missionScope: missionScope ?? null,
+			editFeature,
+		};
+	}, [tool, shownFeatures, selectedMap, missionScope, editFeature]);
+	useEffect(
+		() =>
+			subscribeMapFeatureFocus((request) => {
+				const current = mapFocusRef.current;
+				if (request.map !== current.selectedMap) return;
+				const feature = current.features.find(
+					(f) => readFeatureId(f) === request.featureId,
+				);
+				if (!feature) return;
+				setPickedId(request.featureId);
+				selectContact(null);
+				if (current.missionScope) selectAsset(null);
+				const center = assetCenter(feature);
+				const map = mapRef.current?.getMap();
+				if (center && map) {
+					map.flyTo({
+						center,
+						zoom: Math.max(map.getZoom(), 16),
+						duration: 600,
+					});
+				}
+				if (current.tool === "edit") {
+					current.editFeature(feature, current.selectedMap);
+				}
+			}),
+		[],
+	);
+
 	/**
 	 * Delete the selected stored map feature, then refetch. The caller is
 	 * responsible for confirming (via the AlertDialog) before invoking this.
@@ -3861,7 +4011,7 @@ function MissionMapBody(props: {
 						},
 					];
 				});
-				const id = choosePick(candidates);
+				const id = choosePick(candidates, lockedLayers);
 				if (!id) return null;
 				const feature = from.find((f) => readFeatureId(f) === id);
 				return feature ? { id, feature } : null;
@@ -3879,7 +4029,7 @@ function MissionMapBody(props: {
 			);
 			return library ? { ...library, library: true } : null;
 		},
-		[shownFeatures, libraryFeatures],
+		[shownFeatures, libraryFeatures, lockedLayers],
 	);
 
 	/**
@@ -4756,8 +4906,11 @@ function MissionMapBody(props: {
 					    edge. */}
 					<MapChrome />
 					{/* Both feature layers always render, in distinct styles. */}
-					<LibraryLayers features={libraryFeatures} />
-					<FeatureLayers features={shownFeatures} />
+					<LibraryLayers features={renderedLibraryFeatures} />
+					<FeatureLayers
+						features={renderedFeatures}
+						selectedId={pickedId}
+					/>
 					<MissionFeatureLayers geometries={missionGeometryFc} />
 					{/* Everything below stacks under "c2-features-fill"
 					    (directly, or as the live-resolved fallback), so it
