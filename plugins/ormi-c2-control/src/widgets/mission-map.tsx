@@ -4439,12 +4439,23 @@ function MissionMapBody(props: {
 				    is constrained by the feature_type (road → line only, hidden;
 				    geofence/risk → polygon or rectangle); in mission the operator
 				    chooses freely (point / line / polygon / rectangle). */}
-				{!viewOnly && availableShapes.length > 1 && (
+				{/* Always rendered, hidden (not removed) when the type has one
+				    shape: adding and removing the group re-wrapped the toolbar
+				    and moved the map under the pointer (usability test
+				    2026-11-12). */}
+				{!viewOnly && (
 					<ToggleGroup
 						type="single"
 						variant="outline"
 						size="sm"
 						aria-label="Draw shape"
+						aria-hidden={
+							availableShapes.length > 1 ? undefined : true
+						}
+						disabled={availableShapes.length <= 1}
+						className={
+							availableShapes.length > 1 ? undefined : "invisible"
+						}
 						value={
 							availableShapes.includes(drawShape)
 								? drawShape
@@ -4454,7 +4465,10 @@ function MissionMapBody(props: {
 							if (value) setDrawShape(value as DrawShape);
 						}}
 					>
-						{availableShapes.map((shape) => (
+						{(availableShapes.length > 1
+							? availableShapes
+							: (["polygon", "rectangle"] as DrawShape[])
+						).map((shape) => (
 							<ToggleGroupItem
 								key={shape}
 								value={shape}
@@ -4683,95 +4697,6 @@ function MissionMapBody(props: {
 				</Button>
 			</div>
 
-			{error && (
-				<div className="text-xs text-destructive bg-destructive/10 px-2 py-1 shrink-0">
-					{error}
-				</div>
-			)}
-
-			{/* Context hint when authoring is gated off. */}
-			{!selectedMap && (
-				<div className="text-xs text-muted-foreground bg-muted/40 px-2 py-1 shrink-0">
-					Select or create a map to draw and manage its assets.
-				</div>
-			)}
-			{context === "mission" && !selectedMission && (
-				<div className="text-xs text-muted-foreground bg-muted/40 px-2 py-1 shrink-0">
-					Select a mission to allocate agents and save it.
-				</div>
-			)}
-
-			{/* Why half the asset row greyed out. The controls carry the same
-			    reason on a `title`, but a disabled Button is
-			    `pointer-events-none`, so that tooltip never opens — an
-			    operator who did not turn them off has nothing to hover and no
-			    way to tell a locked toolbar from a broken one. */}
-			{missionMapFixed && !viewOnly && (
-				<div className="text-xs text-muted-foreground bg-muted/40 px-2 py-1 shrink-0">
-					Map locked to this mission. Close the mission to change it.
-				</div>
-			)}
-
-			{/* Picked-asset actions. Rendered in BOTH contexts: an asset is an
-			    asset whichever one the operator is in, and a mission's
-			    objectives ARE these assets. "Edit" opens the naming prompt with
-			    the geometry loaded, where the name, the type (within its
-			    geometry class) and the category can all be changed; every other
-			    property the feature carries rides through untouched. */}
-			{pickedFeature && !viewOnly && (
-				<div className="flex items-center gap-2 px-2 py-1 shrink-0 border-b bg-muted/40 text-xs">
-					<span className="truncate flex-1" title={pickedId ?? ""}>
-						Picked: {pickedFeature.properties?.name ?? pickedId} (
-						{pickedFeature.properties?.feature_type ?? "?"}
-						{readFeatureCategory(pickedFeature)
-							? ` · ${readFeatureCategory(pickedFeature)}`
-							: ""}
-						)
-					</span>
-					{pickedIsLibrary ? (
-						<Button
-							size="sm"
-							variant="outline"
-							title="Copy into the mission"
-							onClick={() => importIntoMission(pickedFeature)}
-						>
-							Import into mission
-						</Button>
-					) : (
-						<>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() =>
-									editFeature(
-										pickedFeature,
-										selectedMap,
-										missionAssetOf(pickedId)
-											? (missionScope ?? undefined)
-											: undefined,
-									)
-								}
-							>
-								Edit asset
-							</Button>
-							<Button
-								size="icon-sm"
-								variant="outline"
-								className="text-destructive"
-								title="Delete feature"
-								aria-label="Delete feature"
-								disabled={busy}
-								onClick={() =>
-									requestDeleteFeature(pickedFeature)
-								}
-							>
-								<Trash2 />
-							</Button>
-						</>
-					)}
-				</div>
-			)}
-
 			{/* Mission: save. Geometry is no longer picked or edited here — an
 			    objective is a graph node pointing at a map asset, so there is
 			    nothing on this row but the write. */}
@@ -4800,37 +4725,145 @@ function MissionMapBody(props: {
 				</div>
 			)}
 
-			{/* Mission validation errors (blocking). */}
-			{context === "mission" && missionErrorIssues.length > 0 && (
-				<div className="text-xs text-destructive bg-destructive/10 px-2 py-1 shrink-0 space-y-0.5">
-					{missionErrorIssues.map((issue, i) => (
-						<div key={`${issue.path}-${i}`}>
-							<span className="font-medium">{issue.path}</span>:{" "}
-							{issue.message}
-						</div>
-					))}
-				</div>
-			)}
-
-			{/* Geofence advisory (non-blocking): objectives outside the loaded
-			    geofences would give the planner no routable nodes there. */}
-			{context === "mission" &&
-				objectivesOutsideGeofenceIndices.length > 0 && (
-					<div className="text-xs text-foreground border-t border-warning/40 bg-warning/10 px-2 py-1 shrink-0 space-y-0.5">
-						{objectivesOutsideGeofenceIndices.map((index) => (
-							<div key={`outside-geofence-${index}`}>
-								<span className="font-medium">
-									Objective #{index + 1}
-								</span>{" "}
-								is outside the geofence and will fail to plan.
-								Draw it inside a geofence.
-							</div>
-						))}
-					</div>
-				)}
-
 			{/* Map */}
 			<div className="relative flex-1 min-h-0">
+				{/* Transient bars (errors, hints, the picked asset, mission
+				    issues) float over the map instead of being stacked above it:
+				    inserting them above the map moved it under the pointer
+				    (usability test 2026-11-12). */}
+				<div className="pointer-events-none absolute inset-x-2 bottom-2 z-20 flex max-w-[min(42rem,calc(100%-1rem))] flex-col items-stretch gap-1 [&>*]:pointer-events-auto [&>*]:rounded-md [&>*]:border [&>*]:shadow-sm [&>*]:backdrop-blur">
+					{error && (
+						<div className="text-xs text-destructive bg-background/95 border-destructive/40 px-2 py-1 shrink-0">
+							{error}
+						</div>
+					)}
+
+					{/* Context hint when authoring is gated off. */}
+					{!selectedMap && (
+						<div className="text-xs text-muted-foreground bg-background/95 px-2 py-1 shrink-0">
+							Select or create a map to draw and manage its
+							assets.
+						</div>
+					)}
+					{context === "mission" && !selectedMission && (
+						<div className="text-xs text-muted-foreground bg-background/95 px-2 py-1 shrink-0">
+							Select a mission to allocate agents and save it.
+						</div>
+					)}
+
+					{/* Why half the asset row greyed out. The controls carry the same
+			    reason on a `title`, but a disabled Button is
+			    `pointer-events-none`, so that tooltip never opens — an
+			    operator who did not turn them off has nothing to hover and no
+			    way to tell a locked toolbar from a broken one. */}
+					{missionMapFixed && !viewOnly && (
+						<div className="text-xs text-muted-foreground bg-background/95 px-2 py-1 shrink-0">
+							Map locked to this mission. Close the mission to
+							change it.
+						</div>
+					)}
+
+					{/* Picked-asset actions. Rendered in BOTH contexts: an asset is an
+			    asset whichever one the operator is in, and a mission's
+			    objectives ARE these assets. "Edit" opens the naming prompt with
+			    the geometry loaded, where the name, the type (within its
+			    geometry class) and the category can all be changed; every other
+			    property the feature carries rides through untouched. */}
+					{pickedFeature && !viewOnly && (
+						<div className="flex items-center gap-2 px-2 py-1 shrink-0 bg-background/95 text-xs">
+							<span
+								className="truncate flex-1"
+								title={pickedId ?? ""}
+							>
+								Picked:{" "}
+								{pickedFeature.properties?.name ?? pickedId} (
+								{pickedFeature.properties?.feature_type ?? "?"}
+								{readFeatureCategory(pickedFeature)
+									? ` · ${readFeatureCategory(pickedFeature)}`
+									: ""}
+								)
+							</span>
+							{pickedIsLibrary ? (
+								<Button
+									size="sm"
+									variant="outline"
+									title="Copy into the mission"
+									onClick={() =>
+										importIntoMission(pickedFeature)
+									}
+								>
+									Import into mission
+								</Button>
+							) : (
+								<>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() =>
+											editFeature(
+												pickedFeature,
+												selectedMap,
+												missionAssetOf(pickedId)
+													? (missionScope ??
+															undefined)
+													: undefined,
+											)
+										}
+									>
+										Edit asset
+									</Button>
+									<Button
+										size="icon-sm"
+										variant="outline"
+										className="text-destructive"
+										title="Delete feature"
+										aria-label="Delete feature"
+										disabled={busy}
+										onClick={() =>
+											requestDeleteFeature(pickedFeature)
+										}
+									>
+										<Trash2 />
+									</Button>
+								</>
+							)}
+						</div>
+					)}
+
+					{/* Mission validation errors (blocking). */}
+					{context === "mission" && missionErrorIssues.length > 0 && (
+						<div className="text-xs text-destructive bg-background/95 border-destructive/40 px-2 py-1 shrink-0 space-y-0.5">
+							{missionErrorIssues.map((issue, i) => (
+								<div key={`${issue.path}-${i}`}>
+									<span className="font-medium">
+										{issue.path}
+									</span>
+									: {issue.message}
+								</div>
+							))}
+						</div>
+					)}
+
+					{/* Geofence advisory (non-blocking): objectives outside the loaded
+			    geofences would give the planner no routable nodes there. */}
+					{context === "mission" &&
+						objectivesOutsideGeofenceIndices.length > 0 && (
+							<div className="text-xs text-foreground border-warning/40 bg-background/95 px-2 py-1 shrink-0 space-y-0.5">
+								{objectivesOutsideGeofenceIndices.map(
+									(index) => (
+										<div key={`outside-geofence-${index}`}>
+											<span className="font-medium">
+												Objective #{index + 1}
+											</span>{" "}
+											is outside the geofence and will
+											fail to plan. Draw it inside a
+											geofence.
+										</div>
+									),
+								)}
+							</div>
+						)}
+				</div>
 				{/* Land on the running mission when the page opens mid-mission
 				    with nothing selected (exactly one live active mission;
 				    never overrides a selection). */}
