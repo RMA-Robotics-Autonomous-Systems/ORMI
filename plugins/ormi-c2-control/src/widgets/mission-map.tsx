@@ -41,6 +41,10 @@ import {
 	AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog";
 import { Badge } from "@workspace/ui/components/badge";
+import {
+	isModalOpen,
+	isTypingInEditableElement,
+} from "@workspace/ui/lib/input-guards";
 import { Button } from "@workspace/ui/components/button";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
@@ -184,6 +188,16 @@ import {
 	classifyDrawFinish,
 	nextPendingOnFinish,
 } from "./map-draw-finish";
+import {
+	MAP_SELECT_KEY_EVENTS,
+	SELECT_POINTER_DISTANCE_PX,
+	deleteVertex,
+	isVertexDeleteKey,
+	vertexAtClick,
+	type SelectedVertex,
+	type VertexCandidate,
+	type VertexPosition,
+} from "./map-vertex-edit";
 import {
 	GeoJsonFeatureCollection,
 	MapRegistryEntry,
@@ -1757,6 +1771,37 @@ function FeatureLayers(props: {
 }
 
 /**
+ * The selected vertex of the shape open for editing, as a ring around its
+ * handle. A declarative layer: it never touches the style object, so
+ * terra-draw's layers survive it.
+ */
+function SelectedVertexLayer(props: { position: VertexPosition }) {
+	const [lng, lat] = props.position;
+	const data = useMemo(
+		() => ({
+			type: "Feature" as const,
+			properties: {},
+			geometry: { type: "Point" as const, coordinates: [lng, lat] },
+		}),
+		[lng, lat],
+	);
+	return (
+		<Source id="c2-selected-vertex" type="geojson" data={data}>
+			<Layer
+				id="c2-selected-vertex-ring"
+				type="circle"
+				paint={{
+					"circle-radius": 10,
+					"circle-color": "rgba(0,0,0,0)",
+					"circle-stroke-color": "#f59e0b",
+					"circle-stroke-width": 3,
+				}}
+			/>
+		</Source>
+	);
+}
+
+/**
  * The map's own waypoints and zones while a mission is open: a LIBRARY the
  * operator imports copies from, drawn faint and dashed so it never reads as
  * the mission's. Picked (not edited) on its own layers.
@@ -2387,6 +2432,16 @@ function MissionMapBody(props: {
 	const [features, setFeatures] = useState<C2Feature[]>([]);
 	const [pickedId, setPickedId] = useState<string | null>(null);
 	const [pending, setPending] = useState<PendingSave | null>(null);
+	/**
+	 * The vertex of the open shape the operator clicked, which Delete and
+	 * Backspace remove. terra-draw has no selected-vertex state of its own.
+	 * Shown only while that shape is open in the Edit tool.
+	 */
+	const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(
+		null,
+	);
+	const shownVertex =
+		!viewOnly && tool === "edit" && pending ? selectedVertex : null;
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -3072,7 +3127,13 @@ function MissionMapBody(props: {
 				// dragging, draggable midpoints, and draggable/deletable vertices
 				// (a point is feature-draggable only). The flags key is each mode's
 				// `.mode` string.
+				// Delete never removes the whole shape: terra-draw's default
+				// binding did, while the open save kept the old geometry and
+				// Save re-wrote it unchanged. Delete and Backspace remove the
+				// selected vertex instead (see `map-vertex-edit.ts`).
 				new TerraDrawSelectMode({
+					pointerDistance: SELECT_POINTER_DISTANCE_PX,
+					keyEvents: MAP_SELECT_KEY_EVENTS,
 					flags: {
 						point: { feature: { draggable: true } },
 						linestring: {
@@ -3119,6 +3180,9 @@ function MissionMapBody(props: {
 		// home for geometry, and a shape living there had no name, no type, and
 		// no way for the graph to name it. [lng,lat] preserved end-to-end.
 		draw.on("finish", (id, context) => {
+			// Any edit renumbers or moves the vertices: the selected one is
+			// no longer the one the operator clicked.
+			setSelectedVertex(null);
 			const snap = draw.getSnapshotFeature(id);
 			if (!snap) return;
 			const drawn = snap as unknown as DrawFeature;
@@ -3163,6 +3227,7 @@ function MissionMapBody(props: {
 				),
 			);
 		});
+		draw.on("deselect", () => setSelectedVertex(null));
 		drawRef.current = draw;
 	}, []);
 
@@ -3446,6 +3511,7 @@ function MissionMapBody(props: {
 				? storedType
 				: fallbackType;
 			clearDraw(draw);
+			setSelectedVertex(null);
 			const validations = draw.addFeatures([
 				drawn as unknown as GeoJSONStoreFeatures,
 			]);
@@ -4098,9 +4164,77 @@ function MissionMapBody(props: {
 	 *  - `edit`   → select AND load into the draw layer / naming prompt.
 	 *  - `delete` → select AND delete (confirm-gated via the AlertDialog).
 	 */
+	/**
+	 * The vertex handle of the open shape under a click, if any. Only the
+	 * select mode draws handles, so any other mode finds none.
+	 */
+	const vertexAt = useCallback(
+		(
+			point: { x: number; y: number },
+			lngLat: { lng: number; lat: number },
+		): SelectedVertex | null => {
+			const draw = drawRef.current;
+			const map = mapRef.current;
+			if (!draw || !map || draw.getMode() !== "select") return null;
+			const candidates = draw.getFeaturesAtLngLat(lngLat, {
+				ignoreSelectFeatures: false,
+				pointerDistance: SELECT_POINTER_DISTANCE_PX,
+			}) as unknown as VertexCandidate[];
+			return vertexAtClick(candidates, (position: VertexPosition) => {
+				const xy = map.project(position);
+				return Math.hypot(xy.x - point.x, xy.y - point.y);
+			});
+		},
+		[],
+	);
+
+	/**
+	 * Remove the selected vertex, the keyboard twin of terra-draw's
+	 * right-click delete: the open save takes the new geometry, exactly as
+	 * the `finish` handler does for a right-click, so Save updates the same
+	 * feature.
+	 */
+	const deleteShownVertex = useCallback(() => {
+		const draw = drawRef.current;
+		if (!draw || !shownVertex) return;
+		const result = deleteVertex(draw, shownVertex);
+		setSelectedVertex(null);
+		if (!result.ok) {
+			setError(result.message);
+			return;
+		}
+		const feature = result.feature as unknown as DrawFeature;
+		setPending((prev) => (prev === null ? null : { ...prev, feature }));
+	}, [shownVertex]);
+
+	// Delete / Backspace remove the selected vertex, and nothing else: with
+	// no vertex selected the keys do nothing to the shape. A key typed into a
+	// field (the naming card) or pressed over a dialog is not for the map.
+	useEffect(() => {
+		if (!shownVertex) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (!isVertexDeleteKey(event)) return;
+			if (isTypingInEditableElement(event) || isModalOpen()) return;
+			event.preventDefault();
+			deleteShownVertex();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [shownVertex, deleteShownVertex]);
+
 	const handleMapClick = useCallback(
-		(event: { point: { x: number; y: number } }) => {
+		(event: {
+			point: { x: number; y: number };
+			lngLat: { lng: number; lat: number };
+		}) => {
 			if (tool === "draw") return;
+			if (tool === "edit") {
+				// A click on a vertex handle of the open shape selects that
+				// vertex; it is not a pick of whatever lies under it.
+				const vertex = vertexAt(event.point, event.lngLat);
+				setSelectedVertex(vertex);
+				if (vertex) return;
+			}
 			// Edit and delete act on authored geometry first: a contact
 			// reported on top of a waypoint must not hide it from them.
 			const hit = pickAt(event.point);
@@ -4155,6 +4289,7 @@ function MissionMapBody(props: {
 			requestDeleteFeature,
 			missionAssetOf,
 			missionScope,
+			vertexAt,
 		],
 	);
 
@@ -4981,6 +5116,11 @@ function MissionMapBody(props: {
 						selectedId={pickedId}
 					/>
 					<MissionFeatureLayers geometries={missionGeometryFc} />
+					{/* Mounts after terra-draw's layers exist, so the ring
+					    draws over the vertex handle it marks. */}
+					{shownVertex && (
+						<SelectedVertexLayer position={shownVertex.position} />
+					)}
 					{/* Everything below stacks under "c2-features-fill"
 					    (directly, or as the live-resolved fallback), so it
 					    mounts after FeatureLayers, which adds it: a direct
