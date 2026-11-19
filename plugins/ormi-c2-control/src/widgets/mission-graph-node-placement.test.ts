@@ -9,7 +9,9 @@ import { describe, expect, it } from "bun:test";
 
 import {
 	addNodeAfter,
+	canvasWithInspector,
 	DEFAULT_NODE_SIZE,
+	estimateNodeSize,
 	flowBoxToScreenRect,
 	placeNewNode,
 	revealDelta,
@@ -217,5 +219,146 @@ describe("revealing a node added after the selected one", () => {
 			canvas,
 		);
 		expect(revealDelta(rect, canvas, MARGIN)).toEqual({ dx: 0, dy: 0 });
+	});
+});
+
+describe("a node added to an empty graph lands clear of the details panel", () => {
+	// Measured in a browser: the graph panel is x 300..1157, the details panel
+	// opening in the same click leaves 300..901, and the view is at zoom 2.
+	const canvas = { left: 300, top: 100, right: 1157, bottom: 900 };
+	const viewport = { x: -248.891, y: -433.5, zoom: 2 };
+	const NAVIGATE = { width: 256, height: 123 };
+	const miniMap = { left: 686, top: 735, right: 886, bottom: 885 };
+	const visible = canvasWithInspector(canvas, false, 256);
+	const toFlow = (sx: number, sy: number) => ({
+		x: (sx - canvas.left - viewport.x) / viewport.zoom,
+		y: (sy - canvas.top - viewport.y) / viewport.zoom,
+	});
+	const centre = toFlow(
+		(visible.left + visible.right) / 2,
+		(visible.top + visible.bottom) / 2,
+	);
+	const screen = (at: { x: number; y: number }, size: typeof NAVIGATE) =>
+		flowBoxToScreenRect({ ...at, ...size }, viewport, canvas);
+	const inside = (r: ReturnType<typeof screen>) =>
+		r.left >= visible.left &&
+		r.right <= visible.right &&
+		r.top >= visible.top &&
+		r.bottom <= visible.bottom &&
+		!(
+			r.left < miniMap.right &&
+			miniMap.left < r.right &&
+			r.top < miniMap.bottom &&
+			miniMap.top < r.bottom
+		);
+
+	it("judged at the assumed size, a real Navigate is wrongly seen as visible", () => {
+		const at = placeNewNode({
+			viewCentre: centre,
+			after: null,
+			occupied: [],
+		});
+		// The reveal used to judge the assumed 180 x 80 box: no pan...
+		expect(
+			revealDelta(screen(at, DEFAULT_NODE_SIZE), visible, 16, [miniMap]),
+		).toEqual({ dx: 0, dy: 0 });
+		// ...while the node as drawn runs under the details panel.
+		expect(inside(screen(at, NAVIGATE))).toBe(false);
+	});
+
+	it("judged at its measured size, the reveal brings it wholly into view", () => {
+		const at = placeNewNode({
+			viewCentre: centre,
+			after: null,
+			occupied: [],
+		});
+		const drawn = screen(at, NAVIGATE);
+		const { dx, dy } = revealDelta(drawn, visible, 16, [miniMap]);
+		expect(dx).not.toBe(0);
+		expect(
+			inside({
+				left: drawn.left + dx,
+				right: drawn.right + dx,
+				top: drawn.top + dy,
+				bottom: drawn.bottom + dy,
+			}),
+		).toBe(true);
+	});
+
+	it("placed at the size of a Navigate already measured, it needs no pan", () => {
+		const size = estimateNodeSize(
+			{ kind: "action", action: "NAVIGATE" },
+			[
+				{
+					id: "nav",
+					kind: "action",
+					action: "NAVIGATE",
+					label: "Navigate",
+					position: { x: 0, y: 0 },
+				},
+			],
+			(id) => (id === "nav" ? NAVIGATE : undefined),
+		);
+		expect(size).toEqual(NAVIGATE);
+		const at = placeNewNode({
+			viewCentre: centre,
+			after: null,
+			occupied: [],
+			size,
+		});
+		const drawn = screen(at, NAVIGATE);
+		expect(inside(drawn)).toBe(true);
+		expect(revealDelta(drawn, visible, 16, [miniMap])).toEqual({
+			dx: 0,
+			dy: 0,
+		});
+	});
+});
+
+describe("estimateNodeSize", () => {
+	const node = (
+		id: string,
+		kind: MissionGraphNode["kind"],
+		action?: MissionGraphNode["action"],
+	): MissionGraphNode => ({
+		id,
+		kind,
+		label: id,
+		position: { x: 0, y: 0 },
+		...(action ? { action } : {}),
+	});
+
+	it("assumes the default size on an empty canvas", () => {
+		expect(
+			estimateNodeSize({ kind: "agent" }, [], () => undefined),
+		).toEqual({ width: W, height: H });
+	});
+
+	it("takes the first measured node of the same kind and action", () => {
+		const sizes: Record<string, { width: number; height: number }> = {
+			cov: { width: 300, height: 140 },
+			nav2: { width: 256, height: 123 },
+		};
+		const nodes = [
+			node("cov", "action", "COVERAGE"),
+			node("nav1", "action", "NAVIGATE"),
+			node("nav2", "action", "NAVIGATE"),
+		];
+		expect(
+			estimateNodeSize(
+				{ kind: "action", action: "NAVIGATE" },
+				nodes,
+				(id) => sizes[id],
+			),
+		).toEqual({ width: 256, height: 123 });
+	});
+
+	it("ignores a node of another kind", () => {
+		expect(
+			estimateNodeSize({ kind: "wait" }, [node("a", "agent")], () => ({
+				width: 500,
+				height: 500,
+			})),
+		).toEqual({ width: W, height: H });
 	});
 });

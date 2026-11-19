@@ -148,6 +148,7 @@ import {
 	graphModeTitle,
 	inspectedNodeId,
 	issueNodeTags,
+	estimateNodeSize,
 	layoutLanes,
 	pasteClip,
 	type GraphClip,
@@ -1972,6 +1973,12 @@ function MissionGraphEditorBody(props: {
 	const inspectorOpen = selectedNode !== null;
 	const inspectedPosition = selectedNode?.position ?? null;
 	const revealDoneFor = useRef<string | null>(null);
+	// The node's size as xyflow MEASURED it. A node added in this commit has
+	// none yet, and the reveal waits for it rather than judging an assumed
+	// size: a Navigate is about 256 x 123 against the 180 x 80 assumed, which
+	// at zoom 2 put a centred node's right end 150 px under the details panel
+	// while the reveal, judging the smaller box, saw it as wholly visible.
+	const inspectedSize = inspectedId ? nodeSizes.get(inspectedId) : undefined;
 	useLayoutEffect(() => {
 		if (revealDoneFor.current !== inspectedId) {
 			// A different node (or none) since the last reveal.
@@ -1984,8 +1991,7 @@ function MissionGraphEditorBody(props: {
 			return;
 		}
 		const canvas = canvasBox.current;
-		if (!canvas || !inspectedPosition) return;
-		const measured = getNode(inspectedId)?.measured;
+		if (!canvas || !inspectedPosition || !inspectedSize) return;
 		const canvasRect = canvas.getBoundingClientRect();
 		const miniMap = canvas
 			.querySelector(MINIMAP_SELECTOR)
@@ -1994,8 +2000,8 @@ function MissionGraphEditorBody(props: {
 			{
 				x: inspectedPosition.x,
 				y: inspectedPosition.y,
-				width: measured?.width ?? DEFAULT_NODE_SIZE.width,
-				height: measured?.height ?? DEFAULT_NODE_SIZE.height,
+				width: inspectedSize.width,
+				height: inspectedSize.height,
 			},
 			getViewport(),
 			canvasRect,
@@ -2016,7 +2022,7 @@ function MissionGraphEditorBody(props: {
 	}, [
 		inspectedId,
 		inspectedPosition,
-		getNode,
+		inspectedSize,
 		getViewport,
 		setViewport,
 		reducedMotion,
@@ -2347,12 +2353,26 @@ function MissionGraphEditorBody(props: {
 	);
 
 	/**
+	 * The operator added a node before the view was ever fitted, which is how
+	 * an EMPTY graph is built. The opening fit then stands down: fitting the
+	 * first node zoomed to 2 on xyflow's stale container width (the details
+	 * panel had opened for that node in the same click), centring it on the
+	 * whole panel and leaving its right end under the details panel after the
+	 * reveal had already judged it visible.
+	 */
+	const authoredBeforeFit = useRef(false);
+
+	/**
 	 * A spot in view for a new node, after `afterId` when given ({@link
 	 * placeNewNode}). Reads node sizes as React Flow measured them, so the
 	 * overlap check uses what is actually drawn.
 	 */
 	const placeInView = useCallback(
-		(current: MissionGraph, afterId: string | null) => {
+		(
+			current: MissionGraph,
+			afterId: string | null,
+			like: Pick<MissionGraphNode, "kind" | "action">,
+		) => {
 			const boxOf = (node: MissionGraphNode): CanvasBox => {
 				const measured = getNode(node.id)?.measured;
 				return {
@@ -2385,6 +2405,12 @@ function MissionGraphEditorBody(props: {
 				viewCentre,
 				after: after ? boxOf(after) : null,
 				occupied: current.nodes.map(boxOf),
+				size: estimateNodeSize(like, current.nodes, (id) => {
+					const m = getNode(id)?.measured;
+					return m?.width && m.height
+						? { width: m.width, height: m.height }
+						: undefined;
+				}),
 			});
 		},
 		[getNode, screenToFlowPosition, inspectorOpen],
@@ -2408,12 +2434,16 @@ function MissionGraphEditorBody(props: {
 				selectedNodeIds.length === 1 && selectedEdgeIds.length === 0
 					? selectedNodeIds[0]!
 					: null;
+			authoredBeforeFit.current = true;
 			editMissionGraph(missionId, (current) => {
 				const node: MissionGraphNode = {
 					id,
 					kind,
 					label: KIND_DEFAULT_LABEL[kind],
-					position: placeInView(current, afterId),
+					position: placeInView(current, afterId, {
+						kind,
+						action: extra.action,
+					}),
 					...(kind === "wait" ? { mode: "all" as const } : {}),
 					...extra,
 				};
@@ -2456,12 +2486,13 @@ function MissionGraphEditorBody(props: {
 			return;
 		}
 		const before = new Set(graph?.nodes.map((node) => node.id) ?? []);
+		authoredBeforeFit.current = true;
 		editMissionGraph(missionId, (current) =>
 			addAgentNode(
 				current,
 				free.agent_id,
 				free.name,
-				placeInView(current, null),
+				placeInView(current, null, { kind: "agent" }),
 			),
 		);
 		// The id is minted inside `addAgentNode`, so it is read back off the
@@ -2503,6 +2534,7 @@ function MissionGraphEditorBody(props: {
 	}, []);
 	useEffect(() => {
 		operatorMovedView.current = false;
+		authoredBeforeFit.current = false;
 		lastFitKey.current = "";
 	}, [missionId]);
 	useEffect(() => {
@@ -2514,6 +2546,9 @@ function MissionGraphEditorBody(props: {
 		const first = lastFitKey.current === "";
 		if (!first && operatorMovedView.current) return;
 		lastFitKey.current = key;
+		// Nodes the operator has just added to an empty graph: the view they
+		// were placed in is kept.
+		if (first && authoredBeforeFit.current) return;
 		// The opening fit is animated; the ones that track a resize drag are
 		// not, or every intermediate width would start its own 300 ms tween.
 		void fitView({

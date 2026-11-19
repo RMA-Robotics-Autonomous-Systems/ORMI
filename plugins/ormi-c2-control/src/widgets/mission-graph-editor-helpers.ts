@@ -1435,6 +1435,31 @@ const PLACE_GAP = 40;
 /** How many spots the nudge tries before it gives up and overlaps. */
 const PLACE_TRIES = 12;
 
+/**
+ * The size a node about to be added will most likely measure: that of a node
+ * of the same kind (and action) already measured on the canvas, else
+ * {@link DEFAULT_NODE_SIZE}. Node cards differ a lot by kind (a Navigate is
+ * about 256 x 123 against the 180 x 80 default), and centring the default box
+ * puts a real node's right end that much further right.
+ *
+ * @param like - The new node's kind and action.
+ * @param nodes - The nodes on the canvas.
+ * @param sizeOf - A node's measured size, or undefined.
+ * @returns The size to place the new node with.
+ */
+export function estimateNodeSize(
+	like: Pick<MissionGraphNode, "kind" | "action">,
+	nodes: readonly MissionGraphNode[],
+	sizeOf: (id: string) => NodeSize | undefined,
+): NodeSize {
+	for (const node of nodes) {
+		if (node.kind !== like.kind || node.action !== like.action) continue;
+		const size = sizeOf(node.id);
+		if (size) return { width: size.width, height: size.height };
+	}
+	return { width: DEFAULT_NODE_SIZE.width, height: DEFAULT_NODE_SIZE.height };
+}
+
 function boxesOverlap(a: CanvasBox, b: CanvasBox, gap: number): boolean {
 	return (
 		a.x < b.x + b.width + gap &&
