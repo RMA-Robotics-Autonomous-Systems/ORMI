@@ -13,6 +13,7 @@ import {
 	sortIssuesBySeverity,
 	copySelection,
 	layoutLanes,
+	LANE_STEPS_PER_ROW,
 	pasteClip,
 	revealDelta,
 	canvasWithInspector,
@@ -1171,6 +1172,75 @@ describe("tidy: one lane per agent", () => {
 		expect(p("zone").y).toBeGreaterThan(p("sweep").y);
 		// Unreached: a last lane.
 		expect(p("stray").y).toBeGreaterThan(p("ge").y);
+	});
+
+	/** An agent and a chain of `steps` Navigate steps after it. */
+	const chain = (agent: string, steps: number) => {
+		const ids = Array.from({ length: steps }, (_, i) => `${agent}${i}`);
+		return {
+			nodes: [n(agent, "agent"), ...ids.map((id) => n(id, "action"))],
+			edges: ids.map((id, i) =>
+				e(i === 0 ? agent : ids[i - 1]!, "agent", id, "agent"),
+			),
+			ids,
+		};
+	};
+
+	it("wraps a long chain into rows that start under its first step", () => {
+		const { nodes, edges, ids } = chain("a", 20);
+		const g = layoutLanes({ version: 3, nodes, edges });
+		const p = (id: string) => g.nodes.find((x) => x.id === id)!.position;
+		const xs = new Set(g.nodes.map((x) => x.position.x));
+		const ys = new Set(g.nodes.map((x) => x.position.y));
+		// The agent's column and five step columns; four rows.
+		expect(xs.size).toBe(LANE_STEPS_PER_ROW + 1);
+		expect(ys.size).toBe(4);
+		// Landscape: wider than tall, but not by more than twice.
+		const width = Math.max(...xs) - Math.min(...xs) + 180;
+		const height = Math.max(...ys) - Math.min(...ys) + 80;
+		expect(width).toBeGreaterThan(height);
+		expect(width).toBeLessThan(2 * height);
+		// Reading order: along a row, then back to the first step's column.
+		expect(p("a5").x).toBe(p("a0").x);
+		expect(p("a5").y).toBeGreaterThan(p("a4").y);
+		expect(p("a4").x).toBeGreaterThan(p("a3").x);
+		for (let i = 1; i < ids.length; i++) {
+			const prev = p(ids[i - 1]!);
+			const here = p(ids[i]!);
+			expect(
+				here.y > prev.y || (here.y === prev.y && here.x > prev.x),
+			).toBe(true);
+		}
+	});
+
+	it("starts the next lane below the last row of a wrapped one", () => {
+		const first = chain("a", 7);
+		const second = chain("b", 2);
+		const g = layoutLanes({
+			version: 3,
+			nodes: [...first.nodes, ...second.nodes],
+			edges: [...first.edges, ...second.edges],
+		});
+		const p = (id: string) => g.nodes.find((x) => x.id === id)!.position;
+		expect(p("b").y).toBeGreaterThan(p("a6").y);
+		expect(p("b0").y).toBe(p("b").y);
+	});
+
+	it("keeps a chain of five steps in one row", () => {
+		const { nodes, edges } = chain("a", LANE_STEPS_PER_ROW);
+		const g = layoutLanes({ version: 3, nodes, edges });
+		expect(new Set(g.nodes.map((x) => x.position.y)).size).toBe(1);
+	});
+
+	it("wraps the last lane of unreached nodes too", () => {
+		const strays = Array.from({ length: 13 }, (_, i) =>
+			n(`s${i}`, "action"),
+		);
+		const g = layoutLanes({ version: 3, nodes: strays, edges: [] });
+		expect(new Set(g.nodes.map((x) => x.position.x)).size).toBe(
+			LANE_STEPS_PER_ROW + 1,
+		);
+		expect(new Set(g.nodes.map((x) => x.position.y)).size).toBe(3);
 	});
 
 	it("returns the same graph when it is already laid out", () => {

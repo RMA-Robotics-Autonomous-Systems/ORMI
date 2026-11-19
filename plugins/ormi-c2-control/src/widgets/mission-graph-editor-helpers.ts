@@ -1554,13 +1554,23 @@ const LANE_COLUMN = 280;
 const LANE_ROW = 260;
 /** How far below its step a node that feeds it sits. */
 const FEED_DROP = 130;
+/**
+ * Steps in one row of a lane before it wraps to the next row, under its first
+ * step. One row per chain put a 20-step mission 21 columns wide: fitted to a
+ * landscape canvas, that is a few pixels of text per node. Five keeps a
+ * 20-step chain to four rows, under twice as wide as it is tall.
+ */
+export const LANE_STEPS_PER_ROW = 5;
 
 /**
  * Lay the graph out in lanes, one per agent: the agent at the left, its steps
  * to the right in the order the robot takes them (round an On contact loop,
  * then out by `no more`), and what feeds a step — its asset, the inputs of a
- * Hold until, a Coverage's contacts — just below it. Nodes no agent reaches
- * go in a last lane. Positions only: the graph means the same thing.
+ * Hold until, a Coverage's contacts — just below it. A lane longer than
+ * {@link LANE_STEPS_PER_ROW} steps wraps, like text, onto further rows that
+ * start under its first step, and the next lane starts below its last row.
+ * Nodes no agent reaches go in a last lane, wrapped the same way. Positions
+ * only: the graph means the same thing.
  *
  * @param graph - The graph.
  * @returns The same graph when nothing moves, else one with new positions.
@@ -1586,21 +1596,25 @@ export function layoutLanes(graph: MissionGraph): MissionGraph {
 			)
 			.map((edge) => edge.target);
 
-	let lane = 0;
+	// The row the next lane starts on; a wrapped lane takes several.
+	let row = 0;
 	for (const agent of graph.nodes) {
 		if (agent.kind !== "agent" || placed.has(agent.id)) continue;
-		const y = lane * LANE_ROW;
+		const y = row * LANE_ROW;
 		placed.set(agent.id, { x: 0, y });
-		let column = 1;
+		let step = 0;
 		const stack = [...robotOut(agent.id)].reverse();
 		while (stack.length > 0) {
 			const id = stack.pop() as string;
 			if (placed.has(id)) continue;
-			placed.set(id, { x: column * LANE_COLUMN, y });
-			column += 1;
+			placed.set(id, {
+				x: (1 + (step % LANE_STEPS_PER_ROW)) * LANE_COLUMN,
+				y: y + Math.floor(step / LANE_STEPS_PER_ROW) * LANE_ROW,
+			});
+			step += 1;
 			stack.push(...[...robotOut(id)].reverse());
 		}
-		lane += 1;
+		row += Math.max(1, Math.ceil(step / LANE_STEPS_PER_ROW));
 	}
 
 	// What feeds a placed step goes under it, one below the other.
@@ -1618,12 +1632,16 @@ export function layoutLanes(graph: MissionGraph): MissionGraph {
 		});
 	}
 
-	// Whatever is left: a last lane.
-	let column = 0;
+	// Whatever is left: a last lane, as wide as an agent's lane.
+	const leftWidth = LANE_STEPS_PER_ROW + 1;
+	let left = 0;
 	for (const node of graph.nodes) {
 		if (placed.has(node.id)) continue;
-		placed.set(node.id, { x: column * LANE_COLUMN, y: lane * LANE_ROW });
-		column += 1;
+		placed.set(node.id, {
+			x: (left % leftWidth) * LANE_COLUMN,
+			y: (row + Math.floor(left / leftWidth)) * LANE_ROW,
+		});
+		left += 1;
 	}
 
 	let moved = false;
