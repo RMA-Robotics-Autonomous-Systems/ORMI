@@ -13,6 +13,7 @@ import {
 	sortIssuesBySeverity,
 	copySelection,
 	layoutLanes,
+	issueNodeTags,
 	LANE_STEPS_PER_ROW,
 	pasteClip,
 	revealDelta,
@@ -1250,6 +1251,89 @@ describe("tidy: one lane per agent", () => {
 			edges: [e("a", "agent", "go", "agent")],
 		});
 		expect(layoutLanes(once)).toBe(once);
+	});
+});
+
+describe("issueNodeTags: telling apart issues that read the same", () => {
+	const node = (
+		id: string,
+		kind: "agent" | "action" | "asset" | "on_contact",
+		label: string,
+	) => ({ id, kind, label, position: { x: 0, y: 0 } });
+	const robot = (source: string, target: string, sp = "agent") => ({
+		id: `${source}-${target}`,
+		source,
+		source_port: sp,
+		target,
+		target_port: "agent",
+	});
+	const graph = {
+		version: 3,
+		nodes: [
+			node("a", "agent", "Alpha"),
+			node("n1", "action", "Navigate"),
+			node("n2", "action", "Navigate"),
+			node("b", "agent", "Bravo"),
+			node("n3", "action", "Navigate"),
+			node("loose1", "action", "Navigate"),
+			node("loose2", "action", "Navigate"),
+			node("zone", "asset", "Zone A"),
+		],
+		edges: [robot("a", "n1"), robot("n1", "n2"), robot("b", "n3")],
+	};
+
+	it("names a chain step by its robot and its number in the chain", () => {
+		const tags = issueNodeTags(graph, ["n1", "n2", "n3"]);
+		expect(tags.get("n1")).toBe("Alpha · step 1");
+		expect(tags.get("n2")).toBe("Alpha · step 2");
+		expect(tags.get("n3")).toBe("Bravo · step 1");
+	});
+
+	it("numbers off-chain nodes that share a caption, in graph order", () => {
+		const tags = issueNodeTags(graph, ["loose2", "loose1"]);
+		expect(tags.get("loose1")).toBe("Not on a chain · 1 of 2");
+		expect(tags.get("loose2")).toBe("Not on a chain · 2 of 2");
+	});
+
+	it("gives nothing to a node whose caption is unique, or to an agent", () => {
+		const tags = issueNodeTags(graph, ["zone", "a", "loose1"]);
+		expect(tags.size).toBe(0);
+	});
+
+	it("gives every one of many identical blockers a different tag", () => {
+		const ids = Array.from({ length: 18 }, (_, i) => `s${i}`);
+		const chain = {
+			version: 3,
+			nodes: [
+				node("a", "agent", "Alpha"),
+				...ids.map((id) => node(id, "action", "Navigate")),
+			],
+			edges: ids.map((id, i) => robot(i === 0 ? "a" : ids[i - 1]!, id)),
+		};
+		const tags = issueNodeTags(chain, ids);
+		expect(new Set(tags.values()).size).toBe(18);
+		expect(tags.get("s17")).toBe("Alpha · step 18");
+	});
+
+	it("counts a loop before the way out, like Tidy", () => {
+		const loop = {
+			version: 3,
+			nodes: [
+				node("a", "agent", "Alpha"),
+				node("on", "on_contact", "On contact"),
+				node("visit", "action", "Navigate"),
+				node("home", "action", "Navigate"),
+			],
+			edges: [
+				robot("a", "on"),
+				robot("on", "home", "no_more"),
+				robot("on", "visit"),
+				robot("visit", "on"),
+			],
+		};
+		const tags = issueNodeTags(loop, ["visit", "home"]);
+		expect(tags.get("visit")).toBe("Alpha · step 2");
+		expect(tags.get("home")).toBe("Alpha · step 3");
 	});
 });
 

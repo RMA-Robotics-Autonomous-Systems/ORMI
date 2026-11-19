@@ -1563,21 +1563,11 @@ const FEED_DROP = 130;
 export const LANE_STEPS_PER_ROW = 5;
 
 /**
- * Lay the graph out in lanes, one per agent: the agent at the left, its steps
- * to the right in the order the robot takes them (round an On contact loop,
- * then out by `no more`), and what feeds a step — its asset, the inputs of a
- * Hold until, a Coverage's contacts — just below it. A lane longer than
- * {@link LANE_STEPS_PER_ROW} steps wraps, like text, onto further rows that
- * start under its first step, and the next lane starts below its last row.
- * Nodes no agent reaches go in a last lane, wrapped the same way. Positions
- * only: the graph means the same thing.
- *
- * @param graph - The graph.
- * @returns The same graph when nothing moves, else one with new positions.
+ * The nodes a robot goes on to from `id`: round an On contact loop first, then
+ * out by `no more`.
  */
-export function layoutLanes(graph: MissionGraph): MissionGraph {
-	const placed = new Map<string, { x: number; y: number }>();
-	const robotOut = (id: string) =>
+function robotNext(graph: MissionGraph, id: string): string[] {
+	return (
 		graph.edges
 			.filter(
 				(edge) =>
@@ -1594,7 +1584,100 @@ export function layoutLanes(graph: MissionGraph): MissionGraph {
 						? -1
 						: 1,
 			)
-			.map((edge) => edge.target);
+			.map((edge) => edge.target)
+	);
+}
+
+/**
+ * Every step of every robot's chain, numbered from 1 in the order the robot
+ * takes them (the order {@link layoutLanes} lays them out in). A step two
+ * chains reach is counted in the first agent's.
+ *
+ * @param graph - The graph.
+ * @returns Step node id → its agent node and its number in that chain.
+ */
+export function chainSteps(
+	graph: MissionGraph,
+): Map<string, { agentId: string; step: number }> {
+	const out = new Map<string, { agentId: string; step: number }>();
+	for (const agent of graph.nodes) {
+		if (agent.kind !== "agent") continue;
+		const seen = new Set<string>([agent.id]);
+		let step = 0;
+		const stack = [...robotNext(graph, agent.id)].reverse();
+		while (stack.length > 0) {
+			const id = stack.pop() as string;
+			if (seen.has(id)) continue;
+			seen.add(id);
+			step += 1;
+			if (!out.has(id)) out.set(id, { agentId: agent.id, step });
+			stack.push(...[...robotNext(graph, id)].reverse());
+		}
+	}
+	return out;
+}
+
+/**
+ * What tells the nodes of a list of issues apart, beyond their own captions.
+ *
+ * Eighteen Navigate steps with no waypoint raise eighteen identical messages;
+ * an operator reading the list cannot tell which is which. A step on a
+ * robot's chain is named by the robot and its step number (`Alpha · step 3`);
+ * any other node that shares its caption with another listed node is
+ * numbered among them in graph order (`Not on a chain · 2 of 5`). A node whose
+ * caption is already unique in the list, and every agent node, gets nothing.
+ *
+ * @param graph - The graph.
+ * @param nodeIds - The nodes the listed issues are about, repeats allowed.
+ * @returns Node id → its tag, only for the nodes that need one.
+ */
+export function issueNodeTags(
+	graph: MissionGraph,
+	nodeIds: readonly string[],
+): Map<string, string> {
+	const steps = chainSteps(graph);
+	const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+	const listed = graph.nodes.filter((node) => nodeIds.includes(node.id));
+	const tags = new Map<string, string>();
+	const offChain = new Map<string, string[]>();
+	for (const node of listed) {
+		if (node.kind === "agent") continue;
+		const at = steps.get(node.id);
+		if (at) {
+			const agent = byId.get(at.agentId);
+			const robot = agent?.label || agent?.agent_id || "Agent";
+			tags.set(node.id, `${robot} · step ${at.step}`);
+			continue;
+		}
+		const same = offChain.get(node.label) ?? [];
+		same.push(node.id);
+		offChain.set(node.label, same);
+	}
+	for (const ids of offChain.values()) {
+		if (ids.length < 2) continue;
+		ids.forEach((id, index) =>
+			tags.set(id, `Not on a chain · ${index + 1} of ${ids.length}`),
+		);
+	}
+	return tags;
+}
+
+/**
+ * Lay the graph out in lanes, one per agent: the agent at the left, its steps
+ * to the right in the order the robot takes them (round an On contact loop,
+ * then out by `no more`), and what feeds a step — its asset, the inputs of a
+ * Hold until, a Coverage's contacts — just below it. A lane longer than
+ * {@link LANE_STEPS_PER_ROW} steps wraps, like text, onto further rows that
+ * start under its first step, and the next lane starts below its last row.
+ * Nodes no agent reaches go in a last lane, wrapped the same way. Positions
+ * only: the graph means the same thing.
+ *
+ * @param graph - The graph.
+ * @returns The same graph when nothing moves, else one with new positions.
+ */
+export function layoutLanes(graph: MissionGraph): MissionGraph {
+	const placed = new Map<string, { x: number; y: number }>();
+	const robotOut = (id: string) => robotNext(graph, id);
 
 	// The row the next lane starts on; a wrapped lane takes several.
 	let row = 0;

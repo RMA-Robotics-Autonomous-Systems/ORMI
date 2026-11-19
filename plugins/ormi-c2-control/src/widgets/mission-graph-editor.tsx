@@ -147,6 +147,7 @@ import {
 	formatCondition,
 	graphModeTitle,
 	inspectedNodeId,
+	issueNodeTags,
 	layoutLanes,
 	pasteClip,
 	type GraphClip,
@@ -1526,6 +1527,19 @@ function MissionGraphEditorBody(props: {
 	const issues = useMemo(
 		() => (compiled ? sortIssuesBySeverity(compiled.issues) : []),
 		[compiled],
+	);
+	/** What tells apart the nodes of issues that read the same. */
+	const issueTags = useMemo(
+		() =>
+			graph
+				? issueNodeTags(
+						graph,
+						issues.flatMap((issue) =>
+							issue.nodeId ? [issue.nodeId] : [],
+						),
+					)
+				: new Map<string, string>(),
+		[graph, issues],
 	);
 	/** Node id → its first error, drawn on the node. */
 	const nodeErrors = useMemo(() => {
@@ -2994,6 +3008,7 @@ function MissionGraphEditorBody(props: {
 							objectives={compiled?.geometries.length ?? 0}
 							compiles={compiles}
 							issues={issues}
+							tags={issueTags}
 							onSelectNode={(nodeId) => {
 								selectOnlyNode(nodeId);
 								setCheckOpen(false);
@@ -3412,6 +3427,8 @@ function MissionCheck(props: {
 	objectives: number;
 	compiles: boolean;
 	issues: readonly MissionGraphIssue[];
+	/** Node id → what tells it apart from nodes whose issues read the same. */
+	tags: ReadonlyMap<string, string>;
 	onSelectNode: (nodeId: string) => void;
 }) {
 	return (
@@ -3431,6 +3448,11 @@ function MissionCheck(props: {
 						<IssueRow
 							key={`${issue.nodeId ?? "graph"}-${index}`}
 							issue={issue}
+							tag={
+								issue.nodeId
+									? props.tags.get(issue.nodeId)
+									: undefined
+							}
 							onSelect={() => {
 								if (issue.nodeId)
 									props.onSelectNode(issue.nodeId);
@@ -3448,7 +3470,12 @@ function MissionCheck(props: {
 }
 
 /** One compile issue, clickable through to the node it is about. */
-function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
+function IssueRow(props: {
+	issue: MissionGraphIssue;
+	/** Where the node is, e.g. `Alpha · step 3`, when its caption is not enough. */
+	tag?: string;
+	onSelect: () => void;
+}) {
 	const { issue } = props;
 	const tone =
 		issue.severity === "error"
@@ -3468,6 +3495,9 @@ function IssueRow(props: { issue: MissionGraphIssue; onSelect: () => void }) {
 				issue.nodeId ? "Show the node" : "Applies to the whole graph"
 			}
 		>
+			{props.tag && (
+				<span className="block font-medium">{props.tag}</span>
+			)}
 			{issue.message}
 		</button>
 	);
