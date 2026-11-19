@@ -172,6 +172,7 @@ import {
 	hasUsableCoordinates,
 	hydrateMissionDraft,
 } from "./mission-editor-helpers";
+import { classifyDrawFinish, nextPendingOnFinish } from "./map-draw-finish";
 import {
 	GeoJsonFeatureCollection,
 	MapRegistryEntry,
@@ -3004,14 +3005,23 @@ function MissionMapBody(props: {
 		// `objective.geometries` as inline geometry is gone: that was the second
 		// home for geometry, and a shape living there had no name, no type, and
 		// no way for the graph to name it. [lng,lat] preserved end-to-end.
-		draw.on("finish", (id) => {
+		draw.on("finish", (id, context) => {
 			const snap = draw.getSnapshotFeature(id);
 			if (!snap) return;
 			const drawn = snap as unknown as DrawFeature;
+			// A select-mode finish (vertex drag, vertex delete, midpoint
+			// insert, whole-feature move) is an EDIT of the shape already
+			// open: it keeps that save's id, name and type and only takes the
+			// new geometry. Treating it as a new drawing is what made every
+			// reshape save as a duplicate (usability test 2026-11-12).
+			const isNewShape = classifyDrawFinish(context, true) === "create";
 			// A degenerate draw (an empty or single-number coordinate list) is
 			// refused HERE rather than at the save, so the operator is told
 			// instead of filling in a name for a shape the server will reject.
-			if (!hasUsableCoordinates(drawn.geometry?.coordinates)) {
+			if (
+				isNewShape &&
+				!hasUsableCoordinates(drawn.geometry?.coordinates)
+			) {
 				setError(
 					"That shape has no usable coordinates. Draw it again.",
 				);
@@ -3019,16 +3029,24 @@ function MissionMapBody(props: {
 				return;
 			}
 			const ctx = drawCtxRef.current;
-			setPending({
-				feature: drawn,
-				name: "",
-				featureType: ctx.mapFeatureType,
-				category: "",
-				// Provenance for the cross-map guard (a create cannot corrupt,
-				// but stamping both origins keeps the invariant simple).
-				mapName: ctx.selectedMap,
-				drawnInMission: ctx.missionScope ?? undefined,
-			});
+			setPending((prev) =>
+				nextPendingOnFinish<DrawFeature, PendingSave>(
+					prev,
+					drawn,
+					context,
+					(feature) => ({
+						feature,
+						name: "",
+						featureType: ctx.mapFeatureType,
+						category: "",
+						// Provenance for the cross-map guard (a create cannot
+						// corrupt, but stamping both origins keeps the invariant
+						// simple).
+						mapName: ctx.selectedMap,
+						drawnInMission: ctx.missionScope ?? undefined,
+					}),
+				),
+			);
 		});
 		drawRef.current = draw;
 	}, []);
