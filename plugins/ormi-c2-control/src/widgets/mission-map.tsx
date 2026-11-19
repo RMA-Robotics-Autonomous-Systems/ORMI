@@ -142,6 +142,7 @@ import {
 } from "./mission-assets";
 import { generateMissionId } from "./mission-list";
 import { assetCenter } from "./mission-asset-tree";
+import { PICK_TOLERANCE_PX, choosePick } from "./map-pick";
 import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
 import {
 	getMissionContacts,
@@ -3825,12 +3826,43 @@ function MissionMapBody(props: {
 		}): { id: string; feature: C2Feature; library: boolean } | null => {
 			const map = mapRef.current?.getMap();
 			if (!map) return null;
+			// A few pixels of slack, and the most specific feature under the
+			// pointer wins (a point, then a line, then the smallest area), so
+			// a geofence drawn on top no longer swallows every click inside
+			// it ({@link choosePick}). A locked layer is never picked.
 			const at = (layers: string[], from: C2Feature[]) => {
-				const hits = map.queryRenderedFeatures([point.x, point.y], {
-					layers: layers.filter((layer) => map.getLayer(layer)),
+				const hits = map.queryRenderedFeatures(
+					[
+						[
+							point.x - PICK_TOLERANCE_PX,
+							point.y - PICK_TOLERANCE_PX,
+						],
+						[
+							point.x + PICK_TOLERANCE_PX,
+							point.y + PICK_TOLERANCE_PX,
+						],
+					],
+					{ layers: layers.filter((layer) => map.getLayer(layer)) },
+				);
+				const candidates = hits.flatMap((hit) => {
+					const id = hit.properties?.feature_id;
+					if (typeof id !== "string" || id.length === 0) return [];
+					const stored = from.find((f) => readFeatureId(f) === id);
+					if (!stored) return [];
+					return [
+						{
+							id,
+							featureType: String(
+								stored.properties?.feature_type ?? "",
+							),
+							geometry: stored.geometry as
+								| { type: string; coordinates: unknown }
+								| undefined,
+						},
+					];
 				});
-				const id = hits[0]?.properties?.feature_id;
-				if (typeof id !== "string" || id.length === 0) return null;
+				const id = choosePick(candidates);
+				if (!id) return null;
 				const feature = from.find((f) => readFeatureId(f) === id);
 				return feature ? { id, feature } : null;
 			};
