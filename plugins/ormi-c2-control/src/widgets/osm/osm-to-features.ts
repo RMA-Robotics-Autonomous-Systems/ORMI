@@ -44,16 +44,23 @@ export function geomToCoordinates(
 }
 
 /**
- * Pick the operator-facing name for a way: `tags.name`, then `tags.ref`, then a
- * stable fallback built from the OSM id (or a generic label when even that is
- * missing).
+ * Pick the operator-facing name for a way: `tags.name`, then `tags.ref`, then
+ * its kind (`tags.highway`, with `tracktype` for a track) and the OSM id, so an
+ * unnamed farm track reads "Track grade2 1568339046", not "OSM way 1568339046"
+ * (usability test 2026-11-12). A generic label when even the id is missing.
  */
 function wayName(way: OverpassWay): string {
 	const name = way.tags?.name?.trim();
 	if (name) return name;
 	const ref = way.tags?.ref?.trim();
 	if (ref) return ref;
-	return way.id != null ? `OSM way ${way.id}` : "OSM road";
+	const highway = way.tags?.highway?.trim().replace(/_/g, " ");
+	const kind = highway
+		? highway.charAt(0).toUpperCase() + highway.slice(1)
+		: "OSM way";
+	const grade = way.tags?.tracktype?.trim();
+	const label = grade ? `${kind} ${grade}` : kind;
+	return way.id != null ? `${label} ${way.id}` : label;
 }
 
 /**

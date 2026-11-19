@@ -73,6 +73,7 @@ import {
 	ChevronDown,
 	Download,
 	Layers,
+	Loader2,
 	Lock,
 	LockOpen,
 	Map as MapIcon,
@@ -2409,6 +2410,8 @@ function MissionMapBody(props: {
 	// --- Shared UI state ----------------------------------------------------
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
+	/** What a running OpenStreetMap import is doing, shown over the map. */
+	const [osmProgress, setOsmProgress] = useState<string | null>(null);
 	/**
 	 * Pending destructive confirmation, driving the shadcn AlertDialog. `null` when
 	 * idle. `onConfirm` runs the actual delete once the operator confirms (replaces
@@ -2417,6 +2420,8 @@ function MissionMapBody(props: {
 	const [confirmState, setConfirmState] = useState<{
 		title: string;
 		description: string;
+		/** The confirm button's label; "Delete" when absent. */
+		confirmLabel?: string;
 		onConfirm: () => void;
 	} | null>(null);
 	const [plannerStatus, setPlannerStatus] = useState<PlannerStatus | null>(
@@ -3664,11 +3669,15 @@ function MissionMapBody(props: {
 			}
 			const signal = beginOsmFetch();
 			setBusy(true);
+			setOsmProgress("Loading roads from OpenStreetMap…");
 			const result = await fetchOsmRoads(bbox, signal);
 			// A replaced import must not re-enable the controls while its
 			// successor still runs: only the latest import releases `busy` (an
 			// import aborted by a map switch is still the latest, and does).
-			if (osmAbortRef.current?.signal === signal) setBusy(false);
+			if (osmAbortRef.current?.signal === signal) {
+				setBusy(false);
+				setOsmProgress(null);
+			}
 			if (signal.aborted) return;
 			if (!result.ok) {
 				setError(result.error);
@@ -3685,6 +3694,7 @@ function MissionMapBody(props: {
 				description: `Import ${roads.length} road${
 					roads.length === 1 ? "" : "s"
 				} into "${selectedMap}"?`,
+				confirmLabel: "Import",
 				onConfirm: () => void importOsmRoads(roads),
 			});
 		},
@@ -3751,11 +3761,15 @@ function MissionMapBody(props: {
 			}
 			const signal = beginOsmFetch();
 			setBusy(true);
+			setOsmProgress("Loading buildings from OpenStreetMap…");
 			const result = await fetchOsmBuildings(bbox, signal);
 			// A replaced import must not re-enable the controls while its
 			// successor still runs: only the latest import releases `busy` (an
 			// import aborted by a map switch is still the latest, and does).
-			if (osmAbortRef.current?.signal === signal) setBusy(false);
+			if (osmAbortRef.current?.signal === signal) {
+				setBusy(false);
+				setOsmProgress(null);
+			}
 			if (signal.aborted) return;
 			if (!result.ok) {
 				setError(result.error);
@@ -3772,6 +3786,7 @@ function MissionMapBody(props: {
 				description: `Import ${risks.length} building footprint${
 					risks.length === 1 ? "" : "s"
 				} as risk zones into "${selectedMap}"?`,
+				confirmLabel: "Import",
 				onConfirm: () => void importOsmBuildings(risks),
 			});
 		},
@@ -4732,6 +4747,15 @@ function MissionMapBody(props: {
 				    inserting them above the map moved it under the pointer
 				    (usability test 2026-11-12). */}
 				<div className="pointer-events-none absolute inset-x-2 bottom-2 z-20 flex max-w-[min(42rem,calc(100%-1rem))] flex-col items-stretch gap-1 [&>*]:pointer-events-auto [&>*]:rounded-md [&>*]:border [&>*]:shadow-sm [&>*]:backdrop-blur">
+					{osmProgress && (
+						<div
+							role="status"
+							className="flex items-center gap-2 text-xs bg-background/95 px-2 py-1"
+						>
+							<Loader2 className="size-3.5 animate-spin" />
+							{osmProgress}
+						</div>
+					)}
 					{error && (
 						<div className="text-xs text-destructive bg-background/95 border-destructive/40 px-2 py-1 shrink-0">
 							{error}
@@ -5051,7 +5075,7 @@ function MissionMapBody(props: {
 								setConfirmState(null);
 							}}
 						>
-							Delete
+							{confirmState?.confirmLabel ?? "Delete"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

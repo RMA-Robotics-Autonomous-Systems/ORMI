@@ -101,7 +101,25 @@ describe("osmRoadsToFeatures", () => {
 		const features = osmRoadsToFeatures([wayA, wayRef, wayNoName]);
 		expect(features[0]?.properties?.name).toBe("Rue A");
 		expect(features[1]?.properties?.name).toBe("N5");
-		expect(features[2]?.properties?.name).toBe("OSM way 103");
+		expect(features[2]?.properties?.name).toBe("Track 103");
+	});
+
+	it("names an unnamed way by its kind, track grade and id", () => {
+		const graded: OverpassWay = {
+			...wayNoName,
+			id: 104,
+			tags: { highway: "track", tracktype: "grade2" },
+		};
+		const service: OverpassWay = {
+			...wayNoName,
+			id: 105,
+			tags: { highway: "living_street" },
+		};
+		const bare: OverpassWay = { ...wayNoName, id: 106, tags: {} };
+		const features = osmRoadsToFeatures([graded, service, bare]);
+		expect(features[0]?.properties?.name).toBe("Track grade2 104");
+		expect(features[1]?.properties?.name).toBe("Living street 105");
+		expect(features[2]?.properties?.name).toBe("OSM way 106");
 	});
 
 	it("drops degenerate ways with <2 vertices", () => {
