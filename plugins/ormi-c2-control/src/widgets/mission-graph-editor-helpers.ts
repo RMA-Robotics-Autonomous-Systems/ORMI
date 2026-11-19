@@ -293,6 +293,34 @@ export function revealDelta(
 	};
 }
 
+/**
+ * Where a node's flow-space box lands on screen, for {@link revealDelta}.
+ *
+ * Computed from the node's flow position and the viewport, not from its DOM
+ * element: a node added in this same commit has no element yet, and the
+ * reveal used to find nothing, return, and never try again, so a node added
+ * after the selected one stayed off-screen (usability test 2026-11-12).
+ *
+ * @param box - The node's box in flow coordinates.
+ * @param viewport - React Flow's viewport (translation and zoom).
+ * @param canvas - The canvas element's screen position.
+ * @returns The node's screen rectangle.
+ */
+export function flowBoxToScreenRect(
+	box: { x: number; y: number; width: number; height: number },
+	viewport: { x: number; y: number; zoom: number },
+	canvas: { left: number; top: number },
+): ScreenRect {
+	const left = canvas.left + viewport.x + box.x * viewport.zoom;
+	const top = canvas.top + viewport.y + box.y * viewport.zoom;
+	return {
+		left,
+		top,
+		right: left + box.width * viewport.zoom,
+		bottom: top + box.height * viewport.zoom,
+	};
+}
+
 // ============================================================================
 // Keyboard shortcuts
 // ============================================================================

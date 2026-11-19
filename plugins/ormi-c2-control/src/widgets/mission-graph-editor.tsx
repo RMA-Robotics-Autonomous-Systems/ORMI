@@ -155,6 +155,7 @@ import {
 	resolveGraphDraftWrite,
 	resolveGraphViewOnly,
 	revealDelta,
+	flowBoxToScreenRect,
 	applyNodeSizes,
 	type NodeSize,
 	type DropChoice,
@@ -1924,28 +1925,58 @@ function MissionGraphEditorBody(props: {
 	// this same commit), the view pans by the least that shows the whole node,
 	// and not at all when it is already in view. Keyed on the id alone, so
 	// editing the node never moves anything.
+	//
+	// The node's screen box is computed from its FLOW position and the viewport
+	// ({@link flowBoxToScreenRect}), never looked up in the DOM: a node added in
+	// this commit has no element yet, and the DOM lookup found nothing and gave
+	// up for good, so a node added after the selected one stayed off-screen.
+	// The effect also re-runs when the graph changes, so a node that is not in
+	// the graph yet in this commit is revealed in the next one; `revealDoneFor`
+	// keeps that from panning again on later edits of the same node.
 	const inspectedId = selectedNode?.id ?? null;
+	const inspectedPosition = selectedNode?.position ?? null;
+	const revealDoneFor = useRef<string | null>(null);
 	useLayoutEffect(() => {
-		const handled = revealHandledFor.current === inspectedId;
-		revealHandledFor.current = null;
-		if (!inspectedId || handled) return;
+		if (revealDoneFor.current !== inspectedId) {
+			// A different node (or none) since the last reveal.
+			revealDoneFor.current = null;
+		}
+		if (!inspectedId || revealDoneFor.current === inspectedId) return;
+		if (revealHandledFor.current === inspectedId) {
+			revealHandledFor.current = null;
+			revealDoneFor.current = inspectedId;
+			return;
+		}
 		const canvas = canvasBox.current;
-		const element = canvas?.querySelector(
-			`.react-flow__node[data-id="${CSS.escape(inspectedId)}"]`,
+		if (!canvas || !inspectedPosition) return;
+		const measured = getNode(inspectedId)?.measured;
+		const canvasRect = canvas.getBoundingClientRect();
+		const nodeRect = flowBoxToScreenRect(
+			{
+				x: inspectedPosition.x,
+				y: inspectedPosition.y,
+				width: measured?.width ?? DEFAULT_NODE_SIZE.width,
+				height: measured?.height ?? DEFAULT_NODE_SIZE.height,
+			},
+			getViewport(),
+			canvasRect,
 		);
-		if (!canvas || !element) return;
-		const { dx, dy } = revealDelta(
-			element.getBoundingClientRect(),
-			canvas.getBoundingClientRect(),
-			REVEAL_MARGIN,
-		);
+		revealDoneFor.current = inspectedId;
+		const { dx, dy } = revealDelta(nodeRect, canvasRect, REVEAL_MARGIN);
 		if (dx === 0 && dy === 0) return;
 		const { x, y, zoom } = getViewport();
 		void setViewport(
 			{ x: x + dx, y: y + dy, zoom },
 			{ duration: cameraMs(REVEAL_MS, reducedMotion) },
 		);
-	}, [inspectedId, getViewport, setViewport, reducedMotion]);
+	}, [
+		inspectedId,
+		inspectedPosition,
+		getNode,
+		getViewport,
+		setViewport,
+		reducedMotion,
+	]);
 
 	const deleteNodes = useCallback(
 		(nodeIds: readonly string[]) => {

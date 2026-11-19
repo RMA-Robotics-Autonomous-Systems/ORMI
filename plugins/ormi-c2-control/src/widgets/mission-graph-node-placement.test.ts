@@ -10,7 +10,9 @@ import { describe, expect, it } from "bun:test";
 import {
 	addNodeAfter,
 	DEFAULT_NODE_SIZE,
+	flowBoxToScreenRect,
 	placeNewNode,
+	revealDelta,
 	type CanvasBox,
 } from "./mission-graph-editor-helpers";
 import {
@@ -164,5 +166,56 @@ describe("addAgentNode", () => {
 			y: 400,
 		});
 		expect(graph.nodes[0]?.position).toEqual({ x: 900, y: 400 });
+	});
+});
+
+describe("revealing a node added after the selected one", () => {
+	// The canvas left of the open inspector, in screen pixels.
+	const canvas = { left: 100, top: 50, right: 1330, bottom: 950 };
+	const MARGIN = 16;
+
+	it("keeps every node of a 10-node chain on screen as it grows", () => {
+		// The usability test (2026-11-12): nodes 2 to 10 were 0% visible, the
+		// last one ~4,400 px past the canvas, because the reveal looked the new
+		// node up in the DOM before React Flow had mounted it.
+		let viewport = { x: 0, y: 0, zoom: 1 };
+		const nodes: CanvasBox[] = [{ x: 400, y: 300, width: W, height: H }];
+		for (let i = 1; i < 10; i++) {
+			const after = nodes[nodes.length - 1] as CanvasBox;
+			const at = placeNewNode({
+				viewCentre: { x: 0, y: 0 },
+				after,
+				occupied: nodes,
+			});
+			const box = { x: at.x, y: at.y, width: W, height: H };
+			nodes.push(box);
+			const rect = flowBoxToScreenRect(box, viewport, canvas);
+			const { dx, dy } = revealDelta(rect, canvas, MARGIN);
+			viewport = { ...viewport, x: viewport.x + dx, y: viewport.y + dy };
+			const shown = flowBoxToScreenRect(box, viewport, canvas);
+			expect(shown.left).toBeGreaterThanOrEqual(canvas.left);
+			expect(shown.right).toBeLessThanOrEqual(canvas.right);
+			expect(shown.top).toBeGreaterThanOrEqual(canvas.top);
+			expect(shown.bottom).toBeLessThanOrEqual(canvas.bottom);
+		}
+	});
+
+	it("maps a flow box to screen through the viewport and the canvas", () => {
+		expect(
+			flowBoxToScreenRect(
+				{ x: 10, y: 20, width: 100, height: 50 },
+				{ x: 5, y: -5, zoom: 2 },
+				{ left: 100, top: 50 },
+			),
+		).toEqual({ left: 125, top: 85, right: 325, bottom: 185 });
+	});
+
+	it("does not move the view for a node already in view", () => {
+		const rect = flowBoxToScreenRect(
+			{ x: 200, y: 200, width: W, height: H },
+			{ x: 0, y: 0, zoom: 1 },
+			canvas,
+		);
+		expect(revealDelta(rect, canvas, MARGIN)).toEqual({ dx: 0, dy: 0 });
 	});
 });
