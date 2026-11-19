@@ -1063,6 +1063,15 @@ const DROP_PROBE_ID = "__drop-probe__";
 const FIT_PADDING = 0.15;
 
 /**
+ * How far the canvas zooms out, on the wheel and in a fit. xyflow's default
+ * (0.5) stopped a fit with a quarter of a 16-node mission on screen.
+ */
+const MIN_ZOOM = 0.1;
+
+/** The Controls' fit button's options: the same fit as the opening one. */
+const FIT_VIEW_OPTIONS = { padding: FIT_PADDING, minZoom: MIN_ZOOM };
+
+/**
  * The smallest canvas a fit is believed at.
  *
  * `fitView` computes a zoom from the container's CURRENT box, and this widget
@@ -2496,6 +2505,7 @@ function MissionGraphEditorBody(props: {
 		void fitView({
 			duration: first ? cameraMs(300, reducedMotion) : 0,
 			padding: FIT_PADDING,
+			minZoom: MIN_ZOOM,
 		});
 	}, [
 		missionId,
@@ -2535,6 +2545,7 @@ function MissionGraphEditorBody(props: {
 		void fitView({
 			duration: cameraMs(300, reducedMotion),
 			padding: FIT_PADDING,
+			minZoom: MIN_ZOOM,
 		});
 	}, [missionId, viewOnly, fitView, reducedMotion]);
 
@@ -3062,6 +3073,7 @@ function MissionGraphEditorBody(props: {
 							nodes={canvasNodes}
 							edges={canvasEdges}
 							nodeTypes={NODE_TYPES}
+							minZoom={MIN_ZOOM}
 							colorMode={dark ? "dark" : "light"}
 							onNodesChange={onNodesChange}
 							onEdgesChange={onEdgesChange}
@@ -3084,7 +3096,10 @@ function MissionGraphEditorBody(props: {
 							{/* The shortcuts live with the canvas they are for,
 							    in xyflow's own control stack, which takes its
 							    theme from `colorMode` like the zoom buttons. */}
-							<Controls showInteractive={false}>
+							<Controls
+								showInteractive={false}
+								fitViewOptions={FIT_VIEW_OPTIONS}
+							>
 								<Popover>
 									<PopoverTrigger asChild>
 										<ControlButton
