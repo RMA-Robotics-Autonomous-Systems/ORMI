@@ -142,6 +142,69 @@ describe("hasUsableCoordinates", () => {
 		expect(hasUsableCoordinates(null)).toBe(false);
 		expect(hasUsableCoordinates(undefined)).toBe(false);
 	});
+
+	describe("with a geometry type", () => {
+		it("refuses a one-coordinate LineString (the saved ghost road)", () => {
+			expect(hasUsableCoordinates([[4.39, 50.84]], "LineString")).toBe(
+				false,
+			);
+		});
+
+		it("accepts a two-coordinate LineString", () => {
+			expect(
+				hasUsableCoordinates(
+					[
+						[4.39, 50.84],
+						[4.4, 50.85],
+					],
+					"LineString",
+				),
+			).toBe(true);
+		});
+
+		it("refuses a polygon ring under 4 positions", () => {
+			expect(
+				hasUsableCoordinates(
+					[
+						[
+							[4.39, 50.84],
+							[4.4, 50.84],
+							[4.39, 50.84],
+						],
+					],
+					"Polygon",
+				),
+			).toBe(false);
+		});
+
+		it("accepts a closed triangle", () => {
+			expect(
+				hasUsableCoordinates(
+					[
+						[
+							[4.39, 50.84],
+							[4.4, 50.84],
+							[4.4, 50.85],
+							[4.39, 50.84],
+						],
+					],
+					"Polygon",
+				),
+			).toBe(true);
+		});
+
+		it("refuses a line with one bad position among good ones", () => {
+			expect(
+				hasUsableCoordinates([[4.39, 50.84], [5]], "LineString"),
+			).toBe(false);
+		});
+
+		it("checks a Point and refuses an unknown type", () => {
+			expect(hasUsableCoordinates([4.39, 50.84], "Point")).toBe(true);
+			expect(hasUsableCoordinates([4.39], "Point")).toBe(false);
+			expect(hasUsableCoordinates([4.39, 50.84], "Circle")).toBe(false);
+		});
+	});
 });
 
 describe("patchDraft", () => {

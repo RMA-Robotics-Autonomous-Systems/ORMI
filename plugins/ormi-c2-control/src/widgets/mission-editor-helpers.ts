@@ -199,10 +199,23 @@ export function advancedSliceEquals(a: unknown, b: unknown): boolean {
  * This is the authoring-side counterpart to the validator — it stops a degenerate
  * draw from ever being appended to a draft.
  *
+ * With `geometryType` the check is per geometry, not "any leaf": a
+ * `LineString` needs at least 2 valid positions, each `Polygon` ring at least
+ * 4 (a closed triangle), and a `Multi*` applies that to every part. Without
+ * it, a one-coordinate line passed (a valid leaf exists) and was saved as a
+ * road that draws nothing, can't be picked and can't be deleted from the UI.
+ *
  * @param coords - The drawn geometry's coordinates (any nesting depth).
- * @returns `true` when at least one valid `[lon, lat]` leaf exists.
+ * @param geometryType - The GeoJSON geometry type, when known.
+ * @returns `true` when the coordinates make a usable geometry.
  */
-export function hasUsableCoordinates(coords: unknown): boolean {
+export function hasUsableCoordinates(
+	coords: unknown,
+	geometryType?: string,
+): boolean {
+	if (geometryType !== undefined) {
+		return hasUsableGeometryCoordinates(coords, geometryType);
+	}
 	if (!Array.isArray(coords) || coords.length === 0) return false;
 	// Leaf pair `[lon, lat]` — first element is a number.
 	if (typeof coords[0] === "number") {
@@ -214,6 +227,66 @@ export function hasUsableCoordinates(coords: unknown): boolean {
 	}
 	// Nested — usable when ANY child yields a usable leaf.
 	return coords.some((entry) => hasUsableCoordinates(entry));
+}
+
+/** A `[lon, lat]` leaf: at least two finite numbers. */
+function isPosition(value: unknown): boolean {
+	return (
+		Array.isArray(value) &&
+		value.length >= 2 &&
+		typeof value[0] === "number" &&
+		typeof value[1] === "number" &&
+		Number.isFinite(value[0]) &&
+		Number.isFinite(value[1])
+	);
+}
+
+/** A list of at least `min` positions, every one valid. */
+function isPositionList(value: unknown, min: number): boolean {
+	return (
+		Array.isArray(value) &&
+		value.length >= min &&
+		value.every((entry) => isPosition(entry))
+	);
+}
+
+/** A polygon: at least one ring, every ring at least 4 positions. */
+function isPolygonRings(value: unknown): boolean {
+	return (
+		Array.isArray(value) &&
+		value.length >= 1 &&
+		value.every((ring) => isPositionList(ring, 4))
+	);
+}
+
+function hasUsableGeometryCoordinates(
+	coords: unknown,
+	geometryType: string,
+): boolean {
+	switch (geometryType) {
+		case "Point":
+			return isPosition(coords);
+		case "MultiPoint":
+			return isPositionList(coords, 1);
+		case "LineString":
+			return isPositionList(coords, 2);
+		case "MultiLineString":
+			return (
+				Array.isArray(coords) &&
+				coords.length >= 1 &&
+				coords.every((line) => isPositionList(line, 2))
+			);
+		case "Polygon":
+			return isPolygonRings(coords);
+		case "MultiPolygon":
+			return (
+				Array.isArray(coords) &&
+				coords.length >= 1 &&
+				coords.every((polygon) => isPolygonRings(polygon))
+			);
+		default:
+			return false;
+	}
 }
 
 /**

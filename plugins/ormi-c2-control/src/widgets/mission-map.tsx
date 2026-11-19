@@ -3113,16 +3113,18 @@ function MissionMapBody(props: {
 			// new geometry. Treating it as a new drawing is what made every
 			// reshape save as a duplicate (usability test 2026-11-12).
 			const isNewShape = classifyDrawFinish(context, true) === "create";
-			// A degenerate draw (an empty or single-number coordinate list) is
-			// refused HERE rather than at the save, so the operator is told
-			// instead of filling in a name for a shape the server will reject.
+			// A degenerate draw (no coordinates, a one-point line, a ring of
+			// fewer than 4 positions) is refused HERE rather than at the save,
+			// so the operator is told instead of filling in a name for a shape
+			// that would draw nothing and could not be picked again.
 			if (
 				isNewShape &&
-				!hasUsableCoordinates(drawn.geometry?.coordinates)
+				!hasUsableCoordinates(
+					drawn.geometry?.coordinates,
+					drawn.geometry?.type,
+				)
 			) {
-				setError(
-					"That shape has no usable coordinates. Draw it again.",
-				);
+				setError("That shape has too few points. Draw it again.");
 				clearDraw(draw);
 				return;
 			}
