@@ -134,8 +134,12 @@ import { assetUses } from "./mission-asset-tree";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
 import { assetFeatureTypes, assetId } from "./mission-assets";
 import {
+	addNodeAfter,
 	applyDrop,
 	applySelectionChanges,
+	DEFAULT_NODE_SIZE,
+	placeNewNode,
+	type CanvasBox,
 	dropChoices,
 	dropOrphanedEdges,
 	copySelection,
@@ -172,7 +176,6 @@ import {
 	emptyMissionGraph,
 	freshGraphId,
 	graphCompiles,
-	nextNodePosition,
 	normalizeCondition,
 	propagateAgents,
 	type ConditionOp,
@@ -2268,28 +2271,84 @@ function MissionGraphEditorBody(props: {
 		[missionId, viewOnly, featureTypes, showDropNotice],
 	);
 
+	/**
+	 * A spot in view for a new node, after `afterId` when given ({@link
+	 * placeNewNode}). Reads node sizes as React Flow measured them, so the
+	 * overlap check uses what is actually drawn.
+	 */
+	const placeInView = useCallback(
+		(current: MissionGraph, afterId: string | null) => {
+			const boxOf = (node: MissionGraphNode): CanvasBox => {
+				const measured = getNode(node.id)?.measured;
+				return {
+					x: node.position.x,
+					y: node.position.y,
+					width: measured?.width ?? DEFAULT_NODE_SIZE.width,
+					height: measured?.height ?? DEFAULT_NODE_SIZE.height,
+				};
+			};
+			const box = canvasBox.current?.getBoundingClientRect();
+			const viewCentre = box
+				? screenToFlowPosition({
+						x: box.left + box.width / 2,
+						y: box.top + box.height / 2,
+					})
+				: { x: 0, y: 0 };
+			const after = afterId
+				? current.nodes.find((node) => node.id === afterId)
+				: undefined;
+			return placeNewNode({
+				viewCentre,
+				after: after ? boxOf(after) : null,
+				occupied: current.nodes.map(boxOf),
+			});
+		},
+		[getNode, screenToFlowPosition],
+	);
+
+	/**
+	 * Add a node from the palette where the operator is looking.
+	 *
+	 * With exactly one node selected, the new one goes after it and is wired
+	 * from it when one of its outputs takes this kind ({@link addNodeAfter},
+	 * the same rules as dropping a wire): adding a Navigate after a step
+	 * extends that robot's chain. Otherwise it goes in the middle of the
+	 * visible canvas, unwired. Either way it is selected, which opens its
+	 * details and lets the reveal effect pan it into view if it is not.
+	 */
 	const addNode = useCallback(
 		(kind: GraphNodeKind, extra: Partial<MissionGraphNode> = {}) => {
 			if (!missionId || viewOnly) return;
 			const id = freshGraphId(kind);
-			editMissionGraph(missionId, (current) => ({
-				...current,
-				nodes: [
-					...current.nodes,
-					{
-						id,
-						kind,
-						label: KIND_DEFAULT_LABEL[kind],
-						position: nextNodePosition(current),
-						...(kind === "wait" ? { mode: "all" as const } : {}),
-						...extra,
-					},
-				],
-			}));
+			const afterId =
+				selectedNodeIds.length === 1 && selectedEdgeIds.length === 0
+					? selectedNodeIds[0]!
+					: null;
+			editMissionGraph(missionId, (current) => {
+				const node: MissionGraphNode = {
+					id,
+					kind,
+					label: KIND_DEFAULT_LABEL[kind],
+					position: placeInView(current, afterId),
+					...(kind === "wait" ? { mode: "all" as const } : {}),
+					...extra,
+				};
+				const wired = afterId
+					? addNodeAfter(current, afterId, node, featureTypes)
+					: null;
+				return wired ?? { ...current, nodes: [...current.nodes, node] };
+			});
 			setSelectedNodeIds([id]);
 			setSelectedEdgeIds(NO_SELECTION);
 		},
-		[missionId, viewOnly],
+		[
+			missionId,
+			viewOnly,
+			selectedNodeIds,
+			selectedEdgeIds,
+			placeInView,
+			featureTypes,
+		],
 	);
 
 	/**
@@ -2314,7 +2373,12 @@ function MissionGraphEditorBody(props: {
 		}
 		const before = new Set(graph?.nodes.map((node) => node.id) ?? []);
 		editMissionGraph(missionId, (current) =>
-			addAgentNode(current, free.agent_id, free.name),
+			addAgentNode(
+				current,
+				free.agent_id,
+				free.name,
+				placeInView(current, null),
+			),
 		);
 		// The id is minted inside `addAgentNode`, so it is read back off the
 		// store rather than guessed.
@@ -2323,7 +2387,7 @@ function MissionGraphEditorBody(props: {
 		);
 		if (added) setSelectedNodeIds([added.id]);
 		setSelectedEdgeIds(NO_SELECTION);
-	}, [missionId, viewOnly, graph, agents, addNode]);
+	}, [missionId, viewOnly, graph, agents, addNode, placeInView]);
 
 	/** Select exactly one node — the issue list's click-through. */
 	const selectOnlyNode = useCallback((nodeId: string) => {

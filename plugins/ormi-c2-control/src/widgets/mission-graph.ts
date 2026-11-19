@@ -669,12 +669,16 @@ export function hasAgentNode(graph: MissionGraph, agentId: string): boolean {
  * @param graph - The graph to add to.
  * @param agentId - The vehicle's `agent_id`.
  * @param label - Operator-facing caption, typically the agent's name.
+ * @param position - Where the node goes. The graph editor passes a spot in
+ *   view; the map's marker toggle has no view of the canvas and leaves it to
+ *   {@link nextNodePosition}.
  * @returns A new graph, or `graph` itself.
  */
 export function addAgentNode(
 	graph: MissionGraph,
 	agentId: string,
 	label?: string,
+	position?: { x: number; y: number },
 ): MissionGraph {
 	const id = optionalString(agentId);
 	// A blank agent_id is dropped by `normalizeGraph`, so adding one would
@@ -689,7 +693,7 @@ export function addAgentNode(
 				id: freshGraphId("agent"),
 				kind: "agent",
 				label: optionalString(label) ?? id,
-				position: nextNodePosition(graph),
+				position: position ?? nextNodePosition(graph),
 				agent_id: id,
 			},
 		],

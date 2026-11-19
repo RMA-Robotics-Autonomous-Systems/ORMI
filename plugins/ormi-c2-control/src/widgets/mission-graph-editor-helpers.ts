@@ -1334,6 +1334,138 @@ export function applyDrop(
 }
 
 // ============================================================================
+// Adding a node from the palette: where it goes, and what it is wired to
+// ============================================================================
+
+/** A node's box on the canvas, in flow coordinates. */
+export interface CanvasBox {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/** Size assumed for a node React Flow has not measured yet. */
+export const DEFAULT_NODE_SIZE = { width: 180, height: 80 } as const;
+/** Air between a new node and the node it follows or would overlap. */
+const PLACE_GAP = 40;
+/** How many spots the nudge tries before it gives up and overlaps. */
+const PLACE_TRIES = 12;
+
+function boxesOverlap(a: CanvasBox, b: CanvasBox, gap: number): boolean {
+	return (
+		a.x < b.x + b.width + gap &&
+		b.x < a.x + a.width + gap &&
+		a.y < b.y + b.height + gap &&
+		b.y < a.y + a.height + gap
+	);
+}
+
+/**
+ * Where a node added from the palette goes: always somewhere the operator is
+ * looking, never at a fixed canvas coordinate.
+ *
+ * It used to go to a grid counted from the canvas origin by node count
+ * (`nextNodePosition`), which ignored the view: after a pan or on a busy graph
+ * the new node landed off screen and the operator had to hunt for it. Now:
+ * - **after a node** (`after`, the selected node): to its right, top-aligned,
+ *   which is where the next step of a chain reads;
+ * - **otherwise** centred on `viewCentre`, the flow position of the middle of
+ *   the visible canvas.
+ * Either way it is nudged down, then into the next column, until it overlaps no
+ * existing node; after {@link PLACE_TRIES} spots it takes the first one, since
+ * a visible overlap beats a node placed far away.
+ *
+ * @param input.viewCentre - Flow coordinates of the visible canvas centre.
+ * @param input.after - The box of the node the new one follows, or null.
+ * @param input.occupied - The boxes of the nodes already on the canvas.
+ * @param input.size - The new node's expected size.
+ * @returns The new node's top-left position.
+ */
+export function placeNewNode(input: {
+	viewCentre: { x: number; y: number };
+	after: CanvasBox | null;
+	occupied: readonly CanvasBox[];
+	size?: { width: number; height: number };
+}): { x: number; y: number } {
+	const size = input.size ?? DEFAULT_NODE_SIZE;
+	const start = input.after
+		? {
+				x: input.after.x + input.after.width + PLACE_GAP,
+				y: input.after.y,
+			}
+		: {
+				x: input.viewCentre.x - size.width / 2,
+				y: input.viewCentre.y - size.height / 2,
+			};
+	const stepY = size.height + PLACE_GAP;
+	const stepX = size.width + PLACE_GAP;
+	const rows = Math.ceil(PLACE_TRIES / 3);
+	for (let i = 0; i < PLACE_TRIES; i++) {
+		const candidate = {
+			x: start.x + Math.floor(i / rows) * stepX,
+			y: start.y + (i % rows) * stepY,
+			...size,
+		};
+		const clear = input.occupied.every(
+			(box) => !boxesOverlap(candidate, box, PLACE_GAP / 2),
+		);
+		if (clear) return { x: candidate.x, y: candidate.y };
+	}
+	return start;
+}
+
+/**
+ * The graph with `node` added and wired after `afterId`, by the same rules as
+ * dropping a wire from one of that node's outputs ({@link applyDrop}), or
+ * `null` when no output of `afterId` takes a node of this kind.
+ *
+ * Outputs are tried in display order, so a step added after a step joins its
+ * robot's chain (the `agent` output comes first), and a Navigate added after a
+ * waypoint asset is wired as that waypoint's step. The new node keeps its own
+ * label and fields; only the port it is wired into comes from the matching
+ * drop choice.
+ *
+ * @param graph - The graph.
+ * @param afterId - The node the new one follows (the operator's selection).
+ * @param node - The new node, id and position included.
+ * @param featureTypes - The mission's asset types, for asset outputs.
+ * @returns The new graph, or `null`.
+ */
+export function addNodeAfter(
+	graph: MissionGraph,
+	afterId: string,
+	node: MissionGraphNode,
+	featureTypes?: Readonly<Record<string, string>>,
+): MissionGraph | null {
+	const after = graph.nodes.find((n) => n.id === afterId);
+	if (!after) return null;
+	const { id, position, ...fields } = node;
+	for (const port of nodePorts(after, featureTypes).outputs) {
+		for (const choice of dropChoices("source", port.type)) {
+			if (choice.node.kind !== node.kind) continue;
+			if (
+				node.kind === "action" &&
+				choice.node.action !== undefined &&
+				choice.node.action !== node.action
+			) {
+				continue;
+			}
+			const wired = applyDrop(
+				graph,
+				{ node: afterId, port: port.id, side: "source" },
+				{ ...choice, node: fields },
+				id,
+				position,
+				featureTypes,
+			);
+			if (wired) return wired;
+		}
+	}
+	return null;
+}
+
+// ============================================================================
 // Layout: one lane per agent
 // ============================================================================
 
