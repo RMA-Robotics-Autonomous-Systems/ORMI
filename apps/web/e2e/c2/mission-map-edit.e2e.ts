@@ -22,6 +22,9 @@ import { FakeC2, type FakeFeature, type Position } from "./fake-c2";
  * getters that a spread drops. Here the real terra-draw runs on the real
  * MapLibre map, at a field site's scale, and the only thing faked is the C2
  * behind it.
+ *
+ * Editing is select-first: there is no tool to arm. A click on a feature
+ * opens it with its handles, and its card holds Save, Cancel and Delete.
  */
 
 const MAP_NAME = "e2e-site";
@@ -41,6 +44,8 @@ function offset(dxMetres: number, dyMetres: number): Position {
 		round(SITE[1] + dyMetres / mPerDegLat),
 	];
 }
+
+const YARD_ID = "e2e-risk-0002";
 
 /** A five-corner site boundary about 270 m by 190 m. */
 const CORNERS: Position[] = [
@@ -63,6 +68,26 @@ function siteBoundary(): FakeFeature {
 			type: "Polygon",
 			coordinates: [[...CORNERS, CORNERS[0]!]],
 		},
+	};
+}
+
+/** A 50 m square risk area inside the site, east of its centre. */
+const YARD_CENTRE: Position = offset(75, 0);
+function gravelYard(): FakeFeature {
+	const ring: Position[] = [
+		offset(50, -25),
+		offset(100, -25),
+		offset(100, 25),
+		offset(50, 25),
+	];
+	return {
+		type: "Feature",
+		properties: {
+			feature_id: YARD_ID,
+			name: "Gravel yard",
+			feature_type: "risk",
+		},
+		geometry: { type: "Polygon", coordinates: [[...ring, ring[0]!]] },
 	};
 }
 
@@ -102,10 +127,16 @@ interface Harness {
 /**
  * Seed the fake, open the page on the site map, and put the camera on the
  * site, after the map's own framing has run.
+ *
+ * @param features - What the map holds; the site boundary alone by default.
  */
-async function openSite(page: Page, baseURL: string): Promise<Harness> {
+async function openSite(
+	page: Page,
+	baseURL: string,
+	features: FakeFeature[] = [siteBoundary()],
+): Promise<Harness> {
 	const fake = new FakeC2();
-	fake.seedMap(MAP_NAME, [siteBoundary()]);
+	fake.seedMap(MAP_NAME, features);
 	const refused = await blockExternalRequests(page, baseURL);
 	await fake.install(page);
 	await openMissionControl(page, MAP_NAME);
@@ -131,8 +162,8 @@ async function openSite(page: Page, baseURL: string): Promise<Harness> {
 }
 
 /**
- * Switch to the map editor, arm the Edit tool (a save hands the map back to
- * Pick) and open the boundary by clicking inside it.
+ * Switch to the map editor and open the boundary by clicking inside it. No
+ * tool is armed first: a click selects and opens.
  *
  * @param corners - The corners the boundary has now, each of which must
  *   show a handle once it is open.
@@ -142,13 +173,45 @@ async function openBoundaryForEdit(
 	corners: Position[] = CORNERS,
 ): Promise<void> {
 	await page.getByRole("radio", { name: "Map editor", exact: true }).click();
-	await page.getByRole("radio", { name: "Edit", exact: true }).click();
 	const [centre] = await toScreen(page, [SITE]);
 	await page.mouse.click(centre!.x, centre!.y);
 	await expect(editCard(page)).toBeVisible();
+	await expect(page.getByText("Editing Site boundary")).toBeVisible();
 	await waitForIdleMap(page);
 	// Every corner has a handle: the shape is selected in terra-draw.
 	await expectHandles(page, corners);
+}
+
+/** Drag corner 2 of the open boundary outward; returns where it landed. */
+async function reshapeCorner2(page: Page): Promise<Position> {
+	const [from] = await toScreen(page, [CORNERS[2]!]);
+	const to = { x: from!.x + 70, y: from!.y - 50 };
+	await drag(page, from!, to);
+	await waitForIdleMap(page);
+	return toLngLat(page, to);
+}
+
+/**
+ * Answer the open question and wait until it is gone: the dialog keeps the
+ * page from taking pointer events until its exit animation ends.
+ */
+async function answerDialog(page: Page, button: string): Promise<void> {
+	const dialog = page.getByRole("alertdialog");
+	await dialog.getByRole("button", { name: button, exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect
+		.poll(() => page.evaluate(() => document.body.style.pointerEvents))
+		.not.toBe("none");
+}
+
+/** No write of any kind reached the fake. */
+function expectNoWrites(fake: FakeC2): void {
+	for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+		expect(
+			fake.requestsTo(method, "/").map((r) => r.path),
+			`${method} requests`,
+		).toEqual([]);
+	}
 }
 
 /** terra-draw draws a vertex handle at each of these positions. */
@@ -360,6 +423,240 @@ test.describe("C2 mission map: editing a stored feature", () => {
 		expect(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)).toEqual(
 			[],
 		);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a click selects and shows handles with no tool armed", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		// No tool to arm: Pick, Edit and Delete are gone, Draw stays.
+		for (const name of ["Pick", "Edit", "Delete"]) {
+			await expect(
+				page.getByRole("radio", { name, exact: true }),
+			).toHaveCount(0);
+		}
+		await expect(
+			page.getByRole("button", { name: "Draw", exact: true }),
+		).toBeVisible();
+
+		await openBoundaryForEdit(page);
+
+		// Nothing changed yet: Save waits for a change; Cancel and Delete
+		// are there.
+		const card = editCard(page);
+		await expect(
+			card.getByRole("button", { name: "Save", exact: true }),
+		).toBeDisabled();
+		await expect(
+			card.getByRole("button", { name: "Cancel", exact: true }),
+		).toBeEnabled();
+		await expect(
+			card.getByRole("button", { name: "Delete feature", exact: true }),
+		).toBeEnabled();
+
+		// A change enables Save.
+		await reshapeCorner2(page);
+		await expect(
+			card.getByRole("button", { name: "Save", exact: true }),
+		).toBeEnabled();
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("Enter saves the open edit as an update of the same feature_id", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await openBoundaryForEdit(page);
+		const dropped = await reshapeCorner2(page);
+
+		// The question a click off the shape asks hands the keyboard back to
+		// the map: Enter after Keep editing still saves.
+		const [outside] = await toScreen(page, [offset(-160, -40)]);
+		await page.mouse.click(outside!.x, outside!.y);
+		await expect(page.getByRole("alertdialog")).toContainText(
+			"Discard changes to Site boundary?",
+		);
+		await answerDialog(page, "Keep editing");
+
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(1);
+		await expect(editCard(page)).toBeHidden();
+		await expect(page.getByText("Editing Site boundary")).toBeHidden();
+
+		const put = last(fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`));
+		expect(put.path).toBe(
+			`/maps/${MAP_NAME}/features/${encodeURIComponent(FEATURE_ID)}`,
+		);
+		expect((put.body as FakeFeature).properties.feature_id).toBe(
+			FEATURE_ID,
+		);
+		expect(near(outerRing(put.body)[2]!, dropped, 1e-5)).toBe(true);
+		expect(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)).toEqual(
+			[],
+		);
+		expectNoStrayRequests(harness);
+	});
+
+	test("Escape cancels the open edit and sends nothing", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await openBoundaryForEdit(page);
+		await reshapeCorner2(page);
+
+		await page.keyboard.press("Escape");
+		await expect(editCard(page)).toBeHidden();
+		await expect(page.getByText("Editing Site boundary")).toBeHidden();
+		// The handles are gone with the edit.
+		const [corner] = await toScreen(page, [CORNERS[0]!]);
+		await expect
+			.poll(async () =>
+				(await renderedAt(page, corner!, "td-")).some(
+					(hit) => hit.properties.selectionPoint === true,
+				),
+			)
+			.toBe(false);
+
+		expectNoWrites(fake);
+		expect(outerRing(fake.feature(MAP_NAME, FEATURE_ID))).toEqual([
+			...CORNERS,
+			CORNERS[0]!,
+		]);
+		// The map draws the stored shape again: a click there reopens it.
+		await openBoundaryForEdit(page);
+		expectNoStrayRequests(harness);
+	});
+
+	test("Delete with no vertex selected asks, and deletes the feature on confirm", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await openBoundaryForEdit(page);
+
+		await page.keyboard.press("Delete");
+		const dialog = page.getByRole("alertdialog");
+		await expect(dialog).toBeVisible();
+		await expect(dialog).toContainText("Site boundary");
+		// Nothing is deleted before the operator confirms.
+		expectNoWrites(fake);
+
+		await dialog
+			.getByRole("button", { name: "Delete", exact: true })
+			.click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("DELETE", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(1);
+		expect(
+			last(fake.requestsTo("DELETE", `/maps/${MAP_NAME}/features/`)).path,
+		).toBe(`/maps/${MAP_NAME}/features/${encodeURIComponent(FEATURE_ID)}`);
+		await expect(editCard(page)).toBeHidden();
+		expect(fake.feature(MAP_NAME, FEATURE_ID)).toBeUndefined();
+		// The edit ended with the feature: nothing writes it back.
+		expect(fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)).toEqual(
+			[],
+		);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a click on another feature asks before dropping changes, and switches at once without them", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		const { fake } = harness;
+		const [yard] = await toScreen(page, [YARD_CENTRE]);
+		const dialog = page.getByRole("alertdialog");
+
+		await test.step("with changes, Keep editing keeps the edit", async () => {
+			await openBoundaryForEdit(page);
+			await reshapeCorner2(page);
+			await page.mouse.click(yard!.x, yard!.y);
+			await expect(dialog).toContainText(
+				"Discard changes to Site boundary?",
+			);
+			await answerDialog(page, "Keep editing");
+			await expect(page.getByText("Editing Site boundary")).toBeVisible();
+			await expect(
+				editCard(page).getByRole("button", {
+					name: "Save",
+					exact: true,
+				}),
+			).toBeEnabled();
+			await expectHandles(page, [CORNERS[0]!, CORNERS[1]!]);
+		});
+
+		await test.step("with changes, Discard opens the other feature", async () => {
+			await page.mouse.click(yard!.x, yard!.y);
+			await expect(dialog).toBeVisible();
+			await answerDialog(page, "Discard");
+			await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		});
+
+		await test.step("without changes, a click switches at once", async () => {
+			const [centre] = await toScreen(page, [SITE]);
+			await page.mouse.click(centre!.x, centre!.y);
+			await expect(page.getByText("Editing Site boundary")).toBeVisible();
+			await expect(dialog).toHaveCount(0);
+			await page.mouse.click(yard!.x, yard!.y);
+			await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+			await expect(dialog).toHaveCount(0);
+		});
+
+		expectNoWrites(fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a click on empty map ends the selection, asking first when there are changes", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		// Two empty spots west of the boundary, on the map and clear of its
+		// handles: two clicks on one spot are a double click, which zooms.
+		const [outside, elsewhere] = await toScreen(page, [
+			offset(-160, -40),
+			offset(-160, -10),
+		]);
+		const dialog = page.getByRole("alertdialog");
+
+		await openBoundaryForEdit(page);
+		await page.mouse.click(outside!.x, outside!.y);
+		await expect(editCard(page)).toBeHidden();
+		await expect(dialog).toHaveCount(0);
+
+		await openBoundaryForEdit(page);
+		await reshapeCorner2(page);
+		await page.mouse.click(outside!.x, outside!.y);
+		await expect(dialog).toContainText("Discard changes to Site boundary?");
+		await answerDialog(page, "Keep editing");
+		await expect(editCard(page)).toBeVisible();
+		await page.mouse.click(elsewhere!.x, elsewhere!.y);
+		await answerDialog(page, "Discard");
+		await expect(editCard(page)).toBeHidden();
+
+		expectNoWrites(harness.fake);
 		expectNoStrayRequests(harness);
 	});
 });
