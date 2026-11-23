@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+	type ArrangementOptions,
 	blockExternalRequests,
 	drag,
 	hasLayer,
@@ -129,17 +130,19 @@ interface Harness {
  * site, after the map's own framing has run.
  *
  * @param features - What the map holds; the site boundary alone by default.
+ * @param options - What to place beside the map (the Assets panel).
  */
 async function openSite(
 	page: Page,
 	baseURL: string,
 	features: FakeFeature[] = [siteBoundary()],
+	options: ArrangementOptions = {},
 ): Promise<Harness> {
 	const fake = new FakeC2();
 	fake.seedMap(MAP_NAME, features);
 	const refused = await blockExternalRequests(page, baseURL);
 	await fake.install(page);
-	await openMissionControl(page, MAP_NAME);
+	await openMissionControl(page, MAP_NAME, options);
 
 	// The map frames the selected map's bounds once the registry and its
 	// features arrive; wait for both, then take the camera.
@@ -1591,6 +1594,663 @@ test.describe("C2 mission map: snapping", () => {
 		expect(ring, "three corners, closed").toHaveLength(4);
 		expect(ring[0]).toEqual(YARD_SW);
 		expect(ring[3]).toEqual(YARD_SW);
+		expectNoStrayRequests(harness);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Several features selected
+// ---------------------------------------------------------------------------
+
+const HEAP_ID = "e2e-risk-0003";
+const POND_ID = "e2e-zone-0004";
+const ROAD_ID = "e2e-road-0005";
+
+/** A closed square ring of `size` metres with its south-west corner at (x, y). */
+function square(x: number, y: number, size: number): Position[] {
+	const ring = [
+		offset(x, y),
+		offset(x + size, y),
+		offset(x + size, y + size),
+		offset(x, y + size),
+	];
+	return [...ring, ring[0]!];
+}
+
+/** A 40 m square risk area west of the site's centre. */
+const HEAP_CENTRE: Position = offset(-50, -30);
+function spoilHeap(): FakeFeature {
+	return {
+		type: "Feature",
+		properties: {
+			feature_id: HEAP_ID,
+			name: "Spoil heap",
+			feature_type: "risk",
+		},
+		geometry: { type: "Polygon", coordinates: [square(-70, -50, 40)] },
+	};
+}
+
+/** A 40 m square zone north-west of the site's centre. */
+const POND_CENTRE: Position = offset(-40, 40);
+function pond(): FakeFeature {
+	return {
+		type: "Feature",
+		properties: {
+			feature_id: POND_ID,
+			name: "Pond",
+			feature_type: "zone",
+			survey: "2026-10",
+		},
+		geometry: { type: "Polygon", coordinates: [square(-60, 20, 40)] },
+	};
+}
+
+/** A road across the south of the site. */
+function haulRoad(): FakeFeature {
+	return {
+		type: "Feature",
+		properties: {
+			feature_id: ROAD_ID,
+			name: "Haul road",
+			feature_type: "road",
+		},
+		geometry: {
+			type: "LineString",
+			coordinates: [offset(-20, -70), offset(40, -70)],
+		},
+	};
+}
+
+/** Every feature of the multi-select site. */
+function groupSite(): FakeFeature[] {
+	return [siteBoundary(), gravelYard(), spoilHeap(), pond(), haulRoad()];
+}
+
+/** Open the multi-select site with the Assets panel, in the map editor. */
+async function openGroupSite(page: Page, baseURL: string): Promise<Harness> {
+	const harness = await openSite(page, baseURL, groupSite(), {
+		assets: true,
+	});
+	await page.getByRole("radio", { name: "Map editor", exact: true }).click();
+	await expect(rowCheckbox(page, "Gravel yard")).toBeVisible();
+	return harness;
+}
+
+/** A feature's checkbox in the Assets panel's list. */
+function rowCheckbox(page: Page, name: string) {
+	return page.getByRole("checkbox", { name: `Select ${name}`, exact: true });
+}
+
+/** The group card, by its count. */
+function groupCard(page: Page, count: number) {
+	return page.getByRole("group", {
+		name: `${count} feature${count === 1 ? "" : "s"}`,
+		exact: true,
+	});
+}
+
+/** The toolbar's state label while a group is selected. */
+function groupStatus(page: Page) {
+	return page
+		.getByRole("status")
+		.filter({ hasText: /^(\d+ selected|Moving \d+ features?)$/ });
+}
+
+/** Check rows in the panel, in order. */
+async function checkRows(page: Page, names: string[]): Promise<void> {
+	for (const name of names) {
+		await rowCheckbox(page, name).click();
+		await expect(rowCheckbox(page, name)).toBeChecked();
+	}
+}
+
+/** Gravel yard, Spoil heap and Pond, checked in the panel. */
+const THREE = ["Gravel yard", "Spoil heap", "Pond"];
+const THREE_IDS = [YARD_ID, HEAP_ID, POND_ID];
+
+/** Every position of a stored geometry, flattened. */
+function positionsOf(geometry: { coordinates: unknown }): Position[] {
+	const out: Position[] = [];
+	const walk = (value: unknown) => {
+		if (
+			Array.isArray(value) &&
+			typeof value[0] === "number" &&
+			typeof value[1] === "number"
+		) {
+			out.push([value[0], value[1]]);
+			return;
+		}
+		if (Array.isArray(value)) value.forEach(walk);
+	};
+	walk(geometry.coordinates);
+	return out;
+}
+
+/** The PUT the page sent for one feature. */
+function putOf(fake: FakeC2, featureId: string) {
+	return fake.requestsTo(
+		"PUT",
+		`/maps/${MAP_NAME}/features/${encodeURIComponent(featureId)}`,
+	);
+}
+
+/** Arm Move and drag the group from one place on the map to another. */
+async function moveGroup(
+	page: Page,
+	card: ReturnType<typeof groupCard>,
+	from: Position,
+	by: { dx: number; dy: number },
+): Promise<{ start: Position; end: Position }> {
+	const move = card.getByRole("button", { name: "Move", exact: true });
+	// Move stays armed after a drag, until Cancel or Save.
+	if ((await move.getAttribute("aria-pressed")) !== "true")
+		await move.click();
+	await expect(move).toHaveAttribute("aria-pressed", "true");
+	await expect(groupStatus(page)).toHaveText(/^Moving \d+ features?$/);
+	const [at] = await toScreen(page, [from]);
+	const to = { x: at!.x + by.dx, y: at!.y + by.dy };
+	const start = await toLngLat(page, at!);
+	const end = await toLngLat(page, to);
+	await drag(page, at!, to);
+	await waitForIdleMap(page);
+	return { start, end };
+}
+
+/** Whether a stored feature's id is drawn at a page coordinate. */
+async function drawnAt(
+	page: Page,
+	position: Position,
+	featureId: string,
+): Promise<boolean> {
+	const [point] = await toScreen(page, [position]);
+	return (await renderedAt(page, point!, "c2-features-")).some(
+		(hit) => hit.properties.feature_id === featureId,
+	);
+}
+
+test.describe("C2 mission map: several features selected", () => {
+	test("checking three rows shows the group card with 3 features, outlined on the map", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+
+		// One checked feature opens as a click opens it.
+		await checkRows(page, ["Gravel yard"]);
+		await expect(editCard(page)).toBeVisible();
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+
+		await checkRows(page, ["Spoil heap", "Pond"]);
+		const card = groupCard(page, 3);
+		await expect(card).toBeVisible();
+		await expect(editCard(page)).toBeHidden();
+		await expect(groupStatus(page)).toHaveText("3 selected");
+		await expect(rowCheckbox(page, "Haul road")).not.toBeChecked();
+
+		// Each one is outlined in the group colour.
+		for (const id of THREE_IDS) {
+			await expect
+				.poll(async () =>
+					page.evaluate((featureId) => {
+						const map = (
+							window as unknown as {
+								__e2eMap: {
+									querySourceFeatures(source: string): {
+										properties: Record<string, unknown>;
+									}[];
+								};
+							}
+						).__e2eMap;
+						return map
+							.querySourceFeatures("c2-group-selection")
+							.some((f) => f.properties.feature_id === featureId);
+					}, id),
+				)
+				.toBe(true);
+		}
+		const [yardEdge] = await toScreen(page, [offset(75, -25)]);
+		await expect
+			.poll(
+				async () =>
+					(
+						await renderedAt(
+							page,
+							yardEdge!,
+							"c2-group-selection-line",
+						)
+					).length,
+			)
+			.toBeGreaterThan(0);
+
+		// Unchecking down to one opens that one.
+		await rowCheckbox(page, "Spoil heap").click();
+		await rowCheckbox(page, "Pond").click();
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		await expect(groupCard(page, 1)).toHaveCount(0);
+
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("bulk Delete asks, naming the features, and sends exactly 3 DELETEs", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const { fake } = harness;
+		await checkRows(page, THREE);
+		const card = groupCard(page, 3);
+		await card
+			.getByRole("button", { name: "Delete selected features" })
+			.click();
+
+		const dialog = page.getByRole("alertdialog");
+		await expect(dialog).toContainText("Delete 3 features?");
+		await expect(dialog).toContainText(
+			"Permanently delete Gravel yard, Spoil heap and Pond from this map.",
+		);
+		expectNoWrites(fake);
+
+		await dialog
+			.getByRole("button", { name: "Delete", exact: true })
+			.click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("DELETE", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(3);
+		expect(
+			fake
+				.requestsTo("DELETE", `/maps/${MAP_NAME}/features/`)
+				.map((r) => r.path)
+				.sort(),
+		).toEqual(
+			THREE_IDS.map(
+				(id) => `/maps/${MAP_NAME}/features/${encodeURIComponent(id)}`,
+			).sort(),
+		);
+		for (const id of THREE_IDS) {
+			expect(fake.feature(MAP_NAME, id)).toBeUndefined();
+		}
+		expect(fake.feature(MAP_NAME, FEATURE_ID)).toBeDefined();
+		expect(fake.feature(MAP_NAME, ROAD_ID)).toBeDefined();
+		await expect(card).toBeHidden();
+		await expect(rowCheckbox(page, "Gravel yard")).toHaveCount(0);
+		expect(fake.requestsTo("PUT", "/")).toEqual([]);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a group move PUTs each feature translated by the same offset, otherwise unchanged", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const { fake } = harness;
+		await checkRows(page, THREE);
+		const card = groupCard(page, 3);
+		const before = THREE_IDS.map((id) =>
+			structuredClone(fake.feature(MAP_NAME, id)!),
+		);
+
+		const { start, end } = await moveGroup(page, card, SITE, {
+			dx: 80,
+			dy: 50,
+		});
+		// The move shows before it is saved: the yard is drawn where it went.
+		const moved: Position = [
+			YARD_CENTRE[0] + (end[0] - start[0]),
+			YARD_CENTRE[1] + (end[1] - start[1]),
+		];
+		await expect.poll(() => drawnAt(page, moved, YARD_ID)).toBe(true);
+		expectNoWrites(fake);
+
+		await card.getByRole("button", { name: "Save", exact: true }).click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(3);
+
+		const dLng = end[0] - start[0];
+		const dLat = end[1] - start[1];
+		// About 21 m east and 13 m south at site zoom.
+		expect(Math.abs(dLng)).toBeGreaterThan(1e-4);
+		expect(Math.abs(dLat)).toBeGreaterThan(5e-5);
+		for (const [i, id] of THREE_IDS.entries()) {
+			const puts = putOf(fake, id);
+			expect(puts, `one PUT for ${id}`).toHaveLength(1);
+			const body = puts[0]!.body as FakeFeature;
+			const original = before[i]!;
+			expect(body.properties).toEqual(original.properties);
+			expect(body.geometry.type).toBe(original.geometry.type);
+			const was = positionsOf(original.geometry);
+			const now = positionsOf(body.geometry);
+			expect(now).toHaveLength(was.length);
+			for (const [j, p] of now.entries()) {
+				// The same offset for every vertex of every feature: the
+				// shapes are only translated.
+				expect(p[0] - was[j]![0]).toBeCloseTo(dLng, 6);
+				expect(p[1] - was[j]![1]).toBeCloseTo(dLat, 6);
+			}
+		}
+		expect(
+			fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`),
+		).toHaveLength(3);
+		expect(fake.requestsTo("POST", "/")).toEqual([]);
+		expect(fake.requestsTo("DELETE", "/")).toEqual([]);
+		// Saved: the move is done and the group stays selected.
+		await expect(card).toBeVisible();
+		await expect(
+			card.getByRole("button", { name: "Save", exact: true }),
+		).toBeDisabled();
+		await expect(groupStatus(page)).toHaveText("3 selected");
+		expectNoStrayRequests(harness);
+	});
+
+	test("Cancel, or Escape, puts the moved group back with no request", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		await checkRows(page, THREE);
+		const card = groupCard(page, 3);
+
+		await test.step("Cancel", async () => {
+			const { start, end } = await moveGroup(page, card, SITE, {
+				dx: 80,
+				dy: 50,
+			});
+			const moved: Position = [
+				YARD_CENTRE[0] + (end[0] - start[0]),
+				YARD_CENTRE[1] + (end[1] - start[1]),
+			];
+			await expect.poll(() => drawnAt(page, moved, YARD_ID)).toBe(true);
+			await card
+				.getByRole("button", { name: "Cancel", exact: true })
+				.click();
+			await expect
+				.poll(() => drawnAt(page, YARD_CENTRE, YARD_ID))
+				.toBe(true);
+			await expect(
+				card.getByRole("button", { name: "Move", exact: true }),
+			).toHaveAttribute("aria-pressed", "false");
+			await expect(groupStatus(page)).toHaveText("3 selected");
+		});
+
+		await test.step("Undo takes a drag back", async () => {
+			await moveGroup(page, card, SITE, { dx: -60, dy: 0 });
+			await card
+				.getByRole("button", { name: "Undo", exact: true })
+				.click();
+			await expect
+				.poll(() => drawnAt(page, YARD_CENTRE, YARD_ID))
+				.toBe(true);
+			await expect(
+				card.getByRole("button", { name: "Save", exact: true }),
+			).toBeDisabled();
+		});
+
+		await test.step("Escape", async () => {
+			const { start, end } = await moveGroup(page, card, SITE, {
+				dx: 0,
+				dy: 70,
+			});
+			const moved: Position = [
+				HEAP_CENTRE[0] + (end[0] - start[0]),
+				HEAP_CENTRE[1] + (end[1] - start[1]),
+			];
+			await expect.poll(() => drawnAt(page, moved, HEAP_ID)).toBe(true);
+			await page.keyboard.press("Escape");
+			await expect
+				.poll(() => drawnAt(page, HEAP_CENTRE, HEAP_ID))
+				.toBe(true);
+			// The selection stays; a second Escape clears it.
+			await expect(card).toBeVisible();
+			await page.keyboard.press("Escape");
+			await expect(card).toBeHidden();
+			await expect(rowCheckbox(page, "Pond")).not.toBeChecked();
+		});
+
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a type and category change PUTs each feature", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const { fake } = harness;
+		await checkRows(page, THREE);
+		const card = groupCard(page, 3);
+		const before = THREE_IDS.map((id) =>
+			structuredClone(fake.feature(MAP_NAME, id)!),
+		);
+
+		await card
+			.getByRole("combobox", { name: "Type of the selected features" })
+			.click();
+		// A road is a line: no area can become one.
+		await expect(
+			page.getByRole("option", { name: /^Road \(line\)/ }),
+		).toHaveAttribute("aria-disabled", "true");
+		await page
+			.getByRole("option", { name: "Zone (area)", exact: true })
+			.click();
+
+		await card
+			.getByRole("combobox", {
+				name: "Category of the selected features",
+			})
+			.click();
+		await page
+			.getByRole("option", { name: "staging", exact: true })
+			.click();
+
+		await card.getByRole("button", { name: "Save", exact: true }).click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(3);
+		for (const [i, id] of THREE_IDS.entries()) {
+			const puts = putOf(fake, id);
+			expect(puts, `one PUT for ${id}`).toHaveLength(1);
+			const body = puts[0]!.body as FakeFeature;
+			expect(body.properties).toEqual({
+				...before[i]!.properties,
+				feature_type: "zone",
+				category: "staging",
+			});
+			expect(body.geometry).toEqual(before[i]!.geometry);
+		}
+		expectNoStrayRequests(harness);
+	});
+
+	test("Shift-click on the map adds a feature to the selection and takes it out", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const [yard, heap] = await toScreen(page, [YARD_CENTRE, HEAP_CENTRE]);
+		const shiftClick = async (point: { x: number; y: number }) => {
+			await page.keyboard.down("Shift");
+			await page.mouse.click(point.x, point.y);
+			await page.keyboard.up("Shift");
+		};
+
+		await shiftClick(yard!);
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		await expect(rowCheckbox(page, "Gravel yard")).toBeChecked();
+
+		await shiftClick(heap!);
+		await expect(groupCard(page, 2)).toBeVisible();
+		await expect(rowCheckbox(page, "Spoil heap")).toBeChecked();
+		await expect(groupStatus(page)).toHaveText("2 selected");
+
+		await shiftClick(yard!);
+		await expect(groupCard(page, 2)).toHaveCount(0);
+		await expect(page.getByText("Editing Spoil heap")).toBeVisible();
+		await expect(rowCheckbox(page, "Gravel yard")).not.toBeChecked();
+
+		// A plain click goes back to selecting one feature.
+		await shiftClick(yard!);
+		await expect(groupCard(page, 2)).toBeVisible();
+		const [pondAt] = await toScreen(page, [POND_CENTRE]);
+		await page.mouse.click(pondAt!.x, pondAt!.y);
+		await expect(groupCard(page, 2)).toHaveCount(0);
+		await expect(page.getByText("Editing Pond")).toBeVisible();
+		await expect(rowCheckbox(page, "Spoil heap")).not.toBeChecked();
+
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a feature on a locked layer stays selected and is left out of the delete", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const { fake } = harness;
+		await page
+			.getByRole("button", { name: "Lock Roads", exact: true })
+			.click();
+		await checkRows(page, ["Gravel yard", "Spoil heap", "Haul road"]);
+		const card = groupCard(page, 3);
+		await expect(card).toContainText("1 locked: excluded");
+
+		await card
+			.getByRole("button", { name: "Delete selected features" })
+			.click();
+		const dialog = page.getByRole("alertdialog");
+		await expect(dialog).toContainText("Delete 2 features?");
+		await expect(dialog).toContainText(
+			"Permanently delete Gravel yard and Spoil heap from this map. 1 feature on a locked layer is kept.",
+		);
+		await dialog
+			.getByRole("button", { name: "Delete", exact: true })
+			.click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("DELETE", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(2);
+		expect(
+			fake.requestsTo(
+				"DELETE",
+				`/maps/${MAP_NAME}/features/${encodeURIComponent(ROAD_ID)}`,
+			),
+		).toEqual([]);
+		expect(fake.feature(MAP_NAME, ROAD_ID)).toBeDefined();
+		// The road is still selected, alone, and still locked out.
+		await expect(groupCard(page, 1)).toBeVisible();
+		await expect(groupCard(page, 1)).toContainText("1 locked: excluded");
+		await expect(rowCheckbox(page, "Haul road")).toBeChecked();
+		await expect(
+			groupCard(page, 1).getByRole("button", {
+				name: "Delete selected features",
+			}),
+		).toBeDisabled();
+		expectNoStrayRequests(harness);
+	});
+
+	test("a PUT the C2 refuses is named, stays selected, and the others are saved", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		const { fake } = harness;
+		await checkRows(page, THREE);
+		const card = groupCard(page, 3);
+		const heapBefore = structuredClone(fake.feature(MAP_NAME, HEAP_ID)!);
+		const yardBefore = structuredClone(fake.feature(MAP_NAME, YARD_ID)!);
+
+		await moveGroup(page, card, SITE, { dx: 60, dy: 30 });
+		fake.failNext(
+			"PUT",
+			`/maps/${MAP_NAME}/features/${encodeURIComponent(HEAP_ID)}`,
+			{ message: "Disk full" },
+		);
+		await card.getByRole("button", { name: "Save", exact: true }).click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(3);
+
+		await expect(
+			page.getByText(
+				/^Not saved: Spoil heap \(.*Disk full.*\)\. 2 features saved\. Still selected\.$/,
+			),
+		).toBeVisible();
+		// Only the refused one is still selected, with the move unsaved.
+		const left = groupCard(page, 1);
+		await expect(left).toBeVisible();
+		await expect(rowCheckbox(page, "Spoil heap")).toBeChecked();
+		await expect(rowCheckbox(page, "Gravel yard")).not.toBeChecked();
+		await expect(rowCheckbox(page, "Pond")).not.toBeChecked();
+		await expect(
+			left.getByRole("button", { name: "Save", exact: true }),
+		).toBeEnabled();
+
+		// The C2 holds the others moved and the refused one where it was.
+		expect(fake.feature(MAP_NAME, HEAP_ID)).toEqual(heapBefore);
+		expect(fake.feature(MAP_NAME, YARD_ID)).not.toEqual(yardBefore);
+		expect(putOf(fake, HEAP_ID)).toHaveLength(1);
+
+		// Nothing is retried by itself; a second Save sends the one left.
+		expect(
+			fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`),
+		).toHaveLength(3);
+		await left.getByRole("button", { name: "Save", exact: true }).click();
+		await expect.poll(() => putOf(fake, HEAP_ID).length).toBe(2);
+		expect(
+			fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`),
+		).toHaveLength(4);
+		expect(fake.feature(MAP_NAME, HEAP_ID)).not.toEqual(heapBefore);
+		expectNoStrayRequests(harness);
+	});
+
+	test("checking a second feature while one is open with changes asks first", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openGroupSite(page, baseURL!);
+		await checkRows(page, ["Gravel yard"]);
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		await waitForIdleMap(page);
+		const [corner] = await toScreen(page, [offset(100, 25)]);
+		await drag(page, corner!, { x: corner!.x + 40, y: corner!.y - 30 });
+		await waitForIdleMap(page);
+
+		const dialog = page.getByRole("alertdialog");
+		await rowCheckbox(page, "Spoil heap").click();
+		await expect(dialog).toContainText("Discard changes to Gravel yard?");
+		await answerDialog(page, "Keep editing");
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		await expect(rowCheckbox(page, "Spoil heap")).not.toBeChecked();
+		await expect(
+			editCard(page).getByRole("button", { name: "Save", exact: true }),
+		).toBeEnabled();
+
+		await rowCheckbox(page, "Spoil heap").click();
+		await answerDialog(page, "Discard");
+		await expect(groupCard(page, 2)).toBeVisible();
+		await expect(rowCheckbox(page, "Gravel yard")).toBeChecked();
+		await expect(rowCheckbox(page, "Spoil heap")).toBeChecked();
+
+		expectNoWrites(harness.fake);
 		expectNoStrayRequests(harness);
 	});
 });

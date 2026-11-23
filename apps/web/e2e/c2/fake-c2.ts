@@ -51,6 +51,14 @@ export interface RecordedRequest {
 	headers: Record<string, string>;
 }
 
+/** A request the fake answers with an error instead of serving it. */
+interface InjectedFailure {
+	method: string;
+	path: string | RegExp;
+	status: number;
+	message: string;
+}
+
 /** What the fake holds for one map. */
 interface FakeMap {
 	name: string;
@@ -97,6 +105,7 @@ export class FakeC2 {
 	/** Requests to paths this fake does not implement. Must stay empty. */
 	readonly unhandled: RecordedRequest[] = [];
 	private readonly maps = new Map<string, FakeMap>();
+	private readonly failures: InjectedFailure[] = [];
 
 	/**
 	 * Add a map and its features.
@@ -136,6 +145,28 @@ export class FakeC2 {
 					? r.path.startsWith(path)
 					: path.test(r.path)),
 		);
+	}
+
+	/**
+	 * Make the next request that matches fail once: it is recorded, answered
+	 * with an error, and changes nothing in the store. Later matching
+	 * requests are served normally.
+	 *
+	 * @param method - HTTP method.
+	 * @param path - A path prefix or a regular expression.
+	 * @param options - The status (500) and the error message to answer with.
+	 */
+	failNext(
+		method: string,
+		path: string | RegExp,
+		options: { status?: number; message?: string } = {},
+	): void {
+		this.failures.push({
+			method,
+			path,
+			status: options.status ?? 500,
+			message: options.message ?? "Injected failure",
+		});
 	}
 
 	/**
@@ -180,6 +211,28 @@ export class FakeC2 {
 			headers: request.headers(),
 		};
 		this.requests.push(recorded);
+
+		const failure = this.failures.findIndex(
+			(f) =>
+				f.method === method &&
+				(typeof f.path === "string"
+					? path.startsWith(f.path)
+					: f.path.test(path)),
+		);
+		if (failure !== -1) {
+			const [injected] = this.failures.splice(failure, 1);
+			await route.fulfill({
+				status: injected!.status,
+				headers: {
+					...CORS_HEADERS,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					error: { code: "E2E_INJECTED", message: injected!.message },
+				}),
+			});
+			return;
+		}
 
 		const answer =
 			service === "db"

@@ -48,14 +48,25 @@ const BLANK_PNG = Buffer.from(
 	"base64",
 );
 
+/** What a test places beside the map. */
+export interface ArrangementOptions {
+	/** The Assets panel (with the map's feature list) left of the map. */
+	assets?: boolean;
+}
+
 /**
  * The stored arrangement: the C2 datasource pointing at the fake, and the
- * mission map alone in one FlexLayout tabset, opened on `mapName`.
+ * mission map in one FlexLayout tabset, opened on `mapName`; alone, or with
+ * the Assets panel beside it.
  *
  * @param mapName - The map the widget opens on (`defaultMap`).
+ * @param options - What else to place.
  * @returns The value to store under {@link C2_STORAGE_KEY}.
  */
-export function seededArrangement(mapName: string): string {
+export function seededArrangement(
+	mapName: string,
+	options: ArrangementOptions = {},
+): string {
 	const widget = {
 		widget_id: "c2-mission-map-widget",
 		box_id: "c2-map",
@@ -79,6 +90,17 @@ export function seededArrangement(mapName: string): string {
 			missionControlToken: FAKE_C2_TOKEN,
 		},
 	};
+	const assets = {
+		widget_id: "c2-mission-assets-widget",
+		box_id: "c2-assets",
+		title: "Assets",
+		settings: { title: "Assets" },
+	};
+	const tabset = (box: string, name: string, weight: number) => ({
+		type: "tabset",
+		weight,
+		children: [{ type: "tab", id: box, name, component: box, config: {} }],
+	});
 	const flex = {
 		global: {
 			tabEnableClose: false,
@@ -89,26 +111,19 @@ export function seededArrangement(mapName: string): string {
 		layout: {
 			type: "row",
 			weight: 100,
-			children: [
-				{
-					type: "tabset",
-					weight: 100,
-					children: [
-						{
-							type: "tab",
-							id: "c2-map",
-							name: "Mission Map",
-							component: "c2-map",
-							config: {},
-						},
-					],
-				},
-			],
+			children: options.assets
+				? [
+						tabset("c2-assets", "Assets", 22),
+						tabset("c2-map", "Mission Map", 78),
+					]
+				: [tabset("c2-map", "Mission Map", 100)],
 		},
 	};
+	const widgets: [string, unknown][] = [["c2-map", widget]];
+	if (options.assets) widgets.push(["c2-assets", assets]);
 	return JSON.stringify({
 		layouts: { flex },
-		widgets: [["c2-map", widget]],
+		widgets,
 		datasources: [[E2E_DATASOURCE_ID, datasource]],
 		locked: false,
 	});
@@ -155,12 +170,14 @@ export async function blockExternalRequests(
  *
  * @param page - The page under test.
  * @param mapName - The map the widget opens on.
+ * @param options - What else to place beside the map.
  */
 export async function openMissionControl(
 	page: Page,
 	mapName: string,
+	options: ArrangementOptions = {},
 ): Promise<void> {
-	const seed = seededArrangement(mapName);
+	const seed = seededArrangement(mapName, options);
 	// The "What's new" dialog opens by itself over any page while there are
 	// devlog entries this browser has not read, and a fresh context has read
 	// none. Mark the newest one read, the way closing the dialog does.

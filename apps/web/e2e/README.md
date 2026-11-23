@@ -42,6 +42,10 @@ Playwright is pinned to `1.65.0`, whose Chromium build (1254) is the one in
   `.invalid`, which never resolve. The datasource carries a fake token. A request
   to a C2 path the fake does not implement is answered 501 and fails the spec by
   name. No request ever reaches a real C2, or a robot linked to one.
+- **A refused request.** `fake.failNext(method, path, { status, message })`
+  answers the next matching request with an error (500 by default) and
+  leaves the store unchanged; the request is still recorded. Later matching
+  requests are served normally.
 - **The basemap.** A raster template on a `.invalid` host, answered with a blank
   tile. Any other request leaving the machine is aborted and fails the spec.
 
@@ -49,7 +53,8 @@ Playwright is pinned to `1.65.0`, whose Chromium build (1254) is the one in
 
 The C2 page keeps its arrangement and datasources in local storage. Each test
 runs in a fresh browser context and writes, before the page loads: the mission
-map alone in one panel, the fake C2 datasource, and the newest devlog id (so the
+map in one panel (with the Assets panel beside it when a spec passes
+`{ assets: true }`), the fake C2 datasource, and the newest devlog id (so the
 "What's new" dialog does not open over the page). `c2/c2-page.ts` mirrors the
 page's storage key; if the page bumps it, the specs fail on a missing map rather
 than passing on the default layout.
