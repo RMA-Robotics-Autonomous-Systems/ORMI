@@ -264,14 +264,19 @@ export type MapActivity =
 	/** A shape Draw just finished, not saved yet. */
 	| { kind: "new"; typeLabel: string }
 	/** Draw armed, authoring a shape of this type. */
-	| { kind: "drawing"; typeLabel: string };
+	| { kind: "drawing"; typeLabel: string }
+	/** Several features selected (`map-multi-select.ts`). */
+	| { kind: "group"; count: number }
+	/** Move armed on the selected group; `count` are the ones that move. */
+	| { kind: "moving"; count: number };
 
 /**
  * The toolbar's state indicator: one label for whatever the map is doing,
  * so the state never needs a second control to read.
  *
  * @param activity - What the map is doing.
- * @returns "" (idle), "Editing Gravel yard", "New zone" or "Drawing zone".
+ * @returns "" (idle), "Editing Gravel yard", "New zone", "Drawing zone",
+ *   "3 selected" or "Moving 3 features".
  */
 export function mapStateLabel(activity: MapActivity): string {
 	switch (activity.kind) {
@@ -283,5 +288,9 @@ export function mapStateLabel(activity: MapActivity): string {
 			return `New ${activity.typeLabel.toLowerCase()}`;
 		case "drawing":
 			return `Drawing ${activity.typeLabel.toLowerCase()}`;
+		case "group":
+			return `${activity.count} selected`;
+		case "moving":
+			return `Moving ${activity.count} feature${activity.count === 1 ? "" : "s"}`;
 	}
 }

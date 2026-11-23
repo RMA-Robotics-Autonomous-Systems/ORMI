@@ -5,10 +5,14 @@ import {
 	getMapLayers,
 	groupByLayer,
 	publishLayerFeatures,
+	publishLayerSelection,
+	requestFeatureSelection,
+	subscribeFeatureSelectionRequests,
 	subscribeMapFeatureFocus,
 	toggleLayerHidden,
 	toggleLayerLocked,
 	type MapFeatureFocusRequest,
+	type MapFeatureSelectionRequest,
 } from "./map-layers-store";
 
 const features = [
@@ -67,5 +71,35 @@ describe("map-layers-store", () => {
 		expect(getMapLayers().hidden.has("road")).toBe(false);
 		expect(getMapLayers().locked.has("road")).toBe(false);
 		expect(seen).toEqual([{ map: "Inta", featureId: "r1", seq: 1 }]);
+	});
+
+	it("holds the selection the map publishes, for that map only", () => {
+		publishLayerFeatures("Inta", features);
+		publishLayerSelection("Inta", ["r1", "d"], true);
+		expect([...getMapLayers().selected]).toEqual(["r1", "d"]);
+		expect(getMapLayers().selectable).toBe(true);
+		const before = getMapLayers();
+		publishLayerSelection("Inta", ["d", "r1"], true);
+		expect(getMapLayers()).toBe(before);
+		publishLayerSelection("Other", ["g"], true);
+		expect(getMapLayers().selected.has("g")).toBe(false);
+	});
+
+	it("drops the selection on another map", () => {
+		publishLayerFeatures("Inta", features);
+		publishLayerSelection("Inta", ["r1"], true);
+		publishLayerFeatures("Other", features);
+		expect(getMapLayers().selected.size).toBe(0);
+	});
+
+	it("passes a checkbox to the map as a request, without selecting anything itself", () => {
+		publishLayerFeatures("Inta", features);
+		const seen: MapFeatureSelectionRequest[] = [];
+		subscribeFeatureSelectionRequests((request) => seen.push(request));
+		requestFeatureSelection(["r1", "r2"], "add");
+		expect(seen).toEqual([
+			{ map: "Inta", featureIds: ["r1", "r2"], mode: "add" },
+		]);
+		expect(getMapLayers().selected.size).toBe(0);
 	});
 });

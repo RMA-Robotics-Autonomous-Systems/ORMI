@@ -328,3 +328,15 @@ describe("mapStateLabel", () => {
 		);
 	});
 });
+
+describe("mapStateLabel for a group", () => {
+	it("counts the selected features, and the ones moving", () => {
+		expect(mapStateLabel({ kind: "group", count: 3 })).toBe("3 selected");
+		expect(mapStateLabel({ kind: "moving", count: 3 })).toBe(
+			"Moving 3 features",
+		);
+		expect(mapStateLabel({ kind: "moving", count: 1 })).toBe(
+			"Moving 1 feature",
+		);
+	});
+});

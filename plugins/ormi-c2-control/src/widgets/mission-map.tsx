@@ -155,8 +155,11 @@ import { assetCenter } from "./mission-asset-tree";
 import { PICK_TOLERANCE_PX, choosePick, startsNewDrawing } from "./map-pick";
 import {
 	publishLayerFeatures,
+	publishLayerSelection,
+	subscribeFeatureSelectionRequests,
 	subscribeMapFeatureFocus,
 	useMapLayers,
+	type MapFeatureSelectionRequest,
 } from "../state/map-layers-store";
 import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
 import {
@@ -226,6 +229,41 @@ import {
 	type SnapTarget,
 } from "./map-snap";
 import { SnapIndicatorLayer } from "./map-snap-layer";
+import {
+	GroupCard,
+	GroupSelectionLayer,
+	groupCategoryOptions,
+} from "./map-group-card";
+import {
+	EMPTY_MOVE,
+	addOffsets,
+	isZeroOffset,
+	mercatorOffset,
+	recordMoveStep,
+	redoMove,
+	totalOffset,
+	translateGeometry,
+	undoMove,
+	type MercatorOffset,
+	type MoveHistory,
+} from "./map-group-move";
+import {
+	applyGroupDraft,
+	bulkDeleteQuestion,
+	bulkReport,
+	changeSelection,
+	closesOpenFeature,
+	commonValue,
+	featureCount,
+	groupActions,
+	groupRetypeTargets,
+	groupTakesCategory,
+	groupTargets,
+	sameSelection,
+	type BulkOutcome,
+	type GroupMember,
+	type MultiSelection,
+} from "./map-multi-select";
 import {
 	editCardSide,
 	handlePositions,
@@ -2682,6 +2720,34 @@ function MissionMapBody(props: {
 		null,
 	);
 	/**
+	 * The group selected in the map editor (`map-multi-select.ts`): two or
+	 * more features, or one that cannot be opened. Empty outside a group,
+	 * where a single selected feature is simply the one open (`pending`).
+	 */
+	const [groupIds, setGroupIds] = useState<readonly string[]>([]);
+	/**
+	 * What the group card holds until Save: a type and a category for all,
+	 * and the move as its drags (`map-group-move.ts`).
+	 */
+	const [groupDraft, setGroupDraft] = useState<{
+		featureType?: FeatureType;
+		category?: string;
+		move: MoveHistory;
+	}>({ move: EMPTY_MOVE });
+	/** Move is armed: a drag anywhere on the map moves the group. */
+	const [moveArmed, setMoveArmed] = useState(false);
+	/** The drag under way while Move is armed, not committed yet. */
+	const [liveMoveOffset, setLiveMoveOffset] = useState<MercatorOffset | null>(
+		null,
+	);
+	/** Drop the group and everything its card holds. */
+	const clearGroup = useCallback(() => {
+		setGroupIds([]);
+		setGroupDraft({ move: EMPTY_MOVE });
+		setMoveArmed(false);
+		setLiveMoveOffset(null);
+	}, []);
+	/**
 	 * Snapping to the other features, on unless this browser turned it off
 	 * (the toolbar's Snap toggle). terra-draw's hooks read it through a ref:
 	 * they are installed once, when the map loads.
@@ -2744,30 +2810,6 @@ function MissionMapBody(props: {
 		useState<EditCardSide>("left");
 	const editCardRef = useRef<HTMLDivElement | null>(null);
 	const openGeometry = shapeOpen ? pending?.feature.geometry : undefined;
-	// Measure, at open, after a change to the shape and after every pan or
-	// zoom, which top corner covers fewer of the shape's handles.
-	useEffect(() => {
-		if (!mapObserved || !openGeometry) return;
-		const map = mapRef.current?.getMap();
-		if (!map) return;
-		const positions = handlePositions(openGeometry);
-		const place = () => {
-			const card = editCardRef.current;
-			if (!card) return;
-			const handles = positions.map((p) => map.project(p));
-			const panelWidth = map.getContainer().clientWidth;
-			const size = { width: card.offsetWidth, height: card.offsetHeight };
-			setEditCardPlacement((current) =>
-				editCardSide(current, handles, panelWidth, size),
-			);
-		};
-		const frame = requestAnimationFrame(place);
-		map.on("moveend", place);
-		return () => {
-			cancelAnimationFrame(frame);
-			map.off("moveend", place);
-		};
-	}, [mapObserved, openGeometry]);
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -3146,10 +3188,11 @@ function MissionMapBody(props: {
 		if (enteringView) {
 			setTool("select");
 			setPending(null);
+			clearGroup();
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
 		}
-	}, [viewOnly, liveStatus]);
+	}, [viewOnly, liveStatus, clearGroup]);
 
 	/**
 	 * Abort handle for the operator-triggered Overpass imports.
@@ -3188,10 +3231,11 @@ function MissionMapBody(props: {
 		// left: abort the one and close the other, so neither lands on the new map.
 		osmAbortRef.current?.abort();
 		setConfirmState(null);
+		clearGroup();
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
 		setTool("select");
-	}, []);
+	}, [clearGroup]);
 
 	/** Select a different map, discarding any edit scoped to the previous one. */
 	const changeSelectedMap = useCallback(
@@ -3373,6 +3417,230 @@ function MissionMapBody(props: {
 		);
 	}, [features, selectedMap, missionScope]);
 
+	// --- Multi-select (map editor) -----------------------------------------
+	// Several features are selected with the panel's checkboxes or a
+	// Shift-click (`map-multi-select.ts`). The map editor only: in a mission
+	// the map's own waypoints, zones and cues are a library, and its assets
+	// are the mission's, edited one at a time.
+	/** Selecting several features is offered. */
+	const multiSelectEnabled =
+		context === "map-editor" && !viewOnly && selectedMap.length > 0;
+	/** A group is selected and its card shows. */
+	const groupActive = multiSelectEnabled && groupIds.length > 0;
+	/** The group's stored features, in selection order. */
+	const groupStored = useMemo(
+		() =>
+			groupActive
+				? groupIds.flatMap((id) => {
+						const stored = features.find(
+							(f) => readFeatureId(f) === id,
+						);
+						return stored ? [stored] : [];
+					})
+				: [],
+		[groupActive, groupIds, features],
+	);
+	const groupMembers = useMemo<GroupMember[]>(
+		() =>
+			groupStored.map((stored) => {
+				const id = readFeatureId(stored) ?? "";
+				const featureType = String(
+					stored.properties?.feature_type ?? "",
+				);
+				const name =
+					typeof stored.properties?.name === "string" &&
+					stored.properties.name.trim().length > 0
+						? stored.properties.name
+						: id;
+				return {
+					id,
+					name,
+					featureType,
+					category: readFeatureCategory(stored) ?? "",
+					locked: mapLayers.locked.has(featureType),
+					hidden: mapLayers.hidden.has(featureType),
+				};
+			}),
+		[groupStored, mapLayers.locked, mapLayers.hidden],
+	);
+	const groupSplit = useMemo(
+		() => groupTargets(groupMembers),
+		[groupMembers],
+	);
+	/** The group's features a bulk action applies to (not locked). */
+	const groupEligibleStored = useMemo(() => {
+		const eligible = new Set(groupSplit.eligible.map((m) => m.id));
+		return groupStored.filter((f) => eligible.has(readFeatureId(f) ?? ""));
+	}, [groupStored, groupSplit.eligible]);
+	/** The move committed so far (every finished drag). */
+	const groupOffset = useMemo(
+		() => totalOffset(groupDraft.move),
+		[groupDraft.move],
+	);
+	/** One write per feature the draft changes. */
+	const groupChanges = useMemo(() => {
+		const draft = {
+			featureType: groupDraft.featureType,
+			category: groupDraft.category,
+			offset: groupOffset,
+		};
+		return groupEligibleStored.flatMap((stored) => {
+			const id = readFeatureId(stored);
+			const feature = applyGroupDraft(stored, draft);
+			if (!id || !feature) return [];
+			const name =
+				groupSplit.eligible.find((m) => m.id === id)?.name ?? id;
+			return [{ id, name, feature }];
+		});
+	}, [
+		groupEligibleStored,
+		groupDraft.featureType,
+		groupDraft.category,
+		groupOffset,
+		groupSplit.eligible,
+	]);
+	/** Save would write something. */
+	const groupDirty = groupChanges.length > 0;
+	/** The move shown: the committed one plus the drag under way. */
+	const previewOffset = useMemo(
+		() =>
+			liveMoveOffset
+				? addOffsets(groupOffset, liveMoveOffset)
+				: groupOffset,
+		[groupOffset, liveMoveOffset],
+	);
+	/** The moving features as drawn now, by id; null with no move. */
+	const groupMoved = useMemo(() => {
+		if (isZeroOffset(previewOffset)) return null;
+		const moved = new Map<string, C2Feature>();
+		for (const stored of groupEligibleStored) {
+			const id = readFeatureId(stored);
+			if (!id || !stored.geometry) continue;
+			moved.set(id, {
+				...stored,
+				geometry: translateGeometry(
+					stored.geometry as { type: string; coordinates: unknown },
+					previewOffset,
+				),
+			});
+		}
+		return moved;
+	}, [groupEligibleStored, previewOffset]);
+	/** What the feature layers draw: the moving group where it is now. */
+	const displayFeatures = useMemo(
+		() =>
+			groupMoved
+				? renderedFeatures.map(
+						(f) => groupMoved.get(readFeatureId(f) ?? "") ?? f,
+					)
+				: renderedFeatures,
+		[renderedFeatures, groupMoved],
+	);
+	/** The group as outlined: every drawn member, moved ones where they are. */
+	const groupOutline = useMemo(() => {
+		const hidden = new Set(groupSplit.hidden.map((member) => member.id));
+		return groupStored
+			.filter((f) => !hidden.has(readFeatureId(f) ?? ""))
+			.map((f) => groupMoved?.get(readFeatureId(f) ?? "") ?? f);
+	}, [groupStored, groupSplit.hidden, groupMoved]);
+	/** What the group card offers. */
+	const groupActionState = groupActions({
+		eligible: groupSplit.eligible,
+		draft: groupDraft,
+		viewOnly,
+		busy,
+		canUpdate: Boolean(props.featuresUpdateDef),
+		canDelete: Boolean(props.featuresDeleteDef),
+	});
+	const groupLegalTypes = useMemo(
+		() => groupRetypeTargets(groupSplit.eligible),
+		[groupSplit.eligible],
+	);
+	const sharedType = commonValue(
+		groupSplit.eligible.map((member) => member.featureType),
+	);
+	const groupTypeValue: FeatureType | null =
+		groupDraft.featureType ??
+		(isFeatureType(sharedType) ? sharedType : null);
+	const groupShowCategory = groupTakesCategory(
+		groupSplit.eligible,
+		groupDraft,
+	);
+	const groupCategoryValue =
+		groupDraft.category ??
+		commonValue(groupSplit.eligible.map((member) => member.category));
+	const groupCategoryChoices = useMemo(
+		() => groupCategoryOptions(ASSET_CATEGORIES, groupEligibleStored),
+		[groupEligibleStored],
+	);
+
+	// The checkboxes show what is selected: the group, or the one feature
+	// open. Published after the features above, so a map switch has reset
+	// the list's selection before this writes the new one.
+	const publishedSelection = (
+		groupActive
+			? groupIds
+			: multiSelectEnabled && openEditId
+				? [openEditId]
+				: []
+	).join("\u0000");
+	useEffect(() => {
+		publishLayerSelection(
+			selectedMap,
+			publishedSelection ? publishedSelection.split("\u0000") : [],
+			multiSelectEnabled,
+		);
+	}, [selectedMap, publishedSelection, multiSelectEnabled]);
+
+	// Where the card sits: the top corner covering fewer handles of what it
+	// is about (the shape open, or the group as committed), measured at
+	// open, after a change and after every pan or zoom.
+	const cardGeometries = useMemo(() => {
+		if (openGeometry) return [openGeometry];
+		if (!groupActive) return null;
+		const eligible = new Set(groupEligibleStored);
+		return groupStored.flatMap((f) => {
+			if (!f.geometry) return [];
+			const geometry = f.geometry as {
+				type: string;
+				coordinates: unknown;
+			};
+			return [
+				eligible.has(f)
+					? translateGeometry(geometry, groupOffset)
+					: geometry,
+			];
+		});
+	}, [
+		openGeometry,
+		groupActive,
+		groupStored,
+		groupEligibleStored,
+		groupOffset,
+	]);
+	useEffect(() => {
+		if (!mapObserved || !cardGeometries) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		const positions = cardGeometries.flatMap((g) => handlePositions(g));
+		const place = () => {
+			const card = editCardRef.current;
+			if (!card) return;
+			const handles = positions.map((p) => map.project(p));
+			const panelWidth = map.getContainer().clientWidth;
+			const size = { width: card.offsetWidth, height: card.offsetHeight };
+			setEditCardPlacement((current) =>
+				editCardSide(current, handles, panelWidth, size),
+			);
+		};
+		const frame = requestAnimationFrame(place);
+		map.on("moveend", place);
+		return () => {
+			cancelAnimationFrame(frame);
+			map.off("moveend", place);
+		};
+	}, [mapObserved, cardGeometries]);
+
 	/** The open mission's asset with this id, when it is one. */
 	const missionAssetOf = useCallback(
 		(id: string | null | undefined) =>
@@ -3398,15 +3666,21 @@ function MissionMapBody(props: {
 	);
 
 	// Switch editing context, resetting all transient per-context selections.
-	const changeContext = useCallback((next: MapContext) => {
-		setContext(next);
-		setTool("select");
-		setPending(null);
-		setPickedId(null);
-		setMissionIssues([]);
-		editingDrawIdRef.current = null;
-		clearDraw(drawRef.current);
-	}, []);
+	const changeContext = useCallback(
+		(next: MapContext) => {
+			setContext(next);
+			setTool("select");
+			setPending(null);
+			setPickedId(null);
+			setMissionIssues([]);
+			// Multi-select is the map editor's: a group never follows into a
+			// mission.
+			clearGroup();
+			editingDrawIdRef.current = null;
+			clearDraw(drawRef.current);
+		},
+		[clearGroup],
+	);
 
 	// terra-draw lifecycle — construct on map load, tear down on unmount. Also
 	// where the live map becomes reachable for the effects that need it.
@@ -4757,23 +5031,28 @@ function MissionMapBody(props: {
 
 	/** The toolbar's one state indicator: what the map is doing. */
 	const editLabel = mapStateLabel(
-		drawArmed
-			? {
-					kind: "drawing",
-					typeLabel: FEATURE_TYPE_LABELS[mapFeatureType],
-				}
-			: pending && openEditId != null
+		groupActive
+			? moveArmed
+				? { kind: "moving", count: groupSplit.eligible.length }
+				: { kind: "group", count: groupIds.length }
+			: drawArmed
 				? {
-						kind: "editing",
-						name: pending.original?.name ?? pending.name,
-						typeLabel: FEATURE_TYPE_LABELS[pending.initialType],
+						kind: "drawing",
+						typeLabel: FEATURE_TYPE_LABELS[mapFeatureType],
 					}
-				: pending && newShapeOpen
+				: pending && openEditId != null
 					? {
-							kind: "new",
+							kind: "editing",
+							name: pending.original?.name ?? pending.name,
 							typeLabel: FEATURE_TYPE_LABELS[pending.initialType],
 						}
-					: { kind: "idle" },
+					: pending && newShapeOpen
+						? {
+								kind: "new",
+								typeLabel:
+									FEATURE_TYPE_LABELS[pending.initialType],
+							}
+						: { kind: "idle" },
 	);
 
 	/**
@@ -4798,6 +5077,270 @@ function MissionMapBody(props: {
 	);
 
 	/**
+	 * Run `then` once the group card's changes may be dropped: at once
+	 * without changes, after the operator says Discard with them.
+	 */
+	const leaveGroup = useCallback(
+		(then: () => void) => {
+			if (!groupActive || !groupDirty) {
+				then();
+				return;
+			}
+			setConfirmState({
+				title: `Discard changes to ${featureCount(groupChanges.length)}?`,
+				description: "Unsaved changes are lost.",
+				confirmLabel: "Discard",
+				cancelLabel: "Keep editing",
+				onConfirm: then,
+			});
+		},
+		[groupActive, groupDirty, groupChanges.length],
+	);
+
+	/**
+	 * Whether a feature can be selected alone and open for editing: one on
+	 * a locked or hidden layer, or one whose geometry the editor cannot
+	 * load, stays a group of one instead.
+	 */
+	const canOpenAlone = useCallback(
+		(id: string) => {
+			const stored = features.find((f) => readFeatureId(f) === id);
+			if (!stored) return false;
+			const type = String(stored.properties?.feature_type ?? "");
+			if (mapLayers.locked.has(type) || mapLayers.hidden.has(type))
+				return false;
+			return c2FeatureToDrawFeature(stored) != null;
+		},
+		[features, mapLayers.locked, mapLayers.hidden],
+	);
+
+	/**
+	 * Make a selection the map's: one feature opens as a click opens it,
+	 * a group closes whatever was open. The card's changes start over.
+	 * The caller has already asked about unsaved changes.
+	 */
+	const applySelection = useCallback(
+		(next: MultiSelection) => {
+			setGroupDraft({ move: EMPTY_MOVE });
+			setMoveArmed(false);
+			setLiveMoveOffset(null);
+			if (next.openId !== null) {
+				setGroupIds([]);
+				if (next.openId === openEditId) return;
+				const stored = features.find(
+					(f) => readFeatureId(f) === next.openId,
+				);
+				if (stored)
+					selectHit(
+						{ id: next.openId, feature: stored, library: false },
+						true,
+					);
+				return;
+			}
+			endEdit();
+			setPickedId(null);
+			setTool("select");
+			setGroupIds(next.groupIds);
+		},
+		[openEditId, features, selectHit, endEdit],
+	);
+
+	/**
+	 * Add features to the selection or take them out: a checkbox, a
+	 * layer's "select all", or a Shift-click. Asks first when it would drop
+	 * unsaved changes: the feature open, or the group card's.
+	 */
+	const requestSelectionChange = useCallback(
+		(ids: readonly string[], mode: MapFeatureSelectionRequest["mode"]) => {
+			if (!multiSelectEnabled) return;
+			const current: MultiSelection = {
+				groupIds: groupActive ? groupIds : [],
+				openId: openEditId,
+			};
+			const next = changeSelection(current, ids, mode, canOpenAlone);
+			if (sameSelection(current, next)) return;
+			const proceed = () => applySelection(next);
+			if (groupActive) {
+				leaveGroup(proceed);
+				return;
+			}
+			if (
+				pending &&
+				(pending.featureId == null || closesOpenFeature(current, next))
+			) {
+				leavePending(proceed);
+				return;
+			}
+			proceed();
+		},
+		[
+			multiSelectEnabled,
+			groupActive,
+			groupIds,
+			openEditId,
+			canOpenAlone,
+			applySelection,
+			leaveGroup,
+			pending,
+			leavePending,
+		],
+	);
+
+	/** Drop the group card's changes and disarm Move; the group stays. */
+	const cancelGroupChanges = useCallback(() => {
+		setGroupDraft({ move: EMPTY_MOVE });
+		setMoveArmed(false);
+		setLiveMoveOffset(null);
+	}, []);
+
+	/** Undo or Redo one drag of the group move. */
+	const stepGroupMove = useCallback((direction: "undo" | "redo") => {
+		setGroupDraft((draft) => {
+			const move =
+				direction === "undo"
+					? undoMove(draft.move)
+					: redoMove(draft.move);
+			return move ? { ...draft, move } : draft;
+		});
+	}, []);
+
+	/**
+	 * Save the group card's changes: one PUT per feature they change. What
+	 * the C2 accepts is applied; what it refuses is named, stays selected
+	 * and keeps the card's changes for another Save. Nothing is retried.
+	 */
+	const saveGroup = useCallback(async () => {
+		if (busy || !groupActive || groupChanges.length === 0) return;
+		if (!props.featuresUpdateDef) {
+			setError("This C2 cannot edit features.");
+			return;
+		}
+		const mapName = selectedMap;
+		const changes = groupChanges;
+		setLiveMoveOffset(null);
+		setBusy(true);
+		const outcomes: BulkOutcome[] = [];
+		for (const change of changes) {
+			const result = await featuresUpdateCall.execute({
+				name: mapName,
+				featureId: change.id,
+				feature: change.feature,
+			});
+			outcomes.push({
+				id: change.id,
+				name: change.name,
+				ok: result.success,
+				error: result.success ? undefined : result.error,
+			});
+		}
+		setBusy(false);
+		// A map switch meanwhile dropped the group; the refetch is its own.
+		if (selectedMapRef.current !== mapName) return;
+		const report = bulkReport(outcomes, "save");
+		const saved = new Map(
+			changes
+				.filter((change) => report.succeeded.includes(change.id))
+				.map((change) => [change.id, change.feature]),
+		);
+		setFeatures((prev) =>
+			prev.map((f) => saved.get(readFeatureId(f) ?? "") ?? f),
+		);
+		if (report.failed.length === 0) {
+			setGroupDraft({ move: EMPTY_MOVE });
+			setMoveArmed(false);
+		} else {
+			// The card's changes stay for the features not saved, so the
+			// ones saved leave the group: a second Save must not apply them
+			// again.
+			setGroupIds((prev) => prev.filter((id) => !saved.has(id)));
+		}
+		await refetchFeatures();
+		// After the refetch, which clears the error bar when it succeeds.
+		setError(report.message);
+	}, [
+		busy,
+		groupActive,
+		groupChanges,
+		props.featuresUpdateDef,
+		selectedMap,
+		featuresUpdateCall,
+		refetchFeatures,
+	]);
+
+	/**
+	 * Delete features of the group: one DELETE each. What the C2 deletes
+	 * leaves the map and the group; what it refuses is named and stays
+	 * selected. Nothing is retried.
+	 */
+	const deleteGroup = useCallback(
+		async (targets: readonly { id: string; name: string }[]) => {
+			if (!props.featuresDeleteDef) {
+				setError("This C2 cannot delete features.");
+				return;
+			}
+			const mapName = selectedMap;
+			setLiveMoveOffset(null);
+			setBusy(true);
+			const outcomes: BulkOutcome[] = [];
+			for (const target of targets) {
+				const result = await featuresDeleteCall.execute({
+					name: mapName,
+					featureId: target.id,
+				});
+				// `{ deleted: 0 }` is a 200 that deleted nothing.
+				const deleted = result.success
+					? (result.data as { deleted?: number } | null)?.deleted
+					: undefined;
+				const ok = result.success && deleted !== 0;
+				outcomes.push({
+					id: target.id,
+					name: target.name,
+					ok,
+					error: ok
+						? undefined
+						: result.success
+							? "not on the C2"
+							: result.error,
+				});
+			}
+			setBusy(false);
+			if (selectedMapRef.current !== mapName) return;
+			const report = bulkReport(outcomes, "delete");
+			const gone = new Set(report.succeeded);
+			setFeatures((prev) =>
+				prev.filter((f) => !gone.has(readFeatureId(f) ?? "")),
+			);
+			setGroupIds((prev) => prev.filter((id) => !gone.has(id)));
+			await refetchFeatures();
+			// After the refetch, which clears the error bar when it succeeds.
+			setError(report.message);
+		},
+		[
+			props.featuresDeleteDef,
+			selectedMap,
+			featuresDeleteCall,
+			refetchFeatures,
+		],
+	);
+
+	/** Ask before deleting the group's features, naming them. */
+	const requestDeleteGroup = useCallback(() => {
+		if (!groupActionState.delete) return;
+		const targets = groupSplit.eligible.map((member) => ({
+			id: member.id,
+			name: member.name,
+		}));
+		const question = bulkDeleteQuestion(
+			targets.map((target) => target.name),
+			groupSplit.locked.length,
+		);
+		setConfirmState({
+			...question,
+			onConfirm: () => void deleteGroup(targets),
+		});
+	}, [groupActionState.delete, groupSplit, deleteGroup]);
+
+	/**
 	 * Select a feature (or nothing) on the operator's behalf: a click, or a
 	 * panel naming a feature. A click on the feature already open is
 	 * terra-draw's; anything else asks before unsaved changes are dropped
@@ -4808,6 +5351,15 @@ function MissionMapBody(props: {
 			// View shows: it picks, and never touches an edit.
 			if (viewOnly) {
 				selectHit(hit, false);
+				return;
+			}
+			// A plain click (or a name in the list) ends the group and
+			// selects as a click always does.
+			if (groupActive) {
+				leaveGroup(() => {
+					clearGroup();
+					selectHit(hit, true);
+				});
 				return;
 			}
 			const openId = pending ? (pending.featureId ?? NEW_SHAPE_ID) : null;
@@ -4823,7 +5375,16 @@ function MissionMapBody(props: {
 					leavePending(() => selectHit(hit, true));
 			}
 		},
-		[viewOnly, pending, pendingDirty, selectHit, leavePending],
+		[
+			viewOnly,
+			pending,
+			pendingDirty,
+			selectHit,
+			leavePending,
+			groupActive,
+			leaveGroup,
+			clearGroup,
+		],
 	);
 
 	/** Cancel: discard the pending save's changes and deselect. */
@@ -4883,7 +5444,8 @@ function MissionMapBody(props: {
 			setTool((current) => nextMapTool(current, "toggle"));
 			return;
 		}
-		leavePending(() => {
+		const arm = () => {
+			clearGroup();
 			endEdit();
 			// The pick's outline and bar have nothing to do with the shape
 			// about to be drawn.
@@ -4894,8 +5456,19 @@ function MissionMapBody(props: {
 			// terra-draw reads its finish key (Enter) from the map: a Draw
 			// button left focused would take Enter and disarm instead.
 			focusMap();
-		});
-	}, [tool, leavePending, endEdit, missionScope, focusMap]);
+		};
+		if (groupActive) leaveGroup(arm);
+		else leavePending(arm);
+	}, [
+		tool,
+		leavePending,
+		endEdit,
+		missionScope,
+		focusMap,
+		groupActive,
+		leaveGroup,
+		clearGroup,
+	]);
 
 	/** The hint chip's Finish: complete the line or polygon in progress. */
 	const finishDrawing = useCallback(() => {
@@ -5005,6 +5578,148 @@ function MissionMapBody(props: {
 		escapeOpenShape,
 	]);
 
+	// The keys of a selected group: Delete and Backspace ask to delete its
+	// features, Enter saves the card's changes, Ctrl/Cmd+Z and
+	// Ctrl/Cmd+Shift+Z (or Ctrl+Y) undo and redo a drag of the move, and
+	// Escape drops the card's changes, or with none clears the selection.
+	useEffect(() => {
+		if (!groupActive) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (isTypingInEditableElement(event) || isModalOpen()) return;
+			const target =
+				event.target instanceof Element ? event.target : null;
+			const action = editKeyAction(
+				{
+					key: event.key,
+					ctrlKey: event.ctrlKey,
+					metaKey: event.metaKey,
+					altKey: event.altKey,
+					shiftKey: event.shiftKey,
+					onControl: target?.closest(KEY_CONTROL_SELECTOR) != null,
+					inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
+				},
+				{
+					vertexSelected: false,
+					hasChanges: groupDirty,
+					canUndo: groupDraft.move.steps.length > 0,
+					canRedo: groupDraft.move.undone.length > 0,
+				},
+			);
+			if (!action) return;
+			event.preventDefault();
+			switch (action) {
+				case "undo":
+				case "redo":
+					stepGroupMove(action);
+					return;
+				case "delete-vertex":
+				case "ask-delete-feature":
+					requestDeleteGroup();
+					return;
+				case "save":
+					void saveGroup();
+					return;
+				case "cancel":
+					if (groupDirty || moveArmed || liveMoveOffset)
+						cancelGroupChanges();
+					else clearGroup();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [
+		groupActive,
+		groupDirty,
+		groupDraft.move,
+		moveArmed,
+		liveMoveOffset,
+		stepGroupMove,
+		requestDeleteGroup,
+		saveGroup,
+		cancelGroupChanges,
+		clearGroup,
+	]);
+
+	// Move armed: a drag anywhere on the map moves the whole group by the
+	// pointer's offset (`map-group-move.ts`), shown live; the drag's end is
+	// one step of the move. The map does not pan meanwhile. Pointer events
+	// with capture, so a finger works as a mouse does and a release outside
+	// the map still ends the drag. No snapping: a group has no one vertex
+	// the operator aims with.
+	const groupMoving = groupActive && moveArmed;
+	useEffect(() => {
+		if (!groupMoving || !mapObserved) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		const container = map.getCanvasContainer();
+		map.dragPan.disable();
+		container.style.cursor = "move";
+		let start: [number, number] | null = null;
+		let pointerId: number | null = null;
+		let latest: MercatorOffset | null = null;
+		let frame = 0;
+		const lngLatOf = (event: PointerEvent): [number, number] => {
+			const box = container.getBoundingClientRect();
+			const at = map.unproject([
+				event.clientX - box.left,
+				event.clientY - box.top,
+			]);
+			return [at.lng, at.lat];
+		};
+		const onDown = (event: PointerEvent) => {
+			if (start !== null || !event.isPrimary) return;
+			if (event.pointerType === "mouse" && event.button !== 0) return;
+			start = lngLatOf(event);
+			pointerId = event.pointerId;
+			container.setPointerCapture(event.pointerId);
+		};
+		const onMove = (event: PointerEvent) => {
+			if (start === null || event.pointerId !== pointerId) return;
+			latest = mercatorOffset(start, lngLatOf(event));
+			if (frame !== 0) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				setLiveMoveOffset(latest);
+			});
+		};
+		const onUp = (event: PointerEvent) => {
+			if (start === null || event.pointerId !== pointerId) return;
+			const step = mercatorOffset(start, lngLatOf(event));
+			start = null;
+			pointerId = null;
+			cancelAnimationFrame(frame);
+			frame = 0;
+			setLiveMoveOffset(null);
+			setGroupDraft((draft) => ({
+				...draft,
+				move: recordMoveStep(draft.move, step),
+			}));
+		};
+		const onCancel = (event: PointerEvent) => {
+			if (event.pointerId !== pointerId) return;
+			start = null;
+			pointerId = null;
+			cancelAnimationFrame(frame);
+			frame = 0;
+			setLiveMoveOffset(null);
+		};
+		container.addEventListener("pointerdown", onDown);
+		container.addEventListener("pointermove", onMove);
+		container.addEventListener("pointerup", onUp);
+		container.addEventListener("pointercancel", onCancel);
+		container.addEventListener("lostpointercapture", onCancel);
+		return () => {
+			cancelAnimationFrame(frame);
+			container.removeEventListener("pointerdown", onDown);
+			container.removeEventListener("pointermove", onMove);
+			container.removeEventListener("pointerup", onUp);
+			container.removeEventListener("pointercancel", onCancel);
+			container.removeEventListener("lostpointercapture", onCancel);
+			container.style.cursor = "";
+			map.dragPan.enable();
+		};
+	}, [groupMoving, mapObserved]);
+
 	/**
 	 * Map click. The Draw tool's clicks are terra-draw's. Otherwise a click
 	 * selects what it hits and opens it for editing (select-first), and a
@@ -5018,6 +5733,7 @@ function MissionMapBody(props: {
 		(event: {
 			point: { x: number; y: number };
 			lngLat: { lng: number; lat: number };
+			originalEvent?: { shiftKey?: boolean };
 		}) => {
 			// The keys act on what the map shows. MapLibre keeps focus where it
 			// was on a click, so a toolbar button clicked last would still
@@ -5035,7 +5751,17 @@ function MissionMapBody(props: {
 			) {
 				return;
 			}
+			// A drag of the group move ends where it was let go; the click
+			// MapLibre adds after a short one is part of it.
+			if (groupMoving) return;
 			focusMap();
+			// Shift-click adds a feature to the selection, or takes it out.
+			if (multiSelectEnabled && event.originalEvent?.shiftKey) {
+				const hit = pickAt(event.point);
+				if (hit && !hit.library)
+					requestSelectionChange([hit.id], "toggle");
+				return;
+			}
 			const editing = shapeOpen;
 			if (editing) {
 				// A click on a vertex handle of the open shape selects that
@@ -5075,6 +5801,9 @@ function MissionMapBody(props: {
 			vertexAt,
 			openShapeAt,
 			requestSelect,
+			groupMoving,
+			multiSelectEnabled,
+			requestSelectionChange,
 		],
 	);
 
@@ -5088,12 +5817,17 @@ function MissionMapBody(props: {
 		shownFeatures: C2Feature[];
 		missionAssets: typeof missionAssets;
 		requestSelect: (hit: MapHit | null) => void;
+		requestSelectionChange: (
+			ids: readonly string[],
+			mode: MapFeatureSelectionRequest["mode"],
+		) => void;
 	}>({
 		selectedMap: "",
 		missionScope: null,
 		shownFeatures: [],
 		missionAssets: null,
 		requestSelect: () => {},
+		requestSelectionChange: () => {},
 	});
 	useEffect(() => {
 		focusRef.current = {
@@ -5102,6 +5836,7 @@ function MissionMapBody(props: {
 			shownFeatures,
 			missionAssets,
 			requestSelect,
+			requestSelectionChange,
 		};
 	}, [
 		selectedMap,
@@ -5109,7 +5844,21 @@ function MissionMapBody(props: {
 		shownFeatures,
 		missionAssets,
 		requestSelect,
+		requestSelectionChange,
 	]);
+	// The panel's checkboxes ask to change the selection.
+	useEffect(
+		() =>
+			subscribeFeatureSelectionRequests((request) => {
+				const current = focusRef.current;
+				if (request.map !== current.selectedMap) return;
+				current.requestSelectionChange(
+					request.featureIds,
+					request.mode,
+				);
+			}),
+		[],
+	);
 	const flyToFeature = useCallback((feature: C2Feature, minZoom: number) => {
 		const center = assetCenter(feature);
 		const map = mapRef.current?.getMap();
@@ -5988,6 +6737,47 @@ function MissionMapBody(props: {
 						focusName={pending.featureId == null}
 					/>
 				)}
+				{/* Several features selected: what applies to all of them,
+				    in the edit card's place. */}
+				{groupActive && (
+					<GroupCard
+						count={groupIds.length}
+						lockedCount={groupSplit.locked.length}
+						hiddenCount={groupSplit.hidden.length}
+						typeValue={groupTypeValue}
+						legalTypes={groupLegalTypes}
+						onType={(featureType) =>
+							setGroupDraft((draft) => ({
+								...draft,
+								featureType,
+							}))
+						}
+						showCategory={groupShowCategory}
+						categoryValue={groupCategoryValue}
+						categoryOptions={groupCategoryChoices}
+						onCategory={(category) =>
+							setGroupDraft((draft) => ({ ...draft, category }))
+						}
+						actions={groupActionState}
+						moveArmed={moveArmed}
+						onToggleMove={() => {
+							setMoveArmed((armed) => !armed);
+							setLiveMoveOffset(null);
+						}}
+						canUndo={groupDraft.move.steps.length > 0}
+						canRedo={groupDraft.move.undone.length > 0}
+						onUndo={() => stepGroupMove("undo")}
+						onRedo={() => stepGroupMove("redo")}
+						dirty={groupDirty}
+						busy={busy}
+						onSave={() => void saveGroup()}
+						onCancel={cancelGroupChanges}
+						onDelete={requestDeleteGroup}
+						onClear={() => leaveGroup(clearGroup)}
+						side={overlaysOpen ? "left" : editCardPlacement}
+						cardRef={editCardRef}
+					/>
+				)}
 				{overlaysOpen && (
 					<LiveLayersPanel
 						mapLayers={raster.layers}
@@ -6024,6 +6814,9 @@ function MissionMapBody(props: {
 					// A double-click finishes a line or a polygon while Draw
 					// is armed; it must not also zoom.
 					doubleClickZoom={!drawArmed}
+					// MapLibre's Shift-drag box zoom swallows every
+					// Shift-click, which selects here.
+					boxZoom={!multiSelectEnabled}
 					style={{ width: "100%", height: "100%" }}
 				>
 					{/* North indicator + ground scale. Always on: rotation is
@@ -6037,9 +6830,13 @@ function MissionMapBody(props: {
 					{/* Both feature layers always render, in distinct styles. */}
 					<LibraryLayers features={renderedLibraryFeatures} />
 					<FeatureLayers
-						features={renderedFeatures}
+						features={displayFeatures}
 						selectedId={pickedId}
 					/>
+					{/* The selected group, outlined over the features. */}
+					{groupActive && (
+						<GroupSelectionLayer features={groupOutline} />
+					)}
 					<MissionFeatureLayers geometries={missionGeometryFc} />
 					{/* Mounts after terra-draw's layers exist, so the ring
 					    draws over the vertex handle it marks. */}
@@ -6142,7 +6939,7 @@ function MissionMapBody(props: {
 						// hands the keyboard back to the map, not to whatever
 						// button was focused before it: Enter there would
 						// press that button.
-						if (openEditId == null) return;
+						if (openEditId == null && !groupActive) return;
 						event.preventDefault();
 						focusMap();
 					}}

@@ -11,6 +11,12 @@
  * Usability test 2026-11-12: on the Inta map the geofence covered everything
  * and nothing under it could be picked or edited.
  *
+ * The list also selects several features at once (checkboxes, the touch
+ * path to a group; `widgets/map-multi-select.ts`). The map owns the
+ * selection: a checkbox sends a request ({@link requestFeatureSelection}),
+ * the map decides (it may ask about unsaved changes first) and publishes
+ * what is selected back ({@link publishLayerSelection}).
+ *
  * Same module-level `useSyncExternalStore` contract as the other plugin
  * stores: every write builds a new state object once, `getSnapshot` returns
  * the stored reference (never a fresh literal). No ORMI core change.
@@ -33,6 +39,18 @@ export interface MapLayersState {
 	features: readonly MapLayerFeature[];
 	hidden: ReadonlySet<string>;
 	locked: ReadonlySet<string>;
+	/** The features selected on the map, as the map publishes them. */
+	selected: ReadonlySet<string>;
+	/** The map offers selecting several features (map editor, authoring). */
+	selectable: boolean;
+}
+
+/** A request to change which features are selected. */
+export interface MapFeatureSelectionRequest {
+	map: string;
+	featureIds: readonly string[];
+	/** Toggle each one, add them all, or remove them all. */
+	mode: "toggle" | "add" | "remove";
 }
 
 /** A request to show (pick, fly to, and in Edit open) one feature. */
@@ -48,12 +66,17 @@ const EMPTY: MapLayersState = {
 	features: [],
 	hidden: new Set(),
 	locked: new Set(),
+	selected: new Set(),
+	selectable: false,
 };
 
 let state: MapLayersState = EMPTY;
 let seq = 0;
 const listeners = new Set<() => void>();
 const focusListeners = new Set<(request: MapFeatureFocusRequest) => void>();
+const selectionListeners = new Set<
+	(request: MapFeatureSelectionRequest) => void
+>();
 
 function emit(): void {
 	for (const listener of listeners) listener();
@@ -91,8 +114,62 @@ export function publishLayerFeatures(
 		features: [...features],
 		hidden: sameMap ? state.hidden : new Set(),
 		locked: sameMap ? state.locked : new Set(),
+		selected: sameMap ? state.selected : new Set(),
+		selectable: state.selectable,
 	};
 	emit();
+}
+
+/**
+ * Publish what the map has selected, and whether it offers selecting
+ * several features. A no-op when nothing changed.
+ * @param map - The map the ids belong to.
+ * @param ids - The selected feature ids.
+ * @param selectable - Whether the list shows its checkboxes.
+ */
+export function publishLayerSelection(
+	map: string,
+	ids: readonly string[],
+	selectable: boolean,
+): void {
+	if (map !== state.map) return;
+	if (
+		selectable === state.selectable &&
+		ids.length === state.selected.size &&
+		ids.every((id) => state.selected.has(id))
+	) {
+		return;
+	}
+	state = { ...state, selected: new Set(ids), selectable };
+	emit();
+}
+
+/**
+ * Ask the map to change which features are selected (a checkbox, or a
+ * layer's "select all"). The map decides and publishes the result.
+ * @param featureIds - The features.
+ * @param mode - Toggle each one, add them all, or remove them all.
+ */
+export function requestFeatureSelection(
+	featureIds: readonly string[],
+	mode: MapFeatureSelectionRequest["mode"],
+): void {
+	const request = { map: state.map, featureIds: [...featureIds], mode };
+	for (const listener of selectionListeners) listener(request);
+}
+
+/**
+ * Be told about every selection request.
+ * @param listener - Called with each request.
+ * @returns Unsubscribe.
+ */
+export function subscribeFeatureSelectionRequests(
+	listener: (request: MapFeatureSelectionRequest) => void,
+): () => void {
+	selectionListeners.add(listener);
+	return () => {
+		selectionListeners.delete(listener);
+	};
 }
 
 function toggled(set: ReadonlySet<string>, key: string): Set<string> {
@@ -210,4 +287,5 @@ export function __resetMapLayersStore(): void {
 	seq = 0;
 	listeners.clear();
 	focusListeners.clear();
+	selectionListeners.clear();
 }
