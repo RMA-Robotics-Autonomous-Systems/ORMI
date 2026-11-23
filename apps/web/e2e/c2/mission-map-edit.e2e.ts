@@ -931,3 +931,286 @@ test.describe("C2 mission map: one-shot Draw", () => {
 		expectNoStrayRequests(harness);
 	});
 });
+
+/** The edit card's button, by its exact label. */
+function cardButton(page: Page, name: string) {
+	return editCard(page).getByRole("button", { name, exact: true });
+}
+
+/**
+ * Press a key combination on the map canvas, where terra-draw listens, as
+ * a script-made event: a browser shortcut (reload, save) never runs for
+ * one, so the page survives, while terra-draw handles it like any key.
+ *
+ * @returns Whether anything on the page called `preventDefault` on each
+ *   event, in dispatch order (keydown and keyup of each key).
+ */
+async function dispatchShortcutOnMap(
+	page: Page,
+	keys: string[],
+): Promise<boolean[]> {
+	return page.evaluate((combo) => {
+		const canvas = document.querySelector(
+			".maplibregl-canvas",
+		) as HTMLCanvasElement;
+		canvas.focus();
+		const ctrlKey = combo.includes("Control");
+		const fire = (type: string, key: string) =>
+			!canvas.dispatchEvent(
+				new KeyboardEvent(type, {
+					key,
+					ctrlKey,
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		const prevented: boolean[] = [];
+		for (const key of combo) prevented.push(fire("keydown", key));
+		for (const key of [...combo].reverse())
+			prevented.push(fire("keyup", key));
+		return prevented;
+	}, keys);
+}
+
+test.describe("C2 mission map: Undo and Redo in the open edit", () => {
+	test("Undo restores the shape as opened and disables Save; Redo re-applies; Save PUTs the redone shape", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await openBoundaryForEdit(page);
+		await expect(cardButton(page, "Undo")).toBeDisabled();
+		await expect(cardButton(page, "Redo")).toBeDisabled();
+		await expect(cardButton(page, "Save")).toBeDisabled();
+
+		const dropped = await reshapeCorner2(page);
+		await expect(cardButton(page, "Save")).toBeEnabled();
+		await expect(cardButton(page, "Undo")).toBeEnabled();
+		await expect(cardButton(page, "Redo")).toBeDisabled();
+
+		await cardButton(page, "Undo").click();
+		await waitForIdleMap(page);
+		await expect(cardButton(page, "Save")).toBeDisabled();
+		await expect(cardButton(page, "Undo")).toBeDisabled();
+		await expect(cardButton(page, "Redo")).toBeEnabled();
+		// The handles are back on the stored corners.
+		await expectHandles(page, CORNERS);
+
+		await cardButton(page, "Redo").click();
+		await waitForIdleMap(page);
+		await expect(cardButton(page, "Save")).toBeEnabled();
+		await expect(cardButton(page, "Redo")).toBeDisabled();
+		const redone = [...CORNERS];
+		redone[2] = dropped;
+		await expectHandles(page, redone);
+
+		const put = await save(page, fake, 0);
+		const ring = outerRing(put.body);
+		expect(near(ring[2]!, dropped, 1e-5), "corner 2 redone").toBe(true);
+		for (const i of [0, 1, 3, 4]) {
+			expect(near(ring[i]!, CORNERS[i]!), `corner ${i} unchanged`).toBe(
+				true,
+			);
+		}
+		expectNoStrayRequests(harness);
+	});
+
+	test("Ctrl+Z undoes and Ctrl+Shift+Z redoes, a vertex deletion as well as a drag", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await openBoundaryForEdit(page);
+		const dropped = await reshapeCorner2(page);
+
+		// Delete corner 4: select it, then Delete.
+		const [vertex] = await toScreen(page, [CORNERS[4]!]);
+		await page.mouse.click(vertex!.x, vertex!.y);
+		await expect
+			.poll(() => hasLayer(page, "c2-selected-vertex-ring"))
+			.toBe(true);
+		await page.keyboard.press("Delete");
+		await waitForIdleMap(page);
+		await expectHandles(page, [
+			CORNERS[0]!,
+			CORNERS[1]!,
+			dropped,
+			CORNERS[3]!,
+		]);
+
+		await page.keyboard.press("Control+z");
+		await waitForIdleMap(page);
+		const reshaped = [...CORNERS];
+		reshaped[2] = dropped;
+		await expectHandles(page, reshaped);
+		await expect(cardButton(page, "Save")).toBeEnabled();
+
+		await page.keyboard.press("Control+z");
+		await waitForIdleMap(page);
+		await expectHandles(page, CORNERS);
+		await expect(cardButton(page, "Save")).toBeDisabled();
+		await expect(cardButton(page, "Undo")).toBeDisabled();
+
+		await page.keyboard.press("Control+Shift+z");
+		await waitForIdleMap(page);
+		await expectHandles(page, reshaped);
+		await expect(cardButton(page, "Save")).toBeEnabled();
+
+		// Enter saves what Redo restored.
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)
+						.length,
+			)
+			.toBe(1);
+		const ring = outerRing(
+			last(fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)).body,
+		);
+		expect(ring).toHaveLength(CORNERS.length + 1);
+		expect(near(ring[2]!, dropped, 1e-5)).toBe(true);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a drag from a midpoint is one step: one Undo takes it back", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await openBoundaryForEdit(page);
+		// The midpoint of the first edge, where terra-draw draws its handle.
+		const [a, b] = await toScreen(page, [CORNERS[0]!, CORNERS[1]!]);
+		const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
+		await expect
+			.poll(async () =>
+				(await renderedAt(page, mid, "td-", 4)).some(
+					(hit) => hit.properties.midPoint === true,
+				),
+			)
+			.toBe(true);
+		const to = { x: mid.x, y: mid.y + 60 };
+		await drag(page, mid, to);
+		await waitForIdleMap(page);
+		const inserted = await toLngLat(page, to);
+		await expectHandles(page, [...CORNERS, inserted]);
+		await expect(cardButton(page, "Save")).toBeEnabled();
+
+		await cardButton(page, "Undo").click();
+		await waitForIdleMap(page);
+		await expectHandles(page, CORNERS);
+		await expect(cardButton(page, "Save")).toBeDisabled();
+		await expect(cardButton(page, "Undo")).toBeDisabled();
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("the history ends with the edit", async ({ page, baseURL }) => {
+		const harness = await openSite(page, baseURL!);
+		await openBoundaryForEdit(page);
+		await reshapeCorner2(page);
+		await page.keyboard.press("Escape");
+		await expect(editCard(page)).toBeHidden();
+
+		await openBoundaryForEdit(page);
+		await expect(cardButton(page, "Undo")).toBeDisabled();
+		await expect(cardButton(page, "Redo")).toBeDisabled();
+		await page.keyboard.press("Control+z");
+		await expectHandles(page, CORNERS);
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("Ctrl+S and Ctrl+R are left to the browser: nothing scales or rotates", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await openBoundaryForEdit(page);
+		const dropped = await reshapeCorner2(page);
+		const reshaped = [...CORNERS];
+		reshaped[2] = dropped;
+
+		for (const key of ["s", "r"]) {
+			const prevented = await dispatchShortcutOnMap(page, [
+				"Control",
+				key,
+			]);
+			expect(prevented, `Ctrl+${key} default-prevented`).toEqual([
+				false,
+				false,
+				false,
+				false,
+			]);
+		}
+		await waitForIdleMap(page);
+		await expectHandles(page, reshaped);
+		await expect(editCard(page)).toBeVisible();
+		await expect(cardButton(page, "Save")).toBeEnabled();
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+});
+
+test.describe("C2 mission map: the edit card stays clear of the shape", () => {
+	test("a corner under the card moves the card to the other top corner", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await openBoundaryForEdit(page);
+		const card = editCard(page);
+		await expect(card).toHaveAttribute("data-side", "left");
+
+		// Pan so corner 4 lands under the card's top-left place.
+		const box = (await page.locator(".maplibregl-map").boundingBox())!;
+		const [corner] = await toScreen(page, [CORNERS[4]!]);
+		const want = { x: box.x + 90, y: box.y + 90 };
+		const centre = await toLngLat(page, {
+			x: box.x + box.width / 2 + (corner!.x - want.x),
+			y: box.y + box.height / 2 + (corner!.y - want.y),
+		});
+		await jumpTo(page, centre, SITE_ZOOM);
+
+		await expect(card).toHaveAttribute("data-side", "right");
+		const cardBox = (await card.boundingBox())!;
+		for (const [i, point] of (await toScreen(page, CORNERS)).entries()) {
+			const inside =
+				point.x >= cardBox.x &&
+				point.x <= cardBox.x + cardBox.width &&
+				point.y >= cardBox.y &&
+				point.y <= cardBox.y + cardBox.height;
+			expect(inside, `corner ${i} under the card`).toBe(false);
+		}
+		// Still the same edit.
+		await expect(page.getByText("Editing Site boundary")).toBeVisible();
+		expectNoStrayRequests(harness);
+	});
+});
+
+test.describe("C2 mission map: one state indicator", () => {
+	test("the toolbar says what the map is doing, one label at a time", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await openBoundaryForEdit(page);
+		const status = page.getByRole("status").filter({
+			hasText: /^(Editing|New|Drawing) /,
+		});
+		await expect(status).toHaveCount(1);
+		await expect(status).toHaveText("Editing Site boundary");
+
+		await page.keyboard.press("Escape");
+		await expect(status).toHaveCount(0);
+
+		await page.getByRole("button", { name: "Draw", exact: true }).click();
+		await expect(status).toHaveCount(1);
+		await expect(status).toHaveText(/^Drawing /);
+		await page.keyboard.press("Escape");
+		await expect(status).toHaveCount(0);
+		expectNoStrayRequests(harness);
+	});
+});
