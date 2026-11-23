@@ -660,3 +660,274 @@ test.describe("C2 mission map: editing a stored feature", () => {
 		expectNoStrayRequests(harness);
 	});
 });
+
+/** Corners of a new area drawn inside the site, clear of the boundary. */
+const PIT: Position[] = [
+	offset(-70, -45),
+	offset(-10, -45),
+	offset(-10, 15),
+	offset(-70, 15),
+];
+
+/** The Draw button in the toolbar. */
+function drawButton(page: Page) {
+	return page.getByRole("button", { name: "Draw", exact: true });
+}
+
+/** The hint chip shown while Draw is armed. */
+function hintChip(page: Page) {
+	return page.getByRole("status", { name: "Draw", exact: true });
+}
+
+/** Switch to the map editor, with a polygon type chosen for the next draw. */
+async function prepareAreaDraw(page: Page): Promise<void> {
+	await page.getByRole("radio", { name: "Map editor", exact: true }).click();
+	await page.getByRole("combobox", { name: "Feature type to draw" }).click();
+	await page
+		.getByRole("option", { name: "Risk (area)", exact: true })
+		.click();
+	await expect(
+		page.getByRole("radio", { name: "Polygon", exact: true }),
+	).toHaveAttribute("data-state", "on");
+}
+
+/** Arm Draw and check it says so. */
+async function armDraw(page: Page): Promise<void> {
+	await drawButton(page).click();
+	await expect(drawButton(page)).toHaveAttribute("aria-pressed", "true");
+	await expect(hintChip(page)).toContainText(
+		"Click to add corners. Double-click or click the first corner to finish.",
+	);
+}
+
+/** Click each position on the map, in order. */
+async function clickAt(page: Page, positions: Position[]): Promise<void> {
+	for (const point of await toScreen(page, positions)) {
+		await page.mouse.click(point.x, point.y);
+	}
+}
+
+/** The map's zoom level. */
+async function zoomOf(page: Page): Promise<number> {
+	return page.evaluate(() =>
+		(
+			window as unknown as { __e2eMap: { getZoom(): number } }
+		).__e2eMap.getZoom(),
+	);
+}
+
+/** The new shape is open in select: card, focused name, handles, Draw off. */
+async function expectNewShapeOpen(
+	page: Page,
+	corners: Position[],
+): Promise<void> {
+	await expect(drawButton(page)).toHaveAttribute("aria-pressed", "false");
+	await expect(hintChip(page)).toHaveCount(0);
+	await expect(editCard(page)).toBeVisible();
+	await expect(page.getByPlaceholder("Feature name")).toBeFocused();
+	await expect(page.getByText("New risk (area)")).toBeVisible();
+	await waitForIdleMap(page);
+	await expectHandles(page, corners);
+}
+
+test.describe("C2 mission map: one-shot Draw", () => {
+	test("a drawn polygon returns to select, open with its name focused, and saves as one new feature", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await prepareAreaDraw(page);
+		await armDraw(page);
+		const zoom = await zoomOf(page);
+
+		// Three corners, then a double-click on the fourth finishes.
+		await clickAt(page, PIT.slice(0, 3));
+		const [fourth] = await toScreen(page, [PIT[3]!]);
+		await page.mouse.dblclick(fourth!.x, fourth!.y);
+
+		await expectNewShapeOpen(page, PIT);
+		// The double-click that finished it did not zoom.
+		expect(await zoomOf(page)).toBe(zoom);
+		expectNoWrites(fake);
+
+		// Typed straight into the focused name field; Enter saves.
+		await page.keyboard.type("North pit");
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)
+						.length,
+			)
+			.toBe(1);
+		await expect(editCard(page)).toBeHidden();
+
+		const post = last(
+			fake.requestsTo("POST", `/maps/${MAP_NAME}/features`),
+		);
+		const body = post.body as FakeFeature;
+		expect(body.properties.name).toBe("North pit");
+		expect(body.properties.feature_type).toBe("risk");
+		const ring = outerRing(body);
+		expect(ring).toHaveLength(PIT.length + 1);
+		expect(ring[0]).toEqual(last(ring));
+		for (const [i, corner] of PIT.entries()) {
+			expect(
+				near(ring[i]!, corner, 1e-5),
+				`corner ${i} where it was clicked`,
+			).toBe(true);
+		}
+		expect(fake.requestsTo("PUT", `/maps/${MAP_NAME}/features/`)).toEqual(
+			[],
+		);
+		// Still one shot: a click now selects, it does not start a shape.
+		await expect(drawButton(page)).toHaveAttribute("aria-pressed", "false");
+		expectNoStrayRequests(harness);
+	});
+
+	test("Escape or Draw again disarms with nothing created, before or during a shape", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await prepareAreaDraw(page);
+
+		await test.step("Draw then Escape", async () => {
+			await armDraw(page);
+			await page.keyboard.press("Escape");
+			await expect(drawButton(page)).toHaveAttribute(
+				"aria-pressed",
+				"false",
+			);
+			await expect(hintChip(page)).toHaveCount(0);
+		});
+
+		await test.step("Draw pressed again", async () => {
+			await armDraw(page);
+			await drawButton(page).click();
+			await expect(drawButton(page)).toHaveAttribute(
+				"aria-pressed",
+				"false",
+			);
+			await expect(hintChip(page)).toHaveCount(0);
+		});
+
+		await test.step("Escape with a shape half drawn discards it", async () => {
+			await armDraw(page);
+			await clickAt(page, PIT.slice(0, 2));
+			await page.keyboard.press("Escape");
+			await expect(drawButton(page)).toHaveAttribute(
+				"aria-pressed",
+				"false",
+			);
+			await expect(hintChip(page)).toHaveCount(0);
+			await waitForIdleMap(page);
+			for (const point of await toScreen(page, PIT.slice(0, 2))) {
+				expect(
+					await renderedAt(page, point, "td-"),
+					"nothing of the half-drawn shape remains",
+				).toEqual([]);
+			}
+		});
+
+		await expect(editCard(page)).toBeHidden();
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+
+	test("Finish completes a polygon once it has three corners", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		const { fake } = harness;
+		await prepareAreaDraw(page);
+		await armDraw(page);
+		const finish = hintChip(page).getByRole("button", {
+			name: "Finish",
+			exact: true,
+		});
+		await expect(finish).toBeDisabled();
+
+		const corners = PIT.slice(0, 3);
+		await clickAt(page, corners.slice(0, 2));
+		await expect(finish).toBeDisabled();
+		await clickAt(page, corners.slice(2));
+		await expect(finish).toBeEnabled();
+		await finish.click();
+
+		await expectNewShapeOpen(page, corners);
+		await page.keyboard.type("Spoil heap");
+		await editCard(page)
+			.getByRole("button", { name: "Save", exact: true })
+			.click();
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)
+						.length,
+			)
+			.toBe(1);
+		// The three corners and the closing position: no point where the
+		// pointer left the map for the button.
+		const ring = outerRing(
+			last(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)).body,
+		);
+		expect(ring).toHaveLength(corners.length + 1);
+		for (const [i, corner] of corners.entries()) {
+			expect(near(ring[i]!, corner, 1e-5), `corner ${i}`).toBe(true);
+		}
+		expectNoStrayRequests(harness);
+	});
+
+	test("Escape on a just-drawn shape discards it: at once unnamed, asking once named", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!);
+		await prepareAreaDraw(page);
+		const dialog = page.getByRole("alertdialog");
+		const finish = hintChip(page).getByRole("button", {
+			name: "Finish",
+			exact: true,
+		});
+		const corners = PIT.slice(0, 3);
+
+		await test.step("unnamed: gone at once, no question", async () => {
+			await armDraw(page);
+			await clickAt(page, corners);
+			await finish.click();
+			await expectNewShapeOpen(page, corners);
+			await page.keyboard.press("Escape");
+			await expect(editCard(page)).toBeHidden();
+			await expect(dialog).toHaveCount(0);
+			await waitForIdleMap(page);
+			const [first] = await toScreen(page, [corners[0]!]);
+			expect(await renderedAt(page, first!, "td-")).toEqual([]);
+		});
+
+		await test.step("named: asks, Keep editing keeps, Discard drops", async () => {
+			await armDraw(page);
+			await clickAt(page, corners);
+			await finish.click();
+			await expectNewShapeOpen(page, corners);
+			await page.keyboard.type("Typo pit");
+			await page.keyboard.press("Escape");
+			await expect(dialog).toContainText(
+				"Discard changes to the new risk (area)?",
+			);
+			await answerDialog(page, "Keep editing");
+			await expect(editCard(page)).toBeVisible();
+			await expect(page.getByPlaceholder("Feature name")).toHaveValue(
+				"Typo pit",
+			);
+			await page.getByPlaceholder("Feature name").press("Escape");
+			await answerDialog(page, "Discard");
+			await expect(editCard(page)).toBeHidden();
+		});
+
+		expectNoWrites(harness.fake);
+		expectNoStrayRequests(harness);
+	});
+});
