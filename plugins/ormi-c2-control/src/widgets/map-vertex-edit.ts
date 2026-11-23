@@ -27,10 +27,17 @@ export type VertexPosition = [number, number];
 export const SELECT_POINTER_DISTANCE_PX = 40;
 
 /**
- * Key bindings for the map's select mode. `delete: null` turns off
+ * Key bindings for the map's select mode, all off. `delete: null` turns off
  * terra-draw's "delete the selected feature", and `deselect: null` its
  * Escape-to-deselect: the open edit owns the selection (see
- * {@link MAP_SELECT_OPTIONS}). Rotate and scale keep terra-draw's defaults.
+ * {@link MAP_SELECT_OPTIONS}).
+ *
+ * `rotate: null` and `scale: null`: terra-draw's defaults are Ctrl+R and
+ * Ctrl+S, and its select mode calls `preventDefault` on every key event
+ * while those keys are held, whether or not the shape may rotate or scale.
+ * With a shape open, the browser's reload and save were swallowed by the
+ * map. The map offers neither rotate nor scale (no `rotateable` or
+ * `scaleable` flag in {@link MAP_SELECT_FLAGS}), so nothing is lost.
  */
 export const MAP_SELECT_KEY_EVENTS: {
 	deselect: string | null;
@@ -40,8 +47,8 @@ export const MAP_SELECT_KEY_EVENTS: {
 } = {
 	deselect: null,
 	delete: null,
-	rotate: ["Control", "r"],
-	scale: ["Control", "s"],
+	rotate: null,
+	scale: null,
 };
 
 /** Select-mode flags for a line, a polygon and a rectangle. */

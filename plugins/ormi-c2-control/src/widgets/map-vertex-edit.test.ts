@@ -8,6 +8,7 @@ import {
 } from "terra-draw";
 
 import {
+	MAP_SELECT_KEY_EVENTS,
 	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
@@ -527,5 +528,62 @@ describe("a click on the shape open for editing", () => {
 				.getSnapshot()
 				.filter((f) => f.properties.selectionPoint === true).length,
 		).toBe(4);
+	});
+});
+
+describe("the select mode's key map", () => {
+	it("binds no key: no delete, deselect, rotate or scale", () => {
+		expect(MAP_SELECT_KEY_EVENTS).toEqual({
+			deselect: null,
+			delete: null,
+			rotate: null,
+			scale: null,
+		});
+		expect(MAP_SELECT_OPTIONS.keyEvents).toBe(MAP_SELECT_KEY_EVENTS);
+	});
+
+	it("offers no rotate or scale flag on any shape", () => {
+		for (const flags of Object.values(MAP_SELECT_OPTIONS.flags)) {
+			const feature = flags.feature as Record<string, unknown>;
+			expect(feature.rotateable).toBeUndefined();
+			expect(feature.scaleable).toBeUndefined();
+		}
+	});
+
+	function pressWithControl(
+		select: TerraDrawSelectMode,
+		key: string,
+	): number {
+		let prevented = 0;
+		const event = {
+			key,
+			heldKeys: ["Control", key],
+			preventDefault: () => {
+				prevented++;
+			},
+		};
+		select.onKeyDown(event);
+		select.onKeyUp(event);
+		return prevented;
+	}
+
+	it("terra-draw's defaults swallow Ctrl+R and Ctrl+S (the defect)", () => {
+		const { draw, select } = startedDraw({
+			...MAP_SELECT_OPTIONS,
+			keyEvents: undefined,
+		});
+		loadSelected(draw);
+		expect(pressWithControl(select, "r")).toBeGreaterThan(0);
+		expect(pressWithControl(select, "s")).toBeGreaterThan(0);
+	});
+
+	it("leaves Ctrl+R and Ctrl+S to the browser, and the shape as it was", () => {
+		const { draw, select } = startedDraw();
+		const id = loadSelected(draw);
+		const before = structuredClone(draw.getSnapshotFeature(id)!.geometry);
+		expect(pressWithControl(select, "r")).toBe(0);
+		expect(pressWithControl(select, "s")).toBe(0);
+		expect(draw.getSnapshotFeature(id)!.geometry).toEqual(before);
+		expect(draw.getSnapshotFeature(id)?.properties.selected).toBe(true);
 	});
 });
