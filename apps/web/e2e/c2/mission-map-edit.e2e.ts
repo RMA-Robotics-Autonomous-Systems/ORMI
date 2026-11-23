@@ -1214,3 +1214,383 @@ test.describe("C2 mission map: one state indicator", () => {
 		expectNoStrayRequests(harness);
 	});
 });
+
+/** The toolbar's Snap toggle. */
+function snapToggle(page: Page) {
+	return page.getByRole("button", { name: "Snap", exact: true });
+}
+
+/** A yard corner other shapes snap to. */
+const YARD_SW: Position = offset(50, -25);
+/** The yard corner the drag test moves. */
+const YARD_SE: Position = offset(100, -25);
+
+/** Corners of an area drawn with its second corner dropped near {@link YARD_SW}. */
+const SNAP_DRAW: Position[] = [
+	offset(-70, -45),
+	YARD_SW,
+	offset(20, 20),
+	offset(-70, 15),
+];
+
+/** Screen offset of the drop from the yard corner: about 5 px. */
+const NEAR = { dx: 4, dy: -3 };
+
+/**
+ * Draw {@link SNAP_DRAW} with its second corner dropped {@link NEAR} the
+ * yard's corner, finish with a double-click, name it and save it.
+ *
+ * @param hover - Run with the pointer over the second corner, before it is
+ *   dropped.
+ * @returns The ring the fake received, and where the second corner was
+ *   dropped.
+ */
+async function drawNearYard(
+	page: Page,
+	fake: FakeC2,
+	name: string,
+	hover?: (at: { x: number; y: number }) => Promise<void>,
+): Promise<{ ring: Position[]; dropped: Position }> {
+	const posts = fake.requestsTo("POST", `/maps/${MAP_NAME}/features`).length;
+	await armDraw(page);
+	await clickAt(page, [SNAP_DRAW[0]!]);
+	const [corner] = await toScreen(page, [YARD_SW]);
+	const drop = { x: corner!.x + NEAR.dx, y: corner!.y + NEAR.dy };
+	await page.mouse.move(drop.x, drop.y, { steps: 4 });
+	if (hover) await hover(drop);
+	await page.mouse.click(drop.x, drop.y);
+	const dropped = await toLngLat(page, drop);
+	await clickAt(page, [SNAP_DRAW[2]!]);
+	const [fourth] = await toScreen(page, [SNAP_DRAW[3]!]);
+	await page.mouse.dblclick(fourth!.x, fourth!.y);
+	await expectNewShapeOpen(page, SNAP_DRAW);
+	await page.keyboard.type(name);
+	await page.keyboard.press("Enter");
+	await expect
+		.poll(
+			() => fake.requestsTo("POST", `/maps/${MAP_NAME}/features`).length,
+		)
+		.toBe(posts + 1);
+	await expect(editCard(page)).toBeHidden();
+	const post = last(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`));
+	const ring = outerRing(post.body);
+	expect(ring).toHaveLength(SNAP_DRAW.length + 1);
+	expect(ring[0]).toEqual(last(ring));
+	return { ring, dropped };
+}
+
+/** Metres between two positions near the site (equirectangular). */
+function metres(a: Position, b: Position): number {
+	const mPerDegLat = 111_320;
+	const mPerDegLng = mPerDegLat * Math.cos((SITE[1] * Math.PI) / 180);
+	return Math.hypot((a[0] - b[0]) * mPerDegLng, (a[1] - b[1]) * mPerDegLat);
+}
+
+/** Metres from a position to a segment, near the site. */
+function metresToSegment(p: Position, a: Position, b: Position): number {
+	const mPerDegLat = 111_320;
+	const mPerDegLng = mPerDegLat * Math.cos((SITE[1] * Math.PI) / 180);
+	const local = (q: Position) => [
+		(q[0] - a[0]) * mPerDegLng,
+		(q[1] - a[1]) * mPerDegLat,
+	];
+	const [px, py] = local(p) as [number, number];
+	const [bx, by] = local(b) as [number, number];
+	const t = Math.max(
+		0,
+		Math.min(1, (px * bx + py * by) / (bx * bx + by * by)),
+	);
+	return Math.hypot(px - t * bx, py - t * by);
+}
+
+test.describe("C2 mission map: snapping", () => {
+	test("a corner dropped a few pixels from another feature's vertex saves exactly that vertex", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		await prepareAreaDraw(page);
+		await expect(snapToggle(page)).toHaveAttribute("aria-pressed", "true");
+
+		const { ring, dropped } = await drawNearYard(
+			page,
+			harness.fake,
+			"Yard approach",
+			async () => {
+				// The indicator rings the yard's corner while the pointer
+				// is in reach.
+				const [corner] = await toScreen(page, [YARD_SW]);
+				await expect
+					.poll(
+						async () =>
+							(
+								await renderedAt(
+									page,
+									corner!,
+									"c2-snap-indicator",
+									16,
+								)
+							).length,
+						{ message: "the snap indicator at the yard corner" },
+					)
+					.toBeGreaterThan(0);
+			},
+		);
+		expect(ring[1], "the yard's corner, exactly").toEqual(YARD_SW);
+		expect(metres(dropped, YARD_SW)).toBeGreaterThan(1);
+		for (const i of [0, 2, 3]) {
+			expect(
+				near(ring[i]!, SNAP_DRAW[i]!, 1e-5),
+				`corner ${i} where it was clicked`,
+			).toBe(true);
+		}
+		// Nothing snapped is left on screen once the shape is saved.
+		await expect
+			.poll(() => hasLayer(page, "c2-snap-indicator-ring"))
+			.toBe(false);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a vertex dragged near another feature's edge lands on the edge", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		const { fake } = harness;
+		await page
+			.getByRole("radio", { name: "Map editor", exact: true })
+			.click();
+		const [yard] = await toScreen(page, [YARD_CENTRE]);
+		await page.mouse.click(yard!.x, yard!.y);
+		await expect(page.getByText("Editing Gravel yard")).toBeVisible();
+		await waitForIdleMap(page);
+		await expectHandles(page, [YARD_SW, YARD_SE]);
+
+		// The boundary's east edge runs from corner 1 to corner 2; at the
+		// yard's latitude it is at offset(130, -25). Drop 5 px west of it.
+		const [from, onEdge] = await toScreen(page, [
+			YARD_SE,
+			offset(130, -25),
+		]);
+		const to = { x: onEdge!.x - 5, y: onEdge!.y };
+		await page.mouse.move(from!.x, from!.y);
+		await page.mouse.down();
+		await page.mouse.move(from!.x + 2, from!.y + 2, { steps: 2 });
+		await page.mouse.move(to.x, to.y, { steps: 12 });
+		await expect
+			.poll(() => hasLayer(page, "c2-snap-indicator-segment"), {
+				message: "the snapped edge highlighted during the drag",
+			})
+			.toBe(true);
+		await page.mouse.up();
+		await expect
+			.poll(() => hasLayer(page, "c2-snap-indicator-segment"), {
+				message: "the indicator gone when the drag ends",
+			})
+			.toBe(false);
+		await waitForIdleMap(page);
+		const dropped = await toLngLat(page, to);
+
+		const put = await save(page, fake, 0);
+		expect(put.path).toBe(
+			`/maps/${MAP_NAME}/features/${encodeURIComponent(YARD_ID)}`,
+		);
+		const ring = outerRing(put.body);
+		expect(ring).toHaveLength(5);
+		const landed = ring[1]!;
+		expect(
+			metresToSegment(landed, CORNERS[1]!, CORNERS[2]!),
+			"on the boundary's edge",
+		).toBeLessThan(0.05);
+		expect(
+			metresToSegment(dropped, CORNERS[1]!, CORNERS[2]!),
+			"the raw drop was off it",
+		).toBeGreaterThan(1);
+		expect(metres(landed, dropped)).toBeLessThan(5);
+		expect(near(ring[0]!, YARD_SW)).toBe(true);
+		expect(near(ring[2]!, offset(100, 25))).toBe(true);
+		expectNoStrayRequests(harness);
+	});
+
+	test("with Snap off, the same drop keeps the raw position, and stays off after a reload", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		await prepareAreaDraw(page);
+		await snapToggle(page).click();
+		await expect(snapToggle(page)).toHaveAttribute("aria-pressed", "false");
+
+		const { ring, dropped } = await drawNearYard(
+			page,
+			harness.fake,
+			"Free corner",
+			async () => {
+				expect(await hasLayer(page, "c2-snap-indicator-ring")).toBe(
+					false,
+				);
+			},
+		);
+		expect(near(ring[1]!, dropped, 1e-5), "where it was dropped").toBe(
+			true,
+		);
+		expect(metres(ring[1]!, YARD_SW)).toBeGreaterThan(1);
+
+		await page.reload();
+		await expect(page.locator(".maplibregl-map")).toBeVisible();
+		await page
+			.getByRole("radio", { name: "Map editor", exact: true })
+			.click();
+		await expect(snapToggle(page)).toHaveAttribute("aria-pressed", "false");
+		expectNoStrayRequests(harness);
+	});
+
+	test("Alt held places a corner freely with Snap on", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		await prepareAreaDraw(page);
+		await expect(snapToggle(page)).toHaveAttribute("aria-pressed", "true");
+		await page.keyboard.down("Alt");
+		let dropped: Position;
+		try {
+			await armDraw(page);
+			await clickAt(page, [SNAP_DRAW[0]!]);
+			const [corner] = await toScreen(page, [YARD_SW]);
+			const drop = { x: corner!.x + NEAR.dx, y: corner!.y + NEAR.dy };
+			await page.mouse.move(drop.x, drop.y, { steps: 4 });
+			expect(await hasLayer(page, "c2-snap-indicator-ring")).toBe(false);
+			await page.mouse.click(drop.x, drop.y);
+			dropped = await toLngLat(page, drop);
+			await clickAt(page, [SNAP_DRAW[2]!]);
+			const [fourth] = await toScreen(page, [SNAP_DRAW[3]!]);
+			await page.mouse.dblclick(fourth!.x, fourth!.y);
+			await expectNewShapeOpen(page, SNAP_DRAW);
+		} finally {
+			await page.keyboard.up("Alt");
+		}
+		await page.keyboard.type("Alt corner");
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					harness.fake.requestsTo(
+						"POST",
+						`/maps/${MAP_NAME}/features`,
+					).length,
+			)
+			.toBe(1);
+		const ring = outerRing(
+			last(harness.fake.requestsTo("POST", `/maps/${MAP_NAME}/features`))
+				.body,
+		);
+		expect(near(ring[1]!, dropped, 1e-5)).toBe(true);
+		expect(metres(ring[1]!, YARD_SW)).toBeGreaterThan(1);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a new point dropped near another feature's vertex saves exactly that vertex", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		const { fake } = harness;
+		await page
+			.getByRole("radio", { name: "Map editor", exact: true })
+			.click();
+		await page
+			.getByRole("combobox", { name: "Feature type to draw" })
+			.click();
+		await page
+			.getByRole("option", { name: "Waypoint (point)", exact: true })
+			.click();
+		await drawButton(page).click();
+		await expect(hintChip(page)).toContainText("Click to place the point.");
+
+		const [corner] = await toScreen(page, [YARD_SW]);
+		const drop = { x: corner!.x + NEAR.dx, y: corner!.y + NEAR.dy };
+		await page.mouse.move(drop.x, drop.y, { steps: 4 });
+		await expect
+			.poll(() => hasLayer(page, "c2-snap-indicator-ring"), {
+				message: "the snap indicator before the point is placed",
+			})
+			.toBe(true);
+		await page.mouse.click(drop.x, drop.y);
+		await expect(editCard(page)).toBeVisible();
+		await expect(page.getByPlaceholder("Feature name")).toBeFocused();
+		await page.keyboard.type("Yard gate");
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)
+						.length,
+			)
+			.toBe(1);
+		const body = last(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`))
+			.body as FakeFeature;
+		expect(body.properties.feature_type).toBe("waypoint");
+		expect(body.geometry.type).toBe("Point");
+		expect(body.geometry.coordinates).toEqual(YARD_SW);
+		expectNoStrayRequests(harness);
+	});
+
+	test("a polygon still closes on its first corner with snapping on", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openSite(page, baseURL!, [
+			siteBoundary(),
+			gravelYard(),
+		]);
+		const { fake } = harness;
+		await prepareAreaDraw(page);
+		await armDraw(page);
+
+		// The first corner snaps onto the yard's corner.
+		const [corner] = await toScreen(page, [YARD_SW]);
+		await page.mouse.move(corner!.x + 3, corner!.y + 3, { steps: 4 });
+		await page.mouse.click(corner!.x + 3, corner!.y + 3);
+		const rest: Position[] = [offset(0, -60), offset(-30, 0)];
+		await clickAt(page, rest);
+		// Back on the first corner: inside the finish distance, and inside
+		// the snap tolerance of the yard's corner under it.
+		await page.mouse.move(corner!.x - 2, corner!.y + 3, { steps: 4 });
+		await page.mouse.click(corner!.x - 2, corner!.y + 3);
+
+		const shape = [YARD_SW, ...rest];
+		await expectNewShapeOpen(page, shape);
+		await page.keyboard.type("Closed on the yard");
+		await page.keyboard.press("Enter");
+		await expect
+			.poll(
+				() =>
+					fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)
+						.length,
+			)
+			.toBe(1);
+		const ring = outerRing(
+			last(fake.requestsTo("POST", `/maps/${MAP_NAME}/features`)).body,
+		);
+		expect(ring, "three corners, closed").toHaveLength(4);
+		expect(ring[0]).toEqual(YARD_SW);
+		expect(ring[3]).toEqual(YARD_SW);
+		expectNoStrayRequests(harness);
+	});
+});
