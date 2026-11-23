@@ -228,7 +228,7 @@ import {
 } from "./map-edit-history";
 import {
 	editKeyAction,
-	editingLabel,
+	mapStateLabel,
 	hasUnsavedChanges,
 	openShapeContact,
 	selectionChangeOnClick,
@@ -4588,16 +4588,26 @@ function MissionMapBody(props: {
 			: `the new ${FEATURE_TYPE_LABELS[pending.initialType].toLowerCase()}`
 		: "";
 
-	/** The toolbar's state label while a feature is open. */
-	const editLabel =
-		pending && openEditId != null
-			? editingLabel(
-					pending.original?.name ?? pending.name,
-					FEATURE_TYPE_LABELS[pending.initialType],
-				)
-			: pending && newShapeOpen
-				? `New ${FEATURE_TYPE_LABELS[pending.initialType].toLowerCase()}`
-				: "";
+	/** The toolbar's one state indicator: what the map is doing. */
+	const editLabel = mapStateLabel(
+		drawArmed
+			? {
+					kind: "drawing",
+					typeLabel: FEATURE_TYPE_LABELS[mapFeatureType],
+				}
+			: pending && openEditId != null
+				? {
+						kind: "editing",
+						name: pending.original?.name ?? pending.name,
+						typeLabel: FEATURE_TYPE_LABELS[pending.initialType],
+					}
+				: pending && newShapeOpen
+					? {
+							kind: "new",
+							typeLabel: FEATURE_TYPE_LABELS[pending.initialType],
+						}
+					: { kind: "idle" },
+	);
 
 	/**
 	 * Run `then` once the pending save may be dropped: at once when it has no

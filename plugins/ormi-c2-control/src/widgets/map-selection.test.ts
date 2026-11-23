@@ -5,6 +5,7 @@ import {
 	editingLabel,
 	hasUnsavedChanges,
 	historyKeyAction,
+	mapStateLabel,
 	sameGeometry,
 	openShapeContact,
 	selectionChangeOnClick,
@@ -300,5 +301,30 @@ describe("editKeyAction: Undo and Redo", () => {
 			expect(editKeyAction({ key, ctrlKey: true }, state)).toBeNull();
 			expect(editKeyAction({ key, metaKey: true }, state)).toBeNull();
 		}
+	});
+});
+
+describe("mapStateLabel", () => {
+	it("says nothing while nothing is open", () => {
+		expect(mapStateLabel({ kind: "idle" })).toBe("");
+	});
+
+	it("names the feature open, the new shape, or the shape being drawn", () => {
+		expect(
+			mapStateLabel({
+				kind: "editing",
+				name: "Gravel yard",
+				typeLabel: "Risk area",
+			}),
+		).toBe("Editing Gravel yard");
+		expect(
+			mapStateLabel({ kind: "editing", name: " ", typeLabel: "Zone" }),
+		).toBe("Editing Zone");
+		expect(mapStateLabel({ kind: "new", typeLabel: "Zone" })).toBe(
+			"New zone",
+		);
+		expect(mapStateLabel({ kind: "drawing", typeLabel: "Road" })).toBe(
+			"Drawing road",
+		);
 	});
 });

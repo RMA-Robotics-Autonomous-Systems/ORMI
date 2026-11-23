@@ -254,3 +254,34 @@ export function editingLabel(name: string, fallback: string): string {
 	const trimmed = name.trim();
 	return `Editing ${trimmed.length > 0 ? trimmed : fallback}`;
 }
+
+/** What the map is doing, for the toolbar's one state indicator. */
+export type MapActivity =
+	/** Nothing open and nothing armed. */
+	| { kind: "idle" }
+	/** A stored feature open for editing. */
+	| { kind: "editing"; name: string; typeLabel: string }
+	/** A shape Draw just finished, not saved yet. */
+	| { kind: "new"; typeLabel: string }
+	/** Draw armed, authoring a shape of this type. */
+	| { kind: "drawing"; typeLabel: string };
+
+/**
+ * The toolbar's state indicator: one label for whatever the map is doing,
+ * so the state never needs a second control to read.
+ *
+ * @param activity - What the map is doing.
+ * @returns "" (idle), "Editing Gravel yard", "New zone" or "Drawing zone".
+ */
+export function mapStateLabel(activity: MapActivity): string {
+	switch (activity.kind) {
+		case "idle":
+			return "";
+		case "editing":
+			return editingLabel(activity.name, activity.typeLabel);
+		case "new":
+			return `New ${activity.typeLabel.toLowerCase()}`;
+		case "drawing":
+			return `Drawing ${activity.typeLabel.toLowerCase()}`;
+	}
+}
