@@ -214,6 +214,11 @@ import {
 	type VertexPosition,
 } from "./map-vertex-edit";
 import {
+	editCardSide,
+	handlePositions,
+	type EditCardSide,
+} from "./map-edit-card";
+import {
 	canRedo,
 	canUndo,
 	recordGeometry,
@@ -1964,7 +1969,10 @@ const NO_CATEGORY = "__none__";
  * being silently reset to "none" — the list is an authoring convenience, not
  * the vocabulary.
  */
-function SavePrompt(props: {
+function SavePrompt({
+	cardRef,
+	...props
+}: {
 	/** Heading: the stored name of the feature open, or what a new shape is. */
 	title: string;
 	name: string;
@@ -2003,6 +2011,10 @@ function SavePrompt(props: {
 	/** Focus the name field on open: a shape just drawn needs its name. */
 	focusName: boolean;
 	busy: boolean;
+	/** The top corner it sits in, clear of the shape (`map-edit-card.ts`). */
+	side: EditCardSide;
+	/** The card's root, measured for its placement. */
+	cardRef: React.RefObject<HTMLDivElement | null>;
 }) {
 	const nameRef = useRef<HTMLInputElement>(null);
 	const { focusName } = props;
@@ -2027,9 +2039,11 @@ function SavePrompt(props: {
 
 	return (
 		<div
+			ref={cardRef}
 			role="group"
 			aria-label={props.title}
-			className="absolute top-2 left-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto"
+			data-side={props.side}
+			className={`absolute top-2 ${props.side === "left" ? "left-2" : "right-2"} z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto`}
 		>
 			<div className="truncate text-xs font-medium" title={props.title}>
 				{props.title}
@@ -2685,6 +2699,35 @@ function MissionMapBody(props: {
 	/** The open edit has a geometry step to undo, or one to redo. */
 	const undoable = canUndo(pending?.history);
 	const redoable = canRedo(pending?.history);
+	/** The top corner of the edit card, kept clear of the open shape. */
+	const [editCardPlacement, setEditCardPlacement] =
+		useState<EditCardSide>("left");
+	const editCardRef = useRef<HTMLDivElement | null>(null);
+	const openGeometry = shapeOpen ? pending?.feature.geometry : undefined;
+	// Measure, at open, after a change to the shape and after every pan or
+	// zoom, which top corner covers fewer of the shape's handles.
+	useEffect(() => {
+		if (!mapObserved || !openGeometry) return;
+		const map = mapRef.current?.getMap();
+		if (!map) return;
+		const positions = handlePositions(openGeometry);
+		const place = () => {
+			const card = editCardRef.current;
+			if (!card) return;
+			const handles = positions.map((p) => map.project(p));
+			const panelWidth = map.getContainer().clientWidth;
+			const size = { width: card.offsetWidth, height: card.offsetHeight };
+			setEditCardPlacement((current) =>
+				editCardSide(current, handles, panelWidth, size),
+			);
+		};
+		const frame = requestAnimationFrame(place);
+		map.on("moveend", place);
+		return () => {
+			cancelAnimationFrame(frame);
+			map.off("moveend", place);
+		};
+	}, [mapObserved, openGeometry]);
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -5741,6 +5784,8 @@ function MissionMapBody(props: {
 						onRedo={() => stepHistory("redo")}
 						canUndo={undoable}
 						canRedo={redoable}
+						side={overlaysOpen ? "left" : editCardPlacement}
+						cardRef={editCardRef}
 						focusName={pending.featureId == null}
 					/>
 				)}
