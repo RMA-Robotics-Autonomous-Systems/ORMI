@@ -8,9 +8,13 @@ import {
 } from "terra-draw";
 
 import {
+	COARSE_POINTER_HANDLES,
+	FINE_POINTER_HANDLES,
 	MAP_SELECT_KEY_EVENTS,
 	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
+	mapSelectOptions,
+	selectHandleStyles,
 	deleteVertex,
 	isVertexDeleteKey,
 	removeVertex,
@@ -585,5 +589,84 @@ describe("the select mode's key map", () => {
 		expect(pressWithControl(select, "s")).toBe(0);
 		expect(draw.getSnapshotFeature(id)!.geometry).toEqual(before);
 		expect(draw.getSnapshotFeature(id)?.properties.selected).toBe(true);
+	});
+});
+
+describe("the select mode's handle sizes", () => {
+	it("are larger than terra-draw's defaults on a mouse", () => {
+		const fine = selectHandleStyles(false);
+		expect(fine).toBe(FINE_POINTER_HANDLES);
+		// terra-draw 1.31.2 draws a vertex at radius 6, a midpoint at 4.
+		expect(fine.selectionPointWidth).toBeGreaterThan(6);
+		expect(fine.midPointWidth).toBeGreaterThan(4);
+	});
+
+	it("are larger again for a finger", () => {
+		const fine = selectHandleStyles(false);
+		const coarse = selectHandleStyles(true);
+		expect(coarse).toBe(COARSE_POINTER_HANDLES);
+		expect(coarse.selectionPointWidth).toBeGreaterThan(
+			fine.selectionPointWidth,
+		);
+		expect(coarse.midPointWidth).toBeGreaterThan(fine.midPointWidth);
+		// A vertex handle a fingertip can find: at least 24 px across.
+		expect(
+			2 *
+				(coarse.selectionPointWidth +
+					coarse.selectionPointOutlineWidth),
+		).toBeGreaterThanOrEqual(24);
+	});
+
+	it("keep the midpoint smaller than the vertex", () => {
+		for (const coarse of [false, true]) {
+			const styles = selectHandleStyles(coarse);
+			expect(styles.midPointWidth).toBeLessThan(
+				styles.selectionPointWidth,
+			);
+		}
+	});
+
+	it("change sizes only, never colours, and keep the hit radius", () => {
+		for (const coarse of [false, true]) {
+			const options = mapSelectOptions(coarse);
+			expect(Object.keys(options.styles).sort()).toEqual([
+				"midPointOutlineWidth",
+				"midPointWidth",
+				"selectionPointOutlineWidth",
+				"selectionPointWidth",
+			]);
+			expect(options.pointerDistance).toBe(SELECT_POINTER_DISTANCE_PX);
+			expect(options.keyEvents).toBe(MAP_SELECT_KEY_EVENTS);
+		}
+	});
+
+	it("reach terra-draw's drawn handles", () => {
+		for (const coarse of [false, true]) {
+			const expected = selectHandleStyles(coarse);
+			const { draw, select } = startedDraw(mapSelectOptions(coarse));
+			loadSelected(draw);
+			const snapshot = draw.getSnapshot();
+			const vertex = snapshot.find(
+				(f) => f.properties.selectionPoint === true,
+			)!;
+			const midpoint = snapshot.find(
+				(f) => f.properties.midPoint === true,
+			)!;
+			expect(select.styleFeature(vertex).pointWidth).toBe(
+				expected.selectionPointWidth,
+			);
+			expect(select.styleFeature(midpoint).pointWidth).toBe(
+				expected.midPointWidth,
+			);
+			// The colour is terra-draw's own, unchanged.
+			const { draw: plainDraw, select: plain } = startedDraw();
+			loadSelected(plainDraw);
+			const plainVertex = plainDraw
+				.getSnapshot()
+				.find((f) => f.properties.selectionPoint === true)!;
+			expect(select.styleFeature(vertex).pointColor).toBe(
+				plain.styleFeature(plainVertex).pointColor,
+			);
+		}
 	});
 });

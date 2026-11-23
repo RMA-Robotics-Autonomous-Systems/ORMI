@@ -202,9 +202,10 @@ import {
 	type MapTool,
 } from "./map-draw-tool";
 import {
-	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
+	hasCoarsePointer,
+	mapSelectOptions,
 	vertexAtClick,
 	type SelectedVertex,
 	type VertexCandidate,
@@ -3249,7 +3250,8 @@ function MissionMapBody(props: {
 				// Save re-wrote it unchanged. Delete and Backspace remove the
 				// selected vertex instead. Clicks and Escape never deselect:
 				// the open edit owns the selection (`MAP_SELECT_OPTIONS`).
-				new TerraDrawSelectMode(MAP_SELECT_OPTIONS),
+				// Handles sized for the pointers present (larger for a finger).
+				new TerraDrawSelectMode(mapSelectOptions(hasCoarsePointer())),
 			],
 		});
 		draw.start();

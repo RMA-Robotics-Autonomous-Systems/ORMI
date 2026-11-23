@@ -51,6 +51,63 @@ export const MAP_SELECT_KEY_EVENTS: {
 	scale: null,
 };
 
+/** Width styling of the select mode's handles (terra-draw `styles`). */
+export interface SelectHandleStyles {
+	/** Radius (px) of a vertex handle. */
+	selectionPointWidth: number;
+	/** Outline (px) around a vertex handle. */
+	selectionPointOutlineWidth: number;
+	/** Radius (px) of a midpoint, which inserts a vertex. */
+	midPointWidth: number;
+	/** Outline (px) around a midpoint. */
+	midPointOutlineWidth: number;
+}
+
+/**
+ * Handle sizes on a mouse or trackpad. terra-draw's defaults (radius 6 and
+ * 4, outline 2: 16 px and 12 px across) are hard to see and to aim at over
+ * a satellite basemap; these are 22 px and 16 px across.
+ */
+export const FINE_POINTER_HANDLES: SelectHandleStyles = {
+	selectionPointWidth: 9,
+	selectionPointOutlineWidth: 2,
+	midPointWidth: 6,
+	midPointOutlineWidth: 2,
+};
+
+/**
+ * Handle sizes when any pointer is coarse (a finger): 32 px and 24 px
+ * across, so the handle under a fingertip still shows around it. The hit
+ * radius ({@link SELECT_POINTER_DISTANCE_PX}) is the same for both.
+ */
+export const COARSE_POINTER_HANDLES: SelectHandleStyles = {
+	selectionPointWidth: 13,
+	selectionPointOutlineWidth: 3,
+	midPointWidth: 9,
+	midPointOutlineWidth: 3,
+};
+
+/**
+ * The select mode's handle sizes for the pointers present. Colours are
+ * left to terra-draw: they are meaning against the basemap, not size.
+ *
+ * @param coarsePointer - Whether any pointer is coarse
+ *   (`matchMedia("(any-pointer: coarse)")`).
+ * @returns The handle widths.
+ */
+export function selectHandleStyles(coarsePointer: boolean): SelectHandleStyles {
+	return coarsePointer ? COARSE_POINTER_HANDLES : FINE_POINTER_HANDLES;
+}
+
+/**
+ * Whether any pointer on this device is coarse.
+ * @returns False where `matchMedia` is unavailable.
+ */
+export function hasCoarsePointer(): boolean {
+	if (typeof window === "undefined" || !window.matchMedia) return false;
+	return window.matchMedia("(any-pointer: coarse)").matches;
+}
+
 /** Select-mode flags for a line, a polygon and a rectangle. */
 const EDITABLE_SHAPE = {
 	feature: {
@@ -304,3 +361,15 @@ export const MAP_SELECT_OPTIONS = {
 	flags: MAP_SELECT_FLAGS,
 	allowManualDeselection: false,
 };
+
+/**
+ * {@link MAP_SELECT_OPTIONS} with the handle sizes for the pointers present.
+ * @param coarsePointer - Whether any pointer is coarse.
+ * @returns The select mode's options.
+ */
+export function mapSelectOptions(coarsePointer: boolean) {
+	return {
+		...MAP_SELECT_OPTIONS,
+		styles: { ...selectHandleStyles(coarsePointer) },
+	};
+}
