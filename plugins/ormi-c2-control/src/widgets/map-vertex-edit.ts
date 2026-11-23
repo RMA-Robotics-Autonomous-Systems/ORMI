@@ -16,6 +16,8 @@
  * is handed, so the rules are unit-testable on their own.
  */
 
+import type { SnapHook } from "./map-snap";
+
 /** A GeoJSON position as the map stores it: `[lng, lat]`. */
 export type VertexPosition = [number, number];
 
@@ -363,13 +365,42 @@ export const MAP_SELECT_OPTIONS = {
 };
 
 /**
+ * {@link MAP_SELECT_FLAGS} with a snapping hook on every shape whose
+ * vertices drag (a line, a polygon, a rectangle). A dragged vertex, and a
+ * vertex dragged out of a midpoint, then snap through it; a point is dragged
+ * whole and terra-draw has no snapping for that.
+ *
+ * @param toCustom - The hook (`map-snap.ts` `createSnapHook`).
+ * @returns The flags.
+ */
+export function snappingSelectFlags(toCustom: SnapHook) {
+	const snapping = {
+		feature: {
+			...EDITABLE_SHAPE.feature,
+			coordinates: {
+				...EDITABLE_SHAPE.feature.coordinates,
+				snappable: { toCustom },
+			},
+		},
+	};
+	return {
+		...MAP_SELECT_FLAGS,
+		linestring: snapping,
+		polygon: snapping,
+		rectangle: snapping,
+	};
+}
+
+/**
  * {@link MAP_SELECT_OPTIONS} with the handle sizes for the pointers present.
  * @param coarsePointer - Whether any pointer is coarse.
+ * @param toCustom - A snapping hook for vertex drags; none leaves them free.
  * @returns The select mode's options.
  */
-export function mapSelectOptions(coarsePointer: boolean) {
+export function mapSelectOptions(coarsePointer: boolean, toCustom?: SnapHook) {
 	return {
 		...MAP_SELECT_OPTIONS,
+		...(toCustom ? { flags: snappingSelectFlags(toCustom) } : {}),
 		styles: { ...selectHandleStyles(coarsePointer) },
 	};
 }

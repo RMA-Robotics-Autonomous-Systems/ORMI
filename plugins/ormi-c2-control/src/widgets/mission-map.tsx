@@ -81,6 +81,7 @@ import {
 	Loader2,
 	Lock,
 	LockOpen,
+	Magnet,
 	Map as MapIcon,
 	PenLine,
 	Plus,
@@ -213,6 +214,18 @@ import {
 	type VertexCandidate,
 	type VertexPosition,
 } from "./map-vertex-edit";
+import {
+	browserStorage,
+	buildSnapTargets,
+	createSnapHook,
+	createSnapIndicatorStore,
+	readSnapEnabled,
+	snapTolerancePx,
+	writeSnapEnabled,
+	type SnapHookContext,
+	type SnapTarget,
+} from "./map-snap";
+import { SnapIndicatorLayer } from "./map-snap-layer";
 import {
 	editCardSide,
 	handlePositions,
@@ -2669,6 +2682,33 @@ function MissionMapBody(props: {
 		null,
 	);
 	/**
+	 * Snapping to the other features, on unless this browser turned it off
+	 * (the toolbar's Snap toggle). terra-draw's hooks read it through a ref:
+	 * they are installed once, when the map loads.
+	 */
+	const [snapEnabled, setSnapEnabled] = useState(() =>
+		readSnapEnabled(browserStorage()),
+	);
+	const snapEnabledRef = useRef(snapEnabled);
+	/** Where the pointer snaps right now, for the indicator layer. */
+	const [snapIndicator] = useState(createSnapIndicatorStore);
+	useEffect(() => {
+		snapEnabledRef.current = snapEnabled;
+		if (!snapEnabled) snapIndicator.set(null);
+	}, [snapEnabled, snapIndicator]);
+	/** The key that bypasses snapping while held, as this keyboard names it. */
+	const [snapBypassKey] = useState(() =>
+		typeof navigator !== "undefined" &&
+		/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+			? "Option"
+			: "Alt",
+	);
+	const toggleSnap = useCallback(() => {
+		const next = !snapEnabled;
+		setSnapEnabled(next);
+		writeSnapEnabled(browserStorage(), next);
+	}, [snapEnabled]);
+	/**
 	 * A shape is open for editing: a stored feature a click opened, or a
 	 * shape Draw just finished (one-shot: the map is back in select). Both
 	 * show their handles and take the edit keys.
@@ -3287,6 +3327,23 @@ function MissionMapBody(props: {
 					),
 		[libraryFeatures, mapLayers.hidden],
 	);
+	// What a pointer snaps to: every stored feature drawn on the map (the
+	// mission's assets and the library too, in a mission) on a visible
+	// layer, locked ones included, except the one open for editing, whose
+	// live shape is in terra-draw.
+	const snapTargetsRef = useRef<SnapTarget[]>([]);
+	const snapTargets = useMemo(
+		() =>
+			buildSnapTargets(
+				[...renderedFeatures, ...renderedLibraryFeatures],
+				mapLayers,
+				openEditId,
+			),
+		[renderedFeatures, renderedLibraryFeatures, mapLayers, openEditId],
+	);
+	useEffect(() => {
+		snapTargetsRef.current = snapTargets;
+	}, [snapTargets]);
 	// Publish the map's own features for the panel's layer list. In a
 	// mission, its waypoints, zones and cues are listed by the asset tree,
 	// so only the map's other layers are published.
@@ -3358,14 +3415,47 @@ function MissionMapBody(props: {
 		if (!map) return;
 		setMapObserved(true);
 		if (drawRef.current) return;
+		const coarsePointer = hasCoarsePointer();
+		// Snapping to the other features (map-snap.ts). Alt (Option on a
+		// Mac) held bypasses it; the toolbar's Snap toggle is the real
+		// control, and the touch path.
+		let snapBypassHeld = false;
+		const snapDeps = {
+			enabled: () => snapEnabledRef.current && !snapBypassHeld,
+			targets: () => snapTargetsRef.current,
+			tolerancePx: snapTolerancePx(coarsePointer),
+			finishDistancePx: DRAW_FINISH_DISTANCE_PX,
+			onIndicator: snapIndicator.set,
+		};
+		const drawSnapHook = createSnapHook({
+			...snapDeps,
+			gesture: "drawing",
+		});
+		// terra-draw marks its own snaps with a guidance point; the map's
+		// indicator (SnapIndicatorLayer) replaces it.
+		const drawSnapping = {
+			snapping: { toCustom: drawSnapHook },
+			styles: { snappingPointWidth: 0, snappingPointOutlineWidth: 0 },
+		};
 		// A small finish distance: the 40 px default closed polygons and
-		// ended lines mid-trace (DRAW_FINISH_DISTANCE_PX).
+		// ended lines mid-trace (DRAW_FINISH_DISTANCE_PX). Snapping never
+		// moves it: terra-draw tests the raw pointer for a finish, and the
+		// hook does not snap there.
 		const lineMode = new TerraDrawLineStringMode({
 			pointerDistance: DRAW_FINISH_DISTANCE_PX,
+			...drawSnapping,
 		});
 		const polygonMode = new TerraDrawPolygonMode({
 			pointerDistance: DRAW_FINISH_DISTANCE_PX,
+			...drawSnapping,
 		});
+		// The point mode has no snapping option: a new point is snapped
+		// when it finishes, and its indicator follows the pointer here.
+		const mapSnapContext: SnapHookContext = {
+			getCurrentGeometrySnapshot: () => null,
+			project: (lng, lat) => map.project([lng, lat]),
+			unproject: (x, y) => map.unproject([x, y]),
+		};
 		finishableModesRef.current = {
 			linestring: lineMode,
 			polygon: polygonMode,
@@ -3393,7 +3483,13 @@ function MissionMapBody(props: {
 				// selected vertex instead. Clicks and Escape never deselect:
 				// the open edit owns the selection (`MAP_SELECT_OPTIONS`).
 				// Handles sized for the pointers present (larger for a finger).
-				new TerraDrawSelectMode(mapSelectOptions(hasCoarsePointer())),
+				// A dragged vertex snaps to the other features.
+				new TerraDrawSelectMode(
+					mapSelectOptions(
+						coarsePointer,
+						createSnapHook({ ...snapDeps, gesture: "dragging" }),
+					),
+				),
 			],
 		});
 		draw.start();
@@ -3408,15 +3504,80 @@ function MissionMapBody(props: {
 		};
 		const onPointerUp = () => {
 			pointerDown = false;
+			// The gesture ended: a drag landed, or a point was placed.
+			snapIndicator.set(null);
 		};
+		// Alt held, read from every pointer and key event before terra-draw
+		// sees it (window, capture phase).
+		const onModifiers = (event: PointerEvent | KeyboardEvent) => {
+			if (event.altKey === snapBypassHeld) return;
+			snapBypassHeld = event.altKey;
+			if (snapBypassHeld) snapIndicator.set(null);
+		};
+		const onBlur = () => {
+			snapBypassHeld = false;
+		};
+		// The point mode's indicator, from the same hook its finish uses.
+		const onPointMove = (event: PointerEvent) => {
+			if (draw.getMode() !== "point") return;
+			const box = container.getBoundingClientRect();
+			drawSnapHook(
+				{
+					containerX: event.clientX - box.left,
+					containerY: event.clientY - box.top,
+				},
+				mapSnapContext,
+			);
+		};
+		const onPointerLeave = () => snapIndicator.set(null);
 		const container = map.getCanvasContainer();
 		container.addEventListener("pointerdown", onPointerDown, true);
+		container.addEventListener("pointermove", onPointMove);
+		container.addEventListener("pointerleave", onPointerLeave);
 		window.addEventListener("pointerup", onPointerUp, true);
 		window.addEventListener("pointercancel", onPointerUp, true);
+		window.addEventListener("pointerdown", onModifiers, true);
+		window.addEventListener("pointermove", onModifiers, true);
+		window.addEventListener("keydown", onModifiers, true);
+		window.addEventListener("keyup", onModifiers, true);
+		window.addEventListener("blur", onBlur);
 		drawListenersCleanupRef.current = () => {
 			container.removeEventListener("pointerdown", onPointerDown, true);
+			container.removeEventListener("pointermove", onPointMove);
+			container.removeEventListener("pointerleave", onPointerLeave);
 			window.removeEventListener("pointerup", onPointerUp, true);
 			window.removeEventListener("pointercancel", onPointerUp, true);
+			window.removeEventListener("pointerdown", onModifiers, true);
+			window.removeEventListener("pointermove", onModifiers, true);
+			window.removeEventListener("keydown", onModifiers, true);
+			window.removeEventListener("keyup", onModifiers, true);
+			window.removeEventListener("blur", onBlur);
+		};
+		/**
+		 * Snap a point the point mode just placed, where its indicator was.
+		 * @param id - The new point's terra-draw id.
+		 */
+		const snapNewPoint = (id: string | number) => {
+			const point = draw.getSnapshotFeature(id);
+			if (point?.geometry.type !== "Point") return;
+			const [lng, lat] = point.geometry.coordinates as [number, number];
+			const at = map.project([lng, lat]);
+			const snapped = drawSnapHook(
+				{ containerX: at.x, containerY: at.y },
+				mapSnapContext,
+			);
+			if (!snapped) return;
+			try {
+				draw.updateFeatureGeometry(id, {
+					type: "Point",
+					coordinates: snapped,
+				});
+			} catch (error) {
+				console.error(
+					"[c2 map] terra-draw refused the snapped point",
+					error,
+				);
+			}
 		};
 		// EVERY finished draw becomes an ASSET — one route, both contexts. It
 		// opens the naming prompt, is saved as a named, typed MapDB feature, and
@@ -3429,6 +3590,9 @@ function MissionMapBody(props: {
 			// Any edit renumbers or moves the vertices: the selected one is
 			// no longer the one the operator clicked.
 			setSelectedVertex(null);
+			if (context?.mode === "point" && context.action === "draw")
+				snapNewPoint(id);
+			snapIndicator.set(null);
 			const snap = draw.getSnapshotFeature(id);
 			if (!snap) return;
 			const drawn = snap as unknown as DrawFeature;
@@ -3527,7 +3691,7 @@ function MissionMapBody(props: {
 			if (drawCtxRef.current.missionScope) selectAsset(null);
 		});
 		drawRef.current = draw;
-	}, []);
+	}, [snapIndicator]);
 
 	useEffect(() => {
 		return () => {
@@ -3602,8 +3766,11 @@ function MissionMapBody(props: {
 				: shapeOpen && canEdit
 					? "select"
 					: "static";
-		if (draw.getMode() !== next) draw.setMode(next);
-	}, [viewOnly, tool, canEdit, drawGeometryMode, shapeOpen]);
+		if (draw.getMode() === next) return;
+		draw.setMode(next);
+		// A snap shown for the mode that stopped is no longer under way.
+		snapIndicator.set(null);
+	}, [viewOnly, tool, canEdit, drawGeometryMode, shapeOpen, snapIndicator]);
 
 	/** Draw is armed and may draw: the hint chip shows. */
 	const drawArmed = !viewOnly && tool === "draw" && canEdit;
@@ -5277,6 +5444,28 @@ function MissionMapBody(props: {
 							<PenLine />
 							Draw
 						</Button>
+						{/* On by default; kept per browser. Holding Alt
+						    (Option) bypasses it, which needs a keyboard, so
+						    this is the control. */}
+						<Button
+							size={compactToolbar ? "icon-sm" : "sm"}
+							variant={snapEnabled ? "secondary" : "outline"}
+							aria-pressed={snapEnabled}
+							aria-label="Snap"
+							title={
+								snapEnabled
+									? `Snap on. Hold ${snapBypassKey} to place freely.`
+									: "Snap off"
+							}
+							onClick={toggleSnap}
+						>
+							<Magnet
+								className={
+									snapEnabled ? "text-primary" : undefined
+								}
+							/>
+							{compactToolbar ? null : "Snap"}
+						</Button>
 						<span
 							role="status"
 							className={`truncate text-xs text-muted-foreground ${compactToolbar ? "w-24" : "w-40"}`}
@@ -5857,6 +6046,9 @@ function MissionMapBody(props: {
 					{shownVertex && (
 						<SelectedVertexLayer position={shownVertex.position} />
 					)}
+					{/* Mounts only while a snap shows, so it draws over
+					    terra-draw's handles too. */}
+					<SnapIndicatorLayer store={snapIndicator} />
 					{/* Everything below stacks under "c2-features-fill"
 					    (directly, or as the live-resolved fallback), so it
 					    mounts after FeatureLayers, which adds it: a direct
