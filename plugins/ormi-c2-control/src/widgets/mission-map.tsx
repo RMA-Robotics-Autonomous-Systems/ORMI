@@ -74,6 +74,7 @@ import {
 	TooltipTrigger,
 } from "@workspace/ui/components/tooltip";
 import {
+	Check,
 	ChevronDown,
 	Download,
 	Layers,
@@ -189,6 +190,17 @@ import {
 	classifyDrawFinish,
 	nextPendingOnFinish,
 } from "./map-draw-finish";
+import {
+	canFinishDrawing,
+	drawHint,
+	drawKeyAction,
+	newShapeDiscard,
+	nextMapTool,
+	placedDrawPoints,
+	takesFinishButton,
+	type DrawingFeature,
+	type MapTool,
+} from "./map-draw-tool";
 import {
 	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
@@ -374,13 +386,6 @@ const OVERLAY_BEFORE_IDS = [
 
 /** The editing context: which feature set the operator is authoring. */
 type MapContext = "map-editor" | "mission";
-
-/**
- * The active tool within a context. `select` is the resting state: a click
- * selects a feature and opens it for editing at once. `draw` authors a new
- * shape.
- */
-type MapTool = "select" | "draw";
 
 /**
  * Toolbar segmented-control items size to their label. The stock item is
@@ -1972,8 +1977,21 @@ function SavePrompt(props: {
 	onCancel: () => void;
 	/** Delete the whole feature (an edit only); confirm-gated by the caller. */
 	onDelete?: () => void;
+	/**
+	 * Escape in the name field: the map's own Escape (cancel an edit,
+	 * discard a new shape). The map's key handler ignores a key typed into
+	 * a field, so the field answers Enter and Escape itself.
+	 */
+	onEscape: () => void;
+	/** Focus the name field on open: a shape just drawn needs its name. */
+	focusName: boolean;
 	busy: boolean;
 }) {
+	const nameRef = useRef<HTMLInputElement>(null);
+	const { focusName } = props;
+	useEffect(() => {
+		if (focusName) nameRef.current?.focus({ preventScroll: true });
+	}, [focusName]);
 	const takesCategory = CATEGORISED_FEATURE_TYPES.includes(props.featureType);
 	// The geometry is already drawn by the time this opens (both on a fresh
 	// draw and on an edit), so the legal targets are fixed by the type it was
@@ -2000,8 +2018,20 @@ function SavePrompt(props: {
 				{props.title}
 			</div>
 			<Input
+				ref={nameRef}
 				value={props.name}
 				onChange={(e) => props.onChange({ name: e.target.value })}
+				onKeyDown={(e) => {
+					// A key that composes a character (an IME) is not a command.
+					if (e.nativeEvent.isComposing) return;
+					if (e.key === "Enter" && !e.shiftKey) {
+						e.preventDefault();
+						if (props.canSave && !props.busy) props.onSave();
+					} else if (e.key === "Escape") {
+						e.preventDefault();
+						props.onEscape();
+					}
+				}}
 				placeholder="Feature name"
 				className="h-8"
 			/>
@@ -2219,6 +2249,13 @@ const KEY_CONTROL_SELECTOR =
 	'button,a[href],[role="button"],[role="combobox"],[role="radio"],[role="checkbox"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"]';
 const KEY_POPUP_SELECTOR = '[role="listbox"],[role="menu"]';
 
+/**
+ * A map click this soon after terra-draw finished a new shape is the click
+ * that finished it (MapLibre's `click` follows terra-draw's `pointerup`
+ * within the same input), not a new one.
+ */
+const FINISH_CLICK_GRACE_MS = 250;
+
 /** Inner body once the CRUD call definitions are resolved. */
 function MissionMapBody(props: {
 	mapUrl: string;
@@ -2368,6 +2405,25 @@ function MissionMapBody(props: {
 	// save path can read the LIVE (post-drag/reshape) geometry by id rather than
 	// re-serializing the stale pre-edit snapshot.
 	const editingDrawIdRef = useRef<string | number | null>(null);
+	/**
+	 * The line and polygon draw modes, kept for the hint chip's Finish
+	 * button. terra-draw 1.31.2 has no public call that finishes a shape in
+	 * progress: its finish is the mode's `keyEvents.finish` key (Enter, the
+	 * default this map keeps), read in the mode's `onKeyUp`. Finish calls that
+	 * on the active mode, which runs terra-draw's own close, including its
+	 * refusal of a polygon with fewer than three corners.
+	 */
+	const finishableModesRef = useRef<{
+		linestring: TerraDrawLineStringMode | null;
+		polygon: TerraDrawPolygonMode | null;
+	}>({ linestring: null, polygon: null });
+	/**
+	 * When terra-draw last finished a new shape (`performance.now()`). The
+	 * click that finished it reaches the map's own click handler right after,
+	 * once the map is back in select, where it would select a vertex of the
+	 * new shape and take focus from its name field.
+	 */
+	const newShapeFinishedAtRef = useRef(-Infinity);
 
 	// The ROS source the per-agent localization overlay falls back to when an
 	// agent (roster-fed) carries no own source: the operator's configured
@@ -2489,6 +2545,11 @@ function MissionMapBody(props: {
 	const [pickedId, setPickedId] = useState<string | null>(null);
 	const [pending, setPending] = useState<PendingSave | null>(null);
 	/**
+	 * Points placed on the shape Draw is authoring, for the hint chip's
+	 * Finish button ({@link placedDrawPoints}). 0 with nothing in progress.
+	 */
+	const [drawPoints, setDrawPoints] = useState(0);
+	/**
 	 * The vertex of the open shape the operator clicked, which Delete and
 	 * Backspace remove. terra-draw has no selected-vertex state of its own.
 	 * Shown only while that shape is open for editing.
@@ -2497,14 +2558,20 @@ function MissionMapBody(props: {
 		null,
 	);
 	/**
+	 * A shape is open for editing: a stored feature a click opened, or a
+	 * shape Draw just finished (one-shot: the map is back in select). Both
+	 * show their handles and take the edit keys.
+	 */
+	const shapeOpen = !viewOnly && tool !== "draw" && pending != null;
+	/**
 	 * The stored feature open for editing (select-first: a click on a feature
-	 * opens it), or null. A shape just drawn is pending too, but it is not a
-	 * stored feature and the Draw tool owns it.
+	 * opens it), or null. A shape just drawn is open too but has no
+	 * `feature_id` yet.
 	 */
 	const openEditId =
-		!viewOnly && tool !== "draw" && pending?.featureId != null
-			? pending.featureId
-			: null;
+		shapeOpen && pending?.featureId != null ? pending.featureId : null;
+	/** The open shape is one Draw just finished, not saved yet. */
+	const newShapeOpen = shapeOpen && pending?.featureId == null;
 	/** Whether the pending save would write something new. */
 	const pendingDirty =
 		pending != null &&
@@ -2517,7 +2584,7 @@ function MissionMapBody(props: {
 			},
 			pending.original,
 		);
-	const shownVertex = openEditId != null ? selectedVertex : null;
+	const shownVertex = shapeOpen ? selectedVertex : null;
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -3148,6 +3215,18 @@ function MissionMapBody(props: {
 		if (!map) return;
 		setMapObserved(true);
 		if (drawRef.current) return;
+		// A small finish distance: the 40 px default closed polygons and
+		// ended lines mid-trace (DRAW_FINISH_DISTANCE_PX).
+		const lineMode = new TerraDrawLineStringMode({
+			pointerDistance: DRAW_FINISH_DISTANCE_PX,
+		});
+		const polygonMode = new TerraDrawPolygonMode({
+			pointerDistance: DRAW_FINISH_DISTANCE_PX,
+		});
+		finishableModesRef.current = {
+			linestring: lineMode,
+			polygon: polygonMode,
+		};
 		const draw = new TerraDraw({
 			adapter: new TerraDrawMapLibreGLAdapter({
 				map: map as MapLibreInstance,
@@ -3158,14 +3237,8 @@ function MissionMapBody(props: {
 			// "rectangle") draws an axis-aligned bounding box as a Polygon.
 			modes: [
 				new TerraDrawPointMode(),
-				// A small finish distance: the 40 px default closed polygons
-				// and ended lines mid-trace (DRAW_FINISH_DISTANCE_PX).
-				new TerraDrawLineStringMode({
-					pointerDistance: DRAW_FINISH_DISTANCE_PX,
-				}),
-				new TerraDrawPolygonMode({
-					pointerDistance: DRAW_FINISH_DISTANCE_PX,
-				}),
+				lineMode,
+				polygonMode,
 				new TerraDrawRectangleMode(),
 				// Feature editing: select-mode editing enabled per geometry (see
 				// `MAP_SELECT_FLAGS`): feature dragging, midpoints that insert a
@@ -3236,11 +3309,48 @@ function MissionMapBody(props: {
 					}),
 				),
 			);
+			if (!isNewShape) return;
+			// One-shot: the map returns to select by itself and the new shape
+			// opens exactly like a clicked stored feature, with its handles
+			// and its card. Save reads its live geometry by this id.
+			editingDrawIdRef.current = id;
+			newShapeFinishedAtRef.current = performance.now();
+			setDrawPoints(0);
+			setTool((tool) => nextMapTool(tool, "finish-new"));
+			// After the draw mode's own close has returned: selecting switches
+			// terra-draw to its select mode, which stops the draw mode.
+			queueMicrotask(() => {
+				if (drawRef.current !== draw || !draw.enabled) return;
+				if (draw.hasFeature(id)) draw.selectFeature(id);
+			});
 		});
 		draw.on("deselect", () => setSelectedVertex(null));
-		// Starting a new shape clears the pick, which can arrive while the
-		// Draw tool is armed (the assets panel picks too).
-		draw.on("change", (_ids, type, changeContext) => {
+		// The shape Draw has in progress, whose placed points the Finish
+		// button reads. Guidance points (closing, snapping) come and go
+		// while it is drawn and are not it.
+		let inProgressId: string | number | null = null;
+		draw.on("change", (ids, type, changeContext) => {
+			if (type === "delete") {
+				// The shape in progress dropped: Escape, or its mode stopping.
+				if (inProgressId !== null && ids.includes(inProgressId)) {
+					inProgressId = null;
+					setDrawPoints(0);
+				}
+			} else if (draw.getMode() !== "select") {
+				for (const id of ids) {
+					const placed = placedDrawPoints(
+						draw.getSnapshotFeature(id) as
+							DrawingFeature | undefined,
+					);
+					if (placed !== null) {
+						inProgressId = id;
+						setDrawPoints(placed);
+						break;
+					}
+				}
+			}
+			// Starting a new shape clears the pick, which can arrive while
+			// the Draw tool is armed (the assets panel picks too).
 			if (!startsNewDrawing(type, draw.getMode(), changeContext)) return;
 			setPickedId(null);
 			if (drawCtxRef.current.missionScope) selectAsset(null);
@@ -3310,18 +3420,20 @@ function MissionMapBody(props: {
 	// A mode that is already active is not set again: `setMode` stops and
 	// restarts it, and restarting the select mode drops the selection
 	// `editFeature` just made, hiding the handles the operator needs.
-	const editOpen = openEditId != null;
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw || !draw.enabled) return;
 		const next =
 			!viewOnly && tool === "draw" && canEdit
 				? drawGeometryMode
-				: editOpen && canEdit
+				: shapeOpen && canEdit
 					? "select"
 					: "static";
 		if (draw.getMode() !== next) draw.setMode(next);
-	}, [viewOnly, tool, canEdit, drawGeometryMode, editOpen]);
+	}, [viewOnly, tool, canEdit, drawGeometryMode, shapeOpen]);
+
+	/** Draw is armed and may draw: the hint chip shows. */
+	const drawArmed = !viewOnly && tool === "draw" && canEdit;
 
 	/**
 	 * End the open edit or the drawn shape awaiting its name: drop its changes
@@ -3364,13 +3476,14 @@ function MissionMapBody(props: {
 				);
 				return;
 			}
-			// On an EDIT, read the LIVE geometry from terra-draw (capturing any
-			// vertex drag / midpoint reshape the operator made in select mode); fall
-			// back to the pending snapshot if the live feature can't be resolved. A
-			// CREATE always uses the freshly-drawn `pending.feature`.
+			// Read the LIVE geometry from terra-draw (capturing any vertex drag /
+			// midpoint reshape the operator made in select mode), for an edit
+			// and for a shape just drawn, which opens in select mode too; fall
+			// back to the pending snapshot if the live feature can't be
+			// resolved.
 			const liveId = editingDrawIdRef.current;
 			const liveFeature =
-				editing && liveId != null
+				liveId != null
 					? (drawRef.current?.getSnapshotFeature(liveId) as
 							DrawFeature | undefined)
 					: undefined;
@@ -4273,7 +4386,9 @@ function MissionMapBody(props: {
 					pending.original?.name ?? pending.name,
 					FEATURE_TYPE_LABELS[pending.initialType],
 				)
-			: "";
+			: pending && newShapeOpen
+				? `New ${FEATURE_TYPE_LABELS[pending.initialType].toLowerCase()}`
+				: "";
 
 	/**
 	 * Run `then` once the pending save may be dropped: at once when it has no
@@ -4353,10 +4468,33 @@ function MissionMapBody(props: {
 		if (stored) requestDeleteFeature(stored);
 	}, [openEditId, shownFeatures, requestDeleteFeature]);
 
-	/** Arm or disarm the Draw tool. Arming it closes the open edit. */
+	/**
+	 * Discard the shape Draw just finished: at once while it has no name
+	 * (most often a shape drawn by accident), asking first once a name is
+	 * typed ({@link newShapeDiscard}).
+	 */
+	const discardNewShape = useCallback(() => {
+		if (!pending || newShapeDiscard(pending.name) === "discard") {
+			cancelPending();
+			return;
+		}
+		leavePending(cancelPending);
+	}, [pending, cancelPending, leavePending]);
+
+	/** Escape on the open shape: cancel an edit, discard a new shape. */
+	const escapeOpenShape = useCallback(() => {
+		if (newShapeOpen) discardNewShape();
+		else cancelPending();
+	}, [newShapeOpen, discardNewShape, cancelPending]);
+
+	/**
+	 * Arm or disarm the Draw tool. Arming it closes the open edit, asking
+	 * first about unsaved changes. Disarming drops a shape half drawn
+	 * (terra-draw discards it when its mode stops).
+	 */
 	const toggleDraw = useCallback(() => {
 		if (tool === "draw") {
-			setTool("select");
+			setTool((current) => nextMapTool(current, "toggle"));
 			return;
 		}
 		leavePending(() => {
@@ -4365,17 +4503,63 @@ function MissionMapBody(props: {
 			// about to be drawn.
 			setPickedId(null);
 			if (missionScope) selectAsset(null);
-			setTool("draw");
+			setDrawPoints(0);
+			setTool((current) => nextMapTool(current, "toggle"));
+			// terra-draw reads its finish key (Enter) from the map: a Draw
+			// button left focused would take Enter and disarm instead.
+			focusMap();
 		});
-	}, [tool, leavePending, endEdit, missionScope]);
+	}, [tool, leavePending, endEdit, missionScope, focusMap]);
 
-	// The keys of the open edit: Delete and Backspace remove the selected
-	// vertex (with none selected, ask to delete the feature), Enter saves,
-	// Escape cancels. A key typed into a field (the naming card) or pressed
-	// over a dialog is not for the map; neither is Enter on a focused button,
-	// nor anything pressed inside an open list or menu.
+	/** The hint chip's Finish: complete the line or polygon in progress. */
+	const finishDrawing = useCallback(() => {
+		const draw = drawRef.current;
+		if (!draw || !draw.enabled) return;
+		const mode = draw.getMode();
+		const instance =
+			mode === "linestring" || mode === "polygon"
+				? finishableModesRef.current[mode]
+				: null;
+		instance?.onKeyUp({
+			key: "Enter",
+			heldKeys: [],
+			preventDefault: () => {},
+		});
+	}, []);
+
+	// The key of the armed Draw tool: Escape disarms, before the first point
+	// or with a shape half drawn (which is dropped). Enter is terra-draw's own
+	// finish key and is left to it, as is everything else while it draws.
 	useEffect(() => {
-		if (openEditId == null) return;
+		if (!drawArmed) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (isTypingInEditableElement(event) || isModalOpen()) return;
+			const target =
+				event.target instanceof Element ? event.target : null;
+			const action = drawKeyAction({
+				key: event.key,
+				ctrlKey: event.ctrlKey,
+				metaKey: event.metaKey,
+				altKey: event.altKey,
+				inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
+			});
+			if (action !== "disarm") return;
+			event.preventDefault();
+			setTool((current) => nextMapTool(current, "escape"));
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [drawArmed]);
+
+	// The keys of the open shape (a stored feature, or one Draw just
+	// finished): Delete and Backspace remove the selected vertex (with none
+	// selected, ask to delete the feature, or discard a new shape), Enter
+	// saves, Escape cancels an edit and discards a new shape. A key typed
+	// into a field (the naming card handles its own Enter and Escape) or
+	// pressed over a dialog is not for the map; neither is Enter on a
+	// focused button, nor anything pressed inside an open list or menu.
+	useEffect(() => {
+		if (!shapeOpen) return;
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (isTypingInEditableElement(event) || isModalOpen()) return;
 			const target =
@@ -4402,25 +4586,28 @@ function MissionMapBody(props: {
 					deleteShownVertex();
 					return;
 				case "ask-delete-feature":
-					requestDeleteOpen();
+					if (newShapeOpen) discardNewShape();
+					else requestDeleteOpen();
 					return;
 				case "save":
 					savePending();
 					return;
 				case "cancel":
-					cancelPending();
+					escapeOpenShape();
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [
-		openEditId,
+		shapeOpen,
+		newShapeOpen,
 		shownVertex,
 		pendingDirty,
 		deleteShownVertex,
 		requestDeleteOpen,
+		discardNewShape,
 		savePending,
-		cancelPending,
+		escapeOpenShape,
 	]);
 
 	/**
@@ -4437,12 +4624,24 @@ function MissionMapBody(props: {
 			point: { x: number; y: number };
 			lngLat: { lng: number; lat: number };
 		}) => {
-			if (tool === "draw") return;
 			// The keys act on what the map shows. MapLibre keeps focus where it
 			// was on a click, so a toolbar button clicked last would still
-			// take Enter.
+			// take Enter (terra-draw's finish key while Draw is armed).
+			if (tool === "draw") {
+				focusMap();
+				return;
+			}
+			// The click that finished a new shape, arriving once the map is
+			// back in select: the shape is open, and its name field keeps
+			// the focus.
+			if (
+				performance.now() - newShapeFinishedAtRef.current <
+				FINISH_CLICK_GRACE_MS
+			) {
+				return;
+			}
 			focusMap();
-			const editing = openEditId != null;
+			const editing = shapeOpen;
 			if (editing) {
 				// A click on a vertex handle of the open shape selects that
 				// vertex; it is not a pick of whatever lies under it.
@@ -4473,7 +4672,7 @@ function MissionMapBody(props: {
 		},
 		[
 			tool,
-			openEditId,
+			shapeOpen,
 			focusMap,
 			selectedMission,
 			pickAt,
@@ -4838,10 +5037,12 @@ function MissionMapBody(props: {
 							orientation="vertical"
 							className="data-[orientation=vertical]:h-6"
 						/>
+						{/* Armed: the primary fill, the same size and label, so
+						    the toolbar never moves. */}
 						<Button
 							size="sm"
-							variant={tool === "draw" ? "secondary" : "outline"}
-							aria-pressed={tool === "draw"}
+							variant={drawArmed ? "default" : "outline"}
+							aria-pressed={drawArmed}
 							disabled={!canEdit}
 							onClick={toggleDraw}
 						>
@@ -4851,9 +5052,9 @@ function MissionMapBody(props: {
 						<span
 							role="status"
 							className={`truncate text-xs text-muted-foreground ${compactToolbar ? "w-24" : "w-40"}`}
-							title={openEditId != null ? editLabel : undefined}
+							title={editLabel || undefined}
 						>
-							{openEditId != null ? editLabel : null}
+							{editLabel || null}
 						</span>
 					</>
 				)}
@@ -5294,6 +5495,40 @@ function MissionMapBody(props: {
 				{props.feedbackTopic && (
 					<MissionFeedbackHistorySync selectedId={selectedMission} />
 				)}
+				{/* The next step while Draw is armed, over the top edge of
+				    the map, clear of the corners the edit card and the
+				    layers panel own. It floats, so arming never moves the
+				    map. A line or a polygon carries Finish: a double-click
+				    is unreliable on touch. */}
+				{drawArmed && (
+					<div className="pointer-events-none absolute inset-x-2 top-2 z-20 flex justify-center">
+						<div
+							role="status"
+							aria-label="Draw"
+							className="pointer-events-auto flex max-w-full items-center gap-2 rounded-md border bg-background/95 px-2 py-1 text-xs text-foreground shadow-sm backdrop-blur"
+						>
+							<PenLine className="size-3.5 shrink-0 text-primary" />
+							<span>{drawHint(effectiveShape)}</span>
+							{takesFinishButton(effectiveShape) && (
+								<Button
+									size="sm"
+									variant="outline"
+									className="h-7 shrink-0 any-pointer-coarse:min-h-11"
+									disabled={
+										!canFinishDrawing(
+											effectiveShape,
+											drawPoints,
+										)
+									}
+									onClick={finishDrawing}
+								>
+									<Check />
+									Finish
+								</Button>
+							)}
+						</div>
+					</div>
+				)}
 				{/* The ONE route a drawn shape takes, in both contexts. */}
 				{pending && !viewOnly && (
 					<SavePrompt
@@ -5326,6 +5561,8 @@ function MissionMapBody(props: {
 								? requestDeleteOpen
 								: undefined
 						}
+						onEscape={escapeOpenShape}
+						focusName={pending.featureId == null}
 					/>
 				)}
 				{overlaysOpen && (
@@ -5361,6 +5598,9 @@ function MissionMapBody(props: {
 					onError={handleMapError}
 					onLoad={handleMapLoad}
 					onClick={handleMapClick}
+					// A double-click finishes a line or a polygon while Draw
+					// is armed; it must not also zoom.
+					doubleClickZoom={!drawArmed}
 					style={{ width: "100%", height: "100%" }}
 				>
 					{/* North indicator + ground scale. Always on: rotation is
