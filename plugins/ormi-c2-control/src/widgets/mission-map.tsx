@@ -81,6 +81,7 @@ import {
 	Lock,
 	LockOpen,
 	Map as MapIcon,
+	PenLine,
 	Plus,
 	Save,
 	Trash2,
@@ -192,12 +193,20 @@ import {
 	MAP_SELECT_OPTIONS,
 	SELECT_POINTER_DISTANCE_PX,
 	deleteVertex,
-	isVertexDeleteKey,
 	vertexAtClick,
 	type SelectedVertex,
 	type VertexCandidate,
 	type VertexPosition,
 } from "./map-vertex-edit";
+import {
+	editKeyAction,
+	editingLabel,
+	hasUnsavedChanges,
+	openShapeContact,
+	selectionChangeOnClick,
+	type DrawCandidate,
+	type EditSnapshot,
+} from "./map-selection";
 import {
 	GeoJsonFeatureCollection,
 	MapRegistryEntry,
@@ -366,8 +375,12 @@ const OVERLAY_BEFORE_IDS = [
 /** The editing context: which feature set the operator is authoring. */
 type MapContext = "map-editor" | "mission";
 
-/** The active tool within a context. */
-type MapTool = "view" | "draw" | "edit" | "delete";
+/**
+ * The active tool within a context. `select` is the resting state: a click
+ * selects a feature and opens it for editing at once. `draw` authors a new
+ * shape.
+ */
+type MapTool = "select" | "draw";
 
 /**
  * Toolbar segmented-control items size to their label. The stock item is
@@ -375,17 +388,6 @@ type MapTool = "view" | "draw" | "edit" | "delete";
  * squeezes the longest label ("Geofence", "Rectangle") against its borders.
  */
 const TOGGLE_ITEM_CLASS = "flex-none px-2.5";
-
-/**
- * The Delete tool's own tone inside the otherwise neutral tool group.
- *
- * Pick, Draw and Edit author; Delete destroys, and a segmented control that
- * styles the four identically asks the operator to pick the destructive one by
- * position alone. It stays inside the group — it is a mode, not a command — so
- * the distinction is colour rather than a button pulled out of the row.
- */
-const DELETE_TOOL_CLASS =
-	"text-destructive hover:bg-destructive/10 hover:text-destructive data-[state=on]:bg-destructive data-[state=on]:text-white";
 
 /**
  * What Save mission does, worded as the assets panel and the node editor word
@@ -1868,8 +1870,8 @@ function LibraryLayers(props: { features: C2Feature[] }) {
 /**
  * Render the active mission's inline `objective.geometries[]` in a distinct
  * indigo accent so the operator can see the mission geometry on top of the map
- * features. Each feature carries its source `index` so the Mission-context View
- * tool can pick (and the Edit/Delete tools act on) a specific entry. Pure
+ * features. Each feature carries its source `index` so a specific entry can
+ * be told apart. Pure
  * `feature_id` references are not rendered here (those are map features).
  */
 function MissionFeatureLayers(props: {
@@ -1947,26 +1949,32 @@ const NO_CATEGORY = "__none__";
  * the vocabulary.
  */
 function SavePrompt(props: {
-	initialName: string;
+	/** Heading: the stored name of the feature open, or what a new shape is. */
+	title: string;
+	name: string;
+	featureType: FeatureType;
+	/** The type drawn or stored: fixes the legal retype targets. */
 	initialType: FeatureType;
+	category: string;
+	/** The category the feature arrived with, kept as an option. */
 	initialCategory: string;
+	/** Report a change to the name, type or category. */
+	onChange: (patch: {
+		name?: string;
+		featureType?: FeatureType;
+		category?: string;
+	}) => void;
 	/** True when an existing stored asset is being edited (vs. a fresh draw). */
 	editing: boolean;
+	/** Save is offered: there are changes and a name. */
+	canSave: boolean;
+	onSave: () => void;
 	onCancel: () => void;
-	onConfirm: (
-		name: string,
-		featureType: FeatureType,
-		category: string,
-	) => void;
+	/** Delete the whole feature (an edit only); confirm-gated by the caller. */
+	onDelete?: () => void;
 	busy: boolean;
 }) {
-	const [name, setName] = useState(props.initialName);
-	const [featureType, setFeatureType] = useState<FeatureType>(
-		props.initialType,
-	);
-	const [category, setCategory] = useState(props.initialCategory);
-
-	const takesCategory = CATEGORISED_FEATURE_TYPES.includes(featureType);
+	const takesCategory = CATEGORISED_FEATURE_TYPES.includes(props.featureType);
 	// The geometry is already drawn by the time this opens (both on a fresh
 	// draw and on an edit), so the legal targets are fixed by the type it was
 	// drawn as.
@@ -1983,19 +1991,25 @@ function SavePrompt(props: {
 	}, [props.initialCategory]);
 
 	return (
-		<div className="absolute top-2 left-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto">
-			<div className="text-xs font-medium">
-				{props.editing ? "Edit asset" : "Save map asset"}
+		<div
+			role="group"
+			aria-label={props.title}
+			className="absolute top-2 left-2 z-10 bg-background/95 border rounded-md p-2 flex flex-col gap-2 shadow-md w-64 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] overflow-y-auto"
+		>
+			<div className="truncate text-xs font-medium" title={props.title}>
+				{props.title}
 			</div>
 			<Input
-				value={name}
-				onChange={(e) => setName(e.target.value)}
+				value={props.name}
+				onChange={(e) => props.onChange({ name: e.target.value })}
 				placeholder="Feature name"
 				className="h-8"
 			/>
 			<Select
-				value={featureType}
-				onValueChange={(value) => setFeatureType(value as FeatureType)}
+				value={props.featureType}
+				onValueChange={(value) =>
+					props.onChange({ featureType: value as FeatureType })
+				}
 			>
 				<SelectTrigger size="sm" className="w-full">
 					<SelectValue placeholder="Feature type" />
@@ -2021,9 +2035,11 @@ function SavePrompt(props: {
 			)}
 			{takesCategory && (
 				<Select
-					value={category || NO_CATEGORY}
+					value={props.category || NO_CATEGORY}
 					onValueChange={(value) =>
-						setCategory(value === NO_CATEGORY ? "" : value)
+						props.onChange({
+							category: value === NO_CATEGORY ? "" : value,
+						})
 					}
 				>
 					<SelectTrigger size="sm" className="w-full">
@@ -2042,28 +2058,36 @@ function SavePrompt(props: {
 			<div className="flex items-center gap-2">
 				<Button
 					size="sm"
-					className="flex-1"
-					disabled={props.busy || name.trim().length === 0}
-					onClick={() =>
-						props.onConfirm(
-							name.trim(),
-							featureType,
-							takesCategory ? category : "",
-						)
-					}
+					className="flex-1 any-pointer-coarse:min-h-11"
+					disabled={props.busy || !props.canSave}
+					onClick={props.onSave}
 				>
 					<Save />
 					Save
 				</Button>
 				<Button
-					size="icon-sm"
-					variant="ghost"
-					aria-label="Cancel"
+					size="sm"
+					variant="outline"
+					className="any-pointer-coarse:min-h-11"
 					disabled={props.busy}
 					onClick={props.onCancel}
 				>
 					<X />
+					Cancel
 				</Button>
+				{props.onDelete && (
+					<Button
+						size="icon-sm"
+						variant="outline"
+						className="text-destructive any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+						aria-label="Delete feature"
+						title="Delete feature"
+						disabled={props.busy}
+						onClick={props.onDelete}
+					>
+						<Trash2 />
+					</Button>
+				)}
 			</div>
 		</div>
 	);
@@ -2099,10 +2123,23 @@ interface PendingSave {
 	 * the time the prompt is confirmed.
 	 */
 	drawnInMission?: string;
+	/** The name as the operator is editing it. */
 	name: string;
+	/** The type as the operator is editing it. */
 	featureType: FeatureType;
+	/**
+	 * The type the shape was drawn or stored as. Fixes the legal retype
+	 * targets (`retypeTargets`): the geometry does not change with the type.
+	 */
+	initialType: FeatureType;
 	/** Asset sub-classification (`properties.category`), "" for none. */
 	category: string;
+	/**
+	 * The stored feature as it was opened, for an edit: what Save and the
+	 * discard question compare against ({@link hasUnsavedChanges}).
+	 * Undefined for a shape just drawn, which is unsaved by definition.
+	 */
+	original?: EditSnapshot;
 	/**
 	 * The stored feature's own property bag, carried across the edit so a
 	 * property this build does not know about is written back rather than
@@ -2162,6 +2199,25 @@ function clearDraw(draw: TerraDraw | null): void {
 	if (!draw || draw.getSnapshot().length === 0) return;
 	draw.clear();
 }
+
+/** A stored feature a click (or a request from a panel) selects. */
+interface MapHit {
+	id: string;
+	feature: C2Feature;
+	/** The map's own asset, shown as a library in a mission: never edited. */
+	library: boolean;
+}
+
+/** Stands for a shape just drawn, which has no `feature_id` yet. */
+const NEW_SHAPE_ID = "\u0000new-shape";
+
+/**
+ * Focus on these answers Enter itself: the map must not also save. Focus
+ * inside an open list or menu answers Escape and Delete too.
+ */
+const KEY_CONTROL_SELECTOR =
+	'button,a[href],[role="button"],[role="combobox"],[role="radio"],[role="checkbox"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"]';
+const KEY_POPUP_SELECTOR = '[role="listbox"],[role="menu"]';
 
 /** Inner body once the CRUD call definitions are resolved. */
 function MissionMapBody(props: {
@@ -2364,9 +2420,9 @@ function MissionMapBody(props: {
 	// --- Two-mode model -----------------------------------------------------
 	// Mission editing is the daily task; map editing is occasional → default here.
 	const [context, setContext] = useState<MapContext>("mission");
-	const [tool, setTool] = useState<MapTool>("view");
-	// Read-only (View) mode: hides every authoring affordance and forces the
-	// `view` tool; map features + mission geometry still render and pan/zoom work.
+	const [tool, setTool] = useState<MapTool>("select");
+	// Read-only (View) mode: hides every authoring affordance and disarms the
+	// Draw tool; map features + mission geometry still render and pan/zoom work.
 	//
 	// This is the operator's own choice only. The map can also be in View because
 	// the mission's plan is committed — see `viewOnly` below, which is what the
@@ -2435,13 +2491,33 @@ function MissionMapBody(props: {
 	/**
 	 * The vertex of the open shape the operator clicked, which Delete and
 	 * Backspace remove. terra-draw has no selected-vertex state of its own.
-	 * Shown only while that shape is open in the Edit tool.
+	 * Shown only while that shape is open for editing.
 	 */
 	const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(
 		null,
 	);
-	const shownVertex =
-		!viewOnly && tool === "edit" && pending ? selectedVertex : null;
+	/**
+	 * The stored feature open for editing (select-first: a click on a feature
+	 * opens it), or null. A shape just drawn is pending too, but it is not a
+	 * stored feature and the Draw tool owns it.
+	 */
+	const openEditId =
+		!viewOnly && tool !== "draw" && pending?.featureId != null
+			? pending.featureId
+			: null;
+	/** Whether the pending save would write something new. */
+	const pendingDirty =
+		pending != null &&
+		hasUnsavedChanges(
+			{
+				name: pending.name,
+				featureType: pending.featureType,
+				category: pending.category,
+				geometry: pending.feature.geometry,
+			},
+			pending.original,
+		);
+	const shownVertex = openEditId != null ? selectedVertex : null;
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -2481,6 +2557,8 @@ function MissionMapBody(props: {
 		description: string;
 		/** The confirm button's label; "Delete" when absent. */
 		confirmLabel?: string;
+		/** The dismiss button's label; "Cancel" when absent. */
+		cancelLabel?: string;
 		onConfirm: () => void;
 	} | null>(null);
 	const [plannerStatus, setPlannerStatus] = useState<PlannerStatus | null>(
@@ -2816,7 +2894,7 @@ function MissionMapBody(props: {
 		// transition (approved → started) is a new fact and takes the map back.
 		setEditUnlockedAt(enteringView ? null : liveStatus);
 		if (enteringView) {
-			setTool("view");
+			setTool("select");
 			setPending(null);
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
@@ -2862,7 +2940,7 @@ function MissionMapBody(props: {
 		setConfirmState(null);
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
-		setTool("view");
+		setTool("select");
 	}, []);
 
 	/** Select a different map, discarding any edit scoped to the previous one. */
@@ -3037,40 +3115,6 @@ function MissionMapBody(props: {
 		[missionScope, missionAssets],
 	);
 
-	// The asset panel asks to see one of the mission's assets: pick it here
-	// and fly to it. Read through refs: the subscription lives for the map.
-	const focusScopeRef = useRef<{
-		missionId: string | null;
-		assets: typeof missionAssets;
-	}>({ missionId: null, assets: null });
-	useEffect(() => {
-		focusScopeRef.current = {
-			missionId: missionScope,
-			assets: missionAssets,
-		};
-	}, [missionScope, missionAssets]);
-	useEffect(
-		() =>
-			subscribeAssetFocus((request) => {
-				const { missionId, assets } = focusScopeRef.current;
-				if (!missionId || request.missionId !== missionId) return;
-				setPickedId(request.featureId);
-				const feature = assets
-					? findAsset(assets, request.featureId)
-					: undefined;
-				const center = feature ? assetCenter(feature) : null;
-				const map = mapRef.current?.getMap();
-				if (center && map) {
-					map.flyTo({
-						center,
-						zoom: Math.max(map.getZoom(), 17),
-						duration: 600,
-					});
-				}
-			}),
-		[],
-	);
-
 	/** Copy a map (library) asset into the open mission, under a new id. */
 	const importIntoMission = useCallback(
 		(feature: C2Feature) => {
@@ -3089,7 +3133,7 @@ function MissionMapBody(props: {
 	// Switch editing context, resetting all transient per-context selections.
 	const changeContext = useCallback((next: MapContext) => {
 		setContext(next);
-		setTool("view");
+		setTool("select");
 		setPending(null);
 		setPickedId(null);
 		setMissionIssues([]);
@@ -3123,7 +3167,7 @@ function MissionMapBody(props: {
 					pointerDistance: DRAW_FINISH_DISTANCE_PX,
 				}),
 				new TerraDrawRectangleMode(),
-				// Edit tool: select-mode editing enabled per geometry (see
+				// Feature editing: select-mode editing enabled per geometry (see
 				// `MAP_SELECT_FLAGS`): feature dragging, midpoints that insert a
 				// vertex on a click or a drag, and draggable/deletable vertices
 				// (a point is feature-draggable only).
@@ -3182,6 +3226,7 @@ function MissionMapBody(props: {
 						feature,
 						name: "",
 						featureType: ctx.mapFeatureType,
+						initialType: ctx.mapFeatureType,
 						category: "",
 						// Provenance for the cross-map guard (a create cannot
 						// corrupt, but stamping both origins keeps the invariant
@@ -3253,33 +3298,47 @@ function MissionMapBody(props: {
 	// The terra-draw geometry mode for the Draw tool, derived from the shape.
 	const drawGeometryMode = drawShapeToMode(effectiveShape);
 
-	// Drive terra-draw mode from the toolbar tool + chosen draw geometry.
+	// Drive terra-draw mode from the Draw tool, the chosen draw geometry and
+	// the feature open for editing (select mode shows its handles).
 	//
 	// `viewOnly` disarms it here rather than by resetting `tool`: the map can
 	// enter View on a status change, which is not an event this widget handles,
 	// and a tool left armed would keep drawing under a toolbar that has put its
-	// authoring controls away. Static is the same neutral mode the view tool
-	// uses, so nothing on screen is removed — only the arming.
+	// authoring controls away. Static is the same neutral mode the map rests
+	// in, so nothing on screen is removed — only the arming.
 	//
 	// A mode that is already active is not set again: `setMode` stops and
 	// restarts it, and restarting the select mode drops the selection
 	// `editFeature` just made, hiding the handles the operator needs.
+	const editOpen = openEditId != null;
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw || !draw.enabled) return;
 		const next =
 			!viewOnly && tool === "draw" && canEdit
 				? drawGeometryMode
-				: !viewOnly && tool === "edit" && canEdit
+				: editOpen && canEdit
 					? "select"
 					: "static";
 		if (draw.getMode() !== next) draw.setMode(next);
-	}, [viewOnly, tool, canEdit, drawGeometryMode]);
+	}, [viewOnly, tool, canEdit, drawGeometryMode, editOpen]);
+
+	/**
+	 * End the open edit or the drawn shape awaiting its name: drop its changes
+	 * and its handles. The pick is the caller's.
+	 */
+	const endEdit = useCallback(() => {
+		setPending(null);
+		setSelectedVertex(null);
+		editingDrawIdRef.current = null;
+		clearDraw(drawRef.current);
+	}, []);
 
 	/** Confirm a pending MAP-feature save: POST (create) or PUT (edit). */
 	const confirmSave = useCallback(
 		async (name: string, featureType: FeatureType, category: string) => {
-			if (!pending) return;
+			// Enter and the button can both ask while a write is in flight.
+			if (!pending || busy) return;
 			if (!selectedMap) {
 				setError("Select a map first.");
 				return;
@@ -3299,9 +3358,9 @@ function MissionMapBody(props: {
 			// already disables those options; this refuses the write anyway,
 			// because the two disagreeing is exactly the failure this rule
 			// exists to prevent.
-			if (!canRetypeFeature(pending.featureType, featureType)) {
+			if (!canRetypeFeature(pending.initialType, featureType)) {
 				setError(
-					`A ${FEATURE_TYPE_LABELS[pending.featureType]} can't become a ${FEATURE_TYPE_LABELS[featureType]}. Redraw it instead.`,
+					`A ${FEATURE_TYPE_LABELS[pending.initialType]} can't become a ${FEATURE_TYPE_LABELS[featureType]}. Redraw it instead.`,
 				);
 				return;
 			}
@@ -3368,7 +3427,7 @@ function MissionMapBody(props: {
 					setPending(null);
 					editingDrawIdRef.current = null;
 					clearDraw(drawRef.current);
-					setTool("view");
+					setTool("select");
 					return;
 				}
 				if (!isMissionAssetType(featureType)) {
@@ -3395,7 +3454,7 @@ function MissionMapBody(props: {
 				}
 				editingDrawIdRef.current = null;
 				clearDraw(drawRef.current);
-				setTool("view");
+				setTool("select");
 				return;
 			}
 			if (editing && !props.featuresUpdateDef) {
@@ -3427,11 +3486,14 @@ function MissionMapBody(props: {
 			setPending(null);
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
-			setTool("view");
+			setTool("select");
+			// A saved edit is done with: the feature goes back to normal.
+			if (editing) setPickedId(null);
 			await refetchFeatures();
 		},
 		[
 			pending,
+			busy,
 			selectedMap,
 			missionScope,
 			props.featuresAddDef,
@@ -3514,6 +3576,11 @@ function MissionMapBody(props: {
 			// switches to its select mode itself; the tool effect below leaves an
 			// already-active select mode alone so this selection survives.
 			draw.selectFeature(loaded.id);
+			const name =
+				typeof feature.properties?.name === "string"
+					? feature.properties.name
+					: "";
+			const category = readFeatureCategory(feature) ?? "";
 			setPending({
 				feature: drawn,
 				featureId: readFeatureId(feature) ?? undefined,
@@ -3521,71 +3588,24 @@ function MissionMapBody(props: {
 				// refuses to upsert it into a different one.
 				mapName,
 				missionId,
-				name:
-					typeof feature.properties?.name === "string"
-						? feature.properties.name
-						: "",
+				name,
 				featureType,
-				category: readFeatureCategory(feature) ?? "",
+				initialType: featureType,
+				category,
+				// What Save and the discard question compare against.
+				original: {
+					name,
+					featureType,
+					category,
+					// A copy: terra-draw must never edit the baseline in place.
+					geometry: structuredClone(drawn.geometry),
+				},
 				// Carried verbatim so the save writes back every property the
 				// feature arrived with, including ones this build does not model.
 				properties: { ...(feature.properties ?? {}) },
 			});
-			setTool("edit");
+			setTool("select");
 		},
-		[],
-	);
-
-	// The assets panel's layer list asks to show one of the map's features:
-	// pick it, fly to it, and in Edit open it with its handles. Read through
-	// a ref so the subscription is made once.
-	const mapFocusRef = useRef<{
-		tool: MapTool;
-		features: C2Feature[];
-		selectedMap: string;
-		missionScope: string | null;
-		editFeature: typeof editFeature;
-	}>({
-		tool: "view",
-		features: [],
-		selectedMap: "",
-		missionScope: null,
-		editFeature,
-	});
-	useEffect(() => {
-		mapFocusRef.current = {
-			tool,
-			features: shownFeatures,
-			selectedMap,
-			missionScope: missionScope ?? null,
-			editFeature,
-		};
-	}, [tool, shownFeatures, selectedMap, missionScope, editFeature]);
-	useEffect(
-		() =>
-			subscribeMapFeatureFocus((request) => {
-				const current = mapFocusRef.current;
-				if (request.map !== current.selectedMap) return;
-				const feature = current.features.find(
-					(f) => readFeatureId(f) === request.featureId,
-				);
-				if (!feature) return;
-				setPickedId(request.featureId);
-				selectContact(null);
-				if (current.missionScope) selectAsset(null);
-				const center = assetCenter(feature);
-				const map = mapRef.current?.getMap();
-				if (center && map) {
-					map.flyTo({
-						center,
-						zoom: Math.max(map.getZoom(), 16),
-						duration: 600,
-					});
-				}
-				if (current.tool === "edit") {
-					current.editFeature(feature, current.selectedMap);
-				}
-			}),
 		[],
 	);
 
@@ -3596,12 +3616,17 @@ function MissionMapBody(props: {
 	const deleteFeature = useCallback(
 		async (feature: C2Feature) => {
 			const featureId = readFeatureId(feature);
+			// Deleting the feature open for editing ends the edit: its save
+			// would otherwise write the feature back (the update is an upsert).
+			const endsOpenEdit =
+				featureId != null && pending?.featureId === featureId;
 			// A mission's asset leaves the mission (saved by Save mission).
 			if (missionScope && featureId && missionAssetOf(featureId)) {
 				editMissionAssets(missionScope, (assets) =>
 					removeAsset(assets, featureId),
 				);
 				if (pickedId === featureId) setPickedId(null);
+				if (endsOpenEdit) endEdit();
 				setError(null);
 				return;
 			}
@@ -3630,6 +3655,7 @@ function MissionMapBody(props: {
 			}
 			setError(null);
 			if (pickedId === featureId) setPickedId(null);
+			if (endsOpenEdit) endEdit();
 			// Optimistically drop it locally: the delete is confirmed server-side,
 			// so don't depend on the refetch (a cached/stale GET could otherwise
 			// re-add the just-deleted feature). The refetch then reconciles.
@@ -3644,6 +3670,8 @@ function MissionMapBody(props: {
 			featuresDeleteCall,
 			refetchFeatures,
 			pickedId,
+			pending,
+			endEdit,
 			missionScope,
 			missionAssetOf,
 		],
@@ -4014,7 +4042,7 @@ function MissionMapBody(props: {
 		);
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
-		setTool("view");
+		setTool("select");
 	}, [
 		busy,
 		selectedMission,
@@ -4035,10 +4063,7 @@ function MissionMapBody(props: {
 	 * home for geometry this widget no longer authors.
 	 */
 	const pickAt = useCallback(
-		(point: {
-			x: number;
-			y: number;
-		}): { id: string; feature: C2Feature; library: boolean } | null => {
+		(point: { x: number; y: number }): MapHit | null => {
 			const map = mapRef.current?.getMap();
 			if (!map) return null;
 			// A few pixels of slack, and the most specific feature under the
@@ -4130,13 +4155,6 @@ function MissionMapBody(props: {
 	);
 
 	/**
-	 * Map click → dispatch by the active tool (for view / edit / delete; the draw
-	 * tool is handled by terra-draw, not here):
-	 *  - `view`   → select only (action bar).
-	 *  - `edit`   → select AND load into the draw layer / naming prompt.
-	 *  - `delete` → select AND delete (confirm-gated via the AlertDialog).
-	 */
-	/**
 	 * The vertex handle of the open shape under a click, if any. Only the
 	 * select mode draws handles, so any other mode finds none.
 	 */
@@ -4161,6 +4179,25 @@ function MissionMapBody(props: {
 	);
 
 	/**
+	 * What part of the open shape a click reached, within terra-draw's own
+	 * hit radius ({@link openShapeContact}).
+	 */
+	const openShapeAt = useCallback((lngLat: { lng: number; lat: number }) => {
+		const draw = drawRef.current;
+		if (!draw || draw.getMode() !== "select") return null;
+		const candidates = draw.getFeaturesAtLngLat(lngLat, {
+			ignoreSelectFeatures: false,
+			pointerDistance: SELECT_POINTER_DISTANCE_PX,
+		}) as unknown as DrawCandidate[];
+		return openShapeContact(candidates, editingDrawIdRef.current);
+	}, []);
+
+	/** Give the map the keyboard, for the keys of the open edit. */
+	const focusMap = useCallback(() => {
+		mapRef.current?.getCanvas().focus({ preventScroll: true });
+	}, []);
+
+	/**
 	 * Remove the selected vertex, the keyboard twin of terra-draw's
 	 * right-click delete: the open save takes the new geometry, exactly as
 	 * the `finish` handler does for a right-click, so Save updates the same
@@ -4179,47 +4216,22 @@ function MissionMapBody(props: {
 		setPending((prev) => (prev === null ? null : { ...prev, feature }));
 	}, [shownVertex]);
 
-	// Delete / Backspace remove the selected vertex, and nothing else: with
-	// no vertex selected the keys do nothing to the shape. A key typed into a
-	// field (the naming card) or pressed over a dialog is not for the map.
-	useEffect(() => {
-		if (!shownVertex) return;
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (!isVertexDeleteKey(event)) return;
-			if (isTypingInEditableElement(event) || isModalOpen()) return;
-			event.preventDefault();
-			deleteShownVertex();
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [shownVertex, deleteShownVertex]);
-
-	const handleMapClick = useCallback(
-		(event: {
-			point: { x: number; y: number };
-			lngLat: { lng: number; lat: number };
-		}) => {
-			if (tool === "draw") return;
-			if (tool === "edit") {
-				// A click on a vertex handle of the open shape selects that
-				// vertex; it is not a pick of whatever lies under it.
-				const vertex = vertexAt(event.point, event.lngLat);
-				setSelectedVertex(vertex);
-				if (vertex) return;
-			}
-			// Edit and delete act on authored geometry first: a contact
-			// reported on top of a waypoint must not hide it from them.
-			const hit = pickAt(event.point);
-			const contactHit =
-				hit && tool !== "view" ? undefined : contactAt(event.point);
-			if (selectedMission && contactHit) {
-				// A report to read, never geometry to edit.
+	/**
+	 * Select a feature, or nothing: pick it, mirror it in the asset panel and,
+	 * when authoring, open it for editing with its handles at once. Ends
+	 * whatever was open first; the caller has already asked about changes.
+	 *
+	 * @param hit - The feature, or null for nothing.
+	 * @param open - Open it for editing (false in View).
+	 */
+	const selectHit = useCallback(
+		(hit: MapHit | null, open: boolean) => {
+			if (open) endEdit();
+			if (!hit) {
 				setPickedId(null);
-				selectAsset(null);
-				selectContact({ missionId: selectedMission, uid: contactHit });
+				if (missionScope) selectAsset(null);
 				return;
 			}
-			if (!hit) return;
 			selectContact(null);
 			setPickedId(hit.id);
 			const missionId =
@@ -4231,38 +4243,329 @@ function MissionMapBody(props: {
 					missionId ? { missionId, featureId: hit.id } : null,
 				);
 			}
-			if (hit.library) return;
-			if (tool === "edit") {
-				// A click on the feature already loaded for editing belongs to
-				// terra-draw (grabbing a handle, selecting a vertex). Re-loading
-				// it here cleared the draw layer and re-added the feature under
-				// the operator's pointer, dropping the grab and any reshape made
-				// since it was opened.
-				const alreadyEditing =
-					editingDrawIdRef.current != null &&
-					pending?.featureId != null &&
-					pending.featureId === hit.id;
-				if (!alreadyEditing)
-					editFeature(
-						hit.feature,
-						selectedMap,
-						missionId ?? undefined,
-					);
-			} else if (tool === "delete") requestDeleteFeature(hit.feature);
+			// In a mission, the map's own assets are a library: picked to be
+			// imported, never edited from here.
+			if (!open || hit.library || !canEdit) return;
+			editFeature(hit.feature, selectedMap, missionId ?? undefined);
 		},
 		[
-			pending,
-			tool,
+			endEdit,
+			missionScope,
+			missionAssetOf,
+			canEdit,
+			editFeature,
 			selectedMap,
+		],
+	);
+
+	/** What to call the pending save in a question about it. */
+	const pendingLabel = pending
+		? pending.featureId != null
+			? pending.original?.name.trim() ||
+				FEATURE_TYPE_LABELS[pending.initialType]
+			: `the new ${FEATURE_TYPE_LABELS[pending.initialType].toLowerCase()}`
+		: "";
+
+	/** The toolbar's state label while a feature is open. */
+	const editLabel =
+		pending && openEditId != null
+			? editingLabel(
+					pending.original?.name ?? pending.name,
+					FEATURE_TYPE_LABELS[pending.initialType],
+				)
+			: "";
+
+	/**
+	 * Run `then` once the pending save may be dropped: at once when it has no
+	 * changes, after the operator says Discard when it has.
+	 */
+	const leavePending = useCallback(
+		(then: () => void) => {
+			if (!pending || !pendingDirty) {
+				then();
+				return;
+			}
+			setConfirmState({
+				title: `Discard changes to ${pendingLabel}?`,
+				description: "Unsaved changes are lost.",
+				confirmLabel: "Discard",
+				cancelLabel: "Keep editing",
+				onConfirm: then,
+			});
+		},
+		[pending, pendingDirty, pendingLabel],
+	);
+
+	/**
+	 * Select a feature (or nothing) on the operator's behalf: a click, or a
+	 * panel naming a feature. A click on the feature already open is
+	 * terra-draw's; anything else asks before unsaved changes are dropped
+	 * ({@link selectionChangeOnClick}).
+	 */
+	const requestSelect = useCallback(
+		(hit: MapHit | null) => {
+			// View shows: it picks, and never touches an edit.
+			if (viewOnly) {
+				selectHit(hit, false);
+				return;
+			}
+			const openId = pending ? (pending.featureId ?? NEW_SHAPE_ID) : null;
+			switch (
+				selectionChangeOnClick(openId, pendingDirty, hit?.id ?? null)
+			) {
+				case "stay":
+					return;
+				case "switch":
+					selectHit(hit, true);
+					return;
+				case "ask":
+					leavePending(() => selectHit(hit, true));
+			}
+		},
+		[viewOnly, pending, pendingDirty, selectHit, leavePending],
+	);
+
+	/** Cancel: discard the pending save's changes and deselect. */
+	const cancelPending = useCallback(() => {
+		endEdit();
+		setPickedId(null);
+		if (missionScope) selectAsset(null);
+		setTool("select");
+	}, [endEdit, missionScope]);
+
+	/** Save the pending feature, when there is something to save. */
+	const savePending = useCallback(() => {
+		if (!pending || !pendingDirty) return;
+		const name = pending.name.trim();
+		if (name.length === 0) return;
+		const category = CATEGORISED_FEATURE_TYPES.includes(pending.featureType)
+			? pending.category
+			: "";
+		void confirmSave(name, pending.featureType, category);
+	}, [pending, pendingDirty, confirmSave]);
+
+	/** Ask to delete the whole feature open for editing. */
+	const requestDeleteOpen = useCallback(() => {
+		if (openEditId == null) return;
+		const stored = shownFeatures.find(
+			(f) => readFeatureId(f) === openEditId,
+		);
+		if (stored) requestDeleteFeature(stored);
+	}, [openEditId, shownFeatures, requestDeleteFeature]);
+
+	/** Arm or disarm the Draw tool. Arming it closes the open edit. */
+	const toggleDraw = useCallback(() => {
+		if (tool === "draw") {
+			setTool("select");
+			return;
+		}
+		leavePending(() => {
+			endEdit();
+			// The pick's outline and bar have nothing to do with the shape
+			// about to be drawn.
+			setPickedId(null);
+			if (missionScope) selectAsset(null);
+			setTool("draw");
+		});
+	}, [tool, leavePending, endEdit, missionScope]);
+
+	// The keys of the open edit: Delete and Backspace remove the selected
+	// vertex (with none selected, ask to delete the feature), Enter saves,
+	// Escape cancels. A key typed into a field (the naming card) or pressed
+	// over a dialog is not for the map; neither is Enter on a focused button,
+	// nor anything pressed inside an open list or menu.
+	useEffect(() => {
+		if (openEditId == null) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (isTypingInEditableElement(event) || isModalOpen()) return;
+			const target =
+				event.target instanceof Element ? event.target : null;
+			const action = editKeyAction(
+				{
+					key: event.key,
+					ctrlKey: event.ctrlKey,
+					metaKey: event.metaKey,
+					altKey: event.altKey,
+					shiftKey: event.shiftKey,
+					onControl: target?.closest(KEY_CONTROL_SELECTOR) != null,
+					inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
+				},
+				{
+					vertexSelected: shownVertex != null,
+					hasChanges: pendingDirty,
+				},
+			);
+			if (!action) return;
+			event.preventDefault();
+			switch (action) {
+				case "delete-vertex":
+					deleteShownVertex();
+					return;
+				case "ask-delete-feature":
+					requestDeleteOpen();
+					return;
+				case "save":
+					savePending();
+					return;
+				case "cancel":
+					cancelPending();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [
+		openEditId,
+		shownVertex,
+		pendingDirty,
+		deleteShownVertex,
+		requestDeleteOpen,
+		savePending,
+		cancelPending,
+	]);
+
+	/**
+	 * Map click. The Draw tool's clicks are terra-draw's. Otherwise a click
+	 * selects what it hits and opens it for editing (select-first), and a
+	 * click on empty map ends the selection:
+	 *  - on a vertex handle of the open shape, it selects that vertex;
+	 *  - on a midpoint of the open shape, it is terra-draw's (inserts one);
+	 *  - on another feature or empty map, it switches, asking first when
+	 *    the open edit has changes.
+	 */
+	const handleMapClick = useCallback(
+		(event: {
+			point: { x: number; y: number };
+			lngLat: { lng: number; lat: number };
+		}) => {
+			if (tool === "draw") return;
+			// The keys act on what the map shows. MapLibre keeps focus where it
+			// was on a click, so a toolbar button clicked last would still
+			// take Enter.
+			focusMap();
+			const editing = openEditId != null;
+			if (editing) {
+				// A click on a vertex handle of the open shape selects that
+				// vertex; it is not a pick of whatever lies under it.
+				const vertex = vertexAt(event.point, event.lngLat);
+				setSelectedVertex(vertex);
+				if (vertex) return;
+			}
+			const reached = editing ? openShapeAt(event.lngLat) : null;
+			if (reached === "guidance") return;
+			const hit = pickAt(event.point);
+			// A contact is a report to read, never geometry to edit. It wins
+			// over a feature under it, except while a feature is open:
+			// authored geometry first then.
+			const contactHit =
+				hit && editing ? undefined : contactAt(event.point);
+			if (selectedMission && contactHit) {
+				if (!editing) {
+					setPickedId(null);
+					selectAsset(null);
+				}
+				selectContact({ missionId: selectedMission, uid: contactHit });
+				return;
+			}
+			// Just off an open line or point, within terra-draw's reach:
+			// still that shape.
+			if (!hit && reached === "shape") return;
+			requestSelect(hit);
+		},
+		[
+			tool,
+			openEditId,
+			focusMap,
 			selectedMission,
 			pickAt,
 			contactAt,
-			editFeature,
-			requestDeleteFeature,
-			missionAssetOf,
-			missionScope,
 			vertexAt,
+			openShapeAt,
+			requestSelect,
 		],
+	);
+
+	// The panels ask to show a feature: the assets panel's layer list (one
+	// of the map's features) and the mission's asset tree (one of its
+	// assets). The map flies to it and selects it as a click would. Read
+	// through a ref so each subscription is made once.
+	const focusRef = useRef<{
+		selectedMap: string;
+		missionScope: string | null;
+		shownFeatures: C2Feature[];
+		missionAssets: typeof missionAssets;
+		requestSelect: (hit: MapHit | null) => void;
+	}>({
+		selectedMap: "",
+		missionScope: null,
+		shownFeatures: [],
+		missionAssets: null,
+		requestSelect: () => {},
+	});
+	useEffect(() => {
+		focusRef.current = {
+			selectedMap,
+			missionScope,
+			shownFeatures,
+			missionAssets,
+			requestSelect,
+		};
+	}, [
+		selectedMap,
+		missionScope,
+		shownFeatures,
+		missionAssets,
+		requestSelect,
+	]);
+	const flyToFeature = useCallback((feature: C2Feature, minZoom: number) => {
+		const center = assetCenter(feature);
+		const map = mapRef.current?.getMap();
+		if (center && map) {
+			map.flyTo({
+				center,
+				zoom: Math.max(map.getZoom(), minZoom),
+				duration: 600,
+			});
+		}
+	}, []);
+	useEffect(
+		() =>
+			subscribeMapFeatureFocus((request) => {
+				const current = focusRef.current;
+				if (request.map !== current.selectedMap) return;
+				const feature = current.shownFeatures.find(
+					(f) => readFeatureId(f) === request.featureId,
+				);
+				if (!feature) return;
+				flyToFeature(feature, 16);
+				current.requestSelect({
+					id: request.featureId,
+					feature,
+					library: false,
+				});
+			}),
+		[flyToFeature],
+	);
+	useEffect(
+		() =>
+			subscribeAssetFocus((request) => {
+				const current = focusRef.current;
+				if (!current.missionScope) return;
+				if (request.missionId !== current.missionScope) return;
+				const feature = current.missionAssets
+					? findAsset(current.missionAssets, request.featureId)
+					: undefined;
+				if (!feature) {
+					setPickedId(request.featureId);
+					return;
+				}
+				flyToFeature(feature, 17);
+				current.requestSelect({
+					id: request.featureId,
+					feature,
+					library: false,
+				});
+			}),
+		[flyToFeature],
 	);
 
 	const pickedFeature = useMemo(
@@ -4484,7 +4787,7 @@ function MissionMapBody(props: {
 				</ToggleGroup>
 				{/* Mode switch: View locks every authoring affordance, Author
 				    unlocks them. Labelled "Author" rather than "Edit" so it cannot
-				    be mistaken for the geometry Edit tool beside it. When the map
+				    be mistaken for editing one feature. When the map
 				    stood down by itself — the mission's plan is committed — the
 				    title says so: an operator who did not press this cannot
 				    otherwise tell why the tools went away, and would reach for the
@@ -4525,53 +4828,33 @@ function MissionMapBody(props: {
 					</ToggleGroupItem>
 				</ToggleGroup>
 
-				{/* Tools */}
+				{/* Draw, and what is open. There is no tool to arm for
+				    anything else: a click on a feature selects it and opens
+				    it for editing. The label keeps its width when empty, so
+				    opening a feature never re-wraps the toolbar. */}
 				{!viewOnly && (
 					<>
 						<Separator
 							orientation="vertical"
 							className="data-[orientation=vertical]:h-6"
 						/>
-						<ToggleGroup
-							type="single"
-							variant="outline"
+						<Button
 							size="sm"
-							aria-label="Map tool"
-							value={tool}
-							onValueChange={(value) => {
-								if (!value) return;
-								// Arming Draw clears the pick: its outline
-								// and bar have nothing to do with the
-								// shape about to be drawn.
-								if (value === "draw") {
-									setPickedId(null);
-									if (missionScope) selectAsset(null);
-								}
-								setTool(value as MapTool);
-							}}
+							variant={tool === "draw" ? "secondary" : "outline"}
+							aria-pressed={tool === "draw"}
+							disabled={!canEdit}
+							onClick={toggleDraw}
 						>
-							{(
-								[
-									["view", "Pick"],
-									["draw", "Draw"],
-									["edit", "Edit"],
-									["delete", "Delete"],
-								] as [MapTool, string][]
-							).map(([value, label]) => (
-								<ToggleGroupItem
-									key={value}
-									value={value}
-									className={
-										value === "delete"
-											? `${TOGGLE_ITEM_CLASS} ${DELETE_TOOL_CLASS}`
-											: TOGGLE_ITEM_CLASS
-									}
-									disabled={value !== "view" && !canEdit}
-								>
-									{label}
-								</ToggleGroupItem>
-							))}
-						</ToggleGroup>
+							<PenLine />
+							Draw
+						</Button>
+						<span
+							role="status"
+							className={`truncate text-xs text-muted-foreground ${compactToolbar ? "w-24" : "w-40"}`}
+							title={openEditId != null ? editLabel : undefined}
+						>
+							{openEditId != null ? editLabel : null}
+						</span>
 					</>
 				)}
 
@@ -4912,55 +5195,43 @@ function MissionMapBody(props: {
 						</div>
 					)}
 
-					{/* Picked-asset actions. Rendered in BOTH contexts: an asset is an
-			    asset whichever one the operator is in, and a mission's
-			    objectives ARE these assets. "Edit" opens the naming prompt with
-			    the geometry loaded, where the name, the type (within its
-			    geometry class) and the category can all be changed; every other
-			    property the feature carries rides through untouched. */}
-					{pickedFeature && !viewOnly && (
-						<div className="flex items-center gap-2 px-2 py-1 shrink-0 bg-background/95 text-xs">
-							<span
-								className="truncate flex-1"
-								title={pickedId ?? ""}
-							>
-								Picked:{" "}
-								{pickedFeature.properties?.name ?? pickedId} (
-								{pickedFeature.properties?.feature_type ?? "?"}
-								{readFeatureCategory(pickedFeature)
-									? ` · ${readFeatureCategory(pickedFeature)}`
-									: ""}
-								)
-							</span>
-							{pickedIsLibrary ? (
-								<Button
-									size="sm"
-									variant="outline"
-									title="Copy into the mission"
-									onClick={() =>
-										importIntoMission(pickedFeature)
-									}
+					{/* Picked, but not open for editing: a library asset (in a
+					    mission, the map's own assets are imported, never
+					    edited) or a feature whose geometry cannot be loaded
+					    into the editor. Anything else opens on the click, and
+					    its card carries the actions. */}
+					{pickedFeature &&
+						!viewOnly &&
+						pickedId !== openEditId &&
+						(pickedIsLibrary ||
+							c2FeatureToDrawFeature(pickedFeature) == null) && (
+							<div className="flex items-center gap-2 px-2 py-1 shrink-0 bg-background/95 text-xs">
+								<span
+									className="truncate flex-1"
+									title={pickedId ?? ""}
 								>
-									Import into mission
-								</Button>
-							) : (
-								<>
+									Picked:{" "}
+									{pickedFeature.properties?.name ?? pickedId}{" "}
+									(
+									{pickedFeature.properties?.feature_type ??
+										"?"}
+									{readFeatureCategory(pickedFeature)
+										? ` · ${readFeatureCategory(pickedFeature)}`
+										: ""}
+									)
+								</span>
+								{pickedIsLibrary ? (
 									<Button
 										size="sm"
 										variant="outline"
+										title="Copy into the mission"
 										onClick={() =>
-											editFeature(
-												pickedFeature,
-												selectedMap,
-												missionAssetOf(pickedId)
-													? (missionScope ??
-															undefined)
-													: undefined,
-											)
+											importIntoMission(pickedFeature)
 										}
 									>
-										Edit asset
+										Import into mission
 									</Button>
+								) : (
 									<Button
 										size="icon-sm"
 										variant="outline"
@@ -4974,10 +5245,9 @@ function MissionMapBody(props: {
 									>
 										<Trash2 />
 									</Button>
-								</>
-							)}
-						</div>
-					)}
+								)}
+							</div>
+						)}
 
 					{/* Mission validation errors (blocking). */}
 					{context === "mission" && missionErrorIssues.length > 0 && (
@@ -5027,22 +5297,34 @@ function MissionMapBody(props: {
 				{/* The ONE route a drawn shape takes, in both contexts. */}
 				{pending && !viewOnly && (
 					<SavePrompt
-						// Remounted per pending feature so the form resets from
-						// the feature being saved rather than carrying the
-						// previous one's name/type/category over.
+						// Remounted per pending feature, so nothing of the
+						// previous one's form survives.
 						key={pending.featureId ?? "new"}
-						initialName={pending.name}
-						initialType={pending.featureType}
-						initialCategory={pending.category}
+						title={
+							pending.featureId != null
+								? pending.original?.name.trim() ||
+									FEATURE_TYPE_LABELS[pending.initialType]
+								: "Save map asset"
+						}
+						name={pending.name}
+						featureType={pending.featureType}
+						initialType={pending.initialType}
+						category={pending.category}
+						initialCategory={pending.original?.category ?? ""}
+						onChange={(patch) =>
+							setPending((prev) =>
+								prev === null ? null : { ...prev, ...patch },
+							)
+						}
 						editing={pending.featureId != null}
+						canSave={pendingDirty && pending.name.trim().length > 0}
 						busy={busy}
-						onCancel={() => {
-							setPending(null);
-							clearDraw(drawRef.current);
-							setTool("view");
-						}}
-						onConfirm={(name, featureType, category) =>
-							void confirmSave(name, featureType, category)
+						onSave={savePending}
+						onCancel={cancelPending}
+						onDelete={
+							pending.featureId != null
+								? requestDeleteOpen
+								: undefined
 						}
 					/>
 				)}
@@ -5188,7 +5470,17 @@ function MissionMapBody(props: {
 					if (!open) setConfirmState(null);
 				}}
 			>
-				<AlertDialogContent>
+				<AlertDialogContent
+					onCloseAutoFocus={(event) => {
+						// A question asked over an open edit (discard, delete)
+						// hands the keyboard back to the map, not to whatever
+						// button was focused before it: Enter there would
+						// press that button.
+						if (openEditId == null) return;
+						event.preventDefault();
+						focusMap();
+					}}
+				>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
 							{confirmState?.title}
@@ -5198,7 +5490,9 @@ function MissionMapBody(props: {
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogCancel>
+							{confirmState?.cancelLabel ?? "Cancel"}
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() => {
 								confirmState?.onConfirm();

@@ -1,5 +1,5 @@
 /**
- * Selecting and deleting one vertex of the shape open in the map's Edit tool.
+ * Selecting and deleting one vertex of the shape open for editing on the map.
  *
  * terra-draw's select mode has no notion of a selected vertex: a click on a
  * vertex handle does nothing, and its default Delete binding removes the WHOLE
@@ -60,7 +60,7 @@ const EDITABLE_SHAPE = {
 };
 
 /**
- * Select-mode flags of the map's Edit tool, keyed by each draw mode's `.mode`
+ * Select-mode flags of the map's feature editing, keyed by each draw mode's `.mode`
  * string. A point is dragged whole; a line or an area also has draggable,
  * deletable vertices and midpoints.
  */
@@ -279,7 +279,7 @@ export function deleteVertex<F extends { geometry: EditableGeometry }>(
 }
 
 /**
- * Options of the map's select mode (the Edit tool).
+ * Options of the map's select mode (a feature open for editing).
  *
  * `allowManualDeselection: false`: a click that terra-draw does not count as
  * on the shape never deselects it. terra-draw counted a click exactly on a
@@ -287,8 +287,9 @@ export function deleteVertex<F extends { geometry: EditableGeometry }>(
  * (corners farther apart than twice the hit radius, i.e. any site-zoom
  * shape), so selecting a vertex dropped the whole selection, and a stray
  * click left the edit card offering Save on a shape with no handles. The
- * edit lifecycle deselects instead: Save and Cancel clear the draw layer, a
- * tool change stops the select mode, and opening another feature replaces it.
+ * edit lifecycle deselects instead: Save, Cancel, Escape and a click on
+ * empty map clear the draw layer (`map-selection.ts`), arming Draw stops the
+ * select mode, and opening another feature replaces it.
  */
 export const MAP_SELECT_OPTIONS = {
 	pointerDistance: SELECT_POINTER_DISTANCE_PX,

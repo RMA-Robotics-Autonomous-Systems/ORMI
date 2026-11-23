@@ -24,8 +24,8 @@ const LAYER_LABEL: Record<string, string> = {
 
 /**
  * The selected map's features, listed by layer, with a hide and a lock per
- * layer. Clicking a feature picks it on the mission map and flies to it; with
- * the map's Edit tool on, it opens with its handles.
+ * layer. Clicking a feature selects it on the mission map and flies to it;
+ * while authoring, it opens with its handles, as a click on the map does.
  *
  * This is how a feature covered by another one is reached: on the Inta map
  * the geofence covered every road and risk area, and no click could pick
