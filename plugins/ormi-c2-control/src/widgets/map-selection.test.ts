@@ -4,6 +4,7 @@ import {
 	editKeyAction,
 	editingLabel,
 	hasUnsavedChanges,
+	historyKeyAction,
 	sameGeometry,
 	openShapeContact,
 	selectionChangeOnClick,
@@ -236,5 +237,68 @@ describe("editingLabel", () => {
 	it("names the feature, or falls back to its type", () => {
 		expect(editingLabel("Gravel yard", "Zone")).toBe("Editing Gravel yard");
 		expect(editingLabel("  ", "Zone")).toBe("Editing Zone");
+	});
+});
+
+describe("historyKeyAction", () => {
+	it("undoes on Ctrl+Z and Cmd+Z", () => {
+		expect(historyKeyAction({ key: "z", ctrlKey: true })).toBe("undo");
+		expect(historyKeyAction({ key: "z", metaKey: true })).toBe("undo");
+	});
+
+	it("redoes on Ctrl/Cmd+Shift+Z and Ctrl+Y", () => {
+		expect(
+			historyKeyAction({ key: "Z", ctrlKey: true, shiftKey: true }),
+		).toBe("redo");
+		expect(
+			historyKeyAction({ key: "z", metaKey: true, shiftKey: true }),
+		).toBe("redo");
+		expect(historyKeyAction({ key: "y", ctrlKey: true })).toBe("redo");
+	});
+
+	it("ignores the keys alone, with Alt, and other shortcuts", () => {
+		expect(historyKeyAction({ key: "z" })).toBeNull();
+		expect(historyKeyAction({ key: "y" })).toBeNull();
+		expect(
+			historyKeyAction({ key: "z", ctrlKey: true, altKey: true }),
+		).toBeNull();
+		expect(historyKeyAction({ key: "s", ctrlKey: true })).toBeNull();
+		expect(historyKeyAction({ key: "r", ctrlKey: true })).toBeNull();
+	});
+});
+
+describe("editKeyAction: Undo and Redo", () => {
+	const state = {
+		vertexSelected: false,
+		hasChanges: true,
+		canUndo: true,
+		canRedo: true,
+	};
+
+	it("undoes and redoes while there is a step", () => {
+		expect(editKeyAction({ key: "z", ctrlKey: true }, state)).toBe("undo");
+		expect(
+			editKeyAction({ key: "Z", ctrlKey: true, shiftKey: true }, state),
+		).toBe("redo");
+		expect(editKeyAction({ key: "y", ctrlKey: true }, state)).toBe("redo");
+	});
+
+	it("leaves the key to the browser with nothing to undo or redo", () => {
+		const none = { ...state, canUndo: false, canRedo: false };
+		expect(editKeyAction({ key: "z", ctrlKey: true }, none)).toBeNull();
+		expect(editKeyAction({ key: "y", ctrlKey: true }, none)).toBeNull();
+	});
+
+	it("leaves it to an open list or menu", () => {
+		expect(
+			editKeyAction({ key: "z", ctrlKey: true, inPopup: true }, state),
+		).toBeNull();
+	});
+
+	it("never claims Ctrl+S or Ctrl+R", () => {
+		for (const key of ["s", "r"]) {
+			expect(editKeyAction({ key, ctrlKey: true }, state)).toBeNull();
+			expect(editKeyAction({ key, metaKey: true }, state)).toBeNull();
+		}
 	});
 });

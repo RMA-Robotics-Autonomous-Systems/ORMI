@@ -84,8 +84,10 @@ import {
 	Map as MapIcon,
 	PenLine,
 	Plus,
+	Redo2,
 	Save,
 	Trash2,
+	Undo2,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -211,6 +213,14 @@ import {
 	type VertexCandidate,
 	type VertexPosition,
 } from "./map-vertex-edit";
+import {
+	canRedo,
+	canUndo,
+	recordGeometry,
+	redoGeometry,
+	undoGeometry,
+	type GeometryHistory,
+} from "./map-edit-history";
 import {
 	editKeyAction,
 	editingLabel,
@@ -1978,6 +1988,12 @@ function SavePrompt(props: {
 	onCancel: () => void;
 	/** Delete the whole feature (an edit only); confirm-gated by the caller. */
 	onDelete?: () => void;
+	/** Undo a geometry step of this edit; disabled with none. */
+	onUndo: () => void;
+	/** Redo a geometry step undone; disabled with none. */
+	onRedo: () => void;
+	canUndo: boolean;
+	canRedo: boolean;
 	/**
 	 * Escape in the name field: the map's own Escape (cancel an edit,
 	 * discard a new shape). The map's key handler ignores a key typed into
@@ -2089,6 +2105,30 @@ function SavePrompt(props: {
 			<div className="flex items-center gap-2">
 				<Button
 					size="sm"
+					variant="outline"
+					className="flex-1 any-pointer-coarse:min-h-11"
+					aria-label="Undo"
+					disabled={props.busy || !props.canUndo}
+					onClick={props.onUndo}
+				>
+					<Undo2 />
+					Undo
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					className="flex-1 any-pointer-coarse:min-h-11"
+					aria-label="Redo"
+					disabled={props.busy || !props.canRedo}
+					onClick={props.onRedo}
+				>
+					<Redo2 />
+					Redo
+				</Button>
+			</div>
+			<div className="flex items-center gap-2">
+				<Button
+					size="sm"
 					className="flex-1 any-pointer-coarse:min-h-11"
 					disabled={props.busy || !props.canSave}
 					onClick={props.onSave}
@@ -2177,6 +2217,39 @@ interface PendingSave {
 	 * dropped. Undefined on a create — there is nothing to preserve yet.
 	 */
 	properties?: Record<string, unknown>;
+	/**
+	 * Geometry steps of this edit, for Undo and Redo. Held on the edit so it
+	 * starts empty with every edit and ends with it. Undefined for none yet.
+	 */
+	history?: GeometryHistory<DrawFeature["geometry"]>;
+}
+
+/**
+ * The pending save after the open shape's geometry changed (a drag, a
+ * vertex deleted, a vertex inserted): it takes the new feature and records
+ * the step for Undo.
+ *
+ * @param prev - The pending save open now.
+ * @param feature - The shape as it now is.
+ * @param continuesLastStep - The change completes the last step's gesture
+ *   (see `recordGeometry`).
+ * @returns The next pending save.
+ */
+function pendingWithGeometry(
+	prev: PendingSave,
+	feature: DrawFeature,
+	continuesLastStep = false,
+): PendingSave {
+	return {
+		...prev,
+		feature,
+		history: recordGeometry(
+			prev.history,
+			prev.feature.geometry,
+			feature.geometry,
+			{ continuesLastStep },
+		),
+	};
 }
 
 /**
@@ -2229,6 +2302,27 @@ function useInterval(callback: () => void, delayMs: number | null): void {
 function clearDraw(draw: TerraDraw | null): void {
 	if (!draw || draw.getSnapshot().length === 0) return;
 	draw.clear();
+}
+
+/**
+ * Put a geometry back on a shape in the draw layer.
+ * @param draw - The terra-draw instance holding the shape.
+ * @param id - terra-draw id of the shape.
+ * @param geometry - The geometry to restore.
+ * @returns The shape as it now is, or null when terra-draw refused it.
+ */
+function restoreGeometry(
+	draw: TerraDraw,
+	id: string | number,
+	geometry: DrawFeature["geometry"],
+): DrawFeature | null {
+	try {
+		draw.updateFeatureGeometry(id, geometry);
+	} catch (error) {
+		console.error("[c2 map] terra-draw refused the restored shape", error);
+		return null;
+	}
+	return (draw.getSnapshotFeature(id) as unknown as DrawFeature) ?? null;
 }
 
 /** A stored feature a click (or a request from a panel) selects. */
@@ -2425,6 +2519,8 @@ function MissionMapBody(props: {
 	 * new shape and take focus from its name field.
 	 */
 	const newShapeFinishedAtRef = useRef(-Infinity);
+	/** Removes the pointer listeners the terra-draw setup adds; on unmount. */
+	const drawListenersCleanupRef = useRef<(() => void) | null>(null);
 
 	// The ROS source the per-agent localization overlay falls back to when an
 	// agent (roster-fed) carries no own source: the operator's configured
@@ -2586,6 +2682,9 @@ function MissionMapBody(props: {
 			pending.original,
 		);
 	const shownVertex = shapeOpen ? selectedVertex : null;
+	/** The open edit has a geometry step to undo, or one to redo. */
+	const undoable = canUndo(pending?.history);
+	const redoable = canRedo(pending?.history);
 	/** Feature_type chosen for the NEXT map-feature draw (drives the draw tool). */
 	const [mapFeatureType, setMapFeatureType] = useState<FeatureType>("road");
 
@@ -3256,6 +3355,26 @@ function MissionMapBody(props: {
 		});
 		draw.start();
 		draw.setMode("static");
+		// Whether a pointer is down on the map: a midpoint vertex inserted
+		// while it is starts a drag, and the drag's end completes the same
+		// Undo step.
+		let pointerDown = false;
+		let insertStartedDrag = false;
+		const onPointerDown = () => {
+			pointerDown = true;
+		};
+		const onPointerUp = () => {
+			pointerDown = false;
+		};
+		const container = map.getCanvasContainer();
+		container.addEventListener("pointerdown", onPointerDown, true);
+		window.addEventListener("pointerup", onPointerUp, true);
+		window.addEventListener("pointercancel", onPointerUp, true);
+		drawListenersCleanupRef.current = () => {
+			container.removeEventListener("pointerdown", onPointerDown, true);
+			window.removeEventListener("pointerup", onPointerUp, true);
+			window.removeEventListener("pointercancel", onPointerUp, true);
+		};
 		// EVERY finished draw becomes an ASSET — one route, both contexts. It
 		// opens the naming prompt, is saved as a named, typed MapDB feature, and
 		// is then referenced by `feature_id` from a behaviour-graph node. The
@@ -3292,24 +3411,31 @@ function MissionMapBody(props: {
 				return;
 			}
 			const ctx = drawCtxRef.current;
+			const continuesLastStep =
+				insertStartedDrag && context?.action === "dragCoordinate";
+			insertStartedDrag =
+				context?.action === "insertMidpoint" && pointerDown;
 			setPending((prev) =>
-				nextPendingOnFinish<DrawFeature, PendingSave>(
-					prev,
-					drawn,
-					context,
-					(feature) => ({
-						feature,
-						name: "",
-						featureType: ctx.mapFeatureType,
-						initialType: ctx.mapFeatureType,
-						category: "",
-						// Provenance for the cross-map guard (a create cannot
-						// corrupt, but stamping both origins keeps the invariant
-						// simple).
-						mapName: ctx.selectedMap,
-						drawnInMission: ctx.missionScope ?? undefined,
-					}),
-				),
+				classifyDrawFinish(context, prev !== null) === "update" &&
+				prev !== null
+					? pendingWithGeometry(prev, drawn, continuesLastStep)
+					: nextPendingOnFinish<DrawFeature, PendingSave>(
+							prev,
+							drawn,
+							context,
+							(feature) => ({
+								feature,
+								name: "",
+								featureType: ctx.mapFeatureType,
+								initialType: ctx.mapFeatureType,
+								category: "",
+								// Provenance for the cross-map guard (a create cannot
+								// corrupt, but stamping both origins keeps the invariant
+								// simple).
+								mapName: ctx.selectedMap,
+								drawnInMission: ctx.missionScope ?? undefined,
+							}),
+						),
 			);
 			if (!isNewShape) return;
 			// One-shot: the map returns to select by itself and the new shape
@@ -3362,6 +3488,8 @@ function MissionMapBody(props: {
 
 	useEffect(() => {
 		return () => {
+			drawListenersCleanupRef.current?.();
+			drawListenersCleanupRef.current = null;
 			if (drawRef.current) {
 				try {
 					drawRef.current.stop();
@@ -4328,8 +4456,44 @@ function MissionMapBody(props: {
 			return;
 		}
 		const feature = result.feature as unknown as DrawFeature;
-		setPending((prev) => (prev === null ? null : { ...prev, feature }));
+		setPending((prev) =>
+			prev === null ? null : pendingWithGeometry(prev, feature),
+		);
 	}, [shownVertex]);
+
+	/**
+	 * Undo or Redo one geometry step of the open edit: put the shape back
+	 * in the draw layer (terra-draw redraws its handles) and take it as the
+	 * open save's geometry. Undo back to the shape as opened leaves nothing
+	 * to save ({@link hasUnsavedChanges}).
+	 */
+	const stepHistory = useCallback(
+		(direction: "undo" | "redo") => {
+			const draw = drawRef.current;
+			const id = editingDrawIdRef.current;
+			if (!draw || id === null || !pending) return;
+			const live = draw.getSnapshotFeature(id) as unknown as
+				DrawFeature | undefined;
+			if (!live) return;
+			const step =
+				direction === "undo"
+					? undoGeometry(pending.history, live.geometry)
+					: redoGeometry(pending.history, live.geometry);
+			if (!step) return;
+			const restored = restoreGeometry(draw, id, step.geometry);
+			if (!restored) {
+				setError("That change cannot be restored.");
+				return;
+			}
+			setSelectedVertex(null);
+			setPending((prev) =>
+				prev === null
+					? null
+					: { ...prev, feature: restored, history: step.history },
+			);
+		},
+		[pending],
+	);
 
 	/**
 	 * Select a feature, or nothing: pick it, mirror it in the asset panel and,
@@ -4579,11 +4743,17 @@ function MissionMapBody(props: {
 				{
 					vertexSelected: shownVertex != null,
 					hasChanges: pendingDirty,
+					canUndo: undoable,
+					canRedo: redoable,
 				},
 			);
 			if (!action) return;
 			event.preventDefault();
 			switch (action) {
+				case "undo":
+				case "redo":
+					stepHistory(action);
+					return;
 				case "delete-vertex":
 					deleteShownVertex();
 					return;
@@ -4605,6 +4775,9 @@ function MissionMapBody(props: {
 		newShapeOpen,
 		shownVertex,
 		pendingDirty,
+		undoable,
+		redoable,
+		stepHistory,
 		deleteShownVertex,
 		requestDeleteOpen,
 		discardNewShape,
@@ -5564,6 +5737,10 @@ function MissionMapBody(props: {
 								: undefined
 						}
 						onEscape={escapeOpenShape}
+						onUndo={() => stepHistory("undo")}
+						onRedo={() => stepHistory("redo")}
+						canUndo={undoable}
+						canRedo={redoable}
 						focusName={pending.featureId == null}
 					/>
 				)}
