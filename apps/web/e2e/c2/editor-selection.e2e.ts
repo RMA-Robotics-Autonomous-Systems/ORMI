@@ -83,10 +83,24 @@ async function graphView(page: Page): Promise<[number, number, number]> {
 	return [Number(m![1]), Number(m![2]), Number(m![3])];
 }
 
+/** The node editor's view once it has stopped moving. */
+async function stillGraphView(page: Page): Promise<[number, number, number]> {
+	let last = await graphView(page);
+	await expect
+		.poll(async () => {
+			await page.waitForTimeout(250);
+			const now = await graphView(page);
+			const still = now.every((v, i) => v === last[i]);
+			last = now;
+			return still;
+		})
+		.toBe(true);
+	return last;
+}
+
 /**
- * The view has not been moved to anything: within a pixel and a percent of
- * where it was (a fit that tracks the details panel opening or closing
- * settles by a fraction of a pixel; a reveal centres a node).
+ * The view has not been moved to anything. A reveal centres a node at zoom
+ * 1.1; both are held to a pixel and a percent of where they were.
  */
 function expectSameView(
 	before: [number, number, number],
@@ -146,7 +160,9 @@ test.describe("C2 mission editor: one selection, related items outlined", () => 
 		});
 
 		await test.step("the asset picked on the map: its node outlined, nothing selected there", async () => {
-			const view = await graphView(page);
+			// A node selected is panned into view when the details panel
+			// covers it: start from where that left the view.
+			const view = await stillGraphView(page);
 			const [at] = await toScreen(page, [SITE]);
 			await page.mouse.click(at!.x, at!.y);
 			const related = graphPanel(page).locator(
@@ -160,8 +176,7 @@ test.describe("C2 mission editor: one selection, related items outlined", () => 
 			).toHaveCount(0);
 			// The map does not outline its own pick as related.
 			expect(await gateOutlined(page)).toBe(false);
-			await page.waitForTimeout(400);
-			expectSameView(view, await graphView(page));
+			expectSameView(view, await stillGraphView(page));
 		});
 
 		expect(writes(harness.fake)).toEqual([]);
