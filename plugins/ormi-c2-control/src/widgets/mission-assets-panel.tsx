@@ -27,7 +27,7 @@ import {
 	Square,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { c2DatasourceProperty } from "../datasource/datasource-select";
 import { C2Call } from "../datasource/remote-calls";
@@ -51,6 +51,14 @@ import {
 } from "../state/mission-contacts-store";
 import { useMissionGraph } from "../state/mission-graph-store";
 import { saveMissionWithGraph } from "../state/mission-save";
+import { useMissionUndoState } from "../state/mission-history-store";
+import { redoMission, undoMission } from "../state/mission-undo";
+import {
+	editorKeyAction,
+	editorPanelProps,
+	shouldHandleEditorKey,
+	trackEditorPanels,
+} from "./editor-keys";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
 import type { C2Feature } from "../types/c2-types";
 import { normalizeMapFeatures } from "./map-registry";
@@ -126,6 +134,42 @@ function MissionAssetsBody(props: {
 	const graph = useMissionGraph(missionId);
 	const selected = useSelectedAsset(missionId);
 	const activeMap = useActiveMap();
+	const missionUndo = useMissionUndoState(missionId);
+
+	// The panel's own keys (`editor-keys.ts`): a key pressed here is not the
+	// map's nor the node editor's. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or
+	// Ctrl+Y) take a step in the mission's history, as in the other panels.
+	const panelId = useId();
+	useEffect(() => trackEditorPanels(), []);
+	const canUndo = missionUndo.canUndo;
+	const canRedo = missionUndo.canRedo;
+	useEffect(() => {
+		if (!missionId) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (!shouldHandleEditorKey(event, panelId)) return;
+			const target =
+				event.target instanceof Element ? event.target : null;
+			const action = editorKeyAction(
+				{
+					key: event.key,
+					ctrlKey: event.ctrlKey,
+					metaKey: event.metaKey,
+					altKey: event.altKey,
+					shiftKey: event.shiftKey,
+					inPopup:
+						target?.closest('[role="listbox"],[role="menu"]') !=
+						null,
+				},
+				{ canUndo, canRedo },
+			);
+			if (action !== "undo" && action !== "redo") return;
+			event.preventDefault();
+			if (action === "undo") undoMission(missionId);
+			else redoMission(missionId);
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [missionId, panelId, canUndo, canRedo]);
 
 	const missionsList = useRemoteCall<Record<string, never>, unknown>(
 		props.listDef,
@@ -359,7 +403,10 @@ function MissionAssetsBody(props: {
 		// No mission: the map's own features are still listed by layer, so
 		// one covered by another can be picked and edited from here.
 		return (
-			<div className="h-full min-w-0 flex flex-col gap-2 p-3 text-sm">
+			<div
+				className="h-full min-w-0 flex flex-col gap-2 p-3 text-sm"
+				{...editorPanelProps("assets", panelId)}
+			>
 				<p className="shrink-0 text-xs text-muted-foreground">
 					Select a mission to see its assets.
 				</p>
@@ -392,6 +439,7 @@ function MissionAssetsBody(props: {
 		<div
 			ref={rootRef}
 			className={`h-full min-w-0 flex flex-col gap-2 text-sm ${narrow ? "p-2" : "p-3"}`}
+			{...editorPanelProps("assets", panelId)}
 		>
 			{props.contactsDef && (
 				<MissionContactsWatch

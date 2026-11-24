@@ -12,8 +12,6 @@
  * Pure (no React, no map) so the rules are unit-testable on their own.
  */
 
-import { isVertexDeleteKey } from "./map-vertex-edit";
-
 /** A geometry as the map and terra-draw hold it. */
 export interface SnapshotGeometry {
 	type: string;
@@ -177,70 +175,6 @@ export function historyKeyAction(event: {
 	const key = event.key.toLowerCase();
 	if (key === "z") return event.shiftKey ? "redo" : "undo";
 	if (key === "y" && event.ctrlKey && !event.shiftKey) return "redo";
-	return null;
-}
-
-/** What a key does to the open edit. */
-export type EditKeyAction =
-	| "delete-vertex"
-	| "ask-delete-feature"
-	| "save"
-	| "cancel"
-	| "undo"
-	| "redo";
-
-/** The key press, and where focus was. */
-export interface EditKeyEvent {
-	key: string;
-	ctrlKey?: boolean;
-	metaKey?: boolean;
-	altKey?: boolean;
-	shiftKey?: boolean;
-	/** Focus is on a button, link or other control that answers Enter. */
-	onControl?: boolean;
-	/** Focus is inside an open list or menu, which answers Escape itself. */
-	inPopup?: boolean;
-}
-
-/**
- * The action a key asks for while a feature is open for editing. The caller
- * has already ruled out typing in a field and an open dialog.
- *
- * - Delete / Backspace: remove the selected vertex; with none selected, ask
- *   to delete the whole feature.
- * - Enter: save, when there are changes.
- * - Escape: cancel (discard the changes and deselect).
- * - Ctrl/Cmd+Z: undo a geometry step; Ctrl/Cmd+Shift+Z or Ctrl+Y: redo one
- *   (`historyKeyAction`). With nothing to undo or redo the key is left to
- *   the browser.
- *
- * @param event - The key and its context.
- * @param state - Whether a vertex is selected, whether there are changes,
- *   and whether the geometry history has a step either way.
- * @returns The action, or null when the key is not for the edit.
- */
-export function editKeyAction(
-	event: EditKeyEvent,
-	state: {
-		vertexSelected: boolean;
-		hasChanges: boolean;
-		canUndo?: boolean;
-		canRedo?: boolean;
-	},
-): EditKeyAction | null {
-	if (event.inPopup) return null;
-	const history = historyKeyAction(event);
-	if (history === "undo") return state.canUndo ? "undo" : null;
-	if (history === "redo") return state.canRedo ? "redo" : null;
-	if (isVertexDeleteKey(event)) {
-		return state.vertexSelected ? "delete-vertex" : "ask-delete-feature";
-	}
-	if (event.ctrlKey || event.metaKey || event.altKey) return null;
-	if (event.key === "Escape") return "cancel";
-	if (event.key === "Enter" && !event.shiftKey) {
-		if (event.onControl) return null;
-		return state.hasChanges ? "save" : null;
-	}
 	return null;
 }
 

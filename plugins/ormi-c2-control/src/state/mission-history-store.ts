@@ -138,6 +138,14 @@ export function canRedoMission(id: string | null | undefined): boolean {
 	return getMissionHistory(id).future.length > 0;
 }
 
+/**
+ * How many steps Undo can take back. With the label, it tells whether the
+ * step on top is still the one a notice offers to take back.
+ */
+export function missionUndoDepth(id: string | null | undefined): number {
+	return getMissionHistory(id).past.length;
+}
+
 /** The label of the step Undo would take back, or "". */
 export function missionUndoLabel(id: string | null | undefined): string {
 	const past = getMissionHistory(id).past;
@@ -169,6 +177,8 @@ export interface MissionUndoState {
 	undoLabel: string;
 	/** The step Redo would do again, or "". */
 	redoLabel: string;
+	/** How many steps Undo can take back. */
+	depth: number;
 }
 
 /**
@@ -191,6 +201,10 @@ export function useMissionUndoState(
 		() => missionRedoLabel(missionId),
 		[missionId],
 	);
+	const getDepth = useCallback(
+		() => missionUndoDepth(missionId),
+		[missionId],
+	);
 	return {
 		canUndo: useSyncExternalStore(
 			subscribeMissionHistory,
@@ -211,6 +225,11 @@ export function useMissionUndoState(
 			subscribeMissionHistory,
 			getRedoLabel,
 			getRedoLabel,
+		),
+		depth: useSyncExternalStore(
+			subscribeMissionHistory,
+			getDepth,
+			getDepth,
 		),
 	};
 }

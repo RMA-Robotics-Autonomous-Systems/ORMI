@@ -41,10 +41,6 @@ import {
 	AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog";
 import { Badge } from "@workspace/ui/components/badge";
-import {
-	isModalOpen,
-	isTypingInEditableElement,
-} from "@workspace/ui/lib/input-guards";
 import { Button } from "@workspace/ui/components/button";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
@@ -91,7 +87,14 @@ import {
 	Undo2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type { DatasourceProviderSettings } from "@workspace/ormi-core/datasources";
 import type { Map as MapLibreInstance } from "maplibre-gl";
 import MapLibreMap, {
@@ -168,6 +171,15 @@ import {
 	type MapFeatureSelectionRequest,
 } from "../state/map-layers-store";
 import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
+import {
+	editorKeyAction,
+	editorPanelProps,
+	shouldHandleEditorKey,
+	trackEditorPanels,
+	type EditorKeyEvent,
+} from "./editor-keys";
+import { undoNoticeFor, type UndoNotice } from "./undo-notice";
+import { UndoNoticeBar } from "./undo-notice-bar";
 import {
 	getMissionContacts,
 	selectContact,
@@ -284,8 +296,6 @@ import {
 	type GeometryHistory,
 } from "./map-edit-history";
 import {
-	editKeyAction,
-	historyKeyAction,
 	mapStateLabel,
 	hasUnsavedChanges,
 	openShapeContact,
@@ -2417,6 +2427,25 @@ const KEY_CONTROL_SELECTOR =
 const KEY_POPUP_SELECTOR = '[role="listbox"],[role="menu"]';
 
 /**
+ * A window key event as the editor's dispatcher reads it: the key, its
+ * modifiers, and whether focus is on a control or inside an open list.
+ * @param event - The key event.
+ * @returns The event for {@link editorKeyAction}.
+ */
+function keyEventOf(event: KeyboardEvent): EditorKeyEvent {
+	const target = event.target instanceof Element ? event.target : null;
+	return {
+		key: event.key,
+		ctrlKey: event.ctrlKey,
+		metaKey: event.metaKey,
+		altKey: event.altKey,
+		shiftKey: event.shiftKey,
+		onControl: target?.closest(KEY_CONTROL_SELECTOR) != null,
+		inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
+	};
+}
+
+/**
  * A map click this soon after terra-draw finished a new shape is the click
  * that finished it (MapLibre's `click` follows terra-draw's `pointerup`
  * within the same input), not a new one.
@@ -2566,6 +2595,12 @@ function MissionMapBody(props: {
 	// The widget's own box (shared responsive helper): a narrow panel gets a
 	// compact toolbar so the map keeps most of the height.
 	const [mapRootRef, { size: mapSize }] = useContainerSize<HTMLDivElement>();
+	/**
+	 * This panel's id for the editor's keys (`editor-keys.ts`): a key is the
+	 * map's when focus is in it, or it was pressed in last.
+	 */
+	const panelId = useId();
+	useEffect(() => trackEditorPanels(), []);
 	const compactToolbar = mapSize === "xs";
 	// terra-draw id of the feature currently loaded into the draw layer for
 	// editing. Captured when `editFeature` adds it, so the
@@ -2845,6 +2880,8 @@ function MissionMapBody(props: {
 
 	// --- Shared UI state ----------------------------------------------------
 	const [error, setError] = useState<string | null>(null);
+	/** A mission asset deleted at once, with the Undo that puts it back. */
+	const [undoNotice, setUndoNotice] = useState<UndoNotice | null>(null);
 	const [busy, setBusy] = useState(false);
 	/** What a running OpenStreetMap import is doing, shown over the map. */
 	const [osmProgress, setOsmProgress] = useState<string | null>(null);
@@ -4368,14 +4405,14 @@ function MissionMapBody(props: {
 				featureId != null && pending?.featureId === featureId;
 			// A mission's asset leaves the mission (saved by Save mission).
 			if (missionScope && featureId && missionAssetOf(featureId)) {
-				editMission(
-					missionScope,
-					`Delete ${feature.properties?.name || "asset"}`,
-					{ assets: (assets) => removeAsset(assets, featureId) },
-				);
+				const name = feature.properties?.name || "asset";
+				editMission(missionScope, `Delete ${name}`, {
+					assets: (assets) => removeAsset(assets, featureId),
+				});
 				if (pickedId === featureId) setPickedId(null);
 				if (endsOpenEdit) endEdit();
 				setError(null);
+				setUndoNotice(undoNoticeFor(missionScope, `Deleted “${name}”`));
 				return;
 			}
 			if (!props.featuresDeleteDef || !selectedMap || !featureId) {
@@ -4669,20 +4706,25 @@ function MissionMapBody(props: {
 
 	// --- Destructive-action confirmation (AlertDialog) ----------------------
 
-	/** Open the AlertDialog to confirm deleting a stored map feature. */
+	/**
+	 * Delete a feature: a mission asset at once (one Undo puts it back, and
+	 * the notice carries that Undo), a stored map feature after the
+	 * AlertDialog (its DELETE is final).
+	 */
 	const requestDeleteFeature = useCallback(
 		(feature: C2Feature) => {
+			if (missionAssetOf(readFeatureId(feature)) != null) {
+				void deleteFeature(feature);
+				return;
+			}
 			const label =
 				(typeof feature.properties?.name === "string" &&
 					feature.properties.name) ||
 				readFeatureId(feature) ||
 				"feature";
-			const ofMission = missionAssetOf(readFeatureId(feature)) != null;
 			setConfirmState({
-				title: ofMission ? "Remove asset?" : "Delete feature?",
-				description: ofMission
-					? `Remove "${label}" from this mission.`
-					: `Permanently delete "${label}" from this map.`,
+				title: "Delete feature?",
+				description: `Permanently delete "${label}" from this map.`,
 				onConfirm: () => void deleteFeature(feature),
 			});
 		},
@@ -5310,30 +5352,6 @@ function MissionMapBody(props: {
 	);
 
 	/**
-	 * Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) pressed in this panel with
-	 * nothing open: the mission's history. An open shape or a selected group
-	 * has its own keys (below), which route the same way; Draw armed keeps
-	 * them for the shape being drawn.
-	 */
-	const onMapKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (shapeOpen || groupActive || drawArmed) return;
-			const direction = historyKeyAction(event);
-			if (!direction) return;
-			if (isTypingInEditableElement(event.nativeEvent) || isModalOpen())
-				return;
-			const target =
-				event.target instanceof Element ? event.target : null;
-			if (target?.closest(KEY_POPUP_SELECTOR)) return;
-			const scope = routeUndo(direction, undoRouteState);
-			if (!scope) return;
-			event.preventDefault();
-			stepUndo(direction, scope);
-		},
-		[shapeOpen, groupActive, drawArmed, undoRouteState, stepUndo],
-	);
-
-	/**
 	 * Save the group card's changes: one PUT per feature they change. What
 	 * the C2 accepts is applied; what it refuses is named, stays selected
 	 * and keeps the card's changes for another Save. Nothing is retried.
@@ -5621,7 +5639,7 @@ function MissionMapBody(props: {
 	useEffect(() => {
 		if (!drawArmed) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (isTypingInEditableElement(event) || isModalOpen()) return;
+			if (!shouldHandleEditorKey(event, panelId)) return;
 			const target =
 				event.target instanceof Element ? event.target : null;
 			const action = drawKeyAction({
@@ -5637,70 +5655,63 @@ function MissionMapBody(props: {
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [drawArmed]);
+	}, [drawArmed, panelId]);
 
-	// The keys of the open shape (a stored feature, or one Draw just
-	// finished): Delete and Backspace remove the selected vertex (with none
-	// selected, ask to delete the feature, or discard a new shape), Enter
-	// saves, Escape cancels an edit and discards a new shape. A key typed
-	// into a field (the naming card handles its own Enter and Escape) or
-	// pressed over a dialog is not for the map; neither is Enter on a
-	// focused button, nor anything pressed inside an open list or menu.
+	// The keys of the open shape (a stored feature, a mission asset, or one
+	// Draw just finished), when the key is the map's own
+	// (`editor-keys.ts`): Delete and Backspace remove the selected vertex
+	// (with none selected: a mission asset goes at once, with Undo in its
+	// notice; a stored feature asks; a new shape is discarded, asking once
+	// it is named), Enter saves, Escape cancels an edit and discards a new
+	// shape. A key typed into a field (the naming card handles its own Enter
+	// and Escape) or pressed over a dialog is not for the map; neither is
+	// Enter on a focused button, nor anything pressed inside an open list or
+	// menu.
+	const openIsMissionAsset =
+		!newShapeOpen && missionAssetOf(pending?.featureId) != null;
 	useEffect(() => {
 		if (!shapeOpen) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (isTypingInEditableElement(event) || isModalOpen()) return;
-			const target =
-				event.target instanceof Element ? event.target : null;
-			const action = editKeyAction(
-				{
-					key: event.key,
-					ctrlKey: event.ctrlKey,
-					metaKey: event.metaKey,
-					altKey: event.altKey,
-					shiftKey: event.shiftKey,
-					onControl: target?.closest(KEY_CONTROL_SELECTOR) != null,
-					inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
-				},
-				{
-					vertexSelected: shownVertex != null,
-					hasChanges: pendingDirty,
-					canUndo: canUndoHere,
-					canRedo: canRedoHere,
-				},
-			);
+			if (!shouldHandleEditorKey(event, panelId)) return;
+			const action = editorKeyAction(keyEventOf(event), {
+				vertexSelected: shownVertex != null,
+				deletes: openIsMissionAsset ? "now" : "ask",
+				canSave: pendingDirty,
+				canUndo: canUndoHere,
+				canRedo: canRedoHere,
+				canEscape: true,
+			});
 			if (!action) return;
-			if (action === "undo" || action === "redo") {
-				const scope = routeUndo(action, undoRouteState);
-				// The key is a window listener's: another panel that already
-				// took it (the node editor's Ctrl+Z) took the mission's step.
-				if (!scope || (scope === "mission" && event.defaultPrevented))
-					return;
-				event.preventDefault();
-				stepUndo(action, scope);
-				return;
-			}
 			event.preventDefault();
 			switch (action) {
+				case "undo":
+				case "redo": {
+					const scope = routeUndo(action, undoRouteState);
+					if (scope) stepUndo(action, scope);
+					return;
+				}
 				case "delete-vertex":
 					deleteShownVertex();
 					return;
-				case "ask-delete-feature":
+				case "delete":
+				case "ask-delete":
 					if (newShapeOpen) discardNewShape();
 					else requestDeleteOpen();
 					return;
 				case "save":
 					savePending();
 					return;
-				case "cancel":
+				case "escape-step":
 					escapeOpenShape();
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [
+		panelId,
 		shapeOpen,
 		newShapeOpen,
+		openIsMissionAsset,
 		shownVertex,
 		pendingDirty,
 		canUndoHere,
@@ -5714,52 +5725,40 @@ function MissionMapBody(props: {
 		escapeOpenShape,
 	]);
 
-	// The keys of a selected group: Delete and Backspace ask to delete its
-	// features, Enter saves the card's changes, Ctrl/Cmd+Z and
-	// Ctrl/Cmd+Shift+Z (or Ctrl+Y) undo and redo a drag of the move, and
-	// Escape drops the card's changes, or with none clears the selection.
+	// The keys of a selected group, when the key is the map's own: Delete
+	// and Backspace ask to delete its features, Enter saves the card's
+	// changes, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) undo and redo a
+	// drag of the move (then the mission's history), and Escape drops the
+	// card's changes, or with none clears the selection.
 	useEffect(() => {
 		if (!groupActive) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (isTypingInEditableElement(event) || isModalOpen()) return;
-			const target =
-				event.target instanceof Element ? event.target : null;
-			const action = editKeyAction(
-				{
-					key: event.key,
-					ctrlKey: event.ctrlKey,
-					metaKey: event.metaKey,
-					altKey: event.altKey,
-					shiftKey: event.shiftKey,
-					onControl: target?.closest(KEY_CONTROL_SELECTOR) != null,
-					inPopup: target?.closest(KEY_POPUP_SELECTOR) != null,
-				},
-				{
-					vertexSelected: false,
-					hasChanges: groupDirty,
-					canUndo: canUndoHere,
-					canRedo: canRedoHere,
-				},
-			);
+			if (!shouldHandleEditorKey(event, panelId)) return;
+			const action = editorKeyAction(keyEventOf(event), {
+				deletes: "ask",
+				canSave: groupDirty,
+				canUndo: canUndoHere,
+				canRedo: canRedoHere,
+				canEscape: true,
+			});
 			if (!action) return;
-			if (action === "undo" || action === "redo") {
-				const scope = routeUndo(action, undoRouteState);
-				if (!scope || (scope === "mission" && event.defaultPrevented))
-					return;
-				event.preventDefault();
-				stepUndo(action, scope);
-				return;
-			}
 			event.preventDefault();
 			switch (action) {
+				case "undo":
+				case "redo": {
+					const scope = routeUndo(action, undoRouteState);
+					if (scope) stepUndo(action, scope);
+					return;
+				}
 				case "delete-vertex":
-				case "ask-delete-feature":
+				case "delete":
+				case "ask-delete":
 					requestDeleteGroup();
 					return;
 				case "save":
 					void saveGroup();
 					return;
-				case "cancel":
+				case "escape-step":
 					if (groupDirty || moveArmed || liveMoveOffset)
 						cancelGroupChanges();
 					else clearGroup();
@@ -5768,6 +5767,7 @@ function MissionMapBody(props: {
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [
+		panelId,
 		groupActive,
 		groupDirty,
 		canUndoHere,
@@ -6065,6 +6065,63 @@ function MissionMapBody(props: {
 		pickedFeature != null &&
 		!shownFeatures.some((f) => readFeatureId(f) === pickedId);
 
+	// The keys with nothing open and nothing armed, when the key is the map's
+	// own: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) take a step in the
+	// mission's history, Delete and Backspace delete the picked feature (a
+	// mission asset at once, a stored feature after a question; never a
+	// library feature, nor anything in View), Escape lets go of the pick.
+	const idleDeletes =
+		pickedFeature && !viewOnly && !pickedIsLibrary
+			? missionAssetOf(pickedId) != null
+				? ("now" as const)
+				: ("ask" as const)
+			: null;
+	useEffect(() => {
+		if (shapeOpen || groupActive || drawArmed) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (!shouldHandleEditorKey(event, panelId)) return;
+			const action = editorKeyAction(keyEventOf(event), {
+				deletes: idleDeletes,
+				canUndo: canUndoHere,
+				canRedo: canRedoHere,
+				canEscape: pickedId != null,
+			});
+			if (!action) return;
+			event.preventDefault();
+			switch (action) {
+				case "undo":
+				case "redo": {
+					const scope = routeUndo(action, undoRouteState);
+					if (scope) stepUndo(action, scope);
+					return;
+				}
+				case "delete":
+				case "ask-delete":
+					if (pickedFeature) requestDeleteFeature(pickedFeature);
+					return;
+				case "escape-step":
+					setPickedId(null);
+					if (missionScope) selectAsset(null);
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [
+		panelId,
+		shapeOpen,
+		groupActive,
+		drawArmed,
+		idleDeletes,
+		canUndoHere,
+		canRedoHere,
+		pickedId,
+		pickedFeature,
+		undoRouteState,
+		stepUndo,
+		requestDeleteFeature,
+		missionScope,
+	]);
+
 	// Projected mission geometry for the mission-feature layer (always rendered).
 	const missionGeometryFc = useMemo(
 		() => missionGeometriesToFeatureCollection(missionConfig),
@@ -6228,7 +6285,7 @@ function MissionMapBody(props: {
 		<div
 			ref={mapRootRef}
 			className="h-full w-full min-w-0 flex flex-col text-sm"
-			onKeyDown={onMapKeyDown}
+			{...editorPanelProps("map", panelId)}
 		>
 			{/* The open mission's contacts, from the fog — renders nothing. */}
 			{props.missionContactsDef && selectedMission && (
@@ -6717,6 +6774,13 @@ function MissionMapBody(props: {
 							{error}
 						</div>
 					)}
+					<UndoNoticeBar
+						notice={undoNotice}
+						missionId={missionScope}
+						frozen={viewOnly}
+						onDismiss={() => setUndoNotice(null)}
+						className="bg-background/95 px-2 py-0.5 shrink-0"
+					/>
 
 					{/* Context hint when authoring is gated off. */}
 					{!selectedMap && (
@@ -6794,6 +6858,19 @@ function MissionMapBody(props: {
 										<Trash2 />
 									</Button>
 								)}
+								<Button
+									size="icon-sm"
+									variant="ghost"
+									className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+									title="Deselect (Escape)"
+									aria-label="Deselect"
+									onClick={() => {
+										setPickedId(null);
+										if (missionScope) selectAsset(null);
+									}}
+								>
+									<X />
+								</Button>
 							</div>
 						)}
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
 	type EditSnapshot,
-	editKeyAction,
 	editingLabel,
 	hasUnsavedChanges,
 	historyKeyAction,
@@ -181,59 +180,6 @@ describe("openShapeContact", () => {
 	});
 });
 
-describe("editKeyAction", () => {
-	const idle = { vertexSelected: false, hasChanges: false };
-	const changed = { vertexSelected: false, hasChanges: true };
-
-	it("deletes the selected vertex, or asks to delete the feature", () => {
-		for (const key of ["Delete", "Backspace"]) {
-			expect(
-				editKeyAction(
-					{ key },
-					{ vertexSelected: true, hasChanges: true },
-				),
-			).toBe("delete-vertex");
-			expect(editKeyAction({ key }, idle)).toBe("ask-delete-feature");
-		}
-	});
-
-	it("saves on Enter only when there are changes", () => {
-		expect(editKeyAction({ key: "Enter" }, changed)).toBe("save");
-		expect(editKeyAction({ key: "Enter" }, idle)).toBeNull();
-	});
-
-	it("leaves Enter to a focused button", () => {
-		expect(editKeyAction({ key: "Enter", onControl: true }, changed)).toBe(
-			null,
-		);
-	});
-
-	it("cancels on Escape, changes or not", () => {
-		expect(editKeyAction({ key: "Escape" }, idle)).toBe("cancel");
-		expect(editKeyAction({ key: "Escape" }, changed)).toBe("cancel");
-	});
-
-	it("leaves every key to an open list or menu", () => {
-		for (const key of ["Escape", "Enter", "Delete"]) {
-			expect(editKeyAction({ key, inPopup: true }, changed)).toBeNull();
-		}
-	});
-
-	it("ignores modified keys and everything else", () => {
-		expect(editKeyAction({ key: "Delete", ctrlKey: true }, idle)).toBe(
-			null,
-		);
-		expect(editKeyAction({ key: "Enter", metaKey: true }, changed)).toBe(
-			null,
-		);
-		expect(editKeyAction({ key: "Enter", shiftKey: true }, changed)).toBe(
-			null,
-		);
-		expect(editKeyAction({ key: "Escape", altKey: true }, idle)).toBeNull();
-		expect(editKeyAction({ key: "a" }, changed)).toBeNull();
-	});
-});
-
 describe("editingLabel", () => {
 	it("names the feature, or falls back to its type", () => {
 		expect(editingLabel("Gravel yard", "Zone")).toBe("Editing Gravel yard");
@@ -265,42 +211,6 @@ describe("historyKeyAction", () => {
 		).toBeNull();
 		expect(historyKeyAction({ key: "s", ctrlKey: true })).toBeNull();
 		expect(historyKeyAction({ key: "r", ctrlKey: true })).toBeNull();
-	});
-});
-
-describe("editKeyAction: Undo and Redo", () => {
-	const state = {
-		vertexSelected: false,
-		hasChanges: true,
-		canUndo: true,
-		canRedo: true,
-	};
-
-	it("undoes and redoes while there is a step", () => {
-		expect(editKeyAction({ key: "z", ctrlKey: true }, state)).toBe("undo");
-		expect(
-			editKeyAction({ key: "Z", ctrlKey: true, shiftKey: true }, state),
-		).toBe("redo");
-		expect(editKeyAction({ key: "y", ctrlKey: true }, state)).toBe("redo");
-	});
-
-	it("leaves the key to the browser with nothing to undo or redo", () => {
-		const none = { ...state, canUndo: false, canRedo: false };
-		expect(editKeyAction({ key: "z", ctrlKey: true }, none)).toBeNull();
-		expect(editKeyAction({ key: "y", ctrlKey: true }, none)).toBeNull();
-	});
-
-	it("leaves it to an open list or menu", () => {
-		expect(
-			editKeyAction({ key: "z", ctrlKey: true, inPopup: true }, state),
-		).toBeNull();
-	});
-
-	it("never claims Ctrl+S or Ctrl+R", () => {
-		for (const key of ["s", "r"]) {
-			expect(editKeyAction({ key, ctrlKey: true }, state)).toBeNull();
-			expect(editKeyAction({ key, metaKey: true }, state)).toBeNull();
-		}
 	});
 });
 

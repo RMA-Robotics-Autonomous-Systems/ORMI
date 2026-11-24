@@ -1187,36 +1187,52 @@ export function wireGraph(
 	};
 }
 
-/** What deleting a node would take with it. */
-export interface NodeDeletion {
-	/** The node's caption, or its kind when it has none. */
-	label: string;
-	/** How many edges touch it — the wiring the delete destroys. */
-	edges: number;
+/** What a deletion took out of the graph. */
+export interface GraphDeletion {
+	/** The graph without them. */
+	graph: MissionGraph;
+	/** The captions of the nodes deleted, in graph order. */
+	nodeLabels: string[];
+	/** The links deleted: those selected and those of the deleted nodes. */
+	links: number;
 }
 
 /**
- * What deleting a node costs, so the operator is told before it happens.
+ * Delete nodes and links together, as one edit: a node takes its links with
+ * it (a link to a node that no longer exists breaks the renderer), and a
+ * link counts once however it was reached.
  *
- * A node with no wiring is its own explanation; one in the middle of a chain
- * takes the steps either side of it apart, and nothing on screen says so until
- * it is gone. Counted here rather than in JSX so the number the confirmation
- * names and the number the delete actually removes are the same one.
- *
- * @param graph - The graph, or null.
- * @param nodeId - The node about to be deleted.
- * @returns Its caption and the number of edges that would go with it.
+ * @param graph - The graph.
+ * @param nodeIds - The nodes to delete.
+ * @param edgeIds - The links to delete.
+ * @returns The graph without them, and what went.
  */
-export function describeNodeDeletion(
-	graph: MissionGraph | null | undefined,
-	nodeId: string,
-): NodeDeletion {
-	const node = graph?.nodes.find((candidate) => candidate.id === nodeId);
+export function deleteFromGraph(
+	graph: MissionGraph,
+	nodeIds: readonly string[],
+	edgeIds: readonly string[],
+): GraphDeletion {
+	const nodes = new Set(nodeIds);
+	const edges = new Set(edgeIds);
+	const doomedEdge = (edge: MissionGraph["edges"][number]) =>
+		edges.has(edge.id) || nodes.has(edge.source) || nodes.has(edge.target);
+	const nodeLabels = graph.nodes
+		.filter((node) => nodes.has(node.id))
+		.map((node) => node.label || node.kind || node.id);
+	const links = graph.edges.filter(doomedEdge).length;
 	return {
-		label: node?.label || node?.kind || nodeId,
-		edges: (graph?.edges ?? []).filter(
-			(edge) => edge.source === nodeId || edge.target === nodeId,
-		).length,
+		graph:
+			nodeLabels.length === 0 && links === 0
+				? graph
+				: {
+						...graph,
+						nodes: graph.nodes.filter(
+							(node) => !nodes.has(node.id),
+						),
+						edges: graph.edges.filter((edge) => !doomedEdge(edge)),
+					},
+		nodeLabels,
+		links,
 	};
 }
 

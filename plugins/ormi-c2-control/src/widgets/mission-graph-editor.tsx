@@ -14,16 +14,6 @@ import { Checkbox } from "@workspace/ui/components/checkbox";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@workspace/ui/components/alert-dialog";
-import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -97,6 +87,7 @@ import {
 	useLayoutEffect,
 	useMemo,
 	useRef,
+	useId,
 	useState,
 	useSyncExternalStore,
 } from "react";
@@ -130,6 +121,18 @@ import { redoMission, undoMission } from "../state/mission-undo";
 import { subscribeGraphFocus } from "../state/graph-focus-store";
 import { subscribeAssetFocus } from "../state/asset-focus-store";
 import { assetUses } from "./mission-asset-tree";
+import {
+	editorKeyAction,
+	editorPanelProps,
+	shouldHandleEditorKey,
+	trackEditorPanels,
+} from "./editor-keys";
+import {
+	graphDeletionText,
+	undoNoticeFor,
+	type UndoNotice,
+} from "./undo-notice";
+import { UndoNoticeBar } from "./undo-notice-bar";
 import { useActiveMap, useSelectedMission } from "../state/selection-store";
 import { assetFeatureTypes, assetId } from "./mission-assets";
 import {
@@ -142,7 +145,7 @@ import {
 	dropChoices,
 	dropOrphanedEdges,
 	copySelection,
-	describeNodeDeletion,
+	deleteFromGraph,
 	formatCondition,
 	graphModeTitle,
 	inspectedNodeId,
@@ -905,14 +908,6 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 const NODE_TYPES: NodeTypes = { c2: GraphNodeCard };
 
 /**
- * Delete AND Backspace, the two keys an operator reaches for.
- *
- * Module-level: a fresh array literal per render re-registers xyflow's key
- * listener on every render.
- */
-const DELETE_KEY_CODES = ["Delete", "Backspace"];
-
-/**
  * What Ctrl+C copied: nodes and the edges between them. Module-level, so a
  * copy survives switching missions (a pasted asset then names the other
  * mission's asset, which the compiler reports).
@@ -1239,12 +1234,8 @@ function MissionGraphEditorBody(props: {
 	const [keyFrom, setKeyFrom] = useState<PortHandleRef | null>(null);
 	/** Whether the mission check (the status badge's popover) is open. */
 	const [checkOpen, setCheckOpen] = useState(false);
-	/** A node delete waiting to be confirmed, because it destroys wiring. */
-	const [confirmDelete, setConfirmDelete] = useState<{
-		nodeId: string;
-		label: string;
-		edges: number;
-	} | null>(null);
+	/** A deletion of the mission's items, with its Undo. */
+	const [undoNotice, setUndoNotice] = useState<UndoNotice | null>(null);
 	/** The canvas box, for `getBoundingClientRect` so a drop can be placed. */
 	const canvasBox = useRef<HTMLDivElement>(null);
 	/**
@@ -2040,56 +2031,55 @@ function MissionGraphEditorBody(props: {
 		reducedMotion,
 	]);
 
-	const deleteNodes = useCallback(
-		(nodeIds: readonly string[]) => {
-			if (!missionId || viewOnly || nodeIds.length === 0) return;
-			const doomed = new Set(nodeIds);
+	/**
+	 * Delete nodes and links as ONE step of the mission's history, at once:
+	 * one Undo puts them all back, and the notice left on screen carries
+	 * that Undo ({@link UndoNoticeBar}).
+	 */
+	const deleteItems = useCallback(
+		(nodeIds: readonly string[], edgeIds: readonly string[]) => {
+			if (!missionId || viewOnly) return;
+			if (nodeIds.length === 0 && edgeIds.length === 0) return;
+			let gone: { nodeLabels: string[]; links: number } | null = null;
 			editMissionGraph(
 				missionId,
-				(current) => ({
-					...current,
-					nodes: current.nodes.filter((node) => !doomed.has(node.id)),
-					// Edges to a node that no longer exists are what break a graph
-					// renderer, so they go with it.
-					edges: current.edges.filter(
-						(edge) =>
-							!doomed.has(edge.source) &&
-							!doomed.has(edge.target),
-					),
-				}),
+				(current) => {
+					const result = deleteFromGraph(current, nodeIds, edgeIds);
+					gone = result;
+					return result.graph;
+				},
 				{
 					label:
-						nodeIds.length === 1 ? "Delete node" : "Delete nodes",
+						nodeIds.length === 0
+							? edgeIds.length === 1
+								? "Delete link"
+								: "Delete links"
+							: nodeIds.length === 1
+								? "Delete node"
+								: "Delete nodes",
 				},
 			);
+			const done = gone as { nodeLabels: string[]; links: number } | null;
+			if (!done || (done.nodeLabels.length === 0 && done.links === 0))
+				return;
+			const doomedNodes = new Set(nodeIds);
+			const doomedEdges = new Set(edgeIds);
 			setSelectedNodeIds((prev) =>
-				prev.some((id) => doomed.has(id))
-					? prev.filter((id) => !doomed.has(id))
+				prev.some((id) => doomedNodes.has(id))
+					? prev.filter((id) => !doomedNodes.has(id))
 					: prev,
-			);
-		},
-		[missionId, viewOnly],
-	);
-
-	const deleteEdges = useCallback(
-		(edgeIds: readonly string[]) => {
-			if (!missionId || viewOnly || edgeIds.length === 0) return;
-			const doomed = new Set(edgeIds);
-			editMissionGraph(
-				missionId,
-				(current) => ({
-					...current,
-					edges: current.edges.filter((edge) => !doomed.has(edge.id)),
-				}),
-				{
-					label:
-						edgeIds.length === 1 ? "Delete link" : "Delete links",
-				},
 			);
 			setSelectedEdgeIds((prev) =>
-				prev.some((id) => doomed.has(id))
-					? prev.filter((id) => !doomed.has(id))
+				prev.some((id) => doomedEdges.has(id))
+					? prev.filter((id) => !doomedEdges.has(id))
 					: prev,
+			);
+			setNotice(null);
+			setUndoNotice(
+				undoNoticeFor(
+					missionId,
+					graphDeletionText(done.nodeLabels, done.links),
+				),
 			);
 		},
 		[missionId, viewOnly],
@@ -2102,8 +2092,9 @@ function MissionGraphEditorBody(props: {
 	 *   change set is applied to a throwaway node list and only the resulting
 	 *   positions are written back.
 	 * - `select` is ephemeral and lands in component state.
-	 * - `remove` routes through {@link deleteNodes}, so a removed node still
-	 *   takes its incident edges with it.
+	 * - `remove` routes through {@link deleteItems}, so a removed node still
+	 *   takes its incident edges with it. The Delete key does not reach
+	 *   xyflow (`deleteKeyCode={null}`): it is the panel's own key.
 	 */
 	const onNodesChange = useCallback(
 		(changes: NodeChange[]) => {
@@ -2136,24 +2127,7 @@ function MissionGraphEditorBody(props: {
 			const removed = changes.flatMap((change) =>
 				change.type === "remove" ? [change.id] : [],
 			);
-			if (removed.length > 0) {
-				// The Delete key is the fast path an operator repeats, so it
-				// keeps working without a modal — but it leaves the undo cue
-				// on screen, which the canvas never did. The inspector's
-				// Delete, which is deliberate and single, confirms instead.
-				const cost = removed.map((id) =>
-					describeNodeDeletion(graph, id),
-				);
-				const links = cost.reduce((sum, one) => sum + one.edges, 0);
-				deleteNodes(removed);
-				setNotice(
-					`Deleted ${
-						cost.length === 1
-							? `“${cost[0]?.label}”`
-							: `${cost.length} nodes`
-					}${links > 0 ? ` and ${links} link${links === 1 ? "" : "s"}` : ""}. Ctrl+Z to undo.`,
-				);
-			}
+			if (removed.length > 0) deleteItems(removed, NO_SELECTION);
 
 			const positional = changes.filter(
 				(change) => change.type === "position",
@@ -2189,7 +2163,7 @@ function MissionGraphEditorBody(props: {
 				{ label: "Move node", gesture },
 			);
 		},
-		[missionId, viewOnly, graph, deleteNodes],
+		[missionId, viewOnly, deleteItems],
 	);
 
 	/** Edge changes from the canvas: selection, and removal. */
@@ -2212,9 +2186,9 @@ function MissionGraphEditorBody(props: {
 			const removed = changes.flatMap((change) =>
 				change.type === "remove" ? [change.id] : [],
 			);
-			if (removed.length > 0) deleteEdges(removed);
+			if (removed.length > 0) deleteItems(NO_SELECTION, removed);
 		},
-		[missionId, viewOnly, deleteEdges],
+		[missionId, viewOnly, deleteItems],
 	);
 
 	/**
@@ -2607,16 +2581,6 @@ function MissionGraphEditorBody(props: {
 
 	// ---- Keyboard ----------------------------------------------------------
 
-	/**
-	 * Refuse a delete the operator did not aim at the canvas: xyflow's
-	 * `deleteKeyCode` listens on the DOCUMENT, so Backspace in the label field
-	 * would otherwise delete the node being named.
-	 */
-	const onBeforeDelete = useCallback(
-		async () => !viewOnly && shouldHandleGraphShortcut(),
-		[viewOnly],
-	);
-
 	/** Take back / do again the last edit (a whole drag is one). */
 	const undo = useCallback(() => {
 		if (viewOnly) return;
@@ -2663,91 +2627,118 @@ function MissionGraphEditorBody(props: {
 		setSelectedNodeIds(pasted);
 	}, [missionId, viewOnly]);
 
+	// ---- Deleting ----------------------------------------------------------
+
 	/**
-	 * Escape closes the drop menu, then clears the selection. Ctrl/Cmd+Z
-	 * undoes, Ctrl/Cmd+Shift+Z or Ctrl+Y redoes, Ctrl/Cmd+C and +V copy and
-	 * paste nodes — none of them while typing in a field.
+	 * Delete what is selected (the Delete key, the toolbar's Delete), at once:
+	 * the graph is the mission's own, so one Undo takes it back.
 	 */
-	const onKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			const mod = event.ctrlKey || event.metaKey;
-			const key = event.key.toLowerCase();
-			if (
-				mod &&
-				(key === "z" || key === "y" || key === "c" || key === "v")
-			) {
-				if (!shouldHandleGraphShortcut(event.nativeEvent)) return;
-				event.preventDefault();
-				if (key === "c") copy();
-				else if (key === "v") paste();
-				else if (key === "y" || event.shiftKey) redo();
-				else undo();
-				return;
-			}
-			if (event.key !== "Escape") return;
-			if (dropMenu) {
-				setDropMenu(null);
-				return;
-			}
-			// A half-built keyboard wire is the nearest thing to "cancel".
-			if (keyFrom) {
-				setKeyFrom(null);
-				return;
-			}
-			if (dropNotice) {
-				setDropNotice(null);
-				return;
-			}
-			if (!shouldHandleGraphShortcut(event.nativeEvent)) return;
-			clearSelection();
-		},
-		[
-			clearSelection,
-			dropMenu,
-			keyFrom,
-			dropNotice,
+	const deleteSelection = useCallback(() => {
+		deleteItems(selectedNodeIds, selectedEdgeIds);
+	}, [deleteItems, selectedNodeIds, selectedEdgeIds]);
+
+	/**
+	 * The panel's keys, through the editor's one dispatcher
+	 * ({@link editorKeyAction}), and only when the key is this panel's
+	 * ({@link shouldHandleEditorKey}): focus is in it, or it was pressed in
+	 * last. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) take a step in the
+	 * mission's history; Delete and Backspace delete the selection at once;
+	 * Escape closes the drop menu, then drops a half-built keyboard wire, then
+	 * the refusal card, then the selection, one per press; Ctrl/Cmd+C and +V
+	 * copy and paste nodes. None of them while typing in a field.
+	 *
+	 * A window listener rather than the root's `onKeyDown`: deleting the node
+	 * that held focus leaves it on the page body, and the next key must still
+	 * be this panel's.
+	 */
+	const panelId = useId();
+	useEffect(() => trackEditorPanels(), []);
+	const hasSelection =
+		selectedNodeIds.length > 0 || selectedEdgeIds.length > 0;
+	const keyState = {
+		canUndo: !viewOnly && canUndo,
+		canRedo: !viewOnly && canRedo,
+		deletes: !viewOnly && hasSelection ? ("now" as const) : null,
+		canEscape:
+			dropMenu != null ||
+			keyFrom != null ||
+			dropNotice != null ||
+			hasSelection,
+	};
+	const keysRef = useRef({
+		keyState,
+		undo,
+		redo,
+		copy,
+		paste,
+		deleteSelection,
+		clearSelection,
+		dropMenu,
+		keyFrom,
+		dropNotice,
+	});
+	useEffect(() => {
+		keysRef.current = {
+			keyState,
 			undo,
 			redo,
 			copy,
 			paste,
-		],
-	);
-
-	// ---- Deleting a node ---------------------------------------------------
-
-	/**
-	 * Delete a node — through a confirmation when it takes wiring with it.
-	 *
-	 * An unwired node is its own explanation and goes straight away; one in the
-	 * middle of a chain takes the steps either side of it apart, and nothing
-	 * said so until it was gone. Both paths leave the undo cue on screen, which
-	 * the canvas never did either.
-	 */
-	const requestDeleteNode = useCallback(
-		(nodeId: string) => {
-			if (viewOnly) return;
-			const doomed = describeNodeDeletion(graph, nodeId);
-			if (doomed.edges === 0) {
-				deleteNodes([nodeId]);
-				setNotice(`Deleted “${doomed.label}”. Ctrl+Z to undo.`);
+			deleteSelection,
+			clearSelection,
+			dropMenu,
+			keyFrom,
+			dropNotice,
+		};
+	});
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			// A control inside the panel (a port, the drop menu) took it.
+			if (event.defaultPrevented) return;
+			if (!shouldHandleEditorKey(event, panelId)) return;
+			if (!shouldHandleGraphShortcut(event)) return;
+			const keys = keysRef.current;
+			const mod = event.ctrlKey || event.metaKey;
+			const key = event.key.toLowerCase();
+			if (mod && !event.altKey && (key === "c" || key === "v")) {
+				event.preventDefault();
+				if (key === "c") keys.copy();
+				else keys.paste();
 				return;
 			}
-			setConfirmDelete({ nodeId, ...doomed });
-		},
-		[graph, viewOnly, deleteNodes],
-	);
-
-	/** Carry out a confirmed node deletion. */
-	const confirmDeleteNode = useCallback(() => {
-		if (!confirmDelete) return;
-		deleteNodes([confirmDelete.nodeId]);
-		setNotice(
-			`Deleted “${confirmDelete.label}” and ${confirmDelete.edges} link${
-				confirmDelete.edges === 1 ? "" : "s"
-			}. Ctrl+Z to undo.`,
-		);
-		setConfirmDelete(null);
-	}, [confirmDelete, deleteNodes]);
+			const action = editorKeyAction(
+				{
+					key: event.key,
+					ctrlKey: event.ctrlKey,
+					metaKey: event.metaKey,
+					altKey: event.altKey,
+					shiftKey: event.shiftKey,
+				},
+				keys.keyState,
+			);
+			if (!action) return;
+			event.preventDefault();
+			switch (action) {
+				case "undo":
+					keys.undo();
+					return;
+				case "redo":
+					keys.redo();
+					return;
+				case "delete":
+					keys.deleteSelection();
+					return;
+				case "escape-step":
+					if (keys.dropMenu) setDropMenu(null);
+					else if (keys.keyFrom) setKeyFrom(null);
+					else if (keys.dropNotice) setDropNotice(null);
+					else keys.clearSelection();
+					return;
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [panelId]);
 
 	// ---- Persistence -------------------------------------------------------
 
@@ -2852,7 +2843,7 @@ function MissionGraphEditorBody(props: {
 			ref={rootRef}
 			className="h-full min-w-0 flex flex-col gap-2 text-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 			tabIndex={-1}
-			onKeyDown={onKeyDown}
+			{...editorPanelProps("graph", panelId)}
 		>
 			{/* Toolbar */}
 			<div className="flex items-center gap-1.5 p-2 border-b shrink-0 flex-wrap min-w-0">
@@ -2962,6 +2953,31 @@ function MissionGraphEditorBody(props: {
 						>
 							<Redo2 />
 						</Button>
+						{/* What Delete and Escape do, in reach by touch. */}
+						{hasSelection && !viewOnly && (
+							<Button
+								size="icon-sm"
+								variant="ghost"
+								className="text-destructive any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+								onClick={deleteSelection}
+								title="Delete selected (Delete)"
+								aria-label="Delete selected"
+							>
+								<Trash2 />
+							</Button>
+						)}
+						{hasSelection && (
+							<Button
+								size="icon-sm"
+								variant="ghost"
+								className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+								onClick={clearSelection}
+								title="Deselect (Escape)"
+								aria-label="Deselect"
+							>
+								<X />
+							</Button>
+						)}
 					</>
 				)}
 
@@ -3158,6 +3174,15 @@ function MissionGraphEditorBody(props: {
 					{notice}
 				</div>
 			)}
+			{!error && (
+				<UndoNoticeBar
+					notice={undoNotice}
+					missionId={missionId}
+					frozen={viewOnly}
+					onDismiss={() => setUndoNotice(null)}
+					className="bg-muted/50 px-2 py-0.5 shrink-0"
+				/>
+			)}
 
 			{outdated ? (
 				// The repo's named-unsupported vocabulary — dashed border, muted
@@ -3200,14 +3225,13 @@ function MissionGraphEditorBody(props: {
 							onConnectEnd={onConnectEnd}
 							onMoveStart={onMoveStart}
 							isValidConnection={isValidConnection}
-							onBeforeDelete={onBeforeDelete}
 							nodesDraggable={!viewOnly}
 							nodesConnectable={!viewOnly}
 							onPaneClick={() => {
 								setDropMenu(null);
 								setDropNotice(null);
 							}}
-							deleteKeyCode={viewOnly ? null : DELETE_KEY_CODES}
+							deleteKeyCode={null}
 							connectionLineStyle={{ strokeWidth: 2 }}
 							proOptions={{ hideAttribution: false }}
 						>
@@ -3405,7 +3429,10 @@ function MissionGraphEditorBody(props: {
 											patchNode(selectedNode.id, patch)
 										}
 										onDelete={() =>
-											requestDeleteNode(selectedNode.id)
+											deleteItems(
+												[selectedNode.id],
+												NO_SELECTION,
+											)
 										}
 									/>
 								</div>
@@ -3414,36 +3441,6 @@ function MissionGraphEditorBody(props: {
 					)}
 				</div>
 			)}
-
-			{/* Deleting a node that carries wiring says what breaks, and both
-			    delete paths leave the undo cue on screen. */}
-			<AlertDialog
-				open={confirmDelete != null}
-				onOpenChange={(open) => {
-					if (!open) setConfirmDelete(null);
-				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{confirmDelete
-								? `Delete “${confirmDelete.label}” and its ${confirmDelete.edges} link${
-										confirmDelete.edges === 1 ? "" : "s"
-									}?`
-								: ""}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							Ctrl+Z to undo.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction onClick={confirmDeleteNode}>
-							Delete node
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</div>
 	);
 }

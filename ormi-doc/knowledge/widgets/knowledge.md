@@ -1032,3 +1032,18 @@ and lives in two places at once.
   the robot takes them, what feeds a step below it — itself undoable), and
   Ctrl+C / Ctrl+V of nodes with the edges between them (never an agent node:
   AGENT_TWICE).
+- **Editor keys belong to one panel (2026-11-24).** The map, the node
+  editor and the Assets panel each listen on the window, but a key is the
+  panel's that holds focus, else the one last pressed in
+  (`widgets/editor-keys.ts`: `data-editor-panel` / `data-editor-panel-id` on
+  each root, `ownsEditorKey`, one shared pointer-down tracker). One pure
+  dispatcher (`editorKeyAction`) gives Delete, Escape, Enter and Ctrl+Z the
+  same meaning in every panel. xyflow's own Delete is off
+  (`deleteKeyCode={null}`): Delete with focus on the map never deletes
+  nodes, and Ctrl+Z in the node editor never steps the map's open edit (the
+  map's inner histories only answer keys that are the map's). Escape takes
+  one step outwards per press and never deletes. Mission items (nodes,
+  links, mission assets) are deleted at once, one step, and a notice
+  ("Deleted 2 steps", `widgets/undo-notice.ts`) carries Undo while that step
+  is still on top of the history; a stored map feature still asks (its
+  DELETE is final). Delete, Deselect, Undo and Redo are also buttons.
