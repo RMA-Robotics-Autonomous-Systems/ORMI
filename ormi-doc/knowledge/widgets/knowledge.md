@@ -1047,3 +1047,18 @@ and lives in two places at once.
   ("Deleted 2 steps", `widgets/undo-notice.ts`) carries Undo while that step
   is still on top of the history; a stored map feature still asks (its
   DELETE is final). Delete, Deselect, Undo and Redo are also buttons.
+- **One selection across the editor's panels (2026-11-24).**
+  `state/editor-selection-store.ts` holds `{ items, owner, group }`: map
+  features, mission assets, graph nodes and links, owned by the panel that
+  picked them (map, graph or assets). The map's pick and group, the node
+  editor's selection (xyflow controlled) and the Assets panel's selected
+  asset are all read from it through primitive id-key snapshots
+  (`useSelectedIds`), so a panel re-renders only when its own ids change.
+  `asset-focus-store` and `graph-focus-store` are adapters over it; moving a
+  view is a separate reveal channel (`requestReveal`), used only by an
+  explicit "show me this". What another panel's selection relates to
+  (`widgets/related-items.ts`: the asset a node targets, the nodes that
+  target an asset) is outlined, dashed on the map (`c2-related-selection`)
+  and as `c2-related` on the node, never selected and never flown to. The
+  old `map-editing-store` (pickedFeature, draftGeometry) had no caller and is
+  gone.

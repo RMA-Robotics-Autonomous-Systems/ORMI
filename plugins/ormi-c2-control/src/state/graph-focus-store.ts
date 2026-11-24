@@ -1,17 +1,20 @@
 "use client";
 
 /**
- * Graph focus — "show me this node" from another widget to the graph editor.
+ * Graph focus: "show me this node", from another widget to the node editor,
+ * as an adapter over the editor's one selection (`editor-selection-store.ts`).
  *
- * The mission feedback lists where each agent is in its chain; clicking a row
- * asks the graph editor to select that node and bring it into view. A request,
- * not a selection: the editor owns its selection and acts on each request once
- * (`seq` tells a repeated click on the same node from a stale one). Same
- * module-level `useSyncExternalStore` contract as the other plugin stores; no
- * ORMI core change.
+ * The mission feedback lists where each agent is in its chain; clicking a
+ * row selects that node (owned by the node editor) and asks the editor to
+ * bring it into view through the reveal channel. `seq` tells a repeated
+ * click on the same node from a stale one.
  */
 
-import { useSyncExternalStore } from "react";
+import {
+	requestReveal,
+	setEditorSelection,
+	subscribeReveal,
+} from "./editor-selection-store";
 
 /** One request to focus a graph node. */
 export interface GraphFocusRequest {
@@ -21,52 +24,27 @@ export interface GraphFocusRequest {
 	seq: number;
 }
 
-let current: GraphFocusRequest | null = null;
-let seq = 0;
-const listeners = new Set<() => void>();
-
 /**
- * Ask the graph editor showing `missionId` to select and show `nodeId`.
+ * Select `nodeId` in the node editor showing `missionId`, and ask it to show it.
  * @param missionId - The mission whose graph holds the node.
  * @param nodeId - The graph node.
  */
 export function focusGraphNode(missionId: string, nodeId: string): void {
-	seq += 1;
-	current = { missionId, nodeId, seq };
-	for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void): () => void {
-	listeners.add(listener);
-	return () => listeners.delete(listener);
-}
-
-function snapshot(): GraphFocusRequest | null {
-	return current;
+	const item = { kind: "node" as const, missionId, id: nodeId };
+	setEditorSelection([item], "graph");
+	requestReveal(item);
 }
 
 /**
- * Be told about every focus request, as it is made (for a widget that acts on
- * each one rather than rendering the latest).
+ * Be told about every focus request, as it is made.
  * @param listener - Called with each request.
  * @returns Unsubscribe.
  */
 export function subscribeGraphFocus(
 	listener: (request: GraphFocusRequest) => void,
 ): () => void {
-	return subscribe(() => {
-		if (current) listener(current);
+	return subscribeReveal(({ item, seq }) => {
+		if (item.kind !== "node") return;
+		listener({ missionId: item.missionId, nodeId: item.id, seq });
 	});
-}
-
-/** The latest focus request, or null. */
-export function useGraphFocusRequest(): GraphFocusRequest | null {
-	return useSyncExternalStore(subscribe, snapshot, snapshot);
-}
-
-/** Test-only: reset the module state. */
-export function __resetGraphFocusStore(): void {
-	current = null;
-	seq = 0;
-	listeners.clear();
 }

@@ -29,6 +29,12 @@ export function gate(): FakeFeature {
 	};
 }
 
+/** A stored behaviour graph (schema 3), as the node editor saves it. */
+export interface StoredGraph {
+	nodes: Record<string, unknown>[];
+	edges: Record<string, unknown>[];
+}
+
 export interface Harness {
 	fake: FakeC2;
 	refused: string[];
@@ -42,11 +48,13 @@ export interface Harness {
  * @param page - The page under test.
  * @param baseURL - The app's origin.
  * @param features - The site map's features; the Gate waypoint by default.
+ * @param stored - The mission's stored assets and graph; none by default.
  */
 export async function openMission(
 	page: Page,
 	baseURL: string,
 	features: FakeFeature[] = [gate()],
+	stored: { assets?: FakeFeature[]; graph?: StoredGraph } = {},
 ): Promise<Harness> {
 	const fake = new FakeC2();
 	fake.seedMap(MAP_NAME, features);
@@ -62,9 +70,19 @@ export async function openMission(
 		kind: "ormi-mission-assets",
 		mission_ref: MISSION_ID,
 		map: MAP_NAME,
-		features: [],
+		features: stored.assets ?? [],
 		updated_at: "2026-11-24T00:00:00.000Z",
 	});
+	if (stored.graph) {
+		fake.seedMissionDocument({
+			mission_id: `${MISSION_ID}:graph`,
+			kind: "ormi-mission-graph",
+			mission_ref: MISSION_ID,
+			schema_version: 3,
+			graph: { version: 3, ...stored.graph },
+			updated_at: "2026-11-24T00:00:00.000Z",
+		});
+	}
 	const refused = await blockExternalRequests(page, baseURL);
 	await fake.install(page);
 	await openMissionControl(page, MAP_NAME, { graph: true });

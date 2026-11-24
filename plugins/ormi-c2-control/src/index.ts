@@ -160,14 +160,6 @@ export type {
 	FeatureType,
 } from "./widgets/feature-geojson";
 
-// Map-editing store (geometry hand-off from the map to the editor).
-export {
-	setPickedFeature,
-	setDraftGeometry,
-	clearMapEditing,
-	useC2MapEditing,
-} from "./state/map-editing-store";
-export type { DraftGeometry, MapEditingState } from "./state/map-editing-store";
 export {
 	normalizeMissions,
 	newMissionStub,

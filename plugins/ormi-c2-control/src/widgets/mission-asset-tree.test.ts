@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
+import { __resetEditorSelectionStore } from "../state/editor-selection-store";
 import {
-	__resetAssetFocusStore,
 	focusAsset,
 	getSelectedAsset,
 	selectAsset,
@@ -64,7 +64,7 @@ const graph: MissionGraph = {
 };
 
 afterEach(() => {
-	__resetAssetFocusStore();
+	__resetEditorSelectionStore();
 });
 
 describe("the asset tree", () => {

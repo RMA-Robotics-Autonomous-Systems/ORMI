@@ -1,22 +1,26 @@
 "use client";
 
 /**
- * Asset selection — which of the open mission's assets the operator is
- * looking at, shared by the asset tree, the mission map and the graph editor.
+ * Asset selection, as the asset tree and the mission map speak of it: an
+ * adapter over the editor's one selection (`editor-selection-store.ts`).
  *
- * Two things ride on it:
- * - the SELECTION (latest value): picking an asset on the map, or in the
- *   tree, selects it everywhere that lists it;
- * - a FOCUS request (with `seq`): "show me this one" — the map picks it and
- *   flies to it, the graph editor selects the nodes that use it. A request,
- *   acted on once, like `graph-focus-store`: `seq` tells a repeated click
- *   from a stale one.
+ * - SELECTING an asset (`selectAsset`) makes it the selection, owned by the
+ *   Assets panel;
+ * - a FOCUS request (`focusAsset`) selects it AND asks every panel that
+ *   shows it to bring it into view (the selection store's reveal channel):
+ *   the map picks it and flies to it. Selecting alone never moves a view.
  *
- * Same module-level `useSyncExternalStore` contract as the other plugin
- * stores; no ORMI core change.
+ * `useSelectedAsset` reads an asset whichever panel selected it.
  */
 
-import { useCallback, useSyncExternalStore } from "react";
+import {
+	clearEditorSelection,
+	getEditorSelection,
+	requestReveal,
+	setEditorSelection,
+	subscribeReveal,
+	useSelectedIds,
+} from "./editor-selection-store";
 
 /** An asset of a mission. */
 export interface AssetRef {
@@ -30,28 +34,19 @@ export interface AssetFocusRequest extends AssetRef {
 	seq: number;
 }
 
-let selected: AssetRef | null = null;
-let focus: AssetFocusRequest | null = null;
-let seq = 0;
-const listeners = new Set<() => void>();
-const focusListeners = new Set<(request: AssetFocusRequest) => void>();
-
-function emit(): void {
-	for (const listener of listeners) listener();
-}
-
 /**
- * Select an asset (or none), without asking anyone to move to it.
+ * Select an asset (or nothing), without asking anyone to move to it.
  * @param ref - The asset, or null.
  */
 export function selectAsset(ref: AssetRef | null): void {
-	if (
-		selected?.missionId === ref?.missionId &&
-		selected?.featureId === ref?.featureId
-	)
+	if (!ref) {
+		clearEditorSelection();
 		return;
-	selected = ref ? { ...ref } : null;
-	emit();
+	}
+	setEditorSelection(
+		[{ kind: "asset", missionId: ref.missionId, id: ref.featureId }],
+		"assets",
+	);
 }
 
 /**
@@ -59,23 +54,20 @@ export function selectAsset(ref: AssetRef | null): void {
  * @param ref - The asset.
  */
 export function focusAsset(ref: AssetRef): void {
-	seq += 1;
-	focus = { ...ref, seq };
-	selected = { ...ref };
-	emit();
-	for (const listener of focusListeners) listener(focus);
+	selectAsset(ref);
+	requestReveal({
+		kind: "asset",
+		missionId: ref.missionId,
+		id: ref.featureId,
+	});
 }
 
-/** The selected asset, outside React. */
+/** The selected asset (one alone), outside React. */
 export function getSelectedAsset(): AssetRef | null {
-	return selected;
-}
-
-function subscribe(listener: () => void): () => void {
-	listeners.add(listener);
-	return () => {
-		listeners.delete(listener);
-	};
+	const selection = getEditorSelection();
+	const item = selection.items[0];
+	if (selection.items.length !== 1 || item?.kind !== "asset") return null;
+	return { missionId: item.missionId, featureId: item.id };
 }
 
 /**
@@ -86,34 +78,19 @@ function subscribe(listener: () => void): () => void {
 export function subscribeAssetFocus(
 	listener: (request: AssetFocusRequest) => void,
 ): () => void {
-	focusListeners.add(listener);
-	return () => {
-		focusListeners.delete(listener);
-	};
+	return subscribeReveal(({ item, seq }) => {
+		if (item.kind !== "asset") return;
+		listener({ missionId: item.missionId, featureId: item.id, seq });
+	});
 }
 
 /**
- * React hook: the feature id selected in `missionId`, or null.
+ * React hook: the asset selected in `missionId` (by any panel), or null.
  * @param missionId - The mission shown.
  */
 export function useSelectedAsset(
 	missionId: string | null | undefined,
 ): string | null {
-	const get = useCallback(
-		() =>
-			missionId && selected?.missionId === missionId
-				? selected.featureId
-				: null,
-		[missionId],
-	);
-	return useSyncExternalStore(subscribe, get, get);
-}
-
-/** Test-only: reset all module-level state. */
-export function __resetAssetFocusStore(): void {
-	selected = null;
-	focus = null;
-	seq = 0;
-	listeners.clear();
-	focusListeners.clear();
+	const ids = useSelectedIds("asset", missionId);
+	return ids.length === 1 ? ids[0]! : null;
 }

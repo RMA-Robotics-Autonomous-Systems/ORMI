@@ -43,8 +43,7 @@
  *     the id so it closes over the right id while staying stable across renders.
  *
  *  2. The ROSTER hook ({@link useAgents}) returns an OBJECT (an `AgentRecord[]`),
- *     governed by the map-editing-store object-snapshot rule
- *     (`state/map-editing-store.ts` header): `getAgentsSnapshot` MUST return a
+ *     governed by the object-snapshot rule: `getAgentsSnapshot` MUST return a
  *     referentially-STABLE array that only changes identity when the roster
  *     actually changed. The merge therefore rebuilds `rosterSnapshot` ONCE per
  *     real change and `getAgentsSnapshot` returns that stored reference VERBATIM.
@@ -302,8 +301,7 @@ export function useAgentRecord(
 /**
  * React hook: the full agent roster (array), re-rendering on change.
  *
- * Returns an OBJECT (array) snapshot governed by the map-editing-store
- * object-snapshot rule: the same reference across identical re-publishes, a new
+ * Returns an OBJECT (array) snapshot governed by the object-snapshot rule: the same reference across identical re-publishes, a new
  * reference only when the roster actually changes. Sorted by `agent_id`.
  *
  * @returns The current {@link AgentRecord} roster.

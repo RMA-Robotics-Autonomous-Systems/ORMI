@@ -119,6 +119,14 @@ import { saveMissionWithGraph } from "../state/mission-save";
 import { useMissionUndoState } from "../state/mission-history-store";
 import { redoMission, undoMission } from "../state/mission-undo";
 import { subscribeGraphFocus } from "../state/graph-focus-store";
+import {
+	clearEditorSelection,
+	getEditorSelection,
+	selectedIdsOf,
+	setEditorSelection,
+	useSelectedIds,
+} from "../state/editor-selection-store";
+import { useRelatedIds } from "./use-related-ids";
 import { subscribeAssetFocus } from "../state/asset-focus-store";
 import { assetUses } from "./mission-asset-tree";
 import {
@@ -908,6 +916,42 @@ function GraphNodeCard({ id, data, selected }: NodeProps) {
 const NODE_TYPES: NodeTypes = { c2: GraphNodeCard };
 
 /**
+ * Make nodes and links of a mission the selection, owned by the node
+ * editor; nothing selected lets go of the node editor's selection only.
+ */
+function selectInGraph(
+	missionId: string | null | undefined,
+	nodeIds: readonly string[],
+	edgeIds: readonly string[],
+): void {
+	if (!missionId) return;
+	if (nodeIds.length === 0 && edgeIds.length === 0) {
+		clearEditorSelection("graph");
+		return;
+	}
+	setEditorSelection(
+		[
+			...nodeIds.map((id) => ({ kind: "node" as const, missionId, id })),
+			...edgeIds.map((id) => ({ kind: "edge" as const, missionId, id })),
+		],
+		"graph",
+	);
+}
+
+/** The node editor's selection right now (empty while another panel owns it). */
+function graphSelectionNow(missionId: string | null | undefined): {
+	nodes: string[];
+	edges: string[];
+} {
+	const selection = getEditorSelection();
+	if (selection.owner !== "graph") return { nodes: [], edges: [] };
+	return {
+		nodes: selectedIdsOf(selection, "node", missionId),
+		edges: selectedIdsOf(selection, "edge", missionId),
+	};
+}
+
+/**
  * What Ctrl+C copied: nodes and the edges between them. Module-level, so a
  * copy survives switching missions (a pasted asset then names the other
  * mission's asset, which the compiler reports).
@@ -1250,14 +1294,13 @@ function MissionGraphEditorBody(props: {
 	/** xyflow themes itself; without this its minimap and controls stay light. */
 	const dark = useIsDarkTheme();
 	/**
-	 * Selection is EPHEMERAL UI state, held here and mirrored into the canvas
-	 * arrays — never written into the persisted graph, which would mark a
-	 * mission dirty for a click.
+	 * The nodes and links selected HERE: the editor's one selection
+	 * (`state/editor-selection-store.ts`) while the node editor owns it,
+	 * mirrored into the canvas arrays (xyflow is controlled). Never written
+	 * into the persisted graph, which would mark a mission dirty for a click.
 	 */
-	const [selectedNodeIds, setSelectedNodeIds] =
-		useState<readonly string[]>(NO_SELECTION);
-	const [selectedEdgeIds, setSelectedEdgeIds] =
-		useState<readonly string[]>(NO_SELECTION);
+	const selectedNodeIds = useSelectedIds("node", missionId, "graph");
+	const selectedEdgeIds = useSelectedIds("edge", missionId, "graph");
 	/**
 	 * What xyflow measured of each node, carried back on the canvas nodes
 	 * ({@link applyNodeSizes}): without it the minimap draws no node at all.
@@ -1302,8 +1345,7 @@ function MissionGraphEditorBody(props: {
 					(n) => n.id === request.nodeId,
 				);
 				if (!node) return;
-				setSelectedEdgeIds(NO_SELECTION);
-				setSelectedNodeIds([node.id]);
+				// `focusGraphNode` selected it; this brings it into view.
 				revealHandledFor.current = node.id;
 				const measured = getNode(node.id)?.measured;
 				void setCenter(
@@ -1314,7 +1356,9 @@ function MissionGraphEditorBody(props: {
 			}),
 		[getNode, setCenter, reducedMotion],
 	);
-	// An asset picked in the asset panel: select every node that uses it.
+	// An asset the operator asked to see (the asset tree): the nodes using it
+	// are outlined as related (`relatedIds` below), and the first is brought
+	// into view. Nothing is selected here: the asset is the selection.
 	useEffect(
 		() =>
 			subscribeAssetFocus((request) => {
@@ -1322,8 +1366,6 @@ function MissionGraphEditorBody(props: {
 					focusTarget.current;
 				if (!shownId || request.missionId !== shownId) return;
 				const uses = assetUses(shownGraph ?? null, request.featureId);
-				setSelectedEdgeIds(NO_SELECTION);
-				setSelectedNodeIds(uses.length > 0 ? uses : NO_SELECTION);
 				const first = shownGraph?.nodes.find((n) => n.id === uses[0]);
 				if (!first) return;
 				revealHandledFor.current = first.id;
@@ -1846,6 +1888,21 @@ function MissionGraphEditorBody(props: {
 		return out;
 	}, [graph, dragOrigin, featureTypes]);
 
+	// The nodes that use what is selected in another panel (an asset picked on
+	// the map or in the Assets panel): outlined, never selected, and the view
+	// does not move to them.
+	const relatedNodeIds = useRelatedIds(
+		"node",
+		"graph",
+		missionId,
+		graph,
+		missionAssets,
+		missionAssets?.map,
+	);
+	const relatedNodes = useMemo(
+		() => new Set(relatedNodeIds),
+		[relatedNodeIds],
+	);
 	const canvasNodes = useMemo((): Node[] => {
 		if (!graph) return [];
 		const byId = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -1880,8 +1937,11 @@ function MissionGraphEditorBody(props: {
 				ariaLabel: `${kindLabel}: ${node.label || kindLabel}${
 					problem ? `. Problem: ${problem}` : ""
 				}`,
-				className:
-					"focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md",
+				className: `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md${
+					relatedNodes.has(node.id)
+						? " c2-related outline-2 outline-dashed outline-offset-4 outline-info"
+						: ""
+				}`,
 				data: {
 					node,
 					ports: nodePorts(node, featureTypes),
@@ -1928,6 +1988,7 @@ function MissionGraphEditorBody(props: {
 		navigateOptions,
 		coverageOptions,
 		nodeSelection,
+		relatedNodes,
 		runMarks,
 		nodeErrors,
 		nodeSizes,
@@ -2064,15 +2125,11 @@ function MissionGraphEditorBody(props: {
 				return;
 			const doomedNodes = new Set(nodeIds);
 			const doomedEdges = new Set(edgeIds);
-			setSelectedNodeIds((prev) =>
-				prev.some((id) => doomedNodes.has(id))
-					? prev.filter((id) => !doomedNodes.has(id))
-					: prev,
-			);
-			setSelectedEdgeIds((prev) =>
-				prev.some((id) => doomedEdges.has(id))
-					? prev.filter((id) => !doomedEdges.has(id))
-					: prev,
+			const now = graphSelectionNow(missionId);
+			selectInGraph(
+				missionId,
+				now.nodes.filter((id) => !doomedNodes.has(id)),
+				now.edges.filter((id) => !doomedEdges.has(id)),
 			);
 			setNotice(null);
 			setUndoNotice(
@@ -2115,8 +2172,11 @@ function MissionGraphEditorBody(props: {
 					: [],
 			);
 			if (selections.length > 0) {
-				setSelectedNodeIds((prev) =>
-					applySelectionChanges(prev, selections),
+				const now = graphSelectionNow(missionId);
+				selectInGraph(
+					missionId,
+					applySelectionChanges(now.nodes, selections),
+					now.edges,
 				);
 			}
 
@@ -2177,8 +2237,11 @@ function MissionGraphEditorBody(props: {
 					: [],
 			);
 			if (selections.length > 0) {
-				setSelectedEdgeIds((prev) =>
-					applySelectionChanges(prev, selections),
+				const now = graphSelectionNow(missionId);
+				selectInGraph(
+					missionId,
+					now.nodes,
+					applySelectionChanges(now.edges, selections),
 				);
 			}
 
@@ -2351,8 +2414,7 @@ function MissionGraphEditorBody(props: {
 				return;
 			}
 			setDropNotice(null);
-			setSelectedNodeIds([id]);
-			setSelectedEdgeIds(NO_SELECTION);
+			selectInGraph(missionId, [id], NO_SELECTION);
 		},
 		[missionId, viewOnly, featureTypes, showDropNotice],
 	);
@@ -2463,8 +2525,7 @@ function MissionGraphEditorBody(props: {
 				},
 				{ label: "Add node" },
 			);
-			setSelectedNodeIds([id]);
-			setSelectedEdgeIds(NO_SELECTION);
+			selectInGraph(missionId, [id], NO_SELECTION);
 		},
 		[
 			missionId,
@@ -2514,20 +2575,21 @@ function MissionGraphEditorBody(props: {
 		const added = getMissionGraph(missionId)?.nodes.find(
 			(node) => !before.has(node.id),
 		);
-		if (added) setSelectedNodeIds([added.id]);
-		setSelectedEdgeIds(NO_SELECTION);
+		selectInGraph(
+			missionId,
+			added ? [added.id] : NO_SELECTION,
+			NO_SELECTION,
+		);
 	}, [missionId, viewOnly, graph, agents, addNode, placeInView]);
 
 	/** Select exactly one node — the issue list's click-through. */
-	const selectOnlyNode = useCallback((nodeId: string) => {
-		setSelectedNodeIds([nodeId]);
-		setSelectedEdgeIds(NO_SELECTION);
-	}, []);
+	const selectOnlyNode = useCallback(
+		(nodeId: string) => selectInGraph(missionId, [nodeId], NO_SELECTION),
+		[missionId],
+	);
 
-	const clearSelection = useCallback(() => {
-		setSelectedNodeIds((prev) => (prev.length > 0 ? NO_SELECTION : prev));
-		setSelectedEdgeIds((prev) => (prev.length > 0 ? NO_SELECTION : prev));
-	}, []);
+	/** Let go of what is selected here; another panel's selection stays. */
+	const clearSelection = useCallback(() => clearEditorSelection("graph"), []);
 
 	// ---- Fitting the view to the graph -------------------------------------
 	//
@@ -2623,8 +2685,7 @@ function MissionGraphEditorBody(props: {
 			},
 			{ label: "Paste" },
 		);
-		setSelectedEdgeIds(NO_SELECTION);
-		setSelectedNodeIds(pasted);
+		selectInGraph(missionId, pasted, NO_SELECTION);
 	}, [missionId, viewOnly]);
 
 	// ---- Deleting ----------------------------------------------------------

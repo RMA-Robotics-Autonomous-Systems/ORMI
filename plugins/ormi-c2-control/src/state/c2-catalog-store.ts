@@ -10,10 +10,8 @@
  * the list (the redundant-request anti-pattern — see AGENTS.md "prefer
  * structural fix over caching").
  *
- * Kept SEPARATE from the selection store (`selection-store.ts`) and the
- * map-editing store (`map-editing-store.ts`): the active mission, a geometry
- * hand-off, and a name catalog are independent concerns, exactly as those two
- * are kept separate from each other. Agents/vehicles are deliberately NOT held
+ * Kept SEPARATE from the selection store (`selection-store.ts`): the active
+ * mission and a name catalog are independent concerns. Agents/vehicles are deliberately NOT held
  * here (a later phase).
  *
  * Read through `useSyncExternalStore` with an identity-stable, change-fresh

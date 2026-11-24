@@ -170,7 +170,17 @@ import {
 	useMapLayers,
 	type MapFeatureSelectionRequest,
 } from "../state/map-layers-store";
-import { selectAsset, subscribeAssetFocus } from "../state/asset-focus-store";
+import { subscribeAssetFocus } from "../state/asset-focus-store";
+import {
+	clearEditorSelection,
+	getEditorSelection,
+	selectedIdsOf,
+	setEditorSelection,
+	useSelectedIds,
+	useSelectionIsGroup,
+} from "../state/editor-selection-store";
+import { useRelatedIds } from "./use-related-ids";
+import { RelatedSelectionLayer } from "./related-layer";
 import {
 	editorKeyAction,
 	editorPanelProps,
@@ -2426,6 +2436,12 @@ const KEY_CONTROL_SELECTOR =
 	'button,a[href],[role="button"],[role="combobox"],[role="radio"],[role="checkbox"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"]';
 const KEY_POPUP_SELECTOR = '[role="listbox"],[role="menu"]';
 
+/** No features. */
+const NO_FEATURES: readonly C2Feature[] = Object.freeze([]);
+
+/** No group selected. */
+const NO_GROUP: readonly string[] = Object.freeze([]);
+
 /**
  * A window key event as the editor's dispatcher reads it: the key, its
  * modifiers, and whether focus is on a control or inside an open list.
@@ -2746,7 +2762,46 @@ function MissionMapBody(props: {
 		props.defaultMap ?? "",
 	);
 	const [features, setFeatures] = useState<C2Feature[]>([]);
-	const [pickedId, setPickedId] = useState<string | null>(null);
+	/**
+	 * The map's pick and its group are the editor's one selection
+	 * (`state/editor-selection-store.ts`) while the map owns it: a mission
+	 * asset as an `asset`, anything else on the map as a `map-feature`. A
+	 * selection made in another panel picks nothing here; what it relates
+	 * to is outlined instead ({@link RelatedSelectionLayer}).
+	 */
+	const pickMission =
+		context === "mission" && selectedMission ? selectedMission : null;
+	const pickedFeatureIds = useSelectedIds("map-feature", selectedMap, "map");
+	const pickedAssetIds = useSelectedIds("asset", pickMission, "map");
+	const selectionIsGroup = useSelectionIsGroup();
+	const pickedId = selectionIsGroup
+		? null
+		: (pickedAssetIds[0] ?? pickedFeatureIds[0] ?? null);
+	const groupIds = selectionIsGroup ? pickedFeatureIds : NO_GROUP;
+	/** Where a pick belongs, for the setters below (read when they run). */
+	const pickScopeRef = useRef({ map: selectedMap, mission: pickMission });
+	useEffect(() => {
+		pickScopeRef.current = { map: selectedMap, mission: pickMission };
+	});
+	/** Pick one feature or asset (the map then owns the selection), or let go of the pick. */
+	const setPickedId = useCallback((id: string | null) => {
+		if (id === null) {
+			const current = getEditorSelection();
+			if (current.owner === "map" && !current.group)
+				clearEditorSelection("map");
+			return;
+		}
+		const { map, mission } = pickScopeRef.current;
+		const assets = mission ? getMissionAssets(mission) : null;
+		setEditorSelection(
+			[
+				mission && assets && findAsset(assets, id)
+					? { kind: "asset", missionId: mission, id }
+					: { kind: "map-feature", map, id },
+			],
+			"map",
+		);
+	}, []);
 	const [pending, setPending] = useState<PendingSave | null>(null);
 	/**
 	 * Points placed on the shape Draw is authoring, for the hint chip's
@@ -2766,7 +2821,32 @@ function MissionMapBody(props: {
 	 * more features, or one that cannot be opened. Empty outside a group,
 	 * where a single selected feature is simply the one open (`pending`).
 	 */
-	const [groupIds, setGroupIds] = useState<readonly string[]>([]);
+	/** Replace the group (two or more features, or one that cannot be opened). */
+	const setGroupIds = useCallback(
+		(
+			next:
+				| readonly string[]
+				| ((prev: readonly string[]) => readonly string[]),
+		) => {
+			const { map } = pickScopeRef.current;
+			const current = getEditorSelection();
+			const isGroup = current.owner === "map" && current.group;
+			const prev = isGroup
+				? selectedIdsOf(current, "map-feature", map)
+				: [];
+			const ids = typeof next === "function" ? next(prev) : next;
+			if (ids.length === 0) {
+				if (isGroup) clearEditorSelection("map");
+				return;
+			}
+			setEditorSelection(
+				ids.map((id) => ({ kind: "map-feature" as const, map, id })),
+				"map",
+				{ group: true },
+			);
+		},
+		[],
+	);
 	/**
 	 * What the group card holds until Save: a type and a category for all,
 	 * and the move as its drags (`map-group-move.ts`).
@@ -2788,7 +2868,7 @@ function MissionMapBody(props: {
 		setGroupDraft({ move: EMPTY_MOVE });
 		setMoveArmed(false);
 		setLiveMoveOffset(null);
-	}, []);
+	}, [setGroupIds]);
 	/**
 	 * Snapping to the other features, on unless this browser turned it off
 	 * (the toolbar's Snap toggle). terra-draw's hooks read it through a ref:
@@ -3281,7 +3361,7 @@ function MissionMapBody(props: {
 		editingDrawIdRef.current = null;
 		clearDraw(drawRef.current);
 		setTool("select");
-	}, [clearGroup]);
+	}, [clearGroup, setPickedId]);
 
 	/** Select a different map, discarding any edit scoped to the previous one. */
 	const changeSelectedMap = useCallback(
@@ -3709,7 +3789,7 @@ function MissionMapBody(props: {
 			setPickedId(id);
 			setError(null);
 		},
-		[missionScope],
+		[missionScope, setPickedId],
 	);
 
 	// Switch editing context, resetting all transient per-context selections.
@@ -3726,7 +3806,7 @@ function MissionMapBody(props: {
 			editingDrawIdRef.current = null;
 			clearDraw(drawRef.current);
 		},
-		[clearGroup],
+		[clearGroup, setPickedId],
 	);
 
 	// terra-draw lifecycle — construct on map load, tear down on unmount. Also
@@ -4009,10 +4089,9 @@ function MissionMapBody(props: {
 			// the Draw tool is armed (the assets panel picks too).
 			if (!startsNewDrawing(type, draw.getMode(), changeContext)) return;
 			setPickedId(null);
-			if (drawCtxRef.current.missionScope) selectAsset(null);
 		});
 		drawRef.current = draw;
-	}, [snapIndicator]);
+	}, [snapIndicator, setPickedId]);
 
 	useEffect(() => {
 		return () => {
@@ -4231,10 +4310,7 @@ function MissionMapBody(props: {
 				setPending(null);
 				setPickedId(readFeatureId(feature) ?? null);
 				const savedId = readFeatureId(feature);
-				if (savedId) {
-					selectContact(null);
-					selectAsset({ missionId: toMission, featureId: savedId });
-				}
+				if (savedId) selectContact(null);
 				editingDrawIdRef.current = null;
 				clearDraw(drawRef.current);
 				setTool("select");
@@ -4284,6 +4360,7 @@ function MissionMapBody(props: {
 			featuresAddCall,
 			featuresUpdateCall,
 			refetchFeatures,
+			setPickedId,
 		],
 	);
 
@@ -4459,6 +4536,7 @@ function MissionMapBody(props: {
 			endEdit,
 			missionScope,
 			missionAssetOf,
+			setPickedId,
 		],
 	);
 
@@ -5059,20 +5137,12 @@ function MissionMapBody(props: {
 			if (open) endEdit();
 			if (!hit) {
 				setPickedId(null);
-				if (missionScope) selectAsset(null);
 				return;
 			}
 			selectContact(null);
 			setPickedId(hit.id);
 			const missionId =
 				!hit.library && missionAssetOf(hit.id) ? missionScope : null;
-			// The asset panel shows what is picked here: one of the mission's
-			// assets, or nothing (a map feature, the library).
-			if (missionScope) {
-				selectAsset(
-					missionId ? { missionId, featureId: hit.id } : null,
-				);
-			}
 			// In a mission, the map's own assets are a library: picked to be
 			// imported, never edited from here.
 			if (!open || hit.library || !canEdit) return;
@@ -5085,6 +5155,7 @@ function MissionMapBody(props: {
 			canEdit,
 			editFeature,
 			selectedMap,
+			setPickedId,
 		],
 	);
 
@@ -5209,7 +5280,7 @@ function MissionMapBody(props: {
 			setTool("select");
 			setGroupIds(next.groupIds);
 		},
-		[openEditId, features, selectHit, endEdit],
+		[openEditId, features, selectHit, endEdit, setGroupIds, setPickedId],
 	);
 
 	/**
@@ -5412,6 +5483,7 @@ function MissionMapBody(props: {
 		selectedMap,
 		featuresUpdateCall,
 		refetchFeatures,
+		setGroupIds,
 	]);
 
 	/**
@@ -5467,6 +5539,7 @@ function MissionMapBody(props: {
 			selectedMap,
 			featuresDeleteCall,
 			refetchFeatures,
+			setGroupIds,
 		],
 	);
 
@@ -5538,9 +5611,8 @@ function MissionMapBody(props: {
 	const cancelPending = useCallback(() => {
 		endEdit();
 		setPickedId(null);
-		if (missionScope) selectAsset(null);
 		setTool("select");
-	}, [endEdit, missionScope]);
+	}, [endEdit, setPickedId]);
 
 	/** Save the pending feature, when there is something to save. */
 	const savePending = useCallback(() => {
@@ -5597,7 +5669,6 @@ function MissionMapBody(props: {
 			// The pick's outline and bar have nothing to do with the shape
 			// about to be drawn.
 			setPickedId(null);
-			if (missionScope) selectAsset(null);
 			setDrawPoints(0);
 			setTool((current) => nextMapTool(current, "toggle"));
 			// terra-draw reads its finish key (Enter) from the map: a Draw
@@ -5610,11 +5681,11 @@ function MissionMapBody(props: {
 		tool,
 		leavePending,
 		endEdit,
-		missionScope,
 		focusMap,
 		groupActive,
 		leaveGroup,
 		clearGroup,
+		setPickedId,
 	]);
 
 	/** The hint chip's Finish: complete the line or polygon in progress. */
@@ -5921,10 +5992,7 @@ function MissionMapBody(props: {
 			const contactHit =
 				hit && editing ? undefined : contactAt(event.point);
 			if (selectedMission && contactHit) {
-				if (!editing) {
-					setPickedId(null);
-					selectAsset(null);
-				}
+				if (!editing) setPickedId(null);
 				selectContact({ missionId: selectedMission, uid: contactHit });
 				return;
 			}
@@ -5946,6 +6014,7 @@ function MissionMapBody(props: {
 			groupMoving,
 			multiSelectEnabled,
 			requestSelectionChange,
+			setPickedId,
 		],
 	);
 
@@ -6050,7 +6119,7 @@ function MissionMapBody(props: {
 					library: false,
 				});
 			}),
-		[flyToFeature],
+		[flyToFeature, setPickedId],
 	);
 
 	const pickedFeature = useMemo(
@@ -6101,7 +6170,6 @@ function MissionMapBody(props: {
 					return;
 				case "escape-step":
 					setPickedId(null);
-					if (missionScope) selectAsset(null);
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
@@ -6120,6 +6188,7 @@ function MissionMapBody(props: {
 		stepUndo,
 		requestDeleteFeature,
 		missionScope,
+		setPickedId,
 	]);
 
 	// Projected mission geometry for the mission-feature layer (always rendered).
@@ -6185,6 +6254,47 @@ function MissionMapBody(props: {
 	// and is deliberately not read here: it is stale until the operator applies
 	// the graph, and reading it would put a second answer on screen.
 	const missionGraph = useMissionGraph(selectedMission);
+	// What a selection in another panel relates to on this map (the assets
+	// and features the node editor's selected nodes target): outlined
+	// dashed, never picked, and the camera stays where it is.
+	const relatedAssetIds = useRelatedIds(
+		"asset",
+		"map",
+		missionScope,
+		missionGraph,
+		missionAssets,
+		missionAssets?.map,
+	);
+	const relatedFeatureIds = useRelatedIds(
+		"map-feature",
+		"map",
+		missionScope,
+		missionGraph,
+		missionAssets,
+		missionAssets?.map,
+	);
+	const relatedFeatures = useMemo(() => {
+		if (relatedAssetIds.length === 0 && relatedFeatureIds.length === 0)
+			return NO_FEATURES;
+		const ids = new Set([...relatedAssetIds, ...relatedFeatureIds]);
+		const seen = new Set<string>();
+		return [
+			...(missionAssets?.features ?? []),
+			...shownFeatures,
+			...libraryFeatures,
+		].filter((f) => {
+			const id = readFeatureId(f) ?? "";
+			if (!ids.has(id) || seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
+	}, [
+		relatedAssetIds,
+		relatedFeatureIds,
+		missionAssets,
+		shownFeatures,
+		libraryFeatures,
+	]);
 	// The marker's allocated state. `hasAgentNode` is the seam the graph module
 	// exports for exactly this question — never a local re-derivation, so the
 	// marker and the node editor can never disagree about what is allocated.
@@ -6864,10 +6974,7 @@ function MissionMapBody(props: {
 									className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
 									title="Deselect (Escape)"
 									aria-label="Deselect"
-									onClick={() => {
-										setPickedId(null);
-										if (missionScope) selectAsset(null);
-									}}
+									onClick={() => setPickedId(null)}
 								>
 									<X />
 								</Button>
@@ -7091,6 +7198,10 @@ function MissionMapBody(props: {
 						features={displayFeatures}
 						selectedId={pickedId}
 					/>
+					{/* What another panel's selection relates to. */}
+					{relatedFeatures.length > 0 && (
+						<RelatedSelectionLayer features={relatedFeatures} />
+					)}
 					{/* The selected group, outlined over the features. */}
 					{groupActive && (
 						<GroupSelectionLayer features={groupOutline} />
