@@ -378,6 +378,13 @@ import {
 } from "./mission-progress";
 import { AutoSelectActiveMission, useNow } from "./now-playing";
 import { parseAutonomyTrajectory } from "./robot-track";
+import { RouteLegend } from "./route-legend";
+import {
+	type RouteKind,
+	feedbackRouteKind,
+	routeCasingLayer,
+	routeCoreLayer,
+} from "./route-styles";
 import { useContainerSize } from "./responsive";
 import { MissionFeedbackHistorySync } from "./feedback-history";
 import { useMapInit } from "./maps-shared/use-map-init";
@@ -793,15 +800,16 @@ function BreadcrumbLayer() {
 	if (fc.features.length === 0) return null;
 	return (
 		<Source id="c2-breadcrumbs" type="geojson" data={fc}>
+			{/* Driven: see `route-styles.ts`. */}
+			<Layer
+				id="c2-breadcrumbs-casing"
+				type="line"
+				{...routeCasingLayer("driven")}
+			/>
 			<Layer
 				id="c2-breadcrumbs-line"
 				type="line"
-				layout={{ "line-cap": "round", "line-join": "round" }}
-				paint={{
-					"line-color": ["get", "color"],
-					"line-width": 2,
-					"line-opacity": 0.55,
-				}}
+				{...routeCoreLayer("driven")}
 			/>
 		</Source>
 	);
@@ -859,27 +867,19 @@ function AgentTrajectoryOverlayBody(props: {
 	if (fc.features.length === 0) return null;
 	return (
 		<Source id="c2-trajectories" type="geojson" data={fc}>
-			{/* White casing so the plan reads over the route of the same
-			    colour. The literal white is basemap-relative, not
-			    theme-relative: the style comes from `mapUrl` and never follows
-			    the app theme, so every casing, ring and halo on this map is
-			    chosen against a light basemap and must stay light in both
-			    themes. MapLibre paint cannot read a CSS variable in any case. */}
+			{/* The live path: dots on a casing (`route-styles.ts`). The
+			    casings are basemap-relative, not theme-relative: the style
+			    comes from `mapUrl` and never follows the app theme, and
+			    MapLibre paint cannot read a CSS variable in any case. */}
 			<Layer
 				id="c2-trajectories-casing"
 				type="line"
-				layout={{ "line-cap": "round", "line-join": "round" }}
-				paint={{ "line-color": "#ffffff", "line-width": 4.5 }}
+				{...routeCasingLayer("intent")}
 			/>
 			<Layer
 				id="c2-trajectories-line"
 				type="line"
-				layout={{ "line-cap": "round", "line-join": "round" }}
-				paint={{
-					"line-color": ["get", "color"],
-					"line-width": 2,
-					"line-dasharray": [1, 1.5],
-				}}
+				{...routeCoreLayer("intent")}
 			/>
 		</Source>
 	);
@@ -931,6 +931,13 @@ function AgentTrajectoryOverlay(props: {
 function isPreviewStatus(status: MissionStatus): boolean {
 	return !isMissionCommitted(status);
 }
+
+/** The feedback route's kinds, bottom to top. */
+const FEEDBACK_ROUTE_KINDS: readonly RouteKind[] = [
+	"driven",
+	"preview",
+	"planned",
+];
 
 /** A waypoint hover/click popover payload. */
 interface WaypointPopover {
@@ -1068,11 +1075,12 @@ function LiveOverlay(props: {
 		);
 	}, []);
 
-	// Route line features — per task, the REMAINING part in the vehicle colour
-	// (solid when committed, dashed for a planned preview — two filtered layers,
-	// since line-dasharray can't be data-driven within one layer) and the DONE
-	// part in grey, split at `current_waypoint_index` (MissionFeedback v2; with a
-	// v1 producer everything is "remaining", which draws exactly as before).
+	// Route line features: per task, the REMAINING part (planned once the
+	// mission is committed, a preview before) and the DONE part (driven),
+	// split at `current_waypoint_index` (MissionFeedback v2; with a v1
+	// producer everything is "remaining"). One filtered layer per kind, since
+	// line-dasharray cannot be data-driven within one layer; the looks are in
+	// `route-styles.ts`.
 	const lineFc = useMemo(
 		() => ({
 			type: "FeatureCollection" as const,
@@ -1087,8 +1095,10 @@ function LiveOverlay(props: {
 							vehicleId: task.vehicle_id,
 							color,
 							status,
-							dashed: isPreviewStatus(status),
-							done: false,
+							kind: feedbackRouteKind(
+								"remaining",
+								!isPreviewStatus(status),
+							),
 						},
 						geometry: {
 							type: "LineString" as const,
@@ -1103,8 +1113,7 @@ function LiveOverlay(props: {
 							vehicleId: task.vehicle_id,
 							color,
 							status,
-							dashed: false,
-							done: true,
+							kind: feedbackRouteKind("done", true),
 						},
 						geometry: {
 							type: "LineString" as const,
@@ -1246,46 +1255,28 @@ function LiveOverlay(props: {
 			{visible && (
 				<>
 					<Source id="c2-feedback-paths" type="geojson" data={lineFc}>
-						{/* Already driven: grey, under the remaining route. */}
-						<Layer
-							id="c2-feedback-paths-done"
-							type="line"
-							filter={["get", "done"]}
-							paint={{
-								"line-color": "#9ca3af",
-								"line-width": 3,
-								"line-opacity": 0.8,
-							}}
-						/>
-						{/* Committed/executing routes: solid. */}
-						<Layer
-							id="c2-feedback-paths-solid"
-							type="line"
-							filter={[
-								"all",
-								["!", ["get", "dashed"]],
-								["!", ["get", "done"]],
-							]}
-							paint={{
-								"line-color": ["get", "color"],
-								"line-width": 3,
-							}}
-						/>
-						{/* Planned preview routes: dashed. */}
-						<Layer
-							id="c2-feedback-paths-dashed"
-							type="line"
-							filter={[
-								"all",
-								["get", "dashed"],
-								["!", ["get", "done"]],
-							]}
-							paint={{
-								"line-color": ["get", "color"],
-								"line-width": 2.5,
-								"line-dasharray": [2, 2],
-							}}
-						/>
+						{/* Driven under planned, every casing under every
+						    core (`route-styles.ts`): planned is wide and
+						    solid, a plan nobody approved is dashed, what the
+						    robot has passed is a thin trace. */}
+						{FEEDBACK_ROUTE_KINDS.map((kind) => (
+							<Layer
+								key={`${kind}-casing`}
+								id={`c2-feedback-paths-${kind}-casing`}
+								type="line"
+								filter={["==", ["get", "kind"], kind]}
+								{...routeCasingLayer(kind)}
+							/>
+						))}
+						{FEEDBACK_ROUTE_KINDS.map((kind) => (
+							<Layer
+								key={kind}
+								id={`c2-feedback-paths-${kind}`}
+								type="line"
+								filter={["==", ["get", "kind"], kind]}
+								{...routeCoreLayer(kind)}
+							/>
+						))}
 					</Source>
 					<Source
 						id="c2-feedback-waypoints"
@@ -7191,7 +7182,13 @@ function MissionMapBody(props: {
 					    either. Bottom-right, one row up: both panels own the
 					    top corners and MapLibre's attribution owns the bottom
 					    edge. */}
-					<MapChrome />
+					{/* The legend for the robot lines rides in the same
+					    column, above the chrome, so neither covers the
+					    attribution under them. */}
+					<div className="pointer-events-none absolute right-2 bottom-9 z-10 flex select-none flex-col items-end gap-1.5">
+						<RouteLegend />
+						<MapChrome className="pointer-events-none select-none" />
+					</div>
 					{/* Both feature layers always render, in distinct styles. */}
 					<LibraryLayers features={renderedLibraryFeatures} />
 					<FeatureLayers
