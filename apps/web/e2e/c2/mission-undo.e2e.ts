@@ -1,6 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { blockExternalRequests, openMissionControl } from "./c2-page";
+import {
+	blockExternalRequests,
+	jumpTo,
+	openMissionControl,
+	toScreen,
+	waitForIdleMap,
+} from "./c2-page";
 import { FakeC2, type FakeFeature, type Position } from "./fake-c2";
 
 /**
@@ -17,6 +23,7 @@ const MISSION_ID = "e2e-mission-0001";
 const MISSION_NAME = "Recon north";
 /** The site's centre (a field near Brussels). */
 const SITE: Position = [4.396, 50.844];
+const SITE_ZOOM = 17.5;
 
 /** A library waypoint on the map, for importing into the mission. */
 function gate(): FakeFeature {
@@ -79,6 +86,13 @@ function graphPanel(page: Page): Locator {
 		.filter({ has: page.getByRole("group", { name: "Graph mode" }) });
 }
 
+/** The mission map's panel. */
+function mapPanel(page: Page): Locator {
+	return page
+		.locator(".flexlayout__tab")
+		.filter({ has: page.getByRole("group", { name: "Map context" }) });
+}
+
 /** A node editor toolbar button by its text. */
 function nodeButton(page: Page, name: string): Locator {
 	return graphPanel(page).getByRole("button", { name, exact: true });
@@ -92,6 +106,12 @@ function unsavedBadge(page: Page): Locator {
 /** Nodes drawn on the node editor's canvas. */
 function graphNodes(page: Page): Locator {
 	return graphPanel(page).locator(".react-flow__node");
+}
+
+/** Press a key with focus on an element inside a panel. */
+async function pressIn(target: Locator, key: string): Promise<void> {
+	await target.focus();
+	await target.press(key);
 }
 
 /** Nothing reached a path the fake does not serve, nor left the machine. */
@@ -136,6 +156,79 @@ test.describe("C2 mission: one undo history", () => {
 		await expect(graphNodes(page)).toHaveCount(1);
 		await expect(unsavedBadge(page)).toBeVisible();
 		await expect(redo).toBeDisabled();
+
+		expect(writes(harness.fake)).toEqual([]);
+		expectNoStrayRequests(harness);
+	});
+
+	test("an asset imported on the map, then a node added: Ctrl+Z from either panel takes the node back, then the asset", async ({
+		page,
+		baseURL,
+	}) => {
+		const harness = await openMission(page, baseURL!);
+		const map = mapPanel(page);
+		await map.getByRole("radio", { name: "Mission" }).click();
+		await waitForIdleMap(page);
+		await jumpTo(page, SITE, SITE_ZOOM);
+
+		// Pick the library waypoint and import it.
+		const [at] = await toScreen(page, [SITE]);
+		await page.mouse.click(at!.x, at!.y);
+		await map.getByRole("button", { name: "Import into mission" }).click();
+		const mapUndo = map.getByRole("button", { name: "Undo" });
+		await expect(mapUndo).toHaveAttribute(
+			"title",
+			"Undo: Import Gate (Ctrl+Z)",
+		);
+
+		await nodeButton(page, "Condition").click();
+		await expect(graphNodes(page)).toHaveCount(1);
+		// The map's Undo reaches the step the node editor took.
+		await expect(mapUndo).toHaveAttribute(
+			"title",
+			"Undo: Add node (Ctrl+Z)",
+		);
+
+		await test.step("Ctrl+Z on the map", async () => {
+			const canvas = map.locator(".maplibregl-canvas");
+			await pressIn(canvas, "Control+z");
+			await expect(graphNodes(page)).toHaveCount(0);
+			await expect(mapUndo).toHaveAttribute(
+				"title",
+				"Undo: Import Gate (Ctrl+Z)",
+			);
+			await pressIn(canvas, "Control+z");
+			await expect(mapUndo).toBeDisabled();
+			await expect(
+				map.getByRole("button", { name: "Redo" }),
+			).toHaveAttribute("title", "Redo: Import Gate (Ctrl+Shift+Z)");
+		});
+
+		await test.step("Ctrl+Shift+Z in the node editor does both again", async () => {
+			const pane = graphPanel(page).locator(".react-flow__pane");
+			await pressIn(pane, "Control+Shift+z");
+			await pressIn(pane, "Control+Shift+z");
+			await expect(graphNodes(page)).toHaveCount(1);
+			await expect(mapUndo).toHaveAttribute(
+				"title",
+				"Undo: Add node (Ctrl+Z)",
+			);
+		});
+
+		await test.step("Ctrl+Z in the node editor", async () => {
+			const pane = graphPanel(page).locator(".react-flow__pane");
+			await pressIn(pane, "Control+z");
+			await expect(graphNodes(page)).toHaveCount(0);
+			await expect(mapUndo).toHaveAttribute(
+				"title",
+				"Undo: Import Gate (Ctrl+Z)",
+			);
+			await pressIn(pane, "Control+z");
+			await expect(
+				graphPanel(page).getByRole("button", { name: "Undo" }),
+			).toBeDisabled();
+			await expect(mapUndo).toBeDisabled();
+		});
 
 		expect(writes(harness.fake)).toEqual([]);
 		expectNoStrayRequests(harness);

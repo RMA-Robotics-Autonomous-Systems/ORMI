@@ -240,6 +240,7 @@ function MissionAssetsBody(props: {
 						feature,
 						id,
 					).assets,
+				{ label: `Import ${feature.properties?.name || "asset"}` },
 			);
 			selectContact(null);
 			selectAsset({ missionId, featureId: id });
@@ -521,12 +522,15 @@ function MissionAssetsBody(props: {
 									);
 									return;
 								}
-								editMissionAssets(missionId, (current) =>
-									renameAsset(
-										current,
-										selected as string,
-										name,
-									),
+								editMissionAssets(
+									missionId,
+									(current) =>
+										renameAsset(
+											current,
+											selected as string,
+											name,
+										),
+									{ label: `Rename ${name}` },
 								);
 							}}
 						/>
@@ -541,8 +545,16 @@ function MissionAssetsBody(props: {
 							}
 							aria-label="Remove asset"
 							onClick={() => {
-								editMissionAssets(missionId, (current) =>
-									removeAsset(current, selected as string),
+								editMissionAssets(
+									missionId,
+									(current) =>
+										removeAsset(
+											current,
+											selected as string,
+										),
+									{
+										label: `Delete ${selectedFeature.properties?.name || "asset"}`,
+									},
 								);
 								selectAsset(null);
 							}}

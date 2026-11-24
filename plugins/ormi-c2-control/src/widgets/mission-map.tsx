@@ -136,13 +136,19 @@ import {
 } from "../state/mission-draft-store";
 import {
 	adoptStoredAssets,
-	editMissionAssets,
 	getMissionAssets,
 	hasMissionAssets,
 	placeMissionAssets,
 	useMissionAssets,
 } from "../state/mission-assets-store";
 import { saveMissionWithGraph } from "../state/mission-save";
+import { useMissionUndoState } from "../state/mission-history-store";
+import { editMission, redoMission, undoMission } from "../state/mission-undo";
+import {
+	routeUndo,
+	type UndoRouteState,
+	type UndoScope,
+} from "./editor-undo-route";
 import {
 	findAsset,
 	importAsset,
@@ -279,6 +285,7 @@ import {
 } from "./map-edit-history";
 import {
 	editKeyAction,
+	historyKeyAction,
 	mapStateLabel,
 	hasUnsavedChanges,
 	openShapeContact,
@@ -301,7 +308,7 @@ import {
 } from "./mission-geometry";
 import { hasAgentNode, toggleAgentNode } from "./mission-graph";
 import {
-	editMissionGraph,
+	getMissionGraph,
 	hasMissionGraph,
 	useMissionGraph,
 } from "../state/mission-graph-store";
@@ -2830,6 +2837,8 @@ function MissionMapBody(props: {
 	const missionScope =
 		context === "mission" && selectedMission ? selectedMission : null;
 	const missionAssets = useMissionAssets(missionScope);
+	/** The open mission's one history, shared with the node editor. */
+	const missionUndo = useMissionUndoState(missionScope);
 	const [missionIssues, setMissionIssues] = useState<MissionConfigIssue[]>(
 		[],
 	);
@@ -3303,11 +3312,12 @@ function MissionMapBody(props: {
 		(name: string) => {
 			changeSelectedMap(name);
 			if (missionScope) {
-				editMissionAssets(missionScope, (assets) =>
-					assets.features.length === 0 && assets.map !== name
-						? { ...assets, map: name }
-						: assets,
-				);
+				editMission(missionScope, `Place on ${name}`, {
+					assets: (assets) =>
+						assets.features.length === 0 && assets.map !== name
+							? { ...assets, map: name }
+							: assets,
+				});
 			}
 		},
 		[changeSelectedMap, missionScope],
@@ -3655,10 +3665,10 @@ function MissionMapBody(props: {
 		(feature: C2Feature) => {
 			if (!missionScope) return;
 			const id = generateMissionId();
-			editMissionAssets(
-				missionScope,
-				(assets) => importAsset(assets, feature, id).assets,
-			);
+			const name = feature.properties?.name || "asset";
+			editMission(missionScope, `Import ${name}`, {
+				assets: (assets) => importAsset(assets, feature, id).assets,
+			});
 			setPickedId(id);
 			setError(null);
 		},
@@ -4165,11 +4175,20 @@ function MissionMapBody(props: {
 				}
 				// A mission not placed on a map yet is placed on the one its
 				// asset was drawn on.
-				editMissionAssets(toMission, (assets) =>
-					upsertAsset(
-						assets.map ? assets : { ...assets, map: selectedMap },
-						feature,
-					),
+				// One step of the mission's history; the open edit's own
+				// geometry steps end with it.
+				editMission(
+					toMission,
+					`${editing ? "Edit" : "Add"} ${name.trim() || FEATURE_TYPE_LABELS[featureType].toLowerCase()}`,
+					{
+						assets: (assets) =>
+							upsertAsset(
+								assets.map
+									? assets
+									: { ...assets, map: selectedMap },
+								feature,
+							),
+					},
 				);
 				setError(null);
 				setPending(null);
@@ -4349,8 +4368,10 @@ function MissionMapBody(props: {
 				featureId != null && pending?.featureId === featureId;
 			// A mission's asset leaves the mission (saved by Save mission).
 			if (missionScope && featureId && missionAssetOf(featureId)) {
-				editMissionAssets(missionScope, (assets) =>
-					removeAsset(assets, featureId),
+				editMission(
+					missionScope,
+					`Delete ${feature.properties?.name || "asset"}`,
+					{ assets: (assets) => removeAsset(assets, featureId) },
 				);
 				if (pickedId === featureId) setPickedId(null);
 				if (endsOpenEdit) endEdit();
@@ -4704,8 +4725,12 @@ function MissionMapBody(props: {
 			}
 			// The human name, so the node does not open captioned with a UUID.
 			const label = getAgentName(agentId) || undefined;
-			editMissionGraph(selectedMission, (graph) =>
-				toggleAgentNode(graph, agentId, label),
+			const current = getMissionGraph(selectedMission);
+			const removing = current != null && hasAgentNode(current, agentId);
+			editMission(
+				selectedMission,
+				`${removing ? "Remove" : "Add"} ${label ?? "agent"}`,
+				{ graph: (graph) => toggleAgentNode(graph, agentId, label) },
 			);
 			setError(null);
 		},
@@ -5205,6 +5230,110 @@ function MissionMapBody(props: {
 	}, []);
 
 	/**
+	 * Where an Undo or a Redo on the map goes ({@link routeUndo}): the open
+	 * edit's geometry steps, then the group's move, then the mission's
+	 * history. An open edit with unsaved changes it has no step for (a new
+	 * name) holds the mission's history back: a step taken under it would
+	 * change the asset it is about to save.
+	 */
+	const groupCanUndo = groupDraft.move.steps.length > 0;
+	const groupCanRedo = groupDraft.move.undone.length > 0;
+	const missionInReach = missionScope != null && !(shapeOpen && pendingDirty);
+	const undoRouteState = useMemo<UndoRouteState>(
+		() => ({
+			edit: shapeOpen ? { canUndo: undoable, canRedo: redoable } : null,
+			group: groupActive
+				? { canUndo: groupCanUndo, canRedo: groupCanRedo }
+				: null,
+			mission: missionInReach
+				? {
+						canUndo: missionUndo.canUndo,
+						canRedo: missionUndo.canRedo,
+					}
+				: null,
+			frozen: viewOnly,
+		}),
+		[
+			shapeOpen,
+			undoable,
+			redoable,
+			groupActive,
+			groupCanUndo,
+			groupCanRedo,
+			missionInReach,
+			missionUndo.canUndo,
+			missionUndo.canRedo,
+			viewOnly,
+		],
+	);
+	const canUndoHere = routeUndo("undo", undoRouteState) !== null;
+	const canRedoHere = routeUndo("redo", undoRouteState) !== null;
+	const undoHereLabel =
+		routeUndo("undo", undoRouteState) === "mission"
+			? missionUndo.undoLabel
+			: "";
+	const redoHereLabel =
+		routeUndo("redo", undoRouteState) === "mission"
+			? missionUndo.redoLabel
+			: "";
+
+	/**
+	 * Take one step in a history {@link routeUndo} chose. A mission step
+	 * taken while a shape is open closes it first (it has nothing unsaved),
+	 * so the shape is drawn again from what the step put back.
+	 */
+	const stepUndo = useCallback(
+		(direction: "undo" | "redo", scope: UndoScope) => {
+			if (scope === "edit") {
+				stepHistory(direction);
+				return;
+			}
+			if (scope === "group") {
+				stepGroupMove(direction);
+				return;
+			}
+			if (!missionScope) return;
+			if (pending) endEdit();
+			if (direction === "undo") undoMission(missionScope);
+			else redoMission(missionScope);
+		},
+		[stepHistory, stepGroupMove, missionScope, pending, endEdit],
+	);
+
+	/** Undo or Redo from the toolbar. */
+	const pressUndo = useCallback(
+		(direction: "undo" | "redo") => {
+			const scope = routeUndo(direction, undoRouteState);
+			if (scope) stepUndo(direction, scope);
+		},
+		[undoRouteState, stepUndo],
+	);
+
+	/**
+	 * Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) pressed in this panel with
+	 * nothing open: the mission's history. An open shape or a selected group
+	 * has its own keys (below), which route the same way; Draw armed keeps
+	 * them for the shape being drawn.
+	 */
+	const onMapKeyDown = useCallback(
+		(event: React.KeyboardEvent<HTMLDivElement>) => {
+			if (shapeOpen || groupActive || drawArmed) return;
+			const direction = historyKeyAction(event);
+			if (!direction) return;
+			if (isTypingInEditableElement(event.nativeEvent) || isModalOpen())
+				return;
+			const target =
+				event.target instanceof Element ? event.target : null;
+			if (target?.closest(KEY_POPUP_SELECTOR)) return;
+			const scope = routeUndo(direction, undoRouteState);
+			if (!scope) return;
+			event.preventDefault();
+			stepUndo(direction, scope);
+		},
+		[shapeOpen, groupActive, drawArmed, undoRouteState, stepUndo],
+	);
+
+	/**
 	 * Save the group card's changes: one PUT per feature they change. What
 	 * the C2 accepts is applied; what it refuses is named, stays selected
 	 * and keeps the card's changes for another Save. Nothing is retried.
@@ -5536,17 +5665,23 @@ function MissionMapBody(props: {
 				{
 					vertexSelected: shownVertex != null,
 					hasChanges: pendingDirty,
-					canUndo: undoable,
-					canRedo: redoable,
+					canUndo: canUndoHere,
+					canRedo: canRedoHere,
 				},
 			);
 			if (!action) return;
+			if (action === "undo" || action === "redo") {
+				const scope = routeUndo(action, undoRouteState);
+				// The key is a window listener's: another panel that already
+				// took it (the node editor's Ctrl+Z) took the mission's step.
+				if (!scope || (scope === "mission" && event.defaultPrevented))
+					return;
+				event.preventDefault();
+				stepUndo(action, scope);
+				return;
+			}
 			event.preventDefault();
 			switch (action) {
-				case "undo":
-				case "redo":
-					stepHistory(action);
-					return;
 				case "delete-vertex":
 					deleteShownVertex();
 					return;
@@ -5568,9 +5703,10 @@ function MissionMapBody(props: {
 		newShapeOpen,
 		shownVertex,
 		pendingDirty,
-		undoable,
-		redoable,
-		stepHistory,
+		canUndoHere,
+		canRedoHere,
+		undoRouteState,
+		stepUndo,
 		deleteShownVertex,
 		requestDeleteOpen,
 		discardNewShape,
@@ -5601,17 +5737,21 @@ function MissionMapBody(props: {
 				{
 					vertexSelected: false,
 					hasChanges: groupDirty,
-					canUndo: groupDraft.move.steps.length > 0,
-					canRedo: groupDraft.move.undone.length > 0,
+					canUndo: canUndoHere,
+					canRedo: canRedoHere,
 				},
 			);
 			if (!action) return;
+			if (action === "undo" || action === "redo") {
+				const scope = routeUndo(action, undoRouteState);
+				if (!scope || (scope === "mission" && event.defaultPrevented))
+					return;
+				event.preventDefault();
+				stepUndo(action, scope);
+				return;
+			}
 			event.preventDefault();
 			switch (action) {
-				case "undo":
-				case "redo":
-					stepGroupMove(action);
-					return;
 				case "delete-vertex":
 				case "ask-delete-feature":
 					requestDeleteGroup();
@@ -5630,10 +5770,12 @@ function MissionMapBody(props: {
 	}, [
 		groupActive,
 		groupDirty,
-		groupDraft.move,
+		canUndoHere,
+		canRedoHere,
+		undoRouteState,
+		stepUndo,
 		moveArmed,
 		liveMoveOffset,
-		stepGroupMove,
 		requestDeleteGroup,
 		saveGroup,
 		cancelGroupChanges,
@@ -6086,6 +6228,7 @@ function MissionMapBody(props: {
 		<div
 			ref={mapRootRef}
 			className="h-full w-full min-w-0 flex flex-col text-sm"
+			onKeyDown={onMapKeyDown}
 		>
 			{/* The open mission's contacts, from the fog — renders nothing. */}
 			{props.missionContactsDef && selectedMission && (
@@ -6170,6 +6313,44 @@ function MissionMapBody(props: {
 						{compactToolbar ? null : "Author"}
 					</ToggleGroupItem>
 				</ToggleGroup>
+
+				{/* The mission's one history, shared with the node editor;
+				    an open shape's own steps come first. Kept while the plan
+				    is approved, disabled. */}
+				{missionScope && (
+					<>
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+							aria-label="Undo"
+							title={
+								undoHereLabel
+									? `Undo: ${undoHereLabel} (Ctrl+Z)`
+									: "Undo (Ctrl+Z)"
+							}
+							disabled={busy || !canUndoHere}
+							onClick={() => pressUndo("undo")}
+						>
+							<Undo2 />
+						</Button>
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+							aria-label="Redo"
+							title={
+								redoHereLabel
+									? `Redo: ${redoHereLabel} (Ctrl+Shift+Z)`
+									: "Redo (Ctrl+Shift+Z)"
+							}
+							disabled={busy || !canRedoHere}
+							onClick={() => pressUndo("redo")}
+						>
+							<Redo2 />
+						</Button>
+					</>
+				)}
 
 				{/* Draw, and what is open. There is no tool to arm for
 				    anything else: a click on a feature selects it and opens
