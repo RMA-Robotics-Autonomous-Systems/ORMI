@@ -46,8 +46,7 @@ import {
 } from "./mission-list";
 import { graphDocId } from "./mission-graph";
 import { assetsDocId } from "./mission-assets";
-import { MissionIssueList } from "./mission-issues";
-import { humanizeMissionIssues } from "./mission-config-words";
+import { MissionConfigIssueList } from "./step-issue-list";
 import { PanelEmptyState } from "./panel-empty-state";
 import { useContainerSize } from "./responsive";
 import { useAsyncAction } from "./use-async-action";
@@ -85,6 +84,15 @@ function findCall(
 	return calls.find((call) => call.name === name);
 }
 
+/** The `mission_id` of a mission document, or null. */
+function missionIdOf(mission: unknown): string | null {
+	const id =
+		mission != null && typeof mission === "object"
+			? (mission as { mission_id?: unknown }).mission_id
+			: undefined;
+	return typeof id === "string" && id ? id : null;
+}
+
 /** Inner body once the CRUD call definitions are resolved. */
 function MissionBrowserBody(props: {
 	listDef: RemoteCallDefinition;
@@ -103,7 +111,12 @@ function MissionBrowserBody(props: {
 	const [rootRef, { size }] = useContainerSize<HTMLDivElement>();
 	const [rows, setRows] = useState<MissionRow[]>([]);
 	const [error, setError] = useState<string | null>(null);
-	const [issues, setIssues] = useState<MissionConfigIssue[]>([]);
+	/** The last saved mission's config check, and the config it ran on. */
+	const [checked, setChecked] = useState<{
+		missionId: string | null;
+		issues: MissionConfigIssue[];
+		config: unknown;
+	}>({ missionId: null, issues: [], config: null });
 	const [loading, setLoading] = useState(true);
 	// In-flight guard for the write actions (create / duplicate / delete). One
 	// latch across all of them — a write is in progress, so every action button is
@@ -176,7 +189,11 @@ function MissionBrowserBody(props: {
 				// the operator sees what is incomplete, but we do NOT block the
 				// save — the real planner-crash gate stays HARD at the control
 				// panel's Submit (`c2.mission.init`).
-				setIssues(validateMissionConfig(mission));
+				setChecked({
+					missionId: missionIdOf(mission),
+					issues: validateMissionConfig(mission),
+					config: mission,
+				});
 				const result = await save.execute({ mission });
 				if (!result.success) {
 					setError(result.error ?? "Could not save the mission.");
@@ -251,7 +268,11 @@ function MissionBrowserBody(props: {
 						return;
 					}
 				}
-				setIssues(validateMissionConfig(copy.mission));
+				setChecked({
+					missionId: missionIdOf(copy.mission),
+					issues: validateMissionConfig(copy.mission),
+					config: copy.mission,
+				});
 				const result = await save.execute({ mission: copy.mission });
 				if (!result.success) {
 					setError(
@@ -384,8 +405,10 @@ function MissionBrowserBody(props: {
 					{error}
 				</div>
 			)}
-			<MissionIssueList
-				issues={humanizeMissionIssues(issues)}
+			<MissionConfigIssueList
+				missionId={checked.missionId}
+				issues={checked.issues}
+				config={checked.config}
 				title="Not ready to start:"
 			/>
 

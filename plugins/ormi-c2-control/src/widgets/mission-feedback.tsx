@@ -85,6 +85,8 @@ import { atMost, useContainerSize } from "./responsive";
 import { useAgents } from "../state/c2-agents-store";
 import { useMissionGraph } from "../state/mission-graph-store";
 import { focusGraphNode } from "../state/graph-focus-store";
+import { StepIssueList } from "./step-issue-list";
+import { feedbackFailureIssues, isFailedStatus } from "./step-issues";
 import { agentPositions, type RunTone } from "./mission-graph-editor-helpers";
 
 /**
@@ -345,6 +347,25 @@ function ConflictLine(props: { vehicleId: string; missionId: string }) {
 	);
 }
 
+/**
+ * Where a planned or running mission failed (`feedbackFailureIssues`): one
+ * row per robot the C2 names, each a way to its step, or one plain row when
+ * it names none.
+ */
+function FeedbackFailures(props: { fb: MissionFeedback; missionId: string }) {
+	const graph = useMissionGraph(props.missionId);
+	const { fb } = props;
+	const issues = useMemo(() => feedbackFailureIssues(fb, graph), [fb, graph]);
+	return (
+		<StepIssueList
+			missionId={props.missionId}
+			issues={issues}
+			graph={graph}
+			label="Where it failed"
+		/>
+	);
+}
+
 /** The whole header. */
 function MissionHeader(props: {
 	fb: MissionFeedback | null;
@@ -444,8 +465,13 @@ function MissionHeader(props: {
 					</div>
 				)}
 			</div>
+			{/* A failure leads to its step: the rows carry the detail. */}
+			{fb && props.missionId && isFailedStatus(fb.status) && (
+				<FeedbackFailures fb={fb} missionId={props.missionId} />
+			)}
 			{fb &&
 				showIssue &&
+				!isFailedStatus(fb.status) &&
 				(issue.detail || fb.issue_conflicts?.length) && (
 					<div
 						className={`flex flex-col gap-0.5 text-xs ${

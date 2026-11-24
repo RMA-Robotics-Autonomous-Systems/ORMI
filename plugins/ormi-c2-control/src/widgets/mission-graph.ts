@@ -901,12 +901,37 @@ export function actionTargets(graph: MissionGraph, actionId: string): string[] {
 /** Severity of a compile issue. */
 export type GraphIssueSeverity = "error" | "warning";
 
+/** One thing an issue names: a map feature, an agent, or a literal word. */
+export interface GraphIssueRef {
+	kind: "feature" | "agent" | "text";
+	/** The feature or agent id, resolved to a name where it is shown; the word itself for `text`. */
+	id: string;
+}
+
+/**
+ * The value an issue is about, so the operator reads WHAT is wrong and not
+ * only which rule failed: `Target: Gate (not in this mission)`.
+ *
+ * Ids, never names: the names are resolved where the issue is shown, from the
+ * catalogue and the roster, which this pure module does not read.
+ */
+export interface GraphIssueValue {
+	/** The field, in the operator's words: "Target", "Robot", "Zone"… */
+	field: string;
+	/** What the field holds, in order. Empty when it holds nothing. */
+	refs: GraphIssueRef[];
+	/** What is wrong with what it holds, a few words, when the field alone does not say. */
+	problem?: string;
+}
+
 /** Something the operator has to know about the graph. */
 export interface MissionGraphIssue {
 	severity: GraphIssueSeverity;
 	/** The node the issue is about, when it is about one. */
 	nodeId?: string;
 	message: string;
+	/** The offending value, for the issues that are about one. */
+	value?: GraphIssueValue;
 	/**
 	 * Stable code shared with the fog (see `mission-program.ts`), on every
 	 * issue the fog would also raise (the target checks against the mission's
@@ -1026,6 +1051,13 @@ export function compileMissionGraph(
 			severity: "warning",
 			nodeId: node.id,
 			message: `"${node.label || node.id}" is not wired into any action. Wire it into an action's target, or delete it.`,
+			value: {
+				field: "Asset",
+				refs: node.feature_id
+					? [{ kind: "feature", id: node.feature_id }]
+					: [],
+				problem: "not wired",
+			},
 		});
 	}
 
@@ -1053,6 +1085,11 @@ export function compileMissionGraph(
 					nodeId: node.id,
 					code: "TARGET_MISSING",
 					message: `"${node.label || node.id}" targets an asset that is not in this mission.`,
+					value: {
+						field: "Target",
+						refs: [{ kind: "feature", id: featureId }],
+						problem: "not in this mission",
+					},
 				});
 			} else if (!targetFits(node.action, type)) {
 				issues.push({
@@ -1060,6 +1097,11 @@ export function compileMissionGraph(
 					nodeId: node.id,
 					code: "TARGET_TYPE",
 					message: `"${node.label || node.id}" needs ${node.action === "COVERAGE" ? "a zone" : "a waypoint"}, but its target is a ${type}.`,
+					value: {
+						field: "Target",
+						refs: [{ kind: "feature", id: featureId }],
+						problem: `a ${type}, not ${node.action === "COVERAGE" ? "a zone" : "a waypoint"}`,
+					},
 				});
 			}
 		}
@@ -1080,15 +1122,119 @@ export function compileMissionGraph(
 	// so a graph that navigates AND covers is fine.)
 	const compiled = compileProgram(normalized, new Set(vehicles));
 	for (const issue of compiled.errors) {
+		const value = issue.nodeId
+			? programIssueValue(issue.code, issue.nodeId, normalized)
+			: undefined;
 		issues.push({
 			severity: "error",
 			code: issue.code,
 			...(issue.nodeId ? { nodeId: issue.nodeId } : {}),
 			message: issue.message,
+			...(value ? { value } : {}),
 		});
 	}
 
 	return { behavior, vehicles, geometries, issues };
+}
+
+/** The contacts wired into an action's target (an On contact's `position`). */
+function contactTargetCount(graph: MissionGraph, actionId: string): number {
+	return graph.edges.filter(
+		(edge) =>
+			edge.target === actionId &&
+			edge.target_port === "target" &&
+			graph.nodes.find((node) => node.id === edge.source)?.kind ===
+				"on_contact",
+	).length;
+}
+
+/**
+ * The value a fog-rule issue is about, read off the node it names.
+ *
+ * Only the codes that are about a value the operator picked: a structural
+ * rule (a join, a loop, a fan-out) is about the wiring, which the message and
+ * the node already show, and gets none.
+ *
+ * @param code - The issue's stable code.
+ * @param nodeId - The node it is about.
+ * @param graph - The normalized graph it was raised on.
+ * @returns The value, or undefined for a structural rule.
+ */
+export function programIssueValue(
+	code: string,
+	nodeId: string,
+	graph: MissionGraph,
+): GraphIssueValue | undefined {
+	const node = graph.nodes.find((n) => n.id === nodeId);
+	if (!node) return undefined;
+	const agent = (problem?: string): GraphIssueValue => ({
+		field: "Robot",
+		refs: node.agent_id ? [{ kind: "agent", id: node.agent_id }] : [],
+		...(problem ? { problem } : {}),
+	});
+	const targets = (field: string, kind: string): GraphIssueValue => {
+		const refs: GraphIssueRef[] = actionTargets(graph, node.id).map(
+			(id) => ({ kind: "feature", id }),
+		);
+		const contacts = contactTargetCount(graph, node.id);
+		for (let i = 0; i < contacts; i += 1)
+			refs.push({ kind: "text", id: "a contact's position" });
+		return {
+			field,
+			refs,
+			...(refs.length > 1 ? { problem: `needs one ${kind}` } : {}),
+		};
+	};
+	switch (code) {
+		case "AGENT_MISSING":
+			return agent();
+		case "AGENT_UNKNOWN":
+			return agent("not in this mission");
+		case "AGENT_TWICE":
+			return agent("on another agent node too");
+		case "ASSET_MISSING_FEATURE":
+			return { field: "Asset", refs: [] };
+		case "ACTION_MISSING":
+			return { field: "Action", refs: [] };
+		case "ACTION_NOT_EXECUTABLE":
+			return {
+				field: "Action",
+				refs: node.action ? [{ kind: "text", id: node.action }] : [],
+				problem: "cannot run",
+			};
+		case "NAVIGATE_TARGET":
+			return targets("Waypoint", "waypoint");
+		case "COVERAGE_TARGET":
+			return targets("Zone", "zone");
+		case "WAIT_MODE":
+			return {
+				field: "Hold",
+				refs: node.mode ? [{ kind: "text", id: node.mode }] : [],
+				problem: "not all or any",
+			};
+		case "WAIT_EMPTY":
+			return { field: "Waits for", refs: [] };
+		case "CONDITION_MISSING":
+		case "CONDITION_NOT_EVALUABLE": {
+			const op = node.condition?.op;
+			return {
+				field: "Condition",
+				refs: op
+					? [
+							{
+								kind: "text",
+								id: CONDITION_OP_SHAPE[op]?.label ?? op,
+							},
+						]
+					: [],
+				...(op && code === "CONDITION_NOT_EVALUABLE"
+					? { problem: "cannot be evaluated" }
+					: {}),
+			};
+		}
+		default:
+			return undefined;
+	}
 }
 
 /**

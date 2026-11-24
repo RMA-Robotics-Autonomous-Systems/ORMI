@@ -73,7 +73,11 @@ import { usePublishMissionFeedback } from "./mission-feedback-source";
 import { useContainerSize } from "./responsive";
 import { isFeedbackStale } from "./mission-progress";
 import { normalizeMissions } from "./mission-list";
-import { MissionIssueList } from "./mission-issues";
+import {
+	MissionConfigIssueList,
+	StepIssueList,
+	useGraphBlockers,
+} from "./step-issue-list";
 import {
 	AllowedActions,
 	ControlAction,
@@ -108,7 +112,6 @@ import {
 	useMissionAssetsDirty,
 } from "../state/mission-assets-store";
 import { graphDocId } from "./mission-graph";
-import { humanizeMissionIssues } from "./mission-config-words";
 import { useAsyncAction } from "./use-async-action";
 
 /**
@@ -190,6 +193,8 @@ interface SubmitRecord {
 interface ScopedNote {
 	missionId: string | null;
 	text: string;
+	/** The note is Submit refused over the graph's errors: they are listed under it. */
+	graph?: boolean;
 }
 
 /** Stable empty issue list (no fresh array identity per render). */
@@ -757,16 +762,19 @@ function ControlPanelBody(props: {
 	const [issuesNote, setIssuesNote] = useState<{
 		missionId: string | null;
 		issues: MissionConfigIssue[];
+		/** The config they were raised on, to lead each to its step. */
+		config: unknown;
 	} | null>(null);
 	const scope = missionId ?? null;
 	const error = errorNote?.missionId === scope ? errorNote.text : null;
 	const message = messageNote?.missionId === scope ? messageNote.text : null;
 	const issues =
 		issuesNote?.missionId === scope ? issuesNote.issues : NO_ISSUES;
-	const humanizedIssues = useMemo(
-		() => humanizeMissionIssues(issues),
-		[issues],
-	);
+	const issuesConfig =
+		issuesNote?.missionId === scope ? issuesNote.config : null;
+	const graphRefused = errorNote?.missionId === scope && errorNote.graph;
+	// Live: the list shrinks as the operator fixes the graph.
+	const graphBlockers = useGraphBlockers(graphRefused ? scope : null);
 	/**
 	 * Pending confirmation, driving the AlertDialog. `null` when idle.
 	 *
@@ -955,6 +963,7 @@ function ControlPanelBody(props: {
 					setIssuesNote({
 						missionId: activeMissionId,
 						issues: saved.issues,
+						config: getMissionDraft(activeMissionId),
 					});
 				setErrorNote({
 					missionId: activeMissionId,
@@ -1024,13 +1033,18 @@ function ControlPanelBody(props: {
 			setErrorNote({
 				missionId: activeMissionId,
 				text: `${refused} ${graphBlock}`,
+				graph: true,
 			});
 			return;
 		}
 
 		// Hard gate: never submit a config the C2 planner would reject/crash on.
 		const found = validateMissionConfig(plan.config);
-		setIssuesNote({ missionId: activeMissionId, issues: found });
+		setIssuesNote({
+			missionId: activeMissionId,
+			issues: found,
+			config: plan.config,
+		});
 		if (found.some((issue) => issue.severity === "error")) {
 			setErrorNote({
 				missionId: activeMissionId,
@@ -1430,12 +1444,26 @@ function ControlPanelBody(props: {
 					{error}
 				</div>
 			)}
+			{/* What stops Submit, each a way to its step in the node editor. */}
+			{graphRefused && (
+				<StepIssueList
+					missionId={scope}
+					issues={graphBlockers}
+					label="Submit blockers"
+					className="shrink-0"
+				/>
+			)}
 			{/* In operator words: the validator carries a dotted backend path
 			    on every issue (`objective.geometries`), and a monospace path in
 			    front of an English sentence is a developer artefact in a
-			    command surface — worse when the message repeats it. Unknown
+			    command surface, worse when the message repeats it. Unknown
 			    paths are left raw on purpose; see `mission-config-words.ts`. */}
-			<MissionIssueList issues={humanizedIssues} title="Mission issues" />
+			<MissionConfigIssueList
+				missionId={scope}
+				issues={issues}
+				config={issuesConfig}
+				title="Mission issues"
+			/>
 			{/* A command still held for this mission speaks for itself below;
 			    its "sent" line would contradict a "not confirmed" notice. */}
 			{message && !error && !ownPending && (

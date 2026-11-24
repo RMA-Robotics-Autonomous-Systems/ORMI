@@ -127,6 +127,8 @@ import {
 	useSelectedIds,
 } from "../state/editor-selection-store";
 import { useRelatedIds } from "./use-related-ids";
+import { StepIssueList } from "./step-issue-list";
+import { type StepIssue, graphStepIssues } from "./step-issues";
 import { subscribeAssetFocus } from "../state/asset-focus-store";
 import { assetUses } from "./mission-asset-tree";
 import {
@@ -157,7 +159,6 @@ import {
 	formatCondition,
 	graphModeTitle,
 	inspectedNodeId,
-	issueNodeTags,
 	estimateNodeSize,
 	layoutLanes,
 	pasteClip,
@@ -198,7 +199,6 @@ import {
 	type GraphNodeKind,
 	type MissionGraph,
 	type MissionGraphEdge,
-	type MissionGraphIssue,
 	type MissionGraphNode,
 	type WaitMode,
 } from "./mission-graph";
@@ -1562,19 +1562,8 @@ function MissionGraphEditorBody(props: {
 		() => (compiled ? sortIssuesBySeverity(compiled.issues) : []),
 		[compiled],
 	);
-	/** What tells apart the nodes of issues that read the same. */
-	const issueTags = useMemo(
-		() =>
-			graph
-				? issueNodeTags(
-						graph,
-						issues.flatMap((issue) =>
-							issue.nodeId ? [issue.nodeId] : [],
-						),
-					)
-				: new Map<string, string>(),
-		[graph, issues],
-	);
+	/** The same, as every issue list shows them: each a way to its step. */
+	const stepIssues = useMemo(() => graphStepIssues(issues), [issues]);
 	/** Node id → its first error, drawn on the node. */
 	const nodeErrors = useMemo(() => {
 		const out = new Map<string, string>();
@@ -2582,12 +2571,6 @@ function MissionGraphEditorBody(props: {
 		);
 	}, [missionId, viewOnly, graph, agents, addNode, placeInView]);
 
-	/** Select exactly one node — the issue list's click-through. */
-	const selectOnlyNode = useCallback(
-		(nodeId: string) => selectInGraph(missionId, [nodeId], NO_SELECTION),
-		[missionId],
-	);
-
 	/** Let go of what is selected here; another panel's selection stays. */
 	const clearSelection = useCallback(() => clearEditorSelection("graph"), []);
 
@@ -3188,12 +3171,10 @@ function MissionGraphEditorBody(props: {
 							vehicles={compiled?.vehicles.length ?? 0}
 							objectives={compiled?.geometries.length ?? 0}
 							compiles={compiles}
-							issues={issues}
-							tags={issueTags}
-							onSelectNode={(nodeId) => {
-								selectOnlyNode(nodeId);
-								setCheckOpen(false);
-							}}
+							issues={stepIssues}
+							missionId={missionId}
+							graph={graph}
+							onShown={() => setCheckOpen(false)}
 						/>
 					</PopoverContent>
 				</Popover>
@@ -3588,10 +3569,11 @@ function MissionCheck(props: {
 	vehicles: number;
 	objectives: number;
 	compiles: boolean;
-	issues: readonly MissionGraphIssue[];
-	/** Node id → what tells it apart from nodes whose issues read the same. */
-	tags: ReadonlyMap<string, string>;
-	onSelectNode: (nodeId: string) => void;
+	issues: readonly StepIssue[];
+	missionId: string | null | undefined;
+	graph: MissionGraph | null;
+	/** Called once an issue led to its node. */
+	onShown: () => void;
 }) {
 	return (
 		<>
@@ -3605,22 +3587,14 @@ function MissionCheck(props: {
 				</span>
 			)}
 			{props.issues.length > 0 ? (
-				<div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-					{props.issues.map((issue, index) => (
-						<IssueRow
-							key={`${issue.nodeId ?? "graph"}-${index}`}
-							issue={issue}
-							tag={
-								issue.nodeId
-									? props.tags.get(issue.nodeId)
-									: undefined
-							}
-							onSelect={() => {
-								if (issue.nodeId)
-									props.onSelectNode(issue.nodeId);
-							}}
-						/>
-					))}
+				<div className="flex max-h-72 flex-col overflow-y-auto">
+					<StepIssueList
+						missionId={props.missionId}
+						issues={props.issues}
+						graph={props.graph}
+						onShown={props.onShown}
+						label="Mission issues"
+					/>
 				</div>
 			) : (
 				<span className="text-xs text-muted-foreground">
@@ -3628,40 +3602,6 @@ function MissionCheck(props: {
 				</span>
 			)}
 		</>
-	);
-}
-
-/** One compile issue, clickable through to the node it is about. */
-function IssueRow(props: {
-	issue: MissionGraphIssue;
-	/** Where the node is, e.g. `Alpha · step 3`, when its caption is not enough. */
-	tag?: string;
-	onSelect: () => void;
-}) {
-	const { issue } = props;
-	const tone =
-		issue.severity === "error"
-			? "text-destructive bg-destructive/10"
-			: "text-foreground border border-warning/40 bg-warning/10";
-	return (
-		<button
-			type="button"
-			className={`text-left text-[11px] rounded px-1.5 py-1 ${tone} focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${
-				issue.nodeId
-					? "cursor-pointer hover:brightness-110"
-					: "cursor-default opacity-80"
-			}`}
-			onClick={props.onSelect}
-			disabled={!issue.nodeId}
-			title={
-				issue.nodeId ? "Show the node" : "Applies to the whole graph"
-			}
-		>
-			{props.tag && (
-				<span className="block font-medium">{props.tag}</span>
-			)}
-			{issue.message}
-		</button>
 	);
 }
 

@@ -414,6 +414,25 @@ export function useFeatureName(id: string | null | undefined): string {
 }
 
 /**
+ * Every known `feature_id → name`, outside React. Replaced (never mutated) on
+ * a change, so its identity is a change signal.
+ * @returns The name map.
+ */
+export function getFeatureNames(): Readonly<Record<string, string>> {
+	return featureNames;
+}
+
+/**
+ * React hook: every known `feature_id → name`, re-rendering when a name is
+ * added or changes. For a list that names many features at once; one name
+ * is {@link useFeatureName}.
+ * @returns The name map, reference-stable while unchanged.
+ */
+export function useFeatureNames(): Readonly<Record<string, string>> {
+	return useSyncExternalStore(subscribe, getFeatureNames, getFeatureNames);
+}
+
+/**
  * React hook: every published feature of one map, re-rendering on change.
  *
  * The snapshot is the STORED array for that map — reference-stable while the
