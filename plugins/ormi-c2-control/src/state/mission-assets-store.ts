@@ -29,11 +29,17 @@ import {
 	readAssetsDocument,
 } from "../widgets/mission-assets";
 import { missionDocuments } from "../widgets/mission-list";
+import {
+	clearMissionHistory,
+	recordMissionCommand,
+} from "./mission-history-store";
 
 /** One mission's working assets. */
 interface AssetsSlot {
 	sig: string;
 	assets: MissionAssets;
+	/** {@link assetsSignature} of the assets as last loaded or saved. */
+	savedSig: string;
 	dirty: boolean;
 	/** The document exists in C2DB as last loaded or saved. */
 	stored: boolean;
@@ -59,7 +65,8 @@ function assetsSignature(assets: MissionAssets): string {
  * Load a mission's assets and mark them CLEAN.
  *
  * A no-op when content-identical to a clean stored slot, so a refetch does not
- * churn the map layers.
+ * churn the map layers. A load that REPLACES assets with different content
+ * clears the mission's undo history; a first load leaves it alone.
  *
  * @param missionId - The mission.
  * @param assets - The assets as loaded.
@@ -79,8 +86,15 @@ export function setMissionAssets(
 	}
 	slots = {
 		...slots,
-		[missionId]: { sig, assets: normalized, dirty: false, stored },
+		[missionId]: {
+			sig,
+			assets: normalized,
+			savedSig: sig,
+			dirty: false,
+			stored,
+		},
 	};
+	if (prev && prev.sig !== sig) clearMissionHistory(missionId);
 	emit();
 }
 
@@ -119,41 +133,91 @@ export function placeMissionAssets(missionId: string, map: string): void {
 	const prev = slots[missionId];
 	if (!prev || prev.assets.map || !map) return;
 	const assets = { ...prev.assets, map };
+	const sig = assetsSignature(assets);
+	// An unstored, untouched document is written by the next Save anyway:
+	// placing it is its new baseline. A stored one is now unsaved.
+	const savedSig = prev.stored || prev.dirty ? prev.savedSig : sig;
 	slots = {
 		...slots,
 		[missionId]: {
 			...prev,
-			sig: assetsSignature(assets),
+			sig,
 			assets,
-			dirty: prev.dirty || prev.stored,
+			savedSig,
+			dirty: sig !== savedSig,
 		},
 	};
 	emit();
 }
 
+/** How an edit of the assets is recorded for Undo. */
+export interface MissionAssetsEditOptions {
+	/** The step's name for Undo ("Import Gate"). Defaults to "Edit assets". */
+	label?: string;
+	/** Key shared by the edits of one gesture. */
+	gesture?: string;
+	/** `false` applies without recording a step. Defaults to `true`. */
+	record?: boolean;
+}
+
 /**
- * Apply an operator edit and mark the assets DIRTY. A no-op without a slot, or
- * when the updater hands back the same object.
+ * Apply an operator edit. The assets are then unsaved unless the edit
+ * brought them back to what was last saved. A no-op without a slot, or when
+ * the updater hands back the same object.
+ *
+ * The edit is a step of the mission's undo history (`mission-undo.ts`).
  *
  * @param missionId - The mission.
  * @param updater - Pure transform.
+ * @param options - How the edit is recorded.
  */
 export function editMissionAssets(
 	missionId: string,
 	updater: (assets: MissionAssets) => MissionAssets,
+	options: MissionAssetsEditOptions = {},
 ): void {
 	const prev = slots[missionId];
 	if (!prev) return;
 	const next = updater(prev.assets);
 	if (next === prev.assets) return;
+	const sig = assetsSignature(next);
 	slots = {
 		...slots,
 		[missionId]: {
 			...prev,
-			sig: assetsSignature(next),
+			sig,
 			assets: next,
-			dirty: true,
+			dirty: sig !== prev.savedSig,
 		},
+	};
+	if (options.record !== false) {
+		recordMissionCommand(missionId, {
+			label: options.label ?? "Edit assets",
+			gesture: options.gesture,
+			before: { assets: prev.assets },
+			after: { assets: next },
+		});
+	}
+	emit();
+}
+
+/**
+ * Put the assets back as they were at a step of the undo history. Records
+ * nothing. Unsaved unless they are the assets last saved.
+ *
+ * @param missionId - The mission.
+ * @param assets - The assets to restore (a snapshot from a step).
+ */
+export function restoreMissionAssets(
+	missionId: string,
+	assets: MissionAssets,
+): void {
+	const prev = slots[missionId];
+	if (!prev || prev.assets === assets) return;
+	const sig = assetsSignature(assets);
+	slots = {
+		...slots,
+		[missionId]: { ...prev, sig, assets, dirty: sig !== prev.savedSig },
 	};
 	emit();
 }
@@ -173,11 +237,22 @@ export function commitSavedAssets(
 	const prev = slots[missionId];
 	if (!prev) return "absent";
 	if (prev.sig !== savedSignature) {
-		slots = { ...slots, [missionId]: { ...prev, stored: true } };
+		slots = {
+			...slots,
+			[missionId]: { ...prev, savedSig: savedSignature, stored: true },
+		};
 		emit();
 		return "kept-dirty";
 	}
-	slots = { ...slots, [missionId]: { ...prev, dirty: false, stored: true } };
+	slots = {
+		...slots,
+		[missionId]: {
+			...prev,
+			savedSig: savedSignature,
+			dirty: false,
+			stored: true,
+		},
+	};
 	emit();
 	return "committed";
 }

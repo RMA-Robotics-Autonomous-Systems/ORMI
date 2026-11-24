@@ -7,9 +7,17 @@ import {
 	getMissionDraft,
 	hasMissionDraft,
 	isMissionDraftDirty,
+	restoreMissionDraft,
 	setMissionDraft,
 	subscribe,
 } from "./mission-draft-store";
+import {
+	__resetMissionHistoryStore,
+	canUndoMission,
+	getMissionHistory,
+	missionUndoLabel,
+} from "./mission-history-store";
+import { redoMission, undoMission } from "./mission-undo";
 import { MissionBehavior } from "../types/c2-types";
 import type { MissionDraft } from "../widgets/mission-editor-helpers";
 
@@ -38,6 +46,7 @@ function draft(
 
 afterEach(() => {
 	__resetMissionDraftStore();
+	__resetMissionHistoryStore();
 });
 
 describe("mission-draft-store", () => {
@@ -124,14 +133,14 @@ describe("mission-draft-store", () => {
 	it("an identical re-load of a DIRTY slot still resets it clean", () => {
 		const a = draft("m-a", "A");
 		setMissionDraft(a);
-		editMissionDraft("m-a", (d) => d); // mark dirty without content change
+		editMissionDraft("m-a", (d) => ({ ...d, name: "A2" }));
 		expect(isMissionDraftDirty("m-a")).toBe(true);
 		let notified = 0;
 		const unsubscribe = subscribe(() => {
 			notified += 1;
 		});
 		// Same content as the dirty slot, but the slot is dirty → not a no-op.
-		setMissionDraft(draft("m-a", "A"));
+		setMissionDraft(draft("m-a", "A2"));
 		expect(notified).toBe(1);
 		expect(isMissionDraftDirty("m-a")).toBe(false);
 		unsubscribe();
@@ -185,5 +194,65 @@ describe("mission-draft-store", () => {
 		unsubscribe();
 		setMissionDraft(draft("m-a"));
 		expect(notified).toBe(0);
+	});
+});
+
+describe("mission-draft-store: undo", () => {
+	it("an edit is a step; undo back to the loaded draft leaves it clean", () => {
+		const a = draft("m-a", "A");
+		setMissionDraft(a);
+		editMissionDraft("m-a", (d) => ({ ...d, name: "B" }), {
+			label: "Rename mission",
+		});
+		expect(isMissionDraftDirty("m-a")).toBe(true);
+		expect(missionUndoLabel("m-a")).toBe("Rename mission");
+		expect(undoMission("m-a")).toBe("Rename mission");
+		expect(getMissionDraft("m-a")).toBe(a);
+		expect(isMissionDraftDirty("m-a")).toBe(false);
+		redoMission("m-a");
+		expect(getMissionDraft("m-a")?.name).toBe("B");
+		expect(isMissionDraftDirty("m-a")).toBe(true);
+	});
+
+	it("the keystrokes of one rename are one step", () => {
+		setMissionDraft(draft("m-a", ""));
+		for (const name of ["R", "Re", "Rec"])
+			editMissionDraft("m-a", (d) => ({ ...d, name }), {
+				gesture: "rename:m-a",
+			});
+		expect(getMissionHistory("m-a").past).toHaveLength(1);
+		undoMission("m-a");
+		expect(getMissionDraft("m-a")?.name).toBe("");
+	});
+
+	it("an edit back to the saved content by hand is clean too", () => {
+		setMissionDraft(draft("m-a", "A"));
+		editMissionDraft("m-a", (d) => ({ ...d, name: "B" }));
+		editMissionDraft("m-a", (d) => ({ ...d, name: "A" }));
+		expect(isMissionDraftDirty("m-a")).toBe(false);
+	});
+
+	it("an unrecorded write and a restore are no steps", () => {
+		setMissionDraft(draft("m-a", "A"));
+		editMissionDraft("m-a", (d) => ({ ...d, name: "B" }), {
+			record: false,
+		});
+		restoreMissionDraft("m-a", draft("m-a", "C"));
+		expect(canUndoMission("m-a")).toBe(false);
+		expect(getMissionDraft("m-a")?.name).toBe("C");
+	});
+
+	it("a load with different content forgets the steps", () => {
+		setMissionDraft(draft("m-a", "A"));
+		editMissionDraft("m-a", (d) => ({ ...d, name: "B" }));
+		setMissionDraft(draft("m-a", "Remote"));
+		expect(canUndoMission("m-a")).toBe(false);
+	});
+
+	it("clearing a draft forgets its steps", () => {
+		setMissionDraft(draft("m-a", "A"));
+		editMissionDraft("m-a", (d) => ({ ...d, name: "B" }));
+		clearMissionDraft("m-a");
+		expect(canUndoMission("m-a")).toBe(false);
 	});
 });

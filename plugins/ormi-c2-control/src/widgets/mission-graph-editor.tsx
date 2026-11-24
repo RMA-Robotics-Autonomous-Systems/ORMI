@@ -113,9 +113,6 @@ import {
 import {
 	editMissionGraph,
 	getMissionGraph,
-	redoMissionGraph,
-	undoMissionGraph,
-	useMissionGraphHistory,
 	hasMissionGraph,
 	setMissionGraph,
 	useMissionGraph,
@@ -128,6 +125,8 @@ import {
 	useMissionAssets,
 } from "../state/mission-assets-store";
 import { saveMissionWithGraph } from "../state/mission-save";
+import { useMissionUndoState } from "../state/mission-history-store";
+import { redoMission, undoMission } from "../state/mission-undo";
 import { subscribeGraphFocus } from "../state/graph-focus-store";
 import { subscribeAssetFocus } from "../state/asset-focus-store";
 import { assetUses } from "./mission-asset-tree";
@@ -1185,7 +1184,8 @@ function MissionGraphEditorBody(props: {
 	const missionId = useSelectedMission();
 	const graph = useMissionGraph(missionId);
 	const dirty = useMissionGraphDirty(missionId);
-	const [canUndo, canRedo] = useMissionGraphHistory(missionId);
+	const { canUndo, canRedo, undoLabel, redoLabel } =
+		useMissionUndoState(missionId);
 	/**
 	 * The drag in progress: every position change of one drag shares its key,
 	 * so undo takes the whole move back in one step.
@@ -1582,6 +1582,9 @@ function MissionGraphEditorBody(props: {
 						geometries: slice.geometries,
 					},
 				}) as typeof current,
+			// Follows the graph: part of the step that changed the graph, so
+			// one Undo takes both back. Unrecorded after a load.
+			graph ? { derivedFrom: { graph } } : { record: false },
 		);
 	}, [missionId, graph, compiled, draft, graphLoad]);
 
@@ -1652,18 +1655,23 @@ function MissionGraphEditorBody(props: {
 	const patchNode = useCallback(
 		(nodeId: string, patch: Partial<MissionGraphNode>) => {
 			if (!missionId || viewOnly) return;
-			editMissionGraph(missionId, (current) =>
-				// A port the node no longer has takes its wire with it (a
-				// condition that stops being Agent holding loses its agent).
-				dropOrphanedEdges(
-					{
-						...current,
-						nodes: current.nodes.map((node) =>
-							node.id === nodeId ? { ...node, ...patch } : node,
-						),
-					},
-					nodeId,
-				),
+			editMissionGraph(
+				missionId,
+				(current) =>
+					// A port the node no longer has takes its wire with it (a
+					// condition that stops being Agent holding loses its agent).
+					dropOrphanedEdges(
+						{
+							...current,
+							nodes: current.nodes.map((node) =>
+								node.id === nodeId
+									? { ...node, ...patch }
+									: node,
+							),
+						},
+						nodeId,
+					),
+				{ label: "Edit node" },
 			);
 		},
 		[missionId, viewOnly],
@@ -1705,14 +1713,18 @@ function MissionGraphEditorBody(props: {
 		) => {
 			if (!missionId || viewOnly) return;
 			let refused: string | null = null;
-			editMissionGraph(missionId, (current) => {
-				const result = wireGraph(current, from, to, featureTypes);
-				if ("reason" in result) {
-					refused = result.reason;
-					return current;
-				}
-				return result.graph;
-			});
+			editMissionGraph(
+				missionId,
+				(current) => {
+					const result = wireGraph(current, from, to, featureTypes);
+					if ("reason" in result) {
+						refused = result.reason;
+						return current;
+					}
+					return result.graph;
+				},
+				{ label: "Connect" },
+			);
 			if (refused) showDropNotice(refused, point);
 			else setDropNotice(null);
 		},
@@ -2032,16 +2044,24 @@ function MissionGraphEditorBody(props: {
 		(nodeIds: readonly string[]) => {
 			if (!missionId || viewOnly || nodeIds.length === 0) return;
 			const doomed = new Set(nodeIds);
-			editMissionGraph(missionId, (current) => ({
-				...current,
-				nodes: current.nodes.filter((node) => !doomed.has(node.id)),
-				// Edges to a node that no longer exists are what break a graph
-				// renderer, so they go with it.
-				edges: current.edges.filter(
-					(edge) =>
-						!doomed.has(edge.source) && !doomed.has(edge.target),
-				),
-			}));
+			editMissionGraph(
+				missionId,
+				(current) => ({
+					...current,
+					nodes: current.nodes.filter((node) => !doomed.has(node.id)),
+					// Edges to a node that no longer exists are what break a graph
+					// renderer, so they go with it.
+					edges: current.edges.filter(
+						(edge) =>
+							!doomed.has(edge.source) &&
+							!doomed.has(edge.target),
+					),
+				}),
+				{
+					label:
+						nodeIds.length === 1 ? "Delete node" : "Delete nodes",
+				},
+			);
 			setSelectedNodeIds((prev) =>
 				prev.some((id) => doomed.has(id))
 					? prev.filter((id) => !doomed.has(id))
@@ -2055,10 +2075,17 @@ function MissionGraphEditorBody(props: {
 		(edgeIds: readonly string[]) => {
 			if (!missionId || viewOnly || edgeIds.length === 0) return;
 			const doomed = new Set(edgeIds);
-			editMissionGraph(missionId, (current) => ({
-				...current,
-				edges: current.edges.filter((edge) => !doomed.has(edge.id)),
-			}));
+			editMissionGraph(
+				missionId,
+				(current) => ({
+					...current,
+					edges: current.edges.filter((edge) => !doomed.has(edge.id)),
+				}),
+				{
+					label:
+						edgeIds.length === 1 ? "Delete link" : "Delete links",
+				},
+			);
 			setSelectedEdgeIds((prev) =>
 				prev.some((id) => doomed.has(id))
 					? prev.filter((id) => !doomed.has(id))
@@ -2159,7 +2186,7 @@ function MissionGraphEditorBody(props: {
 						}),
 					};
 				},
-				gesture,
+				{ label: "Move node", gesture },
 			);
 		},
 		[missionId, viewOnly, graph, deleteNodes],
@@ -2326,21 +2353,25 @@ function MissionGraphEditorBody(props: {
 			if (menu.missionId !== missionId) return;
 			const id = freshGraphId(choice.node.kind);
 			let refused: string | null = null;
-			editMissionGraph(missionId, (current) => {
-				const next = applyDrop(
-					current,
-					menu.from,
-					choice,
-					id,
-					menu.at,
-					featureTypes,
-				);
-				if (!next) {
-					refused = "That node cannot be wired there any more.";
-					return current;
-				}
-				return next;
-			});
+			editMissionGraph(
+				missionId,
+				(current) => {
+					const next = applyDrop(
+						current,
+						menu.from,
+						choice,
+						id,
+						menu.at,
+						featureTypes,
+					);
+					if (!next) {
+						refused = "That node cannot be wired there any more.";
+						return current;
+					}
+					return next;
+				},
+				{ label: "Add node" },
+			);
 			if (refused) {
 				showDropNotice(refused);
 				return;
@@ -2435,23 +2466,29 @@ function MissionGraphEditorBody(props: {
 					? selectedNodeIds[0]!
 					: null;
 			authoredBeforeFit.current = true;
-			editMissionGraph(missionId, (current) => {
-				const node: MissionGraphNode = {
-					id,
-					kind,
-					label: KIND_DEFAULT_LABEL[kind],
-					position: placeInView(current, afterId, {
+			editMissionGraph(
+				missionId,
+				(current) => {
+					const node: MissionGraphNode = {
+						id,
 						kind,
-						action: extra.action,
-					}),
-					...(kind === "wait" ? { mode: "all" as const } : {}),
-					...extra,
-				};
-				const wired = afterId
-					? addNodeAfter(current, afterId, node, featureTypes)
-					: null;
-				return wired ?? { ...current, nodes: [...current.nodes, node] };
-			});
+						label: KIND_DEFAULT_LABEL[kind],
+						position: placeInView(current, afterId, {
+							kind,
+							action: extra.action,
+						}),
+						...(kind === "wait" ? { mode: "all" as const } : {}),
+						...extra,
+					};
+					const wired = afterId
+						? addNodeAfter(current, afterId, node, featureTypes)
+						: null;
+					return (
+						wired ?? { ...current, nodes: [...current.nodes, node] }
+					);
+				},
+				{ label: "Add node" },
+			);
 			setSelectedNodeIds([id]);
 			setSelectedEdgeIds(NO_SELECTION);
 		},
@@ -2487,13 +2524,16 @@ function MissionGraphEditorBody(props: {
 		}
 		const before = new Set(graph?.nodes.map((node) => node.id) ?? []);
 		authoredBeforeFit.current = true;
-		editMissionGraph(missionId, (current) =>
-			addAgentNode(
-				current,
-				free.agent_id,
-				free.name,
-				placeInView(current, null, { kind: "agent" }),
-			),
+		editMissionGraph(
+			missionId,
+			(current) =>
+				addAgentNode(
+					current,
+					free.agent_id,
+					free.name,
+					placeInView(current, null, { kind: "agent" }),
+				),
+			{ label: "Add agent" },
 		);
 		// The id is minted inside `addAgentNode`, so it is read back off the
 		// store rather than guessed.
@@ -2580,17 +2620,17 @@ function MissionGraphEditorBody(props: {
 	/** Take back / do again the last edit (a whole drag is one). */
 	const undo = useCallback(() => {
 		if (viewOnly) return;
-		if (missionId && undoMissionGraph(missionId)) setDropMenu(null);
+		if (undoMission(missionId)) setDropMenu(null);
 	}, [missionId, viewOnly]);
 	const redo = useCallback(() => {
 		if (viewOnly) return;
-		if (missionId && redoMissionGraph(missionId)) setDropMenu(null);
+		if (redoMission(missionId)) setDropMenu(null);
 	}, [missionId, viewOnly]);
 
 	/** One lane per agent, in the order its robot takes the steps. */
 	const tidy = useCallback(() => {
 		if (!missionId || viewOnly) return;
-		editMissionGraph(missionId, layoutLanes);
+		editMissionGraph(missionId, layoutLanes, { label: "Tidy" });
 		void fitView({
 			duration: cameraMs(300, reducedMotion),
 			padding: FIT_PADDING,
@@ -2610,11 +2650,15 @@ function MissionGraphEditorBody(props: {
 		const clip = graphClipboard;
 		if (!missionId || viewOnly || !clip) return;
 		let pasted: string[] = [];
-		editMissionGraph(missionId, (current) => {
-			const result = pasteClip(current, clip);
-			pasted = result.ids;
-			return result.graph;
-		});
+		editMissionGraph(
+			missionId,
+			(current) => {
+				const result = pasteClip(current, clip);
+				pasted = result.ids;
+				return result.graph;
+			},
+			{ label: "Paste" },
+		);
 		setSelectedEdgeIds(NO_SELECTION);
 		setSelectedNodeIds(pasted);
 	}, [missionId, viewOnly]);
@@ -2829,10 +2873,18 @@ function MissionGraphEditorBody(props: {
 					}
 					value={draft?.name ?? ""}
 					onChange={(event) =>
-						editMissionDraft(missionId, (current) => ({
-							...current,
-							name: event.target.value,
-						}))
+						editMissionDraft(
+							missionId,
+							(current) => ({
+								...current,
+								name: event.target.value,
+							}),
+							// One rename is one step, not one per keystroke.
+							{
+								label: "Rename mission",
+								gesture: `rename:${missionId}`,
+							},
+						)
 					}
 				/>
 
@@ -2875,6 +2927,43 @@ function MissionGraphEditorBody(props: {
 						{narrow ? null : "Author"}
 					</ToggleGroupItem>
 				</ToggleGroup>
+
+				{/* The mission's one history: what was last done to it here or
+				    on the map. Kept while the plan is approved, disabled. */}
+				{!outdated && (
+					<>
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+							disabled={viewOnly || !canUndo}
+							onClick={undo}
+							title={
+								undoLabel
+									? `Undo: ${undoLabel} (Ctrl+Z)`
+									: "Undo (Ctrl+Z)"
+							}
+							aria-label="Undo"
+						>
+							<Undo2 />
+						</Button>
+						<Button
+							size="icon-sm"
+							variant="ghost"
+							className="any-pointer-coarse:min-h-11 any-pointer-coarse:min-w-11"
+							disabled={viewOnly || !canRedo}
+							onClick={redo}
+							title={
+								redoLabel
+									? `Redo: ${redoLabel} (Ctrl+Shift+Z)`
+									: "Redo (Ctrl+Shift+Z)"
+							}
+							aria-label="Redo"
+						>
+							<Redo2 />
+						</Button>
+					</>
+				)}
 
 				{!viewOnly && !outdated && (
 					<>
@@ -2969,26 +3058,6 @@ function MissionGraphEditorBody(props: {
 							className="data-[orientation=vertical]:h-6"
 						/>
 
-						<Button
-							size="icon-sm"
-							variant="ghost"
-							disabled={!canUndo}
-							onClick={undo}
-							title="Undo (Ctrl+Z)"
-							aria-label="Undo"
-						>
-							<Undo2 />
-						</Button>
-						<Button
-							size="icon-sm"
-							variant="ghost"
-							disabled={!canRedo}
-							onClick={redo}
-							title="Redo (Ctrl+Shift+Z)"
-							aria-label="Redo"
-						>
-							<Redo2 />
-						</Button>
 						<Button
 							size="sm"
 							variant="outline"

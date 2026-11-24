@@ -41,6 +41,12 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import type { MissionDraft } from "../widgets/mission-editor-helpers";
+import type { MissionDocParts } from "./mission-history";
+import {
+	amendMissionCommand,
+	clearMissionHistory,
+	recordMissionCommand,
+} from "./mission-history-store";
 
 /** One mission's working-copy slot: its content signature + draft + dirty flag. */
 interface DraftSlot {
@@ -48,6 +54,8 @@ interface DraftSlot {
 	sig: string;
 	/** The stored working draft (reference-stable while `sig` is unchanged). */
 	draft: MissionDraft;
+	/** {@link draftSignature} of the draft as last loaded or saved. */
+	savedSig: string;
 	/** Whether the operator has unsaved edits in this draft. */
 	dirty: boolean;
 }
@@ -86,6 +94,10 @@ function draftSignature(draft: MissionDraft): string {
  * change (or when the slot was dirty) the slot object is replaced immutably and
  * listeners are notified.
  *
+ * A load that REPLACES a draft with different content clears the mission's
+ * undo history (its steps were taken on a draft that is gone); a first load
+ * leaves it alone.
+ *
  * @param draft - The working draft to store for `draft.mission_id`.
  */
 export function setMissionDraft(draft: MissionDraft): void {
@@ -95,32 +107,105 @@ export function setMissionDraft(draft: MissionDraft): void {
 	// Identical re-load of an already-clean slot → pure no-op (reference-stable).
 	if (prev && prev.sig === sig && !prev.dirty) return;
 
-	drafts = { ...drafts, [draft.mission_id]: { sig, draft, dirty: false } };
+	drafts = {
+		...drafts,
+		[draft.mission_id]: { sig, draft, savedSig: sig, dirty: false },
+	};
+	if (prev && prev.sig !== sig) clearMissionHistory(draft.mission_id);
 	emit();
 }
 
+/** How an edit of the draft is recorded for Undo. */
+export interface MissionDraftEditOptions {
+	/** The step's name for Undo ("Rename mission"). Defaults to "Edit mission". */
+	label?: string;
+	/** Key shared by the edits of one gesture (the keystrokes of one rename). */
+	gesture?: string;
+	/**
+	 * `false` applies without recording a step: a save's own write, a load.
+	 * Defaults to `true`.
+	 */
+	record?: boolean;
+	/**
+	 * The write is DERIVED from these parts as they are now (the graph
+	 * editor's allocation, compiled from the graph). It is folded into the
+	 * step that produced them, so one Undo takes both back; when no step did
+	 * (the parts were loaded), nothing is recorded.
+	 */
+	derivedFrom?: MissionDocParts;
+}
+
 /**
- * Apply an operator edit to a mission's working copy and mark it DIRTY.
+ * Apply an operator edit to a mission's working copy. The draft is then
+ * unsaved unless the edit brought it back to what was last saved.
  *
  * The `updater` receives the current draft and returns the next one (immutably).
- * The slot object is always replaced (a real operator edit), so consumers see a
- * fresh value and re-render. A NO-OP when the slot is absent (the same null-guard
- * semantics as the editor's old `editDraft` / the map's `setMissionConfig(prev => prev ? … :
- * prev)`): an edit can only land on a loaded mission.
+ * A NO-OP when the slot is absent (the same null-guard semantics as the
+ * editor's old `editDraft` / the map's `setMissionConfig(prev => prev ? … :
+ * prev)`): an edit can only land on a loaded mission. Also a no-op when the
+ * updater hands back the same draft: nothing changed, nothing is recorded.
+ *
+ * The edit is a step of the mission's undo history (`mission-undo.ts`)
+ * unless `options` says otherwise.
  *
  * @param missionId - The mission whose draft to edit.
  * @param updater - Pure transform from the current draft to the next.
+ * @param options - How the edit is recorded.
  */
 export function editMissionDraft(
 	missionId: string,
 	updater: (draft: MissionDraft) => MissionDraft,
+	options: MissionDraftEditOptions = {},
 ): void {
 	const prev = drafts[missionId];
 	if (!prev) return;
 	const next = updater(prev.draft);
+	if (next === prev.draft) return;
+	const sig = draftSignature(next);
 	drafts = {
 		...drafts,
-		[missionId]: { sig: draftSignature(next), draft: next, dirty: true },
+		[missionId]: {
+			...prev,
+			sig,
+			draft: next,
+			dirty: sig !== prev.savedSig,
+		},
+	};
+	if (options.derivedFrom) {
+		amendMissionCommand(
+			missionId,
+			options.derivedFrom,
+			{ draft: prev.draft },
+			{ draft: next },
+		);
+	} else if (options.record !== false) {
+		recordMissionCommand(missionId, {
+			label: options.label ?? "Edit mission",
+			gesture: options.gesture,
+			before: { draft: prev.draft },
+			after: { draft: next },
+		});
+	}
+	emit();
+}
+
+/**
+ * Put a draft back as it was at a step of the undo history. Records
+ * nothing. Unsaved unless it is the draft last saved.
+ *
+ * @param missionId - The mission.
+ * @param draft - The draft to restore (a snapshot from a step).
+ */
+export function restoreMissionDraft(
+	missionId: string,
+	draft: MissionDraft,
+): void {
+	const prev = drafts[missionId];
+	if (!prev || prev.draft === draft) return;
+	const sig = draftSignature(draft);
+	drafts = {
+		...drafts,
+		[missionId]: { ...prev, sig, draft, dirty: sig !== prev.savedSig },
 	};
 	emit();
 }
@@ -180,12 +265,26 @@ export function commitSavedDraft(
 ): "committed" | "kept-dirty" | "absent" {
 	const prev = drafts[missionId];
 	if (!prev) return "absent";
-	if (!matches(prev.draft)) return "kept-dirty";
+	if (!matches(prev.draft)) {
+		// What is stored now is `saved`, whatever the slot holds.
+		drafts = {
+			...drafts,
+			[missionId]: { ...prev, savedSig: draftSignature(saved) },
+		};
+		emit();
+		return "kept-dirty";
+	}
 	const next = options.apply ? options.apply(prev.draft) : saved;
 	const dirty = options.isSaved ? !options.isSaved(next) : false;
+	const sig = draftSignature(next);
 	drafts = {
 		...drafts,
-		[missionId]: { sig: draftSignature(next), draft: next, dirty },
+		[missionId]: {
+			sig,
+			draft: next,
+			savedSig: dirty ? draftSignature(saved) : sig,
+			dirty,
+		},
 	};
 	emit();
 	return "committed";
@@ -240,6 +339,7 @@ export function clearMissionDraft(id: string | null | undefined): void {
 	const { [id]: _dropped, ...rest } = drafts;
 	void _dropped;
 	drafts = rest;
+	clearMissionHistory(id);
 	emit();
 }
 

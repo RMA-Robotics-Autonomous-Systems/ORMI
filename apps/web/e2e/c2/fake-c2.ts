@@ -105,6 +105,11 @@ export class FakeC2 {
 	/** Requests to paths this fake does not implement. Must stay empty. */
 	readonly unhandled: RecordedRequest[] = [];
 	private readonly maps = new Map<string, FakeMap>();
+	/**
+	 * The `missions` collection: missions and their `:graph` / `:assets`
+	 * sibling documents, keyed by `mission_id`, in insertion order.
+	 */
+	private readonly missions = new Map<string, Record<string, unknown>>();
 	private readonly failures: InjectedFailure[] = [];
 
 	/**
@@ -117,6 +122,24 @@ export class FakeC2 {
 			name,
 			features: structuredClone(features),
 		});
+	}
+
+	/**
+	 * Store a document in the `missions` collection (a mission, or its
+	 * `:graph` / `:assets` sibling), as `POST /missions` would.
+	 * @param doc - The document (deep-copied); `mission_id` is its key.
+	 */
+	seedMissionDocument(doc: Record<string, unknown>): void {
+		this.missions.set(String(doc.mission_id), structuredClone(doc));
+	}
+
+	/**
+	 * A document of the `missions` collection, as the fake holds it now.
+	 * @param missionId - Its `mission_id` (`"<id>:graph"` for a graph).
+	 * @returns The document, or undefined.
+	 */
+	missionDocument(missionId: string): Record<string, unknown> | undefined {
+		return this.missions.get(missionId);
 	}
 
 	/**
@@ -332,8 +355,51 @@ export class FakeC2 {
 				return { status: 200, body: { deleted: featureId } };
 			}
 		}
-		if (method === "GET" && pathname === "/missions") {
-			return { status: 200, body: [] };
+		if (parts[0] === "missions") {
+			if (method === "GET" && parts.length === 1) {
+				return {
+					status: 200,
+					body: [...this.missions.values()].map((doc) =>
+						structuredClone(doc),
+					),
+				};
+			}
+			if (method === "POST" && parts.length === 1) {
+				const doc = structuredClone(body) as Record<string, unknown>;
+				const id = doc?.mission_id;
+				if (typeof id !== "string" || id.length === 0)
+					return {
+						status: 400,
+						body: {
+							error: {
+								code: "VALIDATION",
+								message: "mission_id is required",
+							},
+						},
+					};
+				this.missions.set(id, doc);
+				return { status: 200, body: doc };
+			}
+			if (method === "DELETE" && parts.length === 2 && parts[1]) {
+				if (!this.missions.delete(parts[1]))
+					return {
+						status: 404,
+						body: {
+							error: {
+								code: "MISSION_NOT_FOUND",
+								message: "no mission",
+							},
+						},
+					};
+				return { status: 200, body: { deleted: parts[1] } };
+			}
+			if (
+				method === "GET" &&
+				parts.length === 3 &&
+				parts[2] === "contacts"
+			) {
+				return { status: 200, body: [] };
+			}
 		}
 		if (method === "GET" && pathname === "/Vehicles") {
 			return { status: 200, body: [] };

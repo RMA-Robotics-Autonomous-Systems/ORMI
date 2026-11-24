@@ -2,19 +2,26 @@ import { beforeEach, describe, expect, it } from "bun:test";
 
 import {
 	__resetMissionGraphStore,
-	canRedoMissionGraph,
-	canUndoMissionGraph,
 	commitSavedGraph,
 	editMissionGraph,
 	getMissionGraph,
 	hasMissionGraph,
 	isMissionGraphDirty,
 	missionGraphSignature,
-	redoMissionGraph,
+	restoreMissionGraph,
 	setMissionGraph,
 	subscribe,
-	undoMissionGraph,
 } from "./mission-graph-store";
+import {
+	__resetMissionHistoryStore,
+	canRedoMission as canRedoMissionGraph,
+	canUndoMission as canUndoMissionGraph,
+	getMissionHistory,
+} from "./mission-history-store";
+import { redoMission, undoMission } from "./mission-undo";
+
+const undoMissionGraph = (id: string) => undoMission(id) !== null;
+const redoMissionGraph = (id: string) => redoMission(id) !== null;
 import { emptyMissionGraph, type MissionGraph } from "../widgets/mission-graph";
 
 /** A graph with one agent node. */
@@ -36,6 +43,7 @@ function graph(label = "Agent"): MissionGraph {
 
 beforeEach(() => {
 	__resetMissionGraphStore();
+	__resetMissionHistoryStore();
 });
 
 describe("loading", () => {
@@ -178,8 +186,8 @@ describe("undo and redo", () => {
 	it("takes a whole drag back in one step", () => {
 		setMissionGraph("m-1", graph());
 		for (const x of [10, 20, 30])
-			editMissionGraph("m-1", moveTo(x), "move:1");
-		editMissionGraph("m-1", moveTo(99), "move:2");
+			editMissionGraph("m-1", moveTo(x), { gesture: "move:1" });
+		editMissionGraph("m-1", moveTo(99), { gesture: "move:2" });
 		undoMissionGraph("m-1");
 		expect(getMissionGraph("m-1")?.nodes[0]?.position.x).toBe(30);
 		undoMissionGraph("m-1");
@@ -191,5 +199,56 @@ describe("undo and redo", () => {
 		editMissionGraph("m-1", relabel("B"));
 		setMissionGraph("m-1", graph("Z"));
 		expect(canUndoMissionGraph("m-1")).toBe(false);
+	});
+
+	it("an undo back to the saved graph leaves it clean, and a redo unsaved", () => {
+		setMissionGraph("m-1", graph("A"));
+		editMissionGraph("m-1", relabel("B"));
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+		undoMissionGraph("m-1");
+		expect(isMissionGraphDirty("m-1")).toBe(false);
+		redoMissionGraph("m-1");
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+	});
+
+	it("an undo after a save makes the graph unsaved again", () => {
+		setMissionGraph("m-1", graph("A"));
+		editMissionGraph("m-1", relabel("B"));
+		const saved = getMissionGraph("m-1")!;
+		expect(commitSavedGraph("m-1", missionGraphSignature(saved))).toBe(
+			"committed",
+		);
+		expect(isMissionGraphDirty("m-1")).toBe(false);
+		expect(canUndoMissionGraph("m-1")).toBe(true);
+		undoMissionGraph("m-1");
+		expect(getMissionGraph("m-1")?.nodes[0]?.label).toBe("A");
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+		redoMissionGraph("m-1");
+		expect(isMissionGraphDirty("m-1")).toBe(false);
+	});
+
+	it("an edit that is not recorded is no step", () => {
+		setMissionGraph("m-1", graph("A"));
+		editMissionGraph("m-1", relabel("B"), { record: false });
+		expect(canUndoMissionGraph("m-1")).toBe(false);
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+	});
+
+	it("restoring records nothing", () => {
+		setMissionGraph("m-1", graph("A"));
+		const before = getMissionHistory("m-1");
+		restoreMissionGraph("m-1", graph("Q"));
+		expect(getMissionGraph("m-1")?.nodes[0]?.label).toBe("Q");
+		expect(getMissionHistory("m-1")).toBe(before);
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+	});
+
+	it("a first load keeps the steps another part recorded", () => {
+		// A step recorded on another part (an asset imported on the map)
+		// before the graph editor loaded the graph.
+		setMissionGraph("m-2", graph("A"));
+		editMissionGraph("m-2", relabel("B"));
+		setMissionGraph("m-1", graph("A"));
+		expect(canUndoMissionGraph("m-2")).toBe(true);
 	});
 });

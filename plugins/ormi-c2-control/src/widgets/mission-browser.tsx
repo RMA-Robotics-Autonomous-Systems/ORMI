@@ -35,6 +35,7 @@ import {
 	useSelectedMission,
 	setSelectedMission,
 } from "../state/selection-store";
+import { clearMissionHistory } from "../state/mission-history-store";
 import { publishMissionNames } from "../state/c2-catalog-store";
 import {
 	MissionRow,
@@ -306,6 +307,8 @@ function MissionBrowserBody(props: {
 				// mission is gone.
 				await del.execute({ mission_id: graphDocId(row.mission_id) });
 				await del.execute({ mission_id: assetsDocId(row.mission_id) });
+				// Its steps were on a mission that no longer exists.
+				clearMissionHistory(row.mission_id);
 				if (active === row.mission_id) setSelectedMission(null);
 				await refetch();
 			});

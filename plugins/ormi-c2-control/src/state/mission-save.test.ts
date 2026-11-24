@@ -20,6 +20,12 @@ import {
 	setMissionAssets,
 } from "./mission-assets-store";
 import {
+	__resetMissionHistoryStore,
+	canUndoMission,
+	getMissionHistory,
+} from "./mission-history-store";
+import { undoMission } from "./mission-undo";
+import {
 	saveMissionWithGraph,
 	summarizeMissionSave,
 	type MissionSaveCalls,
@@ -150,6 +156,47 @@ beforeEach(() => {
 	__resetMissionDraftStore();
 	__resetMissionGraphStore();
 	__resetMissionAssetsStore();
+	__resetMissionHistoryStore();
+});
+
+describe("Save and the mission's undo history", () => {
+	it("a save records nothing: its own writes (the compiled graph on the draft, placing) are no step", async () => {
+		setMissionGraph("m-1", graph());
+		setMissionAssets("m-1", assets(), true);
+		const { calls, written } = store();
+		const result = await saveMissionWithGraph("m-1", calls);
+		expect(result.ok).toBe(true);
+		// The save wrote the compiled allocation onto the draft...
+		expect(written.at(-1)?.graph_ref).toBe("m-1:graph");
+		expect(getMissionDraft("m-1")?.vehicles).toEqual(["robot-es"]);
+		// ...and none of it is a step an Undo could take back.
+		expect(canUndoMission("m-1")).toBe(false);
+	});
+
+	it("keeps the history through a save; an undo then makes the mission unsaved and writes nothing", async () => {
+		setMissionGraph("m-1", graph());
+		setMissionAssets("m-1", assets(), true);
+		editMissionGraph(
+			"m-1",
+			(g) => ({
+				...g,
+				nodes: g.nodes.map((n) =>
+					n.id === "wp" ? { ...n, label: "Hold here" } : n,
+				),
+			}),
+			{ label: "Edit node" },
+		);
+		const { calls, written } = store();
+		expect((await saveMissionWithGraph("m-1", calls)).ok).toBe(true);
+		const writes = written.length;
+		const steps = getMissionHistory("m-1").past.length;
+		expect(steps).toBe(1);
+		expect(isMissionGraphDirty("m-1")).toBe(false);
+
+		expect(undoMission("m-1")).toBe("Edit node");
+		expect(isMissionGraphDirty("m-1")).toBe(true);
+		expect(written).toHaveLength(writes);
+	});
 });
 
 describe("one Save mission", () => {

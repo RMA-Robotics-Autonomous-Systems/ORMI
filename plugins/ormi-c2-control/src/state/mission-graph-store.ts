@@ -23,33 +23,24 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import { normalizeGraph, type MissionGraph } from "../widgets/mission-graph";
+import {
+	clearMissionHistory,
+	recordMissionCommand,
+} from "./mission-history-store";
 
-/** One mission's working graph: its content signature, the graph, dirty flag. */
+/** One mission's working graph. */
 interface GraphSlot {
+	/** {@link graphSignature} of `graph`. */
 	sig: string;
 	graph: MissionGraph;
+	/** {@link graphSignature} of the graph as last loaded or saved. */
+	savedSig: string;
+	/** Whether `graph` differs from what was last loaded or saved. */
 	dirty: boolean;
 }
 
 /** mission_id → working graph slot. */
 let graphs: Record<string, GraphSlot> = {};
-
-/**
- * Undo / redo, per mission: the graphs before (`past`) and after (`future`)
- * the current one. `gesture` is the key of the last edit, so the many edits
- * of one gesture (a drag moves a node on every pointer move) are ONE step.
- */
-interface GraphHistory {
-	past: MissionGraph[];
-	future: MissionGraph[];
-	gesture?: string;
-}
-
-/** How many steps back an operator can go. */
-const HISTORY_LIMIT = 100;
-
-/** mission_id → its history. Cleared by a load. */
-let histories: Record<string, GraphHistory> = {};
 
 /** Subscribers notified on every change. */
 const listeners = new Set<() => void>();
@@ -72,6 +63,12 @@ function graphSignature(graph: MissionGraph): string {
  * re-lays nothing out, but every derived memo would recompute and a selected
  * node would be re-resolved).
  *
+ * A load that REPLACES a graph with different content (a reload, a remote
+ * change) clears the mission's undo history: its steps were taken on a graph
+ * that is gone. A first load leaves it alone, so steps already taken in
+ * another panel (an asset imported on the map) survive the graph editor
+ * opening.
+ *
  * @param missionId - The mission the graph belongs to.
  * @param graph - The graph as loaded.
  */
@@ -82,115 +79,89 @@ export function setMissionGraph(missionId: string, graph: MissionGraph): void {
 	if (prev && prev.sig === sig && !prev.dirty) return;
 	graphs = {
 		...graphs,
-		[missionId]: { sig, graph: normalized, dirty: false },
+		[missionId]: { sig, graph: normalized, savedSig: sig, dirty: false },
 	};
-	// A loaded graph is a new starting point: nothing to undo into.
-	histories = { ...histories, [missionId]: { past: [], future: [] } };
+	if (prev && prev.sig !== sig) clearMissionHistory(missionId);
 	emit();
 }
 
+/** How an edit of the graph is recorded for Undo. */
+export interface MissionGraphEditOptions {
+	/** The step's name for Undo ("Add node"). Defaults to "Edit graph". */
+	label?: string;
+	/**
+	 * Key shared by the edits of one gesture (e.g. `"move:3"`, every position
+	 * change of one drag), so the gesture is one step.
+	 */
+	gesture?: string;
+	/** `false` applies without recording a step. Defaults to `true`. */
+	record?: boolean;
+}
+
 /**
- * Apply an operator edit and mark the graph DIRTY.
+ * Apply an operator edit. The graph is then unsaved unless the edit brought
+ * it back to what was last saved.
  *
  * A no-op when no slot exists: an edit can only land on a loaded graph, which
  * is the same null-guard `editMissionDraft` uses. Also a no-op when the
  * updater hands back the same graph (a refused wire): nothing changed, so
- * nothing is unsaved.
+ * nothing is unsaved and nothing is recorded.
  *
- * Every edit is a step {@link undoMissionGraph} can take back, except that
- * consecutive edits of one `gesture` (e.g. `"move:3"`, every position change
- * of one drag) are one step.
+ * The edit is a step of the mission's undo history (`mission-undo.ts`).
  *
  * @param missionId - The mission whose graph to edit.
  * @param updater - Pure transform from the current graph to the next.
- * @param gesture - Key shared by the edits of one gesture, if any.
+ * @param options - How the edit is recorded.
  */
 export function editMissionGraph(
 	missionId: string,
 	updater: (graph: MissionGraph) => MissionGraph,
-	gesture?: string,
+	options: MissionGraphEditOptions = {},
 ): void {
 	const prev = graphs[missionId];
 	if (!prev) return;
 	const next = updater(prev.graph);
 	if (next === prev.graph) return;
-	const history = histories[missionId] ?? { past: [], future: [] };
-	const sameGesture = gesture !== undefined && history.gesture === gesture;
-	histories = {
-		...histories,
-		[missionId]: {
-			past: sameGesture
-				? history.past
-				: [...history.past, prev.graph].slice(-HISTORY_LIMIT),
-			future: [],
-			gesture,
-		},
-	};
+	const sig = graphSignature(next);
 	graphs = {
 		...graphs,
-		[missionId]: { sig: graphSignature(next), graph: next, dirty: true },
+		[missionId]: {
+			...prev,
+			sig,
+			graph: next,
+			dirty: sig !== prev.savedSig,
+		},
 	};
+	if (options.record !== false) {
+		recordMissionCommand(missionId, {
+			label: options.label ?? "Edit graph",
+			gesture: options.gesture,
+			before: { graph: prev.graph },
+			after: { graph: next },
+		});
+	}
 	emit();
 }
 
 /**
- * Take back the last edit (a whole gesture). The graph is then unsaved.
+ * Put a graph back as it was at a step of the undo history. Records
+ * nothing. Unsaved unless it is the graph last saved.
+ *
  * @param missionId - The mission.
- * @returns Whether there was one.
+ * @param graph - The graph to restore (a snapshot from a step).
  */
-export function undoMissionGraph(missionId: string): boolean {
+export function restoreMissionGraph(
+	missionId: string,
+	graph: MissionGraph,
+): void {
 	const prev = graphs[missionId];
-	const history = histories[missionId];
-	const back = history?.past[history.past.length - 1];
-	if (!prev || !history || !back) return false;
-	histories = {
-		...histories,
-		[missionId]: {
-			past: history.past.slice(0, -1),
-			future: [prev.graph, ...history.future],
-		},
-	};
+	if (!prev || prev.graph === graph) return;
+	const sig = graphSignature(graph);
 	graphs = {
 		...graphs,
-		[missionId]: { sig: graphSignature(back), graph: back, dirty: true },
+		[missionId]: { ...prev, sig, graph, dirty: sig !== prev.savedSig },
 	};
 	emit();
-	return true;
-}
-
-/**
- * Do again what {@link undoMissionGraph} took back.
- * @param missionId - The mission.
- * @returns Whether there was one.
- */
-export function redoMissionGraph(missionId: string): boolean {
-	const prev = graphs[missionId];
-	const history = histories[missionId];
-	const again = history?.future[0];
-	if (!prev || !history || !again) return false;
-	histories = {
-		...histories,
-		[missionId]: {
-			past: [...history.past, prev.graph].slice(-HISTORY_LIMIT),
-			future: history.future.slice(1),
-		},
-	};
-	graphs = {
-		...graphs,
-		[missionId]: { sig: graphSignature(again), graph: again, dirty: true },
-	};
-	emit();
-	return true;
-}
-
-/** Whether {@link undoMissionGraph} has something to take back. */
-export function canUndoMissionGraph(id: string | null | undefined): boolean {
-	return !!id && (histories[id]?.past.length ?? 0) > 0;
-}
-
-/** Whether {@link redoMissionGraph} has something to do again. */
-export function canRedoMissionGraph(id: string | null | undefined): boolean {
-	return !!id && (histories[id]?.future.length ?? 0) > 0;
 }
 
 /**
@@ -211,8 +182,18 @@ export function commitSavedGraph(
 ): "committed" | "kept-dirty" | "absent" {
 	const prev = graphs[missionId];
 	if (!prev) return "absent";
-	if (prev.sig !== savedSignature) return "kept-dirty";
-	graphs = { ...graphs, [missionId]: { ...prev, dirty: false } };
+	if (prev.sig !== savedSignature) {
+		graphs = {
+			...graphs,
+			[missionId]: { ...prev, savedSig: savedSignature },
+		};
+		emit();
+		return "kept-dirty";
+	}
+	graphs = {
+		...graphs,
+		[missionId]: { ...prev, savedSig: savedSignature, dirty: false },
+	};
 	emit();
 	return "committed";
 }
@@ -299,32 +280,9 @@ export function useMissionGraphDirty(
 }
 
 /**
- * React hook: whether undo / redo have something to do, as primitives.
- * @param missionId - The mission id.
- * @returns `[canUndo, canRedo]`.
- */
-export function useMissionGraphHistory(
-	missionId: string | null | undefined,
-): [boolean, boolean] {
-	const getUndo = useCallback(
-		() => canUndoMissionGraph(missionId),
-		[missionId],
-	);
-	const getRedo = useCallback(
-		() => canRedoMissionGraph(missionId),
-		[missionId],
-	);
-	return [
-		useSyncExternalStore(subscribe, getUndo, getUndo),
-		useSyncExternalStore(subscribe, getRedo, getRedo),
-	];
-}
-
-/**
  * Test-only: reset all module-level state.
  */
 export function __resetMissionGraphStore(): void {
 	graphs = {};
-	histories = {};
 	listeners.clear();
 }

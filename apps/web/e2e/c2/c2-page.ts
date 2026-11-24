@@ -52,12 +52,18 @@ const BLANK_PNG = Buffer.from(
 export interface ArrangementOptions {
 	/** The Assets panel (with the map's feature list) left of the map. */
 	assets?: boolean;
+	/**
+	 * The mission browser left of the map (to open a mission) and the
+	 * mission's node editor right of it.
+	 */
+	graph?: boolean;
 }
 
 /**
  * The stored arrangement: the C2 datasource pointing at the fake, and the
  * mission map in one FlexLayout tabset, opened on `mapName`; alone, or with
- * the Assets panel beside it.
+ * the Assets panel beside it, or with the mission browser and the node
+ * editor either side of it.
  *
  * @param mapName - The map the widget opens on (`defaultMap`).
  * @param options - What else to place.
@@ -96,6 +102,19 @@ export function seededArrangement(
 		title: "Assets",
 		settings: { title: "Assets" },
 	};
+	const browser = {
+		widget_id: "c2-mission-browser-widget",
+		box_id: "c2-browser",
+		title: "Missions",
+		settings: { title: "Missions" },
+	};
+	// Ids from `MissionGraphEditorDefinition` / `MissionBrowserDefinition`.
+	const graphEditor = {
+		widget_id: "c2-mission-graph-widget",
+		box_id: "c2-mission-graph-editor",
+		title: "Mission Graph",
+		settings: { title: "Mission Graph", defaultMap: mapName },
+	};
 	const tabset = (box: string, name: string, weight: number) => ({
 		type: "tabset",
 		weight,
@@ -111,16 +130,28 @@ export function seededArrangement(
 		layout: {
 			type: "row",
 			weight: 100,
-			children: options.assets
-				? [
-						tabset("c2-assets", "Assets", 22),
-						tabset("c2-map", "Mission Map", 78),
-					]
-				: [tabset("c2-map", "Mission Map", 100)],
+			children: [
+				...(options.assets ? [tabset("c2-assets", "Assets", 22)] : []),
+				...(options.graph
+					? [tabset("c2-browser", "Missions", 16)]
+					: []),
+				tabset(
+					"c2-map",
+					"Mission Map",
+					options.graph ? 46 : options.assets ? 78 : 100,
+				),
+				...(options.graph
+					? [tabset("c2-mission-graph-editor", "Mission Graph", 38)]
+					: []),
+			],
 		},
 	};
 	const widgets: [string, unknown][] = [["c2-map", widget]];
 	if (options.assets) widgets.push(["c2-assets", assets]);
+	if (options.graph) {
+		widgets.push(["c2-browser", browser]);
+		widgets.push(["c2-mission-graph-editor", graphEditor]);
+	}
 	return JSON.stringify({
 		layouts: { flex },
 		widgets,

@@ -336,6 +336,8 @@ export async function saveMissionWithGraph(
 								}
 							: {}),
 					}) as typeof current,
+				// The save's own write: never a step an Undo takes back.
+				{ record: false },
 			);
 		}
 	}

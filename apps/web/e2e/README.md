@@ -38,7 +38,8 @@ Playwright is pinned to `1.65.0`, whose Chromium build (1254) is the one in
 ## What is faked
 
 - **The C2.** `c2/fake-c2.ts` is an in-memory Mission Control (maps, features,
-  missions, vehicles, planner) routed with `page.route` on two hosts under
+  the `missions` collection with its `:graph` / `:assets` documents, seeded with
+  `seedMissionDocument`, vehicles, planner) routed with `page.route` on two hosts under
   `.invalid`, which never resolve. The datasource carries a fake token. A request
   to a C2 path the fake does not implement is answered 501 and fails the spec by
   name. No request ever reaches a real C2, or a robot linked to one.
@@ -54,7 +55,8 @@ Playwright is pinned to `1.65.0`, whose Chromium build (1254) is the one in
 The C2 page keeps its arrangement and datasources in local storage. Each test
 runs in a fresh browser context and writes, before the page loads: the mission
 map in one panel (with the Assets panel beside it when a spec passes
-`{ assets: true }`), the fake C2 datasource, and the newest devlog id (so the
+`{ assets: true }`, or the mission browser and the node editor either side of it
+with `{ graph: true }`), the fake C2 datasource, and the newest devlog id (so the
 "What's new" dialog does not open over the page). `c2/c2-page.ts` mirrors the
 page's storage key; if the page bumps it, the specs fail on a missing map rather
 than passing on the default layout.

@@ -1013,9 +1013,21 @@ and lives in two places at once.
   `useUpdateNodeInternals` when the port set changes), and keys pressed in a
   control inside a node bubble to xyflow's node key handler through Radix
   portals (give the trigger and the content `nokey`).
-- **Editing tools (2026-09-24).** Undo / redo per mission in the graph store
-  (`undoMissionGraph`, Ctrl+Z / Ctrl+Shift+Z; the position changes of one drag
-  share a gesture key, so a whole move is one step; a load starts afresh), a
+- **Editing tools (2026-09-24; undo reworked 2026-11-24).** Undo / redo is
+  ONE history per mission across its three working copies (draft, graph,
+  assets): `state/mission-history.ts` (pure snapshot commands, gesture
+  folding, depth 100), `state/mission-history-store.ts`
+  (`useMissionUndoState`), `state/mission-undo.ts` (`editMission` for a
+  cross-part edit as one step, `undoMission` / `redoMission` through each
+  store's non-recording restore). Each store keeps `savedSig`, so an undo
+  back to what was saved is clean; the graph editor's allocation write to the
+  draft is folded into the graph step it follows (`derivedFrom`), the save's
+  own compile write is never recorded, and Save keeps the history. Ctrl+Z /
+  Ctrl+Shift+Z in either panel, and Undo / Redo on both toolbars, reach it;
+  the map's open edit and group move go first (`widgets/editor-undo-route.ts`).
+  A load with different content or a deleted mission clears it; view only
+  freezes it. The position changes of one drag share a gesture key, so a
+  whole move is one step. Also a
   minimap, **Tidy** (`layoutLanes`: one lane per agent, its steps in the order
   the robot takes them, what feeds a step below it — itself undoable), and
   Ctrl+C / Ctrl+V of nodes with the edges between them (never an agent node:
